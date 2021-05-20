@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -91,8 +92,8 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 		teleport.TraitLogins: req.Logins,
 	})
 
-	user.SetCreatedBy(services.CreatedBy{
-		User: services.UserRef{Name: createdBy},
+	user.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{Name: createdBy},
 		Time: time.Now().UTC(),
 	})
 

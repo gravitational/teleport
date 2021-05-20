@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -121,15 +122,15 @@ func insertServers(ctx context.Context, t assert.TestingT, svc services.Presence
 	for i := 0; i < count; i++ {
 		name := uuid.New()
 		addr := fmt.Sprintf("%s.%s", name, clusterName)
-		server := &services.ServerV2{
+		server := &types.ServerV2{
 			Kind:    kind,
 			Version: services.V2,
-			Metadata: services.Metadata{
+			Metadata: types.Metadata{
 				Name:      name,
 				Namespace: defaults.Namespace,
 				Labels:    labels,
 			},
-			Spec: services.ServerSpecV2{
+			Spec: types.ServerSpecV2{
 				Addr:       addr,
 				PublicAddr: addr,
 				Version:    teleport.Version,

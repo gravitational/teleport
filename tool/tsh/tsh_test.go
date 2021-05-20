@@ -803,8 +803,8 @@ func makeTestServers(t *testing.T, bootstrap ...services.Resource) (auth *servic
 	cfg.AuthServers = []utils.NetAddr{randomLocalAddr}
 	cfg.Auth.Resources = bootstrap
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
-	cfg.Auth.StaticTokens, err = services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{{
+	cfg.Auth.StaticTokens, err = services.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
 			Roles:   []teleport.Role{teleport.RoleProxy},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,

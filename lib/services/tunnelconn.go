@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -62,14 +63,14 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var h ResourceHeader
+	var h types.ResourceHeader
 	err = utils.FastUnmarshal(data, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
 	case V2:
-		var r TunnelConnectionV2
+		var r types.TunnelConnectionV2
 
 		if err := utils.FastUnmarshal(data, &r); err != nil {
 			return nil, trace.BadParameter(err.Error())
@@ -97,7 +98,7 @@ func MarshalTunnelConnection(tunnelConnection TunnelConnection, opts ...MarshalO
 	}
 
 	switch tunnelConnection := tunnelConnection.(type) {
-	case *TunnelConnectionV2:
+	case *types.TunnelConnectionV2:
 		if version := tunnelConnection.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched tunnel connection version %v and type %T", version, tunnelConnection)
 		}

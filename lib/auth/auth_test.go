@@ -80,7 +80,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: s.dataDir})
 	c.Assert(err, IsNil)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)
@@ -98,8 +98,8 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set static tokens
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{},
+	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	c.Assert(err, IsNil)
 	err = s.a.SetStaticTokens(staticTokens)
@@ -290,12 +290,12 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 
 	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
-	err = s.a.UpsertKubeService(ctx, &services.ServerV2{
-		Metadata: services.Metadata{Name: "kube-service"},
+	err = s.a.UpsertKubeService(ctx, &types.ServerV2{
+		Metadata: types.Metadata{Name: "kube-service"},
 		Kind:     services.KindKubeService,
 		Version:  services.V2,
-		Spec: services.ServerSpecV2{
-			KubernetesClusters: []*services.KubernetesCluster{{Name: "root-kube-cluster"}},
+		Spec: types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -365,12 +365,12 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 
 	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
-	err = s.a.UpsertKubeService(ctx, &services.ServerV2{
-		Metadata: services.Metadata{Name: "kube-service"},
+	err = s.a.UpsertKubeService(ctx, &types.ServerV2{
+		Metadata: types.Metadata{Name: "kube-service"},
 		Kind:     services.KindKubeService,
 		Version:  services.V2,
-		Spec: services.ServerSpecV2{
-			KubernetesClusters: []*services.KubernetesCluster{{Name: "root-kube-cluster"}},
+		Spec: types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -602,8 +602,8 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 
 	// lets use static tokens now
 	roles = teleport.Roles{teleport.RoleProxy}
-	st, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{{
+	st, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
 			Token:   "static-token-value",
 			Roles:   roles,
 			Expires: time.Unix(0, 0).UTC(),
@@ -783,7 +783,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 
 	// try and set cluster name, this should fail because you can only set the
 	// cluster name once
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "foo.localhost",
 	})
 	c.Assert(err, IsNil)
@@ -801,8 +801,8 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	c.Assert(err, NotNil)
 	// try and set static tokens, this should be successful because the last
 	// one to upsert tokens wins
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{{
+	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
 			Token: "bar",
 			Roles: teleport.Roles{teleport.Role("baz")},
 		}},
@@ -818,7 +818,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
 	st, err = s.a.GetStaticTokens()
 	c.Assert(err, IsNil)
-	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{{
+	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]types.ProvisionTokenV1{{
 		Token: "bar",
 		Roles: teleport.Roles{teleport.Role("baz")},
 	}}))
@@ -827,7 +827,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	// new static tokens
 	st, err = authServer.GetStaticTokens()
 	c.Assert(err, IsNil)
-	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{{
+	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]types.ProvisionTokenV1{{
 		Token: "bar",
 		Roles: teleport.Roles{teleport.Role("baz")},
 	}}))
@@ -840,8 +840,8 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	ctx := context.Background()
 
 	// test create uesr, happy path
-	user.SetCreatedBy(services.CreatedBy{
-		User: services.UserRef{Name: "some-auth-user"},
+	user.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{Name: "some-auth-user"},
 	})
 	err = s.a.CreateUser(ctx, user)
 	c.Assert(err, IsNil)
@@ -879,9 +879,9 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test create new role
-	roleTest, err := services.NewRole("test", services.RoleSpecV3{
-		Options: services.RoleOptions{},
-		Allow:   services.RoleConditions{},
+	roleTest, err := services.NewRole("test", types.RoleSpecV3{
+		Options: types.RoleOptions{},
+		Allow:   types.RoleConditions{},
 	})
 	c.Assert(err, IsNil)
 

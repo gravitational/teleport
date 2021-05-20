@@ -987,7 +987,7 @@ func (s *server) rejectRequest(ch ssh.NewChannel, reason ssh.RejectionReason, ms
 func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite, error) {
 	connInfo, err := services.NewTunnelConnection(
 		fmt.Sprintf("%v-%v", srv.ID, domainName),
-		services.TunnelConnectionSpecV2{
+		types.TunnelConnectionSpecV2{
 			ClusterName:   domainName,
 			ProxyName:     srv.ID,
 			LastHeartbeat: time.Now().UTC(),

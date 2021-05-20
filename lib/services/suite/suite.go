@@ -51,7 +51,7 @@ import (
 
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
-func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...[]byte) *services.CertAuthorityV2 {
+func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
 	return NewTestCAWithConfig(TestCAConfig{
 		Type:        caType,
 		ClusterName: clusterName,
@@ -71,7 +71,7 @@ type TestCAConfig struct {
 
 // NewTestCAWithConfig generates a new certificate authority with the specified
 // configuration
-func NewTestCAWithConfig(config TestCAConfig) *services.CertAuthorityV2 {
+func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	// privateKeys is to specify another RSA private key
 	if len(config.PrivateKeys) == 0 {
 		config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
@@ -105,21 +105,21 @@ func NewTestCAWithConfig(config TestCAConfig) *services.CertAuthorityV2 {
 		panic(err)
 	}
 
-	return &services.CertAuthorityV2{
+	return &types.CertAuthorityV2{
 		Kind:    services.KindCertAuthority,
 		SubKind: string(config.Type),
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      config.ClusterName,
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.CertAuthoritySpecV2{
+		Spec: types.CertAuthoritySpecV2{
 			Type:         config.Type,
 			ClusterName:  config.ClusterName,
 			CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(signer.PublicKey())},
 			SigningKeys:  [][]byte{keyBytes},
-			TLSKeyPairs:  []services.TLSKeyPair{{Cert: cert, Key: key}},
-			JWTKeyPairs: []services.JWTKeyPair{
+			TLSKeyPairs:  []types.TLSKeyPair{{Cert: cert, Key: key}},
+			JWTKeyPairs: []types.JWTKeyPair{
 				{
 					PublicKey:  publicKey,
 					PrivateKey: privateKey,
@@ -169,14 +169,14 @@ func usersEqual(c *check.C, a services.User, b services.User) {
 }
 
 func newUser(name string, roles []string) services.User {
-	return &services.UserV2{
+	return &types.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      name,
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.UserSpecV2{
+		Spec: types.UserSpecV2{
 			Roles: roles,
 		},
 	}
@@ -226,15 +226,15 @@ func (s *ServicesTestSuite) UsersCRUD(c *check.C) {
 func (s *ServicesTestSuite) UsersExpiry(c *check.C) {
 	expiresAt := s.Clock.Now().Add(1 * time.Minute)
 
-	err := s.WebS.UpsertUser(&services.UserV2{
+	err := s.WebS.UpsertUser(&types.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      "foo",
 			Namespace: defaults.Namespace,
 			Expires:   &expiresAt,
 		},
-		Spec: services.UserSpecV2{},
+		Spec: types.UserSpecV2{},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -287,8 +287,8 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	ca2 := *ca
 	ca2.Spec.SigningKeys = nil
-	ca2.Spec.TLSKeyPairs = []services.TLSKeyPair{{Cert: ca2.Spec.TLSKeyPairs[0].Cert}}
-	ca2.Spec.JWTKeyPairs = []services.JWTKeyPair{{PublicKey: ca2.Spec.JWTKeyPairs[0].PublicKey}}
+	ca2.Spec.TLSKeyPairs = []types.TLSKeyPair{{Cert: ca2.Spec.TLSKeyPairs[0].Cert}}
+	ca2.Spec.JWTKeyPairs = []types.JWTKeyPair{{PublicKey: ca2.Spec.JWTKeyPairs[0].PublicKey}}
 	fixtures.DeepCompare(c, cas[0], &ca2)
 
 	cas, err = s.CAS.GetCertAuthorities(services.UserCA, true)
@@ -308,7 +308,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 
 	clock := clockwork.NewFakeClock()
 	newCA := *ca
-	rotation := services.Rotation{
+	rotation := types.Rotation{
 		State:       services.RotationStateInProgress,
 		CurrentID:   "id1",
 		GracePeriod: services.NewDuration(time.Hour),
@@ -326,15 +326,15 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 }
 
 // NewServer creates a new server resource
-func NewServer(kind, name, addr, namespace string) *services.ServerV2 {
-	return &services.ServerV2{
+func NewServer(kind, name, addr, namespace string) *types.ServerV2 {
+	return &types.ServerV2{
 		Kind:    kind,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr:       addr,
 			PublicAddr: addr,
 		},
@@ -435,17 +435,17 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 }
 
 // NewAppServer creates a new application server resource.
-func NewAppServer(name string, internalAddr string, publicAddr string) *services.ServerV2 {
-	return &services.ServerV2{
+func NewAppServer(name string, internalAddr string, publicAddr string) *types.ServerV2 {
+	return &types.ServerV2{
 		Kind:    services.KindAppServer,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      uuid.New(),
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.ServerSpecV2{
-			Apps: []*services.App{
-				&services.App{
+		Spec: types.ServerSpecV2{
+			Apps: []*types.App{
+				&types.App{
 					Name:       name,
 					URI:        internalAddr,
 					PublicAddr: publicAddr,
@@ -488,15 +488,15 @@ func (s *ServicesTestSuite) AppServerCRUD(c *check.C) {
 	c.Assert(out, check.HasLen, 0)
 }
 
-func newReverseTunnel(clusterName string, dialAddrs []string) *services.ReverseTunnelV2 {
-	return &services.ReverseTunnelV2{
+func newReverseTunnel(clusterName string, dialAddrs []string) *types.ReverseTunnelV2 {
+	return &types.ReverseTunnelV2{
 		Kind:    services.KindReverseTunnel,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      clusterName,
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.ReverseTunnelSpecV2{
+		Spec: types.ReverseTunnelSpecV2{
 			ClusterName: clusterName,
 			DialAddrs:   dialAddrs,
 		},
@@ -623,7 +623,7 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 
 	// check tokens backwards compatibility and marshal/unmarshal
 	expiry := time.Now().UTC().Add(time.Hour)
-	v1 := &services.ProvisionTokenV1{
+	v1 := &types.ProvisionTokenV1{
 		Token:   "old",
 		Roles:   teleport.Roles{teleport.RoleNode, teleport.RoleProxy},
 		Expires: expiry,
@@ -672,32 +672,32 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	role := services.RoleV3{
+	role := types.RoleV3{
 		Kind:    services.KindRole,
 		Version: services.V3,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      "role1",
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.RoleSpecV3{
-			Options: services.RoleOptions{
+		Spec: types.RoleSpecV3{
+			Options: types.RoleOptions{
 				MaxSessionTTL:     services.Duration(time.Hour),
 				PortForwarding:    services.NewBoolOption(true),
 				CertificateFormat: teleport.CertificateFormatStandard,
 				BPF:               defaults.EnhancedEvents(),
 			},
-			Allow: services.RoleConditions{
+			Allow: types.RoleConditions{
 				Logins:           []string{"root", "bob"},
 				NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
 				AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
 				KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 				DatabaseLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},
 				Namespaces:       []string{defaults.Namespace},
-				Rules: []services.Rule{
+				Rules: []types.Rule{
 					services.NewRule(services.KindRole, services.RO()),
 				},
 			},
-			Deny: services.RoleConditions{
+			Deny: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 			},
 		},
@@ -730,10 +730,10 @@ func (s *ServicesTestSuite) NamespacesCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	ns := services.Namespace{
+	ns := types.Namespace{
 		Kind:    services.KindNamespace,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      defaults.Namespace,
 			Namespace: defaults.Namespace,
 		},
@@ -827,7 +827,7 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 	connector := &services.SAMLConnectorV2{
 		Kind:    services.KindSAML,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      "saml1",
 			Namespace: defaults.Namespace,
 		},
@@ -886,7 +886,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(c *check.C) {
 	c.Assert(len(out), check.Equals, 0)
 
 	dt := s.Clock.Now()
-	conn, err := services.NewTunnelConnection("conn1", services.TunnelConnectionSpecV2{
+	conn, err := services.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
 		ClusterName:   clusterName,
 		ProxyName:     "p1",
 		LastHeartbeat: dt,
@@ -952,7 +952,7 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(c *check.C) {
 	connector := &services.GithubConnectorV3{
 		Kind:    services.KindGithubConnector,
 		Version: services.V3,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      "github",
 			Namespace: defaults.Namespace,
 		},
@@ -1085,8 +1085,8 @@ func (s *ServicesTestSuite) SessionRecordingConfig(c *check.C) {
 
 func (s *ServicesTestSuite) StaticTokens(c *check.C) {
 	// set static tokens
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{
+	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{
 			{
 				Token:   "tok1",
 				Roles:   teleport.Roles{teleport.RoleNode},
@@ -1139,10 +1139,10 @@ func CollectOptions(opts ...Option) Options {
 
 // ClusterConfig tests cluster configuration
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
-	config, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+	config, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
 		DisconnectExpiredCert: services.NewBool(true),
 		ClusterID:             "27",
-		Audit: services.AuditConfig{
+		Audit: types.AuditConfig{
 			Region:           "us-west-1",
 			Type:             "dynamodb",
 			AuditSessionsURI: "file:///home/log",
@@ -1189,7 +1189,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	_, err = s.ConfigS.GetClusterConfig()
 	fixtures.ExpectNotFound(c, err)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
 	c.Assert(err, check.IsNil)
@@ -1239,10 +1239,10 @@ func (s *ServicesTestSuite) ClusterNetworkingConfig(c *check.C) {
 // method on the semaphore service.
 type semWrapper struct {
 	services.Semaphores
-	keepAlive func(context.Context, services.SemaphoreLease) error
+	keepAlive func(context.Context, types.SemaphoreLease) error
 }
 
-func (w *semWrapper) KeepAliveSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+func (w *semWrapper) KeepAliveSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	return w.keepAlive(ctx, lease)
 }
 
@@ -1255,7 +1255,7 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(c *check.C) {
 	keepAlives := new(uint64)
 	wrapper := &semWrapper{
 		Semaphores: s.PresenceS,
-		keepAlive: func(ctx context.Context, lease services.SemaphoreLease) error {
+		keepAlive: func(ctx context.Context, lease types.SemaphoreLease) error {
 			kn := atomic.AddUint64(keepAlives, 1)
 			if kn%3 == 0 {
 				return s.PresenceS.KeepAliveSemaphoreLease(ctx, lease)
@@ -1268,7 +1268,7 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(c *check.C) {
 		Service:  wrapper,
 		Expiry:   time.Second,
 		TickRate: time.Millisecond * 50,
-		Params: services.AcquireSemaphoreRequest{
+		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: services.SemaphoreKindConnection,
 			SemaphoreName: "alice",
 			MaxLeases:     1,
@@ -1308,7 +1308,7 @@ func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
 		cfg := services.SemaphoreLockConfig{
 			Service: s.PresenceS,
 			Expiry:  time.Hour,
-			Params: services.AcquireSemaphoreRequest{
+			Params: types.AcquireSemaphoreRequest{
 				SemaphoreKind: services.SemaphoreKindConnection,
 				SemaphoreName: "alice",
 				MaxLeases:     locks,
@@ -1330,7 +1330,7 @@ func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
 		}
 		wg.Wait()
 		cancel()
-		c.Assert(s.PresenceS.DeleteSemaphore(context.TODO(), services.SemaphoreFilter{
+		c.Assert(s.PresenceS.DeleteSemaphore(context.TODO(), types.SemaphoreFilter{
 			SemaphoreKind: cfg.Params.SemaphoreKind,
 			SemaphoreName: cfg.Params.SemaphoreName,
 		}), check.IsNil)
@@ -1345,7 +1345,7 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(c *check.C) {
 	cfg := services.SemaphoreLockConfig{
 		Service: s.PresenceS,
 		Expiry:  time.Hour,
-		Params: services.AcquireSemaphoreRequest{
+		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: services.SemaphoreKindConnection,
 			SemaphoreName: "alice",
 			MaxLeases:     maxLeases,
@@ -1383,7 +1383,7 @@ func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
 	cfg := services.SemaphoreLockConfig{
 		Service: s.PresenceS,
 		Expiry:  time.Hour,
-		Params: services.AcquireSemaphoreRequest{
+		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: services.SemaphoreKindConnection,
 			SemaphoreName: "alice",
 			MaxLeases:     1,
@@ -1424,7 +1424,7 @@ func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
 	}
 
 	// forcibly delete the semaphore
-	c.Assert(s.PresenceS.DeleteSemaphore(context.TODO(), services.SemaphoreFilter{
+	c.Assert(s.PresenceS.DeleteSemaphore(context.TODO(), types.SemaphoreFilter{
 		SemaphoreKind: cfg.Params.SemaphoreKind,
 		SemaphoreName: cfg.Params.SemaphoreName,
 	}), check.IsNil)
@@ -1509,10 +1509,10 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: services.KindNamespace,
 			},
 			crud: func() services.Resource {
-				ns := services.Namespace{
+				ns := types.Namespace{
 					Kind:    services.KindNamespace,
 					Version: services.V2,
-					Metadata: services.Metadata{
+					Metadata: types.Metadata{
 						Name:      "testnamespace",
 						Namespace: defaults.Namespace,
 					},
@@ -1535,8 +1535,8 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: services.KindStaticTokens,
 			},
 			crud: func() services.Resource {
-				staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-					StaticTokens: []services.ProvisionTokenV1{
+				staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+					StaticTokens: []types.ProvisionTokenV1{
 						{
 							Token:   "tok1",
 							Roles:   teleport.Roles{teleport.RoleNode},
@@ -1564,15 +1564,15 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: services.KindRole,
 			},
 			crud: func() services.Resource {
-				role, err := services.NewRole("role1", services.RoleSpecV3{
-					Options: services.RoleOptions{
+				role, err := services.NewRole("role1", types.RoleSpecV3{
+					Options: types.RoleOptions{
 						MaxSessionTTL: services.Duration(time.Hour),
 					},
-					Allow: services.RoleConditions{
+					Allow: types.RoleConditions{
 						Logins:     []string{"root", "bob"},
 						NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 					},
-					Deny: services.RoleConditions{},
+					Deny: types.RoleConditions{},
 				})
 				c.Assert(err, check.IsNil)
 
@@ -1651,7 +1651,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: services.KindTunnelConnection,
 			},
 			crud: func() services.Resource {
-				conn, err := services.NewTunnelConnection("conn1", services.TunnelConnectionSpecV2{
+				conn, err := services.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
 					ClusterName:   "example.com",
 					ProxyName:     "p1",
 					LastHeartbeat: time.Now().UTC(),
@@ -1720,10 +1720,10 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Name: "shmest",
 			},
 			crud: func() services.Resource {
-				ns := services.Namespace{
+				ns := types.Namespace{
 					Kind:    services.KindNamespace,
 					Version: services.V2,
-					Metadata: services.Metadata{
+					Metadata: types.Metadata{
 						Name:      "shmest",
 						Namespace: defaults.Namespace,
 					},
@@ -1753,7 +1753,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				Kind: services.KindClusterConfig,
 			},
 			crud: func() services.Resource {
-				config, err := services.NewClusterConfig(services.ClusterConfigSpecV3{})
+				config, err := services.NewClusterConfig(types.ClusterConfigSpecV3{})
 				c.Assert(err, check.IsNil)
 
 				err = s.ConfigS.SetClusterConfig(config)
@@ -1774,7 +1774,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				Kind: services.KindClusterName,
 			},
 			crud: func() services.Resource {
-				clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+				clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 					ClusterName: "example.com",
 				})
 				c.Assert(err, check.IsNil)
@@ -1893,11 +1893,11 @@ skiploop:
 		ExpectResource(c, w, 3*time.Second, resource)
 
 		meta := resource.GetMetadata()
-		header := &services.ResourceHeader{
+		header := &types.ResourceHeader{
 			Kind:    resource.GetKind(),
 			SubKind: resource.GetSubKind(),
 			Version: resource.GetVersion(),
-			Metadata: services.Metadata{
+			Metadata: types.Metadata{
 				Name:      meta.Name,
 				Namespace: meta.Namespace,
 			},

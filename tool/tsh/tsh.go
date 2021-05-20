@@ -2049,7 +2049,7 @@ func host(in string) string {
 func getRequestResolution(cf *CLIConf, clt auth.ClientI, req services.AccessRequest) (services.AccessRequest, error) {
 	// set up request watcher before submitting the request to the admin server
 	// in order to avoid potential race.
-	filter := services.AccessRequestFilter{
+	filter := types.AccessRequestFilter{
 		User: req.GetUser(),
 	}
 	watcher, err := clt.NewWatcher(cf.Context, services.Watch{
@@ -2077,7 +2077,7 @@ Loop:
 				log.Infof("Access-request watcher initialized...")
 				continue Loop
 			case backend.OpPut:
-				r, ok := event.Resource.(*services.AccessRequestV3)
+				r, ok := event.Resource.(*types.AccessRequestV3)
 				if !ok {
 					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}

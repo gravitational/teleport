@@ -79,12 +79,12 @@ func (s *PresenceService) DeleteAllNamespaces() error {
 }
 
 // GetNamespaces returns a list of namespaces
-func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
+func (s *PresenceService) GetNamespaces() ([]types.Namespace, error) {
 	result, err := s.GetRange(context.TODO(), backend.Key(namespacesPrefix), backend.RangeEnd(backend.Key(namespacesPrefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]services.Namespace, 0, len(result.Items))
+	out := make([]types.Namespace, 0, len(result.Items))
 	for _, item := range result.Items {
 		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
 			continue
@@ -101,7 +101,7 @@ func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
 }
 
 // UpsertNamespace upserts namespace
-func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
+func (s *PresenceService) UpsertNamespace(n types.Namespace) error {
 	if err := n.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,7 +124,7 @@ func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
 }
 
 // GetNamespace returns a namespace by name
-func (s *PresenceService) GetNamespace(name string) (*services.Namespace, error) {
+func (s *PresenceService) GetNamespace(name string) (*types.Namespace, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing namespace name")
 	}
@@ -253,7 +253,7 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
 // specified duration with second resolution if it's >= 1 second.
-func (s *PresenceService) UpsertNode(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+func (s *PresenceService) UpsertNode(ctx context.Context, server services.Server) (*types.KeepAlive, error) {
 	if server.GetNamespace() == "" {
 		return nil, trace.BadParameter("missing node namespace")
 	}
@@ -271,10 +271,10 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server services.Server
 		return nil, trace.Wrap(err)
 	}
 	if server.Expiry().IsZero() {
-		return &services.KeepAlive{}, nil
+		return &types.KeepAlive{}, nil
 	}
-	return &services.KeepAlive{
-		Type:    services.KeepAlive_NODE,
+	return &types.KeepAlive{
+		Type:    types.KeepAlive_NODE,
 		LeaseID: lease.ID,
 		Name:    server.GetName(),
 	}, nil
@@ -285,7 +285,7 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server services.Server
 // This logic has been moved to KeepAliveServer.
 //
 // KeepAliveNode updates node expiry
-func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAlive) error {
+func (s *PresenceService) KeepAliveNode(ctx context.Context, h types.KeepAlive) error {
 	if err := h.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -742,7 +742,7 @@ func (s *PresenceService) DeleteAllRemoteClusters() error {
 // *same* semaphore, separate semaphores can be modified concurrently without issue).  Note that this function
 // is the only semaphore method that handles retries internally.  This is because this method both blocks
 // user-facing operations, and contains multiple different potential contention points.
-func (s *PresenceService) AcquireSemaphore(ctx context.Context, req services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error) {
+func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	// this combination of backoff parameters leads to worst-case total time spent
 	// in backoff between 1200ms and 2400ms depending on jitter.  tests are in
 	// place to verify that this is sufficient to resolve a 20-lease contention
@@ -810,7 +810,7 @@ Acquire:
 
 // initSemaphore attempts to initialize/acquire a semaphore which does not yet exist.
 // Returns AlreadyExistsError if the semaphore is concurrently created.
-func (s *PresenceService) initSemaphore(ctx context.Context, key []byte, leaseID string, req services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error) {
+func (s *PresenceService) initSemaphore(ctx context.Context, key []byte, leaseID string, req types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	// create a new empty semaphore resource configured to specifically match
 	// this acquire request.
 	sem, err := req.ConfigureSemaphore()
@@ -839,7 +839,7 @@ func (s *PresenceService) initSemaphore(ctx context.Context, key []byte, leaseID
 
 // acquireSemaphore attempts to acquire an existing semaphore.  Returns NotFoundError if no semaphore exists,
 // and CompareFailed if the semaphore was concurrently updated.
-func (s *PresenceService) acquireSemaphore(ctx context.Context, key []byte, leaseID string, req services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error) {
+func (s *PresenceService) acquireSemaphore(ctx context.Context, key []byte, leaseID string, req types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	item, err := s.Get(ctx, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -875,7 +875,7 @@ func (s *PresenceService) acquireSemaphore(ctx context.Context, key []byte, leas
 
 // KeepAliveSemaphoreLease updates semaphore lease, if the lease expiry is updated,
 // semaphore is renewed
-func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	if err := lease.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -926,7 +926,7 @@ func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease ser
 }
 
 // CancelSemaphoreLease cancels semaphore lease early.
-func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	if err := lease.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -972,7 +972,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease servic
 }
 
 // GetSemaphores returns all semaphores matching the supplied filter.
-func (s *PresenceService) GetSemaphores(ctx context.Context, filter services.SemaphoreFilter) ([]services.Semaphore, error) {
+func (s *PresenceService) GetSemaphores(ctx context.Context, filter types.SemaphoreFilter) ([]services.Semaphore, error) {
 	var items []backend.Item
 	if filter.SemaphoreKind != "" && filter.SemaphoreName != "" {
 		// special case: filter corresponds to a single semaphore
@@ -1017,7 +1017,7 @@ func (s *PresenceService) GetSemaphores(ctx context.Context, filter services.Sem
 }
 
 // DeleteSemaphore deletes a semaphore matching the supplied filter
-func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter services.SemaphoreFilter) error {
+func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilter) error {
 	if filter.SemaphoreKind == "" || filter.SemaphoreName == "" {
 		return trace.BadParameter("semaphore kind and name must be specified for deletion")
 	}
@@ -1171,7 +1171,7 @@ func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, o
 }
 
 // UpsertAppServer adds an application server.
-func (s *PresenceService) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+func (s *PresenceService) UpsertAppServer(ctx context.Context, server services.Server) (*types.KeepAlive, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1190,10 +1190,10 @@ func (s *PresenceService) UpsertAppServer(ctx context.Context, server services.S
 		return nil, trace.Wrap(err)
 	}
 	if server.Expiry().IsZero() {
-		return &services.KeepAlive{}, nil
+		return &types.KeepAlive{}, nil
 	}
-	return &services.KeepAlive{
-		Type:    services.KeepAlive_APP,
+	return &types.KeepAlive{
+		Type:    types.KeepAlive_APP,
 		LeaseID: lease.ID,
 		Name:    server.GetName(),
 	}, nil
@@ -1212,7 +1212,7 @@ func (s *PresenceService) DeleteAllAppServers(ctx context.Context, namespace str
 }
 
 // KeepAliveServer updates expiry time of a server resource.
-func (s *PresenceService) KeepAliveServer(ctx context.Context, h services.KeepAlive) error {
+func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	if err := h.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

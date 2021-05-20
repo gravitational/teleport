@@ -45,8 +45,8 @@ import (
 
 // getExtendedAdminUserRules provides access to the default set of rules assigned to
 // all users.
-func getExtendedAdminUserRules(features modules.Features) []Rule {
-	rules := []Rule{
+func getExtendedAdminUserRules(features modules.Features) []types.Rule {
+	rules := []types.Rule{
 		NewRule(KindRole, RW()),
 		NewRule(KindAuthConnector, RW()),
 		NewRule(KindSession, RO()),
@@ -65,7 +65,7 @@ func getExtendedAdminUserRules(features modules.Features) []Rule {
 
 // DefaultImplicitRules provides access to the default set of implicit rules
 // assigned to all roles.
-var DefaultImplicitRules = []Rule{
+var DefaultImplicitRules = []types.Rule{
 	NewRule(KindNode, RO()),
 	NewRule(KindProxy, RO()),
 	NewRule(KindAuthServer, RO()),
@@ -82,7 +82,7 @@ var DefaultImplicitRules = []Rule{
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
 // needed for a certificate authority to function.
-var DefaultCertAuthorityRules = []Rule{
+var DefaultCertAuthorityRules = []types.Rule{
 	NewRule(KindSession, RO()),
 	NewRule(KindNode, RO()),
 	NewRule(KindAuthServer, RO()),
@@ -109,22 +109,22 @@ func RoleNameForCertAuthority(name string) string {
 // is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() Role {
 	adminRules := getExtendedAdminUserRules(modules.GetModules().Features())
-	role := &RoleV3{
+	role := &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:      teleport.AdminRoleName,
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
+		Spec: types.RoleSpecV3{
+			Options: types.RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    NewBoolOption(true),
 				ForwardAgent:      NewBool(true),
 				BPF:               defaults.EnhancedEvents(),
 			},
-			Allow: RoleConditions{
+			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
@@ -145,22 +145,22 @@ func NewAdminRole() Role {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() Role {
-	return &RoleV3{
+	return &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:      teleport.DefaultImplicitRole,
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
+		Spec: types.RoleSpecV3{
+			Options: types.RoleOptions{
 				MaxSessionTTL: MaxDuration(),
 				// PortForwarding has to be set to false in the default-implicit-role
 				// otherwise all roles will be allowed to forward ports (since we default
 				// to true in the check).
 				PortForwarding: NewBoolOption(false),
 			},
-			Allow: RoleConditions{
+			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				Rules:      CopyRulesSlice(DefaultImplicitRules),
 			},
@@ -170,28 +170,28 @@ func NewImplicitRole() Role {
 
 // RoleForUser creates an admin role for a services.User.
 func RoleForUser(u User) Role {
-	return &RoleV3{
+	return &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:      RoleNameForUser(u.GetName()),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
+		Spec: types.RoleSpecV3{
+			Options: types.RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    NewBoolOption(true),
 				ForwardAgent:      NewBool(true),
 				BPF:               defaults.EnhancedEvents(),
 			},
-			Allow: RoleConditions{
+			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
 				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
 				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
-				Rules: []Rule{
+				Rules: []types.Rule{
 					NewRule(KindRole, RW()),
 					NewRule(KindAuthConnector, RW()),
 					NewRule(KindSession, RO()),
@@ -207,23 +207,23 @@ func RoleForUser(u User) Role {
 // This role overrides built in OSS "admin" role to have less privileges.
 // DELETE IN (7.x)
 func NewDowngradedOSSAdminRole() Role {
-	role := &RoleV3{
+	role := &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:      teleport.AdminRoleName,
 			Namespace: defaults.Namespace,
 			Labels:    map[string]string{teleport.OSSMigratedV6: types.True},
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
+		Spec: types.RoleSpecV3{
+			Options: types.RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    NewBoolOption(true),
 				ForwardAgent:      NewBool(true),
 				BPF:               defaults.EnhancedEvents(),
 			},
-			Allow: RoleConditions{
+			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
@@ -231,7 +231,7 @@ func NewDowngradedOSSAdminRole() Role {
 				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
 				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-				Rules: []Rule{
+				Rules: []types.Rule{
 					NewRule(KindEvent, RO()),
 					NewRule(KindSession, RO()),
 				},
@@ -246,22 +246,22 @@ func NewDowngradedOSSAdminRole() Role {
 
 // NewOSSGithubRole creates a role for enabling RBAC for open source Github users
 func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) Role {
-	role := &RoleV3{
+	role := &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:      "github-" + uuid.New(),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
+		Spec: types.RoleSpecV3{
+			Options: types.RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    NewBoolOption(true),
 				ForwardAgent:      NewBool(true),
 				BPF:               defaults.EnhancedEvents(),
 			},
-			Allow: RoleConditions{
+			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
@@ -269,7 +269,7 @@ func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) 
 				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
 				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-				Rules: []Rule{
+				Rules: []types.Rule{
 					NewRule(KindEvent, RO()),
 				},
 			},
@@ -283,18 +283,18 @@ func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) 
 
 // RoleForCertAuthority creates role using services.CertAuthority.
 func RoleForCertAuthority(ca CertAuthority) Role {
-	return &RoleV3{
+	return &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:      RoleNameForCertAuthority(ca.GetClusterName()),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
+		Spec: types.RoleSpecV3{
+			Options: types.RoleOptions{
 				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			},
-			Allow: RoleConditions{
+			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
@@ -363,7 +363,7 @@ func ValidateRole(r Role) error {
 }
 
 // validateRule parses the where and action fields to validate the rule.
-func validateRule(r Rule) error {
+func validateRule(r types.Rule) error {
 	if len(r.Where) != 0 {
 		parser, err := NewWhereParser(&Context{})
 		if err != nil {
@@ -616,7 +616,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 
 // ruleScore is a sorting score of the rule, the larger the score, the more
 // specific the rule is
-func ruleScore(r *Rule) int {
+func ruleScore(r *types.Rule) int {
 	score := 0
 	// wildcard rules are less specific
 	if utils.SliceContainsStr(r.Resources, Wildcard) {
@@ -654,15 +654,15 @@ func ruleScore(r *Rule) int {
 // than the same rule without where section.
 // * Rule that has actions list is more specific than
 // rule without actions list.
-func CompareRuleScore(r *Rule, o *Rule) bool {
+func CompareRuleScore(r *types.Rule, o *types.Rule) bool {
 	return ruleScore(r) > ruleScore(o)
 }
 
 // RuleSet maps resource to a set of rules defined for it
-type RuleSet map[string][]Rule
+type RuleSet map[string][]types.Rule
 
 // MakeRuleSet creates a new rule set from a list
-func MakeRuleSet(rules []Rule) RuleSet {
+func MakeRuleSet(rules []types.Rule) RuleSet {
 	set := make(RuleSet)
 	for _, rule := range rules {
 		for _, resource := range rule.Resources {
@@ -730,7 +730,7 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 
 // matchesWhere returns true if Where rule matches.
 // Empty Where block always matches.
-func matchesWhere(r *Rule, parser predicate.Parser) (bool, error) {
+func matchesWhere(r *types.Rule, parser predicate.Parser) (bool, error) {
 	if r.Where == "" {
 		return true, nil
 	}
@@ -746,7 +746,7 @@ func matchesWhere(r *Rule, parser predicate.Parser) (bool, error) {
 }
 
 // processActions processes actions specified for this rule
-func processActions(r *Rule, parser predicate.Parser) error {
+func processActions(r *types.Rule, parser predicate.Parser) error {
 	for _, action := range r.Actions {
 		ifn, err := parser.Parse(action)
 		if err != nil {
@@ -762,8 +762,8 @@ func processActions(r *Rule, parser predicate.Parser) error {
 }
 
 // Slice returns slice from a set
-func (set RuleSet) Slice() []Rule {
-	var out []Rule
+func (set RuleSet) Slice() []types.Rule {
+	var out []types.Rule
 	for _, rules := range set {
 		out = append(out, rules...)
 	}
@@ -836,10 +836,10 @@ type AccessChecker interface {
 	EnhancedRecordingSet() map[string]bool
 
 	// CheckAccessToApp checks access to an application.
-	CheckAccessToApp(login string, app *App, mfa AccessMFAParams) error
+	CheckAccessToApp(login string, app *types.App, mfa AccessMFAParams) error
 
 	// CheckAccessToKubernetes checks access to a kubernetes cluster.
-	CheckAccessToKubernetes(login string, app *KubernetesCluster, mfa AccessMFAParams) error
+	CheckAccessToKubernetes(login string, app *types.KubernetesCluster, mfa AccessMFAParams) error
 
 	// CheckDatabaseNamesAndUsers returns database names and users this role
 	// is allowed to use.
@@ -858,7 +858,7 @@ type AccessChecker interface {
 }
 
 // FromSpec returns new RoleSet created from spec
-func FromSpec(name string, spec RoleSpecV3) (RoleSet, error) {
+func FromSpec(name string, spec types.RoleSpecV3) (RoleSet, error) {
 	role, err := NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1497,7 +1497,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server, mfa AccessMFAPara
 // CheckAccessToApp checks if a role has access to an application. Deny rules
 // are checked first, then allow rules. Access to an application is determined by
 // namespaces and labels.
-func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfa AccessMFAParams) error {
+func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa AccessMFAParams) error {
 	if mfa.AlwaysRequired && !mfa.Verified {
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
@@ -1571,7 +1571,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfa AccessMFAPar
 // CheckAccessToKubernetes checks if a role has access to a kubernetes cluster.
 // Deny rules are checked first, then allow rules. Access to a kubernetes
 // cluster is determined by namespaces and labels.
-func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesCluster, mfa AccessMFAParams) error {
+func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *types.KubernetesCluster, mfa AccessMFAParams) error {
 	if mfa.AlwaysRequired && !mfa.Verified {
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
@@ -2147,7 +2147,7 @@ func (s SortedRoles) Swap(i, j int) {
 
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
-	var h ResourceHeader
+	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2160,7 +2160,7 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
 
 	switch h.Version {
 	case V3:
-		var role RoleV3
+		var role types.RoleV3
 		if err := utils.FastUnmarshal(bytes, &role); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -2189,7 +2189,7 @@ func MarshalRole(role Role, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	switch role := role.(type) {
-	case *RoleV3:
+	case *types.RoleV3:
 		if version := role.GetVersion(); version != V3 {
 			return nil, trace.BadParameter("mismatched role version %v and type %T", version, role)
 		}

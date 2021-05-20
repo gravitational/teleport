@@ -231,7 +231,7 @@ func (r *accessRequest) erase(ctx context.Context) error {
 }
 
 func (r *accessRequest) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := r.DynamicAccess.GetAccessRequests(ctx, services.AccessRequestFilter{})
+	resources, err := r.DynamicAccess.GetAccessRequests(ctx, types.AccessRequestFilter{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -262,7 +262,7 @@ func (r *accessRequest) processEvent(ctx context.Context, event services.Event) 
 			}
 		}
 	case backend.OpPut:
-		resource, ok := event.Resource.(*services.AccessRequestV3)
+		resource, ok := event.Resource.(*types.AccessRequestV3)
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
@@ -733,7 +733,7 @@ func (c *namespace) processEvent(ctx context.Context, event services.Event) erro
 			}
 		}
 	case backend.OpPut:
-		resource, ok := event.Resource.(*services.Namespace)
+		resource, ok := event.Resource.(*types.Namespace)
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}

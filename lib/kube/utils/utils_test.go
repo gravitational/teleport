@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/stretchr/testify/require"
 )
@@ -110,12 +111,12 @@ func (p mockKubeServicesPresence) GetKubeServices(context.Context) ([]services.S
 }
 
 func kubeService(kubeClusters ...string) services.Server {
-	var ks []*services.KubernetesCluster
+	var ks []*types.KubernetesCluster
 	for _, kc := range kubeClusters {
-		ks = append(ks, &services.KubernetesCluster{Name: kc})
+		ks = append(ks, &types.KubernetesCluster{Name: kc})
 	}
-	return &services.ServerV2{
-		Spec: services.ServerSpecV2{
+	return &types.ServerV2{
+		Spec: types.ServerSpecV2{
 			KubernetesClusters: ks,
 		},
 	}

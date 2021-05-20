@@ -34,6 +34,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -316,7 +317,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 // RotationGetter returns rotation state
-type RotationGetter func(role teleport.Role) (*services.Rotation, error)
+type RotationGetter func(role teleport.Role) (*types.Rotation, error)
 
 // SetUtmpPath is a functional server option to override the user accounting database and log path.
 func SetUtmpPath(utmpPath, wtmpPath string) ServerOption {
@@ -723,9 +724,9 @@ func (s *Server) getRole() teleport.Role {
 
 // getDynamicLabels returns all dynamic labels. If no dynamic labels are
 // defined, return an empty set.
-func (s *Server) getDynamicLabels() map[string]services.CommandLabelV2 {
+func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 	if s.dynamicLabels == nil {
-		return make(map[string]services.CommandLabelV2)
+		return make(map[string]types.CommandLabelV2)
 	}
 	return services.LabelsToV2(s.dynamicLabels.Get())
 }
@@ -738,15 +739,15 @@ func (s *Server) GetInfo() services.Server {
 		addr = s.AdvertiseAddr()
 	}
 
-	return &services.ServerV2{
+	return &types.ServerV2{
 		Kind:    services.KindNode,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.getNamespace(),
 			Labels:    s.labels,
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			CmdLabels: s.getDynamicLabels(),
 			Addr:      addr,
 			Hostname:  s.hostname,
@@ -886,7 +887,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	lock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: s.authService,
 		Expiry:  netConfig.GetSessionControlTimeout(),
-		Params: services.AcquireSemaphoreRequest{
+		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: services.SemaphoreKindConnection,
 			SemaphoreName: identityContext.TeleportUser,
 			MaxLeases:     maxConnections,

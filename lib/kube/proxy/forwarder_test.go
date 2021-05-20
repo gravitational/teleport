@@ -101,7 +101,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 func TestAuthenticate(t *testing.T) {
 	t.Parallel()
 
-	cc, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+	cc, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
 		DisconnectExpiredCert: true,
 	})
 	require.NoError(t, err)
@@ -351,9 +351,9 @@ func TestAuthenticate(t *testing.T) {
 			kubernetesCluster: "foo",
 			haveKubeCreds:     true,
 			tunnel:            tun,
-			kubeServices: []services.Server{&services.ServerV2{
-				Spec: services.ServerSpecV2{
-					KubernetesClusters: []*services.KubernetesCluster{{
+			kubeServices: []services.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
 						Name: "foo",
 					}},
 				},
@@ -394,8 +394,8 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServices = tt.kubeServices
-			roles, err := services.FromSpec("ops", services.RoleSpecV3{
-				Allow: services.RoleConditions{
+			roles, err := services.FromSpec("ops", types.RoleSpecV3{
+				Allow: types.RoleConditions{
 					KubeUsers:  tt.roleKubeUsers,
 					KubeGroups: tt.roleKubeGroups,
 				},

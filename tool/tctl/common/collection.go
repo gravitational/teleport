@@ -67,7 +67,7 @@ func (r *roleCollection) writeText(w io.Writer) error {
 }
 
 type namespaceCollection struct {
-	namespaces []services.Namespace
+	namespaces []types.Namespace
 }
 
 func (n *namespaceCollection) resources() (r []services.Resource) {
@@ -86,7 +86,7 @@ func (n *namespaceCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func printActions(rules []services.Rule) string {
+func printActions(rules []types.Rule) string {
 	pairs := []string{}
 	for _, rule := range rules {
 		pairs = append(pairs, fmt.Sprintf("%v:%v", strings.Join(rule.Resources, ","), strings.Join(rule.Verbs, ",")))

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -219,7 +220,7 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
-				"baz": &services.CommandLabelV2{
+				"baz": &types.CommandLabelV2{
 					Period:  services.NewDuration(time.Millisecond),
 					Command: []string{"expr", "1", "+", "3"}},
 			},

@@ -37,6 +37,7 @@ import (
 	"github.com/pborman/uuid"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -139,22 +140,22 @@ func (s *Suite) SetUpTest(c *check.C) {
 		"bar": "baz",
 	}
 	dynamicLabels := map[string]services.CommandLabel{
-		"qux": &services.CommandLabelV2{
+		"qux": &types.CommandLabelV2{
 			Period:  services.NewDuration(time.Second),
 			Command: []string{"expr", "1", "+", "3"},
 		},
 	}
 	s.hostUUID = uuid.New()
-	s.server = &services.ServerV2{
+	s.server = &types.ServerV2{
 		Kind:    services.KindAppServer,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      s.hostUUID,
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Version: teleport.Version,
-			Apps: []*services.App{
+			Apps: []*types.App{
 				{
 					Name:          "foo",
 					URI:           s.testhttp.URL,
@@ -357,6 +358,6 @@ func (s *Suite) TestRewriteResponse(c *check.C) {
 func (s *Suite) TestSessionClose(c *check.C) {
 }
 
-func testRotationGetter(role teleport.Role) (*services.Rotation, error) {
-	return &services.Rotation{}, nil
+func testRotationGetter(role teleport.Role) (*types.Rotation, error) {
+	return &types.Rotation{}, nil
 }

@@ -94,13 +94,13 @@ type DynamicAccessCore interface {
 	// SetAccessRequestState updates the state of an existing access request.
 	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) error
 	// GetAccessRequests gets all currently active access requests.
-	GetAccessRequests(ctx context.Context, filter AccessRequestFilter) ([]AccessRequest, error)
+	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
 	DeleteAccessRequest(ctx context.Context, reqID string) error
 	// GetPluginData loads all plugin data matching the supplied filter.
-	GetPluginData(ctx context.Context, filter PluginDataFilter) ([]PluginData, error)
+	GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]PluginData, error)
 	// UpdatePluginData updates a per-resource PluginData entry.
-	UpdatePluginData(ctx context.Context, params PluginDataUpdateParams) error
+	UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error
 }
 
 // DynamicAccess is a service which manages dynamic RBAC.  Specifically, this is the
@@ -542,7 +542,7 @@ ProcessReviews:
 
 // GetAccessRequest is a helper function assists with loading a specific request by ID.
 func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (AccessRequest, error) {
-	reqs, err := acc.GetAccessRequests(ctx, AccessRequestFilter{
+	reqs, err := acc.GetAccessRequests(ctx, types.AccessRequestFilter{
 		ID: reqID,
 	})
 	if err != nil {
@@ -598,7 +598,7 @@ func appendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.Cl
 // insertAnnotations constructs all annotations for a given
 // AccessRequestConditions instance and adds them to the
 // supplied annotations mapping.
-func insertAnnotations(annotations map[string][]string, conditions AccessRequestConditions, traits map[string][]string) {
+func insertAnnotations(annotations map[string][]string, conditions types.AccessRequestConditions, traits map[string][]string) {
 	for key, vals := range conditions.Annotations {
 		// get any previous values at key
 		allVals := annotations[key]
@@ -1159,7 +1159,7 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req AccessRequestV3
+	var req types.AccessRequestV3
 	if err := utils.FastUnmarshal(data, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1183,7 +1183,7 @@ func MarshalAccessRequest(accessRequest AccessRequest, opts ...MarshalOption) ([
 	}
 
 	switch accessRequest := accessRequest.(type) {
-	case *AccessRequestV3:
+	case *types.AccessRequestV3:
 		if version := accessRequest.GetVersion(); version != V3 {
 			return nil, trace.BadParameter("mismatched access request version %v and type %T", version, accessRequest)
 		}

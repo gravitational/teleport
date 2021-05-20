@@ -69,7 +69,7 @@ func (la *LoginAttempt) Check() error {
 
 // UnmarshalUser unmarshals the User resource from JSON.
 func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
-	var h ResourceHeader
+	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,7 +82,7 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
 
 	switch h.Version {
 	case V2:
-		var u UserV2
+		var u types.UserV2
 		if err := utils.FastUnmarshal(bytes, &u); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -110,7 +110,7 @@ func MarshalUser(user User, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	switch user := user.(type) {
-	case *UserV2:
+	case *types.UserV2:
 		if version := user.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched user version %v and type %T", version, user)
 		}

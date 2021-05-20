@@ -1096,7 +1096,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (s
 }
 
 func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string) ([]string, time.Time, error) {
-	reqFilter := services.AccessRequestFilter{
+	reqFilter := types.AccessRequestFilter{
 		User: user,
 		ID:   accessRequestID,
 	}
@@ -1270,7 +1270,7 @@ type GenerateServerKeysRequest struct {
 	// expected by client of the certificate authority backends, so auth servers
 	// can avoid situation when clients request certs assuming one
 	// state, and auth servers issue another
-	Rotation *services.Rotation `json:"rotation,omitempty"`
+	Rotation *types.Rotation `json:"rotation,omitempty"`
 	// NoCache is argument that only local callers can supply to bypass cache
 	NoCache bool `json:"-"`
 }
@@ -1698,7 +1698,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 		startTime = req.LoginTime
 	}
 
-	sessionSpec := services.WebSessionSpecV2{
+	sessionSpec := types.WebSessionSpecV2{
 		User:               req.User,
 		Priv:               priv,
 		Pub:                certs.ssh,
@@ -2007,7 +2007,7 @@ func (a *Server) NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 		a:           a,
 		ctx:         cancelCtx,
 		cancel:      cancel,
-		keepAlivesC: make(chan services.KeepAlive),
+		keepAlivesC: make(chan types.KeepAlive),
 	}
 	go k.forwardKeepAlives()
 	return k, nil
@@ -2046,12 +2046,12 @@ func (a *Server) GetRole(ctx context.Context, name string) (services.Role, error
 }
 
 // GetNamespace returns namespace
-func (a *Server) GetNamespace(name string) (*services.Namespace, error) {
+func (a *Server) GetNamespace(name string) (*types.Namespace, error) {
 	return a.GetCache().GetNamespace(name)
 }
 
 // GetNamespaces is a part of auth.AccessPoint implementation
-func (a *Server) GetNamespaces() ([]services.Namespace, error) {
+func (a *Server) GetNamespaces() ([]types.Namespace, error) {
 	return a.GetCache().GetNamespaces()
 }
 
@@ -2427,12 +2427,12 @@ type authKeepAliver struct {
 	a           *Server
 	ctx         context.Context
 	cancel      context.CancelFunc
-	keepAlivesC chan services.KeepAlive
+	keepAlivesC chan types.KeepAlive
 	err         error
 }
 
 // KeepAlives returns a channel accepting keep alive requests
-func (k *authKeepAliver) KeepAlives() chan<- services.KeepAlive {
+func (k *authKeepAliver) KeepAlives() chan<- types.KeepAlive {
 	return k.keepAlivesC
 }
 

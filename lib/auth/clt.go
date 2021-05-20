@@ -610,12 +610,12 @@ func (c *Client) RegisterNewAuthServer(ctx context.Context, token string) error 
 // This logic has been moved to KeepAliveServer.
 //
 // KeepAliveNode updates node keep alive information.
-func (c *Client) KeepAliveNode(ctx context.Context, keepAlive services.KeepAlive) error {
+func (c *Client) KeepAliveNode(ctx context.Context, keepAlive types.KeepAlive) error {
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 
 // KeepAliveServer not implemented: can only be called locally.
-func (c *Client) KeepAliveServer(ctx context.Context, keepAlive services.KeepAlive) error {
+func (c *Client) KeepAliveServer(ctx context.Context, keepAlive types.KeepAlive) error {
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 
@@ -1471,12 +1471,12 @@ func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit i
 }
 
 // GetNamespaces returns a list of namespaces
-func (c *Client) GetNamespaces() ([]services.Namespace, error) {
+func (c *Client) GetNamespaces() ([]types.Namespace, error) {
 	out, err := c.Get(c.Endpoint("namespaces"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re []services.Namespace
+	var re []types.Namespace
 	if err := utils.FastUnmarshal(out.Bytes(), &re); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1484,7 +1484,7 @@ func (c *Client) GetNamespaces() ([]services.Namespace, error) {
 }
 
 // GetNamespace returns namespace by name
-func (c *Client) GetNamespace(name string) (*services.Namespace, error) {
+func (c *Client) GetNamespace(name string) (*types.Namespace, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing namespace name")
 	}
@@ -1496,7 +1496,7 @@ func (c *Client) GetNamespace(name string) (*services.Namespace, error) {
 }
 
 // UpsertNamespace upserts namespace
-func (c *Client) UpsertNamespace(ns services.Namespace) error {
+func (c *Client) UpsertNamespace(ns types.Namespace) error {
 	_, err := c.PostJSON(c.Endpoint("namespaces"), upsertNamespaceReq{Namespace: ns})
 	return trace.Wrap(err)
 }

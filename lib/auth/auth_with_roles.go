@@ -387,7 +387,7 @@ func (a *ServerWithRoles) UpsertNodes(namespace string, servers []services.Serve
 	return a.authServer.UpsertNodes(namespace, servers)
 }
 
-func (a *ServerWithRoles) UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
+func (a *ServerWithRoles) UpsertNode(ctx context.Context, s services.Server) (*types.KeepAlive, error) {
 	if err := a.action(s.GetNamespace(), services.KindNode, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -400,7 +400,7 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s services.Server) (*s
 // DELETE IN: 5.1.0
 //
 // This logic has moved to KeepAliveServer.
-func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle services.KeepAlive) error {
+func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle types.KeepAlive) error {
 	if !a.hasBuiltinRole(string(teleport.RoleNode)) {
 		return trace.AccessDenied("[10] access denied")
 	}
@@ -422,7 +422,7 @@ func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle services.Kee
 }
 
 // KeepAliveServer updates expiry time of a server resource.
-func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle services.KeepAlive) error {
+func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
 	clusterName, err := a.GetDomainName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -494,7 +494,7 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 				}
 			}
 		case services.KindAccessRequest:
-			var filter services.AccessRequestFilter
+			var filter types.AccessRequestFilter
 			if err := filter.FromMap(kind.Filter); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -996,7 +996,7 @@ type accessChecker interface {
 	currentUserAction(user string) error
 }
 
-func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]services.AccessRequest, error) {
 	// users can always view their own access requests
 	if filter.User != "" && a.currentUserAction(filter.User) == nil {
 		return a.authServer.GetAccessRequests(ctx, filter)
@@ -1128,7 +1128,7 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req service
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
-func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
+func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]services.PluginData, error) {
 	switch filter.Kind {
 	case services.KindAccessRequest:
 		// for backwards compatibility, we allow list/read against access requests to also grant list/read for
@@ -1150,7 +1150,7 @@ func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter services.Plu
 }
 
 // UpdatePluginData updates a per-resource PluginData entry.
-func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
+func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
 	switch params.Kind {
 	case services.KindAccessRequest:
 		// for backwards compatibility, we allow update against access requests to also grant update for
@@ -1586,8 +1586,8 @@ func (a *ServerWithRoles) UpsertUser(u services.User) error {
 
 	createdBy := u.GetCreatedBy()
 	if createdBy.IsEmpty() {
-		u.SetCreatedBy(services.CreatedBy{
-			User: services.UserRef{Name: a.context.User.GetName()},
+		u.SetCreatedBy(types.CreatedBy{
+			User: types.UserRef{Name: a.context.User.GetName()},
 		})
 	}
 	return a.authServer.UpsertUser(u)
@@ -1997,7 +1997,7 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 }
 
 // GetNamespaces returns a list of namespaces
-func (a *ServerWithRoles) GetNamespaces() ([]services.Namespace, error) {
+func (a *ServerWithRoles) GetNamespaces() ([]types.Namespace, error) {
 	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2008,7 +2008,7 @@ func (a *ServerWithRoles) GetNamespaces() ([]services.Namespace, error) {
 }
 
 // GetNamespace returns namespace by name
-func (a *ServerWithRoles) GetNamespace(name string) (*services.Namespace, error) {
+func (a *ServerWithRoles) GetNamespace(name string) (*types.Namespace, error) {
 	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2016,7 +2016,7 @@ func (a *ServerWithRoles) GetNamespace(name string) (*services.Namespace, error)
 }
 
 // UpsertNamespace upserts namespace
-func (a *ServerWithRoles) UpsertNamespace(ns services.Namespace) error {
+func (a *ServerWithRoles) UpsertNamespace(ns types.Namespace) error {
 	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2503,7 +2503,7 @@ func (a *ServerWithRoles) DeleteAllRemoteClusters() error {
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.
-func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error) {
+func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	if err := a.action(defaults.Namespace, services.KindSemaphore, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2514,7 +2514,7 @@ func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params services.
 }
 
 // KeepAliveSemaphoreLease updates semaphore lease.
-func (a *ServerWithRoles) KeepAliveSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+func (a *ServerWithRoles) KeepAliveSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	if err := a.action(defaults.Namespace, services.KindSemaphore, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2522,7 +2522,7 @@ func (a *ServerWithRoles) KeepAliveSemaphoreLease(ctx context.Context, lease ser
 }
 
 // CancelSemaphoreLease cancels semaphore lease early.
-func (a *ServerWithRoles) CancelSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+func (a *ServerWithRoles) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	if err := a.action(defaults.Namespace, services.KindSemaphore, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2530,7 +2530,7 @@ func (a *ServerWithRoles) CancelSemaphoreLease(ctx context.Context, lease servic
 }
 
 // GetSemaphores returns a list of all semaphores matching the supplied filter.
-func (a *ServerWithRoles) GetSemaphores(ctx context.Context, filter services.SemaphoreFilter) ([]services.Semaphore, error) {
+func (a *ServerWithRoles) GetSemaphores(ctx context.Context, filter types.SemaphoreFilter) ([]services.Semaphore, error) {
 	if err := a.action(defaults.Namespace, services.KindSemaphore, services.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2541,7 +2541,7 @@ func (a *ServerWithRoles) GetSemaphores(ctx context.Context, filter services.Sem
 }
 
 // DeleteSemaphore deletes a semaphore matching the supplied filter.
-func (a *ServerWithRoles) DeleteSemaphore(ctx context.Context, filter services.SemaphoreFilter) error {
+func (a *ServerWithRoles) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilter) error {
 	if err := a.action(defaults.Namespace, services.KindSemaphore, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2692,7 +2692,7 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 	// them.
 	mfaParams := services.AccessMFAParams{Verified: true}
 	for _, server := range servers {
-		filteredApps := make([]*services.App, 0, len(server.GetApps()))
+		filteredApps := make([]*types.App, 0, len(server.GetApps()))
 		for _, app := range server.GetApps() {
 			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app, mfaParams)
 			if err != nil {
@@ -2710,7 +2710,7 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 }
 
 // UpsertAppServer adds an application server.
-func (a *ServerWithRoles) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+func (a *ServerWithRoles) UpsertAppServer(ctx context.Context, server services.Server) (*types.KeepAlive, error) {
 	if err := a.action(server.GetNamespace(), services.KindAppServer, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2905,7 +2905,7 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]services.Serve
 	// connect to them.
 	mfaParams := services.AccessMFAParams{Verified: true}
 	for _, server := range servers {
-		filtered := make([]*services.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
+		filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 		for _, kube := range server.GetKubernetesClusters() {
 			if err := a.context.Checker.CheckAccessToKubernetes(server.GetNamespace(), kube, mfaParams); err != nil {
 				if trace.IsAccessDenied(err) {

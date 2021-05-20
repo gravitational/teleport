@@ -33,7 +33,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 
 	// Create several tunnel connections.
 	lastHeartbeat := a.clock.Now().UTC()
-	tc1, err := services.NewTunnelConnection("conn-1", services.TunnelConnectionSpecV2{
+	tc1, err := services.NewTunnelConnection("conn-1", types.TunnelConnectionSpecV2{
 		ClusterName:   rc.GetName(),
 		ProxyName:     "proxy-1",
 		LastHeartbeat: lastHeartbeat,
@@ -43,7 +43,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	require.NoError(t, a.UpsertTunnelConnection(tc1))
 
 	lastHeartbeat = lastHeartbeat.Add(time.Minute)
-	tc2, err := services.NewTunnelConnection("conn-2", services.TunnelConnectionSpecV2{
+	tc2, err := services.NewTunnelConnection("conn-2", types.TunnelConnectionSpecV2{
 		ClusterName:   rc.GetName(),
 		ProxyName:     "proxy-2",
 		LastHeartbeat: lastHeartbeat,
@@ -95,7 +95,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 		clusterName = name[0]
 	}
 	// Create a cluster with minimal viable config.
-	clusterNameRes, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterNameRes, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)

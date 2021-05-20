@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -160,7 +161,7 @@ func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var tokens []services.ProvisionTokenV1
+	var tokens []types.ProvisionTokenV1
 	if err := json.Unmarshal(out.Bytes(), &tokens); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -269,14 +270,14 @@ func (t *TLSServer) GetServerInfo() (services.Resource, error) {
 		name += "-proxy_service"
 	}
 
-	srv := &services.ServerV2{
+	srv := &types.ServerV2{
 		Kind:    services.KindKubeService,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      name,
 			Namespace: t.Namespace,
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr:               addr,
 			Version:            teleport.Version,
 			KubernetesClusters: t.fwd.kubeClusters(),

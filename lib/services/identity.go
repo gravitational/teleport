@@ -75,14 +75,14 @@ type Identity interface {
 
 	// GetUserByOIDCIdentity returns a user by its specified OIDC Identity, returns first
 	// user specified with this identity
-	GetUserByOIDCIdentity(id ExternalIdentity) (User, error)
+	GetUserByOIDCIdentity(id types.ExternalIdentity) (User, error)
 
 	// GetUserBySAMLIdentity returns a user by its specified OIDC Identity, returns first
 	// user specified with this identity
-	GetUserBySAMLIdentity(id ExternalIdentity) (User, error)
+	GetUserBySAMLIdentity(id types.ExternalIdentity) (User, error)
 
 	// GetUserByGithubIdentity returns a user by its specified Github identity
-	GetUserByGithubIdentity(id ExternalIdentity) (User, error)
+	GetUserByGithubIdentity(id types.ExternalIdentity) (User, error)
 
 	// UpsertPasswordHash upserts user password hash
 	UpsertPasswordHash(user string, hash []byte) error

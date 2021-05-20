@@ -50,14 +50,14 @@ func TestUpsertServer(t *testing.T) {
 	}{
 		{
 			desc: "node",
-			reqServer: &services.ServerV2{
-				Metadata: services.Metadata{Name: "test-server", Namespace: defaults.Namespace},
+			reqServer: &types.ServerV2{
+				Metadata: types.Metadata{Name: "test-server", Namespace: defaults.Namespace},
 				Version:  services.V2,
 				Kind:     services.KindNode,
 			},
 			role: teleport.RoleNode,
-			wantServer: &services.ServerV2{
-				Metadata: services.Metadata{Name: "test-server", Namespace: defaults.Namespace},
+			wantServer: &types.ServerV2{
+				Metadata: types.Metadata{Name: "test-server", Namespace: defaults.Namespace},
 				Version:  services.V2,
 				Kind:     services.KindNode,
 			},
@@ -65,14 +65,14 @@ func TestUpsertServer(t *testing.T) {
 		},
 		{
 			desc: "proxy",
-			reqServer: &services.ServerV2{
-				Metadata: services.Metadata{Name: "test-server", Namespace: defaults.Namespace},
+			reqServer: &types.ServerV2{
+				Metadata: types.Metadata{Name: "test-server", Namespace: defaults.Namespace},
 				Version:  services.V2,
 				Kind:     services.KindProxy,
 			},
 			role: teleport.RoleProxy,
-			wantServer: &services.ServerV2{
-				Metadata: services.Metadata{Name: "test-server", Namespace: defaults.Namespace},
+			wantServer: &types.ServerV2{
+				Metadata: types.Metadata{Name: "test-server", Namespace: defaults.Namespace},
 				Version:  services.V2,
 				Kind:     services.KindProxy,
 			},
@@ -80,14 +80,14 @@ func TestUpsertServer(t *testing.T) {
 		},
 		{
 			desc: "auth",
-			reqServer: &services.ServerV2{
-				Metadata: services.Metadata{Name: "test-server", Namespace: defaults.Namespace},
+			reqServer: &types.ServerV2{
+				Metadata: types.Metadata{Name: "test-server", Namespace: defaults.Namespace},
 				Version:  services.V2,
 				Kind:     services.KindAuthServer,
 			},
 			role: teleport.RoleAuth,
-			wantServer: &services.ServerV2{
-				Metadata: services.Metadata{Name: "test-server", Namespace: defaults.Namespace},
+			wantServer: &types.ServerV2{
+				Metadata: types.Metadata{Name: "test-server", Namespace: defaults.Namespace},
 				Version:  services.V2,
 				Kind:     services.KindAuthServer,
 			},
@@ -95,8 +95,8 @@ func TestUpsertServer(t *testing.T) {
 		},
 		{
 			desc: "unknown",
-			reqServer: &services.ServerV2{
-				Metadata: services.Metadata{Name: "test-server", Namespace: defaults.Namespace},
+			reqServer: &types.ServerV2{
+				Metadata: types.Metadata{Name: "test-server", Namespace: defaults.Namespace},
 				Version:  services.V2,
 				Kind:     services.KindNode,
 			},

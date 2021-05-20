@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -508,14 +509,14 @@ func UnmarshalResource(kind string, raw []byte, opts ...MarshalOption) (Resource
 
 // UnknownResource is used to detect resources
 type UnknownResource struct {
-	ResourceHeader
+	types.ResourceHeader
 	// Raw is raw representation of the resource
 	Raw []byte
 }
 
 // UnmarshalJSON unmarshals header and captures raw state
 func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
-	var h ResourceHeader
+	var h types.ResourceHeader
 	if err := json.Unmarshal(raw, &h); err != nil {
 		return trace.Wrap(err)
 	}

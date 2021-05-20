@@ -18,6 +18,7 @@ package services
 
 import (
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/pborman/uuid"
@@ -26,25 +27,25 @@ import (
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() Role {
-	role := &RoleV3{
+	role := &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   defaults.Namespace,
 			Description: "Edit cluster configuration",
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
+		Spec: types.RoleSpecV3{
+			Options: types.RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    NewBoolOption(true),
 				ForwardAgent:      NewBool(true),
 				BPF:               defaults.EnhancedEvents(),
 			},
-			Allow: RoleConditions{
+			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				Rules: []Rule{
+				Rules: []types.Rule{
 					NewRule(KindUser, RW()),
 					NewRule(KindRole, RW()),
 					NewRule(KindOIDC, RW()),
@@ -65,23 +66,23 @@ func NewPresetEditorRole() Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() Role {
-	role := &RoleV3{
+	role := &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   defaults.Namespace,
 			Description: "Access cluster resources",
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
+		Spec: types.RoleSpecV3{
+			Options: types.RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    NewBoolOption(true),
 				ForwardAgent:      NewBool(true),
 				BPF:               defaults.EnhancedEvents(),
 			},
-			Allow: RoleConditions{
+			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
@@ -89,7 +90,7 @@ func NewPresetAccessRole() Role {
 				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
 				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-				Rules: []Rule{
+				Rules: []types.Rule{
 					NewRule(KindEvent, RO()),
 				},
 			},
@@ -105,27 +106,27 @@ func NewPresetAccessRole() Role {
 // auditor - someone who can review cluster events and replay sessions,
 // but can't initiate interactive sessions or modify configuration.
 func NewPresetAuditorRole() Role {
-	role := &RoleV3{
+	role := &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   defaults.Namespace,
 			Description: "Review cluster events and replay sessions",
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
+		Spec: types.RoleSpecV3{
+			Options: types.RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
 			},
-			Allow: RoleConditions{
+			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				Rules: []Rule{
+				Rules: []types.Rule{
 					NewRule(KindSession, RO()),
 					NewRule(KindEvent, RO()),
 				},
 			},
-			Deny: RoleConditions{
+			Deny: types.RoleConditions{
 				Namespaces:       []string{Wildcard},
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},

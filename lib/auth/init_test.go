@@ -339,7 +339,7 @@ func TestClusterName(t *testing.T) {
 	// Start the auth server with a different cluster name. The auth server
 	// should start, but with the original name.
 	newConfig := conf
-	newConfig.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
+	newConfig.ClusterName, err = services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "dev.localhost",
 	})
 	require.NoError(t, err)
@@ -737,7 +737,7 @@ func setupConfig(t *testing.T) InitConfig {
 	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
 	require.NoError(t, err)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)

@@ -32,7 +32,7 @@ import (
 )
 
 // ValidateLocalAuthSecrets validates local auth secret members.
-func ValidateLocalAuthSecrets(l *LocalAuthSecrets) error {
+func ValidateLocalAuthSecrets(l *types.LocalAuthSecrets) error {
 	if len(l.PasswordHash) > 0 {
 		if _, err := bcrypt.Cost(l.PasswordHash); err != nil {
 			return trace.BadParameter("invalid password hash")

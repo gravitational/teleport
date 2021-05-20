@@ -105,14 +105,14 @@ func (s *ClusterConfigurationSuite) TestSessionRecording(c *check.C) {
 
 func (s *ClusterConfigurationSuite) TestAuditConfig(c *check.C) {
 	// default is to record at the node
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{})
+	clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{})
 	c.Assert(err, check.IsNil)
 
 	cfg := clusterConfig.GetAuditConfig()
-	c.Assert(cfg, check.DeepEquals, services.AuditConfig{})
+	c.Assert(cfg, check.DeepEquals, types.AuditConfig{})
 
 	// update sessions to be recorded at the proxy and check again
-	in := services.AuditConfig{
+	in := types.AuditConfig{
 		Region:           "us-west-1",
 		Type:             "dynamodb",
 		AuditSessionsURI: "file:///home/log",
@@ -150,7 +150,7 @@ audit_events_uri: 'dynamodb://audit_table_name'
 
 	out2, err = services.AuditConfigFromObject(data)
 	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, *out2, services.AuditConfig{
+	fixtures.DeepCompare(c, *out2, types.AuditConfig{
 		Region:           "us-west-1",
 		Type:             "dir",
 		AuditSessionsURI: "file:///home/log",
@@ -160,10 +160,10 @@ audit_events_uri: 'dynamodb://audit_table_name'
 
 func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
 	// signle audit_events uri value
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+	clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
 		DisconnectExpiredCert: services.NewBool(true),
 		ClusterID:             "27",
-		Audit: services.AuditConfig{
+		Audit: types.AuditConfig{
 			Region:           "us-west-1",
 			Type:             "dynamodb",
 			AuditSessionsURI: "file:///home/log",
@@ -181,10 +181,10 @@ func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
 	fixtures.DeepCompare(c, clusterConfig, out)
 
 	// multiple events uri values
-	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
+	clusterConfig, err = services.NewClusterConfig(types.ClusterConfigSpecV3{
 		DisconnectExpiredCert: services.NewBool(true),
 		ClusterID:             "27",
-		Audit: services.AuditConfig{
+		Audit: types.AuditConfig{
 			Region:           "us-west-1",
 			Type:             "dynamodb",
 			AuditSessionsURI: "file:///home/log",

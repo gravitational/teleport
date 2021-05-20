@@ -19,6 +19,7 @@ package services
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -26,22 +27,22 @@ import (
 // DefaultStaticTokens is used to get the default static tokens (empty list)
 // when nothing is specified in file configuration.
 func DefaultStaticTokens() StaticTokens {
-	return &StaticTokensV2{
+	return &types.StaticTokensV2{
 		Kind:    KindStaticTokens,
 		Version: V2,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:      MetaNameStaticTokens,
 			Namespace: defaults.Namespace,
 		},
-		Spec: StaticTokensSpecV2{
-			StaticTokens: []ProvisionTokenV1{},
+		Spec: types.StaticTokensSpecV2{
+			StaticTokens: []types.ProvisionTokenV1{},
 		},
 	}
 }
 
 // UnmarshalStaticTokens unmarshals the StaticTokens resource from JSON.
 func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (StaticTokens, error) {
-	var staticTokens StaticTokensV2
+	var staticTokens types.StaticTokensV2
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -76,7 +77,7 @@ func MarshalStaticTokens(staticToken StaticTokens, opts ...MarshalOption) ([]byt
 	}
 
 	switch staticToken := staticToken.(type) {
-	case *StaticTokensV2:
+	case *types.StaticTokensV2:
 		if version := staticToken.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched static token version %v and type %T", version, staticToken)
 		}

@@ -22,9 +22,10 @@ import (
 
 	"github.com/coreos/go-oidc/jose"
 	saml2 "github.com/russellhaering/gosaml2"
-	"github.com/russellhaering/gosaml2/types"
+	samltypes "github.com/russellhaering/gosaml2/types"
 	"gopkg.in/check.v1"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -48,14 +49,14 @@ func (s *UserSuite) TestTraits(c *check.C) {
 	}
 
 	for _, tt := range tests {
-		user := &UserV2{
+		user := &types.UserV2{
 			Kind:    KindUser,
 			Version: V2,
-			Metadata: Metadata{
+			Metadata: types.Metadata{
 				Name:      "foo",
 				Namespace: defaults.Namespace,
 			},
-			Spec: UserSpecV2{
+			Spec: types.UserSpecV2{
 				Traits: map[string][]string{
 					tt.traitName: {"foo"},
 				},
@@ -274,18 +275,18 @@ func claimMappingsToAttributeMappings(in []ClaimMapping) []AttributeMapping {
 // claimsToAttributes maps jose.Claims type to attributes for testing
 func claimsToAttributes(claims jose.Claims) saml2.AssertionInfo {
 	info := saml2.AssertionInfo{
-		Values: make(map[string]types.Attribute),
+		Values: make(map[string]samltypes.Attribute),
 	}
 	for claim, values := range claims {
-		attr := types.Attribute{
+		attr := samltypes.Attribute{
 			Name: claim,
 		}
 		switch val := values.(type) {
 		case string:
-			attr.Values = []types.AttributeValue{{Value: val}}
+			attr.Values = []samltypes.AttributeValue{{Value: val}}
 		case []string:
 			for _, v := range val {
-				attr.Values = append(attr.Values, types.AttributeValue{Value: v})
+				attr.Values = append(attr.Values, samltypes.AttributeValue{Value: v})
 			}
 		default:
 			panic(fmt.Sprintf("unsupported type %T", val))

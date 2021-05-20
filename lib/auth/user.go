@@ -27,6 +27,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -36,8 +37,8 @@ import (
 // CreateUser inserts a new user entry in a backend.
 func (s *Server) CreateUser(ctx context.Context, user services.User) error {
 	if user.GetCreatedBy().IsEmpty() {
-		user.SetCreatedBy(services.CreatedBy{
-			User: services.UserRef{Name: ClientUsername(ctx)},
+		user.SetCreatedBy(types.CreatedBy{
+			User: types.UserRef{Name: ClientUsername(ctx)},
 			Time: s.GetClock().Now().UTC(),
 		})
 	}

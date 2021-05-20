@@ -73,7 +73,7 @@ func TestCheckImpersonate(t *testing.T) {
 	}
 	var empty props
 	newUser := func(name string, props props) types.User {
-		u := &UserV2{
+		u := &types.UserV2{
 			Kind:    types.KindUser,
 			Version: types.V2,
 			Metadata: types.Metadata{

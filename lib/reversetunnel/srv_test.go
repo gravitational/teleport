@@ -48,7 +48,7 @@ func TestServerKeyAuth(t *testing.T) {
 				SigningKeys:  [][]byte{priv},
 				CheckingKeys: [][]byte{pub},
 				Roles:        nil,
-				SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_256,
+				SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_256,
 			}),
 		},
 	}

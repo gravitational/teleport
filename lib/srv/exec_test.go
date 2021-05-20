@@ -88,7 +88,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	bk, err := lite.NewWithConfig(ctx, lite.Config{Path: c.MkDir()})
 	c.Assert(err, check.IsNil)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "localhost",
 	})
 	c.Assert(err, check.IsNil)
@@ -104,8 +104,8 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// set static tokens
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{},
+	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	c.Assert(err, check.IsNil)
 	err = s.a.SetStaticTokens(staticTokens)
@@ -481,15 +481,15 @@ func (f *fakeServer) GetInfo() services.Server {
 		hostname = "localhost"
 	}
 
-	return &services.ServerV2{
+	return &types.ServerV2{
 		Kind:    services.KindNode,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      "",
 			Namespace: "",
 			Labels:    make(map[string]string),
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			CmdLabels: make(map[string]types.CommandLabelV2),
 			Addr:      "",
 			Hostname:  hostname,

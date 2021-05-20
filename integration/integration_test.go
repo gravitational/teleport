@@ -253,8 +253,8 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
 			makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
-				clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-					Audit:     services.AuditConfig{AuditSessionsURI: tt.auditSessionsURI},
+				clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
+					Audit:     types.AuditConfig{AuditSessionsURI: tt.auditSessionsURI},
 					LocalAuth: services.NewBool(true),
 				})
 				require.NoError(t, err)
@@ -1025,7 +1025,7 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 
 type disconnectTestCase struct {
 	recordingMode     string
-	options           services.RoleOptions
+	options           types.RoleOptions
 	disconnectTimeout time.Duration
 	concurrentConns   int
 	sessCtlTimeout    time.Duration
@@ -1041,27 +1041,27 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 	testCases := []disconnectTestCase{
 		{
 			recordingMode: services.RecordAtNode,
-			options: services.RoleOptions{
+			options: types.RoleOptions{
 				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: time.Second,
 		}, {
 			recordingMode: services.RecordAtProxy,
-			options: services.RoleOptions{
+			options: types.RoleOptions{
 				ForwardAgent:      services.NewBool(true),
 				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: time.Second,
 		}, {
 			recordingMode: services.RecordAtNode,
-			options: services.RoleOptions{
+			options: types.RoleOptions{
 				DisconnectExpiredCert: services.NewBool(true),
 				MaxSessionTTL:         services.NewDuration(2 * time.Second),
 			},
 			disconnectTimeout: 4 * time.Second,
 		}, {
 			recordingMode: services.RecordAtProxy,
-			options: services.RoleOptions{
+			options: types.RoleOptions{
 				ForwardAgent:          services.NewBool(true),
 				DisconnectExpiredCert: services.NewBool(true),
 				MaxSessionTTL:         services.NewDuration(2 * time.Second),
@@ -1070,7 +1070,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 		}, {
 			//"verify that concurrent connection limits are applied when recording at node",
 			recordingMode: services.RecordAtNode,
-			options: services.RoleOptions{
+			options: types.RoleOptions{
 				MaxConnections: 1,
 			},
 			disconnectTimeout: 1 * time.Second,
@@ -1083,7 +1083,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 		}, {
 			// "verify that concurrent connection limits are applied when recording at proxy",
 			recordingMode: services.RecordAtProxy,
-			options: services.RoleOptions{
+			options: types.RoleOptions{
 				ForwardAgent:   services.NewBool(true),
 				MaxConnections: 1,
 			},
@@ -1097,7 +1097,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 		}, {
 			// "verify that lost connections to auth server terminate controlled conns",
 			recordingMode: services.RecordAtNode,
-			options: services.RoleOptions{
+			options: types.RoleOptions{
 				MaxConnections: 1,
 			},
 			disconnectTimeout: time.Second,
@@ -1109,7 +1109,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				var sems []services.Semaphore
 				var err error
 				for i := 0; i < 6; i++ {
-					sems, err = site.GetSemaphores(ctx, services.SemaphoreFilter{
+					sems, err = site.GetSemaphores(ctx, types.SemaphoreFilter{
 						SemaphoreKind: services.SemaphoreKindConnection,
 					})
 					if err == nil && len(sems) > 0 {
@@ -1154,16 +1154,16 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	teleport := suite.newTeleportInstance()
 
 	username := suite.me.Username
-	role, err := services.NewRole("devs", services.RoleSpecV3{
+	role, err := services.NewRole("devs", types.RoleSpecV3{
 		Options: tc.options,
-		Allow: services.RoleConditions{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
 
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+	clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
 		LocalAuth: services.NewBool(true),
 	})
 	require.NoError(t, err)
@@ -1693,8 +1693,8 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err := services.NewRole(mainDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -1721,8 +1721,8 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err = services.NewRole(auxDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -1983,8 +1983,8 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	devsRole, err := services.NewRole(mainDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	devsRole, err := services.NewRole(mainDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -1998,8 +1998,8 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, err)
 
 	mainAdmins := "main-admins"
-	adminsRole, err := services.NewRole(mainAdmins, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	adminsRole, err := services.NewRole(mainAdmins, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{"superuser"},
 		},
 	})
@@ -2009,8 +2009,8 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// Ops users can only access remote clusters with label 'access': 'ops'
 	mainOps := "main-ops"
-	mainOpsRole, err := services.NewRole(mainOps, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	mainOpsRole, err := services.NewRole(mainOps, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins:        []string{username},
 			ClusterLabels: services.Labels{"access": []string{"ops"}},
 		},
@@ -2038,8 +2038,8 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	auxRole, err := services.NewRole(auxDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	auxRole, err := services.NewRole(auxDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -2218,8 +2218,8 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err := services.NewRole(mainDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -2246,8 +2246,8 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err = services.NewRole(auxDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -3706,8 +3706,8 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err := services.NewRole(mainDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{suite.me.Username},
 		},
 	})
@@ -3724,8 +3724,8 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err = services.NewRole(auxDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{suite.me.Username},
 		},
 	})
@@ -4361,8 +4361,8 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.inRoleName, func(t *testing.T) {
 			// Create role with logins and labels for this test.
-			role, err := services.NewRole(tt.inRoleName, services.RoleSpecV3{
-				Allow: services.RoleConditions{
+			role, err := services.NewRole(tt.inRoleName, types.RoleSpecV3{
+				Allow: types.RoleConditions{
 					Logins:     []string{tt.inLogin},
 					NodeLabels: tt.inLabels,
 				},

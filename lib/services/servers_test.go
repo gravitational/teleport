@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 
@@ -36,17 +37,17 @@ var _ = check.Suite(&ServerSuite{})
 
 // TestServersCompare tests comparing two servers
 func (s *ServerSuite) TestServersCompare(c *check.C) {
-	node := &ServerV2{
+	node := &types.ServerV2{
 		Kind:    KindNode,
 		Version: V2,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:      "node1",
 			Namespace: defaults.Namespace,
 			Labels:    map[string]string{"a": "b"},
 		},
-		Spec: ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr:      "localhost:3022",
-			CmdLabels: map[string]CommandLabelV2{"a": {Period: Duration(time.Minute), Command: []string{"ls", "-l"}}},
+			CmdLabels: map[string]types.CommandLabelV2{"a": {Period: Duration(time.Minute), Command: []string{"ls", "-l"}}},
 			Version:   "4.0.0",
 		},
 	}
@@ -66,7 +67,7 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 
 	// Command labels are different
 	node2 = *node
-	node2.Spec.CmdLabels = map[string]CommandLabelV2{"a": {Period: Duration(time.Minute), Command: []string{"ls", "-lR"}}}
+	node2.Spec.CmdLabels = map[string]types.CommandLabelV2{"a": {Period: Duration(time.Minute), Command: []string{"ls", "-lR"}}}
 	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 
 	// Address has changed
@@ -91,14 +92,14 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 
 	// Rotation has changed
 	node2 = *node
-	node2.Spec.Rotation = Rotation{
+	node2.Spec.Rotation = types.Rotation{
 		State:       RotationStateInProgress,
 		Phase:       RotationPhaseUpdateClients,
 		CurrentID:   "1",
 		Started:     time.Date(2018, 3, 4, 5, 6, 7, 8, time.UTC),
 		GracePeriod: Duration(3 * time.Hour),
 		LastRotated: time.Date(2017, 2, 3, 4, 5, 6, 7, time.UTC),
-		Schedule: RotationSchedule{
+		Schedule: types.RotationSchedule{
 			UpdateClients: time.Date(2018, 3, 4, 5, 6, 7, 8, time.UTC),
 			UpdateServers: time.Date(2018, 3, 4, 7, 6, 7, 8, time.UTC),
 			Standby:       time.Date(2018, 3, 4, 5, 6, 13, 8, time.UTC),
@@ -117,7 +118,7 @@ func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
 	fixtures.ExpectNotFound(c, err)
 
 	// No proxies have public address set.
-	proxyA := ServerV2{}
+	proxyA := types.ServerV2{}
 	proxyA.Spec.Hostname = "test-A"
 	proxyA.Spec.Version = "test-A"
 
@@ -127,7 +128,7 @@ func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// At least one proxy has public address set.
-	proxyB := ServerV2{}
+	proxyB := types.ServerV2{}
 	proxyB.Spec.PublicAddr = "test-B"
 	proxyB.Spec.Version = "test-B"
 
@@ -146,7 +147,7 @@ func TestUnmarshalServerKubernetes(t *testing.T) {
 	tests := []struct {
 		desc string
 		in   string
-		want *ServerV2
+		want *types.ServerV2
 	}{
 		{
 			desc: "4.4 kubernetes_clusters field",
@@ -160,10 +161,10 @@ func TestUnmarshalServerKubernetes(t *testing.T) {
 		"kubernetes_clusters": ["a", "b", "c"]
 	}
 }`,
-			want: &ServerV2{
+			want: &types.ServerV2{
 				Version: V2,
 				Kind:    KindKubeService,
-				Metadata: Metadata{
+				Metadata: types.Metadata{
 					Name:      "foo",
 					Namespace: defaults.Namespace,
 				},
@@ -181,15 +182,15 @@ func TestUnmarshalServerKubernetes(t *testing.T) {
 		"kube_clusters": [{"name": "a"}, {"name": "b"}, {"name": "c"}]
 	}
 }`,
-			want: &ServerV2{
+			want: &types.ServerV2{
 				Version: V2,
 				Kind:    KindKubeService,
-				Metadata: Metadata{
+				Metadata: types.Metadata{
 					Name:      "foo",
 					Namespace: defaults.Namespace,
 				},
-				Spec: ServerSpecV2{
-					KubernetesClusters: []*KubernetesCluster{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{
 						{Name: "a"},
 						{Name: "b"},
 						{Name: "c"},

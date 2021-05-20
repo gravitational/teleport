@@ -358,7 +358,7 @@ func TestLabelParsing(t *testing.T) {
 		"more": "much better",
 	}, conf.Labels)
 	require.Equal(t, services.CommandLabels{
-		"arch": &services.CommandLabelV2{
+		"arch": &types.CommandLabelV2{
 			Period:  services.NewDuration(time.Minute*5 + time.Second*2),
 			Command: []string{"/bin/uname", "-m", `"p1 p2"`},
 		},
@@ -498,7 +498,7 @@ func TestApplyConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "join-token", cfg.Token)
-	require.Equal(t, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{
+	require.Equal(t, services.ProvisionTokensFromV1([]types.ProvisionTokenV1{
 		{
 			Token:   "xxx",
 			Roles:   teleport.Roles([]teleport.Role{"Proxy", "Node"}),

@@ -19,12 +19,13 @@ package services
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UnmarshalClusterName unmarshals the ClusterName resource from JSON.
 func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (ClusterName, error) {
-	var clusterName ClusterNameV2
+	var clusterName types.ClusterNameV2
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -62,7 +63,7 @@ func MarshalClusterName(clusterName ClusterName, opts ...MarshalOption) ([]byte,
 	}
 
 	switch clusterName := clusterName.(type) {
-	case *ClusterNameV2:
+	case *types.ClusterNameV2:
 		if version := clusterName.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched cluster name version %v and type %T", version, clusterName)
 		}

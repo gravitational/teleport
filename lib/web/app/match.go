@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"strings"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -48,13 +49,13 @@ type Getter interface {
 //
 // In the future this function should be updated to keep state on application
 // servers that are down and to not route requests to that server.
-func Match(ctx context.Context, authClient Getter, fn Matcher) (*services.App, services.Server, error) {
+func Match(ctx context.Context, authClient Getter, fn Matcher) (*types.App, services.Server, error) {
 	servers, err := authClient.GetAppServers(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	var am []*services.App
+	var am []*types.App
 	var sm []services.Server
 
 	for _, server := range servers {
@@ -74,18 +75,18 @@ func Match(ctx context.Context, authClient Getter, fn Matcher) (*services.App, s
 }
 
 // Matcher allows matching on different properties of an application.
-type Matcher func(*services.App) bool
+type Matcher func(*types.App) bool
 
 // MatchPublicAddr matches on the public address of an application.
 func MatchPublicAddr(publicAddr string) Matcher {
-	return func(app *services.App) bool {
+	return func(app *types.App) bool {
 		return app.PublicAddr == publicAddr
 	}
 }
 
 // MatchName matches on the name of an application.
 func MatchName(name string) Matcher {
-	return func(app *services.App) bool {
+	return func(app *types.App) bool {
 		return app.Name == name
 	}
 }
@@ -98,7 +99,7 @@ func MatchName(name string) Matcher {
 // cluster, this method will always return "acme" running within the root
 // cluster. Always supply public address and cluster name to deterministically
 // resolve an application.
-func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, proxyDNSNames []string, fqdn string) (*services.App, services.Server, string, error) {
+func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, proxyDNSNames []string, fqdn string) (*types.App, services.Server, string, error) {
 	// Try and match FQDN to public address of application within cluster.
 	application, server, err := Match(ctx, clt, MatchPublicAddr(fqdn))
 	if err == nil {

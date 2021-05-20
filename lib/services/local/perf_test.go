@@ -23,6 +23,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -102,15 +103,15 @@ func insertNodes(ctx context.Context, t assert.TestingT, svc services.Presence, 
 	}
 	for i := 0; i < nodeCount; i++ {
 		name, addr := fmt.Sprintf("node-%d", i), fmt.Sprintf("node%d.example.com", i)
-		node := &services.ServerV2{
+		node := &types.ServerV2{
 			Kind:    services.KindNode,
 			Version: services.V2,
-			Metadata: services.Metadata{
+			Metadata: types.Metadata{
 				Name:      name,
 				Namespace: defaults.Namespace,
 				Labels:    labels,
 			},
-			Spec: services.ServerSpecV2{
+			Spec: types.ServerSpecV2{
 				Addr:       addr,
 				PublicAddr: addr,
 			},

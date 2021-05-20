@@ -231,7 +231,7 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 var emptyResource = &EmptyResource{}
 
 // emptyUser is used when no user is specified
-var emptyUser = &UserV2{}
+var emptyUser = &types.UserV2{}
 
 // EmptyResource is used to represent a use case when no resource
 // is specified in the rules matcher
@@ -243,7 +243,7 @@ type EmptyResource struct {
 	// Version is a resource version
 	Version string `json:"version"`
 	// Metadata is Role metadata
-	Metadata Metadata `json:"metadata"`
+	Metadata types.Metadata `json:"metadata"`
 }
 
 // GetVersion returns resource version
@@ -304,7 +304,7 @@ func (r *EmptyResource) GetName() string {
 }
 
 // GetMetadata returns role metadata.
-func (r *EmptyResource) GetMetadata() Metadata {
+func (r *EmptyResource) GetMetadata() types.Metadata {
 	return r.Metadata
 }
 

@@ -1522,7 +1522,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 
 	// Set a lesser expiry date, to test switching back to default expiration later.
 	accessReq.SetAccessExpiry(s.clock.Now().Add(time.Minute * 10))
-	accessReq.SetState(services.RequestState_APPROVED)
+	accessReq.SetState(types.RequestState_APPROVED)
 
 	err = clt.CreateAccessRequest(context.Background(), accessReq)
 	c.Assert(err, check.IsNil)
@@ -1745,10 +1745,10 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 
 	// verify that user does not have the ability to approve their own request (not a special case, this
 	// user just wasn't created with the necessary roles for request management).
-	c.Assert(userClient.SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.NotNil)
+	c.Assert(userClient.SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_APPROVED}), check.NotNil)
 
 	// attempt to apply request in APPROVED state (should succeed)
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.IsNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_APPROVED}), check.IsNil)
 	userCerts, err = generateCerts(req.GetName())
 	c.Assert(err, check.IsNil)
 	// ensure that the requested role was actually applied to the cert
@@ -1763,15 +1763,15 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	c.Assert(rune(logins[0][0]), check.Not(check.Equals), '-')
 
 	// attempt to apply request in DENIED state (should fail)
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_DENIED}), check.IsNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_DENIED}), check.IsNil)
 	_, err = generateCerts(req.GetName())
 	c.Assert(err, check.NotNil)
 
 	// ensure that once in the DENIED state, a request cannot be set back to PENDING state.
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_PENDING}), check.NotNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_PENDING}), check.NotNil)
 
 	// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.NotNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_APPROVED}), check.NotNil)
 }
 
 func (s *TLSSuite) TestPluginData(c *check.C) {
@@ -1812,7 +1812,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 
 	c.Assert(userClient.CreateAccessRequest(context.TODO(), req), check.IsNil)
 
-	err = pluginClient.UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1822,7 +1822,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	data, err := pluginClient.GetPluginData(context.TODO(), services.PluginDataFilter{
+	data, err := pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -1833,7 +1833,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	c.Assert(ok, check.Equals, true)
 	c.Assert(entry.Data, check.DeepEquals, map[string]string{"foo": "bar"})
 
-	err = pluginClient.UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1847,7 +1847,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	data, err = pluginClient.GetPluginData(context.TODO(), services.PluginDataFilter{
+	data, err = pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -2533,7 +2533,7 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 }
 
 func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+	clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
 		LocalAuth: services.NewBool(true),
 	})
 	c.Assert(err, check.IsNil)
@@ -2593,7 +2593,7 @@ func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Set services.ClusterConfig to disallow local auth.
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+	clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
 		LocalAuth: services.NewBool(false),
 	})
 	c.Assert(err, check.IsNil)
@@ -2837,14 +2837,14 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 // announcing node and keeping node alive
 func (s *TLSSuite) TestEventsNodePresence(c *check.C) {
 	ctx := context.Background()
-	node := &services.ServerV2{
+	node := &types.ServerV2{
 		Kind:    services.KindNode,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      "node1",
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr: "localhost:3022",
 		},
 	}
@@ -3075,8 +3075,8 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	suite.ExpectResource(c, w, 3*time.Second, ca)
 
 	// set static tokens
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{
+	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{
 			{
 				Token:   "tok1",
 				Roles:   teleport.Roles{teleport.RoleNode},
@@ -3109,18 +3109,18 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	// delete token and expect delete event
 	err = s.server.Auth().DeleteToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
-	suite.ExpectDeleteResource(c, w, 3*time.Second, &services.ResourceHeader{
+	suite.ExpectDeleteResource(c, w, 3*time.Second, &types.ResourceHeader{
 		Kind:    services.KindToken,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      token.GetName(),
 		},
 	})
 
 	// update cluster config
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		Audit: services.AuditConfig{
+	clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
+		Audit: types.AuditConfig{
 			AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 		},
 	})
@@ -3137,17 +3137,17 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// update the resource with different labels to test the change
-	clusterName := &services.ClusterNameV2{
+	clusterName := &types.ClusterNameV2{
 		Kind:    services.KindClusterName,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      services.MetaNameClusterName,
 			Namespace: defaults.Namespace,
 			Labels: map[string]string{
 				"key": "val",
 			},
 		},
-		Spec: services.ClusterNameSpecV2{
+		Spec: types.ClusterNameSpecV2{
 			ClusterName: clusterNameResource.GetClusterName(),
 		},
 	}
@@ -3163,7 +3163,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 }
 
 // verifyJWT verifies that the token was signed by one the passed in key pair.
-func (s *TLSSuite) verifyJWT(clock clockwork.Clock, clusterName string, pairs []services.JWTKeyPair, token string) (*jwt.Claims, error) {
+func (s *TLSSuite) verifyJWT(clock clockwork.Clock, clusterName string, pairs []types.JWTKeyPair, token string) (*jwt.Claims, error) {
 	errs := []error{}
 	for _, pair := range pairs {
 		publicKey, err := utils.ParsePublicKey(pair.PublicKey)

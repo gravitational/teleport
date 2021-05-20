@@ -24,6 +24,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -42,7 +43,7 @@ type transportConfig struct {
 	cipherSuites []uint16
 	identity     *tlsca.Identity
 	server       services.Server
-	app          *services.App
+	app          *types.App
 	ws           services.WebSession
 	clusterName  string
 }

@@ -27,6 +27,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -181,7 +182,7 @@ func (r *ResourceSuite) TestGithubConnectorResource(c *check.C) {
 	connector := &services.GithubConnectorV3{
 		Kind:    services.KindGithubConnector,
 		Version: services.V3,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      "github",
 			Namespace: defaults.Namespace,
 		},
@@ -225,8 +226,8 @@ func u2fRegTestCase(c *check.C) u2f.Registration {
 	return registration
 }
 
-func localAuthSecretsTestCase(c *check.C) services.LocalAuthSecrets {
-	var auth services.LocalAuthSecrets
+func localAuthSecretsTestCase(c *check.C) types.LocalAuthSecrets {
+	var auth types.LocalAuthSecrets
 	var err error
 	auth.PasswordHash, err = bcrypt.GenerateFromPassword([]byte("insecure"), bcrypt.MinCost)
 	c.Assert(err, check.IsNil)
@@ -244,15 +245,15 @@ func localAuthSecretsTestCase(c *check.C) services.LocalAuthSecrets {
 }
 
 func newUserTestCase(c *check.C, name string, roles []string, withSecrets bool, expires time.Time) services.User {
-	user := services.UserV2{
+	user := types.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      name,
 			Namespace: defaults.Namespace,
 			Expires:   &expires,
 		},
-		Spec: services.UserSpecV2{
+		Spec: types.UserSpecV2{
 			Roles: roles,
 		},
 	}

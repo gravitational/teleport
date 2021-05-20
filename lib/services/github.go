@@ -21,12 +21,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UnmarshalGithubConnector unmarshals the GithubConnector resource from JSON.
 func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
-	var h ResourceHeader
+	var h types.ResourceHeader
 	if err := json.Unmarshal(bytes, &h); err != nil {
 		return nil, trace.Wrap(err)
 	}

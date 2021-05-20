@@ -1682,15 +1682,15 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-func (f *Forwarder) kubeClusters() []*services.KubernetesCluster {
-	var dynLabels map[string]services.CommandLabelV2
+func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
+	var dynLabels map[string]types.CommandLabelV2
 	if f.cfg.DynamicLabels != nil {
 		dynLabels = services.LabelsToV2(f.cfg.DynamicLabels.Get())
 	}
 
-	res := make([]*services.KubernetesCluster, 0, len(f.creds))
+	res := make([]*types.KubernetesCluster, 0, len(f.creds))
 	for n := range f.creds {
-		res = append(res, &services.KubernetesCluster{
+		res = append(res, &types.KubernetesCluster{
 			Name:          n,
 			StaticLabels:  f.cfg.StaticLabels,
 			DynamicLabels: dynLabels,

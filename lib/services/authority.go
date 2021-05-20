@@ -49,14 +49,14 @@ func CertAuthoritiesEquivalent(lhs, rhs CertAuthority) bool {
 // key pair.
 func NewJWTAuthority(clusterName string) (CertAuthority, error) {
 	var err error
-	var keyPair JWTKeyPair
+	var keyPair types.JWTKeyPair
 	if keyPair.PublicKey, keyPair.PrivateKey, err = jwt.GenerateKeyPair(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.JWTSigner,
 		ClusterName: clusterName,
-		JWTKeyPairs: []JWTKeyPair{keyPair},
+		JWTKeyPairs: []types.JWTKeyPair{keyPair},
 	}), nil
 }
 
@@ -69,7 +69,7 @@ func NewCertAuthority(
 	signingKeys [][]byte,
 	checkingKeys [][]byte,
 	roles []string,
-	signingAlg CertAuthoritySpecV2_SigningAlgType,
+	signingAlg types.CertAuthoritySpecV2_SigningAlgType,
 ) CertAuthority {
 	return types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:         caType,
@@ -358,14 +358,14 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var h ResourceHeader
+	var h types.ResourceHeader
 	err = utils.FastUnmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
 	case V2:
-		var ca CertAuthorityV2
+		var ca types.CertAuthorityV2
 		if err := utils.FastUnmarshal(bytes, &ca); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -389,7 +389,7 @@ func MarshalCertAuthority(certAuthority CertAuthority, opts ...MarshalOption) ([
 	}
 
 	switch certAuthority := certAuthority.(type) {
-	case *CertAuthorityV2:
+	case *types.CertAuthorityV2:
 		if version := certAuthority.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched certificate authority version %v and type %T", version, certAuthority)
 		}

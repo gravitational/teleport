@@ -66,7 +66,7 @@ type Config struct {
 	// Authorizer is used to authorize requests coming from proxy.
 	Authorizer auth.Authorizer
 	// GetRotation returns the certificate rotation state.
-	GetRotation func(role teleport.Role) (*services.Rotation, error)
+	GetRotation func(role teleport.Role) (*types.Rotation, error)
 	// Servers contains a list of database servers this service proxies.
 	Servers types.DatabaseServers
 	// OnHeartbeat is called after every heartbeat. Used to update process state.

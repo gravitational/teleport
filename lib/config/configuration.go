@@ -511,7 +511,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	auditConfig.Type = fc.Storage.Type
 
 	// Set cluster-wide configuration from file configuration.
-	cfg.Auth.ClusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
+	cfg.Auth.ClusterConfig, err = services.NewClusterConfig(types.ClusterConfigSpecV3{
 		Audit:                 *auditConfig,
 		DisconnectExpiredCert: fc.Auth.DisconnectExpiredCert,
 		LocalAuth:             localAuth,
@@ -766,7 +766,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.Commands != nil {
 		cfg.SSH.CmdLabels = make(services.CommandLabels)
 		for _, cmdLabel := range fc.SSH.Commands {
-			cfg.SSH.CmdLabels[cmdLabel.Name] = &services.CommandLabelV2{
+			cfg.SSH.CmdLabels[cmdLabel.Name] = &types.CommandLabelV2{
 				Period:  services.NewDuration(cmdLabel.Period),
 				Command: cmdLabel.Command,
 				Result:  "",
@@ -853,7 +853,7 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Kube.DynamicLabels != nil {
 		cfg.Kube.DynamicLabels = make(services.CommandLabels)
 		for _, cmdLabel := range fc.Kube.DynamicLabels {
-			cfg.Kube.DynamicLabels[cmdLabel.Name] = &services.CommandLabelV2{
+			cfg.Kube.DynamicLabels[cmdLabel.Name] = &types.CommandLabelV2{
 				Period:  services.NewDuration(cmdLabel.Period),
 				Command: cmdLabel.Command,
 				Result:  "",
@@ -880,7 +880,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 		dynamicLabels := make(services.CommandLabels)
 		if database.DynamicLabels != nil {
 			for _, v := range database.DynamicLabels {
-				dynamicLabels[v.Name] = &services.CommandLabelV2{
+				dynamicLabels[v.Name] = &types.CommandLabelV2{
 					Period:  services.NewDuration(v.Period),
 					Command: v.Command,
 					Result:  "",
@@ -942,7 +942,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		dynamicLabels := make(services.CommandLabels)
 		if application.DynamicLabels != nil {
 			for _, v := range application.DynamicLabels {
-				dynamicLabels[v.Name] = &services.CommandLabelV2{
+				dynamicLabels[v.Name] = &types.CommandLabelV2{
 					Period:  services.NewDuration(v.Period),
 					Command: v.Command,
 				}
@@ -1004,7 +1004,7 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 		SigningKeys:  nil,
 		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubkey)},
 		Roles:        nil,
-		SigningAlg:   services.CertAuthoritySpecV2_UNKNOWN,
+		SigningAlg:   types.CertAuthoritySpecV2_UNKNOWN,
 	})
 
 	// transform old allowed logins into roles
@@ -1503,7 +1503,7 @@ func isCmdLabelSpec(spec string) (services.CommandLabel, error) {
 			return nil, trace.Wrap(invalidSpecError)
 		}
 		var openQuote bool = false
-		return &services.CommandLabelV2{
+		return &types.CommandLabelV2{
 			Period: services.NewDuration(period),
 			Command: strings.FieldsFunc(cmdSpec, func(c rune) bool {
 				if c == '"' {

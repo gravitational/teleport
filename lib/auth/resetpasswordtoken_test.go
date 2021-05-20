@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -166,8 +167,8 @@ func TestFormatAccountName(t *testing.T) {
 			description: "proxies with public address",
 			inDebugAuth: &debugAuth{
 				proxies: []services.Server{
-					&services.ServerV2{
-						Spec: services.ServerSpecV2{
+					&types.ServerV2{
+						Spec: types.ServerSpecV2{
 							PublicAddr: "foo",
 							Version:    "bar",
 						},
@@ -181,8 +182,8 @@ func TestFormatAccountName(t *testing.T) {
 			description: "proxies with no public address",
 			inDebugAuth: &debugAuth{
 				proxies: []services.Server{
-					&services.ServerV2{
-						Spec: services.ServerSpecV2{
+					&types.ServerV2{
+						Spec: types.ServerSpecV2{
 							Hostname: "baz",
 							Version:  "quxx",
 						},

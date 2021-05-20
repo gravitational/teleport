@@ -485,7 +485,7 @@ func (c ClusterName) Parse() (services.ClusterName, error) {
 	if string(c) == "" {
 		return nil, nil
 	}
-	return services.NewClusterName(services.ClusterNameSpecV2{
+	return services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: string(c),
 	})
 }
@@ -493,7 +493,7 @@ func (c ClusterName) Parse() (services.ClusterName, error) {
 type StaticTokens []StaticToken
 
 func (t StaticTokens) Parse() (services.StaticTokens, error) {
-	staticTokens := []services.ProvisionTokenV1{}
+	staticTokens := []types.ProvisionTokenV1{}
 
 	for _, token := range t {
 		st, err := token.Parse()
@@ -503,7 +503,7 @@ func (t StaticTokens) Parse() (services.StaticTokens, error) {
 		staticTokens = append(staticTokens, *st)
 	}
 
-	return services.NewStaticTokens(services.StaticTokensSpecV2{
+	return services.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: staticTokens,
 	})
 }
@@ -513,7 +513,7 @@ type StaticToken string
 // Parse is applied to a string in "role,role,role:token" format. It breaks it
 // apart and constructs a services.ProvisionToken which contains the token,
 // role, and expiry (infinite).
-func (t StaticToken) Parse() (*services.ProvisionTokenV1, error) {
+func (t StaticToken) Parse() (*types.ProvisionTokenV1, error) {
 	parts := strings.Split(string(t), ":")
 	if len(parts) != 2 {
 		return nil, trace.BadParameter("invalid static token spec: %q", t)
@@ -529,7 +529,7 @@ func (t StaticToken) Parse() (*services.ProvisionTokenV1, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &services.ProvisionTokenV1{
+	return &types.ProvisionTokenV1{
 		Token:   token,
 		Roles:   roles,
 		Expires: time.Unix(0, 0).UTC(),

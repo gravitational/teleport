@@ -437,8 +437,8 @@ func userFromUserItems(name string, items userItems) (services.User, error) {
 	return user, nil
 }
 
-func itemToLocalAuthSecrets(items userItems) (*services.LocalAuthSecrets, error) {
-	var auth services.LocalAuthSecrets
+func itemToLocalAuthSecrets(items userItems) (*types.LocalAuthSecrets, error) {
+	var auth types.LocalAuthSecrets
 	if items.pwd != nil {
 		auth.PasswordHash = items.pwd.Value
 	}
@@ -466,7 +466,7 @@ func itemToLocalAuthSecrets(items userItems) (*services.LocalAuthSecrets, error)
 		if err := json.Unmarshal(items.u2fRegistration.Value, &raw); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		auth.U2FRegistration = &services.U2FRegistrationData{
+		auth.U2FRegistration = &types.U2FRegistrationData{
 			Raw:       raw.Raw,
 			KeyHandle: raw.KeyHandle,
 			PubKey:    raw.MarshalledPubKey,
@@ -488,7 +488,7 @@ func itemToLocalAuthSecrets(items userItems) (*services.LocalAuthSecrets, error)
 	return &auth, nil
 }
 
-func itemsFromLocalAuthSecrets(user string, auth services.LocalAuthSecrets) ([]backend.Item, error) {
+func itemsFromLocalAuthSecrets(user string, auth types.LocalAuthSecrets) ([]backend.Item, error) {
 	var items []backend.Item
 	if err := services.ValidateLocalAuthSecrets(&auth); err != nil {
 		return nil, trace.Wrap(err)

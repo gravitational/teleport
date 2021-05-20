@@ -19,6 +19,7 @@ package services
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -26,22 +27,22 @@ import (
 // DefaultClusterConfig is used as the default cluster configuration when
 // one is not specified (record at node).
 func DefaultClusterConfig() ClusterConfig {
-	return &ClusterConfigV3{
+	return &types.ClusterConfigV3{
 		Kind:    KindClusterConfig,
 		Version: V3,
-		Metadata: Metadata{
+		Metadata: types.Metadata{
 			Name:      MetaNameClusterConfig,
 			Namespace: defaults.Namespace,
 		},
-		Spec: ClusterConfigSpecV3{
+		Spec: types.ClusterConfigSpecV3{
 			LocalAuth: NewBool(true),
 		},
 	}
 }
 
 // AuditConfigFromObject returns audit config from interface object
-func AuditConfigFromObject(in interface{}) (*AuditConfig, error) {
-	var cfg AuditConfig
+func AuditConfigFromObject(in interface{}) (*types.AuditConfig, error) {
+	var cfg types.AuditConfig
 	if in == nil {
 		return &cfg, nil
 	}
@@ -53,13 +54,13 @@ func AuditConfigFromObject(in interface{}) (*AuditConfig, error) {
 
 // ShouldUploadSessions returns whether audit config
 // instructs server to upload sessions
-func ShouldUploadSessions(a AuditConfig) bool {
+func ShouldUploadSessions(a types.AuditConfig) bool {
 	return a.AuditSessionsURI != ""
 }
 
 // UnmarshalClusterConfig unmarshals the ClusterConfig resource from JSON.
 func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (ClusterConfig, error) {
-	var clusterConfig ClusterConfigV3
+	var clusterConfig types.ClusterConfigV3
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -96,7 +97,7 @@ func MarshalClusterConfig(clusterConfig ClusterConfig, opts ...MarshalOption) ([
 	}
 
 	switch clusterConfig := clusterConfig.(type) {
-	case *ClusterConfigV3:
+	case *types.ClusterConfigV3:
 		if version := clusterConfig.GetVersion(); version != V3 {
 			return nil, trace.BadParameter("mismatched cluster config version %v and type %T", version, clusterConfig)
 		}

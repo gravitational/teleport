@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"gopkg.in/check.v1"
@@ -16,16 +17,16 @@ var _ = check.Suite(&UserContextSuite{})
 func TestUserContext(t *testing.T) { check.TestingT(t) }
 
 func (s *UserContextSuite) TestNewUserContext(c *check.C) {
-	user := &services.UserV2{
-		Metadata: services.Metadata{
+	user := &types.UserV2{
+		Metadata: types.Metadata{
 			Name: "root",
 		},
 	}
 
 	// set some rules
-	role1 := &services.RoleV3{}
+	role1 := &types.RoleV3{}
 	role1.SetNamespaces(services.Allow, []string{defaults.Namespace})
-	role1.SetRules(services.Allow, []services.Rule{
+	role1.SetRules(services.Allow, []types.Rule{
 		{
 			Resources: []string{services.KindAuthConnector},
 			Verbs:     services.RW(),
@@ -33,16 +34,16 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	})
 
 	// not setting the rule, or explicitly denying, both denies access
-	role1.SetRules(services.Deny, []services.Rule{
+	role1.SetRules(services.Deny, []types.Rule{
 		{
 			Resources: []string{services.KindEvent},
 			Verbs:     services.RW(),
 		},
 	})
 
-	role2 := &services.RoleV3{}
+	role2 := &types.RoleV3{}
 	role2.SetNamespaces(services.Allow, []string{defaults.Namespace})
-	role2.SetRules(services.Allow, []services.Rule{
+	role2.SetRules(services.Allow, []types.Rule{
 		{
 			Resources: []string{services.KindTrustedCluster},
 			Verbs:     services.RW(),
@@ -90,7 +91,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.AuthType, check.Equals, authLocal)
 
 	// test sso auth type
-	user.Spec.GithubIdentities = []services.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
+	user.Spec.GithubIdentities = []types.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
 	userContext, err = NewUserContext(user, roleSet, proto.Features{})
 	c.Assert(err, check.IsNil)
 	c.Assert(userContext.AuthType, check.Equals, authSSO)

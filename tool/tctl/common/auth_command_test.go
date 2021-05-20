@@ -29,7 +29,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
 	if err != nil {
@@ -47,9 +47,9 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		SigningKeys:  nil,
 		CheckingKeys: [][]byte{[]byte("SSH CA cert")},
 		Roles:        nil,
-		SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_512,
+		SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	ca.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: []byte("TLS CA cert")}})
+	ca.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: []byte("TLS CA cert")}})
 
 	client := mockClient{
 		clusterName:    clusterName,
@@ -60,13 +60,13 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		},
 		cas: []services.CertAuthority{ca},
 		proxies: []services.Server{
-			&services.ServerV2{
+			&types.ServerV2{
 				Kind:    services.KindNode,
 				Version: services.V2,
-				Metadata: services.Metadata{
+				Metadata: types.Metadata{
 					Name: "proxy",
 				},
-				Spec: services.ServerSpecV2{
+				Spec: types.ServerSpecV2{
 					PublicAddr: "proxy-from-api.example.com:3080",
 				},
 			},
@@ -234,7 +234,7 @@ func (c mockClient) GenerateDatabaseCert(context.Context, *proto.DatabaseCertReq
 
 func TestCheckKubeCluster(t *testing.T) {
 	const teleportCluster = "local-teleport"
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: teleportCluster,
 	})
 	require.NoError(t, err)
@@ -246,7 +246,7 @@ func TestCheckKubeCluster(t *testing.T) {
 		kubeCluster        string
 		leafCluster        string
 		outputFormat       identityfile.Format
-		registeredClusters []*services.KubernetesCluster
+		registeredClusters []*types.KubernetesCluster
 		want               string
 		assertErr          require.ErrorAssertionFunc
 	}{
@@ -259,7 +259,7 @@ func TestCheckKubeCluster(t *testing.T) {
 			desc:               "local cluster, valid kube cluster",
 			kubeCluster:        "foo",
 			leafCluster:        teleportCluster,
-			registeredClusters: []*services.KubernetesCluster{{Name: "foo"}},
+			registeredClusters: []*types.KubernetesCluster{{Name: "foo"}},
 			outputFormat:       identityfile.FormatKubernetes,
 			want:               "foo",
 			assertErr:          require.NoError,
@@ -268,7 +268,7 @@ func TestCheckKubeCluster(t *testing.T) {
 			desc:               "local cluster, empty kube cluster",
 			kubeCluster:        "",
 			leafCluster:        teleportCluster,
-			registeredClusters: []*services.KubernetesCluster{{Name: "foo"}},
+			registeredClusters: []*types.KubernetesCluster{{Name: "foo"}},
 			outputFormat:       identityfile.FormatKubernetes,
 			want:               "foo",
 			assertErr:          require.NoError,
@@ -277,7 +277,7 @@ func TestCheckKubeCluster(t *testing.T) {
 			desc:               "local cluster, empty kube cluster, no registered kube clusters",
 			kubeCluster:        "",
 			leafCluster:        teleportCluster,
-			registeredClusters: []*services.KubernetesCluster{},
+			registeredClusters: []*types.KubernetesCluster{},
 			outputFormat:       identityfile.FormatKubernetes,
 			want:               "",
 			assertErr:          require.NoError,
@@ -286,7 +286,7 @@ func TestCheckKubeCluster(t *testing.T) {
 			desc:               "local cluster, invalid kube cluster",
 			kubeCluster:        "bar",
 			leafCluster:        teleportCluster,
-			registeredClusters: []*services.KubernetesCluster{{Name: "foo"}},
+			registeredClusters: []*types.KubernetesCluster{{Name: "foo"}},
 			outputFormat:       identityfile.FormatKubernetes,
 			assertErr:          require.Error,
 		},
@@ -294,7 +294,7 @@ func TestCheckKubeCluster(t *testing.T) {
 			desc:               "remote cluster, empty kube cluster",
 			kubeCluster:        "",
 			leafCluster:        "remote-teleport",
-			registeredClusters: []*services.KubernetesCluster{{Name: "foo"}},
+			registeredClusters: []*types.KubernetesCluster{{Name: "foo"}},
 			outputFormat:       identityfile.FormatKubernetes,
 			want:               "",
 			assertErr:          require.NoError,
@@ -303,7 +303,7 @@ func TestCheckKubeCluster(t *testing.T) {
 			desc:               "remote cluster, non-empty kube cluster",
 			kubeCluster:        "bar",
 			leafCluster:        "remote-teleport",
-			registeredClusters: []*services.KubernetesCluster{{Name: "foo"}},
+			registeredClusters: []*types.KubernetesCluster{{Name: "foo"}},
 			outputFormat:       identityfile.FormatKubernetes,
 			want:               "bar",
 			assertErr:          require.NoError,
@@ -311,8 +311,8 @@ func TestCheckKubeCluster(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			client.kubeServices = []services.Server{&services.ServerV2{
-				Spec: services.ServerSpecV2{
+			client.kubeServices = []services.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
 					KubernetesClusters: tt.registeredClusters,
 				},
 			}}

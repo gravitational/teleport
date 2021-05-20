@@ -292,7 +292,7 @@ func (s *CacheSuite) onlyRecentDisconnect(c *check.C) {
 	fixtures.ExpectConnectionProblem(c, err)
 
 	// add modification and expect the resource to recover
-	ca.SetRoleMap(services.RoleMap{services.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
+	ca.SetRoleMap(services.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	// now, recover the backend and make sure the
@@ -708,7 +708,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	fixtures.DeepCompare(c, ca, out)
 
 	// add modification and expect the resource to recover
-	ca.SetRoleMap(services.RoleMap{services.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
+	ca.SetRoleMap(services.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	// now, recover the backend and make sure the
@@ -780,8 +780,8 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{
+	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{
 			{
 				Token:   "static1",
 				Roles:   teleport.Roles{teleport.RoleAuth, teleport.RoleNode},
@@ -867,8 +867,8 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	}
 
 	// update cluster config
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		Audit: services.AuditConfig{
+	clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
+		Audit: types.AuditConfig{
 			AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 		},
 	})
@@ -892,7 +892,7 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	fixtures.DeepCompare(c, clusterConfig, out)
 
 	// update cluster name resource metadata
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
 	c.Assert(err, check.IsNil)
@@ -1040,15 +1040,15 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	p := s.newPackForNode(c)
 	defer p.Close()
 
-	role, err := services.NewRole("role1", services.RoleSpecV3{
-		Options: services.RoleOptions{
+	role, err := services.NewRole("role1", types.RoleSpecV3{
+		Options: types.RoleOptions{
 			MaxSessionTTL: services.Duration(time.Hour),
 		},
-		Allow: services.RoleConditions{
+		Allow: types.RoleConditions{
 			Logins:     []string{"root", "bob"},
 			NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 		},
-		Deny: services.RoleConditions{},
+		Deny: types.RoleConditions{},
 	})
 	c.Assert(err, check.IsNil)
 	err = p.accessS.UpsertRole(ctx, role)
@@ -1175,7 +1175,7 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 
 	clusterName := "example.com"
 	hb := time.Now().UTC()
-	conn, err := services.NewTunnelConnection("conn1", services.TunnelConnectionSpecV2{
+	conn, err := services.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
 		ClusterName:   clusterName,
 		ProxyName:     "p1",
 		LastHeartbeat: hb,

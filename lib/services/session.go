@@ -32,7 +32,7 @@ func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (types.WebSession,
 		return nil, trace.Wrap(err)
 	}
 
-	var h ResourceHeader
+	var h types.ResourceHeader
 	err = json.Unmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,7 +70,7 @@ func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]by
 	}
 
 	switch webSession := webSession.(type) {
-	case *WebSessionV2:
+	case *types.WebSessionV2:
 		if version := webSession.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched web session version %v and type %T", version, webSession)
 		}
@@ -118,7 +118,7 @@ func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (types.WebToken, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var hdr ResourceHeader
+	var hdr types.ResourceHeader
 	err = json.Unmarshal(bytes, &hdr)
 	if err != nil {
 		return nil, trace.Wrap(err)

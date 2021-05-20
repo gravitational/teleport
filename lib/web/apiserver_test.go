@@ -152,14 +152,14 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = s.server.Auth().UpsertAuthServer(&services.ServerV2{
+	err = s.server.Auth().UpsertAuthServer(&types.ServerV2{
 		Kind:    services.KindAuthServer,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      "auth",
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr:     s.server.TLS.Listener.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
@@ -409,8 +409,8 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
 
-	teleUser.SetCreatedBy(services.CreatedBy{
-		User: services.UserRef{Name: "some-auth-user"},
+	teleUser.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{Name: "some-auth-user"},
 	})
 	err = s.server.Auth().CreateUser(ctx, teleUser)
 	c.Assert(err, IsNil)
@@ -440,14 +440,14 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
-	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{
-		Options: services.RoleOptions{
+	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV3{
+		Options: types.RoleOptions{
 			MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
 		},
-		Allow: services.RoleConditions{
+		Allow: types.RoleConditions{
 			NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 			Namespaces: []string{defaults.Namespace},
-			Rules: []services.Rule{
+			Rules: []types.Rule{
 				services.NewRule(services.Wildcard, services.RW()),
 			},
 		},
@@ -713,7 +713,7 @@ func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
 }
 
 func (s *WebSuite) TestResolveServerHostPort(c *C) {
-	sampleNode := services.ServerV2{}
+	sampleNode := types.ServerV2{}
 	sampleNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
 	sampleNode.Spec.Hostname = "nodehostname"
 
@@ -787,7 +787,7 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	ctx := context.Background()
 
-	validNode := services.ServerV2{}
+	validNode := types.ServerV2{}
 	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
 	validNode.Spec.Hostname = "nodehostname"
 
@@ -799,7 +799,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 		W: 1,
 	}
 
-	makeProvider := func(server services.ServerV2) AuthProvider {
+	makeProvider := func(server types.ServerV2) AuthProvider {
 		return authProviderMock{
 			server: server,
 		}
@@ -974,7 +974,7 @@ func (s *WebSuite) TestTerminal(c *C) {
 func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	ctx := context.Background()
 
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+	clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
 		LocalAuth: services.NewBool(true),
 	})
 	c.Assert(err, IsNil)
@@ -1883,12 +1883,12 @@ func TestClusterKubesGet(t *testing.T) {
 	require.Len(t, kbs, 0)
 
 	// Register a kube service.
-	err = env.server.Auth().UpsertKubeService(context.Background(), &services.ServerV2{
-		Metadata: services.Metadata{Name: "test-kube"},
+	err = env.server.Auth().UpsertKubeService(context.Background(), &types.ServerV2{
+		Metadata: types.Metadata{Name: "test-kube"},
 		Kind:     services.KindKubeService,
 		Version:  services.V2,
-		Spec: services.ServerSpecV2{
-			KubernetesClusters: []*services.KubernetesCluster{
+		Spec: types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{
 				{
 					Name:         "test-kube-name",
 					StaticLabels: map[string]string{"test-field": "test-value"},
@@ -1964,16 +1964,16 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	pack := s.authPack(c, "foo@example.com")
 
 	// Register an application called "panel".
-	server := &services.ServerV2{
+	server := &types.ServerV2{
 		Kind:    services.KindAppServer,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      uuid.New(),
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Version: teleport.Version,
-			Apps: []*services.App{
+			Apps: []*types.App{
 				{
 					Name:       "panel",
 					PublicAddr: "panel.example.com",
@@ -2212,7 +2212,7 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 }
 
 type authProviderMock struct {
-	server services.ServerV2
+	server types.ServerV2
 }
 
 func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]services.Server, error) {
@@ -2485,14 +2485,14 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = server.Auth().UpsertAuthServer(&services.ServerV2{
+	err = server.Auth().UpsertAuthServer(&types.ServerV2{
 		Kind:    services.KindAuthServer,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      "auth",
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr:     server.TLS.Listener.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
@@ -2796,8 +2796,8 @@ func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass,
 	require.NoError(t, err)
 
 	teleUser.AddRole(role.GetName())
-	teleUser.SetCreatedBy(services.CreatedBy{
-		User: services.UserRef{Name: "some-auth-user"},
+	teleUser.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{Name: "some-auth-user"},
 	})
 
 	err = r.auth.Auth().CreateUser(ctx, teleUser)

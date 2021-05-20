@@ -251,7 +251,7 @@ func (s *IdentityService) getUserWithSecrets(user string) (services.User, error)
 	return u, nil
 }
 
-func (s *IdentityService) upsertLocalAuthSecrets(user string, auth services.LocalAuthSecrets) error {
+func (s *IdentityService) upsertLocalAuthSecrets(user string, auth types.LocalAuthSecrets) error {
 	if len(auth.PasswordHash) > 0 {
 		err := s.UpsertPasswordHash(user, auth.PasswordHash)
 		if err != nil {
@@ -268,7 +268,7 @@ func (s *IdentityService) upsertLocalAuthSecrets(user string, auth services.Loca
 
 // GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
 // user specified with this identity
-func (s *IdentityService) GetUserByOIDCIdentity(id services.ExternalIdentity) (services.User, error) {
+func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (services.User, error) {
 	users, err := s.GetUsers(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -285,7 +285,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id services.ExternalIdentity) (s
 
 // GetUserBySAMLCIdentity returns a user by it's specified OIDC Identity, returns first
 // user specified with this identity
-func (s *IdentityService) GetUserBySAMLIdentity(id services.ExternalIdentity) (services.User, error) {
+func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (services.User, error) {
 	users, err := s.GetUsers(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -301,7 +301,7 @@ func (s *IdentityService) GetUserBySAMLIdentity(id services.ExternalIdentity) (s
 }
 
 // GetUserByGithubIdentity returns the first found user with specified Github identity
-func (s *IdentityService) GetUserByGithubIdentity(id services.ExternalIdentity) (services.User, error) {
+func (s *IdentityService) GetUserByGithubIdentity(id types.ExternalIdentity) (services.User, error) {
 	users, err := s.GetUsers(false)
 	if err != nil {
 		return nil, trace.Wrap(err)

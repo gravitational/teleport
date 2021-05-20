@@ -48,7 +48,7 @@ type Presence interface {
 
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
-	UpsertNode(ctx context.Context, server Server) (*KeepAlive, error)
+	UpsertNode(ctx context.Context, server Server) (*types.KeepAlive, error)
 
 	// UpsertNodes bulk inserts nodes.
 	UpsertNodes(namespace string, servers []Server) error
@@ -58,7 +58,7 @@ type Presence interface {
 	// This logic has been moved to KeepAliveServer.
 	//
 	// KeepAliveNode updates node TTL in the storage
-	KeepAliveNode(ctx context.Context, h KeepAlive) error
+	KeepAliveNode(ctx context.Context, h types.KeepAlive) error
 
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]Server, error)
@@ -102,16 +102,16 @@ type Presence interface {
 	DeleteAllReverseTunnels() error
 
 	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]Namespace, error)
+	GetNamespaces() ([]types.Namespace, error)
 
 	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*Namespace, error)
+	GetNamespace(name string) (*types.Namespace, error)
 
 	// DeleteAllNamespaces deletes all namespaces
 	DeleteAllNamespaces() error
 
 	// UpsertNamespace upserts namespace
-	UpsertNamespace(Namespace) error
+	UpsertNamespace(types.Namespace) error
 
 	// DeleteNamespace deletes namespace by name
 	DeleteNamespace(name string) error
@@ -171,7 +171,7 @@ type Presence interface {
 	GetAppServers(context.Context, string, ...MarshalOption) ([]Server, error)
 
 	// UpsertAppServer adds an application server.
-	UpsertAppServer(context.Context, Server) (*KeepAlive, error)
+	UpsertAppServer(context.Context, Server) (*types.KeepAlive, error)
 
 	// DeleteAppServer removes an application server.
 	DeleteAppServer(context.Context, string, string) error
@@ -182,14 +182,14 @@ type Presence interface {
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
 	// UpsertDatabaseServer creates or updates a new database proxy server.
-	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*KeepAlive, error)
+	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
 	// DeleteDatabaseServer removes the specified database proxy server.
 	DeleteDatabaseServer(context.Context, string, string, string) error
 	// DeleteAllDatabaseServers removes all database proxy servers.
 	DeleteAllDatabaseServers(context.Context, string) error
 
 	// KeepAliveServer updates TTL of the server resource in the backend.
-	KeepAliveServer(ctx context.Context, h KeepAlive) error
+	KeepAliveServer(ctx context.Context, h types.KeepAlive) error
 
 	// GetKubeServices returns a list of registered kubernetes services.
 	GetKubeServices(context.Context) ([]Server, error)

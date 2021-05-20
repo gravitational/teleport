@@ -179,7 +179,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
-				"baz": &services.CommandLabelV2{
+				"baz": &types.CommandLabelV2{
 					Period:  services.NewDuration(time.Millisecond),
 					Command: []string{"expr", "1", "+", "3"}},
 			},
@@ -803,10 +803,10 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetLabels(
 			map[string]string{"label1": "value1"},
 			services.CommandLabels{
-				"cmdLabel1": &services.CommandLabelV2{
+				"cmdLabel1": &types.CommandLabelV2{
 					Period:  services.NewDuration(time.Millisecond),
 					Command: []string{"expr", "1", "+", "3"}},
-				"cmdLabel2": &services.CommandLabelV2{
+				"cmdLabel2": &types.CommandLabelV2{
 					Period:  services.NewDuration(time.Second * 2),
 					Command: []string{"expr", "2", "+", "3"}},
 			},

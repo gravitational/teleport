@@ -57,7 +57,7 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set cluster name
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)
@@ -79,7 +79,7 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	err = s.a.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
 	c.Assert(err, IsNil)
 
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+	clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
 		LocalAuth: services.NewBool(true),
 	})
 	c.Assert(err, IsNil)
@@ -88,8 +88,8 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set static tokens
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{},
+	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	c.Assert(err, IsNil)
 	err = s.a.SetStaticTokens(staticTokens)

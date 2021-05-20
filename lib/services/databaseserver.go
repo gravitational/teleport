@@ -60,7 +60,7 @@ func UnmarshalDatabaseServer(data []byte, opts ...MarshalOption) (types.Database
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var h ResourceHeader
+	var h types.ResourceHeader
 	if err := utils.FastUnmarshal(data, &h); err != nil {
 		return nil, trace.Wrap(err)
 	}

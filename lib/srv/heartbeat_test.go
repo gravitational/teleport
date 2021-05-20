@@ -42,14 +42,14 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			name: "keep alive node",
 			mode: HeartbeatModeNode,
 			makeServer: func() services.Resource {
-				return &services.ServerV2{
+				return &types.ServerV2{
 					Kind:    services.KindNode,
 					Version: services.V2,
-					Metadata: services.Metadata{
+					Metadata: types.Metadata{
 						Namespace: defaults.Namespace,
 						Name:      "1",
 					},
-					Spec: services.ServerSpecV2{
+					Spec: types.ServerSpecV2{
 						Addr:     "127.0.0.1:1234",
 						Hostname: "2",
 					},
@@ -60,14 +60,14 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			name: "keep alive app server",
 			mode: HeartbeatModeApp,
 			makeServer: func() services.Resource {
-				return &services.ServerV2{
+				return &types.ServerV2{
 					Kind:    services.KindAppServer,
 					Version: services.V2,
-					Metadata: services.Metadata{
+					Metadata: types.Metadata{
 						Namespace: defaults.Namespace,
 						Name:      "1",
 					},
-					Spec: services.ServerSpecV2{
+					Spec: types.ServerSpecV2{
 						Addr:     "127.0.0.1:1234",
 						Hostname: "2",
 					},
@@ -164,7 +164,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 
 			// in case of any error while sending keep alive, system should fail
 			// and go back to init state
-			announcer.keepAlivesC = make(chan services.KeepAlive)
+			announcer.keepAlivesC = make(chan types.KeepAlive)
 			announcer.err = trace.ConnectionProblem(nil, "ooops")
 			announcer.Close()
 			clock.Advance(hb.KeepAlivePeriod + time.Second)
@@ -219,14 +219,14 @@ func TestHeartbeatAnnounce(t *testing.T) {
 				ServerTTL:       600 * time.Second,
 				Clock:           clock,
 				GetServerInfo: func() (services.Resource, error) {
-					srv := &services.ServerV2{
+					srv := &types.ServerV2{
 						Kind:    tt.kind,
 						Version: services.V2,
-						Metadata: services.Metadata{
+						Metadata: types.Metadata{
 							Namespace: defaults.Namespace,
 							Name:      "1",
 						},
-						Spec: services.ServerSpecV2{
+						Spec: types.ServerSpecV2{
 							Addr:     "127.0.0.1:1234",
 							Hostname: "2",
 						},
@@ -295,7 +295,7 @@ func newFakeAnnouncer(ctx context.Context) *fakeAnnouncer {
 		upsertCalls: make(map[HeartbeatMode]int),
 		ctx:         ctx,
 		cancel:      cancel,
-		keepAlivesC: make(chan services.KeepAlive, 100),
+		keepAlivesC: make(chan types.KeepAlive, 100),
 	}
 }
 
@@ -305,15 +305,15 @@ type fakeAnnouncer struct {
 	closeCalls  int
 	ctx         context.Context
 	cancel      context.CancelFunc
-	keepAlivesC chan<- services.KeepAlive
+	keepAlivesC chan<- types.KeepAlive
 }
 
-func (f *fakeAnnouncer) UpsertAppServer(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
+func (f *fakeAnnouncer) UpsertAppServer(ctx context.Context, s services.Server) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeApp]++
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &services.KeepAlive{}, nil
+	return &types.KeepAlive{}, nil
 }
 
 func (f *fakeAnnouncer) UpsertDatabaseServer(ctx context.Context, s types.DatabaseServer) (*types.KeepAlive, error) {
@@ -324,12 +324,12 @@ func (f *fakeAnnouncer) UpsertDatabaseServer(ctx context.Context, s types.Databa
 	return &types.KeepAlive{}, nil
 }
 
-func (f *fakeAnnouncer) UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
+func (f *fakeAnnouncer) UpsertNode(ctx context.Context, s services.Server) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeNode]++
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &services.KeepAlive{}, nil
+	return &types.KeepAlive{}, nil
 }
 
 func (f *fakeAnnouncer) UpsertProxy(s services.Server) error {
@@ -352,7 +352,7 @@ func (f *fakeAnnouncer) NewKeepAliver(ctx context.Context) (services.KeepAliver,
 }
 
 // KeepAlives allows to receive keep alives
-func (f *fakeAnnouncer) KeepAlives() chan<- services.KeepAlive {
+func (f *fakeAnnouncer) KeepAlives() chan<- types.KeepAlive {
 	return f.keepAlivesC
 }
 

@@ -40,7 +40,7 @@ func TestCreateSAMLUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)

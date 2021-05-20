@@ -22,6 +22,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -236,7 +237,7 @@ type resolveAppResult struct {
 
 func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, params resolveAppParams) (*resolveAppResult, error) {
 	var (
-		app            *services.App
+		app            *types.App
 		server         services.Server
 		appClusterName string
 		err            error
@@ -269,7 +270,7 @@ func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reverset
 
 // resolveDirect takes a public address and cluster name and exactly resolves
 // the application and the server on which it is running.
-func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel, publicAddr string, clusterName string) (*services.App, services.Server, string, error) {
+func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel, publicAddr string, clusterName string) (*types.App, services.Server, string, error) {
 	clusterClient, err := proxy.GetSite(clusterName)
 	if err != nil {
 		return nil, nil, "", trace.Wrap(err)
@@ -290,7 +291,7 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel,
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running within a root or leaf cluster.
-func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, fqdn string) (*services.App, services.Server, string, error) {
+func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, fqdn string) (*types.App, services.Server, string, error) {
 	return app.ResolveFQDN(ctx, clt, proxy, []string{h.proxyDNSName()}, fqdn)
 }
 

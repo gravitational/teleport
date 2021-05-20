@@ -1088,7 +1088,7 @@ func (c *Cache) GetRole(ctx context.Context, name string) (services.Role, error)
 }
 
 // GetNamespace returns namespace
-func (c *Cache) GetNamespace(name string) (*services.Namespace, error) {
+func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1098,7 +1098,7 @@ func (c *Cache) GetNamespace(name string) (*services.Namespace, error) {
 }
 
 // GetNamespaces is a part of auth.AccessPoint implementation
-func (c *Cache) GetNamespaces() ([]services.Namespace, error) {
+func (c *Cache) GetNamespaces() ([]types.Namespace, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)

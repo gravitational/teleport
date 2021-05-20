@@ -348,20 +348,20 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			sigAlg = *cfg.CASigningAlg
 		}
 
-		userCA := &services.CertAuthorityV2{
+		userCA := &types.CertAuthorityV2{
 			Kind:    services.KindCertAuthority,
 			Version: services.V2,
-			Metadata: services.Metadata{
+			Metadata: types.Metadata{
 				Name:      cfg.ClusterName.GetClusterName(),
 				Namespace: defaults.Namespace,
 			},
-			Spec: services.CertAuthoritySpecV2{
+			Spec: types.CertAuthoritySpecV2{
 				ClusterName:  cfg.ClusterName.GetClusterName(),
 				Type:         services.UserCA,
 				SigningKeys:  [][]byte{priv},
 				SigningAlg:   sshutils.ParseSigningAlg(sigAlg),
 				CheckingKeys: [][]byte{pub},
-				TLSKeyPairs:  []services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
+				TLSKeyPairs:  []types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
 			},
 		}
 
@@ -377,7 +377,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
+		userCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
 		if err := asrv.Trust.UpsertCertAuthority(userCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -408,20 +408,20 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			sigAlg = *cfg.CASigningAlg
 		}
 
-		hostCA = &services.CertAuthorityV2{
+		hostCA = &types.CertAuthorityV2{
 			Kind:    services.KindCertAuthority,
 			Version: services.V2,
-			Metadata: services.Metadata{
+			Metadata: types.Metadata{
 				Name:      cfg.ClusterName.GetClusterName(),
 				Namespace: defaults.Namespace,
 			},
-			Spec: services.CertAuthoritySpecV2{
+			Spec: types.CertAuthoritySpecV2{
 				ClusterName:  cfg.ClusterName.GetClusterName(),
 				Type:         services.HostCA,
 				SigningKeys:  [][]byte{priv},
 				SigningAlg:   sshutils.ParseSigningAlg(sigAlg),
 				CheckingKeys: [][]byte{pub},
-				TLSKeyPairs:  []services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
+				TLSKeyPairs:  []types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
 			},
 		}
 		if err := asrv.Trust.UpsertCertAuthority(hostCA); err != nil {
@@ -444,7 +444,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		hostCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
+		hostCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
 		if err := asrv.Trust.UpsertCertAuthority(hostCA); err != nil {
 			return nil, trace.Wrap(err)
 		}

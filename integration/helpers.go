@@ -270,25 +270,25 @@ func (s *InstanceSecrets) GetRoles() []services.Role {
 // case we always return hard-coded userCA + hostCA (and they share keys
 // for simplicity)
 func (s *InstanceSecrets) GetCAs() []services.CertAuthority {
-	hostCA := types.NewCertAuthority(services.CertAuthoritySpecV2{
+	hostCA := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:         services.HostCA,
 		ClusterName:  s.SiteName,
 		SigningKeys:  [][]byte{s.PrivKey},
 		CheckingKeys: [][]byte{s.PubKey},
 		Roles:        []string{},
-		SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_512,
+		SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	hostCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
+	hostCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
 
-	userCA := types.NewCertAuthority(services.CertAuthoritySpecV2{
+	userCA := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:         services.UserCA,
 		ClusterName:  s.SiteName,
 		SigningKeys:  [][]byte{s.PrivKey},
 		CheckingKeys: [][]byte{s.PubKey},
 		Roles:        []string{services.RoleNameForCertAuthority(s.SiteName)},
-		SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_512,
+		SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	userCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
+	userCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
 
 	return []services.CertAuthority{hostCA, userCA}
 }
@@ -305,7 +305,7 @@ func (s *InstanceSecrets) AsTrustedCluster(token string, roleMap services.RoleMa
 	return &services.TrustedClusterV2{
 		Kind:    services.KindTrustedCluster,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name: s.SiteName,
 		},
 		Spec: services.TrustedClusterSpecV2{
@@ -509,14 +509,14 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.DataDir = dataDir
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy.Enabled = true
-	tconf.Auth.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
+	tconf.Auth.ClusterName, err = services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tconf.Auth.StaticTokens, err = services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{
+	tconf.Auth.StaticTokens, err = services.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{
 			{
 				Roles: []teleport.Role{
 					teleport.RoleNode,

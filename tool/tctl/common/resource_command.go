@@ -505,7 +505,7 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 				services.KindSemaphore, services.SemaphoreKindConnection,
 			)
 		}
-		err := client.DeleteSemaphore(ctx, services.SemaphoreFilter{
+		err := client.DeleteSemaphore(ctx, types.SemaphoreFilter{
 			SemaphoreKind: rc.ref.SubKind,
 			SemaphoreName: rc.ref.Name,
 		})
@@ -765,7 +765,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &namespaceCollection{namespaces: []services.Namespace{*ns}}, nil
+		return &namespaceCollection{namespaces: []types.Namespace{*ns}}, nil
 	case services.KindTrustedCluster:
 		if rc.ref.Name == "" {
 			trustedClusters, err := client.GetTrustedClusters(ctx)
@@ -793,7 +793,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		return &remoteClusterCollection{remoteClusters: []services.RemoteCluster{remoteCluster}}, nil
 	case services.KindSemaphore:
-		sems, err := client.GetSemaphores(context.TODO(), services.SemaphoreFilter{
+		sems, err := client.GetSemaphores(context.TODO(), types.SemaphoreFilter{
 			SemaphoreKind: rc.ref.SubKind,
 			SemaphoreName: rc.ref.Name,
 		})

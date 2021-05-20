@@ -32,7 +32,7 @@ import (
 type Announcer interface {
 	// UpsertNode registers node presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error)
+	UpsertNode(ctx context.Context, s services.Server) (*types.KeepAlive, error)
 
 	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
@@ -50,10 +50,10 @@ type Announcer interface {
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 
 	// UpsertAppServer adds an application server.
-	UpsertAppServer(context.Context, services.Server) (*services.KeepAlive, error)
+	UpsertAppServer(context.Context, services.Server) (*types.KeepAlive, error)
 
 	// UpsertDatabaseServer registers a database proxy server.
-	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*services.KeepAlive, error)
+	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
 }
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
@@ -83,10 +83,10 @@ type ReadAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]services.Namespace, error)
+	GetNamespaces() ([]types.Namespace, error)
 
 	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*services.Namespace, error)
+	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (services.Server, error)
@@ -240,7 +240,7 @@ func (w *Wrapper) Close() error {
 }
 
 // UpsertNode is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
+func (w *Wrapper) UpsertNode(ctx context.Context, s services.Server) (*types.KeepAlive, error) {
 	return w.NoCache.UpsertNode(ctx, s)
 }
 
@@ -270,27 +270,27 @@ func (w *Wrapper) DeleteTunnelConnection(clusterName, connName string) error {
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore
-func (w *Wrapper) AcquireSemaphore(ctx context.Context, params services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error) {
+func (w *Wrapper) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	return w.NoCache.AcquireSemaphore(ctx, params)
 }
 
 // KeepAliveSemaphoreLease updates semaphore lease
-func (w *Wrapper) KeepAliveSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+func (w *Wrapper) KeepAliveSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	return w.NoCache.KeepAliveSemaphoreLease(ctx, lease)
 }
 
 // CancelSemaphoreLease cancels semaphore lease early
-func (w *Wrapper) CancelSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+func (w *Wrapper) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	return w.NoCache.CancelSemaphoreLease(ctx, lease)
 }
 
 // GetSemaphores returns a list of semaphores matching supplied filter.
-func (w *Wrapper) GetSemaphores(ctx context.Context, filter services.SemaphoreFilter) ([]services.Semaphore, error) {
+func (w *Wrapper) GetSemaphores(ctx context.Context, filter types.SemaphoreFilter) ([]services.Semaphore, error) {
 	return w.NoCache.GetSemaphores(ctx, filter)
 }
 
 // DeleteSemaphore deletes a semaphore matching supplied filter.
-func (w *Wrapper) DeleteSemaphore(ctx context.Context, filter services.SemaphoreFilter) error {
+func (w *Wrapper) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilter) error {
 	return w.NoCache.DeleteSemaphore(ctx, filter)
 }
 
@@ -300,12 +300,12 @@ func (w *Wrapper) UpsertKubeService(ctx context.Context, s services.Server) erro
 }
 
 // UpsertAppServer adds an application server.
-func (w *Wrapper) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+func (w *Wrapper) UpsertAppServer(ctx context.Context, server services.Server) (*types.KeepAlive, error) {
 	return w.NoCache.UpsertAppServer(ctx, server)
 }
 
 // UpsertDatabaseServer registers a database proxy server.
-func (w *Wrapper) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*services.KeepAlive, error) {
+func (w *Wrapper) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
 	return w.NoCache.UpsertDatabaseServer(ctx, server)
 }
 

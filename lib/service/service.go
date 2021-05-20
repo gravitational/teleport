@@ -633,7 +633,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	// if user did not provide auth domain name, use this host's name
 	if cfg.Auth.Enabled && cfg.Auth.ClusterName == nil {
-		cfg.Auth.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
+		cfg.Auth.ClusterName, err = services.NewClusterName(types.ClusterNameSpecV2{
 			ClusterName: cfg.Hostname,
 		})
 		if err != nil {
@@ -864,7 +864,7 @@ func adminCreds() (*int, *int, error) {
 // initUploadHandler initializes upload handler based on the config settings,
 // currently the only upload handler supported is S3
 // the call can return trace.NotFound if no upload handler is setup
-func initUploadHandler(auditConfig services.AuditConfig, dataDir string) (events.MultipartHandler, error) {
+func initUploadHandler(auditConfig types.AuditConfig, dataDir string) (events.MultipartHandler, error) {
 	if auditConfig.AuditSessionsURI == "" {
 		recordsDir := filepath.Join(dataDir, events.RecordsDir)
 		if err := os.MkdirAll(recordsDir, teleport.SharedDirMode); err != nil {
@@ -931,7 +931,7 @@ func initUploadHandler(auditConfig services.AuditConfig, dataDir string) (events
 
 // initExternalLog initializes external storage, if the storage is not
 // setup, returns (nil, nil).
-func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log logrus.FieldLogger, backend backend.Backend) (events.IAuditLog, error) {
+func initExternalLog(ctx context.Context, auditConfig types.AuditConfig, log logrus.FieldLogger, backend backend.Backend) (events.IAuditLog, error) {
 	//
 	// DELETE IN: 5.0
 	// We could probably just remove AuditTableName now (its been deprecated for a while), but
@@ -1347,14 +1347,14 @@ func (process *TeleportProcess) initAuthService() error {
 		Component: teleport.ComponentAuth,
 		Announcer: authServer,
 		GetServerInfo: func() (services.Resource, error) {
-			srv := services.ServerV2{
+			srv := types.ServerV2{
 				Kind:    services.KindAuthServer,
 				Version: services.V2,
-				Metadata: services.Metadata{
+				Metadata: types.Metadata{
 					Namespace: defaults.Namespace,
 					Name:      process.Config.HostUUID,
 				},
-				Spec: services.ServerSpecV2{
+				Spec: types.ServerSpecV2{
 					Addr:     authAddr,
 					Hostname: process.Config.Hostname,
 					Version:  teleport.Version,
@@ -1589,7 +1589,7 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cach
 	return auth.NewWrapper(clt, cache), nil
 }
 
-func (process *TeleportProcess) getRotation(role teleport.Role) (*services.Rotation, error) {
+func (process *TeleportProcess) getRotation(role teleport.Role) (*types.Rotation, error) {
 	state, err := process.storage.GetState(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3030,14 +3030,14 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		// Loop over each application and create a server.
-		var applications []*services.App
+		var applications []*types.App
 		for _, app := range process.Config.Apps.Apps {
 			publicAddr, err := getPublicAddr(accessPoint, app)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
-			a := &services.App{
+			a := &types.App{
 				Name:               app.Name,
 				Description:        app.Description,
 				URI:                app.URI,
@@ -3047,7 +3047,7 @@ func (process *TeleportProcess) initApps() {
 				InsecureSkipVerify: app.InsecureSkipVerify,
 			}
 			if app.Rewrite != nil {
-				a.Rewrite = &services.Rewrite{
+				a.Rewrite = &types.Rewrite{
 					Redirect: app.Rewrite.Redirect,
 				}
 				for _, header := range app.Rewrite.Headers {
@@ -3061,14 +3061,14 @@ func (process *TeleportProcess) initApps() {
 
 			applications = append(applications, a)
 		}
-		server := &services.ServerV2{
+		server := &types.ServerV2{
 			Kind:    services.KindAppServer,
 			Version: services.V2,
-			Metadata: services.Metadata{
+			Metadata: types.Metadata{
 				Namespace: defaults.Namespace,
 				Name:      process.Config.HostUUID,
 			},
-			Spec: services.ServerSpecV2{
+			Spec: types.ServerSpecV2{
 				Hostname: process.Config.Hostname,
 				Version:  teleport.Version,
 				Apps:     applications,

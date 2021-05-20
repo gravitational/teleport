@@ -28,13 +28,14 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	saml2 "github.com/russellhaering/gosaml2"
-	"github.com/russellhaering/gosaml2/types"
+	samltypes "github.com/russellhaering/gosaml2/types"
 	dsig "github.com/russellhaering/goxmldsig"
 )
 
@@ -62,7 +63,7 @@ func ValidateSAMLConnector(sc SAMLConnector) error {
 	}
 
 	if sc.GetEntityDescriptor() != "" {
-		metadata := &types.EntityDescriptor{}
+		metadata := &samltypes.EntityDescriptor{}
 		if err := xml.Unmarshal([]byte(sc.GetEntityDescriptor()), metadata); err != nil {
 			return trace.Wrap(err, "failed to parse entity_descriptor")
 		}
@@ -102,7 +103,7 @@ func ValidateSAMLConnector(sc SAMLConnector) error {
 }
 
 // GetAttributeNames returns a list of claim names from the claim values
-func GetAttributeNames(attributes map[string]types.Attribute) []string {
+func GetAttributeNames(attributes map[string]samltypes.Attribute) []string {
 	var out []string
 	for _, attr := range attributes {
 		out = append(out, attr.Name)
@@ -130,7 +131,7 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 	}
 
 	if sc.GetEntityDescriptor() != "" {
-		metadata := &types.EntityDescriptor{}
+		metadata := &samltypes.EntityDescriptor{}
 		if err := xml.Unmarshal([]byte(sc.GetEntityDescriptor()), metadata); err != nil {
 			return nil, trace.Wrap(err, "failed to parse entity_descriptor")
 		}
@@ -219,7 +220,7 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var h ResourceHeader
+	var h types.ResourceHeader
 	err = utils.FastUnmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)

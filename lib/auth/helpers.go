@@ -215,7 +215,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	access := local.NewAccessService(srv.Backend)
 	identity := local.NewIdentityService(srv.Backend)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: cfg.ClusterName,
 	})
 	if err != nil {
@@ -268,8 +268,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// set static tokens
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{},
+	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -817,7 +817,7 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (se
 		return nil, trace.Wrap(err)
 	}
 	baseRole := services.RoleForUser(user)
-	baseRole.SetAccessRequestConditions(services.Allow, services.AccessRequestConditions{
+	baseRole.SetAccessRequestConditions(services.Allow, types.AccessRequestConditions{
 		Roles: []string{rolename},
 	})
 	baseRole.SetLogins(services.Allow, nil)

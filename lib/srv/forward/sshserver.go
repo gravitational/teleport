@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -390,14 +391,14 @@ func (s Server) GetBPF() bpf.BPF {
 
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() services.Server {
-	return &services.ServerV2{
+	return &types.ServerV2{
 		Kind:    services.KindNode,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.GetNamespace(),
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr: s.AdvertiseAddr(),
 		},
 	}

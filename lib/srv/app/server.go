@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
@@ -43,7 +44,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type RotationGetter func(role teleport.Role) (*services.Rotation, error)
+type RotationGetter func(role teleport.Role) (*types.Rotation, error)
 
 // Config is the configuration for an application server.
 type Config struct {
@@ -353,7 +354,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 
 // authorize will check if request carries a session cookie matching a
 // session in the backend.
-func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identity, *services.App, error) {
+func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identity, *types.App, error) {
 	// Only allow local and remote identities to proxy to an application.
 	userType := r.Context().Value(auth.ContextUser)
 	switch userType.(type) {
@@ -393,7 +394,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 // getSession returns a request session used to proxy the request to the
 // target application. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
-func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app *services.App) (*session, error) {
+func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app *types.App) (*session, error) {
 	// If a cached forwarder exists, return it right away.
 	session, err := s.cache.get(identity.RouteToApp.SessionID)
 	if err == nil {
@@ -422,7 +423,7 @@ func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app *
 // (or round robin) does not need to occur here because they will all point
 // to the same target address. Random selection (or round robin) occurs at the
 // web proxy to load balance requests to the application service.
-func (s *Server) getApp(ctx context.Context, publicAddr string) (*services.App, error) {
+func (s *Server) getApp(ctx context.Context, publicAddr string) (*types.App, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

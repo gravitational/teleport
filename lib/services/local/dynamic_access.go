@@ -201,7 +201,7 @@ func (s *DynamicAccessService) GetAccessRequest(ctx context.Context, name string
 }
 
 // GetAccessRequests gets all currently active access requests.
-func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]services.AccessRequest, error) {
 	// Filters which specify ID are a special case since they will match exactly zero or one
 	// possible requests.
 	if filter.ID != "" {
@@ -275,7 +275,7 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req serv
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
-func (s *DynamicAccessService) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
+func (s *DynamicAccessService) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]services.PluginData, error) {
 	switch filter.Kind {
 	case services.KindAccessRequest:
 		data, err := s.getAccessRequestPluginData(ctx, filter)
@@ -288,7 +288,7 @@ func (s *DynamicAccessService) GetPluginData(ctx context.Context, filter service
 	}
 }
 
-func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
+func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, filter types.PluginDataFilter) ([]services.PluginData, error) {
 	// Filters which specify Resource are a special case since they will match exactly zero or one
 	// possible PluginData instances.
 	if filter.Resource != "" {
@@ -337,7 +337,7 @@ func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, f
 }
 
 // UpdatePluginData updates a per-resource PluginData entry.
-func (s *DynamicAccessService) UpdatePluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
+func (s *DynamicAccessService) UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
 	switch params.Kind {
 	case services.KindAccessRequest:
 		return trace.Wrap(s.updateAccessRequestPluginData(ctx, params))
@@ -346,7 +346,7 @@ func (s *DynamicAccessService) UpdatePluginData(ctx context.Context, params serv
 	}
 }
 
-func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
+func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
 	retryPeriod := retryPeriodMs * time.Millisecond
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Step: retryPeriod / 7,

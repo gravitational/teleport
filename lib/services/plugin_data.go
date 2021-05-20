@@ -19,6 +19,7 @@ package services
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -30,7 +31,7 @@ func MarshalPluginData(pluginData PluginData, opts ...MarshalOption) ([]byte, er
 	}
 
 	switch pluginData := pluginData.(type) {
-	case *PluginDataV3:
+	case *types.PluginDataV3:
 		if version := pluginData.GetVersion(); version != V3 {
 			return nil, trace.BadParameter("mismatched plugin data version %v and type %T", version, pluginData)
 		}
@@ -53,7 +54,7 @@ func UnmarshalPluginData(raw []byte, opts ...MarshalOption) (PluginData, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var data PluginDataV3
+	var data types.PluginDataV3
 	if err := utils.FastUnmarshal(raw, &data); err != nil {
 		return nil, trace.Wrap(err)
 	}

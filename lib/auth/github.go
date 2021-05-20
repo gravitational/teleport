@@ -116,7 +116,7 @@ type GithubAuthResponse struct {
 	// Username is the name of authenticated user
 	Username string `json:"username"`
 	// Identity is the external identity
-	Identity services.ExternalIdentity `json:"identity"`
+	Identity types.ExternalIdentity `json:"identity"`
 	// Session is the created web session
 	Session services.WebSession `json:"session,omitempty"`
 	// Cert is the generated SSH client certificate
@@ -256,7 +256,7 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 	// Auth was successful, return session, certificate, etc. to caller.
 	re.auth = GithubAuthResponse{
 		Req: *req,
-		Identity: services.ExternalIdentity{
+		Identity: types.ExternalIdentity{
 			ConnectorID: params.connectorName,
 			Username:    params.username,
 		},
@@ -376,25 +376,25 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
-	user := &services.UserV2{
+	user := &types.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
-		Metadata: services.Metadata{
+		Metadata: types.Metadata{
 			Name:      p.username,
 			Namespace: defaults.Namespace,
 			Expires:   &expires,
 		},
-		Spec: services.UserSpecV2{
+		Spec: types.UserSpecV2{
 			Roles:  p.roles,
 			Traits: p.traits,
-			GithubIdentities: []services.ExternalIdentity{{
+			GithubIdentities: []types.ExternalIdentity{{
 				ConnectorID: p.connectorName,
 				Username:    p.username,
 			}},
-			CreatedBy: services.CreatedBy{
-				User: services.UserRef{Name: teleport.UserSystem},
+			CreatedBy: types.CreatedBy{
+				User: types.UserRef{Name: teleport.UserSystem},
 				Time: a.GetClock().Now().UTC(),
-				Connector: &services.ConnectorRef{
+				Connector: &types.ConnectorRef{
 					Type:     teleport.Github,
 					ID:       p.connectorName,
 					Identity: p.username,

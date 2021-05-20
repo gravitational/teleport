@@ -492,7 +492,7 @@ func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req services.
 }
 
 // GetAccessRequests loads all access requests matching the spupplied filter.
-func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]services.AccessRequest, error) {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)

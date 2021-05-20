@@ -96,7 +96,7 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var h ResourceHeader
+	var h types.ResourceHeader
 	err = utils.FastUnmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -19,6 +19,7 @@ package services
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -28,7 +29,7 @@ func UnmarshalResetPasswordToken(bytes []byte, opts ...MarshalOption) (ResetPass
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	var token ResetPasswordTokenV3
+	var token types.ResetPasswordTokenV3
 	if err := utils.FastUnmarshal(bytes, &token); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}

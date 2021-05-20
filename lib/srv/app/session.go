@@ -49,7 +49,7 @@ type session struct {
 }
 
 // newSession creates a new session.
-func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *services.App) (*session, error) {
+func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *types.App) (*session, error) {
 	// Create the stream writer that will write this chunk to the audit log.
 	streamWriter, err := s.newStreamWriter(identity)
 	if err != nil {

@@ -230,7 +230,7 @@ type Heartbeat struct {
 	*log.Entry
 	state     KeepAliveState
 	current   services.Resource
-	keepAlive *services.KeepAlive
+	keepAlive *types.KeepAlive
 	// nextAnnounce holds time of the next scheduled announce attempt
 	nextAnnounce time.Time
 	// nextKeepAlive holds the time of the nex scheduled keep alive attempt
