@@ -3,7 +3,8 @@
 #
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
+GOMODCACHE ?= /tmp/gomodcache
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE)
 BCCFLAGS := -v "$$(pwd)/bcc:/usr/include/bcc"
 ADDFLAGS ?=
 BATSFLAGS :=
@@ -190,6 +191,7 @@ grpc: buildbox
 clean:
 	docker image rm --force $(BUILDBOX)
 	docker image rm --force $(DOCSBOX)
+	GOMODCACHE=$(GOMODCACHE) go clean -modcache
 
 #
 # Runs tests inside a build container

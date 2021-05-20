@@ -289,7 +289,7 @@ test-api:
 test-api: FLAGS ?= '-race'
 test-api: PACKAGES := $(shell cd api && go list ./...)
 test-api: $(VERSRC)
-	GOMODCACHE=/tmp go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -341,7 +341,7 @@ lint-go:
 .PHONY: lint-api
 lint-api: GO_LINT_API_FLAGS ?=
 lint-api:
-	cd api && GOMODCACHE=/tmp golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
+	cd api && golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -649,6 +649,9 @@ init-submodules-e: init-webapps-submodules-e
 
 .PHONY: update-vendor
 update-vendor:
+	# update modules in api/
+	cd api && go mod tidy
+	# update modules in root directory
 	go mod tidy
 	go mod vendor
 	# delete the vendored api package. In its place
