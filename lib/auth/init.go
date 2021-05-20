@@ -140,6 +140,9 @@ type InitConfig struct {
 	// ClusterNetworkingConfig holds cluster networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
 
+	// SessionRecordingConfig holds session recording configuration.
+	SessionRecordingConfig types.SessionRecordingConfig
+
 	// SkipPeriodicOperations turns off periodic operations
 	// used in tests that don't need periodc operations.
 	SkipPeriodicOperations bool
@@ -237,6 +240,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	err = asrv.SetClusterNetworkingConfig(ctx, cfg.ClusterNetworkingConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = asrv.SetSessionRecordingConfig(ctx, cfg.SessionRecordingConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

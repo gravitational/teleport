@@ -416,9 +416,14 @@ proxy_service:
     # optional: set a different public address for kubernetes access
     kube_public_addr: kube.example.com:3026
 
-    # If database access is enabled, the MySQL proxy listens on a separate port and
-    # needs to be enabled in the proxy server
-    #mysql_listen_addr: 0.0.0.0:3036
+    # MySQL proxy listen address.
+    mysql_listen_addr: "0.0.0.0:3036"
+
+    # Address advertised to PostgreSQL clients. If not set, public_addr is used.
+    postgres_public_addr: "postgres.teleport.example.com:443"
+
+    # Address advertised to MySQL clients. If not set, public_addr is used.
+    mysql_public_addr: "mysql.teleport.example.com:3306"
 
     # Get automatic certificate from Letsencrypt.org using ACME via TLS_ALPN-01 challenge.
     # When using ACME, the cluster name must match the 'public_addr' of Teleport and 
@@ -497,8 +502,9 @@ kubernetes_service:
       command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
       period: 1m0s
 
+# This section configures the database service.
 db_service:
-  # Enables the Database Service.
+  # Enables the database service. Default is "no".
   enabled: "yes"
   # This section contains definitions of all databases proxied by this
   # service, it can contain multiple database instances.
@@ -513,10 +519,20 @@ db_service:
     uri: "postgres.example.com:5432"
     # Optional path to the CA used to validate the database certificate.
     ca_cert_file: /path/to/ca.pem
-    # AWS specific configuration, only required for RDS and Aurora.
+    # AWS specific configuration, only required for RDS/Aurora/Redshift.
     aws:
       # Region the database is deployed in.
       region: "us-east-1"
+      # Redshift specific configuration.
+      redshift:
+        # Redshift cluster identifier.
+        cluster_id: "redshift-cluster-1"
+    # GCP specific configuration for Cloud SQL databases.
+    gcp:
+      # GCP project ID.
+      project_id: "xxx-1234"
+      # Cloud SQL instance ID.
+      instance_id: "example"
     # Static labels to assign to the database. Used in RBAC.
     static_labels:
       env: "prod"
