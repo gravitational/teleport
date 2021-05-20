@@ -639,12 +639,12 @@ func TestAccessRequestMarshaling(t *testing.T) {
 func TestPluginDataExpectations(t *testing.T) {
 	const rname = "my-resource"
 	const pname = "my-plugin"
-	data, err := types.NewPluginData(rname, KindAccessRequest)
+	data, err := types.NewPluginData(rname, types.KindAccessRequest)
 	require.NoError(t, err)
 
 	// Set two keys, expecting them to be unset.
 	err = data.Update(types.PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{
@@ -660,7 +660,7 @@ func TestPluginDataExpectations(t *testing.T) {
 
 	// Expect a value which does not exist.
 	err = data.Update(types.PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{
@@ -674,7 +674,7 @@ func TestPluginDataExpectations(t *testing.T) {
 
 	// Expect a value to not exist when it does exist.
 	err = data.Update(types.PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{
@@ -689,7 +689,7 @@ func TestPluginDataExpectations(t *testing.T) {
 
 	// Expect the correct state, updating one key and removing another.
 	err = data.Update(types.PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{
@@ -705,7 +705,7 @@ func TestPluginDataExpectations(t *testing.T) {
 
 	// Expect the new updated state.
 	err = data.Update(types.PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{
@@ -723,7 +723,7 @@ func TestPluginDataExpectations(t *testing.T) {
 func TestPluginDataFilterMatching(t *testing.T) {
 	const rname = "my-resource"
 	const pname = "my-plugin"
-	data, err := types.NewPluginData(rname, KindAccessRequest)
+	data, err := types.NewPluginData(rname, types.KindAccessRequest)
 	require.NoError(t, err)
 
 	var f types.PluginDataFilter
@@ -742,7 +742,7 @@ func TestPluginDataFilterMatching(t *testing.T) {
 
 	// Add some data
 	err = data.Update(types.PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{

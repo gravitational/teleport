@@ -93,9 +93,9 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 			svc := local.NewPresenceService(bk)
 
 			// seed the test nodes
-			insertServers(ctx, b, svc, services.KindNode, tt.nodes)
-			insertServers(ctx, b, svc, services.KindProxy, proxyCount)
-			insertServers(ctx, b, svc, services.KindAuthServer, authCount)
+			insertServers(ctx, b, svc, types.KindNode, tt.nodes)
+			insertServers(ctx, b, svc, types.KindProxy, proxyCount)
+			insertServers(ctx, b, svc, types.KindAuthServer, authCount)
 
 			site := &mockRemoteSite{
 				accessPoint: &mockAccessPoint{
@@ -124,7 +124,7 @@ func insertServers(ctx context.Context, t assert.TestingT, svc services.Presence
 		addr := fmt.Sprintf("%s.%s", name, clusterName)
 		server := &types.ServerV2{
 			Kind:    kind,
-			Version: services.V2,
+			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      name,
 				Namespace: defaults.Namespace,
@@ -138,11 +138,11 @@ func insertServers(ctx context.Context, t assert.TestingT, svc services.Presence
 		}
 		var err error
 		switch kind {
-		case services.KindNode:
+		case types.KindNode:
 			_, err = svc.UpsertNode(ctx, server)
-		case services.KindProxy:
+		case types.KindProxy:
 			err = svc.UpsertProxy(server)
-		case services.KindAuthServer:
+		case types.KindAuthServer:
 			err = svc.UpsertAuthServer(server)
 		default:
 			t.Errorf("Unexpected server kind: %s", kind)

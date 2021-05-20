@@ -257,7 +257,7 @@ func MarshalSemaphore(semaphore types.Semaphore, opts ...MarshalOption) ([]byte,
 	}
 	switch semaphore := semaphore.(type) {
 	case *types.SemaphoreV3:
-		if version := semaphore.GetVersion(); version != V3 {
+		if version := semaphore.GetVersion(); version != types.V3 {
 			return nil, trace.BadParameter("mismatched semaphore version %v and type %T", version, semaphore)
 		}
 		if !cfg.PreserveResourceID {

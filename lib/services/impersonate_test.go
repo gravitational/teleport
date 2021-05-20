@@ -204,8 +204,8 @@ func TestCheckImpersonate(t *testing.T) {
 					Spec: types.RoleSpecV3{
 						Allow: types.RoleConditions{
 							Impersonate: &types.ImpersonateConditions{
-								Users: []string{Wildcard},
-								Roles: []string{Wildcard},
+								Users: []string{types.Wildcard},
+								Roles: []string{types.Wildcard},
 								Where: `equals(user.spec.traits["team"], impersonate_user.spec.traits["team"]) && contains(user.spec.traits["team"], impersonate_role.metadata.labels["team"])`,
 							},
 						},

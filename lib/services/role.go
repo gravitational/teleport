@@ -47,17 +47,17 @@ import (
 // all users.
 func getExtendedAdminUserRules(features modules.Features) []types.Rule {
 	rules := []types.Rule{
-		types.NewRule(KindRole, RW()),
-		types.NewRule(KindAuthConnector, RW()),
-		types.NewRule(KindSession, RO()),
-		types.NewRule(KindTrustedCluster, RW()),
-		types.NewRule(KindEvent, RO()),
-		types.NewRule(KindUser, RW()),
-		types.NewRule(KindToken, RW()),
+		types.NewRule(types.KindRole, RW()),
+		types.NewRule(types.KindAuthConnector, RW()),
+		types.NewRule(types.KindSession, RO()),
+		types.NewRule(types.KindTrustedCluster, RW()),
+		types.NewRule(types.KindEvent, RO()),
+		types.NewRule(types.KindUser, RW()),
+		types.NewRule(types.KindToken, RW()),
 	}
 
 	if features.Cloud {
-		rules = append(rules, types.NewRule(KindBilling, RW()))
+		rules = append(rules, types.NewRule(types.KindBilling, RW()))
 	}
 
 	return rules
@@ -66,28 +66,28 @@ func getExtendedAdminUserRules(features modules.Features) []types.Rule {
 // DefaultImplicitRules provides access to the default set of implicit rules
 // assigned to all roles.
 var DefaultImplicitRules = []types.Rule{
-	types.NewRule(KindNode, RO()),
-	types.NewRule(KindProxy, RO()),
-	types.NewRule(KindAuthServer, RO()),
-	types.NewRule(KindReverseTunnel, RO()),
-	types.NewRule(KindCertAuthority, ReadNoSecrets()),
-	types.NewRule(KindClusterAuthPreference, RO()),
-	types.NewRule(KindClusterName, RO()),
-	types.NewRule(KindSSHSession, RO()),
-	types.NewRule(KindAppServer, RO()),
-	types.NewRule(KindRemoteCluster, RO()),
-	types.NewRule(KindKubeService, RO()),
+	types.NewRule(types.KindNode, RO()),
+	types.NewRule(types.KindProxy, RO()),
+	types.NewRule(types.KindAuthServer, RO()),
+	types.NewRule(types.KindReverseTunnel, RO()),
+	types.NewRule(types.KindCertAuthority, ReadNoSecrets()),
+	types.NewRule(types.KindClusterAuthPreference, RO()),
+	types.NewRule(types.KindClusterName, RO()),
+	types.NewRule(types.KindSSHSession, RO()),
+	types.NewRule(types.KindAppServer, RO()),
+	types.NewRule(types.KindRemoteCluster, RO()),
+	types.NewRule(types.KindKubeService, RO()),
 	types.NewRule(types.KindDatabaseServer, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
 // needed for a certificate authority to function.
 var DefaultCertAuthorityRules = []types.Rule{
-	types.NewRule(KindSession, RO()),
-	types.NewRule(KindNode, RO()),
-	types.NewRule(KindAuthServer, RO()),
-	types.NewRule(KindReverseTunnel, RO()),
-	types.NewRule(KindCertAuthority, ReadNoSecrets()),
+	types.NewRule(types.KindSession, RO()),
+	types.NewRule(types.KindNode, RO()),
+	types.NewRule(types.KindAuthServer, RO()),
+	types.NewRule(types.KindReverseTunnel, RO()),
+	types.NewRule(types.KindCertAuthority, ReadNoSecrets()),
 }
 
 // ErrSessionMFARequired is returned by AccessChecker when access to a resource
@@ -110,8 +110,8 @@ func RoleNameForCertAuthority(name string) string {
 func NewAdminRole() types.Role {
 	adminRules := getExtendedAdminUserRules(modules.GetModules().Features())
 	role := &types.RoleV3{
-		Kind:    KindRole,
-		Version: V3,
+		Kind:    types.KindRole,
+		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      teleport.AdminRoleName,
 			Namespace: defaults.Namespace,
@@ -126,10 +126,10 @@ func NewAdminRole() types.Role {
 			},
 			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
-				NodeLabels:       types.Labels{Wildcard: []string{Wildcard}},
-				AppLabels:        types.Labels{Wildcard: []string{Wildcard}},
-				KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
-				DatabaseLabels:   types.Labels{Wildcard: []string{Wildcard}},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
 				Rules:            adminRules,
@@ -146,8 +146,8 @@ func NewAdminRole() types.Role {
 // RoleSets.
 func NewImplicitRole() types.Role {
 	return &types.RoleV3{
-		Kind:    KindRole,
-		Version: V3,
+		Kind:    types.KindRole,
+		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      teleport.DefaultImplicitRole,
 			Namespace: defaults.Namespace,
@@ -171,8 +171,8 @@ func NewImplicitRole() types.Role {
 // RoleForUser creates an admin role for a services.User.
 func RoleForUser(u types.User) types.Role {
 	return &types.RoleV3{
-		Kind:    KindRole,
-		Version: V3,
+		Kind:    types.KindRole,
+		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      RoleNameForUser(u.GetName()),
 			Namespace: defaults.Namespace,
@@ -187,16 +187,16 @@ func RoleForUser(u types.User) types.Role {
 			},
 			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
-				NodeLabels:       types.Labels{Wildcard: []string{Wildcard}},
-				AppLabels:        types.Labels{Wildcard: []string{Wildcard}},
-				KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
-				DatabaseLabels:   types.Labels{Wildcard: []string{Wildcard}},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				Rules: []types.Rule{
-					types.NewRule(KindRole, RW()),
-					types.NewRule(KindAuthConnector, RW()),
-					types.NewRule(KindSession, RO()),
-					types.NewRule(KindTrustedCluster, RW()),
-					types.NewRule(KindEvent, RO()),
+					types.NewRule(types.KindRole, RW()),
+					types.NewRule(types.KindAuthConnector, RW()),
+					types.NewRule(types.KindSession, RO()),
+					types.NewRule(types.KindTrustedCluster, RW()),
+					types.NewRule(types.KindEvent, RO()),
 				},
 			},
 		},
@@ -208,8 +208,8 @@ func RoleForUser(u types.User) types.Role {
 // DELETE IN (7.x)
 func NewDowngradedOSSAdminRole() types.Role {
 	role := &types.RoleV3{
-		Kind:    KindRole,
-		Version: V3,
+		Kind:    types.KindRole,
+		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      teleport.AdminRoleName,
 			Namespace: defaults.Namespace,
@@ -225,15 +225,15 @@ func NewDowngradedOSSAdminRole() types.Role {
 			},
 			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
-				NodeLabels:       types.Labels{Wildcard: []string{Wildcard}},
-				AppLabels:        types.Labels{Wildcard: []string{Wildcard}},
-				KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
-				DatabaseLabels:   types.Labels{Wildcard: []string{Wildcard}},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
 				Rules: []types.Rule{
-					types.NewRule(KindEvent, RO()),
-					types.NewRule(KindSession, RO()),
+					types.NewRule(types.KindEvent, RO()),
+					types.NewRule(types.KindSession, RO()),
 				},
 			},
 		},
@@ -247,8 +247,8 @@ func NewDowngradedOSSAdminRole() types.Role {
 // NewOSSGithubRole creates a role for enabling RBAC for open source Github users
 func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) types.Role {
 	role := &types.RoleV3{
-		Kind:    KindRole,
-		Version: V3,
+		Kind:    types.KindRole,
+		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "github-" + uuid.New(),
 			Namespace: defaults.Namespace,
@@ -263,14 +263,14 @@ func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) 
 			},
 			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
-				NodeLabels:       types.Labels{Wildcard: []string{Wildcard}},
-				AppLabels:        types.Labels{Wildcard: []string{Wildcard}},
-				KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
-				DatabaseLabels:   types.Labels{Wildcard: []string{Wildcard}},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
 				Rules: []types.Rule{
-					types.NewRule(KindEvent, RO()),
+					types.NewRule(types.KindEvent, RO()),
 				},
 			},
 		},
@@ -284,8 +284,8 @@ func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) 
 // RoleForCertAuthority creates role using types.CertAuthority.
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 	return &types.RoleV3{
-		Kind:    KindRole,
-		Version: V3,
+		Kind:    types.KindRole,
+		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      RoleNameForCertAuthority(ca.GetClusterName()),
 			Namespace: defaults.Namespace,
@@ -296,10 +296,10 @@ func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 			},
 			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
-				NodeLabels:       types.Labels{Wildcard: []string{Wildcard}},
-				AppLabels:        types.Labels{Wildcard: []string{Wildcard}},
-				KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
-				DatabaseLabels:   types.Labels{Wildcard: []string{Wildcard}},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				Rules:            types.CopyRulesSlice(DefaultCertAuthorityRules),
 			},
 		},
@@ -619,7 +619,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 func ruleScore(r *types.Rule) int {
 	score := 0
 	// wildcard rules are less specific
-	if utils.SliceContainsStr(r.Resources, Wildcard) {
+	if utils.SliceContainsStr(r.Resources, types.Wildcard) {
 		score -= 4
 	} else if len(r.Resources) == 1 {
 		// rules that match specific resource are more specific than
@@ -627,7 +627,7 @@ func ruleScore(r *types.Rule) int {
 		score += 2
 	}
 	// rules that have wildcard verbs are less specific
-	if utils.SliceContainsStr(r.Verbs, Wildcard) {
+	if utils.SliceContainsStr(r.Verbs, types.Wildcard) {
 		score -= 2
 	}
 	// rules that supply 'where' or 'actions' are more specific
@@ -703,7 +703,7 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		if match && (rule.HasVerb(Wildcard) || rule.HasVerb(verb)) {
+		if match && (rule.HasVerb(types.Wildcard) || rule.HasVerb(verb)) {
 			if err := processActions(&rule, actionsParser); err != nil {
 				return true, trace.Wrap(err)
 			}
@@ -712,12 +712,12 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 	}
 
 	// check for wildcard resource matcher
-	for _, rule := range set[Wildcard] {
+	for _, rule := range set[types.Wildcard] {
 		match, err := matchesWhere(&rule, whereParser)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		if match && (rule.HasVerb(Wildcard) || rule.HasVerb(verb)) {
+		if match && (rule.HasVerb(types.Wildcard) || rule.HasVerb(verb)) {
 			if err := processActions(&rule, actionsParser); err != nil {
 				return true, trace.Wrap(err)
 			}
@@ -869,18 +869,18 @@ func FromSpec(name string, spec types.RoleSpecV3) (RoleSet, error) {
 
 // RW is a shortcut that returns all verbs.
 func RW() []string {
-	return []string{VerbList, VerbCreate, VerbRead, VerbUpdate, VerbDelete}
+	return []string{types.VerbList, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 }
 
 // RO is a shortcut that returns read only verbs that provide access to secrets.
 func RO() []string {
-	return []string{VerbList, VerbRead}
+	return []string{types.VerbList, types.VerbRead}
 }
 
 // ReadNoSecrets is a shortcut that returns read only verbs that do not
 // provide access to secrets.
 func ReadNoSecrets() []string {
-	return []string{VerbList, VerbReadNoSecrets}
+	return []string{types.VerbList, types.VerbReadNoSecrets}
 }
 
 // RoleGetter is an interface that defines GetRole method
@@ -1029,7 +1029,7 @@ type RoleSet []types.Role
 // target namespace, wildcard matches everything.
 func MatchNamespace(selectors []string, namespace string) (bool, string) {
 	for _, n := range selectors {
-		if n == namespace || n == Wildcard {
+		if n == namespace || n == types.Wildcard {
 			return true, "matched"
 		}
 	}
@@ -1049,7 +1049,7 @@ func MatchLogin(selectors []string, login string) (bool, string) {
 // MatchDatabaseName returns true if provided database name matches selectors.
 func MatchDatabaseName(selectors []string, name string) (bool, string) {
 	for _, n := range selectors {
-		if n == name || n == Wildcard {
+		if n == name || n == types.Wildcard {
 			return true, "matched"
 		}
 	}
@@ -1059,7 +1059,7 @@ func MatchDatabaseName(selectors []string, name string) (bool, string) {
 // MatchDatabaseUser returns true if provided database user matches selectors.
 func MatchDatabaseUser(selectors []string, user string) (bool, string) {
 	for _, u := range selectors {
-		if u == user || u == Wildcard {
+		if u == user || u == types.Wildcard {
 			return true, "matched"
 		}
 	}
@@ -1075,8 +1075,8 @@ func MatchLabels(selector types.Labels, target map[string]string) (bool, string,
 	}
 
 	// *: * matches everything even empty target set.
-	selectorValues := selector[Wildcard]
-	if len(selectorValues) == 1 && selectorValues[0] == Wildcard {
+	selectorValues := selector[types.Wildcard]
+	if len(selectorValues) == 1 && selectorValues[0] == types.Wildcard {
 		return true, "matched", nil
 	}
 
@@ -1088,7 +1088,7 @@ func MatchLabels(selector types.Labels, target map[string]string) (bool, string,
 			return false, fmt.Sprintf("no key match: '%v'", key), nil
 		}
 
-		if !utils.SliceContainsStr(selectorValues, Wildcard) {
+		if !utils.SliceContainsStr(selectorValues, types.Wildcard) {
 			result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
 			if err != nil {
 				return false, "", trace.Wrap(err)
@@ -2159,7 +2159,7 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	}
 
 	switch h.Version {
-	case V3:
+	case types.V3:
 		var role types.RoleV3
 		if err := utils.FastUnmarshal(bytes, &role); err != nil {
 			return nil, trace.BadParameter(err.Error())
@@ -2190,7 +2190,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 
 	switch role := role.(type) {
 	case *types.RoleV3:
-		if version := role.GetVersion(); version != V3 {
+		if version := role.GetVersion(); version != types.V3 {
 			return nil, trace.BadParameter("mismatched role version %v and type %T", version, role)
 		}
 		if !cfg.PreserveResourceID {

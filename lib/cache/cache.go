@@ -43,29 +43,29 @@ func tombstoneKey() []byte {
 func ForAuth(cfg Config) Config {
 	cfg.target = "auth"
 	cfg.Watches = []types.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: true},
-		{Kind: services.KindClusterName},
-		{Kind: services.KindClusterConfig},
+		{Kind: types.KindCertAuthority, LoadSecrets: true},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
-		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: services.KindStaticTokens},
-		{Kind: services.KindToken},
-		{Kind: services.KindUser},
-		{Kind: services.KindRole},
-		{Kind: services.KindNamespace},
-		{Kind: services.KindNode},
-		{Kind: services.KindProxy},
-		{Kind: services.KindAuthServer},
-		{Kind: services.KindReverseTunnel},
-		{Kind: services.KindTunnelConnection},
-		{Kind: services.KindAccessRequest},
-		{Kind: services.KindAppServer},
-		{Kind: services.KindWebSession, SubKind: services.KindAppSession},
-		{Kind: services.KindWebSession, SubKind: services.KindWebSession},
-		{Kind: services.KindWebToken},
-		{Kind: services.KindRemoteCluster},
-		{Kind: services.KindKubeService},
+		{Kind: types.KindStaticTokens},
+		{Kind: types.KindToken},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindNamespace},
+		{Kind: types.KindNode},
+		{Kind: types.KindProxy},
+		{Kind: types.KindAuthServer},
+		{Kind: types.KindReverseTunnel},
+		{Kind: types.KindTunnelConnection},
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
+		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
+		{Kind: types.KindWebToken},
+		{Kind: types.KindRemoteCluster},
+		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -76,26 +76,26 @@ func ForAuth(cfg Config) Config {
 func ForProxy(cfg Config) Config {
 	cfg.target = "proxy"
 	cfg.Watches = []types.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: false},
-		{Kind: services.KindClusterName},
-		{Kind: services.KindClusterConfig},
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
-		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: services.KindUser},
-		{Kind: services.KindRole},
-		{Kind: services.KindNamespace},
-		{Kind: services.KindNode},
-		{Kind: services.KindProxy},
-		{Kind: services.KindAuthServer},
-		{Kind: services.KindReverseTunnel},
-		{Kind: services.KindTunnelConnection},
-		{Kind: services.KindAppServer},
-		{Kind: services.KindWebSession, SubKind: services.KindAppSession},
-		{Kind: services.KindWebSession, SubKind: services.KindWebSession},
-		{Kind: services.KindWebToken},
-		{Kind: services.KindRemoteCluster},
-		{Kind: services.KindKubeService},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindNamespace},
+		{Kind: types.KindNode},
+		{Kind: types.KindProxy},
+		{Kind: types.KindAuthServer},
+		{Kind: types.KindReverseTunnel},
+		{Kind: types.KindTunnelConnection},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
+		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
+		{Kind: types.KindWebToken},
+		{Kind: types.KindRemoteCluster},
+		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
@@ -106,22 +106,22 @@ func ForProxy(cfg Config) Config {
 func ForRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy"
 	cfg.Watches = []types.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: false},
-		{Kind: services.KindClusterName},
-		{Kind: services.KindClusterConfig},
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: services.KindUser},
-		{Kind: services.KindRole},
-		{Kind: services.KindNamespace},
-		{Kind: services.KindNode},
-		{Kind: services.KindProxy},
-		{Kind: services.KindAuthServer},
-		{Kind: services.KindReverseTunnel},
-		{Kind: services.KindTunnelConnection},
-		{Kind: services.KindAppServer},
-		{Kind: services.KindRemoteCluster},
-		{Kind: services.KindKubeService},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindNamespace},
+		{Kind: types.KindNode},
+		{Kind: types.KindProxy},
+		{Kind: types.KindAuthServer},
+		{Kind: types.KindReverseTunnel},
+		{Kind: types.KindTunnelConnection},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindRemoteCluster},
+		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
@@ -134,22 +134,22 @@ func ForRemoteProxy(cfg Config) Config {
 func ForOldRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy-old"
 	cfg.Watches = []types.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: false},
-		{Kind: services.KindClusterName},
-		{Kind: services.KindClusterConfig},
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: services.KindUser},
-		{Kind: services.KindRole},
-		{Kind: services.KindNamespace},
-		{Kind: services.KindNode},
-		{Kind: services.KindProxy},
-		{Kind: services.KindAuthServer},
-		{Kind: services.KindReverseTunnel},
-		{Kind: services.KindTunnelConnection},
-		{Kind: services.KindAppServer},
-		{Kind: services.KindRemoteCluster},
-		{Kind: services.KindKubeService},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindNamespace},
+		{Kind: types.KindNode},
+		{Kind: types.KindProxy},
+		{Kind: types.KindAuthServer},
+		{Kind: types.KindReverseTunnel},
+		{Kind: types.KindTunnelConnection},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindRemoteCluster},
+		{Kind: types.KindKubeService},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -159,18 +159,18 @@ func ForOldRemoteProxy(cfg Config) Config {
 func ForNode(cfg Config) Config {
 	cfg.target = "node"
 	cfg.Watches = []types.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: false},
-		{Kind: services.KindClusterName},
-		{Kind: services.KindClusterConfig},
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
-		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: services.KindUser},
-		{Kind: services.KindRole},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
 		// Node only needs to "know" about default
 		// namespace events to avoid matching too much
 		// data about other namespaces or node events
-		{Kind: services.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindNamespace, Name: defaults.Namespace},
 	}
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
@@ -180,16 +180,16 @@ func ForNode(cfg Config) Config {
 func ForKubernetes(cfg Config) Config {
 	cfg.target = "kube"
 	cfg.Watches = []types.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: false},
-		{Kind: services.KindClusterName},
-		{Kind: services.KindClusterConfig},
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
-		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: services.KindUser},
-		{Kind: services.KindRole},
-		{Kind: services.KindNamespace, Name: defaults.Namespace},
-		{Kind: services.KindKubeService},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindKubeService},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -199,18 +199,18 @@ func ForKubernetes(cfg Config) Config {
 func ForApps(cfg Config) Config {
 	cfg.target = "apps"
 	cfg.Watches = []types.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: false},
-		{Kind: services.KindClusterName},
-		{Kind: services.KindClusterConfig},
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
-		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: services.KindUser},
-		{Kind: services.KindRole},
-		{Kind: services.KindProxy},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindProxy},
 		// Applications only need to "know" about default namespace events to avoid
 		// matching too much data about other namespaces or events.
-		{Kind: services.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindNamespace, Name: defaults.Namespace},
 	}
 	cfg.QueueSize = defaults.AppsQueueSize
 	return cfg
@@ -219,18 +219,18 @@ func ForApps(cfg Config) Config {
 // ForDatabases sets up watch configuration for database proxy servers.
 func ForDatabases(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: false},
-		{Kind: services.KindClusterName},
-		{Kind: services.KindClusterConfig},
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
-		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: services.KindUser},
-		{Kind: services.KindRole},
-		{Kind: services.KindProxy},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindProxy},
 		// Databases only need to "know" about default namespace events to
 		// avoid matching too much data about other namespaces or events.
-		{Kind: services.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindNamespace, Name: defaults.Namespace},
 	}
 	cfg.QueueSize = defaults.DatabasesQueueSize
 	return cfg

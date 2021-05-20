@@ -618,7 +618,7 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	for i, raw := range items {
 		s, err := services.UnmarshalServer(
 			raw,
-			services.KindNode,
+			types.KindNode,
 			opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)

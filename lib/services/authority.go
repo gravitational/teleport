@@ -336,7 +336,7 @@ func CertPool(ca types.CertAuthority) (*x509.CertPool, error) {
 
 // MarshalCertRoles marshal roles list to OpenSSH
 func MarshalCertRoles(roles []string) (string, error) {
-	out, err := json.Marshal(types.CertRoles{Version: V1, Roles: roles})
+	out, err := json.Marshal(types.CertRoles{Version: types.V1, Roles: roles})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -364,7 +364,7 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
-	case V2:
+	case types.V2:
 		var ca types.CertAuthorityV2
 		if err := utils.FastUnmarshal(bytes, &ca); err != nil {
 			return nil, trace.BadParameter(err.Error())
@@ -390,7 +390,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 
 	switch certAuthority := certAuthority.(type) {
 	case *types.CertAuthorityV2:
-		if version := certAuthority.GetVersion(); version != V2 {
+		if version := certAuthority.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched certificate authority version %v and type %T", version, certAuthority)
 		}
 		if !cfg.PreserveResourceID {

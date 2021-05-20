@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -271,8 +270,8 @@ func (t *TLSServer) GetServerInfo() (types.Resource, error) {
 	}
 
 	srv := &types.ServerV2{
-		Kind:    services.KindKubeService,
-		Version: services.V2,
+		Kind:    types.KindKubeService,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      name,
 			Namespace: t.Namespace,

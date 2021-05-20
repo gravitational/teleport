@@ -28,10 +28,10 @@ import (
 // when nothing is specified in file configuration.
 func DefaultStaticTokens() types.StaticTokens {
 	return &types.StaticTokensV2{
-		Kind:    KindStaticTokens,
-		Version: V2,
+		Kind:    types.KindStaticTokens,
+		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      MetaNameStaticTokens,
+			Name:      types.MetaNameStaticTokens,
 			Namespace: defaults.Namespace,
 		},
 		Spec: types.StaticTokensSpecV2{
@@ -78,7 +78,7 @@ func MarshalStaticTokens(staticToken types.StaticTokens, opts ...MarshalOption) 
 
 	switch staticToken := staticToken.(type) {
 	case *types.StaticTokensV2:
-		if version := staticToken.GetVersion(); version != V2 {
+		if version := staticToken.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched static token version %v and type %T", version, staticToken)
 		}
 		if !cfg.PreserveResourceID {

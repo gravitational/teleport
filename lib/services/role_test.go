@@ -72,8 +72,8 @@ func TestConnAndSessLimits(t *testing.T) {
 		var set RoleSet
 		for i, val := range tt.vals {
 			role := &types.RoleV3{
-				Kind:    KindRole,
-				Version: V3,
+				Kind:    types.KindRole,
+				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      fmt.Sprintf("role-%d", i),
 					Namespace: defaults.Namespace,
@@ -166,8 +166,8 @@ func TestRoleParse(t *testing.T) {
 			name: "role with no spec still gets defaults",
 			in:   `{"kind": "role", "version": "v3", "metadata": {"name": "defrole"}, "spec": {}}`,
 			role: types.RoleV3{
-				Kind:    KindRole,
-				Version: V3,
+				Kind:    types.KindRole,
+				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "defrole",
 					Namespace: defaults.Namespace,
@@ -181,9 +181,9 @@ func TestRoleParse(t *testing.T) {
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
-						AppLabels:        types.Labels{Wildcard: []string{Wildcard}},
-						KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
-						DatabaseLabels:   types.Labels{Wildcard: []string{Wildcard}},
+						AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+						KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 						Namespaces:       []string{defaults.Namespace},
 					},
 					Deny: types.RoleConditions{
@@ -233,8 +233,8 @@ func TestRoleParse(t *testing.T) {
 					   		      }
 					   		    }`,
 			role: types.RoleV3{
-				Kind:    KindRole,
-				Version: V3,
+				Kind:    types.KindRole,
+				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "name1",
 					Namespace: defaults.Namespace,
@@ -259,8 +259,8 @@ func TestRoleParse(t *testing.T) {
 						Namespaces:       []string{"default"},
 						Rules: []types.Rule{
 							{
-								Resources: []string{KindRole},
-								Verbs:     []string{VerbRead, VerbList},
+								Resources: []string{types.KindRole},
+								Verbs:     []string{types.VerbRead, types.VerbList},
 								Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 								Actions: []string{
 									"log(\"info\", \"log entry\")",
@@ -315,8 +315,8 @@ func TestRoleParse(t *testing.T) {
 		   		      }
 		   		    }`,
 			role: types.RoleV3{
-				Kind:    KindRole,
-				Version: V3,
+				Kind:    types.KindRole,
+				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "name1",
 					Namespace: defaults.Namespace,
@@ -339,8 +339,8 @@ func TestRoleParse(t *testing.T) {
 						Namespaces:       []string{"default"},
 						Rules: []types.Rule{
 							{
-								Resources: []string{KindRole},
-								Verbs:     []string{VerbRead, VerbList},
+								Resources: []string{types.KindRole},
+								Verbs:     []string{types.VerbRead, types.VerbList},
 								Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 								Actions: []string{
 									"log(\"info\", \"log entry\")",
@@ -384,8 +384,8 @@ func TestRoleParse(t *testing.T) {
 		   		      }
 		   		    }`,
 			role: types.RoleV3{
-				Kind:    KindRole,
-				Version: V3,
+				Kind:    types.KindRole,
+				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "name1",
 					Namespace: defaults.Namespace,
@@ -599,8 +599,8 @@ func TestCheckAccessToServer(t *testing.T) {
 					MaxSessionTTL: types.Duration(20 * time.Hour),
 				},
 				Allow: types.RoleConditions{
-					NodeLabels: types.Labels{Wildcard: []string{Wildcard}},
-					Namespaces: []string{Wildcard},
+					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Namespaces: []string{types.Wildcard},
 				},
 			},
 		}
@@ -910,7 +910,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						},
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
-							ClusterLabels: types.Labels{Wildcard: []string{Wildcard}},
+							ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 							Namespaces:    []string{defaults.Namespace},
 						},
 					},
@@ -1041,8 +1041,8 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						},
 						Allow: types.RoleConditions{
 							Logins:        []string{"root", "admin"},
-							ClusterLabels: types.Labels{Wildcard: []string{Wildcard}},
-							Namespaces:    []string{Wildcard},
+							ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+							Namespaces:    []string{types.Wildcard},
 						},
 					},
 				},
@@ -1128,7 +1128,7 @@ func TestCheckRuleAccess(t *testing.T) {
 			name:  "0 - empty role set has access to nothing",
 			roles: []types.RoleV3{},
 			checks: []check{
-				{rule: KindUser, verb: ActionWrite, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindUser, verb: types.ActionWrite, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -1143,15 +1143,15 @@ func TestCheckRuleAccess(t *testing.T) {
 						Allow: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
-								types.NewRule(KindSSHSession, []string{VerbRead}),
+								types.NewRule(types.KindSSHSession, []string{types.VerbRead}),
 							},
 						},
 					},
 				},
 			},
 			checks: []check{
-				{rule: KindSSHSession, verb: VerbRead, namespace: defaults.Namespace, hasAccess: true},
-				{rule: KindSSHSession, verb: VerbList, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindSSHSession, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: true},
+				{rule: types.KindSSHSession, verb: types.VerbList, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -1166,7 +1166,7 @@ func TestCheckRuleAccess(t *testing.T) {
 						Allow: types.RoleConditions{
 							Namespaces: []string{"system"},
 							Rules: []types.Rule{
-								types.NewRule(KindSSHSession, []string{VerbRead}),
+								types.NewRule(types.KindSSHSession, []string{types.VerbRead}),
 							},
 						},
 					},
@@ -1180,17 +1180,17 @@ func TestCheckRuleAccess(t *testing.T) {
 						Allow: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
-								types.NewRule(KindSSHSession, []string{VerbCreate, VerbRead}),
+								types.NewRule(types.KindSSHSession, []string{types.VerbList, types.VerbRead}),
 							},
 						},
 					},
 				},
 			},
 			checks: []check{
-				{rule: KindSSHSession, verb: VerbRead, namespace: defaults.Namespace, hasAccess: true},
-				{rule: KindSSHSession, verb: VerbCreate, namespace: defaults.Namespace, hasAccess: true},
-				{rule: KindSSHSession, verb: VerbCreate, namespace: "system", hasAccess: false},
-				{rule: KindRole, verb: VerbRead, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindSSHSession, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: true},
+				{rule: types.KindSSHSession, verb: types.VerbList, namespace: defaults.Namespace, hasAccess: true},
+				{rule: types.KindSSHSession, verb: types.VerbList, namespace: "system", hasAccess: false},
+				{rule: types.KindRole, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -1205,20 +1205,20 @@ func TestCheckRuleAccess(t *testing.T) {
 						Deny: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
-								types.NewRule(KindSSHSession, []string{VerbCreate}),
+								types.NewRule(types.KindSSHSession, []string{types.VerbList}),
 							},
 						},
 						Allow: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
-								types.NewRule(KindSSHSession, []string{VerbCreate}),
+								types.NewRule(types.KindSSHSession, []string{types.VerbList}),
 							},
 						},
 					},
 				},
 			},
 			checks: []check{
-				{rule: KindSSHSession, verb: VerbCreate, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindSSHSession, verb: types.VerbList, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -1234,8 +1234,8 @@ func TestCheckRuleAccess(t *testing.T) {
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
 								{
-									Resources: []string{KindSession},
-									Verbs:     []string{VerbRead},
+									Resources: []string{types.KindSession},
+									Verbs:     []string{types.VerbRead},
 									Where:     `contains(user.spec.traits["group"], "prod")`,
 									Actions: []string{
 										`log("info", "4 - tc match for user %v", user.metadata.name)`,
@@ -1247,8 +1247,8 @@ func TestCheckRuleAccess(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{rule: KindSession, verb: VerbRead, namespace: defaults.Namespace, hasAccess: false},
-				{rule: KindSession, verb: VerbList, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindSession, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindSession, verb: types.VerbList, namespace: defaults.Namespace, hasAccess: false},
 				{
 					context: testContext{
 						buffer: &bytes.Buffer{},
@@ -1265,8 +1265,8 @@ func TestCheckRuleAccess(t *testing.T) {
 							},
 						},
 					},
-					rule:      KindSession,
-					verb:      VerbRead,
+					rule:      types.KindSession,
+					verb:      types.VerbRead,
 					namespace: defaults.Namespace,
 					hasAccess: true,
 				},
@@ -1283,8 +1283,8 @@ func TestCheckRuleAccess(t *testing.T) {
 							},
 						},
 					},
-					rule:      KindSession,
-					verb:      VerbRead,
+					rule:      types.KindSession,
+					verb:      types.VerbRead,
 					namespace: defaults.Namespace,
 					hasAccess: false,
 				},
@@ -1303,8 +1303,8 @@ func TestCheckRuleAccess(t *testing.T) {
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
 								{
-									Resources: []string{KindRole},
-									Verbs:     []string{VerbRead},
+									Resources: []string{types.KindRole},
+									Verbs:     []string{types.VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
 									Actions: []string{
 										`log("error", "4 - tc match")`,
@@ -1316,8 +1316,8 @@ func TestCheckRuleAccess(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{rule: KindRole, verb: VerbRead, namespace: defaults.Namespace, hasAccess: false},
-				{rule: KindRole, verb: VerbList, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindRole, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindRole, verb: types.VerbList, namespace: defaults.Namespace, hasAccess: false},
 				{
 					context: testContext{
 						buffer: &bytes.Buffer{},
@@ -1329,8 +1329,8 @@ func TestCheckRuleAccess(t *testing.T) {
 							},
 						},
 					},
-					rule:      KindRole,
-					verb:      VerbRead,
+					rule:      types.KindRole,
+					verb:      types.VerbRead,
 					namespace: defaults.Namespace,
 					hasAccess: true,
 				},
@@ -1349,12 +1349,12 @@ func TestCheckRuleAccess(t *testing.T) {
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
 								{
-									Resources: []string{Wildcard},
-									Verbs:     []string{Wildcard},
+									Resources: []string{types.Wildcard},
+									Verbs:     []string{types.Wildcard},
 								},
 								{
-									Resources: []string{KindRole},
-									Verbs:     []string{VerbRead},
+									Resources: []string{types.KindRole},
+									Verbs:     []string{types.VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
 									Actions: []string{
 										`log("info", "matched more specific rule")`,
@@ -1377,8 +1377,8 @@ func TestCheckRuleAccess(t *testing.T) {
 							},
 						},
 					},
-					rule:        KindRole,
-					verb:        VerbRead,
+					rule:        types.KindRole,
+					verb:        types.VerbRead,
 					namespace:   defaults.Namespace,
 					hasAccess:   true,
 					matchBuffer: "more specific rule",
@@ -1416,15 +1416,15 @@ func TestCheckRuleSorting(t *testing.T) {
 			name: "single rule set sorts OK",
 			rules: []types.Rule{
 				{
-					Resources: []string{KindUser},
-					Verbs:     []string{VerbCreate},
+					Resources: []string{types.KindUser},
+					Verbs:     []string{types.VerbList},
 				},
 			},
 			set: RuleSet{
-				KindUser: []types.Rule{
+				types.KindUser: []types.Rule{
 					{
-						Resources: []string{KindUser},
-						Verbs:     []string{VerbCreate},
+						Resources: []string{types.KindUser},
+						Verbs:     []string{types.VerbList},
 					},
 				},
 			},
@@ -1433,25 +1433,25 @@ func TestCheckRuleSorting(t *testing.T) {
 			name: "rule with where section is more specific",
 			rules: []types.Rule{
 				{
-					Resources: []string{KindUser},
-					Verbs:     []string{VerbCreate},
+					Resources: []string{types.KindUser},
+					Verbs:     []string{types.VerbList},
 				},
 				{
-					Resources: []string{KindUser},
-					Verbs:     []string{VerbCreate},
+					Resources: []string{types.KindUser},
+					Verbs:     []string{types.VerbList},
 					Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 				},
 			},
 			set: RuleSet{
-				KindUser: []types.Rule{
+				types.KindUser: []types.Rule{
 					{
-						Resources: []string{KindUser},
-						Verbs:     []string{VerbCreate},
+						Resources: []string{types.KindUser},
+						Verbs:     []string{types.VerbList},
 						Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 					},
 					{
-						Resources: []string{KindUser},
-						Verbs:     []string{VerbCreate},
+						Resources: []string{types.KindUser},
+						Verbs:     []string{types.VerbList},
 					},
 				},
 			},
@@ -1460,14 +1460,14 @@ func TestCheckRuleSorting(t *testing.T) {
 			name: "rule with action is more specific",
 			rules: []types.Rule{
 				{
-					Resources: []string{KindUser},
-					Verbs:     []string{VerbCreate},
+					Resources: []string{types.KindUser},
+					Verbs:     []string{types.VerbList},
 
 					Where: "contains(user.spec.traits[\"groups\"], \"prod\")",
 				},
 				{
-					Resources: []string{KindUser},
-					Verbs:     []string{VerbCreate},
+					Resources: []string{types.KindUser},
+					Verbs:     []string{types.VerbList},
 					Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 					Actions: []string{
 						"log(\"info\", \"log entry\")",
@@ -1475,18 +1475,18 @@ func TestCheckRuleSorting(t *testing.T) {
 				},
 			},
 			set: RuleSet{
-				KindUser: []types.Rule{
+				types.KindUser: []types.Rule{
 					{
-						Resources: []string{KindUser},
-						Verbs:     []string{VerbCreate},
+						Resources: []string{types.KindUser},
+						Verbs:     []string{types.VerbList},
 						Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 						Actions: []string{
 							"log(\"info\", \"log entry\")",
 						},
 					},
 					{
-						Resources: []string{KindUser},
-						Verbs:     []string{VerbCreate},
+						Resources: []string{types.KindUser},
+						Verbs:     []string{types.VerbList},
 						Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 					},
 				},
@@ -1860,8 +1860,8 @@ func TestApplyTraits(t *testing.T) {
 		comment := fmt.Sprintf("Test %v %v", i, tt.comment)
 
 		role := &types.RoleV3{
-			Kind:    KindRole,
-			Version: V3,
+			Kind:    types.KindRole,
+			Version: types.V3,
 			Metadata: types.Metadata{
 				Name:      "name1",
 				Namespace: defaults.Namespace,
@@ -2076,8 +2076,8 @@ func TestBoolOptions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		set := NewRoleSet(&types.RoleV3{
-			Kind:    KindRole,
-			Version: V3,
+			Kind:    types.KindRole,
+			Version: types.V3,
 			Metadata: types.Metadata{
 				Name:      "role-name",
 				Namespace: defaults.Namespace,
@@ -2104,8 +2104,8 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			Allow: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
-				DatabaseNames:  []string{Wildcard},
-				DatabaseUsers:  []string{Wildcard},
+				DatabaseNames:  []string{types.Wildcard},
+				DatabaseUsers:  []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{defaults.Namespace},
@@ -2145,8 +2145,8 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces:    []string{defaults.Namespace},
-				DatabaseNames: []string{Wildcard},
-				DatabaseUsers: []string{Wildcard},
+				DatabaseNames: []string{types.Wildcard},
+				DatabaseUsers: []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{defaults.Namespace},
@@ -2261,7 +2261,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 			Allow: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
-				DatabaseUsers:  []string{Wildcard},
+				DatabaseUsers:  []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{defaults.Namespace},
@@ -2438,7 +2438,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
-				DatabaseLabels: types.Labels{Wildcard: []string{Wildcard}},
+				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
 	}
@@ -2546,7 +2546,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
-				KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
 	}
@@ -2738,8 +2738,8 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	for i := 0; i < 4000; i++ {
 		hostname := uuid.NewUUID().String()
 		servers = append(servers, &types.ServerV2{
-			Kind:    KindNode,
-			Version: V2,
+			Kind:    types.KindNode,
+			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      hostname,
 				Namespace: defaults.Namespace,
@@ -2757,8 +2757,8 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	set = append(set, NewAdminRole())
 	for i := 0; i < 4; i++ {
 		set = append(set, &types.RoleV3{
-			Kind:    KindRole,
-			Version: V3,
+			Kind:    types.KindRole,
+			Version: types.V3,
 			Metadata: types.Metadata{
 				Name:      strconv.Itoa(i),
 				Namespace: defaults.Namespace,

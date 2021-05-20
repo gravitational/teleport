@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -482,8 +481,8 @@ func (f *fakeServer) GetInfo() types.Server {
 	}
 
 	return &types.ServerV2{
-		Kind:    services.KindNode,
-		Version: services.V2,
+		Kind:    types.KindNode,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      "",
 			Namespace: "",

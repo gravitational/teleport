@@ -83,7 +83,7 @@ func parseRoleMap(r types.RoleMap) (map[string][]string, error) {
 			if local == "" {
 				return nil, trace.BadParameter("missing 'local' property of 'role_map' entry")
 			}
-			if local == Wildcard {
+			if local == types.Wildcard {
 				return nil, trace.BadParameter("wildcard value is not supported for 'local' property of 'role_map' entry")
 			}
 		}
@@ -177,7 +177,7 @@ func MarshalTrustedCluster(trustedCluster types.TrustedCluster, opts ...MarshalO
 
 	switch trustedCluster := trustedCluster.(type) {
 	case *types.TrustedClusterV2:
-		if version := trustedCluster.GetVersion(); version != V2 {
+		if version := trustedCluster.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched trusted cluster version %v and type %T", version, trustedCluster)
 		}
 		if !cfg.PreserveResourceID {

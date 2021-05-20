@@ -180,8 +180,8 @@ func (r *ResourceSuite) TestTrustedClusterResource(c *check.C) {
 func (r *ResourceSuite) TestGithubConnectorResource(c *check.C) {
 	ctx := context.Background()
 	connector := &types.GithubConnectorV3{
-		Kind:    services.KindGithubConnector,
-		Version: services.V3,
+		Kind:    types.KindGithubConnector,
+		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "github",
 			Namespace: defaults.Namespace,
@@ -246,8 +246,8 @@ func localAuthSecretsTestCase(c *check.C) types.LocalAuthSecrets {
 
 func newUserTestCase(c *check.C, name string, roles []string, withSecrets bool, expires time.Time) types.User {
 	user := types.UserV2{
-		Kind:    services.KindUser,
-		Version: services.V2,
+		Kind:    types.KindUser,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      name,
 			Namespace: defaults.Namespace,

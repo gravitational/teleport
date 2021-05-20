@@ -349,8 +349,8 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 
 		userCA := &types.CertAuthorityV2{
-			Kind:    services.KindCertAuthority,
-			Version: services.V2,
+			Kind:    types.KindCertAuthority,
+			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      cfg.ClusterName.GetClusterName(),
 				Namespace: defaults.Namespace,
@@ -409,8 +409,8 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 
 		hostCA = &types.CertAuthorityV2{
-			Kind:    services.KindCertAuthority,
-			Version: services.V2,
+			Kind:    types.KindCertAuthority,
+			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      cfg.ClusterName.GetClusterName(),
 				Namespace: defaults.Namespace,

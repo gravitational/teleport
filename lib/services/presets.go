@@ -28,8 +28,8 @@ import (
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
 	role := &types.RoleV3{
-		Kind:    KindRole,
-		Version: V3,
+		Kind:    types.KindRole,
+		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   defaults.Namespace,
@@ -46,16 +46,16 @@ func NewPresetEditorRole() types.Role {
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				Rules: []types.Rule{
-					types.NewRule(KindUser, RW()),
-					types.NewRule(KindRole, RW()),
-					types.NewRule(KindOIDC, RW()),
-					types.NewRule(KindSAML, RW()),
-					types.NewRule(KindGithub, RW()),
-					types.NewRule(KindClusterAuthPreference, RW()),
-					types.NewRule(KindClusterConfig, RW()),
-					types.NewRule(KindTrustedCluster, RW()),
-					types.NewRule(KindRemoteCluster, RW()),
-					types.NewRule(KindToken, RW()),
+					types.NewRule(types.KindUser, RW()),
+					types.NewRule(types.KindRole, RW()),
+					types.NewRule(types.KindOIDC, RW()),
+					types.NewRule(types.KindSAML, RW()),
+					types.NewRule(types.KindGithub, RW()),
+					types.NewRule(types.KindClusterAuthPreference, RW()),
+					types.NewRule(types.KindClusterConfig, RW()),
+					types.NewRule(types.KindTrustedCluster, RW()),
+					types.NewRule(types.KindRemoteCluster, RW()),
+					types.NewRule(types.KindToken, RW()),
 				},
 			},
 		},
@@ -67,8 +67,8 @@ func NewPresetEditorRole() types.Role {
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
 	role := &types.RoleV3{
-		Kind:    KindRole,
-		Version: V3,
+		Kind:    types.KindRole,
+		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   defaults.Namespace,
@@ -84,14 +84,14 @@ func NewPresetAccessRole() types.Role {
 			},
 			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
-				NodeLabels:       types.Labels{Wildcard: []string{Wildcard}},
-				AppLabels:        types.Labels{Wildcard: []string{Wildcard}},
-				KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
-				DatabaseLabels:   types.Labels{Wildcard: []string{Wildcard}},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
 				Rules: []types.Rule{
-					types.NewRule(KindEvent, RO()),
+					types.NewRule(types.KindEvent, RO()),
 				},
 			},
 		},
@@ -107,8 +107,8 @@ func NewPresetAccessRole() types.Role {
 // but can't initiate interactive sessions or modify configuration.
 func NewPresetAuditorRole() types.Role {
 	role := &types.RoleV3{
-		Kind:    KindRole,
-		Version: V3,
+		Kind:    types.KindRole,
+		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   defaults.Namespace,
@@ -122,16 +122,16 @@ func NewPresetAuditorRole() types.Role {
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				Rules: []types.Rule{
-					types.NewRule(KindSession, RO()),
-					types.NewRule(KindEvent, RO()),
+					types.NewRule(types.KindSession, RO()),
+					types.NewRule(types.KindEvent, RO()),
 				},
 			},
 			Deny: types.RoleConditions{
-				Namespaces:       []string{Wildcard},
-				NodeLabels:       types.Labels{Wildcard: []string{Wildcard}},
-				AppLabels:        types.Labels{Wildcard: []string{Wildcard}},
-				KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
-				DatabaseLabels:   types.Labels{Wildcard: []string{Wildcard}},
+				Namespaces:       []string{types.Wildcard},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
 	}

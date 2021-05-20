@@ -28,7 +28,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	role1.SetNamespaces(services.Allow, []string{defaults.Namespace})
 	role1.SetRules(services.Allow, []types.Rule{
 		{
-			Resources: []string{services.KindAuthConnector},
+			Resources: []string{types.KindAuthConnector},
 			Verbs:     services.RW(),
 		},
 	})
@@ -36,7 +36,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	// not setting the rule, or explicitly denying, both denies access
 	role1.SetRules(services.Deny, []types.Rule{
 		{
-			Resources: []string{services.KindEvent},
+			Resources: []string{types.KindEvent},
 			Verbs:     services.RW(),
 		},
 	})
@@ -45,11 +45,11 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	role2.SetNamespaces(services.Allow, []string{defaults.Namespace})
 	role2.SetRules(services.Allow, []types.Rule{
 		{
-			Resources: []string{services.KindTrustedCluster},
+			Resources: []string{types.KindTrustedCluster},
 			Verbs:     services.RW(),
 		},
 		{
-			Resources: []string{services.KindBilling},
+			Resources: []string{types.KindBilling},
 			Verbs:     services.RO(),
 		},
 	})

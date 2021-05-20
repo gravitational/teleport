@@ -868,7 +868,7 @@ func (m *RequestValidator) Validate(req types.AccessRequest) error {
 	// check for "wildcard request" (`roles=*`).  wildcard requests
 	// need to be expanded into a list consisting of all existing roles
 	// that the user does not hold and is allowed to request.
-	if r := req.GetRoles(); len(r) == 1 && r[0] == Wildcard {
+	if r := req.GetRoles(); len(r) == 1 && r[0] == types.Wildcard {
 
 		if !req.GetState().IsPending() {
 			// expansion is only permitted in pending requests.  once resolved,
@@ -1184,7 +1184,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 
 	switch accessRequest := accessRequest.(type) {
 	case *types.AccessRequestV3:
-		if version := accessRequest.GetVersion(); version != V3 {
+		if version := accessRequest.GetVersion(); version != types.V3 {
 			return nil, trace.BadParameter("mismatched access request version %v and type %T", version, accessRequest)
 		}
 		if !cfg.PreserveResourceID {

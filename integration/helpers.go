@@ -303,8 +303,8 @@ func (s *InstanceSecrets) AllowedLogins() []string {
 
 func (s *InstanceSecrets) AsTrustedCluster(token string, roleMap types.RoleMap) types.TrustedCluster {
 	return &types.TrustedClusterV2{
-		Kind:    services.KindTrustedCluster,
-		Version: services.V2,
+		Kind:    types.KindTrustedCluster,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Name: s.SiteName,
 		},

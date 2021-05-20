@@ -292,8 +292,8 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	// generation.
 	err = s.a.UpsertKubeService(ctx, &types.ServerV2{
 		Metadata: types.Metadata{Name: "kube-service"},
-		Kind:     services.KindKubeService,
-		Version:  services.V2,
+		Kind:     types.KindKubeService,
+		Version:  types.V2,
 		Spec: types.ServerSpecV2{
 			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
 		},
@@ -367,8 +367,8 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	// generation.
 	err = s.a.UpsertKubeService(ctx, &types.ServerV2{
 		Metadata: types.Metadata{Name: "kube-service"},
-		Kind:     services.KindKubeService,
-		Version:  services.V2,
+		Kind:     types.KindKubeService,
+		Version:  types.V2,
 		Spec: types.ServerSpecV2{
 			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
 		},

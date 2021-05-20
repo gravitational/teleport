@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/dustin/go-humanize"
 	ui "github.com/gizak/termui/v3"
@@ -550,7 +550,7 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 	// format top backend requests
 	hostname, _ := os.Hostname()
 	re := Report{
-		Version:   services.V1,
+		Version:   types.V1,
 		Timestamp: time.Now().UTC(),
 		Hostname:  hostname,
 		Backend: BackendStats{

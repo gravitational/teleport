@@ -32,7 +32,7 @@ func MarshalPluginData(pluginData types.PluginData, opts ...MarshalOption) ([]by
 
 	switch pluginData := pluginData.(type) {
 	case *types.PluginDataV3:
-		if version := pluginData.GetVersion(); version != V3 {
+		if version := pluginData.GetVersion(); version != types.V3 {
 			return nil, trace.BadParameter("mismatched plugin data version %v and type %T", version, pluginData)
 		}
 		if !cfg.PreserveResourceID {

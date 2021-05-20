@@ -59,13 +59,13 @@ func (s *ServicesSuite) TestOptions(c *check.C) {
 	c.Assert(cfg.ID, check.Equals, int64(1))
 
 	// Add a couple of other parameters
-	out = AddOptions(in, WithResourceID(2), WithVersion(V2))
+	out = AddOptions(in, WithResourceID(2), WithVersion(types.V2))
 	c.Assert(out, check.HasLen, 2)
 	c.Assert(in, check.HasLen, 0)
 	cfg, err = CollectOptions(out)
 	c.Assert(err, check.IsNil)
 	c.Assert(cfg.ID, check.Equals, int64(2))
-	c.Assert(cfg.Version, check.Equals, V2)
+	c.Assert(cfg.Version, check.Equals, types.V2)
 }
 
 // TestCommandLabels tests command labels
@@ -111,8 +111,8 @@ func TestServerDeepCopy(t *testing.T) {
 	now := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
 	expires := now.Add(1 * time.Hour)
 	srv := &types.ServerV2{
-		Kind:    KindNode,
-		Version: V2,
+		Kind:    types.KindNode,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      "a",
 			Namespace: defaults.Namespace,

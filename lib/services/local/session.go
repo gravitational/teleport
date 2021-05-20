@@ -251,7 +251,7 @@ func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) 
 
 // Upsert updates the existing or inserts a new web token.
 func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
-	bytes, err := services.MarshalWebToken(token, services.WithVersion(services.V3))
+	bytes, err := services.MarshalWebToken(token, services.WithVersion(types.V3))
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -319,10 +319,10 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 
 	w, err := p.cache.NewWatcher(context.TODO(), types.Watch{Kinds: []types.WatchKind{
 		{
-			Kind: services.KindCertAuthority,
+			Kind: types.KindCertAuthority,
 		},
 		{
-			Kind: services.KindAccessRequest,
+			Kind: types.KindAccessRequest,
 			Filter: map[string]string{
 				"user": "alice",
 			},
@@ -344,7 +344,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	select {
 	case e := <-w.Events():
 		c.Assert(e.Type, check.Equals, backend.OpPut)
-		c.Assert(e.Resource.GetKind(), check.Equals, services.KindCertAuthority)
+		c.Assert(e.Resource.GetKind(), check.Equals, types.KindCertAuthority)
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for event.")
 	}
@@ -358,7 +358,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	select {
 	case e := <-w.Events():
 		c.Assert(e.Type, check.Equals, backend.OpPut)
-		c.Assert(e.Resource.GetKind(), check.Equals, services.KindAccessRequest)
+		c.Assert(e.Resource.GetKind(), check.Equals, types.KindAccessRequest)
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for event.")
 	}
@@ -368,7 +368,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	select {
 	case e := <-w.Events():
 		c.Assert(e.Type, check.Equals, backend.OpDelete)
-		c.Assert(e.Resource.GetKind(), check.Equals, services.KindAccessRequest)
+		c.Assert(e.Resource.GetKind(), check.Equals, types.KindAccessRequest)
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for event.")
 	}
@@ -388,7 +388,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	select {
 	case e := <-w.Events():
 		c.Assert(e.Type, check.Equals, backend.OpDelete)
-		c.Assert(e.Resource.GetKind(), check.Equals, services.KindAccessRequest)
+		c.Assert(e.Resource.GetKind(), check.Equals, types.KindAccessRequest)
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for event.")
 	}
@@ -1046,7 +1046,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		},
 		Allow: types.RoleConditions{
 			Logins:     []string{"root", "bob"},
-			NodeLabels: types.Labels{services.Wildcard: []string{services.Wildcard}},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 		Deny: types.RoleConditions{},
 	})
@@ -1249,7 +1249,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	server := suite.NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
+	server := suite.NewServer(types.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
 	_, err := p.presenceS.UpsertNode(ctx, server)
 	c.Assert(err, check.IsNil)
 
@@ -1338,7 +1338,7 @@ func (s *CacheSuite) TestProxies(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	server := suite.NewServer(services.KindProxy, "srv1", "127.0.0.1:2022", defaults.Namespace)
+	server := suite.NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", defaults.Namespace)
 	err := p.presenceS.UpsertProxy(server)
 	c.Assert(err, check.IsNil)
 
@@ -1405,7 +1405,7 @@ func (s *CacheSuite) TestAuthServers(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	server := suite.NewServer(services.KindAuthServer, "srv1", "127.0.0.1:2022", defaults.Namespace)
+	server := suite.NewServer(types.KindAuthServer, "srv1", "127.0.0.1:2022", defaults.Namespace)
 	err := p.presenceS.UpsertAuthServer(server)
 	c.Assert(err, check.IsNil)
 

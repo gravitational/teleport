@@ -35,8 +35,8 @@ func UnmarshalLicense(bytes []byte) (types.License, error) {
 		return nil, trace.BadParameter(err.Error())
 	}
 
-	if license.Version != V3 {
-		return nil, trace.BadParameter("unsupported version %v, expected version %v", license.Version, V3)
+	if license.Version != types.V3 {
+		return nil, trace.BadParameter("unsupported version %v, expected version %v", license.Version, types.V3)
 	}
 
 	if err := license.CheckAndSetDefaults(); err != nil {
@@ -55,7 +55,7 @@ func MarshalLicense(license types.License, opts ...MarshalOption) ([]byte, error
 
 	switch license := license.(type) {
 	case *types.LicenseV3:
-		if version := license.GetVersion(); version != V3 {
+		if version := license.GetVersion(); version != types.V3 {
 			return nil, trace.BadParameter("mismatched license version %v and type %T", version, license)
 		}
 		if !cfg.PreserveResourceID {

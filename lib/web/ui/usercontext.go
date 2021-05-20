@@ -139,11 +139,11 @@ func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, ver
 
 func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) access {
 	return access{
-		List:   hasAccess(roleSet, ctx, kind, services.VerbList),
-		Read:   hasAccess(roleSet, ctx, kind, services.VerbRead),
-		Edit:   hasAccess(roleSet, ctx, kind, services.VerbUpdate),
-		Create: hasAccess(roleSet, ctx, kind, services.VerbCreate),
-		Delete: hasAccess(roleSet, ctx, kind, services.VerbDelete),
+		List:   hasAccess(roleSet, ctx, kind, types.VerbList),
+		Read:   hasAccess(roleSet, ctx, kind, types.VerbRead),
+		Edit:   hasAccess(roleSet, ctx, kind, types.VerbUpdate),
+		Create: hasAccess(roleSet, ctx, kind, types.VerbCreate),
+		Delete: hasAccess(roleSet, ctx, kind, types.VerbDelete),
 	}
 }
 
@@ -174,22 +174,22 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 // NewUserContext returns user context
 func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features) (*UserContext, error) {
 	ctx := &services.Context{User: user}
-	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
-	roleAccess := newAccess(userRoles, ctx, services.KindRole)
-	authConnectors := newAccess(userRoles, ctx, services.KindAuthConnector)
-	trustedClusterAccess := newAccess(userRoles, ctx, services.KindTrustedCluster)
-	eventAccess := newAccess(userRoles, ctx, services.KindEvent)
-	userAccess := newAccess(userRoles, ctx, services.KindUser)
-	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
-	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
-	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
+	sessionAccess := newAccess(userRoles, ctx, types.KindSession)
+	roleAccess := newAccess(userRoles, ctx, types.KindRole)
+	authConnectors := newAccess(userRoles, ctx, types.KindAuthConnector)
+	trustedClusterAccess := newAccess(userRoles, ctx, types.KindTrustedCluster)
+	eventAccess := newAccess(userRoles, ctx, types.KindEvent)
+	userAccess := newAccess(userRoles, ctx, types.KindUser)
+	tokenAccess := newAccess(userRoles, ctx, types.KindToken)
+	nodeAccess := newAccess(userRoles, ctx, types.KindNode)
+	appServerAccess := newAccess(userRoles, ctx, types.KindAppServer)
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
-	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
+	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 
 	var billingAccess access
 	if features.Cloud {
-		billingAccess = newAccess(userRoles, ctx, services.KindBilling)
+		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 
 	logins := getLogins(userRoles)

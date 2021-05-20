@@ -340,11 +340,11 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 	var kind string
 	switch role {
 	case teleport.RoleNode:
-		kind = services.KindNode
+		kind = types.KindNode
 	case teleport.RoleAuth:
-		kind = services.KindAuthServer
+		kind = types.KindAuthServer
 	case teleport.RoleProxy:
-		kind = services.KindProxy
+		kind = types.KindProxy
 	default:
 		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
 	}

@@ -88,7 +88,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session := types.NewWebSession(sessionID, services.KindWebSession, services.KindAppSession, types.WebSessionSpecV2{
+	session := types.NewWebSession(sessionID, types.KindWebSession, types.KindAppSession, types.WebSessionSpecV2{
 		User:    req.Username,
 		Priv:    privateKey,
 		Pub:     certs.ssh,
@@ -119,8 +119,8 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoi
 		Name: teleport.ComponentAppProxy,
 		Kinds: []types.WatchKind{
 			{
-				Kind:    services.KindWebSession,
-				SubKind: services.KindAppSession,
+				Kind:    types.KindWebSession,
+				SubKind: types.KindAppSession,
 				Filter:  (&types.WebSessionFilter{User: user}).IntoMap(),
 			},
 		},
@@ -132,8 +132,8 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoi
 	defer watcher.Close()
 	matchEvent := func(event types.Event) (types.Resource, error) {
 		if event.Type == backend.OpPut &&
-			event.Resource.GetKind() == services.KindWebSession &&
-			event.Resource.GetSubKind() == services.KindAppSession &&
+			event.Resource.GetKind() == types.KindWebSession &&
+			event.Resource.GetSubKind() == types.KindAppSession &&
 			event.Resource.GetName() == sessionID {
 			return event.Resource, nil
 		}

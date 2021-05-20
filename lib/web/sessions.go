@@ -879,8 +879,8 @@ func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSession
 		Name: teleport.ComponentWebProxy,
 		Kinds: []types.WatchKind{
 			{
-				Kind:    services.KindWebSession,
-				SubKind: services.KindWebSession,
+				Kind:    types.KindWebSession,
+				SubKind: types.KindWebSession,
 			},
 		},
 		MetricComponent: teleport.ComponentWebProxy,
@@ -891,8 +891,8 @@ func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSession
 	defer watcher.Close()
 	matchEvent := func(event types.Event) (types.Resource, error) {
 		if event.Type == backend.OpPut &&
-			event.Resource.GetKind() == services.KindWebSession &&
-			event.Resource.GetSubKind() == services.KindWebSession &&
+			event.Resource.GetKind() == types.KindWebSession &&
+			event.Resource.GetSubKind() == types.KindWebSession &&
 			event.Resource.GetName() == req.SessionID {
 			return event.Resource, nil
 		}

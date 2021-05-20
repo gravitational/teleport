@@ -176,8 +176,8 @@ func (a *Server) createSAMLUser(p *createUserParams) (types.User, error) {
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
 
 	user := &types.UserV2{
-		Kind:    services.KindUser,
-		Version: services.V2,
+		Kind:    types.KindUser,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      p.username,
 			Namespace: defaults.Namespace,

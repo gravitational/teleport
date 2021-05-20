@@ -56,8 +56,8 @@ func (r *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
         }
       `,
 			expected: &types.ResetPasswordTokenV3{
-				Kind:    KindResetPasswordToken,
-				Version: V3,
+				Kind:    types.KindResetPasswordToken,
+				Version: types.V3,
 				Metadata: types.Metadata{
 					Name: "tokenId",
 				},

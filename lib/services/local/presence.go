@@ -238,7 +238,7 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 	for i, item := range result.Items {
 		server, err := services.UnmarshalServer(
 			item.Value,
-			services.KindNode,
+			types.KindNode,
 			services.AddOptions(opts,
 				services.WithResourceID(item.ID),
 				services.WithExpires(item.Expires))...)
@@ -335,7 +335,7 @@ func (s *PresenceService) UpsertNodes(namespace string, servers []types.Server) 
 
 // GetAuthServers returns a list of registered servers
 func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
-	return s.getServers(context.TODO(), services.KindAuthServer, authServersPrefix)
+	return s.getServers(context.TODO(), types.KindAuthServer, authServersPrefix)
 }
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
@@ -364,7 +364,7 @@ func (s *PresenceService) UpsertProxy(server types.Server) error {
 
 // GetProxies returns a list of registered proxies
 func (s *PresenceService) GetProxies() ([]types.Server, error) {
-	return s.getServers(context.TODO(), services.KindProxy, proxiesPrefix)
+	return s.getServers(context.TODO(), types.KindProxy, proxiesPrefix)
 }
 
 // DeleteAllProxies deletes all proxies
@@ -1033,7 +1033,7 @@ func (s *PresenceService) UpsertKubeService(ctx context.Context, server types.Se
 
 // GetKubeServices returns a list of registered kubernetes services.
 func (s *PresenceService) GetKubeServices(ctx context.Context) ([]types.Server, error) {
-	return s.getServers(ctx, services.KindKubeService, kubeServicesPrefix)
+	return s.getServers(ctx, types.KindKubeService, kubeServicesPrefix)
 }
 
 // DeleteKubeService deletes a named kubernetes service.
@@ -1157,7 +1157,7 @@ func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, o
 	for i, item := range result.Items {
 		server, err := services.UnmarshalServer(
 			item.Value,
-			services.KindAppServer,
+			types.KindAppServer,
 			services.AddOptions(opts,
 				services.WithResourceID(item.ID),
 				services.WithExpires(item.Expires))...)

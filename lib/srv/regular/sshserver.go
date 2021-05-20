@@ -740,8 +740,8 @@ func (s *Server) GetInfo() types.Server {
 	}
 
 	return &types.ServerV2{
-		Kind:    services.KindNode,
-		Version: services.V2,
+		Kind:    types.KindNode,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.getNamespace(),

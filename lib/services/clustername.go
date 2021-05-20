@@ -64,7 +64,7 @@ func MarshalClusterName(clusterName types.ClusterName, opts ...MarshalOption) ([
 
 	switch clusterName := clusterName.(type) {
 	case *types.ClusterNameV2:
-		if version := clusterName.GetVersion(); version != V2 {
+		if version := clusterName.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched cluster name version %v and type %T", version, clusterName)
 		}
 		if !cfg.PreserveResourceID {

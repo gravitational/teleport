@@ -76,7 +76,7 @@ func MarshalSessionRecordingConfig(recConfig types.SessionRecordingConfig, opts 
 
 	switch recConfig := recConfig.(type) {
 	case *types.SessionRecordingConfigV2:
-		if version := recConfig.GetVersion(); version != V2 {
+		if version := recConfig.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched session recording config version %v and type %T", version, recConfig)
 		}
 		if !cfg.PreserveResourceID {

@@ -39,7 +39,7 @@ func (s *RoleMapSuite) TestRoleParsing(c *check.C) {
 		},
 		{
 			roleMap: types.RoleMap{
-				{Remote: Wildcard, Local: []string{"local-devs", "local-admins"}},
+				{Remote: types.Wildcard, Local: []string{"local-devs", "local-admins"}},
 			},
 		},
 		{
@@ -56,8 +56,8 @@ func (s *RoleMapSuite) TestRoleParsing(c *check.C) {
 		},
 		{
 			roleMap: types.RoleMap{
-				{Remote: Wildcard, Local: []string{"local-devs"}},
-				{Remote: Wildcard, Local: []string{"local-devs"}},
+				{Remote: types.Wildcard, Local: []string{"local-devs"}},
+				{Remote: types.Wildcard, Local: []string{"local-devs"}},
 			},
 			err: trace.BadParameter(""),
 		},
@@ -94,7 +94,7 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			remote: nil,
 			local:  []string{"local-devs", "local-admins"},
 			roleMap: types.RoleMap{
-				{Remote: Wildcard, Local: []string{"local-devs", "local-admins"}},
+				{Remote: types.Wildcard, Local: []string{"local-devs", "local-admins"}},
 			},
 		},
 		{
@@ -120,7 +120,7 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			local:  []string{"local-devs", "local-logs"},
 			roleMap: types.RoleMap{
 				{Remote: "remote-devs", Local: []string{"local-devs"}},
-				{Remote: Wildcard, Local: []string{"local-logs"}},
+				{Remote: types.Wildcard, Local: []string{"local-logs"}},
 			},
 		},
 		{

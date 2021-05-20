@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 )
@@ -43,8 +42,8 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			mode: HeartbeatModeNode,
 			makeServer: func() types.Resource {
 				return &types.ServerV2{
-					Kind:    services.KindNode,
-					Version: services.V2,
+					Kind:    types.KindNode,
+					Version: types.V2,
 					Metadata: types.Metadata{
 						Namespace: defaults.Namespace,
 						Name:      "1",
@@ -61,8 +60,8 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			mode: HeartbeatModeApp,
 			makeServer: func() types.Resource {
 				return &types.ServerV2{
-					Kind:    services.KindAppServer,
-					Version: services.V2,
+					Kind:    types.KindAppServer,
+					Version: types.V2,
 					Metadata: types.Metadata{
 						Namespace: defaults.Namespace,
 						Name:      "1",
@@ -197,9 +196,9 @@ func TestHeartbeatAnnounce(t *testing.T) {
 		mode HeartbeatMode
 		kind string
 	}{
-		{mode: HeartbeatModeProxy, kind: services.KindProxy},
-		{mode: HeartbeatModeAuth, kind: services.KindAuthServer},
-		{mode: HeartbeatModeKube, kind: services.KindKubeService},
+		{mode: HeartbeatModeProxy, kind: types.KindProxy},
+		{mode: HeartbeatModeAuth, kind: types.KindAuthServer},
+		{mode: HeartbeatModeKube, kind: types.KindKubeService},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode.String(), func(t *testing.T) {
@@ -221,7 +220,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 				GetServerInfo: func() (types.Resource, error) {
 					srv := &types.ServerV2{
 						Kind:    tt.kind,
-						Version: services.V2,
+						Version: types.V2,
 						Metadata: types.Metadata{
 							Namespace: defaults.Namespace,
 							Name:      "1",

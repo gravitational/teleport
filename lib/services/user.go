@@ -81,7 +81,7 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (types.User, error) {
 	}
 
 	switch h.Version {
-	case V2:
+	case types.V2:
 		var u types.UserV2
 		if err := utils.FastUnmarshal(bytes, &u); err != nil {
 			return nil, trace.BadParameter(err.Error())
@@ -111,7 +111,7 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 
 	switch user := user.(type) {
 	case *types.UserV2:
-		if version := user.GetVersion(); version != V2 {
+		if version := user.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched user version %v and type %T", version, user)
 		}
 		if !cfg.PreserveResourceID {

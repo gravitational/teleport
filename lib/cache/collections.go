@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 )
@@ -50,27 +49,27 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 	for _, watch := range watches {
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
-		case services.KindCertAuthority:
+		case types.KindCertAuthority:
 			if c.Trust == nil {
 				return nil, trace.BadParameter("missing parameter Trust")
 			}
 			collections[resourceKind] = &certAuthority{watch: watch, Cache: c}
-		case services.KindStaticTokens:
+		case types.KindStaticTokens:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
 			collections[resourceKind] = &staticTokens{watch: watch, Cache: c}
-		case services.KindToken:
+		case types.KindToken:
 			if c.Provisioner == nil {
 				return nil, trace.BadParameter("missing parameter Provisioner")
 			}
 			collections[resourceKind] = &provisionToken{watch: watch, Cache: c}
-		case services.KindClusterName:
+		case types.KindClusterName:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
 			collections[resourceKind] = &clusterName{watch: watch, Cache: c}
-		case services.KindClusterConfig:
+		case types.KindClusterConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
@@ -90,80 +89,80 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
 			collections[resourceKind] = &sessionRecordingConfig{watch: watch, Cache: c}
-		case services.KindUser:
+		case types.KindUser:
 			if c.Users == nil {
 				return nil, trace.BadParameter("missing parameter Users")
 			}
 			collections[resourceKind] = &user{watch: watch, Cache: c}
-		case services.KindRole:
+		case types.KindRole:
 			if c.Access == nil {
 				return nil, trace.BadParameter("missing parameter Access")
 			}
 			collections[resourceKind] = &role{watch: watch, Cache: c}
-		case services.KindNamespace:
+		case types.KindNamespace:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &namespace{watch: watch, Cache: c}
-		case services.KindNode:
+		case types.KindNode:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &node{watch: watch, Cache: c}
-		case services.KindProxy:
+		case types.KindProxy:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &proxy{watch: watch, Cache: c}
-		case services.KindAuthServer:
+		case types.KindAuthServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &authServer{watch: watch, Cache: c}
-		case services.KindReverseTunnel:
+		case types.KindReverseTunnel:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &reverseTunnel{watch: watch, Cache: c}
-		case services.KindTunnelConnection:
+		case types.KindTunnelConnection:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &tunnelConnection{watch: watch, Cache: c}
-		case services.KindRemoteCluster:
+		case types.KindRemoteCluster:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &remoteCluster{watch: watch, Cache: c}
-		case services.KindAccessRequest:
+		case types.KindAccessRequest:
 			if c.DynamicAccess == nil {
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
 			collections[resourceKind] = &accessRequest{watch: watch, Cache: c}
-		case services.KindAppServer:
+		case types.KindAppServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &appServer{watch: watch, Cache: c}
-		case services.KindWebSession:
+		case types.KindWebSession:
 			switch watch.SubKind {
-			case services.KindAppSession:
+			case types.KindAppSession:
 				if c.AppSession == nil {
 					return nil, trace.BadParameter("missing parameter AppSession")
 				}
 				collections[resourceKind] = &appSession{watch: watch, Cache: c}
-			case services.KindWebSession:
+			case types.KindWebSession:
 				if c.WebSession == nil {
 					return nil, trace.BadParameter("missing parameter WebSession")
 				}
 				collections[resourceKind] = &webSession{watch: watch, Cache: c}
 			}
-		case services.KindWebToken:
+		case types.KindWebToken:
 			if c.WebToken == nil {
 				return nil, trace.BadParameter("missing parameter WebToken")
 			}
 			collections[resourceKind] = &webToken{watch: watch, Cache: c}
-		case services.KindKubeService:
+		case types.KindKubeService:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
@@ -182,7 +181,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 
 func resourceKindFromWatchKind(wk types.WatchKind) resourceKind {
 	switch wk.Kind {
-	case services.KindWebSession:
+	case types.KindWebSession:
 		// Web sessions use subkind to differentiate between
 		// the types of sessions
 		return resourceKind{
@@ -197,7 +196,7 @@ func resourceKindFromWatchKind(wk types.WatchKind) resourceKind {
 
 func resourceKindFromResource(res types.Resource) resourceKind {
 	switch res.GetKind() {
-	case services.KindWebSession:
+	case types.KindWebSession:
 		// Web sessions use subkind to differentiate between
 		// the types of sessions
 		return resourceKind{

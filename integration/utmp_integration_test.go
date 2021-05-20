@@ -47,7 +47,7 @@ const teleportTestUser = "teleport-test"
 
 // wildcardAllow is used in tests to allow access to all labels.
 var wildcardAllow = types.Labels{
-	services.Wildcard: []string{services.Wildcard},
+	types.Wildcard: []string{types.Wildcard},
 }
 
 type SrvCtx struct {
@@ -249,7 +249,7 @@ func newUpack(s *SrvCtx, username string, allowedLogins []string, allowedLabels 
 	}
 	role := services.RoleForUser(user)
 	rules := role.GetRules(services.Allow)
-	rules = append(rules, types.NewRule(services.Wildcard, services.RW()))
+	rules = append(rules, types.NewRule(types.Wildcard, services.RW()))
 	role.SetRules(services.Allow, rules)
 	opts := role.GetOptions()
 	opts.PermitX11Forwarding = types.NewBool(true)

@@ -1348,8 +1348,8 @@ func (process *TeleportProcess) initAuthService() error {
 		Announcer: authServer,
 		GetServerInfo: func() (types.Resource, error) {
 			srv := types.ServerV2{
-				Kind:    services.KindAuthServer,
-				Version: services.V2,
+				Kind:    types.KindAuthServer,
+				Version: types.V2,
 				Metadata: types.Metadata{
 					Namespace: defaults.Namespace,
 					Name:      process.Config.HostUUID,
@@ -3062,8 +3062,8 @@ func (process *TeleportProcess) initApps() {
 			applications = append(applications, a)
 		}
 		server := &types.ServerV2{
-			Kind:    services.KindAppServer,
-			Version: services.V2,
+			Kind:    types.KindAppServer,
+			Version: types.V2,
 			Metadata: types.Metadata{
 				Namespace: defaults.Namespace,
 				Name:      process.Config.HostUUID,

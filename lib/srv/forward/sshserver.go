@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -392,8 +391,8 @@ func (s Server) GetBPF() bpf.BPF {
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() types.Server {
 	return &types.ServerV2{
-		Kind:    services.KindNode,
-		Version: services.V2,
+		Kind:    types.KindNode,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.GetNamespace(),

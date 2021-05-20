@@ -104,8 +104,8 @@ func insertNodes(ctx context.Context, t assert.TestingT, svc services.Presence, 
 	for i := 0; i < nodeCount; i++ {
 		name, addr := fmt.Sprintf("node-%d", i), fmt.Sprintf("node%d.example.com", i)
 		node := &types.ServerV2{
-			Kind:    services.KindNode,
-			Version: services.V2,
+			Kind:    types.KindNode,
+			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      name,
 				Namespace: defaults.Namespace,

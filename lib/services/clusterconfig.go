@@ -28,10 +28,10 @@ import (
 // one is not specified (record at node).
 func DefaultClusterConfig() types.ClusterConfig {
 	return &types.ClusterConfigV3{
-		Kind:    KindClusterConfig,
-		Version: V3,
+		Kind:    types.KindClusterConfig,
+		Version: types.V3,
 		Metadata: types.Metadata{
-			Name:      MetaNameClusterConfig,
+			Name:      types.MetaNameClusterConfig,
 			Namespace: defaults.Namespace,
 		},
 		Spec: types.ClusterConfigSpecV3{
@@ -98,7 +98,7 @@ func MarshalClusterConfig(clusterConfig types.ClusterConfig, opts ...MarshalOpti
 
 	switch clusterConfig := clusterConfig.(type) {
 	case *types.ClusterConfigV3:
-		if version := clusterConfig.GetVersion(); version != V3 {
+		if version := clusterConfig.GetVersion(); version != types.V3 {
 			return nil, trace.BadParameter("mismatched cluster config version %v and type %T", version, clusterConfig)
 		}
 		if !cfg.PreserveResourceID {

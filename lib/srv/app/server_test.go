@@ -147,8 +147,8 @@ func (s *Suite) SetUpTest(c *check.C) {
 	}
 	s.hostUUID = uuid.New()
 	s.server = &types.ServerV2{
-		Kind:    services.KindAppServer,
-		Version: services.V2,
+		Kind:    types.KindAppServer,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      s.hostUUID,

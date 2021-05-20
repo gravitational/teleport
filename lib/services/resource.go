@@ -46,7 +46,7 @@ type MarshalConfig struct {
 // GetVersion returns explicitly provided version or sets latest as default
 func (m *MarshalConfig) GetVersion() string {
 	if m.Version == "" {
-		return V2
+		return types.V2
 	}
 	return m.Version
 }
@@ -92,7 +92,7 @@ func WithExpires(expires time.Time) MarshalOption {
 func WithVersion(v string) MarshalOption {
 	return func(c *MarshalConfig) error {
 		switch v {
-		case V1, V2, V3:
+		case types.V1, types.V2, types.V3:
 			c.Version = v
 			return nil
 		default:
@@ -116,40 +116,40 @@ func ParseShortcut(in string) (string, error) {
 		return "", trace.BadParameter("missing resource name")
 	}
 	switch strings.ToLower(in) {
-	case KindRole, "roles":
-		return KindRole, nil
-	case KindNamespace, "namespaces", "ns":
-		return KindNamespace, nil
-	case KindAuthServer, "auth_servers", "auth":
-		return KindAuthServer, nil
-	case KindProxy, "proxies":
-		return KindProxy, nil
-	case KindNode, "nodes":
-		return KindNode, nil
-	case KindOIDCConnector:
-		return KindOIDCConnector, nil
-	case KindSAMLConnector:
-		return KindSAMLConnector, nil
-	case KindGithubConnector:
-		return KindGithubConnector, nil
-	case KindConnectors, "connector":
-		return KindConnectors, nil
-	case KindUser, "users":
-		return KindUser, nil
-	case KindCertAuthority, "cert_authorities", "cas":
-		return KindCertAuthority, nil
-	case KindReverseTunnel, "reverse_tunnels", "rts":
-		return KindReverseTunnel, nil
-	case KindTrustedCluster, "tc", "cluster", "clusters":
-		return KindTrustedCluster, nil
-	case KindClusterAuthPreference, "cluster_authentication_preferences", "cap":
-		return KindClusterAuthPreference, nil
-	case KindRemoteCluster, "remote_clusters", "rc", "rcs":
-		return KindRemoteCluster, nil
-	case KindSemaphore, "semaphores", "sem", "sems":
-		return KindSemaphore, nil
-	case KindKubeService, "kube_services":
-		return KindKubeService, nil
+	case types.KindRole, "roles":
+		return types.KindRole, nil
+	case types.KindNamespace, "namespaces", "ns":
+		return types.KindNamespace, nil
+	case types.KindAuthServer, "auth_servers", "auth":
+		return types.KindAuthServer, nil
+	case types.KindProxy, "proxies":
+		return types.KindProxy, nil
+	case types.KindNode, "nodes":
+		return types.KindNode, nil
+	case types.KindOIDCConnector:
+		return types.KindOIDCConnector, nil
+	case types.KindSAMLConnector:
+		return types.KindSAMLConnector, nil
+	case types.KindGithubConnector:
+		return types.KindGithubConnector, nil
+	case types.KindConnectors, "connector":
+		return types.KindConnectors, nil
+	case types.KindUser, "users":
+		return types.KindUser, nil
+	case types.KindCertAuthority, "cert_authorities", "cas":
+		return types.KindCertAuthority, nil
+	case types.KindReverseTunnel, "reverse_tunnels", "rts":
+		return types.KindReverseTunnel, nil
+	case types.KindTrustedCluster, "tc", "cluster", "clusters":
+		return types.KindTrustedCluster, nil
+	case types.KindClusterAuthPreference, "cluster_authentication_preferences", "cap":
+		return types.KindClusterAuthPreference, nil
+	case types.KindRemoteCluster, "remote_clusters", "rc", "rcs":
+		return types.KindRemoteCluster, nil
+	case types.KindSemaphore, "semaphores", "sem", "sems":
+		return types.KindSemaphore, nil
+	case types.KindKubeService, "kube_services":
+		return types.KindKubeService, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -388,7 +388,7 @@ func getResourceUnmarshaler(kind string) (ResourceUnmarshaler, bool) {
 }
 
 func init() {
-	RegisterResourceMarshaler(KindUser, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
+	RegisterResourceMarshaler(types.KindUser, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
 		rsc, ok := r.(types.User)
 		if !ok {
 			return nil, trace.BadParameter("expected User, got %T", r)
@@ -399,7 +399,7 @@ func init() {
 		}
 		return raw, nil
 	})
-	RegisterResourceUnmarshaler(KindUser, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
+	RegisterResourceUnmarshaler(types.KindUser, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
 		rsc, err := UnmarshalUser(b, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -407,7 +407,7 @@ func init() {
 		return rsc, nil
 	})
 
-	RegisterResourceMarshaler(KindCertAuthority, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
+	RegisterResourceMarshaler(types.KindCertAuthority, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
 		rsc, ok := r.(types.CertAuthority)
 		if !ok {
 			return nil, trace.BadParameter("expected CertAuthority, got %T", r)
@@ -418,7 +418,7 @@ func init() {
 		}
 		return raw, nil
 	})
-	RegisterResourceUnmarshaler(KindCertAuthority, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
+	RegisterResourceUnmarshaler(types.KindCertAuthority, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
 		rsc, err := UnmarshalCertAuthority(b, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -426,7 +426,7 @@ func init() {
 		return rsc, nil
 	})
 
-	RegisterResourceMarshaler(KindTrustedCluster, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
+	RegisterResourceMarshaler(types.KindTrustedCluster, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
 		rsc, ok := r.(types.TrustedCluster)
 		if !ok {
 			return nil, trace.BadParameter("expected TrustedCluster, got %T", r)
@@ -437,7 +437,7 @@ func init() {
 		}
 		return raw, nil
 	})
-	RegisterResourceUnmarshaler(KindTrustedCluster, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
+	RegisterResourceUnmarshaler(types.KindTrustedCluster, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
 		rsc, err := UnmarshalTrustedCluster(b, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -445,7 +445,7 @@ func init() {
 		return rsc, nil
 	})
 
-	RegisterResourceMarshaler(KindGithubConnector, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
+	RegisterResourceMarshaler(types.KindGithubConnector, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
 		rsc, ok := r.(types.GithubConnector)
 		if !ok {
 			return nil, trace.BadParameter("expected GithubConnector, got %T", r)
@@ -456,7 +456,7 @@ func init() {
 		}
 		return raw, nil
 	})
-	RegisterResourceUnmarshaler(KindGithubConnector, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
+	RegisterResourceUnmarshaler(types.KindGithubConnector, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
 		rsc, err := UnmarshalGithubConnector(b) // XXX: Does not support marshal options.
 		if err != nil {
 			return nil, trace.Wrap(err)

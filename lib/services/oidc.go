@@ -102,7 +102,7 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (types.OIDCConn
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
-	case V2:
+	case types.V2:
 		var c types.OIDCConnectorV2
 		if err := utils.FastUnmarshal(bytes, &c); err != nil {
 			return nil, trace.BadParameter(err.Error())
@@ -131,7 +131,7 @@ func MarshalOIDCConnector(oidcConnector types.OIDCConnector, opts ...MarshalOpti
 
 	switch oidcConnector := oidcConnector.(type) {
 	case *types.OIDCConnectorV2:
-		if version := oidcConnector.GetVersion(); version != V2 {
+		if version := oidcConnector.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched OIDC connector version %v and type %T", version, oidcConnector)
 		}
 		if !cfg.PreserveResourceID {

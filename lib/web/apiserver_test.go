@@ -153,8 +153,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
 	err = s.server.Auth().UpsertAuthServer(&types.ServerV2{
-		Kind:    services.KindAuthServer,
-		Version: services.V2,
+		Kind:    types.KindAuthServer,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      "auth",
@@ -445,10 +445,10 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
 		},
 		Allow: types.RoleConditions{
-			NodeLabels: types.Labels{services.Wildcard: []string{services.Wildcard}},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Namespaces: []string{defaults.Namespace},
 			Rules: []types.Rule{
-				types.NewRule(services.Wildcard, services.RW()),
+				types.NewRule(types.Wildcard, services.RW()),
 			},
 		},
 	})
@@ -1885,8 +1885,8 @@ func TestClusterKubesGet(t *testing.T) {
 	// Register a kube service.
 	err = env.server.Auth().UpsertKubeService(context.Background(), &types.ServerV2{
 		Metadata: types.Metadata{Name: "test-kube"},
-		Kind:     services.KindKubeService,
-		Version:  services.V2,
+		Kind:     types.KindKubeService,
+		Version:  types.V2,
 		Spec: types.ServerSpecV2{
 			KubernetesClusters: []*types.KubernetesCluster{
 				{
@@ -1965,8 +1965,8 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 
 	// Register an application called "panel".
 	server := &types.ServerV2{
-		Kind:    services.KindAppServer,
-		Version: services.V2,
+		Kind:    types.KindAppServer,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      uuid.New(),
@@ -2486,8 +2486,8 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
 	err = server.Auth().UpsertAuthServer(&types.ServerV2{
-		Kind:    services.KindAuthServer,
-		Version: services.V2,
+		Kind:    types.KindAuthServer,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      "auth",

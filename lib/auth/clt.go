@@ -50,7 +50,7 @@ import (
 
 const (
 	// CurrentVersion is a current API version
-	CurrentVersion = services.V2
+	CurrentVersion = types.V2
 
 	// MissingNamespaceError is a _very_ common error this file generatets
 	MissingNamespaceError = "missing required parameter: namespace"
@@ -876,7 +876,7 @@ func (c *Client) GetAuthServers() ([]types.Server, error) {
 	}
 	re := make([]types.Server, len(items))
 	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, services.KindAuthServer)
+		server, err := services.UnmarshalServer(raw, types.KindAuthServer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -921,7 +921,7 @@ func (c *Client) GetProxies() ([]types.Server, error) {
 	}
 	re := make([]types.Server, len(items))
 	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, services.KindProxy)
+		server, err := services.UnmarshalServer(raw, types.KindProxy)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

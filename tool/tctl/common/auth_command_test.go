@@ -61,8 +61,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		cas: []types.CertAuthority{ca},
 		proxies: []types.Server{
 			&types.ServerV2{
-				Kind:    services.KindNode,
-				Version: services.V2,
+				Kind:    types.KindNode,
+				Version: types.V2,
 				Metadata: types.Metadata{
 					Name: "proxy",
 				},

@@ -277,7 +277,7 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 // GetPluginData loads all plugin data matching the supplied filter.
 func (s *DynamicAccessService) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	switch filter.Kind {
-	case services.KindAccessRequest:
+	case types.KindAccessRequest:
 		data, err := s.getAccessRequestPluginData(ctx, filter)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -292,7 +292,7 @@ func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, f
 	// Filters which specify Resource are a special case since they will match exactly zero or one
 	// possible PluginData instances.
 	if filter.Resource != "" {
-		item, err := s.Get(ctx, pluginDataKey(services.KindAccessRequest, filter.Resource))
+		item, err := s.Get(ctx, pluginDataKey(types.KindAccessRequest, filter.Resource))
 		if err != nil {
 			// A filter with zero matches is still a success, it just
 			// happens to return an empty slice.
@@ -312,7 +312,7 @@ func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, f
 		}
 		return []types.PluginData{data}, nil
 	}
-	prefix := backend.Key(pluginDataPrefix, services.KindAccessRequest)
+	prefix := backend.Key(pluginDataPrefix, types.KindAccessRequest)
 	result, err := s.GetRange(ctx, prefix, backend.RangeEnd(prefix), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -339,7 +339,7 @@ func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, f
 // UpdatePluginData updates a per-resource PluginData entry.
 func (s *DynamicAccessService) UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
 	switch params.Kind {
-	case services.KindAccessRequest:
+	case types.KindAccessRequest:
 		return trace.Wrap(s.updateAccessRequestPluginData(ctx, params))
 	default:
 		return trace.BadParameter("unsupported resource kind %q", params.Kind)
@@ -359,7 +359,7 @@ func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context
 	for i := 0; i < maxCmpAttempts; i++ {
 		var create bool
 		var data types.PluginData
-		item, err := s.Get(ctx, pluginDataKey(services.KindAccessRequest, params.Resource))
+		item, err := s.Get(ctx, pluginDataKey(types.KindAccessRequest, params.Resource))
 		if err == nil {
 			data, err = itemToPluginData(*item)
 			if err != nil {
@@ -379,7 +379,7 @@ func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			data, err = types.NewPluginData(params.Resource, services.KindAccessRequest)
+			data, err = types.NewPluginData(params.Resource, types.KindAccessRequest)
 			if err != nil {
 				return trace.Wrap(err)
 			}

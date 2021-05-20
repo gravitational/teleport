@@ -1813,7 +1813,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	c.Assert(userClient.CreateAccessRequest(context.TODO(), req), check.IsNil)
 
 	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
-		Kind:     services.KindAccessRequest,
+		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
 		Set: map[string]string{
@@ -1823,7 +1823,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	data, err := pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
-		Kind:     services.KindAccessRequest,
+		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
 	c.Assert(err, check.IsNil)
@@ -1834,7 +1834,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	c.Assert(entry.Data, check.DeepEquals, map[string]string{"foo": "bar"})
 
 	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
-		Kind:     services.KindAccessRequest,
+		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
 		Set: map[string]string{
@@ -1848,7 +1848,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	data, err = pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
-		Kind:     services.KindAccessRequest,
+		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
 	c.Assert(err, check.IsNil)
@@ -2838,8 +2838,8 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 func (s *TLSSuite) TestEventsNodePresence(c *check.C) {
 	ctx := context.Background()
 	node := &types.ServerV2{
-		Kind:    services.KindNode,
-		Version: services.V2,
+		Kind:    types.KindNode,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      "node1",
 			Namespace: defaults.Namespace,
@@ -2912,7 +2912,7 @@ func (s *TLSSuite) TestEventsPermissions(c *check.C) {
 	defer clt.Close()
 
 	ctx := context.TODO()
-	w, err := clt.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{{Kind: services.KindCertAuthority}}})
+	w, err := clt.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{{Kind: types.KindCertAuthority}}})
 	c.Assert(err, check.IsNil)
 	defer w.Close()
 
@@ -2951,35 +2951,35 @@ func (s *TLSSuite) TestEventsPermissions(c *check.C) {
 		{
 			name:     "node role is not authorized to get certificate authority with secret data loaded",
 			identity: TestBuiltin(teleport.RoleNode),
-			watches:  []types.WatchKind{{Kind: services.KindCertAuthority, LoadSecrets: true}},
+			watches:  []types.WatchKind{{Kind: types.KindCertAuthority, LoadSecrets: true}},
 		},
 		{
 			name:     "node role is not authorized to watch static tokens",
 			identity: TestBuiltin(teleport.RoleNode),
-			watches:  []types.WatchKind{{Kind: services.KindStaticTokens}},
+			watches:  []types.WatchKind{{Kind: types.KindStaticTokens}},
 		},
 		{
 			name:     "node role is not authorized to watch provisioning tokens",
 			identity: TestBuiltin(teleport.RoleNode),
-			watches:  []types.WatchKind{{Kind: services.KindToken}},
+			watches:  []types.WatchKind{{Kind: types.KindToken}},
 		},
 		{
 			name:     "nop role is not authorized to watch users and roles",
 			identity: TestBuiltin(teleport.RoleNop),
 			watches: []types.WatchKind{
-				{Kind: services.KindUser},
-				{Kind: services.KindRole},
+				{Kind: types.KindUser},
+				{Kind: types.KindRole},
 			},
 		},
 		{
 			name:     "nop role is not authorized to watch cert authorities",
 			identity: TestBuiltin(teleport.RoleNop),
-			watches:  []types.WatchKind{{Kind: services.KindCertAuthority, LoadSecrets: false}},
+			watches:  []types.WatchKind{{Kind: types.KindCertAuthority, LoadSecrets: false}},
 		},
 		{
 			name:     "nop role is not authorized to watch cluster config",
 			identity: TestBuiltin(teleport.RoleNop),
-			watches:  []types.WatchKind{{Kind: services.KindClusterConfig, LoadSecrets: false}},
+			watches:  []types.WatchKind{{Kind: types.KindClusterConfig, LoadSecrets: false}},
 		},
 	}
 
@@ -3040,11 +3040,11 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 
 	ctx := context.TODO()
 	w, err := clt.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: true},
-		{Kind: services.KindStaticTokens},
-		{Kind: services.KindToken},
-		{Kind: services.KindClusterConfig},
-		{Kind: services.KindClusterName},
+		{Kind: types.KindCertAuthority, LoadSecrets: true},
+		{Kind: types.KindStaticTokens},
+		{Kind: types.KindToken},
+		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterName},
 	}})
 	c.Assert(err, check.IsNil)
 	defer w.Close()
@@ -3110,8 +3110,8 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	err = s.server.Auth().DeleteToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 	suite.ExpectDeleteResource(c, w, 3*time.Second, &types.ResourceHeader{
-		Kind:    services.KindToken,
-		Version: services.V2,
+		Kind:    types.KindToken,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      token.GetName(),
@@ -3138,10 +3138,10 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 
 	// update the resource with different labels to test the change
 	clusterName := &types.ClusterNameV2{
-		Kind:    services.KindClusterName,
-		Version: services.V2,
+		Kind:    types.KindClusterName,
+		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      services.MetaNameClusterName,
+			Name:      types.MetaNameClusterName,
 			Namespace: defaults.Namespace,
 			Labels: map[string]string{
 				"key": "val",

@@ -377,8 +377,8 @@ func (a *Server) createGithubUser(p *createUserParams) (types.User, error) {
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
 	user := &types.UserV2{
-		Kind:    services.KindUser,
-		Version: services.V2,
+		Kind:    types.KindUser,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      p.username,
 			Namespace: defaults.Namespace,

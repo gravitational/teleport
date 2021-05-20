@@ -1709,7 +1709,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		LoginTime:          req.LoginTime,
 	}
 	UserLoginCount.Inc()
-	return types.NewWebSession(token, services.KindWebSession, services.KindWebSession, sessionSpec), nil
+	return types.NewWebSession(token, types.KindWebSession, types.KindWebSession, sessionSpec), nil
 }
 
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.

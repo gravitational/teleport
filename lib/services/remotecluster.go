@@ -64,7 +64,7 @@ func MarshalRemoteCluster(remoteCluster types.RemoteCluster, opts ...MarshalOpti
 
 	switch remoteCluster := remoteCluster.(type) {
 	case *types.RemoteClusterV3:
-		if version := remoteCluster.GetVersion(); version != V3 {
+		if version := remoteCluster.GetVersion(); version != types.V3 {
 			return nil, trace.BadParameter("mismatched remote cluster version %v and type %T", version, remoteCluster)
 		}
 		if !cfg.PreserveResourceID {

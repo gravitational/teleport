@@ -38,8 +38,8 @@ var _ = check.Suite(&ServerSuite{})
 // TestServersCompare tests comparing two servers
 func (s *ServerSuite) TestServersCompare(c *check.C) {
 	node := &types.ServerV2{
-		Kind:    KindNode,
-		Version: V2,
+		Kind:    types.KindNode,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      "node1",
 			Namespace: defaults.Namespace,
@@ -162,8 +162,8 @@ func TestUnmarshalServerKubernetes(t *testing.T) {
 	}
 }`,
 			want: &types.ServerV2{
-				Version: V2,
-				Kind:    KindKubeService,
+				Version: types.V2,
+				Kind:    types.KindKubeService,
 				Metadata: types.Metadata{
 					Name:      "foo",
 					Namespace: defaults.Namespace,
@@ -183,8 +183,8 @@ func TestUnmarshalServerKubernetes(t *testing.T) {
 	}
 }`,
 			want: &types.ServerV2{
-				Version: V2,
-				Kind:    KindKubeService,
+				Version: types.V2,
+				Kind:    types.KindKubeService,
 				Metadata: types.Metadata{
 					Name:      "foo",
 					Namespace: defaults.Namespace,
@@ -201,7 +201,7 @@ func TestUnmarshalServerKubernetes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			got, err := UnmarshalServer([]byte(tt.in), KindKubeService)
+			got, err := UnmarshalServer([]byte(tt.in), types.KindKubeService)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(got, tt.want))
 		})

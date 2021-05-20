@@ -148,19 +148,19 @@ func itemToResource(item backend.Item) (types.Resource, error) {
 	var rsc types.Resource
 	var err error
 	switch kind := u.GetKind(); kind {
-	case services.KindUser:
+	case types.KindUser:
 		rsc, err = itemToUser(item)
-	case services.KindCertAuthority:
+	case types.KindCertAuthority:
 		rsc, err = itemToCertAuthority(item)
-	case services.KindTrustedCluster:
+	case types.KindTrustedCluster:
 		rsc, err = itemToTrustedCluster(item)
-	case services.KindGithubConnector:
+	case types.KindGithubConnector:
 		rsc, err = itemToGithubConnector(item)
-	case services.KindRole:
+	case types.KindRole:
 		rsc, err = itemToRole(item)
-	case services.KindOIDCConnector:
+	case types.KindOIDCConnector:
 		rsc, err = itemToOIDCConnector(item)
-	case services.KindSAMLConnector:
+	case types.KindSAMLConnector:
 		rsc, err = itemToSAMLConnector(item)
 	case types.KindMFADevice:
 		rsc, err = itemToMFADevice(item)

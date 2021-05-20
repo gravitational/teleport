@@ -50,8 +50,8 @@ func (s *UserSuite) TestTraits(c *check.C) {
 
 	for _, tt := range tests {
 		user := &types.UserV2{
-			Kind:    KindUser,
-			Version: V2,
+			Kind:    types.KindUser,
+			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      "foo",
 				Namespace: defaults.Namespace,

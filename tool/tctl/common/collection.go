@@ -105,7 +105,7 @@ func printMetadataLabels(labels map[string]string) string {
 func printNodeLabels(labels types.Labels) string {
 	pairs := []string{}
 	for key, values := range labels {
-		if key == services.Wildcard {
+		if key == types.Wildcard {
 			return "<all nodes>"
 		}
 		pairs = append(pairs, fmt.Sprintf("%v=%v", key, values))

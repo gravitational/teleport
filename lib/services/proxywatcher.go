@@ -210,7 +210,7 @@ func (p *ProxyWatcher) watch() error {
 		Name: p.Component,
 		Kinds: []types.WatchKind{
 			{
-				Kind: KindProxy,
+				Kind: types.KindProxy,
 			},
 		},
 		MetricComponent: p.Component,
@@ -294,7 +294,7 @@ func (p *ProxyWatcher) watch() error {
 // processEvent updates proxy map and returns true if the proxies list have been modified -
 // the proxy has been either added or deleted
 func (p *ProxyWatcher) processEvent(event types.Event, proxies map[string]types.Server) bool {
-	if event.Resource.GetKind() != KindProxy {
+	if event.Resource.GetKind() != types.KindProxy {
 		p.Warningf("Unexpected event: %v.")
 		return false
 	}

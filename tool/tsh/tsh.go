@@ -2056,7 +2056,7 @@ func getRequestResolution(cf *CLIConf, clt auth.ClientI, req types.AccessRequest
 		Name: "await-request-approval",
 		Kinds: []types.WatchKind{
 			types.WatchKind{
-				Kind:   services.KindAccessRequest,
+				Kind:   types.KindAccessRequest,
 				Filter: filter.IntoMap(),
 			},
 		},

@@ -69,7 +69,7 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (types.Tunnel
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
-	case V2:
+	case types.V2:
 		var r types.TunnelConnectionV2
 
 		if err := utils.FastUnmarshal(data, &r); err != nil {
@@ -99,7 +99,7 @@ func MarshalTunnelConnection(tunnelConnection types.TunnelConnection, opts ...Ma
 
 	switch tunnelConnection := tunnelConnection.(type) {
 	case *types.TunnelConnectionV2:
-		if version := tunnelConnection.GetVersion(); version != V2 {
+		if version := tunnelConnection.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched tunnel connection version %v and type %T", version, tunnelConnection)
 		}
 		if !cfg.PreserveResourceID {
