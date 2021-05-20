@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -278,7 +279,7 @@ type Server struct {
 	limiter *limiter.ConnectionsLimiter
 
 	// Emitter is events emitter, used to submit discrete events
-	emitter events.Emitter
+	emitter apievents.Emitter
 
 	// streamer is events sessionstreamer, used to create continuous
 	// session related streams
@@ -1209,12 +1210,12 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 	user := ClientUsername(ctx)
 	for _, role := range req.Roles {
 		if role == types.RoleTrustedCluster {
-			if err := a.emitter.EmitAuditEvent(ctx, &events.TrustedClusterTokenCreate{
-				Metadata: events.Metadata{
+			if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
+				Metadata: apievents.Metadata{
 					Type: events.TrustedClusterTokenCreateEvent,
 					Code: events.TrustedClusterTokenCreateCode,
 				},
-				UserMetadata: events.UserMetadata{
+				UserMetadata: apievents.UserMetadata{
 					User:         user,
 					Impersonator: ClientImpersonator(ctx),
 				},
@@ -1783,16 +1784,16 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 
-	err = a.emitter.EmitAuditEvent(a.closeCtx, &events.RoleDelete{
-		Metadata: events.Metadata{
+	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleDelete{
+		Metadata: apievents.Metadata{
 			Type: events.RoleDeletedEvent,
 			Code: events.RoleDeletedCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
 	})
@@ -1809,15 +1810,15 @@ func (a *Server) upsertRole(ctx context.Context, role types.Role) error {
 		return trace.Wrap(err)
 	}
 
-	err := a.emitter.EmitAuditEvent(a.closeCtx, &events.RoleCreate{
-		Metadata: events.Metadata{
+	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
+		Metadata: apievents.Metadata{
 			Type: events.RoleCreatedEvent,
 			Code: events.RoleCreatedCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: ClientUsername(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: role.GetName(),
 		},
 	})
@@ -1859,16 +1860,16 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	if err := a.DynamicAccessExt.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.emitter.EmitAuditEvent(a.closeCtx, &events.AccessRequestCreate{
-		Metadata: events.Metadata{
+	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
+		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         req.GetUser(),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
 		Roles:        req.GetRoles(),
@@ -1886,12 +1887,12 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 	if err := a.DynamicAccessExt.SetAccessRequestState(ctx, params); err != nil {
 		return trace.Wrap(err)
 	}
-	event := &events.AccessRequestCreate{
-		Metadata: events.Metadata{
+	event := &apievents.AccessRequestCreate{
+		Metadata: apievents.Metadata{
 			Type: events.AccessRequestUpdateEvent,
 			Code: events.AccessRequestUpdateCode,
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			UpdatedBy: ClientUsername(ctx),
 		},
 		RequestID:    params.RequestID,
@@ -1905,7 +1906,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 	}
 
 	if len(params.Annotations) > 0 {
-		annotations, err := events.EncodeMapStrings(params.Annotations)
+		annotations, err := apievents.EncodeMapStrings(params.Annotations)
 		if err != nil {
 			log.WithError(err).Debugf("Failed to encode access request annotations.")
 		} else {
@@ -1943,13 +1944,13 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		return nil, trace.Wrap(err)
 	}
 
-	event := &events.AccessRequestCreate{
-		Metadata: events.Metadata{
+	event := &apievents.AccessRequestCreate{
+		Metadata: apievents.Metadata{
 			Type:        events.AccessRequestReviewEvent,
 			Code:        events.AccessRequestReviewCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
 		RequestID:     params.RequestID,
@@ -1960,7 +1961,7 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 	}
 
 	if len(params.Review.Annotations) > 0 {
-		annotations, err := events.EncodeMapStrings(params.Review.Annotations)
+		annotations, err := apievents.EncodeMapStrings(params.Review.Annotations)
 		if err != nil {
 			log.WithError(err).Debugf("Failed to encode access request annotations.")
 		} else {
@@ -2095,7 +2096,7 @@ func (a *Server) GetAllTunnelConnections(opts ...services.MarshalOption) (conns 
 }
 
 // CreateAuditStream creates audit event stream
-func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	streamer, err := a.modeStreamer(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2104,7 +2105,7 @@ func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 }
 
 // ResumeAuditStream resumes the stream that has been created
-func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	streamer, err := a.modeStreamer(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

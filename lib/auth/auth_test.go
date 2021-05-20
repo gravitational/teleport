@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -846,7 +847,7 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	err = s.a.CreateUser(ctx, user)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.UserCreateEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.UserCreate).User, Equals, "some-auth-user")
+	c.Assert(s.mockEmitter.LastEvent().(*apievents.UserCreate).User, Equals, "some-auth-user")
 	s.mockEmitter.Reset()
 
 	// test create user with existing user
@@ -859,7 +860,7 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	c.Assert(err, IsNil)
 	err = s.a.CreateUser(ctx, user2)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockEmitter.LastEvent().(*events.UserCreate).User, Equals, teleport.UserSystem)
+	c.Assert(s.mockEmitter.LastEvent().(*apievents.UserCreate).User, Equals, teleport.UserSystem)
 	s.mockEmitter.Reset()
 
 	// test update on non-existent user
@@ -873,7 +874,7 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	err = s.a.UpdateUser(ctx, user)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.UserUpdatedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.UserCreate).User, Equals, teleport.UserSystem)
+	c.Assert(s.mockEmitter.LastEvent().(*apievents.UserCreate).User, Equals, teleport.UserSystem)
 }
 
 func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
@@ -888,7 +889,7 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	err = s.a.upsertRole(ctx, roleTest)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.RoleCreate).Name, Equals, "test")
+	c.Assert(s.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, Equals, "test")
 	s.mockEmitter.Reset()
 
 	roleRetrieved, err := s.a.GetRole(ctx, "test")
@@ -900,14 +901,14 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(cmp.Diff(roleRetrieved, roleTest, cmpopts.IgnoreFields(types.Metadata{}, "ID")), Equals, "")
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.RoleCreate).Name, Equals, "test")
+	c.Assert(s.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, Equals, "test")
 	s.mockEmitter.Reset()
 
 	// test delete role
 	err = s.a.DeleteRole(ctx, "test")
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleDeletedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.RoleDelete).Name, Equals, "test")
+	c.Assert(s.mockEmitter.LastEvent().(*apievents.RoleDelete).Name, Equals, "test")
 	s.mockEmitter.Reset()
 
 	// test role has been deleted
@@ -1095,13 +1096,13 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"))
 
-	require.Equal(t, mockE.LastEvent(), &events.UserLogin{
-		Metadata: events.Metadata{
+	require.Equal(t, mockE.LastEvent(), &apievents.UserLogin{
+		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserSSOLoginFailureCode,
 		},
 		Method: "test",
-		Status: events.Status{
+		Status: apievents.Status{
 			Success:     false,
 			Error:       "some error",
 			UserMessage: "some error",

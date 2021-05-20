@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -86,12 +87,12 @@ type SessionCreds struct {
 // AuthenticateUser authenticates user based on the request type
 func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 	mfaDev, err := s.authenticateUser(context.TODO(), req)
-	event := &events.UserLogin{
-		Metadata: events.Metadata{
+	event := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserLocalLoginFailureCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: req.Username,
 		},
 		Method: events.LoginMethodLocal,
@@ -404,15 +405,15 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 
 // emitNoLocalAuthEvent creates and emits a local authentication is disabled message.
 func (s *Server) emitNoLocalAuthEvent(username string) {
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.AuthAttempt{
-		Metadata: events.Metadata{
+	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.AuthAttempt{
+		Metadata: apievents.Metadata{
 			Type: events.AuthAttemptEvent,
 			Code: events.AuthAttemptFailureCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: username,
 		},
-		Status: events.Status{
+		Status: apievents.Status{
 			Success: false,
 			Error:   noLocalAuth,
 		},

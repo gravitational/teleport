@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1216,13 +1217,13 @@ func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
 		if !a.hasBuiltinRole(string(types.RoleAdmin)) {
 			err := trace.AccessDenied("user %q requested access to all users with secrets", a.context.User.GetName())
 			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &events.UserLogin{
-				Metadata: events.Metadata{
+			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
+				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
 				},
 				Method: events.LoginMethodClientCert,
-				Status: events.Status{
+				Status: apievents.Status{
 					Success:     false,
 					Error:       trace.Unwrap(err).Error(),
 					UserMessage: err.Error(),
@@ -1250,13 +1251,13 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 		if !a.hasBuiltinRole(string(types.RoleAdmin)) {
 			err := trace.AccessDenied("user %q requested access to user %q with secrets", a.context.User.GetName(), name)
 			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &events.UserLogin{
-				Metadata: events.Metadata{
+			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
+				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
 				},
 				Method: events.LoginMethodClientCert,
-				Status: events.Status{
+				Status: apievents.Status{
 					Success:     false,
 					Error:       trace.Unwrap(err).Error(),
 					UserMessage: err.Error(),
@@ -1454,13 +1455,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if err != nil {
 			log.Warning(err)
 			err := trace.AccessDenied("user %q has requested to generate certs for %q.", a.context.User.GetName(), roles)
-			if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &events.UserLogin{
-				Metadata: events.Metadata{
+			if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.UserLogin{
+				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
 				},
 				Method: events.LoginMethodClientCert,
-				Status: events.Status{
+				Status: apievents.Status{
 					Success:     false,
 					Error:       trace.Unwrap(err).Error(),
 					UserMessage: err.Error(),
@@ -1836,7 +1837,7 @@ func (a *ServerWithRoles) ValidateGithubAuthCallback(q url.Values) (*GithubAuthR
 }
 
 // EmitAuditEvent emits a single audit event
-func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	if err := a.action(defaults.Namespace, types.KindEvent, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1858,7 +1859,7 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event events.Audit
 }
 
 // CreateAuditStream creates audit event stream
-func (a *ServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+func (a *ServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	if err := a.action(defaults.Namespace, types.KindEvent, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1881,7 +1882,7 @@ func (a *ServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID)
 }
 
 // ResumeAuditStream resumes the stream that has been created
-func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	if err := a.action(defaults.Namespace, types.KindEvent, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1907,12 +1908,12 @@ func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID,
 type streamWithRoles struct {
 	a        *ServerWithRoles
 	serverID string
-	stream   events.Stream
+	stream   apievents.Stream
 }
 
 // Status returns channel receiving updates about stream status
 // last event index that was uploaded and upload ID
-func (s *streamWithRoles) Status() <-chan events.StreamStatus {
+func (s *streamWithRoles) Status() <-chan apievents.StreamStatus {
 	return s.stream.Status()
 }
 
@@ -1933,7 +1934,7 @@ func (s *streamWithRoles) Close(ctx context.Context) error {
 	return s.stream.Close(ctx)
 }
 
-func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	err := events.ValidateServerMetadata(event, s.serverID)
 	if err != nil {
 		// TODO: this should be a proper audit event
@@ -2974,7 +2975,7 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 }
 
 // SearchEvents allows searching audit events with pagination support.
-func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []events.AuditEvent, lastKey string, err error) {
+func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
 	if err := a.action(defaults.Namespace, types.KindEvent, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2988,7 +2989,7 @@ func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace strin
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.
-func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []events.AuditEvent, lastKey string, err error) {
+func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
 	if err := a.action(defaults.Namespace, types.KindSession, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3016,14 +3017,14 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 	}, nil
 }
 
-func emitSSOLoginFailureEvent(ctx context.Context, emitter events.Emitter, method string, err error) {
-	emitErr := emitter.EmitAuditEvent(ctx, &events.UserLogin{
-		Metadata: events.Metadata{
+func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error) {
+	emitErr := emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
+		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserSSOLoginFailureCode,
 		},
 		Method: method,
-		Status: events.Status{
+		Status: apievents.Status{
 			Success:     false,
 			Error:       trace.Unwrap(err).Error(),
 			UserMessage: err.Error(),

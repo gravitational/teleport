@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -190,7 +191,7 @@ func (s *PasswordSuite) TestChangePassword(c *C) {
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.UserPasswordChangeEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.UserPasswordChange).User, Equals, "user1")
+	c.Assert(s.mockEmitter.LastEvent().(*apievents.UserPasswordChange).User, Equals, "user1")
 
 	s.shouldLockAfterFailedAttempts(c, req)
 

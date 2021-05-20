@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -707,22 +708,22 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 	defer conn.Close()
 
-	if err := s.EmitAuditEvent(s.closeContext, &events.PortForward{
-		Metadata: events.Metadata{
+	if err := s.EmitAuditEvent(s.closeContext, &apievents.PortForward{
+		Metadata: apievents.Metadata{
 			Type: events.PortForwardEvent,
 			Code: events.PortForwardCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			Login:        s.identityContext.Login,
 			User:         s.identityContext.TeleportUser,
 			Impersonator: s.identityContext.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),
 			RemoteAddr: s.sconn.RemoteAddr().String(),
 		},
 		Addr: scx.DstAddr,
-		Status: events.Status{
+		Status: apievents.Status{
 			Success: true,
 		},
 	}); err != nil {
@@ -1046,16 +1047,16 @@ func (s *Server) serveX11Channels(ctx context.Context) error {
 
 // handleX11Forward handles an X11 forwarding request from the client.
 func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
-	event := events.X11Forward{
-		Metadata: events.Metadata{
+	event := apievents.X11Forward{
+		Metadata: apievents.Metadata{
 			Type: events.X11ForwardEvent,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			Login:        s.identityContext.Login,
 			User:         s.identityContext.TeleportUser,
 			Impersonator: s.identityContext.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),
 			RemoteAddr: s.sconn.RemoteAddr().String(),
 		},

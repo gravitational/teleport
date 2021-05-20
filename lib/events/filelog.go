@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -115,7 +116,7 @@ type FileLog struct {
 }
 
 // EmitAuditEvent adds a new event to the log.
-func (l *FileLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	l.rw.RLock()
 	defer l.rw.RUnlock()
 
@@ -194,7 +195,7 @@ func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	return nil
 }
 
-func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]AuditEvent, string, error) {
+func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	l.Debugf("SearchEvents(%v, %v, namespace=%v, eventType=%v, limit=%v)", fromUTC, toUTC, namespace, eventTypes, limit)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
@@ -233,7 +234,7 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	// auth servers.
 	sort.Sort(ByTimeAndIndex(dynamicEvents))
 
-	events := make([]AuditEvent, 0, len(dynamicEvents))
+	events := make([]apievents.AuditEvent, 0, len(dynamicEvents))
 	for _, dynamicEvent := range dynamicEvents {
 		event, err := FromEventFields(dynamicEvent)
 		if err != nil {
@@ -245,7 +246,7 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	return events, lastKey, nil
 }
 
-func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
+func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	l.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	// only search for specific event types
@@ -263,7 +264,7 @@ func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, start
 	// filter out 'session end' events that do not
 	// have a corresponding 'session start' event
 	started := make(map[string]struct{}, len(events)/2)
-	filtered := make([]AuditEvent, 0, len(events))
+	filtered := make([]apievents.AuditEvent, 0, len(events))
 	for i := range events {
 		event := events[i]
 		eventType := event.GetType()

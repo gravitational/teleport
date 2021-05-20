@@ -23,6 +23,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -173,24 +174,24 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 
 	// Now that the certificate has been issued, emit a "new session created"
 	// for all events associated with this certificate.
-	appSessionStartEvent := &events.AppSessionStart{
-		Metadata: events.Metadata{
+	appSessionStartEvent := &apievents.AppSessionStart{
+		Metadata: apievents.Metadata{
 			Type:        events.AppSessionStartEvent,
 			Code:        events.AppSessionStartCode,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        h.cfg.HostUUID,
 			ServerNamespace: defaults.Namespace,
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: identity.RouteToApp.SessionID,
 			WithMFA:   identity.MFAVerified,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: ws.GetUser(),
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: r.RemoteAddr,
 		},
 		PublicAddr: identity.RouteToApp.PublicAddr,

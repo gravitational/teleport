@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -68,16 +69,16 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 	if err := a.Identity.UpsertGithubConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &events.GithubConnectorCreate{
-		Metadata: events.Metadata{
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.GithubConnectorCreate{
+		Metadata: apievents.Metadata{
 			Type: events.GithubConnectorCreatedEvent,
 			Code: events.GithubConnectorCreatedCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
 	}); err != nil {
@@ -93,16 +94,16 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 		return trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &events.GithubConnectorDelete{
-		Metadata: events.Metadata{
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.GithubConnectorDelete{
+		Metadata: apievents.Metadata{
 			Type: events.GithubConnectorDeletedEvent,
 			Code: events.GithubConnectorDeletedCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connectorName,
 		},
 	}); err != nil {
@@ -140,9 +141,9 @@ func (a *Server) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 	return validateGithubAuthCallbackHelper(a.closeCtx, a, q, a.emitter)
 }
 
-func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q url.Values, emitter events.Emitter) (*GithubAuthResponse, error) {
-	event := &events.UserLogin{
-		Metadata: events.Metadata{
+func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q url.Values, emitter apievents.Emitter) (*GithubAuthResponse, error) {
+	event := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 		},
 		Method: events.LoginMethodGithub,
@@ -150,7 +151,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 
 	re, err := m.validateGithubAuthCallback(q)
 	if re != nil && re.claims != nil {
-		attributes, err := events.EncodeMapStrings(re.claims)
+		attributes, err := apievents.EncodeMapStrings(re.claims)
 		if err != nil {
 			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
 			log.WithError(err).Debug("Failed to encode identity attributes.")
@@ -576,13 +577,13 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 
 			// Print warning to Teleport logs as well as the Audit Log.
 			log.Warnf(warningMessage)
-			if err := c.authServer.emitter.EmitAuditEvent(c.authServer.closeCtx, &events.UserLogin{
-				Metadata: events.Metadata{
+			if err := c.authServer.emitter.EmitAuditEvent(c.authServer.closeCtx, &apievents.UserLogin{
+				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserSSOLoginFailureCode,
 				},
 				Method: events.LoginMethodGithub,
-				Status: events.Status{
+				Status: apievents.Status{
 					Success: false,
 					Error:   warningMessage,
 				},

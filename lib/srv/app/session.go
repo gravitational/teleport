@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -140,21 +141,21 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 	}
 
 	// Emit an event to the Audit Log that a new session chunk has been created.
-	appSessionChunkEvent := &events.AppSessionChunk{
-		Metadata: events.Metadata{
+	appSessionChunkEvent := &apievents.AppSessionChunk{
+		Metadata: apievents.Metadata{
 			Type:        events.AppSessionChunkEvent,
 			Code:        events.AppSessionChunkCode,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        s.c.Server.GetName(),
 			ServerNamespace: defaults.Namespace,
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: identity.RouteToApp.SessionID,
 			WithMFA:   identity.MFAVerified,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         identity.Username,
 			Impersonator: identity.Impersonator,
 		},

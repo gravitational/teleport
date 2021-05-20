@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -252,7 +253,7 @@ func (s *ExecSuite) TestEmitExecAuditEvent(c *check.C) {
 	}
 	for _, tt := range tests {
 		emitExecAuditEvent(s.ctx, tt.inCommand, tt.inError)
-		execEvent := fakeServer.LastEvent().(*events.Exec)
+		execEvent := fakeServer.LastEvent().(*apievents.Exec)
 		c.Assert(execEvent.Command, check.Equals, tt.outCommand)
 		c.Assert(execEvent.ExitCode, check.Equals, tt.outCode)
 	}
@@ -518,7 +519,7 @@ func (a *fakeLog) EmitAuditEventLegacy(e events.Event, f events.EventFields) err
 	return trace.NotImplemented("not implemented")
 }
 
-func (a *fakeLog) EmitAuditEvent(ctx context.Context, e events.AuditEvent) error {
+func (a *fakeLog) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
 	return trace.NotImplemented("not implemented")
 }
 
@@ -538,11 +539,11 @@ func (a *fakeLog) GetSessionEvents(namespace string, sid rsession.ID, after int,
 	return nil, trace.NotFound("")
 }
 
-func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotFound("")
 }
 
-func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotFound("")
 }
 

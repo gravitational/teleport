@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -124,28 +125,28 @@ func (s *SessionRegistry) Close() {
 // emitSessionJoinEvent emits a session join event to both the Audit Log as
 // well as sending a "x-teleport-event" global request on the SSH connection.
 func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
-	sessionJoinEvent := &events.SessionJoin{
-		Metadata: events.Metadata{
+	sessionJoinEvent := &apievents.SessionJoin{
+		Metadata: apievents.Metadata{
 			Type:        events.SessionJoinEvent,
 			Code:        events.SessionJoinCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
 			ServerHostname:  s.srv.GetInfo().GetHostname(),
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(ctx.SessionID()),
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ctx.Identity.TeleportUser,
 			Login:        ctx.Identity.Login,
 			Impersonator: ctx.Identity.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 	}
@@ -249,23 +250,23 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 // emitSessionLeaveEvent emits a session leave event to both the Audit Log as
 // well as sending a "x-teleport-event" global request on the SSH connection.
 func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
-	sessionLeaveEvent := &events.SessionLeave{
-		Metadata: events.Metadata{
+	sessionLeaveEvent := &apievents.SessionLeave{
+		Metadata: apievents.Metadata{
 			Type:        events.SessionLeaveEvent,
 			Code:        events.SessionLeaveCode,
 			ClusterName: party.ctx.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        party.ctx.srv.HostUUID(),
 			ServerLabels:    party.ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
 			ServerHostname:  s.srv.GetInfo().GetHostname(),
 			ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: party.id.String(),
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: party.user,
 		},
 	}
@@ -329,23 +330,23 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		start, end := sess.startTime, time.Now().UTC()
 
 		// Emit a session.end event for this (interactive) session.
-		sessionEndEvent := &events.SessionEnd{
-			Metadata: events.Metadata{
+		sessionEndEvent := &apievents.SessionEnd{
+			Metadata: apievents.Metadata{
 				Type:        events.SessionEndEvent,
 				Code:        events.SessionEndCode,
 				ClusterName: party.ctx.ClusterName,
 			},
-			ServerMetadata: events.ServerMetadata{
+			ServerMetadata: apievents.ServerMetadata{
 				ServerID:        party.ctx.srv.HostUUID(),
 				ServerLabels:    party.ctx.srv.GetInfo().GetAllLabels(),
 				ServerNamespace: s.srv.GetNamespace(),
 				ServerHostname:  s.srv.GetInfo().GetHostname(),
 				ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 			},
-			SessionMetadata: events.SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(sess.id),
 			},
-			UserMetadata: events.UserMetadata{
+			UserMetadata: apievents.UserMetadata{
 				User: party.user,
 			},
 			EnhancedRecording: sess.hasEnhancedRecording,
@@ -394,23 +395,23 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	sid := session.id
 
 	// Build the resize event.
-	resizeEvent := &events.Resize{
-		Metadata: events.Metadata{
+	resizeEvent := &apievents.Resize{
+		Metadata: apievents.Metadata{
 			Type:        events.ResizeEvent,
 			Code:        events.TerminalResizeCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
 			ServerHostname:  s.srv.GetInfo().GetHostname(),
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sid),
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ctx.Identity.TeleportUser,
 			Login:        ctx.Identity.Login,
 			Impersonator: ctx.Identity.Impersonator,
@@ -744,28 +745,28 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	params := s.term.GetTerminalParams()
 
 	// Emit "new session created" event for the interactive session.
-	sessionStartEvent := &events.SessionStart{
-		Metadata: events.Metadata{
+	sessionStartEvent := &apievents.SessionStart{
+		Metadata: apievents.Metadata{
 			Type:        events.SessionStartEvent,
 			Code:        events.SessionStartCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			ServerNamespace: ctx.srv.GetNamespace(),
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ctx.Identity.TeleportUser,
 			Login:        ctx.Identity.Login,
 			Impersonator: ctx.Identity.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		TerminalSize:     params.Serialize(),
@@ -889,28 +890,28 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	}
 
 	// Emit a session.start event for the exec session.
-	sessionStartEvent := &events.SessionStart{
-		Metadata: events.Metadata{
+	sessionStartEvent := &apievents.SessionStart{
+		Metadata: apievents.Metadata{
 			Type:        events.SessionStartEvent,
 			Code:        events.SessionStartCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			ServerNamespace: ctx.srv.GetNamespace(),
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ctx.Identity.TeleportUser,
 			Login:        ctx.Identity.Login,
 			Impersonator: ctx.Identity.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
@@ -986,23 +987,23 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		start, end := s.startTime, time.Now().UTC()
 
 		// Emit a session.end event for this (exec) session.
-		sessionEndEvent := &events.SessionEnd{
-			Metadata: events.Metadata{
+		sessionEndEvent := &apievents.SessionEnd{
+			Metadata: apievents.Metadata{
 				Type:        events.SessionEndEvent,
 				Code:        events.SessionEndCode,
 				ClusterName: ctx.ClusterName,
 			},
-			ServerMetadata: events.ServerMetadata{
+			ServerMetadata: apievents.ServerMetadata{
 				ServerID:        ctx.srv.HostUUID(),
 				ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 				ServerNamespace: ctx.srv.GetNamespace(),
 				ServerHostname:  ctx.srv.GetInfo().GetHostname(),
 				ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			},
-			SessionMetadata: events.SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(s.id),
 			},
-			UserMetadata: events.UserMetadata{
+			UserMetadata: apievents.UserMetadata{
 				User:         ctx.Identity.TeleportUser,
 				Login:        ctx.Identity.Login,
 				Impersonator: ctx.Identity.Impersonator,

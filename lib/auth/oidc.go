@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -132,16 +133,16 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 	if err := a.Identity.UpsertOIDCConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
-		Metadata: events.Metadata{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorCreate{
+		Metadata: apievents.Metadata{
 			Type: events.OIDCConnectorCreatedEvent,
 			Code: events.OIDCConnectorCreatedCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
 	}); err != nil {
@@ -156,16 +157,16 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 	if err := a.Identity.DeleteOIDCConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
-		Metadata: events.Metadata{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorDelete{
+		Metadata: apievents.Metadata{
 			Type: events.OIDCConnectorDeletedEvent,
 			Code: events.OIDCConnectorDeletedCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connectorName,
 		},
 	}); err != nil {
@@ -226,8 +227,8 @@ func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
 func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
-	event := &events.UserLogin{
-		Metadata: events.Metadata{
+	event := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 		},
 		Method: events.LoginMethodOIDC,
@@ -235,7 +236,7 @@ func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 
 	re, err := a.validateOIDCAuthCallback(q)
 	if re != nil && re.claims != nil {
-		attributes, err := events.EncodeMap(re.claims)
+		attributes, err := apievents.EncodeMap(re.claims)
 		if err != nil {
 			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
 			log.WithError(err).Debug("Failed to encode identity attributes.")
@@ -640,7 +641,7 @@ type gsuiteClient struct {
 	userEmail string
 	domain    string
 	config    *jwt.Config
-	emitter   events.Emitter
+	emitter   apievents.Emitter
 	ctx       context.Context
 }
 
@@ -658,13 +659,13 @@ collect:
 
 			// Print warning to Teleport logs as well as the Audit Log.
 			log.Warnf(warningMessage)
-			if err := g.emitter.EmitAuditEvent(g.ctx, &events.UserLogin{
-				Metadata: events.Metadata{
+			if err := g.emitter.EmitAuditEvent(g.ctx, &apievents.UserLogin{
+				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserSSOLoginFailureCode,
 				},
 				Method: events.LoginMethodOIDC,
-				Status: events.Status{
+				Status: apievents.Status{
 					Success: false,
 					Error:   warningMessage,
 				},

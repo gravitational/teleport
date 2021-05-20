@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -898,22 +899,22 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
 			// user has exceeded their max concurrent ssh connections.
 			userSessionLimitHitCount.Inc()
-			if err := s.EmitAuditEvent(s.ctx, &events.SessionReject{
-				Metadata: events.Metadata{
+			if err := s.EmitAuditEvent(s.ctx, &apievents.SessionReject{
+				Metadata: apievents.Metadata{
 					Type: events.SessionRejectedEvent,
 					Code: events.SessionRejectedCode,
 				},
-				UserMetadata: events.UserMetadata{
+				UserMetadata: apievents.UserMetadata{
 					Login:        identityContext.Login,
 					User:         identityContext.TeleportUser,
 					Impersonator: identityContext.Impersonator,
 				},
-				ConnectionMetadata: events.ConnectionMetadata{
+				ConnectionMetadata: apievents.ConnectionMetadata{
 					Protocol:   events.EventProtocolSSH,
 					LocalAddr:  ccx.ServerConn.LocalAddr().String(),
 					RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
 				},
-				ServerMetadata: events.ServerMetadata{
+				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        s.uuid,
 					ServerNamespace: s.GetNamespace(),
 				},
@@ -998,22 +999,22 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			d, ok := ccx.IncrSessions(max)
 			if !ok {
 				// user has exceeded their max concurrent ssh sessions.
-				if err := s.EmitAuditEvent(s.ctx, &events.SessionReject{
-					Metadata: events.Metadata{
+				if err := s.EmitAuditEvent(s.ctx, &apievents.SessionReject{
+					Metadata: apievents.Metadata{
 						Type: events.SessionRejectedEvent,
 						Code: events.SessionRejectedCode,
 					},
-					UserMetadata: events.UserMetadata{
+					UserMetadata: apievents.UserMetadata{
 						Login:        identityContext.Login,
 						User:         identityContext.TeleportUser,
 						Impersonator: identityContext.Impersonator,
 					},
-					ConnectionMetadata: events.ConnectionMetadata{
+					ConnectionMetadata: apievents.ConnectionMetadata{
 						Protocol:   events.EventProtocolSSH,
 						LocalAddr:  ccx.ServerConn.LocalAddr().String(),
 						RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
 					},
-					ServerMetadata: events.ServerMetadata{
+					ServerMetadata: apievents.ServerMetadata{
 						ServerID:        s.uuid,
 						ServerNamespace: s.GetNamespace(),
 					},
@@ -1166,22 +1167,22 @@ Loop:
 	}
 
 	// Emit a port forwarding event.
-	if err := s.EmitAuditEvent(s.ctx, &events.PortForward{
-		Metadata: events.Metadata{
+	if err := s.EmitAuditEvent(s.ctx, &apievents.PortForward{
+		Metadata: apievents.Metadata{
 			Type: events.PortForwardEvent,
 			Code: events.PortForwardCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			Login:        scx.Identity.Login,
 			User:         scx.Identity.TeleportUser,
 			Impersonator: scx.Identity.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  scx.ServerConn.LocalAddr().String(),
 			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
 		},
 		Addr: scx.DstAddr,
-		Status: events.Status{
+		Status: apievents.Status{
 			Success: true,
 		},
 	}); err != nil {

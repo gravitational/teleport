@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1046,7 +1047,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	process.backend = b
 
-	var emitter events.Emitter
+	var emitter apievents.Emitter
 	var streamer events.Streamer
 	var uploadHandler events.MultipartHandler
 	// create the audit log, which will be consuming (and recording) all events
@@ -1114,7 +1115,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		process.auditLog = localLog
 		if externalLog != nil {
-			externalEmitter, ok := externalLog.(events.Emitter)
+			externalEmitter, ok := externalLog.(apievents.Emitter)
 			if !ok {
 				return trace.BadParameter("expected emitter, but %T does not emit", externalLog)
 			}
@@ -1607,7 +1608,7 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 
 // newAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
 // It is caller's responsibility to call Close on the emitter once done.
-func (process *TeleportProcess) newAsyncEmitter(clt events.Emitter) (*events.AsyncEmitter, error) {
+func (process *TeleportProcess) newAsyncEmitter(clt apievents.Emitter) (*events.AsyncEmitter, error) {
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), clt),
 		Clock: process.Clock,

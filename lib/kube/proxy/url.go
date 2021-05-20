@@ -21,7 +21,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 type apiResource struct {
@@ -137,7 +137,7 @@ func parseResourcePath(p string) apiResource {
 	return r
 }
 
-func (r apiResource) populateEvent(e *events.KubeRequest) {
+func (r apiResource) populateEvent(e *apievents.KubeRequest) {
 	e.ResourceAPIGroup = r.apiGroup
 	e.ResourceNamespace = r.namespace
 	e.ResourceKind = r.resourceKind

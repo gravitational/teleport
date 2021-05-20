@@ -25,8 +25,8 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/constants"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -75,7 +75,7 @@ type SessionContext struct {
 	PID int
 
 	// Emitter is used to record events for a particular session
-	Emitter events.Emitter
+	Emitter apievents.Emitter
 
 	// Events is the set of events (command, disk, or network) to record for
 	// this session.

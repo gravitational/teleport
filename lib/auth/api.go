@@ -21,6 +21,7 @@ import (
 	"io"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -223,12 +224,12 @@ type Wrapper struct {
 }
 
 // ResumeAuditStream resumes existing audit stream
-func (w *Wrapper) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+func (w *Wrapper) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return w.NoCache.ResumeAuditStream(ctx, sid, uploadID)
 }
 
 // CreateAuditStream creates new audit stream
-func (w *Wrapper) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+func (w *Wrapper) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	return w.NoCache.CreateAuditStream(ctx, sid)
 }
 

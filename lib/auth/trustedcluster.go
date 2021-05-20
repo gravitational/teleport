@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -142,16 +143,16 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(ctx, &events.TrustedClusterCreate{
-		Metadata: events.Metadata{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterCreate{
+		Metadata: apievents.Metadata{
 			Type: events.TrustedClusterCreateEvent,
 			Code: events.TrustedClusterCreateCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: trustedCluster.GetName(),
 		},
 	}); err != nil {
@@ -216,16 +217,16 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(ctx, &events.TrustedClusterDelete{
-		Metadata: events.Metadata{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterDelete{
+		Metadata: apievents.Metadata{
 			Type: events.TrustedClusterDeleteEvent,
 			Code: events.TrustedClusterDeleteCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
 	}); err != nil {

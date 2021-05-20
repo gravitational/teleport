@@ -30,10 +30,10 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -261,7 +261,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 		identity:     authContext.Identity.GetIdentity(),
 		checker:      authContext.Checker,
 		clock:        s.cfg.Clock,
-		serverID:     string(teleport.RoleProxy),
+		serverID:     string(types.RoleProxy),
 		authClient:   s.cfg.AuthClient,
 		teleportUser: authContext.Identity.GetIdentity().Username,
 		emitter:      s.cfg.Emitter,

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -35,7 +36,7 @@ import (
 // AsyncEmitterConfig provides parameters for emitter
 type AsyncEmitterConfig struct {
 	// Inner emits events to the underlying store
-	Inner Emitter
+	Inner apievents.Emitter
 	// BufferSize is a default buffer size for emitter
 	BufferSize int
 }
@@ -62,7 +63,7 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 	a := &AsyncEmitter{
 		cancel:   cancel,
 		ctx:      ctx,
-		eventsCh: make(chan AuditEvent, cfg.BufferSize),
+		eventsCh: make(chan apievents.AuditEvent, cfg.BufferSize),
 		cfg:      cfg,
 	}
 	go a.forward()
@@ -73,7 +74,7 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 // events in a separate goroutine without blocking the caller.
 type AsyncEmitter struct {
 	cfg      AsyncEmitterConfig
-	eventsCh chan AuditEvent
+	eventsCh chan apievents.AuditEvent
 	cancel   context.CancelFunc
 	ctx      context.Context
 }
@@ -100,7 +101,7 @@ func (a *AsyncEmitter) forward() {
 
 // EmitAuditEvent emits audit event without blocking the caller. It will start
 // loosing events on buffer overflow, but it never fails.
-func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	select {
 	case a.eventsCh <- event:
 		return nil
@@ -115,7 +116,7 @@ func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) err
 // CheckingEmitterConfig provides parameters for emitter
 type CheckingEmitterConfig struct {
 	// Inner emits events to the underlying store
-	Inner Emitter
+	Inner apievents.Emitter
 	// Clock is a clock interface, used in tests
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
@@ -157,7 +158,7 @@ func (w *CheckingEmitterConfig) CheckAndSetDefaults() error {
 }
 
 // EmitAuditEvent emits audit event
-func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	if err := checkAndSetEventFields(event, r.Clock, r.UIDGenerator, r.ClusterName); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event.")
 		AuditFailedEmit.Inc()
@@ -176,7 +177,7 @@ func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) 
 //
 // This method is a "final stop" for various audit log implementations for
 // updating event fields before it gets persisted in the backend.
-func checkAndSetEventFields(event AuditEvent, clock clockwork.Clock, uid utils.UID, clusterName string) error {
+func checkAndSetEventFields(event apievents.AuditEvent, clock clockwork.Clock, uid utils.UID, clusterName string) error {
 	if event.GetType() == "" {
 		return trace.BadParameter("missing mandatory event type field")
 	}
@@ -205,7 +206,7 @@ func (*DiscardStream) Write(p []byte) (n int, err error) {
 }
 
 // Status returns a channel that always blocks
-func (*DiscardStream) Status() <-chan StreamStatus {
+func (*DiscardStream) Status() <-chan apievents.StreamStatus {
 	return nil
 }
 
@@ -227,7 +228,7 @@ func (*DiscardStream) Complete(ctx context.Context) error {
 }
 
 // EmitAuditEvent discards audit event
-func (*DiscardStream) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	log.Debugf("Dicarding stream event: %v", event)
 	return nil
 }
@@ -242,18 +243,18 @@ type DiscardEmitter struct {
 }
 
 // EmitAuditEvent discards audit event
-func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	log.Debugf("Dicarding event: %v", event)
 	return nil
 }
 
 // CreateAuditStream creates a stream that discards all events
-func (*DiscardEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (Stream, error) {
+func (*DiscardEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	return &DiscardStream{}, nil
 }
 
 // ResumeAuditStream resumes a stream that discards all events
-func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error) {
+func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return &DiscardStream{}, nil
 }
 
@@ -280,7 +281,7 @@ func (w *WriterEmitter) Close() error {
 }
 
 // EmitAuditEvent writes the event to the writer
-func (w *WriterEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (w *WriterEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	// line is the text to be logged
 	line, err := utils.FastMarshal(event)
 	if err != nil {
@@ -302,7 +303,7 @@ type LoggingEmitter struct {
 
 // EmitAuditEvent logs audit event, skips session print events
 // and session disk events, because they are very verbose
-func (*LoggingEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (*LoggingEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	switch event.GetType() {
 	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, "":
 		return nil
@@ -326,7 +327,7 @@ func (*LoggingEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) err
 
 // NewMultiEmitter returns emitter that writes
 // events to all emitters
-func NewMultiEmitter(emitters ...Emitter) *MultiEmitter {
+func NewMultiEmitter(emitters ...apievents.Emitter) *MultiEmitter {
 	return &MultiEmitter{
 		emitters: emitters,
 	}
@@ -334,11 +335,11 @@ func NewMultiEmitter(emitters ...Emitter) *MultiEmitter {
 
 // MultiEmitter writes audit events to multiple emitters
 type MultiEmitter struct {
-	emitters []Emitter
+	emitters []apievents.Emitter
 }
 
 // EmitAuditEvent emits audit event to all emitters
-func (m *MultiEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (m *MultiEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	var errors []error
 	for i := range m.emitters {
 		err := m.emitters[i].EmitAuditEvent(ctx, event)
@@ -352,7 +353,7 @@ func (m *MultiEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) err
 // StreamerAndEmitter combines streamer and emitter to create stream emitter
 type StreamerAndEmitter struct {
 	Streamer
-	Emitter
+	apievents.Emitter
 }
 
 // CheckingStreamerConfig provides parameters for streamer
@@ -368,7 +369,7 @@ type CheckingStreamerConfig struct {
 }
 
 // NewCheckingStream wraps stream and makes sure event UIDs and timing are in place
-func NewCheckingStream(stream Stream, clock clockwork.Clock, clusterName string) Stream {
+func NewCheckingStream(stream apievents.Stream, clock clockwork.Clock, clusterName string) apievents.Stream {
 	return &CheckingStream{
 		stream:       stream,
 		clock:        clock,
@@ -395,7 +396,7 @@ type CheckingStreamer struct {
 }
 
 // CreateAuditStream creates audit event stream
-func (s *CheckingStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (Stream, error) {
+func (s *CheckingStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	stream, err := s.Inner.CreateAuditStream(ctx, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -409,7 +410,7 @@ func (s *CheckingStreamer) CreateAuditStream(ctx context.Context, sid session.ID
 }
 
 // ResumeAuditStream resumes audit event stream
-func (s *CheckingStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error) {
+func (s *CheckingStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	stream, err := s.Inner.ResumeAuditStream(ctx, sid, uploadID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -441,7 +442,7 @@ func (w *CheckingStreamerConfig) CheckAndSetDefaults() error {
 
 // CheckingStream verifies every event
 type CheckingStream struct {
-	stream       Stream
+	stream       apievents.Stream
 	clock        clockwork.Clock
 	uidGenerator utils.UID
 	clusterName  string
@@ -461,7 +462,7 @@ func (s *CheckingStream) Done() <-chan struct{} {
 
 // Status returns channel receiving updates about stream status
 // last event index that was uploaded and upload ID
-func (s *CheckingStream) Status() <-chan StreamStatus {
+func (s *CheckingStream) Status() <-chan apievents.StreamStatus {
 	return s.stream.Status()
 }
 
@@ -471,7 +472,7 @@ func (s *CheckingStream) Complete(ctx context.Context) error {
 }
 
 // EmitAuditEvent emits audit event
-func (s *CheckingStream) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (s *CheckingStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	if err := checkAndSetEventFields(event, s.clock, s.uidGenerator, s.clusterName); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event %v(%v).", event.GetType(), event.GetCode())
 		AuditFailedEmit.Inc()
@@ -487,7 +488,7 @@ func (s *CheckingStream) EmitAuditEvent(ctx context.Context, event AuditEvent) e
 
 // NewTeeStreamer returns a streamer that forwards non print event
 // to emitter in addition to sending them to the stream
-func NewTeeStreamer(streamer Streamer, emitter Emitter) *TeeStreamer {
+func NewTeeStreamer(streamer Streamer, emitter apievents.Emitter) *TeeStreamer {
 	return &TeeStreamer{
 		Emitter:  emitter,
 		streamer: streamer,
@@ -495,7 +496,7 @@ func NewTeeStreamer(streamer Streamer, emitter Emitter) *TeeStreamer {
 }
 
 // CreateAuditStream creates audit event stream
-func (t *TeeStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (Stream, error) {
+func (t *TeeStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	stream, err := t.streamer.CreateAuditStream(ctx, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -504,7 +505,7 @@ func (t *TeeStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (St
 }
 
 // ResumeAuditStream resumes audit event stream
-func (t *TeeStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error) {
+func (t *TeeStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	stream, err := t.streamer.ResumeAuditStream(ctx, sid, uploadID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -515,15 +516,15 @@ func (t *TeeStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, upl
 // TeeStreamer creates streams that forwards non print events
 // to emitter
 type TeeStreamer struct {
-	Emitter
+	apievents.Emitter
 	streamer Streamer
 }
 
 // TeeStream sends non print events to emitter
 // in addition to the stream itself
 type TeeStream struct {
-	emitter Emitter
-	stream  Stream
+	emitter apievents.Emitter
+	stream  apievents.Stream
 }
 
 // Done returns channel closed when streamer is closed
@@ -534,7 +535,7 @@ func (t *TeeStream) Done() <-chan struct{} {
 
 // Status returns channel receiving updates about stream status
 // last event index that was uploaded and upload ID
-func (t *TeeStream) Status() <-chan StreamStatus {
+func (t *TeeStream) Status() <-chan apievents.StreamStatus {
 	return t.stream.Status()
 }
 
@@ -551,7 +552,7 @@ func (t *TeeStream) Complete(ctx context.Context) error {
 
 // EmitAuditEvent emits audit events and forwards session control events
 // to the audit log
-func (t *TeeStream) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (t *TeeStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	var errors []error
 	if err := t.stream.EmitAuditEvent(ctx, event); err != nil {
 		errors = append(errors, err)
@@ -584,11 +585,11 @@ type CallbackStreamerConfig struct {
 	// Inner emits events to the underlying store
 	Inner Streamer
 	// OnCreateAuditStream is called on create audit stream
-	OnCreateAuditStream func(ctx context.Context, sid session.ID, inner Streamer) (Stream, error)
+	OnCreateAuditStream func(ctx context.Context, sid session.ID, inner Streamer) (apievents.Stream, error)
 	// OnResumeAuditStream is called on resuming audit stream
-	OnResumeAuditStream func(ctx context.Context, sid session.ID, uploadID string, inner Streamer) (Stream, error)
+	OnResumeAuditStream func(ctx context.Context, sid session.ID, uploadID string, inner Streamer) (apievents.Stream, error)
 	// OnEmitAuditEvent is called on emit audit event on a stream
-	OnEmitAuditEvent func(ctx context.Context, sid session.ID, event AuditEvent) error
+	OnEmitAuditEvent func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -606,8 +607,8 @@ type CallbackStreamer struct {
 }
 
 // CreateAuditStream creates audit event stream
-func (s *CallbackStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (Stream, error) {
-	var stream Stream
+func (s *CallbackStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	var stream apievents.Stream
 	var err error
 	if s.OnCreateAuditStream != nil {
 		stream, err = s.OnCreateAuditStream(ctx, sid, s.Inner)
@@ -624,8 +625,8 @@ func (s *CallbackStreamer) CreateAuditStream(ctx context.Context, sid session.ID
 }
 
 // ResumeAuditStream resumes audit event stream
-func (s *CallbackStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error) {
-	var stream Stream
+func (s *CallbackStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	var stream apievents.Stream
 	var err error
 	if s.OnResumeAuditStream != nil {
 		stream, err = s.OnResumeAuditStream(ctx, sid, uploadID, s.Inner)
@@ -644,7 +645,7 @@ func (s *CallbackStreamer) ResumeAuditStream(ctx context.Context, sid session.ID
 
 // CallbackStream call
 type CallbackStream struct {
-	stream    Stream
+	stream    apievents.Stream
 	sessionID session.ID
 	streamer  *CallbackStreamer
 }
@@ -663,7 +664,7 @@ func (s *CallbackStream) Done() <-chan struct{} {
 
 // Status returns channel receiving updates about stream status
 // last event index that was uploaded and upload ID
-func (s *CallbackStream) Status() <-chan StreamStatus {
+func (s *CallbackStream) Status() <-chan apievents.StreamStatus {
 	return s.stream.Status()
 }
 
@@ -673,7 +674,7 @@ func (s *CallbackStream) Complete(ctx context.Context) error {
 }
 
 // EmitAuditEvent emits audit event
-func (s *CallbackStream) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (s *CallbackStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	if s.streamer.OnEmitAuditEvent != nil {
 		if err := s.streamer.OnEmitAuditEvent(ctx, s.sessionID, event); err != nil {
 			return trace.Wrap(err)
@@ -699,7 +700,7 @@ type ReportingStreamer struct {
 }
 
 // CreateAuditStream creates audit event stream
-func (s *ReportingStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (Stream, error) {
+func (s *ReportingStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	stream, err := s.streamer.CreateAuditStream(ctx, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -712,7 +713,7 @@ func (s *ReportingStreamer) CreateAuditStream(ctx context.Context, sid session.I
 }
 
 // ResumeAuditStream resumes audit event stream
-func (s *ReportingStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error) {
+func (s *ReportingStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	stream, err := s.streamer.ResumeAuditStream(ctx, sid, uploadID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -726,7 +727,7 @@ func (s *ReportingStreamer) ResumeAuditStream(ctx context.Context, sid session.I
 
 // ReportingStream reports status of uploads to the events channel
 type ReportingStream struct {
-	Stream
+	apievents.Stream
 	sessionID session.ID
 	eventsC   chan UploadEvent
 }

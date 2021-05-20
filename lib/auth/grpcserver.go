@@ -78,12 +78,12 @@ func (g *GRPCServer) GetServer() (*grpc.Server, error) {
 }
 
 // EmitAuditEvent emits audit event
-func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *events.OneOf) (*empty.Empty, error) {
+func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	event, err := events.FromOneOf(*req)
+	event, err := apievents.FromOneOf(*req)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -127,13 +127,13 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 		return trail.ToGRPC(err)
 	}
 
-	var eventStream events.Stream
+	var eventStream apievents.Stream
 	var sessionID session.ID
 	g.Debugf("CreateAuditStream connection from %v.", auth.User.GetName())
 	streamStart := time.Now()
 	processed := int64(0)
 	counter := 0
-	forwardEvents := func(eventStream events.Stream) {
+	forwardEvents := func(eventStream apievents.Stream) {
 		for {
 			select {
 			case <-stream.Context().Done():
@@ -146,7 +146,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 		}
 	}
 
-	closeStream := func(eventStream events.Stream) {
+	closeStream := func(eventStream apievents.Stream) {
 		if err := eventStream.Close(auth.CloseContext()); err != nil {
 			g.WithError(err).Warningf("Failed to flush close the stream.")
 		} else {
@@ -203,13 +203,13 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			if g.APIConfig.MetadataGetter != nil {
 				sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
 				event := &apievents.SessionUpload{
-					Metadata: events.Metadata{
+					Metadata: apievents.Metadata{
 						Type:        events.SessionUploadEvent,
 						Code:        events.SessionUploadCode,
 						Index:       events.SessionUploadIndex,
 						ClusterName: clusterName.GetClusterName(),
 					},
-					SessionMetadata: events.SessionMetadata{
+					SessionMetadata: apievents.SessionMetadata{
 						SessionID: string(sessionData.SessionID),
 					},
 					SessionURL: sessionData.URL,
@@ -234,7 +234,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 				return trail.ToGRPC(
 					trace.BadParameter("stream cannot receive an event without first being created or resumed"))
 			}
-			event, err := events.FromOneOf(*oneof)
+			event, err := apievents.FromOneOf(*oneof)
 			if err != nil {
 				g.WithError(err).Debugf("Failed to decode event.")
 				return trail.ToGRPC(err)
@@ -2562,7 +2562,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest)
 	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {
-		event, err := events.ToOneOf(rawEvent)
+		event, err := apievents.ToOneOf(rawEvent)
 		if err != nil {
 			return nil, trail.ToGRPC(err)
 		}
@@ -2591,7 +2591,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {
-		event, err := events.ToOneOf(rawEvent)
+		event, err := apievents.ToOneOf(rawEvent)
 		if err != nil {
 			return nil, trail.ToGRPC(err)
 		}

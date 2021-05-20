@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
@@ -67,7 +68,7 @@ type AuthHandlerConfig struct {
 	Component string
 
 	// Emitter is event emitter
-	Emitter events.Emitter
+	Emitter apievents.Emitter
 
 	// AccessPoint is used to access the Auth Server.
 	AccessPoint auth.AccessPoint
@@ -158,22 +159,22 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 		userErrorMessage := "port forwarding not allowed"
 
 		// Emit port forward failure event
-		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &events.PortForward{
-			Metadata: events.Metadata{
+		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &apievents.PortForward{
+			Metadata: apievents.Metadata{
 				Type: events.PortForwardEvent,
 				Code: events.PortForwardFailureCode,
 			},
-			UserMetadata: events.UserMetadata{
+			UserMetadata: apievents.UserMetadata{
 				Login:        ctx.Identity.Login,
 				User:         ctx.Identity.TeleportUser,
 				Impersonator: ctx.Identity.Impersonator,
 			},
-			ConnectionMetadata: events.ConnectionMetadata{
+			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  ctx.ServerConn.LocalAddr().String(),
 				RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 			},
 			Addr: addr,
-			Status: events.Status{
+			Status: apievents.Status{
 				Success: false,
 				Error:   systemErrorMessage,
 			},
@@ -224,20 +225,20 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// only failed attempts are logged right now
 	recordFailedLogin := func(err error) {
 		failedLoginCount.Inc()
-		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &events.AuthAttempt{
-			Metadata: events.Metadata{
+		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: events.UserMetadata{
+			UserMetadata: apievents.UserMetadata{
 				Login: conn.User(),
 				User:  teleportUser,
 			},
-			ConnectionMetadata: events.ConnectionMetadata{
+			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
 				RemoteAddr: conn.RemoteAddr().String(),
 			},
-			Status: events.Status{
+			Status: apievents.Status{
 				Success: false,
 				Error:   err.Error(),
 			},

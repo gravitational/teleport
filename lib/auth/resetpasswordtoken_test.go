@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -65,8 +66,8 @@ func TestCreateResetPasswordToken(t *testing.T) {
 
 	event := mockEmitter.LastEvent()
 	require.Equal(t, event.GetType(), events.ResetPasswordTokenCreateEvent)
-	require.Equal(t, event.(*events.ResetPasswordTokenCreate).Name, "joe@example.com")
-	require.Equal(t, event.(*events.ResetPasswordTokenCreate).User, teleport.UserSystem)
+	require.Equal(t, event.(*apievents.ResetPasswordTokenCreate).Name, "joe@example.com")
+	require.Equal(t, event.(*apievents.ResetPasswordTokenCreate).User, teleport.UserSystem)
 
 	// verify that user has no MFA devices
 	devs, err := srv.Auth().GetMFADevices(ctx, username)

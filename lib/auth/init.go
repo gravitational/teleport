@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -156,7 +157,7 @@ type InitConfig struct {
 	CASigningAlg *string
 
 	// Emitter is events emitter, used to submit discrete events
-	Emitter events.Emitter
+	Emitter apievents.Emitter
 
 	// Streamer is events sessionstreamer, used to create continuous
 	// session related streams
