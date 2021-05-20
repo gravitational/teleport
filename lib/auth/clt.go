@@ -1451,22 +1451,6 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 	return retval, nil
 }
 
-// unmarshalEventsResponse extracts weakly typed JSON-style audit events from a HTTP body
-// and converts them into a slice of strongly typed gRPC-style audit events.
-func (c *Client) unmarshalEventsResponse(response *roundtrip.Response) ([]events.AuditEvent, error) {
-	dynEventArr := make([]events.EventFields, 0)
-	if err := json.Unmarshal(response.Bytes(), &dynEventArr); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	eventArr, err := events.FromEventFieldsSlice(dynEventArr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return eventArr, nil
-}
-
 // GetNamespaces returns a list of namespaces
 func (c *Client) GetNamespaces() ([]services.Namespace, error) {
 	out, err := c.Get(c.Endpoint("namespaces"), url.Values{})

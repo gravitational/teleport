@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -725,4 +726,20 @@ func (c *Client) searchSessionEventsFallback(ctx context.Context, fromUTC time.T
 	}
 
 	return eventArr, "", nil
+}
+
+// unmarshalEventsResponse extracts weakly typed JSON-style audit events from a HTTP body
+// and converts them into a slice of strongly typed gRPC-style audit events.
+func (c *Client) unmarshalEventsResponse(response *roundtrip.Response) ([]events.AuditEvent, error) {
+	dynEventArr := make([]events.EventFields, 0)
+	if err := json.Unmarshal(response.Bytes(), &dynEventArr); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	eventArr, err := events.FromEventFieldsSlice(dynEventArr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return eventArr, nil
 }
