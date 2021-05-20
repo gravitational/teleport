@@ -48,6 +48,10 @@ function buildACL(ctx: Ctx) {
   const apps = ctx.features.some(f => f instanceof Features.FeatureApps);
   const nodes = ctx.features.some(f => f instanceof Features.FeatureNodes);
   const audit = ctx.features.some(f => f instanceof Features.FeatureAudit);
+  const kubes = ctx.features.some(f => f instanceof Features.FeatureKubes);
+  const databases = ctx.features.some(
+    f => f instanceof Features.FeatureDatabases
+  );
   const recordings = ctx.features.some(
     f => f instanceof Features.FeatureRecordings
   );
@@ -57,5 +61,7 @@ function buildACL(ctx: Ctx) {
     audit,
     recordings,
     apps,
+    kubes,
+    databases,
   };
 }

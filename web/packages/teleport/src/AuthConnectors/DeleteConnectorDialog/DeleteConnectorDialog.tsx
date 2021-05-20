@@ -41,11 +41,11 @@ export default function DeleteConnectorDialog(props: Props) {
       onClose={onClose}
       open={true}
     >
-      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
       <DialogHeader>
         <DialogTitle>Remove Connector?</DialogTitle>
       </DialogHeader>
       <DialogContent>
+        {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
         <Text typography="paragraph" mb="6">
           Are you sure you want to delete connector{' '}
           <Text as="span" bold color="primary.contrastText">

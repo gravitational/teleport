@@ -36,11 +36,11 @@ export default function DeleteTrustedClusterDialog(props: Props) {
 
   return (
     <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>
-      {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
       <DialogHeader>
         <DialogTitle>Remove Trusted Cluster?</DialogTitle>
       </DialogHeader>
       <DialogContent width="540px">
+        {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
         <Text typography="paragraph" mb="6">
           Are you sure you want to delete trusted cluster{' '}
           <Text as="span" bold color="primary.contrastText">

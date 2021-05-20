@@ -63,6 +63,8 @@ export function Clusters(props: ReturnType<typeof useClusters>) {
             showAudit: enabledFeatures.audit,
             showRecordings: enabledFeatures.recordings,
             showApps: enabledFeatures.apps,
+            showDatabases: enabledFeatures.databases,
+            showKubes: enabledFeatures.kubes,
           }}
         />
       )}
