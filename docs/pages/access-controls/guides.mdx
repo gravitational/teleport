@@ -5,8 +5,20 @@ description: Detailed guides for configuring Teleport Access Controls
 
 # Guides
 
-- [Dynamic access policies with role templates](./guides/role-templates.mdx)
-- [Create certs for CI/CD using impersonation](./guides/impersonation.mdx)
-- [Second Factor - U2F](./guides/u2f.mdx)
-- [Per-session MFA](./guides/per-session-mfa.mdx)
-- [Dual Authorization with ChatOps](./guides/dual-authz.mdx)
+<TileSet>
+  <Tile icon="lock" title="Dual Authorization" href="./guides/dual-authz.mdx">
+      Dual Authorization for SSH and Kubernetes.
+  </Tile>
+  <Tile icon="lock" title="Teleport Role Templates" href="./guides/role-templates.mdx">
+     Dynamic Access Policies with Role Templates.
+  </Tile>
+  <Tile icon="lock" title="Impersonating Teleport Users" href="./guides/impersonation.mdx">
+    Create certs for CI/CD using impersonation.
+  </Tile>
+  <Tile icon="lock" title="Second Factor - U2F" href="./guides/u2f.mdx">
+    Add Two-Factor Authentication through U2F.
+  </Tile>
+  <Tile icon="lock" title="Per-session MFA" href="./guides/per-session-mfa.mdx">
+    Per-session Multi-Factor Authentication.
+  </Tile>
+</TileSet>

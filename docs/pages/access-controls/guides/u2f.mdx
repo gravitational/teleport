@@ -77,16 +77,16 @@ changes.
 
 ## Register U2F devices as a user
 
-A user can register multiple U2F devices [using
-`tsh`](../../cli-docs.mdx#tsh-mfa-add):
+A user can register multiple U2F devices [using `tsh`](../../cli-docs.mdx#tsh-mfa-add):
 
 ```bash
-$ tsh mfa add
-Choose device type [TOTP, U2F]: u2f
-Enter device name: desktop yubikey
-Tap any *registered* security key
-Tap your *new* security key
-MFA device "desktop yubikey" added.
+tsh mfa add
+
+# Choose device type [TOTP, U2F]: u2f
+# Enter device name: desktop yubikey
+# Tap any *registered* security key
+# Tap your *new* security key
+# MFA device "desktop yubikey" added.
 ```
 
 <Admonition type="warning" title="Windows support">
@@ -98,17 +98,18 @@ MFA device "desktop yubikey" added.
 Once a U2F device is registered, the user will be prompted for it on login:
 
 ```sh
-$ tsh login --proxy=example.com
-Enter password for Teleport user awly:
-Tap any security key <tap U2F token>
-> Profile URL:        https://example.com
-  Logged in as:       awly
-  Cluster:            example.com
-  Roles:              admin*
-  Logins:             awly
-  Kubernetes:         enabled
-  Valid until:        2021-04-01 23:32:29 -0700 PDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+tsh login --proxy=example.com
+
+# Enter password for Teleport user awly:
+# Tap any security key <tap U2F token>
+# > Profile URL:        https://example.com
+#   Logged in as:       awly
+#   Cluster:            example.com
+#   Roles:              admin*
+#   Logins:             awly
+#   Kubernetes:         enabled
+#   Valid until:        2021-04-01 23:32:29 -0700 PDT [valid for 12h0m0s]
+#   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
 <Admonition type="note">

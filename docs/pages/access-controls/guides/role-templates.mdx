@@ -22,19 +22,24 @@ Let's explore how Teleport's role templates provide a way to describe these and 
 - Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
 - [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
 
+<Admonition type="warning" title="Warning">
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
+</Admonition>
+
 Verify that your Teleport client is connected:
 
 ```bash
-$ tctl status
-Cluster  acme.example.com
-Version  6.0.2
-Host CA  never updated
-User CA  never updated
-Jwt CA   never updated
-CA pin   sha256:e63c7c44be468d37a5b0276b70e9d10b17f24f4be19d6b579810fc94eaa31783
+sudo tctl status
+
+# Cluster  acme.example.com
+# Version  6.0.2
+# Host CA  never updated
+# User CA  never updated
+# Jwt CA   never updated
+# CA pin   sha256:e63c7c44be468d37a5b0276b70e9d10b17f24f4be19d6b579810fc94eaa31783
 ```
 
-## Local Users
+## Local ysers
 
 Imagine you have two users, Alice and Bob. We would like to set the following
 access policies:
@@ -75,9 +80,9 @@ spec:
 You can create roles and invite Alice and Bob as local users:
 
 ```bash
-$ tctl create -f roles.yaml
-$ tctl users add alice --roles=alice
-$ tctl users add bob --roles=bob
+sudo tctl create -f roles.yaml
+sudo tctl users add alice --roles=alice
+sudo tctl users add bob --roles=bob
 ```
 
 Having one role per user is not going to scale well. Because the roles
@@ -110,7 +115,7 @@ traits `logins` and `kubernetes_groups`.
 Use `tctl` to create a role template:
 
 ```bash
-$ tctl create -f ~/scripts/access-controls/devs.yaml
+sudo tctl create -f ~/scripts/access-controls/devs.yaml
 ```
 
 The last step is to update Alice's and Bob's users with traits. Here is an example
@@ -141,28 +146,28 @@ spec:
 Update both user's entries with `tctl create -f` command:
 
 ```bash
-$ tctl create -f traits.yaml 
-user "alice" has been updated
+sudo tctl create -f traits.yaml 
+# user "alice" has been updated
 ```
 
 Once Alice logs in, she will receive SSH and X.509 certificates with
 a new role and SSH logins and Kubernetes groups set:
 
 ```bash
-$ tsh login --proxy=teleport.example.com:443 --user=alice
+tsh login --proxy=teleport.example.com:443 --user=alice
 
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       alice
-  Cluster:            teleport.example.com
-  Roles:              devs*
-  Logins:             admin
-  Kubernetes:         enabled
-  Kubernetes groups:  edit
-  Valid until:        2021-03-26 07:13:57 -0700 PDT [valid for 12h0m0s]
-  Extensions:         permit-port-forwarding, permit-pty
+# > Profile URL:        https://teleport.example.com:443
+#   Logged in as:       alice
+#   Cluster:            teleport.example.com
+#   Roles:              devs*
+#   Logins:             admin
+#   Kubernetes:         enabled
+#   Kubernetes groups:  edit
+#   Valid until:        2021-03-26 07:13:57 -0700 PDT [valid for 12h0m0s]
+#   Extensions:         permit-port-forwarding, permit-pty
 ```
 
-## SSO Users
+## SSO users
 
 Identity provider admins can assign metadata to a user, such as
 group membership or access permissions. Administrators configure what metadata
@@ -206,13 +211,13 @@ metadata:
 spec:
   # Client ID of Github OAuth app
   client_id: client-id
-  # client secret of Github OAuth app
+  # Client secret of Github OAuth app
   client_secret: secret-data-here
-  # connector display name that will be shown on web UI login screen
+  # cCnnector display name that will be shown on web UI login screen
   display: Github
-  # callback URL that will be called after successful authentication
+  # Callback URL that will be called after successful authentication
   redirect_url: https://teleport.example.com/v1/webapi/github/callback
-  # mapping of org/team memberships onto allowed logins and roles
+  # Mapping of org/team memberships onto allowed logins and roles
   teams_to_logins:
     - organization: octocats # Github organization name
       team: cyber # Github team name within that organization
@@ -224,24 +229,24 @@ spec:
 Create this connector using `tctl`:
 
 ```bash
-$ tctl create -f github.yaml
+sudo tctl create -f github.yaml
 ```
 
 Once Bob logs in using SSO, he will receive SSH and X.509 certificates with
 a new role and SSH logins generated using `sso-users` role template:
 
 ```bash
-$ tsh login --proxy=teleport.example.com:443 --auth=github
+tsh login --proxy=teleport.example.com:443 --auth=github
 
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       bob
-  Cluster:            teleport.example.com
-  Roles:              sso-users*
-  Logins:             bob
-  Kubernetes:         enabled
-  Kubernetes groups:  edit
-  Valid until:        2021-03-26 07:13:57 -0700 PDT [valid for 12h0m0s]
-  Extensions:         permit-port-forwarding, permit-pty
+# > Profile URL:        https://teleport.example.com:443
+#   Logged in as:       bob
+#   Cluster:            teleport.example.com
+#   Roles:              sso-users*
+#   Logins:             bob
+#   Kubernetes:         enabled
+#   Kubernetes groups:  edit
+#   Valid until:        2021-03-26 07:13:57 -0700 PDT [valid for 12h0m0s]
+#   Extensions:         permit-port-forwarding, permit-pty
 ```
 
 ## Interpolation rules

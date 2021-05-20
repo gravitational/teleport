@@ -8,26 +8,14 @@ h1: Access Controls for SSH, Kubernetes, Databases and Web Apps
 
 Here are examples of access policies you can define with Teleport:
 
-- Analytics team members can SSH into the MongoDB read replica, but not main database.
+- Analytics team members can SSH into the MongoDB read replica, but not the main database.
 - Interns can't access production databases.
-- Devops can access production server only when using a registered U2F hardware token.
-- Members of my team can access prod Kubernetes cluster if approved by someone else from the team.
+- Devops can access the production server only when using a registered U2F hardware token.
+- Members of my team can access the production Kubernetes cluster if approved by someone else from the team.
 
-RBAC is almost always used in conjunction with Single Sign-On, Github in OSS and OIDC or SAML in Enterprise
-editions. It also works with users stored in Teleport's internal database.
+Role-Based Access Control (RBAC) is almost always used in conjunction with Single Sign-On (SSO), Github (in the Teleport Open Source Edition), and OIDC or SAML (in the Teleport Enterprise editions).
 
-### How does it work?
-
-Let's assume a company is using [Okta](https://www.okta.com/) to authenticate users and place
-them into groups. A typical deployment of Teleport in this scenario
-would look like this:
-
-1. Configure Teleport to use existing user identities stored in Okta.
-2. Okta would have users placed in certain groups, perhaps "developers", "admins", "contractors", etc.
-3. Teleport would have certain *Teleport roles* defined. For example: "developers" and "admins".
-4. Mappings would connect the Okta groups (SAML assertions) to the Teleport roles.
-   Every Teleport user will be assigned a *Teleport role* based on their Okta
-   group membership.
+It also works with users stored in Teleport's internal database.
 
 ## Getting Started
 
@@ -36,7 +24,33 @@ guide.
 
 ## Guides
 
-- [Dynamic Access Policies with Role Templates](./guides/role-templates.mdx)
-- [Create certs for CI/CD using impersonation](./guides/impersonation.mdx)
-- [Second Factor - U2F](./guides/u2f.mdx)
-- [Per-session MFA](./guides/per-session-mfa.mdx)
+<TileSet>
+  <Tile icon="lock" title="Dual Authorization" href="./guides/dual-authz.mdx">
+      Dual Authorization for SSH and Kubernetes.
+  </Tile>
+  <Tile icon="lock" title="Teleport Role Templates" href="./guides/role-templates.mdx">
+     Dynamic Access Policies with Role Templates.
+  </Tile>
+  <Tile icon="lock" title="Impersonating Teleport Users" href="./guides/impersonation.mdx">
+    Create certs for CI/CD using impersonation.
+  </Tile>
+  <Tile icon="lock" title="Second Factor - U2F" href="./guides/u2f.mdx">
+    Add Two-Factor Authentication through U2F.
+  </Tile>
+  <Tile icon="lock" title="Per-session MFA" href="./guides/per-session-mfa.mdx">
+    Per-session Multi-Factor Authentication.
+  </Tile>
+</TileSet>
+
+## How does it work?
+
+Consider a company using [Okta](https://www.okta.com/) to authenticate users and place
+them into groups. A typical deployment of Teleport in this scenario
+would involve:
+
+1. Configuring Teleport to use existing user identities stored in Okta.
+2. Okta would have users placed in certain groups, perhaps `developers`, `admins`, `contractors`, and so on.
+3. Teleport would have certain Teleport *Roles* defined: `developers` and `admins`.
+4. Mappings would connect the Okta groups (SAML assertions) to the defined Teleport roles.
+
+Every Teleport user will be assigned a Teleport role based on their Okta group membership.
