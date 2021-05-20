@@ -526,15 +526,14 @@ func (s *remoteSite) DialAuthServer() (net.Conn, error) {
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
 func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
-	clusterConfig, err := s.localAccessPoint.GetClusterConfig()
+	recConfig, err := s.localAccessPoint.GetSessionRecordingConfig(s.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// If the proxy is in recording mode and a SSH connection is being requested,
 	// use the agent to dial and build an in-memory forwarding server.
-	if params.ConnType == services.NodeTunnel &&
-		services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
+	if params.ConnType == services.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
 		return s.dialWithAgent(params)
 	}
 	return s.DialTCP(params)

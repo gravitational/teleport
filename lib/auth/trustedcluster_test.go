@@ -109,6 +109,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	require.NoError(t, err)
 	t.Cleanup(func() { a.Close() })
 	require.NoError(t, a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
+	require.NoError(t, a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 	require.NoError(t, a.SetClusterConfig(services.DefaultClusterConfig()))
 
 	return a
