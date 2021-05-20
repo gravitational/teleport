@@ -1455,10 +1455,12 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
 	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
 	if err != nil {
-		log.WithError(err).Debug(
-			`Attempted to call SearchEvents over gRPC but received error,
-falling back to legacy API`)
-		return c.searchEventsFallback(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+		if trace.IsNotImplemented(err) {
+			log.WithError(err).Debug("Attempted to call SearchEvents over gRPC but received a notImplemented error, falling back to legacy API.")
+			return c.searchEventsFallback(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+		}
+
+		return nil, "", trace.Wrap(err)
 	}
 
 	return events, lastKey, nil
@@ -1468,10 +1470,12 @@ falling back to legacy API`)
 func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
 	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, startKey)
 	if err != nil {
-		log.WithError(err).Debug(
-			`Attempted to call SearchSessionEvents over gRPC but received error,
-falling back to legacy API`)
-		return c.searchSessionEventsFallback(context.TODO(), fromUTC, toUTC, limit, startKey)
+		if trace.IsNotImplemented(err) {
+			log.WithError(err).Debug("Attempted to call SearchSessionEvents over gRPC but received a notImplemented error, falling back to legacy API.")
+			return c.searchSessionEventsFallback(context.TODO(), fromUTC, toUTC, limit, startKey)
+		}
+
+		return nil, "", trace.Wrap(err)
 	}
 
 	return events, lastKey, nil
