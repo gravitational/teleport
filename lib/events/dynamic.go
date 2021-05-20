@@ -351,6 +351,20 @@ func FromEventFields(fields EventFields) (AuditEvent, error) {
 	}
 }
 
+// FromEventFieldsSlice converts a slice of the weakly typed `EventFields`
+// to a slice of the strongly typed `AuditEvent`.
+func FromEventFieldsSlice(fields []EventFields) ([]AuditEvent, error) {
+	eventArr := make([]AuditEvent, 0, len(fields))
+	for _, dynEvent := range fields {
+		event, err := FromEventFields(dynEvent)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		eventArr = append(eventArr, event)
+	}
+	return eventArr, nil
+}
+
 // GetSessionID pulls the session ID from the events that have a
 // SessionMetadata. For other events an empty string is returned.
 func GetSessionID(event AuditEvent) string {
