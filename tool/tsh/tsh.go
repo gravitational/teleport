@@ -618,6 +618,11 @@ func Run(args []string, opts ...cliOption) error {
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
 	}
+
+	if trace.IsNotImplemented(err) {
+		return handleUnimplementedError(ctx, err, cf)
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -1980,21 +1985,29 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 func onStatus(cf *CLIConf) error {
 	// Get the status of the active profile as well as the status
 	// of any other proxies the user is logged into.
+	//
+	// Return error if not logged in, no active profile, or expired.
 	profile, profiles, err := client.Status("", cf.Proxy)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			fmt.Printf("Not logged in.\n")
-			return nil
-		}
 		return trace.Wrap(err)
 	}
+
 	printProfiles(cf.Debug, profile, profiles)
+
+	if profile == nil {
+		return trace.NotFound("Not logged in.")
+	}
+
+	duration := time.Until(profile.ValidUntil)
+	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
+		return trace.NotFound("Active profile expired.")
+	}
+
 	return nil
 }
 
 func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
 	if profile == nil && len(profiles) == 0 {
-		fmt.Printf("Not logged in.\n")
 		return
 	}
 
@@ -2178,3 +2191,21 @@ func readClusterFlag(cf *CLIConf, fn envGetter) {
 // envGetter is used to read in the environment. In production "os.Getenv"
 // is used.
 type envGetter func(string) string
+
+func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error {
+	const (
+		errMsgFormat         = "This server does not implement this feature yet. Likely the client version you are using is newer than the server. The server version: %v, the client version: %v. Please upgrade the server."
+		unknownServerVersion = "unknown"
+	)
+	tc, err := makeClient(&cf, false)
+	if err != nil {
+		log.WithError(err).Warning("Failed to create client.")
+		return trace.WrapWithMessage(perr, errMsgFormat, unknownServerVersion, teleport.Version)
+	}
+	pr, err := tc.Ping(ctx)
+	if err != nil {
+		log.WithError(err).Warning("Failed to call ping.")
+		return trace.WrapWithMessage(perr, errMsgFormat, unknownServerVersion, teleport.Version)
+	}
+	return trace.WrapWithMessage(perr, errMsgFormat, pr.ServerVersion, teleport.Version)
+}

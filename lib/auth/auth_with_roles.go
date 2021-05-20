@@ -1996,22 +1996,6 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
 }
 
-func (a *ServerWithRoles) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {
-	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.alog.SearchEvents(from, to, query, limit)
-}
-
-func (a *ServerWithRoles) SearchSessionEvents(from, to time.Time, limit int) ([]events.EventFields, error) {
-	if err := a.action(defaults.Namespace, services.KindSession, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.alog.SearchSessionEvents(from, to, limit)
-}
-
 // GetNamespaces returns a list of namespaces
 func (a *ServerWithRoles) GetNamespaces() ([]services.Namespace, error) {
 	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbList); err != nil {
@@ -2226,6 +2210,7 @@ func (a *ServerWithRoles) SetStaticTokens(s services.StaticTokens) error {
 	return a.authServer.SetStaticTokens(s)
 }
 
+// GetAuthPreference gets cluster auth preference.
 func (a *ServerWithRoles) GetAuthPreference() (services.AuthPreference, error) {
 	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -2234,6 +2219,7 @@ func (a *ServerWithRoles) GetAuthPreference() (services.AuthPreference, error) {
 	return a.authServer.GetAuthPreference()
 }
 
+// SetAuthPreference sets cluster auth preference.
 func (a *ServerWithRoles) SetAuthPreference(newAuthPref services.AuthPreference) error {
 	storedAuthPref, err := a.authServer.GetAuthPreference()
 	if err != nil {
@@ -2247,6 +2233,23 @@ func (a *ServerWithRoles) SetAuthPreference(newAuthPref services.AuthPreference)
 	}
 
 	return a.authServer.SetAuthPreference(newAuthPref)
+}
+
+// ResetAuthPreference resets cluster auth preference to defaults.
+func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
+	storedAuthPref, err := a.authServer.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if storedAuthPref.Origin() == types.OriginConfigFile {
+		return trace.BadParameter("config-file configuration cannot be reset")
+	}
+
+	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SetAuthPreference(types.DefaultAuthPreference())
 }
 
 // DeleteAuthPreference not implemented: can only be called locally.
@@ -2264,10 +2267,10 @@ func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts .
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
 func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
-	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbCreate); err != nil {
+	if err := a.action(defaults.Namespace, types.KindClusterNetworkingConfig, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbUpdate); err != nil {
+	if err := a.action(defaults.Namespace, types.KindClusterNetworkingConfig, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.SetClusterNetworkingConfig(ctx, netConfig)
@@ -2275,6 +2278,30 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, netCon
 
 // DeleteClusterNetworkingConfig not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteClusterNetworkingConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	if err := a.action(defaults.Namespace, types.KindSessionRecordingConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetSessionRecordingConfig(ctx, opts...)
+}
+
+// SetSessionRecordingConfig sets session recording configuration.
+func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
+	if err := a.action(defaults.Namespace, types.KindSessionRecordingConfig, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, types.KindSessionRecordingConfig, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetSessionRecordingConfig(ctx, recConfig)
+}
+
+// DeleteSessionRecordingConfig not implemented: can only be called locally.
+func (a *ServerWithRoles) DeleteSessionRecordingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -2912,6 +2939,34 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
 	}
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
+}
+
+// SearchEvents allows searching audit events with pagination support.
+func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []events.AuditEvent, lastKey string, err error) {
+	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	events, lastKey, err = a.alog.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
+}
+
+// SearchSessionEvents allows searching session audit events with pagination support.
+func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []events.AuditEvent, lastKey string, err error) {
+	if err := a.action(defaults.Namespace, services.KindSession, services.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,
