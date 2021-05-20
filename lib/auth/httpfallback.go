@@ -675,7 +675,7 @@ func (c *Client) searchEventsFallback(ctx context.Context, fromUTC, toUTC time.T
 // DELETE IN 7.0
 func (c *Client) searchSessionEventsFallback(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
 	if startKey != "" {
-		return nil, "", trace.BadParameter(`HTTP fallback API for SearchEvents does not support "startKey"`)
+		return nil, "", trace.BadParameter(`HTTP fallback API for SearchSessionEvents does not support "startKey"`)
 	}
 
 	query := url.Values{
