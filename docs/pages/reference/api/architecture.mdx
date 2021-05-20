@@ -20,9 +20,13 @@ as well as carefully control client permissions.
 For example, if your client needs to use `client.GetRole()`, the user must have permission to perform the `read` 
 action on the `role` resource. You should create a user and role with the minimum permissions required.
 
+<Admonition type="warning" title="Warning">
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
+</Admonition>
+
 ```bash
 # Copy and Paste the below and run on the Teleport Auth server.
-cat > api-role.yaml <<EOF
+sudo cat > api-role.yaml <<EOF
 kind: role
 metadata:
   name: api-role
@@ -37,9 +41,9 @@ spec:
 version: v3
 EOF
 # Create role
-tctl create -f api-role.yaml
+sudo tctl create -f api-role.yaml
 # Add user and login via web proxy
-tctl users add api-user --roles=api-role
+sudo tctl users add api-user --roles=api-role
 ```
 
 See our [roles](../../access-controls/reference.mdx#roles) documentation for more details

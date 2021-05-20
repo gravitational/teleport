@@ -25,6 +25,10 @@ the following services.
 
 ### teleport start
 
+<Admonition type="warning" title="Warning">
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
+</Admonition>
+
 #### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
@@ -74,25 +78,47 @@ sudo teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080
 
 ### teleport status
 
-`teleport status` shows the status of a Teleport connection. This command is
-only available from inside of a recorded SSH session.
+Shows the status of a Teleport connection:
+
+```bash
+teleport status
+```
+
+This command is only available from inside of a recorded SSH session.
 
 ### teleport configure
 
-`teleport configure` dumps a **sample** configuration file in YAML format into
-standard output.
+Dumps a **sample** configuration file in YAML format into
+standard output:
+
+```bash
+teleport configure
+```
 
 **Caution**: This sample config is *not* the default config and should be used
 for reference only. {/* TODO Link to Config Doc */}
 
 ### teleport version
 
-`teleport version` shows the release version
+Shows the release version:
+
+```bash
+teleport version
+```
 
 ### teleport help
 
-`teleport help` shows help `teleport` and its subcommands like this
-`teleport help <subcommand>`
+Displays help options for `teleport`:
+
+```bash
+teleport help
+```
+
+And, for its subcommands:
+
+```bash
+teleport help <subcommand>
+```
 
 ## tsh
 
@@ -118,27 +144,33 @@ information about the cluster.
 
 ### tsh help
 
-Prints help
+Prints help:
 
-**Usage** `tsh help`
+```bash
+tsh help
+```
 
 ### tsh version
 
-Prints client version
+Prints client version:
 
-**Usage** `tsh version`
+```bash
+tsh version
+```
 
 ### tsh ssh
 
-Run shell or execute a command on a remote SSH node
+Run shell or execute a command on a remote SSH node:
 
-**Usage**: `tsh ssh [<flags>] <[user@]host> [<command>...]`
+```bash
+tsh ssh [<flags>] <[user@]host> [<command>...]
+```
 
 #### Arguments
 
 `<[user@]host> [<command>...]`
 
-- `user` The login identity to use on the remote host. If `[user]` is not specified the user defaults to `$USER` or can be set with `--user` . If the flag `--user`
+- `user` The login identity to use on the remote host. If `[user]` is not specified the user defaults to `$USER` or can be set with `--user`. If the flag `--user`
   and positional argument `[user]` are specified the arg `[user]` takes precedence.
 - `host` A `nodename` of a cluster node or a
 - `command` The command to execute on a remote host.
@@ -166,7 +198,7 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
 
-```
+```bash
 # Log in to node `grav-00` as OS User `root` with Teleport User `teleport`
 sudo tsh ssh --proxy proxy.example.com --user teleport -d root@grav-00
 # `tsh ssh` takes the same arguments as OpenSSH client:
@@ -176,21 +208,25 @@ sudo tsh ssh -o AddKeysToAgent=yes root@grav-00
 
 ### tsh apps ls
 
-List all available applications
+List all available applications:
 
-**Usage**: `tsh apps ls`
+```bash
+tsh apps ls
+```
 
 ### tsh join
 
-Joins an active session
+Joins an active session:
 
-**Usage**: `tsh join [<flags>] <session-id>`
+```bash
+tsh join [<flags>] <session-id>
+```
 
 #### Arguments
 
 `<session-id>`
 
-- `session-id` The UUID of the an active Teleport Session obtained by `teleport status` within
+- `session-id` The UUID of an active Teleport Session obtained by `teleport status` within
   the session.
 
 #### Flags
@@ -206,21 +242,23 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
 
-```
+```bash
 tsh --proxy proxy.example.com join <session-id>
 ```
 
 ### tsh play
 
-Plays back a prior session
+Plays back a prior session:
 
-**Usage**: `tsh play [<flags>] <session-id>`
+```bash
+tsh play [<flags>] <session-id>
+```
 
 #### Arguments
 
 `<session-id>`
 
-- `session-id` The UUID of the a past Teleport Session obtained by `teleport status` within
+- `session-id` The UUID of a past Teleport Session obtained by `teleport status` within
   the session or from the Web UI.
 
 #### Flags
@@ -236,15 +274,17 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
 
-```
+```bash
 tsh --proxy proxy.example.com play <session-id>
 ```
 
 ### tsh scp
 
-Copies files from source to dest
+Copies files from source to dest:
 
-**Usage** `usage: tsh scp [<flags>] <source>... <dest>`
+```bash
+tsh scp [<flags>] <source>... <dest>
+```
 
 {/* TODO Confirm which flags are supported and whether supports multiple sources */}
 
@@ -275,9 +315,11 @@ sudo tsh --proxy=proxy.example.com scp -P example.txt user@host/destination/dir
 
 ### tsh ls
 
-List cluster nodes
+List cluster nodes:
 
-**Usage** `usage: tsh ls [<flags>] [<label>]`
+```bash
+tsh ls [<flags>] [<label>]
+```
 
 {/* TODO: label? or labels? seems like it only supports one label at a time */}
 
@@ -321,9 +363,11 @@ tsh ls os=osx
 
 ### tsh kube ls
 
-List Kubernetes Clusters
+List Kubernetes clusters:
 
-**Usage** `usage: tsh kube ls`
+```bash
+tsh kube ls
+```
 
 #### Examples
 
@@ -337,7 +381,9 @@ tsh kube ls
 
 ### tsh clusters
 
-**Usage**: `tsh clusters [<flags>]`
+```bash
+tsh clusters [<flags>]
+```
 
 #### Flags
 
@@ -369,7 +415,9 @@ Logs in to the cluster. When `tsh` logs in, the auto-expiring key is stored in
 `~/.tsh` and is valid for 12 hours by default unless you specify another
 interval via `--ttl` flag (capped by the server-side configuration).
 
-**Usage**: `tsh login [<flags>] [<cluster>]`
+```bash
+tsh login [<flags>] [<cluster>]
+```
 
 #### Arguments
 
@@ -433,9 +481,11 @@ tsh login --proxy=proxy.example.com --request-reason="I need to run a debug scri
 
 ### tsh kube login
 
-Log into a Kubernetes cluster. Discover connected clusters by using [`tsh kube ls`](cli-docs.mdx#tsh-kube-ls)
+Log into a Kubernetes cluster. Discover connected clusters by using [`tsh kube ls`](cli-docs.mdx#tsh-kube-ls).
 
-**Usage**: `tsh kube login <kube-cluster>`
+```bash
+tsh kube login <kube-cluster>
+```
 
 ```bash
 # tsh kube login to k8s cluster (gke_bens-demos_us-central1-c_gks-demo)
@@ -455,15 +505,19 @@ sudo kubectl config get-contexts
 
 ### tsh logout
 
-Deletes the client's cluster certificate
+Deletes the client's cluster certificate:
 
-**Usage**: `tsh logout`
+```bash
+tsh logout
+```
 
 ### tsh status
 
-Display the list of proxy servers and retrieved certificates
+Display the list of proxy servers and retrieved certificates:
 
-**Usage**: `tsh status`
+```bash
+tsh status
+```
 
 #### Examples
 
@@ -484,15 +538,19 @@ tsh status
 
 ### tsh mfa ls
 
-List all registered Multi-Factor Authentication (MFA) devices.
+List all registered Multi-Factor Authentication (MFA) devices:
 
-**Usage**: `tsh mfa ls`
+```bash
+tsh mfa ls
+```
 
 ### tsh mfa add
 
-Register a new Multi-Factor Authentication (MFA) device.
+Register a new Multi-Factor Authentication (MFA) device:
 
-**Usage**: `tsh mfa add`
+```bash
+tsh mfa add
+```
 
 #### Examples
 
@@ -527,7 +585,9 @@ MFA device "android" added.
 Remove a registered Multi-Factor Authentication (MFA) device. You can view your
 registered devices using [`tsh mfa ls`](cli-docs.mdx#tsh-mfa-ls).
 
-**Usage**: `tsh mfa rm <device-name>`
+```bash
+tsh mfa rm <device-name>
+```
 
 ## tctl
 
@@ -559,15 +619,19 @@ tctl tokens add --type=node
 
 ### tctl  help
 
-Shows help.
+Shows help:
 
-**Usage** `tctl help`
+```bash
+sudo tctl help
+```
 
 ### tctl users add
 
-Generates a user invitation token.
+Generates a user invitation token:
 
-**Usage:** `tctl users add [<flags>] <account> [<local-logins>]`
+```bash
+sudo tctl users add [<flags>] <account> [<local-logins>]
+```
 
 #### Arguments
 
@@ -600,11 +664,19 @@ sudo tctl users add joe
 
 ### tctl users ls
 
-Lists all user accounts **Usage:** `tctl users ls [<flags>]`
+Lists all user accounts:
+
+```bash
+sudo tctl users ls [<flags>]
+```
 
 ### tctl users rm
 
-Deletes user accounts **Usage**: `tctl users rm <logins>`
+Deletes user accounts:
+
+```bash
+sudo tctl users rm <logins>
+```
 
 #### Arguments
 
@@ -635,14 +707,18 @@ Reset local user account password and any associated second factor with expiring
 
 ```bash
 # tctl users reset jeff
-User jeff has been reset. Share this URL with the user to complete password reset, link is valid for 8h0m0s:
+User jeff has been reset. Share this URL with the user to complete password reset, the link is valid for 8h0m0s:
 https://teleport.example.com:3080/web/reset/8a4a40bec3a31a28db44fa64c0c70ca3
-# Resets jeff's password and any associated second factor.  Jeff populates the password and confirms token with link.
+# Resets jeff's password and any associated second factor.  Jeff populates the password and confirms the token with the link.
 ```
 
 ### tctl request ls
 
-List of open requests **Usage**: `tctl request ls`
+List of open requests:
+
+```bash
+tctl request ls
+```
 
 #### Examples
 
@@ -655,7 +731,11 @@ sudo tctl request ls
 
 ### tctl request approve
 
-Approve a user's request. **Usage**: `tctl request approve [token]`
+Approve a user's request:
+
+```bash
+sudo tctl request approve [token]
+```
 
 #### Arguments
 
@@ -669,7 +749,11 @@ sudo tctl request approve request-id-1, request-id-2
 
 ### tctl request deny
 
-Denies a user's request. **Usage**: `tctl request deny [token]`
+Denies a user's request:
+
+```bash
+sudo tctl request deny [token]
+```
 
 #### Arguments
 
@@ -683,7 +767,11 @@ sudo tctl request deny request-id-1, request-id-2
 
 ### tctl request rm
 
-Delete a users role request. **Usage**: `tctl request rm [token]`
+Delete a users role request:
+
+```bash
+sudo tctl request rm [token]
+```
 
 #### Arguments
 
@@ -697,9 +785,11 @@ sudo tctl request rm request-id-1
 
 ### tctl nodes add
 
-Generate a node invitation token
+Generate a node invitation token:
 
-**Usage**: `tctl nodes add [<flags>]`
+```bash
+sudo tctl nodes add [<flags>]
+```
 
 #### Flags
 
@@ -711,25 +801,27 @@ Generate a node invitation token
 
 #### [Global Flags](#tctl-global-flags)
 
-These flags are available for all commands `--debug, --config` . Run
+These flags are available for all commands `--debug, --config`. Run
 `tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 #### Examples
 
 ```bash
-# Generates a token which can be used by a node to join the cluster, default ttl is 30 minutes
+# Generates a token that can be used by a node to join the cluster, default ttl is 30 minutes
 sudo tctl nodes add
-# Generates a token which can be used to add an SSH node to the cluster
-# The node will run the proxy service in addition is the node (ssh) service.
+# Generates a token that can be used to add an SSH node to the cluster.
+# The node will run both the proxy service and the node (ssh) service.
 # This token can be used within an hour.
 sudo tctl nodes add --roles=node,proxy --ttl=1h
 ```
 
 ### tctl nodes ls
 
-List all active SSH nodes within the cluster
+List all active SSH nodes within the cluster:
 
-**Usage**: `tctl nodes ls [<flags>]`
+```bash
+sudo tctl nodes ls [<flags>]
+```
 
 #### Flags
 
@@ -744,9 +836,11 @@ These flags are available for all commands `--debug, --config` . Run
 
 ### tctl tokens add
 
-Create an invitation token
+Create an invitation token:
 
-**Usage**: `tctl tokens add --type=TYPE [<flags>]`
+```bash
+sudo tctl tokens add --type=TYPE [<flags>]
+```
 
 #### Flags
 
@@ -779,9 +873,11 @@ sudo tctl tokens add --type=app
 
 ### tctl tokens rm
 
-Delete/revoke an invitation token
+Delete/revoke an invitation token:
 
-**Usage**: `tctl tokens rm [<token>]`
+```bash
+sudo tctl tokens rm [<token>]
+```
 
 #### Arguments
 
@@ -789,9 +885,11 @@ Delete/revoke an invitation token
 
 ### tctl tokens ls
 
-List node and user invitation tokens
+List node and user invitation tokens:
 
-**Usage**: `tctl tokens ls [<flags>]`
+```bash
+sudo tctl tokens ls [<flags>]
+```
 
 #### Example
 
@@ -806,9 +904,11 @@ sudo tctl tokens ls
 
 ### tctl auth export
 
-Export public cluster (CA) keys to stdout
+Export public cluster (CA) keys to stdout:
 
-**Usage**: `tctl auth export [<flags>]`
+```bash
+sudo tctl auth export [<flags>]
+```
 
 #### Flags
 
@@ -821,8 +921,13 @@ Export public cluster (CA) keys to stdout
 
 #### [Global Flags](#tctl-global-flags)
 
-These flags are available for all commands `--debug, --config` . Run
-`tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
+These flags are available for all commands `--debug, --config`. Run:
+
+```bash
+tctl help <subcommand>
+``` 
+
+or see the [Global Flags Section](#tctl-global-flags).
 
 #### Examples
 
@@ -837,9 +942,11 @@ sudo tctl auth export --type tls
 
 ### tctl auth sign
 
-Create an identity file(s) for a given user
+Create an identity file(s) for a given user:
 
-**Usage**: `tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags>]`
+```bash
+sudo tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags>]
+```
 
 #### Flags
 
@@ -859,7 +966,7 @@ Create an identity file(s) for a given user
 
 #### [Global Flags](#tctl-global-flags)
 
-These flags are available for all commands `--debug, --config` . Run
+These flags are available for all commands `--debug, --config`. Run
 `tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 #### Examples
@@ -892,15 +999,17 @@ sudo tctl auth sign --user=admin --out=identity.pem
 
 ### tctl auth rotate
 
-Rotate certificate authorities in the cluster
+Rotate certificate authorities in the cluster:
 
-**Usage**: `tctl auth rotate [<flags>]`
+```bash
+sudo tctl auth rotate [<flags>]
+```
 
 #### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--grace-period` | none | relative duration like 5s, 2m, or 3h | Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to login again and nodes to re-register. |
+| `--grace-period` | none | relative duration like 5s, 2m, or 3h | Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to log in again and nodes to re-register. |
 | `--manual` | none | none | Activate manual rotation, set rotation phases manually |
 | `--type` | `user,host` | `user` or `host` | Certificate authority to rotate |
 | `--phase` | | `init, standby, update_clients, update_servers, rollback` | Target rotation phase to set, used in manual rotation |
@@ -927,7 +1036,9 @@ Create or update a Teleport resource from a YAML file.
 The supported resource types are: user, node, cluster, role, connector.
 See the [Resource Guide](admin-guide.mdx#resources) for complete docs on how to build these yaml files.
 
-**Usage**: `tctl create [<flags>] <filename>`
+```bash
+sudo tctl create [<flags>] <filename>
+```
 
 #### Arguments
 
@@ -941,7 +1052,7 @@ See the [Resource Guide](admin-guide.mdx#resources) for complete docs on how to 
 
 #### [Global Flags](#tctl-global-flags)
 
-These flags are available for all commands `--debug, --config` . Run
+These flags are available for all commands `--debug, --config`. Run
 `tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 #### Examples
@@ -957,9 +1068,11 @@ sudo tctl create -f cluster.yaml
 
 ### tctl rm
 
-Delete a resource
+Delete a resource:
 
-**Usage**: `tctl rm [<resource-type/resource-name>]`
+```bash
+sudo tctl rm [<resource-type/resource-name>]
+```
 
 #### Arguments
 
@@ -979,9 +1092,11 @@ sudo tctl rm users/admin
 
 ### tctl get
 
-Print a YAML declaration of various Teleport resources
+Print a YAML declaration of various Teleport resources:
 
-**Usage**: `tctl get [<flags>] [<resource-type/resource-name>],...`
+```bash
+sudo tctl get [<flags>] [<resource-type/resource-name>],...
+```
 
 #### Arguments
 
@@ -1017,9 +1132,11 @@ sudo tctl get all > state.yaml
 
 ### tctl status
 
-Report cluster status
+Report cluster status:
 
-**Usage** `tctl status`
+```bash
+sudo tctl status
+```
 
 #### Examples
 
@@ -1039,23 +1156,27 @@ Reports diagnostic information.
 
 The diagnostic metrics endpoint must be enabled with `teleport start --diag-addr=<bind-addr>` for `tctl top` to work.
 
-**Usage** `tctl top [<diag-addr>] [<refresh>]`
+```
+sudo tctl top [<diag-addr>] [<refresh>]
+```
 
 #### Argument
 
 - `[<diag-addr>]` Diagnostic HTTP URL (HTTPS not supported)
-- `[<refresh>]` Refresh period e.g.5s, 2m, or 3h
+- `[<refresh>]` Refresh period e.g. `5s`, `2m`, or `3h`
 
 #### Example
 
 ```bash
 sudo teleport start --diag-addr=127.0.0.1:3000
-# View stats with refresh period of 5 seconds
+# View stats with a refresh period of 5 seconds
 sudo tctl top http://127.0.0.1:3000 5s
 ```
 
 ### tctl version
 
-Print cluster version
+Print cluster version:
 
-**Usage:** `tctl version`
+```bash
+sudo tctl version
+```
