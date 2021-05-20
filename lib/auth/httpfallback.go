@@ -637,6 +637,36 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	return re, nil
 }
 
+// SearchEvents allows searching for audit events with pagination support.
+func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			log.WithError(err).Debug("Attempted to call SearchEvents over gRPC but received a notImplemented error, falling back to legacy API.")
+			return c.searchEventsFallback(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+		}
+
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
+}
+
+// SearchSessionEvents returns session related events to find completed sessions.
+func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, startKey)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			log.WithError(err).Debug("Attempted to call SearchSessionEvents over gRPC but received a notImplemented error, falling back to legacy API.")
+			return c.searchSessionEventsFallback(context.TODO(), fromUTC, toUTC, limit, startKey)
+		}
+
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
+}
+
 // searchEventsFallback is a fallback version of SearchEvents that queries the deprecated
 // HTTP API if the auth server is on a version < 6.2.
 //
