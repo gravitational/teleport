@@ -642,6 +642,10 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 //
 // DELETE IN 7.0
 func (c *Client) searchEventsFallback(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	if startKey != "" {
+		return nil, "", trace.BadParameter(`HTTP fallback API for SearchEvents does not support "startKey"`)
+	}
+
 	query := url.Values{
 		"to":    []string{toUTC.Format(time.RFC3339)},
 		"from":  []string{toUTC.Format(time.RFC3339)},
@@ -670,6 +674,10 @@ func (c *Client) searchEventsFallback(ctx context.Context, fromUTC, toUTC time.T
 //
 // DELETE IN 7.0
 func (c *Client) searchSessionEventsFallback(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	if startKey != "" {
+		return nil, "", trace.BadParameter(`HTTP fallback API for SearchEvents does not support "startKey"`)
+	}
+
 	query := url.Values{
 		"to":    []string{toUTC.Format(time.RFC3339)},
 		"from":  []string{toUTC.Format(time.RFC3339)},
