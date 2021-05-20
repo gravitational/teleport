@@ -531,12 +531,15 @@ aws eks update-kubeconfig --name [teleport-cluster] --region us-west-2
 
 #### Creating TLS certificate for Teleport
 
-Create TLS certificate for HTTPs. It is absolutely crucial to properly configure TLS
-for HTTPS when you use Teleport Proxy in production. For simplicity, we are using Let’s
-Encrypt to issue certificates and simple DNS resolution.
+This section walks through configuring Teleport to acquire a TLS (SSL) certificate for HTTPS. 
 
-However, using an Elastic IP and a Route53 domain name would be appropriate for
-production use cases.
+<Admonition type="warning" title="Warning">
+  It's essential to properly configure TLS (SSL) to secure your production resources!
+</Admonition>
+
+While Teleport is fully compatible with third-party ACME clients (such as Let's Encrypt certbot), third-party clients are optional to get started with Teleport on AWS. Teleport will automatically acquire a TLS certificate through the ACME protocol by default to make it easy to get set up.
+
+Some resources, architectures, and scenarios will nevertheless require more sophisticated or flexible configuration options. Perhaps, an ACME client is already being used within a stack and to manage certificates for multiple resources. The steps below will help you configure your Teleport environment to use Let's Encrypt certbot for just such occasions:
 
 Install certbot:
 
