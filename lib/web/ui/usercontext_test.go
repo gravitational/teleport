@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"gopkg.in/check.v1"
@@ -46,6 +47,10 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 			Resources: []string{services.KindTrustedCluster},
 			Verbs:     services.RW(),
 		},
+		{
+			Resources: []string{services.KindBilling},
+			Verbs:     services.RO(),
+		},
 	})
 
 	// set some logins
@@ -54,7 +59,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	role2.SetLogins(services.Allow, []string{"d"})
 
 	roleSet := []services.Role{role1, role2}
-	userContext, err := NewUserContext(user, roleSet)
+	userContext, err := NewUserContext(user, roleSet, proto.Features{})
 	c.Assert(err, check.IsNil)
 
 	allowed := access{true, true, true, true, true}
@@ -77,13 +82,18 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 		Type:   services.RequestStrategyOptional,
 		Prompt: "",
 	})
+	c.Assert(userContext.ACL.Billing, check.DeepEquals, denied)
 
 	// test local auth type
 	c.Assert(userContext.AuthType, check.Equals, authLocal)
 
 	// test sso auth type
 	user.Spec.GithubIdentities = []services.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
-	userContext, err = NewUserContext(user, roleSet)
+	userContext, err = NewUserContext(user, roleSet, proto.Features{})
 	c.Assert(err, check.IsNil)
 	c.Assert(userContext.AuthType, check.Equals, authSSO)
+
+	userContext, err = NewUserContext(user, roleSet, proto.Features{Cloud: true})
+	c.Assert(err, check.IsNil)
+	c.Assert(userContext.ACL.Billing, check.DeepEquals, access{true, true, false, false, false})
 }
