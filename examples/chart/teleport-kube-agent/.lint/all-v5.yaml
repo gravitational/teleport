@@ -1,3 +1,4 @@
+teleportVersionOverride: "5"
 authToken: auth-token
 proxyAddr: proxy.example.com:3080
 roles: kube,app,db
