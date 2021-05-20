@@ -348,6 +348,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	g.NodeName = conf.Hostname
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
+	g.Logger.Formatter = "fields"
 	g.DataDir = defaults.DataDir
 
 	// SSH config:
@@ -459,10 +460,12 @@ type Log struct {
 	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
 	// a path to a log file
 	Output string `yaml:"output,omitempty"`
-	// Severity defines how verbose the log will be. Possible valus are "error", "info", "warn"
+	// Severity defines how verbose the log will be. Possible values are "error", "info", "warn"
 	Severity string `yaml:"severity,omitempty"`
 	// Format lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
 	Format []string `yaml:"format,omitempty"`
+	// Formatter defines the log format. Possible values are "fields", "json"
+	Formatter string `yaml:"formatter,omitempty"`
 }
 
 // Global is 'teleport' (global) section of the config file
