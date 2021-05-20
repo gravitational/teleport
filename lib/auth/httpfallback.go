@@ -22,8 +22,10 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
@@ -633,4 +635,56 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	}
 
 	return re, nil
+}
+
+// searchEventsFallback is a fallback version of SearchEvents that queries the deprecated
+// HTTP API if the auth server is on a version < 6.2.
+//
+// DELETE IN 7.0
+func (c *Client) searchEventsFallback(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	query := url.Values{
+		"to":    []string{toUTC.Format(time.RFC3339)},
+		"from":  []string{toUTC.Format(time.RFC3339)},
+		"limit": []string{fmt.Sprintf("%v", limit)},
+	}
+
+	for _, eventType := range eventTypes {
+		query.Add(events.EventType, eventType)
+	}
+
+	response, err := c.Get(c.Endpoint("events"), query)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	eventArr, err := c.unmarshalEventsResponse(response)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return eventArr, "", nil
+}
+
+// searchSessionEventsFallback is a fallback version of SearchSessionEvents that queries the deprecated
+// HTTP API if the auth server is on a version < 6.2.
+//
+// DELETE IN 7.0
+func (c *Client) searchSessionEventsFallback(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	query := url.Values{
+		"to":    []string{toUTC.Format(time.RFC3339)},
+		"from":  []string{toUTC.Format(time.RFC3339)},
+		"limit": []string{fmt.Sprintf("%v", limit)},
+	}
+
+	response, err := c.Get(c.Endpoint("events", "session"), query)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	eventArr, err := c.unmarshalEventsResponse(response)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return eventArr, "", nil
 }
