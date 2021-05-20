@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1105,7 +1104,7 @@ func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateApp
 		return nil, trail.ToGRPC(err)
 	}
 
-	token, err := auth.GenerateAppToken(ctx, jwt.GenerateAppTokenRequest{
+	token, err := auth.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: req.Username,
 		Roles:    req.Roles,
 		URI:      req.URI,

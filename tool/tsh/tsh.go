@@ -41,7 +41,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -2073,10 +2072,10 @@ Loop:
 		select {
 		case event := <-watcher.Events():
 			switch event.Type {
-			case backend.OpInit:
+			case types.OpInit:
 				log.Infof("Access-request watcher initialized...")
 				continue Loop
-			case backend.OpPut:
+			case types.OpPut:
 				r, ok := event.Resource.(*types.AccessRequestV3)
 				if !ok {
 					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
@@ -2086,7 +2085,7 @@ Loop:
 					continue Loop
 				}
 				return r, nil
-			case backend.OpDelete:
+			case types.OpDelete:
 				if event.Resource.GetName() != req.GetName() {
 					log.Debugf("Skipping delete event id=%s", event.Resource.GetName())
 					continue Loop

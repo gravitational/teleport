@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -890,7 +889,7 @@ func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSession
 	}
 	defer watcher.Close()
 	matchEvent := func(event types.Event) (types.Resource, error) {
-		if event.Type == backend.OpPut &&
+		if event.Type == types.OpPut &&
 			event.Resource.GetKind() == types.KindWebSession &&
 			event.Resource.GetSubKind() == types.KindWebSession &&
 			event.Resource.GetName() == req.SessionID {

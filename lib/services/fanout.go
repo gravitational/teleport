@@ -21,7 +21,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/gravitational/trace"
 )
@@ -81,7 +80,7 @@ func (f *Fanout) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 	}
 	if f.init {
 		// fanout is already initialized; emit OpInit immediately.
-		if err := w.emit(types.Event{Type: backend.OpInit}); err != nil {
+		if err := w.emit(types.Event{Type: types.OpInit}); err != nil {
 			w.cancel()
 			return nil, trace.Wrap(err)
 		}
@@ -101,7 +100,7 @@ func (f *Fanout) SetInit() {
 	for _, entries := range f.watchers {
 		var remove []*fanoutWatcher
 		for _, entry := range entries {
-			if err := entry.watcher.emit(types.Event{Type: backend.OpInit}); err != nil {
+			if err := entry.watcher.emit(types.Event{Type: types.OpInit}); err != nil {
 				entry.watcher.setError(err)
 				remove = append(remove, entry.watcher)
 			}

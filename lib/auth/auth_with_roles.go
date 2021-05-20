@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -2833,7 +2832,7 @@ func (a *ServerWithRoles) DeleteAllAppSessions(ctx context.Context) error {
 }
 
 // GenerateAppToken creates a JWT token with application access.
-func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req jwt.GenerateAppTokenRequest) (string, error) {
+func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	if err := a.action(defaults.Namespace, types.KindJWT, types.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}

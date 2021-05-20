@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
-	jwt_pkg "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	session_pkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -57,7 +56,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	}
 
 	// Request a JWT token that will be attached to all requests.
-	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, jwt_pkg.GenerateAppTokenRequest{
+	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
 		Roles:    identity.Groups,
 		URI:      app.URI,

@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -503,7 +502,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 	for {
 		select {
 		case event := <-watcher.Events():
-			if event.Type == backend.OpInit || event.Type == backend.OpDelete {
+			if event.Type == types.OpInit || event.Type == types.OpDelete {
 				continue
 			}
 			ca, ok := event.Resource.(types.CertAuthority)

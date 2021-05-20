@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -690,7 +689,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	// Create a JWT using the current CA, this will become the "old" CA during
 	// rotation.
 	oldJWT, err := client.GenerateAppToken(context.Background(),
-		jwt.GenerateAppTokenRequest{
+		types.GenerateAppTokenRequest{
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
 			URI:      "http://localhost:8080",
@@ -746,7 +745,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 
 	// New tokens should now fail to validate with the old key.
 	newJWT, err := client.GenerateAppToken(context.Background(),
-		jwt.GenerateAppTokenRequest{
+		types.GenerateAppTokenRequest{
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
 			URI:      "http://localhost:8080",
@@ -2282,7 +2281,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 
 		token, err := client.GenerateAppToken(
 			context.Background(),
-			jwt.GenerateAppTokenRequest{
+			types.GenerateAppTokenRequest{
 				Username: "foo@example.com",
 				Roles:    []string{"bar", "baz"},
 				URI:      "http://localhost:8080",
@@ -2920,7 +2919,7 @@ func (s *TLSSuite) TestEventsPermissions(c *check.C) {
 	case <-time.After(2 * time.Second):
 		c.Fatalf("Timeout waiting for init event")
 	case event := <-w.Events():
-		c.Assert(event.Type, check.Equals, backend.OpInit)
+		c.Assert(event.Type, check.Equals, types.OpInit)
 	}
 
 	// start rotation
@@ -3053,7 +3052,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	case <-time.After(2 * time.Second):
 		c.Fatalf("Timeout waiting for init event")
 	case event := <-w.Events():
-		c.Assert(event.Type, check.Equals, backend.OpInit)
+		c.Assert(event.Type, check.Equals, types.OpInit)
 	}
 
 	// start rotation

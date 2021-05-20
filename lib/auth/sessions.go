@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -131,7 +130,7 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoi
 	}
 	defer watcher.Close()
 	matchEvent := func(event types.Event) (types.Resource, error) {
-		if event.Type == backend.OpPut &&
+		if event.Type == types.OpPut &&
 			event.Resource.GetKind() == types.KindWebSession &&
 			event.Resource.GetSubKind() == types.KindAppSession &&
 			event.Resource.GetName() == sessionID {

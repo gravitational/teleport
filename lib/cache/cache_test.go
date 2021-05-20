@@ -333,7 +333,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, backend.OpInit)
+		c.Assert(e.Type, check.Equals, types.OpInit)
 	case <-time.After(100 * time.Millisecond):
 		c.Fatalf("Timeout waiting for event.")
 	}
@@ -343,7 +343,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, backend.OpPut)
+		c.Assert(e.Type, check.Equals, types.OpPut)
 		c.Assert(e.Resource.GetKind(), check.Equals, types.KindCertAuthority)
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for event.")
@@ -357,7 +357,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, backend.OpPut)
+		c.Assert(e.Type, check.Equals, types.OpPut)
 		c.Assert(e.Resource.GetKind(), check.Equals, types.KindAccessRequest)
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for event.")
@@ -367,7 +367,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, backend.OpDelete)
+		c.Assert(e.Type, check.Equals, types.OpDelete)
 		c.Assert(e.Resource.GetKind(), check.Equals, types.KindAccessRequest)
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for event.")
@@ -387,7 +387,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	// a delete event).
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, backend.OpDelete)
+		c.Assert(e.Type, check.Equals, types.OpDelete)
 		c.Assert(e.Resource.GetKind(), check.Equals, types.KindAccessRequest)
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for event.")

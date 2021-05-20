@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -243,7 +242,7 @@ func (p *ProxyWatcher) watch() error {
 	case <-p.ctx.Done():
 		return trace.ConnectionProblem(p.Context.Err(), "context is closing")
 	case event := <-watcher.Events():
-		if event.Type != backend.OpInit {
+		if event.Type != types.OpInit {
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
 	}
@@ -299,12 +298,12 @@ func (p *ProxyWatcher) processEvent(event types.Event, proxies map[string]types.
 		return false
 	}
 	switch event.Type {
-	case backend.OpDelete:
+	case types.OpDelete:
 		delete(proxies, event.Resource.GetName())
 		// Always return true if the proxy has been deleted to trigger
 		// broadcast cleanup.
 		return true
-	case backend.OpPut:
+	case types.OpPut:
 		_, existed := proxies[event.Resource.GetName()]
 		resource, ok := event.Resource.(types.Server)
 		if !ok {
