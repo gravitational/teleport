@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -185,7 +186,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 	// Close makes sure that close cancels operations and context
 	t.Run("Close", func(t *testing.T) {
-		counter := &counterEmitter{}
+		counter := &counterEmitter{count: atomic.NewInt64(0)}
 		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
 			Inner:      counter,
 			BufferSize: len(events),
@@ -236,7 +237,7 @@ func (s *slowEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) erro
 }
 
 type counterEmitter struct {
-	count atomic.Int64
+	count *atomic.Int64
 }
 
 func (c *counterEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
@@ -312,4 +313,89 @@ func TestExport(t *testing.T) {
 	}
 	require.NoError(t, snl.Err())
 	require.Equal(t, len(outEvents), count)
+}
+
+// TestEnforcesClusterNameDefault validates that different emitter/stream/streamer
+// implementations enforce cluster name defaults
+func TestEnforcesClusterNameDefault(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+
+	t.Run("CheckingStream", func(t *testing.T) {
+		emitter := NewCheckingStream(&DiscardStream{}, clock, "cluster")
+		event := &SessionStart{
+			Metadata: Metadata{
+				ID:   "event.id",
+				Code: "event.code",
+				Type: "event.type",
+			},
+		}
+		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+		require.Empty(t, cmp.Diff(event, &SessionStart{
+			Metadata: Metadata{
+				ID:          "event.id",
+				Code:        "event.code",
+				Type:        "event.type",
+				Time:        clock.Now(),
+				ClusterName: "cluster",
+			},
+		}))
+	})
+	t.Run("CheckingStreamer.CreateAuditStream", func(t *testing.T) {
+		streamer := &CheckingStreamer{
+			CheckingStreamerConfig: CheckingStreamerConfig{
+				Inner:        &DiscardEmitter{},
+				Clock:        clock,
+				ClusterName:  "cluster",
+				UIDGenerator: utils.NewFakeUID(),
+			},
+		}
+		emitter, err := streamer.CreateAuditStream(context.Background(), "session.id")
+		require.NoError(t, err)
+		event := &SessionStart{
+			Metadata: Metadata{
+				ID:   "event.id",
+				Code: "event.code",
+				Type: "event.type",
+			},
+		}
+		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+		require.Empty(t, cmp.Diff(event, &SessionStart{
+			Metadata: Metadata{
+				ID:          "event.id",
+				Code:        "event.code",
+				Type:        "event.type",
+				Time:        clock.Now(),
+				ClusterName: "cluster",
+			},
+		}))
+	})
+	t.Run("CheckingStreamer.ResumeAuditStream", func(t *testing.T) {
+		streamer := &CheckingStreamer{
+			CheckingStreamerConfig: CheckingStreamerConfig{
+				Inner:        &DiscardEmitter{},
+				Clock:        clock,
+				ClusterName:  "cluster",
+				UIDGenerator: utils.NewFakeUID(),
+			},
+		}
+		emitter, err := streamer.ResumeAuditStream(context.Background(), "session.id", "upload.id")
+		require.NoError(t, err)
+		event := &SessionStart{
+			Metadata: Metadata{
+				ID:   "event.id",
+				Code: "event.code",
+				Type: "event.type",
+			},
+		}
+		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+		require.Empty(t, cmp.Diff(event, &SessionStart{
+			Metadata: Metadata{
+				ID:          "event.id",
+				Code:        "event.code",
+				Type:        "event.type",
+				Time:        clock.Now(),
+				ClusterName: "cluster",
+			},
+		}))
+	})
 }

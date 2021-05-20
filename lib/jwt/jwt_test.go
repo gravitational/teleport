@@ -17,25 +17,28 @@ limitations under the License.
 package jwt
 
 import (
+	"os"
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"gopkg.in/check.v1"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 type Suite struct{}
 
 var _ = check.Suite(&Suite{})
 
 func TestJWT(t *testing.T) { check.TestingT(t) }
-
-func (s *Suite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *Suite) TestSignAndVerify(c *check.C) {
 	_, privateBytes, err := GenerateKeyPair()

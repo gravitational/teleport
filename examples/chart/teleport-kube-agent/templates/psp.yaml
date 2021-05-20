@@ -5,28 +5,28 @@ metadata:
   name: {{ .Release.Name }}
   annotations:
     seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'docker/default,runtime/default'
-    seccomp.security.alpha.kubernetes.io/defaultProfileName:  'runtime/default'
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: 'runtime/default'
 spec:
   privileged: false
   allowPrivilegeEscalation: false
   requiredDropCapabilities:
-    - ALL
+  - ALL
   seLinux:
     rule: RunAsAny
   supplementalGroups:
     rule: MustRunAs
     ranges:
-      # Forbid adding the root group.
-      - min: 1
-        max: 65535
+    # Forbid adding the root group.
+    - min: 1
+      max: 65535
   runAsUser:
     rule: MustRunAsNonRoot
   fsGroup:
     rule: MustRunAs
     ranges:
-      # Forbid adding the root group.
-      - min: 1
-        max: 65535
+    # Forbid adding the root group.
+    - min: 1
+      max: 65535
   readOnlyRootFilesystem: true
   volumes:
   - '*'
@@ -48,7 +48,7 @@ rules:
   resourceNames:
   - {{ .Release.Name }}
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-psp

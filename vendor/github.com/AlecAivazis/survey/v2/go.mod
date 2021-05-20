@@ -13,7 +13,7 @@ require (
 	github.com/stretchr/testify v1.2.1
 	golang.org/x/crypto v0.0.0-20190530122614-20be4c3c3ed5
 	golang.org/x/sys v0.0.0-20190530182044-ad28b68e88f1 // indirect
-	golang.org/x/text v0.3.0
+	golang.org/x/text v0.3.3
 )
 
 go 1.13

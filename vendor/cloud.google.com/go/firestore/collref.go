@@ -17,7 +17,6 @@ package firestore
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 )
 
@@ -125,10 +124,15 @@ func (c *CollectionRef) DocumentRefs(ctx context.Context) *DocumentRefIterator {
 	return newDocumentRefIterator(ctx, c, nil)
 }
 
+const alphanum = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+
 func uniqueID() string {
-	b := make([]byte, 32)
+	b := make([]byte, 20)
 	if _, err := rand.Read(b); err != nil {
 		panic(fmt.Sprintf("firestore: crypto/rand.Read error: %v", err))
 	}
-	return base64.RawURLEncoding.EncodeToString(b)
+	for i, byt := range b {
+		b[i] = alphanum[int(byt)%len(alphanum)]
+	}
+	return string(b)
 }

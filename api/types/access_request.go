@@ -19,13 +19,13 @@ package types
 
 import (
 	"fmt"
+	"reflect"
+	"sort"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 )
 
 // AccessRequest is a request for temporarily granted roles
@@ -70,20 +70,35 @@ type AccessRequest interface {
 	GetSystemAnnotations() map[string][]string
 	// SetSystemAnnotations sets the teleport-applied annotations.
 	SetSystemAnnotations(map[string][]string)
-	// CheckAndSetDefaults validates the access request and
-	// supplies default values where appropriate.
-	CheckAndSetDefaults() error
-	// Equals checks equality between access request values.
-	Equals(AccessRequest) bool
+	// GetOriginalRoles gets the original (pre-override) role list.
+	GetOriginalRoles() []string
+	// GetThresholds gets the review thresholds.
+	GetThresholds() []AccessReviewThreshold
+	// SetThresholds sets the review thresholds (internal use only).
+	SetThresholds([]AccessReviewThreshold)
+	// GetRoleThresholdMapping gets the rtm.  See documentation of the
+	// AccessRequestSpecV3.RoleThresholdMapping field for details.
+	GetRoleThresholdMapping() map[string]ThresholdIndexSets
+	// SetRoleThresholdMapping sets the rtm (internal use only).  See documentation
+	// of the AccessRequestSpecV3.RoleThresholdMapping field for details.
+	SetRoleThresholdMapping(map[string]ThresholdIndexSets)
+	// GetReviews gets the list of currently applied access reviews.
+	GetReviews() []AccessReview
+	// SetReviews sets the list of currently applied access reviews (internal use only).
+	SetReviews([]AccessReview)
+	// GetSuggestedReviewers gets the suggested reviewer list.
+	GetSuggestedReviewers() []string
+	// SetSuggestedReviewers sets the suggested reviewer list.
+	SetSuggestedReviewers([]string)
 }
 
 // NewAccessRequest assembled an AccessRequest resource.
-func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
+func NewAccessRequest(name string, user string, roles ...string) (AccessRequest, error) {
 	req := AccessRequestV3{
 		Kind:    KindAccessRequest,
 		Version: V3,
 		Metadata: Metadata{
-			Name: uuid.New(),
+			Name: name,
 		},
 		Spec: AccessRequestSpecV3{
 			User:  user,
@@ -189,6 +204,64 @@ func (r *AccessRequestV3) SetSystemAnnotations(annotations map[string][]string) 
 	r.Spec.SystemAnnotations = annotations
 }
 
+func (r *AccessRequestV3) GetOriginalRoles() []string {
+	if l := len(r.Spec.RoleThresholdMapping); l == 0 || l == len(r.Spec.Roles) {
+		// rtm is unspecified or original role list is unmodified.  since the rtm
+		// keys and role list are identical until role subselection is applied,
+		// we can return the role list directly.
+		return r.Spec.Roles
+	}
+
+	// role subselection has been applied.  calculate original roles
+	// by collecting the keys of the rtm.
+	roles := make([]string, 0, len(r.Spec.RoleThresholdMapping))
+	for role := range r.Spec.RoleThresholdMapping {
+		roles = append(roles, role)
+	}
+	sort.Strings(roles)
+	return roles
+}
+
+// GetThresholds gets the review thresholds.
+func (r *AccessRequestV3) GetThresholds() []AccessReviewThreshold {
+	return r.Spec.Thresholds
+}
+
+// SetThresholds sets the review thresholds.
+func (r *AccessRequestV3) SetThresholds(thresholds []AccessReviewThreshold) {
+	r.Spec.Thresholds = thresholds
+}
+
+// GetRoleThresholdMapping gets the rtm.
+func (r *AccessRequestV3) GetRoleThresholdMapping() map[string]ThresholdIndexSets {
+	return r.Spec.RoleThresholdMapping
+}
+
+// SetRoleThresholdMapping sets the rtm (internal use only).
+func (r *AccessRequestV3) SetRoleThresholdMapping(rtm map[string]ThresholdIndexSets) {
+	r.Spec.RoleThresholdMapping = rtm
+}
+
+// SetReviews sets the list of currently applied access reviews.
+func (r *AccessRequestV3) SetReviews(revs []AccessReview) {
+	r.Spec.Reviews = revs
+}
+
+// GetReviews gets the list of currently applied access reviews.
+func (r *AccessRequestV3) GetReviews() []AccessReview {
+	return r.Spec.Reviews
+}
+
+// GetSuggestedReviewers gets the suggested reviewer list.
+func (r *AccessRequestV3) GetSuggestedReviewers() []string {
+	return r.Spec.SuggestedReviewers
+}
+
+// SetSuggestedReviewers sets the suggested reviewer list.
+func (r *AccessRequestV3) SetSuggestedReviewers(reviewers []string) {
+	r.Spec.SuggestedReviewers = reviewers
+}
+
 // CheckAndSetDefaults validates set values and sets default values
 func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
@@ -199,6 +272,11 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	}
+
+	// dedupe and sort roles to simplify comparing role lists
+	r.Spec.Roles = utils.Deduplicate(r.Spec.Roles)
+	sort.Strings(r.Spec.Roles)
+
 	if err := r.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -215,9 +293,6 @@ func (r *AccessRequestV3) Check() error {
 	}
 	if r.GetName() == "" {
 		return trace.BadParameter("access request id not set")
-	}
-	if uuid.Parse(r.GetName()) == nil {
-		return trace.BadParameter("invalid access request id %q", r.GetName())
 	}
 	if r.GetUser() == "" {
 		return trace.BadParameter("access request user name not set")
@@ -276,8 +351,10 @@ func (r *AccessRequestV3) SetExpiry(expiry time.Time) {
 	r.Metadata.SetExpiry(expiry)
 }
 
-// SetTTL sets TTL
-func (r *AccessRequestV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (r *AccessRequestV3) SetTTL(clock Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
 
@@ -301,16 +378,24 @@ func (r *AccessRequestV3) String() string {
 	return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
 }
 
-// Equals compares two AccessRequests
-func (r *AccessRequestV3) Equals(other AccessRequest) bool {
-	o, ok := other.(*AccessRequestV3)
-	if !ok {
-		return false
+func (c AccessReviewConditions) IsZero() bool {
+	return reflect.ValueOf(c).IsZero()
+}
+
+func (s AccessReviewSubmission) Check() error {
+	if s.RequestID == "" {
+		return trace.BadParameter("missing request ID")
 	}
-	if r.GetName() != o.GetName() {
-		return false
+
+	return s.Review.Check()
+}
+
+func (s AccessReview) Check() error {
+	if s.Author == "" {
+		return trace.BadParameter("missing review author")
 	}
-	return r.Spec.Equals(&o.Spec)
+
+	return nil
 }
 
 // AccessRequestUpdate encompasses the parameters of a
@@ -434,28 +519,6 @@ func (s RequestState) IsResolved() bool {
 	return s.IsApproved() || s.IsDenied()
 }
 
-// Equals compares two AccessRequestSpecs
-func (s *AccessRequestSpecV3) Equals(other *AccessRequestSpecV3) bool {
-	if s.User != other.User {
-		return false
-	}
-	if len(s.Roles) != len(other.Roles) {
-		return false
-	}
-	for i, role := range s.Roles {
-		if role != other.Roles[i] {
-			return false
-		}
-	}
-	if s.Created != other.Created {
-		return false
-	}
-	if s.Expires != other.Expires {
-		return false
-	}
-	return s.State == other.State
-}
-
 // key values for map encoding of request filter
 const (
 	keyID    = "id"
@@ -509,98 +572,4 @@ func (f *AccessRequestFilter) Match(req AccessRequest) bool {
 		return false
 	}
 	return true
-}
-
-// Equals compares two AccessRequestFilters
-func (f *AccessRequestFilter) Equals(o AccessRequestFilter) bool {
-	return f.ID == o.ID && f.User == o.User && f.State == o.State
-}
-
-// AccessRequestSpecSchema is JSON schema for AccessRequestSpec
-const AccessRequestSpecSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"user": { "type": "string" },
-		"roles": {
-			"type": "array",
-			"items": { "type": "string" }
-		},
-		"state": { "type": "integer" },
-		"created": { "type": "string" },
-		"expires": { "type": "string" },
-		"request_reason": { "type": "string" },
-		"resolve_reason": { "type": "string" },
-		"resolve_annotations": { "type": "object" },
-		"system_annotations": { "type": "object" }
-	}
-}`
-
-// GetAccessRequestSchema gets the full AccessRequest JSON schema
-func GetAccessRequestSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, AccessRequestSpecSchema, DefaultDefinitions)
-}
-
-// AccessRequestMarshaler implements marshal/unmarshal of AccessRequest implementations
-type AccessRequestMarshaler interface {
-	MarshalAccessRequest(req AccessRequest, opts ...MarshalOption) ([]byte, error)
-	UnmarshalAccessRequest(bytes []byte, opts ...MarshalOption) (AccessRequest, error)
-}
-
-type accessRequestMarshaler struct{}
-
-func (r *accessRequestMarshaler) MarshalAccessRequest(req AccessRequest, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch r := req.(type) {
-	case *AccessRequestV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			cp := *r
-			cp.SetResourceID(0)
-			r = &cp
-		}
-		return utils.FastMarshal(r)
-	default:
-		return nil, trace.BadParameter("unrecognized access request type: %T", req)
-	}
-}
-
-func (r *accessRequestMarshaler) UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var req AccessRequestV3
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(data, &req); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := utils.UnmarshalWithSchema(GetAccessRequestSchema(), &req, data); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		req.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		req.SetExpiry(cfg.Expires)
-	}
-	return &req, nil
-}
-
-var accessRequestMarshalerInstance AccessRequestMarshaler = &accessRequestMarshaler{}
-
-// GetAccessRequestMarshaler returns currently set AccessRequestMarshaler
-func GetAccessRequestMarshaler() AccessRequestMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return accessRequestMarshalerInstance
 }

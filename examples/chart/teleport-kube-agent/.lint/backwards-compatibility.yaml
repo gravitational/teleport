@@ -1,0 +1,3 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+kubeClusterName: test-kube-cluster-name

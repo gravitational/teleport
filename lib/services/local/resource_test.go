@@ -22,21 +22,19 @@ import (
 	"crypto/x509"
 	"encoding/base32"
 	"encoding/base64"
-	"fmt"
 	"testing"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/tstranex/u2f"
 	"gopkg.in/check.v1"
 )
 
@@ -46,12 +44,7 @@ type ResourceSuite struct {
 	bk backend.Backend
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&ResourceSuite{})
-
-func (r *ResourceSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (r *ResourceSuite) SetUpTest(c *check.C) {
 	var err error
@@ -111,28 +104,36 @@ func (r *ResourceSuite) TestUserResourceWithSecrets(c *check.C) {
 }
 
 func (r *ResourceSuite) runUserResourceTest(c *check.C, withSecrets bool) {
-	alice := newUserTestCase(c, "alice", nil, withSecrets)
-	bob := newUserTestCase(c, "bob", nil, withSecrets)
+	expiry := r.bk.Clock().Now().Add(time.Minute)
+
+	alice := newUserTestCase(c, "alice", nil, withSecrets, expiry)
+	bob := newUserTestCase(c, "bob", nil, withSecrets, expiry)
 	// Check basic dynamic item creation
 	r.runCreationChecks(c, alice, bob)
 	// Check that dynamically created item is compatible with service
 	s := NewIdentityService(r.bk)
 	b, err := s.GetUser("bob", withSecrets)
 	c.Assert(err, check.IsNil)
-	c.Assert(bob.Equals(b), check.Equals, true, check.Commentf("dynamically inserted user does not match"))
+	c.Assert(services.UsersEquals(bob, b), check.Equals, true, check.Commentf("dynamically inserted user does not match"))
 	allUsers, err := s.GetUsers(withSecrets)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(allUsers), check.Equals, 2, check.Commentf("expected exactly two users"))
 	for _, user := range allUsers {
 		switch user.GetName() {
 		case "alice":
-			c.Assert(alice.Equals(user), check.Equals, true, check.Commentf("alice does not match"))
+			c.Assert(services.UsersEquals(alice, user), check.Equals, true, check.Commentf("alice does not match"))
 		case "bob":
-			c.Assert(bob.Equals(user), check.Equals, true, check.Commentf("bob does not match"))
+			c.Assert(services.UsersEquals(bob, user), check.Equals, true, check.Commentf("bob does not match"))
 		default:
 			c.Errorf("Unexpected user %q", user.GetName())
 		}
 	}
+
+	// Advance the clock to let the users to expire.
+	r.bk.Clock().(clockwork.FakeClock).Advance(2 * time.Minute)
+	allUsers, err = s.GetUsers(withSecrets)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(allUsers), check.Equals, 0, check.Commentf("expected all users to expire"))
 }
 
 func (r *ResourceSuite) TestCertAuthorityResource(c *check.C) {
@@ -147,6 +148,7 @@ func (r *ResourceSuite) TestCertAuthorityResource(c *check.C) {
 }
 
 func (r *ResourceSuite) TestTrustedClusterResource(c *check.C) {
+	ctx := context.Background()
 	foo, err := services.NewTrustedCluster("foo", services.TrustedClusterSpecV2{
 		Enabled:              true,
 		Roles:                []string{"bar", "baz"},
@@ -168,13 +170,14 @@ func (r *ResourceSuite) TestTrustedClusterResource(c *check.C) {
 	r.runCreationChecks(c, foo, bar)
 
 	s := NewPresenceService(r.bk)
-	_, err = s.GetTrustedCluster("foo")
+	_, err = s.GetTrustedCluster(ctx, "foo")
 	c.Assert(err, check.IsNil)
-	_, err = s.GetTrustedCluster("bar")
+	_, err = s.GetTrustedCluster(ctx, "bar")
 	c.Assert(err, check.IsNil)
 }
 
 func (r *ResourceSuite) TestGithubConnectorResource(c *check.C) {
+	ctx := context.Background()
 	connector := &services.GithubConnectorV3{
 		Kind:    services.KindGithubConnector,
 		Version: services.V3,
@@ -201,7 +204,7 @@ func (r *ResourceSuite) TestGithubConnectorResource(c *check.C) {
 	r.runCreationChecks(c, connector)
 
 	s := NewIdentityService(r.bk)
-	_, err := s.GetGithubConnector("github", true)
+	_, err := s.GetGithubConnector(ctx, "github", true)
 	c.Assert(err, check.IsNil)
 }
 
@@ -227,21 +230,27 @@ func localAuthSecretsTestCase(c *check.C) services.LocalAuthSecrets {
 	var err error
 	auth.PasswordHash, err = bcrypt.GenerateFromPassword([]byte("insecure"), bcrypt.MinCost)
 	c.Assert(err, check.IsNil)
-	auth.TOTPKey = base32.StdEncoding.EncodeToString([]byte("abc123"))
-	auth.U2FCounter = 7
-	reg := u2fRegTestCase(c)
-	err = auth.SetU2FRegistration(&reg)
+
+	dev, err := services.NewTOTPDevice("otp", base32.StdEncoding.EncodeToString([]byte("abc123")), time.Now())
 	c.Assert(err, check.IsNil)
+	auth.MFA = append(auth.MFA, dev)
+
+	reg := u2fRegTestCase(c)
+	dev, err = u2f.NewDevice("u2f", &reg, time.Now())
+	c.Assert(err, check.IsNil)
+	dev.GetU2F().Counter = 7
+	auth.MFA = append(auth.MFA, dev)
 	return auth
 }
 
-func newUserTestCase(c *check.C, name string, roles []string, withSecrets bool) services.User {
+func newUserTestCase(c *check.C, name string, roles []string, withSecrets bool, expires time.Time) services.User {
 	user := services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      name,
 			Namespace: defaults.Namespace,
+			Expires:   &expires,
 		},
 		Spec: services.UserSpecV2{
 			Roles: roles,

@@ -90,6 +90,8 @@ type Config struct {
 	// RunOnServer is low level API flag that indicates that
 	// this command will be run on the server
 	RunOnServer bool
+	// Log optionally specifies the logger
+	Log log.FieldLogger
 }
 
 // Command is an API that describes command operations
@@ -167,10 +169,25 @@ func CreateUploadCommand(cfg Config) (Command, error) {
 
 // CheckAndSetDefaults checks and sets default values
 func (c *Config) CheckAndSetDefaults() error {
+	logger := c.Log
+	if logger == nil {
+		logger = log.StandardLogger()
+	}
+	c.Log = logger.WithFields(log.Fields{
+		trace.Component: "SCP",
+		trace.ComponentFields: log.Fields{
+			"LocalAddr":      c.Flags.LocalAddr,
+			"RemoteAddr":     c.Flags.RemoteAddr,
+			"Target":         c.Flags.Target,
+			"PreserveAttrs":  c.Flags.PreserveAttrs,
+			"User":           c.User,
+			"RunOnServer":    c.RunOnServer,
+			"RemoteLocation": c.RemoteLocation,
+		},
+	})
 	if c.FileSystem == nil {
 		c.FileSystem = &localFileSystem{}
 	}
-
 	if c.User == "" {
 		return trace.BadParameter("missing User parameter")
 	}
@@ -186,31 +203,17 @@ func CreateCommand(cfg Config) (Command, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cmd := command{
+	return &command{
 		Config: cfg,
-	}
-
-	cmd.log = log.WithFields(log.Fields{
-		trace.Component: "SCP",
-		trace.ComponentFields: log.Fields{
-			"LocalAddr":      cfg.Flags.LocalAddr,
-			"RemoteAddr":     cfg.Flags.RemoteAddr,
-			"Target":         cfg.Flags.Target,
-			"PreserveAttrs":  cfg.Flags.PreserveAttrs,
-			"User":           cfg.User,
-			"RunOnServer":    cfg.RunOnServer,
-			"RemoteLocation": cfg.RemoteLocation,
-		},
-	})
-
-	return &cmd, nil
+		log:    cfg.Log,
+	}, nil
 }
 
 // Command mimics behavior of SCP command line tool
 // to teleport can pretend it launches real SCP behind the scenes
 type command struct {
 	Config
-	log *log.Entry
+	log log.FieldLogger
 }
 
 // Execute implements SSH file copy (SCP). It is called on both tsh (client)
@@ -333,7 +336,7 @@ func (cmd *command) sendDir(r *reader, ch io.ReadWriter, fileInfo FileInfo) erro
 	if _, err = fmt.Fprintf(ch, "E\n"); err != nil {
 		return trace.Wrap(err)
 	}
-	return r.read()
+	return trace.Wrap(r.read())
 }
 
 func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) error {
@@ -375,7 +378,7 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 func (cmd *command) sendErr(ch io.Writer, err error) {
 	out := fmt.Sprintf("%c%s\n", byte(ErrByte), err)
 	if _, err := ch.Write([]byte(out)); err != nil {
-		cmd.log.Debugf("failed sending SCP error message to the remote side: %v", err)
+		cmd.log.Debugf("Failed sending SCP error message to the remote side: %v.", err)
 	}
 }
 
@@ -386,27 +389,32 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 	// directory.
 	if cmd.Flags.DirectoryMode {
 		if len(cmd.Flags.Target) != 1 {
-			return trace.BadParameter("in directory mode, only single upload target is allowed but %v provided", len(cmd.Flags.Target))
+			return trace.BadParameter("in directory mode, only single upload target is allowed but %q provided",
+				cmd.Flags.Target)
 		}
-
-		fi, err := os.Stat(cmd.Flags.Target[0])
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if mode := fi.Mode(); !mode.IsDir() {
+		if !cmd.FileSystem.IsDir(cmd.Flags.Target[0]) {
 			return trace.BadParameter("target path must be a directory")
 		}
+	}
+
+	rootDir := localDir
+	if cmd.targetDirExists() {
+		rootDir = newPathFromDir(cmd.Flags.Target[0])
+	} else if cmd.Flags.Target[0] != "" {
+		// Extract potential base directory from the target
+		rootDir = newPathFromDir(filepath.Dir(cmd.Flags.Target[0]))
 	}
 
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
 	}
+
 	var st state
-	st.path = localDir
-	var b = make([]byte, 1)
+	st.path = rootDir
+	var b [1]byte
 	scanner := bufio.NewScanner(ch)
 	for {
-		n, err := ch.Read(b)
+		n, err := ch.Read(b[:])
 		if err != nil {
 			if err == io.EOF {
 				return nil
@@ -478,11 +486,9 @@ func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) error {
 	cmd.log.Debugf("scp.receiveFile(%v): %v", cmd.Flags.Target, fc.Name)
 
-	// if the destination path is a folder, we should save the file to that folder, but
-	// only if 'recursive' is set
-
+	// Unless target specifies a file, use the file name from the command
 	path := cmd.Flags.Target[0]
-	if cmd.Flags.Recursive || cmd.FileSystem.IsDir(path) {
+	if cmd.FileSystem.IsDir(cmd.Flags.Target[0]) {
 		path = st.makePath(fc.Name)
 	}
 
@@ -504,7 +510,6 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 
 	n, err := io.CopyN(writer, ch, int64(fc.Length))
 	if err != nil {
-		cmd.log.Error(err)
 		return trace.Wrap(err)
 	}
 
@@ -528,13 +533,16 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 
 func (cmd *command) receiveDir(st *state, fc newFileCmd, ch io.ReadWriter) error {
 	cmd.log.Debugf("scp.receiveDir(%v): %v", cmd.Flags.Target, fc.Name)
-	targetDir := cmd.Flags.Target[0]
 
-	// copying into an existing directory? append to it:
-	if cmd.FileSystem.IsDir(targetDir) {
-		targetDir = st.makePath(fc.Name)
+	if cmd.FileSystem.IsDir(cmd.Flags.Target[0]) {
+		// Copying into an existing directory? append to it:
+		st.push(fc.Name, st.stat)
+	} else {
+		// If target specifies a new directory, we need to reset
+		// state with it
+		st.path = newPathFromDirAndTimes(cmd.Flags.Target[0], st.stat)
 	}
-	st.push(fc.Name, st.stat)
+	targetDir := st.path.join()
 
 	err := cmd.FileSystem.MkDir(targetDir, int(fc.Mode))
 	if err != nil {
@@ -597,6 +605,14 @@ func (cmd *command) updateDirTimes(path pathSegments) error {
 		}
 	}
 	return nil
+}
+
+func (cmd *command) targetDirExists() bool {
+	return len(cmd.Flags.Target) != 0 && cmd.FileSystem.IsDir(cmd.Flags.Target[0])
+}
+
+func (r newFileCmd) String() string {
+	return fmt.Sprintf("newFileCmd(mode=%o,len=%d,name=%v)", r.Mode, r.Length, r.Name)
 }
 
 type newFileCmd struct {
@@ -675,15 +691,23 @@ type state struct {
 	stat *mtimeCmd
 }
 
-func (r pathSegments) join() string {
+func (r pathSegments) join(elems ...string) string {
 	path := make([]string, 0, len(r))
 	for _, s := range r {
 		path = append(path, s.dir)
 	}
-	return filepath.Join(path...)
+	return filepath.Join(append(path, elems...)...)
 }
 
-var localDir = pathSegments{{dir: "."}}
+var localDir = newPathFromDir(".")
+
+func newPathFromDir(dir string) pathSegments {
+	return pathSegments{{dir: dir}}
+}
+
+func newPathFromDirAndTimes(dir string, stat *mtimeCmd) pathSegments {
+	return pathSegments{{dir: dir, stat: stat}}
+}
 
 type pathSegments []pathSegment
 
@@ -710,7 +734,7 @@ func (st *state) pop() pathSegments {
 }
 
 func (st *state) makePath(filename string) string {
-	return filepath.Join(st.path.join(), filename)
+	return st.path.join(filename)
 }
 
 func newReader(r io.Reader) *reader {

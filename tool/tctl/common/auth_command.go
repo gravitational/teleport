@@ -49,6 +49,7 @@ type AuthCommand struct {
 	proxyAddr                  string
 	leafCluster                string
 	kubeCluster                string
+	signOverwrite              bool
 
 	rotateGracePeriod time.Duration
 	rotateType        string
@@ -89,6 +90,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 		DurationVar(&a.genTTL)
 	a.authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&a.compatibility)
 	a.authSign.Flag("proxy", `Address of the teleport proxy. When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file`).StringVar(&a.proxyAddr)
+	a.authSign.Flag("overwrite", "Whether to overwrite existing destination files. When not set, user will be prompted before overwriting any existing file.").BoolVar(&a.signOverwrite)
 	// --kube-cluster was an unfortunately chosen flag name, before teleport
 	// supported kubernetes_service and registered kubernetes clusters that are
 	// not trusted teleport clusters.
@@ -244,10 +246,7 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 
 // GenerateKeys generates a new keypair
 func (a *AuthCommand) GenerateKeys() error {
-	keygen, err := native.New(context.TODO(), native.PrecomputeKeys(0))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
 	defer keygen.Close()
 	privBytes, pubBytes, err := keygen.GenerateKeyPair("")
 	if err != nil {
@@ -344,7 +343,12 @@ func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
 		filePath = principals[0]
 	}
 
-	filesWritten, err := identityfile.Write(filePath, key, a.outputFormat, "")
+	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+		OutputPath:           filePath,
+		Key:                  key,
+		Format:               a.outputFormat,
+		OverwriteDestination: a.signOverwrite,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -376,7 +380,12 @@ func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
 	}
 	key.TLSCert = resp.Cert
 	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
-	filesWritten, err := identityfile.Write(a.output, key, a.outputFormat, "")
+	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+		OutputPath:           a.output,
+		Key:                  key,
+		Format:               a.outputFormat,
+		OverwriteDestination: a.signOverwrite,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -441,7 +450,13 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
 	// write the cert+private key to the output:
-	filesWritten, err := identityfile.Write(a.output, key, a.outputFormat, a.proxyAddr)
+	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+		OutputPath:           a.output,
+		Key:                  key,
+		Format:               a.outputFormat,
+		KubeProxyAddr:        a.proxyAddr,
+		OverwriteDestination: a.signOverwrite,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -576,6 +591,6 @@ func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client auth.Client
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	allowedLogins, _ := roles.CheckLoginDuration(defaults.MinCertDuration + time.Second)
+	allowedLogins, _ := roles.GetLoginsForTTL(defaults.MinCertDuration + time.Second)
 	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
 }

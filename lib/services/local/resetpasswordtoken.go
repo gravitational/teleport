@@ -40,7 +40,7 @@ func (s *IdentityService) GetResetPasswordTokens(ctx context.Context) ([]service
 			continue
 		}
 
-		token, err := services.GetResetPasswordTokenMarshaler().Unmarshal(item.Value)
+		token, err := services.UnmarshalResetPasswordToken(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -73,7 +73,7 @@ func (s *IdentityService) GetResetPasswordToken(ctx context.Context, tokenID str
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := services.GetResetPasswordTokenMarshaler().Unmarshal(item.Value)
+	token, err := services.UnmarshalResetPasswordToken(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -87,7 +87,7 @@ func (s *IdentityService) CreateResetPasswordToken(ctx context.Context, token se
 		return nil, trace.Wrap(err)
 	}
 
-	value, err := services.GetResetPasswordTokenMarshaler().Marshal(token)
+	value, err := services.MarshalResetPasswordToken(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

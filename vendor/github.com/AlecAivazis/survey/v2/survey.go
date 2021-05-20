@@ -55,6 +55,7 @@ func defaultAskOptions() *AskOptions {
 				return strings.Contains(strings.ToLower(value), filter)
 			},
 			KeepFilter: false,
+			ShowCursor: false,
 		},
 	}
 }
@@ -114,6 +115,7 @@ type PromptConfig struct {
 	SuggestInput string
 	Filter       func(filter string, option string, index int) bool
 	KeepFilter   bool
+	ShowCursor   bool
 }
 
 // Prompt is the primary interface for the objects that can take user input
@@ -213,6 +215,17 @@ func WithIcons(setIcons func(*IconSet)) AskOpt {
 	return func(options *AskOptions) error {
 		// update the default icons with whatever the user says
 		setIcons(&options.PromptConfig.Icons)
+
+		// nothing went wrong
+		return nil
+	}
+}
+
+// WithShowCursor sets the show cursor behavior when prompting the user
+func WithShowCursor(ShowCursor bool) AskOpt {
+	return func(options *AskOptions) error {
+		// set the page size
+		options.PromptConfig.ShowCursor = ShowCursor
 
 		// nothing went wrong
 		return nil

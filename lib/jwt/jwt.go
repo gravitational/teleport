@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -33,6 +34,11 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 	josejwt "gopkg.in/square/go-jose.v2/jwt"
 )
+
+// GenerateAppTokenRequest are the parameters used to generate an application token.
+// Moved to /api/types/jwt.go, aliased here for backwards compatibility.
+// DELETE IN 7.0.0
+type GenerateAppTokenRequest = types.GenerateAppTokenRequest
 
 // Config defines the clock and PEM encoded bytes of a public and private
 // key that form a *jwt.Key.
@@ -234,38 +240,6 @@ type Claims struct {
 
 	// Roles returns the list of roles assigned to the user within Teleport.
 	Roles []string `json:"roles"`
-}
-
-// GenerateAppTokenRequest are the parameters used to generate an application token.
-type GenerateAppTokenRequest struct {
-	// Username is the Teleport identity.
-	Username string
-
-	// Roles are the roles assigned to the user within Teleport.
-	Roles []string
-
-	// Expiry is time to live for the token.
-	Expires time.Time
-
-	// URI is the URI of the recipient application.
-	URI string
-}
-
-// Check validates the request.
-func (p *GenerateAppTokenRequest) Check() error {
-	if p.Username == "" {
-		return trace.BadParameter("username missing")
-	}
-	if len(p.Roles) == 0 {
-		return trace.BadParameter("roles missing")
-	}
-	if p.Expires.IsZero() {
-		return trace.BadParameter("expires missing")
-	}
-	if p.URI == "" {
-		return trace.BadParameter("uri missing")
-	}
-	return nil
 }
 
 // GenerateKeyPair generates and return a PEM encoded private and public

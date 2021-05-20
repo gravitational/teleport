@@ -18,17 +18,10 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/gravitational/teleport/lib/services"
 )
-
-// AppLabel describes an application label
-type AppLabel struct {
-	// Name is this label name
-	Name string `json:"name"`
-	// Value is this label value
-	Value string `json:"value"`
-}
 
 // App describes an application
 type App struct {
@@ -43,23 +36,26 @@ type App struct {
 	// ClusterID is this app cluster ID
 	ClusterID string `json:"clusterId"`
 	// Labels is a map of static labels associated with an application.
-	Labels []AppLabel `json:"labels"`
+	Labels []Label `json:"labels"`
 }
 
 // MakeApps creates server application objects
-func MakeApps(proxyName string, proxyHost string, appClusterName string, appServers []services.Server) []App {
+func MakeApps(localClusterName string, localProxyDNSName string, appClusterName string, appServers []services.Server) []App {
 	result := []App{}
 	for _, server := range appServers {
 		teleApps := server.GetApps()
 		for _, teleApp := range teleApps {
-			fqdn := resolveFQDN(proxyName, proxyHost, appClusterName, *teleApp)
-			labels := []AppLabel{}
+			fqdn := AssembleAppFQDN(localClusterName, localProxyDNSName, appClusterName, teleApp)
+			labels := []Label{}
 			for name, value := range teleApp.StaticLabels {
-				labels = append(labels, AppLabel{
+				labels = append(labels, Label{
 					Name:  name,
 					Value: value,
 				})
 			}
+
+			sort.Sort(sortedLabels(labels))
+
 			result = append(result, App{
 				Name:       teleApp.Name,
 				URI:        teleApp.URI,
@@ -74,18 +70,18 @@ func MakeApps(proxyName string, proxyHost string, appClusterName string, appServ
 	return result
 }
 
-// resolveFQDN will return the application's FQDN. This function can resolve
-// the FQDN for an application for local cluster and remote clusters.
-func resolveFQDN(proxyName string, proxyHost string, appClusterName string, app services.App) string {
-	// Use application public address if running on proxy.
-	isProxyCluster := proxyName == appClusterName
-	if isProxyCluster && app.PublicAddr != "" {
+// AssembleAppFQDN returns the application's FQDN.
+//
+// If the application is running within the local cluster and it has a public
+// address specified, the application's public address is used.
+//
+// In all other cases, i.e. if the public address is not set or the application
+// is running in a remote cluster, the FQDN is formatted as
+// <appName>.<localProxyDNSName>
+func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClusterName string, app *services.App) string {
+	isLocalCluster := localClusterName == appClusterName
+	if isLocalCluster && app.PublicAddr != "" {
 		return app.PublicAddr
 	}
-
-	if proxyHost != "" {
-		return fmt.Sprintf("%v.%v", app.Name, proxyHost)
-	}
-
-	return fmt.Sprintf("%v.%v", app.Name, appClusterName)
+	return fmt.Sprintf("%v.%v", app.Name, localProxyDNSName)
 }

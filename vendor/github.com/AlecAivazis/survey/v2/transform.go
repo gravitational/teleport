@@ -18,18 +18,21 @@ func TransformString(f func(s string) string) Transformer {
 	return func(ans interface{}) interface{} {
 		// if the answer value passed in is the zero value of the appropriate type
 		if isZero(reflect.ValueOf(ans)) {
-			// skip this `Transformer` by returning a nil value.
+			// skip this `Transformer` by returning a zero value of string.
 			// The original answer will be not affected,
 			// see survey.go#L125.
-			return nil
+			// A zero value of string should be returned to be handled by
+			// next Transformer in a composed Tranformer,
+			// see tranform.go#L75
+			return ""
 		}
 
 		// "ans" is never nil here, so we don't have to check that
-		// see survey.go#L97 for more.
+		// see survey.go#L338 for more.
 		// Make sure that the the answer's value was a typeof string.
 		s, ok := ans.(string)
 		if !ok {
-			return nil
+			return ""
 		}
 
 		return f(s)

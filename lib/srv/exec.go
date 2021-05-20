@@ -93,7 +93,7 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 
 	// When in recording mode, return an *remoteExec which will execute the
 	// command on a remote host. This is used by in-memory forwarding nodes.
-	if services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) == true {
+	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) == true {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -147,8 +147,7 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Connect stdout and stderr to the channel so the user can interact with
-	// the command.
+	// Connect stdout and stderr to the channel so the user can interact with the command.
 	e.Cmd.Stderr = channel.Stderr()
 	e.Cmd.Stdout = channel
 
@@ -157,12 +156,6 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	go func() {
-		if _, err := io.Copy(inputWriter, channel); err != nil {
-			e.Ctx.Warningf("Failed to forward data from SSH channel to local command %q stdin: %v", e.GetCommand(), err)
-		}
-		inputWriter.Close()
-	}()
 
 	// Start the command.
 	err = e.Cmd.Start()
@@ -178,6 +171,13 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 		}, trace.ConvertSystemError(err)
 	}
 
+	go func() {
+		if _, err := io.Copy(inputWriter, channel); err != nil {
+			e.Ctx.Warnf("Failed to forward data from SSH channel to local command %q stdin: %v", e.GetCommand(), err)
+		}
+		inputWriter.Close()
+	}()
+
 	e.Ctx.Infof("Started local command execution: %q", e.Command)
 
 	return nil, nil
@@ -186,7 +186,7 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 // Wait will block while the command executes.
 func (e *localExec) Wait() *ExecResult {
 	if e.Cmd.Process == nil {
-		e.Ctx.Errorf("no process")
+		e.Ctx.Error("No process.")
 	}
 
 	// Block until the command is finished executing.
@@ -246,7 +246,7 @@ func (e *localExec) transformSecureCopy() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	e.Command = fmt.Sprintf("%s scp --remote-addr=%s --local-addr=%s %v",
+	e.Command = fmt.Sprintf("%s scp --remote-addr=%q --local-addr=%q %v",
 		teleportBin,
 		e.Ctx.ServerConn.RemoteAddr().String(),
 		e.Ctx.ServerConn.LocalAddr().String(),
@@ -365,14 +365,15 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		ServerNamespace: ctx.srv.GetNamespace(),
 	}
 
-	var sessionMeta events.SessionMetadata
-	if ctx.session != nil {
-		sessionMeta.SessionID = string(ctx.session.id)
+	sessionMeta := events.SessionMetadata{
+		SessionID: string(ctx.SessionID()),
+		WithMFA:   ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 	}
 
 	userMeta := events.UserMetadata{
-		User:  ctx.Identity.TeleportUser,
-		Login: ctx.Identity.Login,
+		User:         ctx.Identity.TeleportUser,
+		Login:        ctx.Identity.Login,
+		Impersonator: ctx.Identity.Impersonator,
 	}
 
 	connectionMeta := events.ConnectionMetadata{

@@ -75,10 +75,19 @@ func (r *RemoveDirCloser) Close() error {
 }
 
 // IsDir is a helper function to quickly check if a given path is a valid directory
-func IsDir(dirPath string) bool {
-	fi, err := os.Stat(dirPath)
+func IsDir(path string) bool {
+	fi, err := os.Stat(path)
 	if err == nil {
 		return fi.IsDir()
+	}
+	return false
+}
+
+// IsFile is a convenience helper to check if the given path is a regular file
+func IsFile(path string) bool {
+	fi, err := os.Stat(path)
+	if err == nil {
+		return fi.Mode().IsRegular()
 	}
 	return false
 }

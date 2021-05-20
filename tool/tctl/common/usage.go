@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2017 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,26 +18,23 @@ package common
 
 const (
 	GlobalHelpString = "CLI Admin tool for the Teleport Auth service. Runs on a host where Teleport Auth is running."
-	AddUserHelp      = `Notes:
+
+	AddUserHelp = `Notes:
 
   1. tctl will generate a signup token and give you a URL to share with a user.
      A user will have to complete account creation by visiting the URL.
 
-  2. A Teleport user account is not the same as a local UNIX users on SSH nodes.
-     You must assign a list of allowed local users for every Teleport login.
+  2. The allowed logins of the account only apply if a role uses them by including
+     '{{ internal.logins }}' variable in a role definition.
 
 Examples:
 
-  > tctl users add joe admin,nginx
+  > tctl users add --roles=admin,dba joe
 
-  This creates a Teleport account 'joe' who can login as 'admin' or 'nginx' 
-  to any SSH node connected to this auth server.
-
-  > tctl users add joe
-
-  If the list of local users is not given, 'joe' will only be able to connect
-  as 'joe' to SSH nodes.
+  This creates a Teleport account 'joe' who will assume the roles 'admin' and 'dba'
+  To see the permissions of 'admin' role, execute 'tctl get role/admin'
 `
+
 	AddNodeHelp = `Notes:
   This command generates and prints an invitation token another node can use to 
   join the cluster. 

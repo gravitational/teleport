@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2020 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -126,7 +126,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		AcceptedUsage: cfg.AcceptedUsage,
 		Limiter:       limiter,
 	}
-	authMiddleware.Wrap(NewAPIServer(&cfg.APIConfig))
+
+	apiServer, err := NewAPIServer(&cfg.APIConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authMiddleware.Wrap(apiServer)
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
 	// force client auth if given
@@ -161,6 +167,12 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cfg.PluginRegistry != nil {
+		if err := cfg.PluginRegistry.RegisterAuthServices(server.grpcServer); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return server, nil
@@ -204,9 +216,8 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 func (t *TLSServer) Serve() error {
 	errC := make(chan error, 2)
 	go func() {
-		if err := t.mux.Serve(); err != nil {
-			t.log.WithError(err).Warningf("Mux serve failed.")
-		}
+		err := t.mux.Serve()
+		t.log.WithError(err).Warningf("Mux serve failed.")
 	}()
 	go func() {
 		errC <- t.httpServer.Serve(t.mux.HTTP())
@@ -338,7 +349,7 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 	}
 	user, err := a.GetUser(tlsInfo.State)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trail.ToGRPC(err)
 	}
 	return handler(context.WithValue(ctx, ContextUser, user), req)
 }
@@ -405,11 +416,11 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
 		return BuiltinRole{
-			GetClusterConfig: a.AccessPoint.GetClusterConfig,
-			Role:             teleport.RoleNop,
-			Username:         string(teleport.RoleNop),
-			ClusterName:      localClusterName.GetClusterName(),
-			Identity:         tlsca.Identity{},
+			GetSessionRecordingConfig: a.AccessPoint.GetSessionRecordingConfig,
+			Role:                      teleport.RoleNop,
+			Username:                  string(teleport.RoleNop),
+			ClusterName:               localClusterName.GetClusterName(),
+			Identity:                  tlsca.Identity{},
 		}, nil
 	}
 	clientCert := peers[0]
@@ -482,11 +493,11 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
 		return BuiltinRole{
-			GetClusterConfig: a.AccessPoint.GetClusterConfig,
-			Role:             *systemRole,
-			Username:         identity.Username,
-			ClusterName:      localClusterName.GetClusterName(),
-			Identity:         *identity,
+			GetSessionRecordingConfig: a.AccessPoint.GetSessionRecordingConfig,
+			Role:                      *systemRole,
+			Username:                  identity.Username,
+			ClusterName:               localClusterName.GetClusterName(),
+			Identity:                  *identity,
 		}, nil
 	}
 	// otherwise assume that is a local role, no need to pass the roles

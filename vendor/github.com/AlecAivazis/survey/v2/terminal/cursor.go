@@ -43,11 +43,13 @@ func (c *Cursor) Back(n int) {
 // NextLine moves cursor to beginning of the line n lines down.
 func (c *Cursor) NextLine(n int) {
 	c.Down(1)
+	c.HorizontalAbsolute(0)
 }
 
 // PreviousLine moves cursor to beginning of the line n lines up.
 func (c *Cursor) PreviousLine(n int) {
 	c.Up(1)
+	c.HorizontalAbsolute(0)
 }
 
 // HorizontalAbsolute moves cursor horizontally to x.
@@ -167,8 +169,11 @@ func (c *Cursor) Size(buf *bytes.Buffer) (*Coord, error) {
 
 	// hide the cursor (so it doesn't blink when getting the size of the terminal)
 	c.Hide()
+	defer c.Show()
+
 	// save the current location of the cursor
 	c.Save()
+	defer c.Restore()
 
 	// move the cursor to the very bottom of the terminal
 	c.Move(999, 999)
@@ -179,11 +184,6 @@ func (c *Cursor) Size(buf *bytes.Buffer) (*Coord, error) {
 		return nil, err
 	}
 
-	// move back where we began
-	c.Restore()
-
-	// show the cursor
-	c.Show()
 	// since the bottom was calculated in the lower right corner, it
 	// is the dimensions we are looking for
 	return bottom, nil

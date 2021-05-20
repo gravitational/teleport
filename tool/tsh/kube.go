@@ -22,12 +22,13 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -79,7 +80,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	}
 
 	// Try loading existing keys.
-	k, err := tc.LocalAgent().GetKey(client.WithKubeCerts(c.teleportCluster))
+	k, err := tc.LocalAgent().GetKey(c.teleportCluster, client.WithKubeCerts{})
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -100,18 +101,19 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 
 	log.Debugf("Requesting TLS cert for kubernetes cluster %q", c.kubeCluster)
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.ReissueUserCerts(cf.Context, client.ReissueParams{
+		var err error
+		k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 			RouteToCluster:    c.teleportCluster,
 			KubernetesCluster: c.kubeCluster,
 		})
+		return err
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// ReissueUserCerts should cache the new cert on disk, re-read them.
-	k, err = tc.LocalAgent().GetKey(client.WithKubeCerts(c.teleportCluster))
-	if err != nil {
+	// Cache the new cert on disk for reuse.
+	if _, err := tc.LocalAgent().AddKey(k); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -123,11 +125,15 @@ func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	expiry := crt.NotAfter
+	// Indicate slightly earlier expiration to avoid the cert expiring
+	// mid-request, if possible.
+	if time.Until(expiry) > time.Minute {
+		expiry = expiry.Add(-1 * time.Minute)
+	}
 	resp := &clientauthentication.ExecCredential{
 		Status: &clientauthentication.ExecCredentialStatus{
-			// Indicate  slightly earlier expiration to avoid the cert expiring
-			// mid-request.
-			ExpirationTimestamp:   &metav1.Time{Time: crt.NotAfter.Add(-1 * time.Minute)},
+			ExpirationTimestamp:   &metav1.Time{Time: expiry},
 			ClientCertificateData: string(key.KubeTLSCerts[kubeClusterName]),
 			ClientKeyData:         string(key.Priv),
 		},
@@ -161,12 +167,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var selectedCluster string
-	if kc, err := kubeconfig.Load(""); err != nil {
-		log.WithError(err).Warning("Failed parsing existing kubeconfig")
-	} else {
-		selectedCluster = kubeconfig.KubeClusterFromContext(kc.CurrentContext, currentTeleportCluster)
-	}
+	selectedCluster := selectedKubeCluster(currentTeleportCluster)
 
 	var t asciitable.Table
 	if cf.Quiet {
@@ -184,6 +185,15 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	fmt.Println(t.AsBuffer().String())
 
 	return nil
+}
+
+func selectedKubeCluster(currentTeleportCluster string) string {
+	kc, err := kubeconfig.Load("")
+	if err != nil {
+		log.WithError(err).Warning("Failed parsing existing kubeconfig")
+		return ""
+	}
+	return kubeconfig.KubeClusterFromContext(kc.CurrentContext, currentTeleportCluster)
 }
 
 type kubeLoginCommand struct {
@@ -245,7 +255,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		//
 		// Re-generate kubeconfig contexts and try selecting this kube cluster
 		// again.
-		if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+		if err := updateKubeConfig(cf, tc); err != nil {
 			return trace.Wrap(err)
 		}
 		if err := kubeconfig.SelectContext(currentTeleportCluster, c.kubeCluster); err != nil {
@@ -286,6 +296,94 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 		return "", nil, trace.Wrap(err)
 	}
 	return teleportCluster, kubeClusters, nil
+}
+
+// kubernetesStatus holds teleport client information necessary to populate the user's kubeconfig.
+type kubernetesStatus struct {
+	clusterAddr         string
+	teleportClusterName string
+	kubeClusters        []string
+	credentials         *client.Key
+}
+
+// fetchKubeStatus returns a kubernetesStatus populated from the given TeleportClient.
+func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernetesStatus, error) {
+	var err error
+	kubeStatus := &kubernetesStatus{
+		clusterAddr: tc.KubeClusterAddr(),
+	}
+	kubeStatus.credentials, err = tc.LocalAgent().GetCoreKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubeStatus.teleportClusterName, kubeStatus.kubeClusters, err = fetchKubeClusters(ctx, tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return kubeStatus, nil
+}
+
+// buildKubeConfigUpdate returns a kubeconfig.Values suitable for updating the user's kubeconfig
+// based on the CLI parameters and the given kubernetesStatus.
+func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconfig.Values, error) {
+	v := &kubeconfig.Values{
+		ClusterAddr:         kubeStatus.clusterAddr,
+		TeleportClusterName: kubeStatus.teleportClusterName,
+		Credentials:         kubeStatus.credentials,
+	}
+
+	if cf.executablePath == "" {
+		// Don't know tsh path.
+		// Fall back to the old kubeconfig, with static credentials from v.Credentials.
+		return v, nil
+	}
+
+	if len(kubeStatus.kubeClusters) == 0 {
+		// If there are no registered k8s clusters, we may have an older teleport cluster.
+		// Fall back to the old kubeconfig, with static credentials from v.Credentials.
+		log.Debug("Disabling exec plugin mode for kubeconfig because this Teleport cluster has no Kubernetes clusters.")
+		return v, nil
+	}
+
+	v.Exec = &kubeconfig.ExecValues{
+		TshBinaryPath:     cf.executablePath,
+		TshBinaryInsecure: cf.InsecureSkipVerify,
+		KubeClusters:      kubeStatus.kubeClusters,
+	}
+
+	// Only switch the current context if kube-cluster is explicitly set on the command line.
+	if cf.KubernetesCluster != "" {
+		if !utils.SliceContainsStr(kubeStatus.kubeClusters, cf.KubernetesCluster) {
+			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
+		}
+		v.Exec.SelectCluster = cf.KubernetesCluster
+	}
+	return v, nil
+}
+
+// updateKubeConfig adds Teleport configuration to the users's kubeconfig based on the CLI
+// parameters and the kubernetes services in the current Teleport cluster.
+func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient) error {
+	// Fetch proxy's advertised ports to check for k8s support.
+	if _, err := tc.Ping(cf.Context); err != nil {
+		return trace.Wrap(err)
+	}
+	if tc.KubeProxyAddr == "" {
+		// Kubernetes support disabled, don't touch kubeconfig.
+		return nil
+	}
+
+	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	values, err := buildKubeConfigUpdate(cf, kubeStatus)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(kubeconfig.Update("", *values))
 }
 
 // Required magic boilerplate to use the k8s encoder.

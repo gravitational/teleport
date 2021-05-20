@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,11 +19,10 @@ package postgres
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"net"
-	"strings"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/jackc/pgproto3/v2"
 
@@ -34,14 +33,14 @@ import (
 // Proxy proxies connections from Postgres clients to database services
 // over reverse tunnel. It runs inside Teleport proxy service.
 //
-// Implements db.DatabaseProxy.
+// Implements common.Proxy.
 type Proxy struct {
 	// TLSConfig is the proxy TLS configuration.
 	TLSConfig *tls.Config
 	// Middleware is the auth middleware.
 	Middleware *auth.Middleware
-	// ConnectToSite is used to connect to remote database server over reverse tunnel.
-	ConnectToSite func(context.Context) (net.Conn, error)
+	// Service is used to connect to a remote database service.
+	Service common.Service
 	// Log is used for logging.
 	Log logrus.FieldLogger
 }
@@ -64,12 +63,19 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	siteConn, err := p.ConnectToSite(ctx)
+	serviceConn, err := p.Service.Connect(ctx, "", "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer siteConn.Close()
-	err = p.proxyToSite(ctx, tlsConn, siteConn, startupMessage)
+	defer serviceConn.Close()
+	// Frontend acts as a client for the Postgres wire protocol.
+	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(serviceConn), serviceConn)
+	// Pass the startup message along to the Teleport database server.
+	err = frontend.Send(startupMessage)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = p.Service.Proxy(ctx, tlsConn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -120,44 +126,4 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgprot
 	}
 	return nil, nil, nil, trace.BadParameter(
 		"unsupported startup message: %#v", startupMessage)
-}
-
-// proxyToSite starts proxying all traffic received from Postgres client
-// between this proxy and Teleport database service over reverse tunnel.
-func (p *Proxy) proxyToSite(ctx context.Context, clientConn, siteConn net.Conn, startupMessage *pgproto3.StartupMessage) (retErr error) {
-	// Frontend acts as a client for the Postgres wire protocol.
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(siteConn), siteConn)
-	// Pass the startup message along to the Teleport database server.
-	err := frontend.Send(startupMessage)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	errCh := make(chan error, 2)
-	go func() {
-		defer p.Log.Debug("Stop proxying from client to site.")
-		defer siteConn.Close()
-		defer clientConn.Close()
-		_, err := io.Copy(siteConn, clientConn)
-		errCh <- err
-	}()
-	go func() {
-		defer p.Log.Debug("Stop proxying from site to client.")
-		defer siteConn.Close()
-		defer clientConn.Close()
-		_, err := io.Copy(clientConn, siteConn)
-		errCh <- err
-	}()
-	var errs []error
-	for i := 0; i < 2; i++ {
-		select {
-		case err := <-errCh:
-			if err != nil && err != io.EOF && !strings.Contains(err.Error(), "use of closed network connection") {
-				p.Log.WithError(err).Warn("Connection problem.")
-				errs = append(errs, err)
-			}
-		case <-ctx.Done():
-			return trace.ConnectionProblem(nil, "context is closing")
-		}
-	}
-	return trace.NewAggregate(errs...)
 }

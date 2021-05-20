@@ -42,16 +42,23 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var proxiedSessions = prometheus.NewGauge(
-	prometheus.GaugeOpts{
-		Name: teleport.MetricProxySSHSessions,
-		Help: "Number of active sessions through this proxy",
-	},
-)
+var ( // failedConnectingToNode counts failed attempts to connect to a node
+	proxiedSessions = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: teleport.MetricProxySSHSessions,
+			Help: "Number of active sessions through this proxy",
+		},
+	)
 
-func init() {
-	prometheus.MustRegister(proxiedSessions)
-}
+	failedConnectingToNode = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricFailedConnectToNodeAttempts,
+			Help: "Number of failed attempts to connect to a node",
+		},
+	)
+
+	prometheusCollectors = []prometheus.Collector{proxiedSessions, failedConnectingToNode}
+)
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
@@ -163,6 +170,11 @@ func (p *proxySubsysRequest) SetDefaults() {
 // a port forwarding request, used to implement ProxyJump feature in proxy
 // and reuse the code
 func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest) (*proxySubsys, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	req.SetDefaults()
 	if req.clusterName == "" && ctx.Identity.RouteToCluster != "" {
 		log.Debugf("Proxy subsystem: routing user %q to cluster %q based on the route to cluster extension.",
@@ -215,9 +227,7 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	)
 	// did the client pass us a true client IP ahead of time via an environment variable?
 	// (usually the web client would do that)
-	ctx.Lock()
 	trueClientIP, ok := ctx.GetEnv(sshutils.TrueClientAddrVar)
-	ctx.Unlock()
 	if ok {
 		a, err := utils.ParseAddr(trueClientIP)
 		if err == nil {
@@ -258,7 +268,6 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 // auth server of the requested remote site
 func (t *proxySubsys) proxyToSite(
 	ctx *srv.ServerContext, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
-
 	conn, err := site.DialAuthServer()
 	if err != nil {
 		return trace.Wrap(err)
@@ -281,7 +290,6 @@ func (t *proxySubsys) proxyToSite(
 		}()
 		defer conn.Close()
 		_, err = io.Copy(conn, ch)
-
 	}()
 
 	return nil
@@ -306,7 +314,7 @@ func (t *proxySubsys) proxyToHost(
 	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localCluster.GetName() {
-		servers, err = t.srv.authService.GetNodes(t.namespace, services.SkipValidation())
+		servers, err = t.srv.authService.GetNodes(ctx.CancelContext(), t.namespace, services.SkipValidation())
 		if err != nil {
 			t.log.Warn(err)
 		}
@@ -316,7 +324,7 @@ func (t *proxySubsys) proxyToHost(
 		if err != nil {
 			t.log.Warn(err)
 		} else {
-			servers, err = siteClient.GetNodes(t.namespace, services.SkipValidation())
+			servers, err = siteClient.GetNodes(ctx.CancelContext(), t.namespace, services.SkipValidation())
 			if err != nil {
 				t.log.Warn(err)
 			}
@@ -436,6 +444,7 @@ func (t *proxySubsys) proxyToHost(
 		ConnType:     services.NodeTunnel,
 	})
 	if err != nil {
+		failedConnectingToNode.Inc()
 		return trace.Wrap(err)
 	}
 

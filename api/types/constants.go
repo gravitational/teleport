@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,6 +30,9 @@ const (
 	// Wildcard is a special wildcard character matching everything
 	Wildcard = "*"
 
+	// True holds "true" string value
+	True = "true"
+
 	// KindNamespace is a namespace
 	KindNamespace = "namespace"
 
@@ -57,6 +60,10 @@ const (
 	// KindPluginData is a PluginData resource
 	KindPluginData = "plugin_data"
 
+	// KindAccessPluginData is a resource directive that applies
+	// only to plugin data associated with access requests.
+	KindAccessPluginData = "access_plugin_data"
+
 	// KindOIDC is OIDC connector resource
 	KindOIDC = "oidc"
 
@@ -83,6 +90,9 @@ const (
 
 	// KindWebSession is a web session resource
 	KindWebSession = "web_session"
+
+	// KindWebToken is a web token resource
+	KindWebToken = "web_token"
 
 	// KindAppSession represents an application specific web session.
 	KindAppSession = "app_session"
@@ -132,14 +142,28 @@ const (
 	// MetaNameClusterAuthPreference is the type of authentication for this cluster.
 	MetaNameClusterAuthPreference = "cluster-auth-preference"
 
+	// KindSessionRecordingConfig is the resource for session recording configuration.
+	KindSessionRecordingConfig = "session_recording_config"
+
+	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
+	// session recording configuration.
+	MetaNameSessionRecordingConfig = "session-recording-config"
+
 	// KindClusterConfig is the resource that holds cluster level configuration.
 	KindClusterConfig = "cluster_config"
 
-	// KindSemaphore is the resource that provides distributed semaphore functionality
-	KindSemaphore = "semaphore"
-
 	// MetaNameClusterConfig is the exact name of the cluster config singleton resource.
 	MetaNameClusterConfig = "cluster-config"
+
+	// KindClusterNetworkingConfig is the resource that holds cluster networking configuration.
+	KindClusterNetworkingConfig = "cluster_networking_config"
+
+	// MetaNameClusterNetworkingConfig is the exact name of the singleton resource holding
+	// cluster networking configuration.
+	MetaNameClusterNetworkingConfig = "cluster-networking-config"
+
+	// KindSemaphore is the resource that provides distributed semaphore functionality
+	KindSemaphore = "semaphore"
 
 	// KindClusterName is a type of configuration resource that contains the cluster name.
 	KindClusterName = "cluster_name"
@@ -181,6 +205,12 @@ const (
 	// KindKubeService is a kubernetes service resource
 	KindKubeService = "kube_service"
 
+	// KindMFADevice is an MFA device for a user.
+	KindMFADevice = "mfa_device"
+
+	// KindBilling represents access to cloud billing features
+	KindBilling = "billing"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 
@@ -191,6 +221,9 @@ const (
 	// not explicitly versioned.
 	V1 = "v1"
 )
+
+// WebSessionSubKinds lists subkinds of web session resources
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -214,4 +247,68 @@ const (
 	// VerbRotate is used to rotate certificate authorities
 	// used only internally
 	VerbRotate = "rotate"
+)
+
+const (
+	// OriginLabel is a resource metadata label name used to identify a source
+	// that the resource originates from.
+	OriginLabel = "teleport.dev/origin"
+
+	// OriginConfigFile is an origin value indicating that the resource was
+	// constructed as a default value.
+	OriginDefaults = "defaults"
+
+	// OriginConfigFile is an origin value indicating that the resource is
+	// derived from static configuration.
+	OriginConfigFile = "config-file"
+
+	// OriginDynamic is an origin value indicating that the resource was
+	// committed as dynamic configuration.
+	OriginDynamic = "dynamic"
+)
+
+// OriginValues lists all possible origin values.
+var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic}
+
+const (
+	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
+	RecordAtNode = "node"
+
+	// RecordAtProxy enables the recording proxy which intercepts and records
+	// all sessions.
+	RecordAtProxy = "proxy"
+
+	// RecordOff is used to disable session recording completely.
+	RecordOff = "off"
+
+	// RecordAtNodeSync enables the nodes to stream sessions in sync mode
+	// to the auth server
+	RecordAtNodeSync = "node-sync"
+
+	// RecordAtProxySync enables the recording proxy which intercepts and records
+	// all sessions, streams the records synchronously
+	RecordAtProxySync = "proxy-sync"
+)
+
+// SessionRecordingModes lists all possible session recording modes.
+var SessionRecordingModes = []string{RecordAtNode, RecordAtProxy, RecordOff, RecordAtNodeSync, RecordAtProxySync}
+
+// TunnelType is the type of tunnel.
+type TunnelType string
+
+const (
+	// NodeTunnel is a tunnel where the node connects to the proxy (dial back).
+	NodeTunnel TunnelType = "node"
+
+	// ProxyTunnel is a tunnel where a proxy connects to the proxy (trusted cluster).
+	ProxyTunnel TunnelType = "proxy"
+
+	// AppTunnel is a tunnel where the application proxy dials back to the proxy.
+	AppTunnel TunnelType = "app"
+
+	// KubeTunnel is a tunnel where the kubernetes service dials back to the proxy.
+	KubeTunnel TunnelType = "kube"
+
+	// DatabaseTunnel is a tunnel where a database proxy dials back to the proxy.
+	DatabaseTunnel TunnelType = "db"
 )

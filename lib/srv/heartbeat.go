@@ -136,7 +136,7 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(cfg.Component, "beat"),
 		}),
-		checkTicker: time.NewTicker(cfg.CheckPeriod),
+		checkTicker: cfg.Clock.NewTicker(cfg.CheckPeriod),
 		announceC:   make(chan struct{}, 1),
 		sendC:       make(chan struct{}, 1),
 	}
@@ -237,7 +237,7 @@ type Heartbeat struct {
 	nextKeepAlive time.Time
 	// checkTicker is a ticker for state transitions
 	// during which different checks are performed
-	checkTicker *time.Ticker
+	checkTicker clockwork.Ticker
 	// keepAliver sends keep alive updates
 	keepAliver services.KeepAliver
 	// announceC is event receives an event
@@ -262,7 +262,7 @@ func (h *Heartbeat) Run() error {
 		}
 		h.OnHeartbeat(err)
 		select {
-		case <-h.checkTicker.C:
+		case <-h.checkTicker.Chan():
 		case <-h.sendC:
 			h.Debugf("Asked check out of cycle")
 		case <-h.cancelCtx.Done():
@@ -334,7 +334,7 @@ func (h *Heartbeat) fetch() error {
 			h.reset(HeartbeatStateAnnounce)
 			return nil
 		}
-		result := services.Compare(h.current, server)
+		result := services.CompareServers(h.current, server)
 		// server update happened, time to announce
 		if result == services.Different {
 			h.current = server
@@ -352,7 +352,7 @@ func (h *Heartbeat) fetch() error {
 			h.setState(HeartbeatStateKeepAlive)
 			return nil
 		}
-		result := services.Compare(h.current, server)
+		result := services.CompareServers(h.current, server)
 		// server update happened, move to announce
 		if result == services.Different {
 			h.current = server
@@ -410,7 +410,7 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-			keepAlive, err := h.Announcer.UpsertNode(node)
+			keepAlive, err := h.Announcer.UpsertNode(h.cancelCtx, node)
 			if err != nil {
 				return trace.Wrap(err)
 			}

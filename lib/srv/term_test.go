@@ -17,12 +17,8 @@ limitations under the License.
 package srv
 
 import (
-	"fmt"
 	"os"
 	"os/user"
-	"testing"
-
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -33,12 +29,6 @@ type TermSuite struct {
 }
 
 var _ = check.Suite(&TermSuite{})
-var _ = testing.Verbose
-var _ = fmt.Printf
-
-func (s *TermSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *TermSuite) TestGetOwner(c *check.C) {
 	tests := []struct {

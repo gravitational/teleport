@@ -18,22 +18,21 @@ package local
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
 
 type PresenceSuite struct {
@@ -41,12 +40,6 @@ type PresenceSuite struct {
 }
 
 var _ = check.Suite(&PresenceSuite{})
-var _ = testing.Verbose
-var _ = fmt.Printf
-
-func (s *PresenceSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *PresenceSuite) SetUpTest(c *check.C) {
 	var err error
@@ -89,7 +82,7 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// get trusted cluster make sure it's correct
-	gotTC, err := presenceBackend.GetTrustedCluster("foo")
+	gotTC, err := presenceBackend.GetTrustedCluster(ctx, "foo")
 	c.Assert(err, check.IsNil)
 	c.Assert(gotTC.GetName(), check.Equals, "foo")
 	c.Assert(gotTC.GetEnabled(), check.Equals, true)
@@ -99,7 +92,7 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(gotTC.GetReverseTunnelAddress(), check.Equals, "quuz")
 
 	// get all clusters
-	allTC, err := presenceBackend.GetTrustedClusters()
+	allTC, err := presenceBackend.GetTrustedClusters(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(allTC, check.HasLen, 2)
 
@@ -108,7 +101,7 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// make sure it's really gone
-	_, err = presenceBackend.GetTrustedCluster("foo")
+	_, err = presenceBackend.GetTrustedCluster(ctx, "foo")
 	c.Assert(err, check.NotNil)
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 }
@@ -171,7 +164,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	require.Equal(t, 0, len(out))
 
 	// Upsert server with TTL.
-	server.SetTTL(clock, time.Hour)
+	server.SetExpiry(clock.Now().UTC().Add(time.Hour))
 	lease, err = presence.UpsertDatabaseServer(ctx, server)
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{

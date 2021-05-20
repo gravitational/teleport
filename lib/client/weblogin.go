@@ -21,23 +21,22 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/url"
 	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 )
 
 const (
@@ -81,8 +80,9 @@ type SSOLoginConsoleResponse struct {
 	RedirectURL string `json:"redirect_url"`
 }
 
-// U2fSignRequestReq is a request from the client for a U2F sign request from the server
-type U2fSignRequestReq struct {
+// MFAChallengeRequest is a request from the client for a MFA challenge from the
+// server.
+type MFAChallengeRequest struct {
 	User string `json:"user"`
 	Pass string `json:"pass"`
 }
@@ -115,15 +115,20 @@ type CreateSSHCertReq struct {
 	KubernetesCluster string
 }
 
-// CreateSSHCertWithU2FReq are passed by web client
+// CreateSSHCertWithMFAReq are passed by web client
 // to authenticate against teleport server and receive
 // a temporary cert signed by auth server authority
-type CreateSSHCertWithU2FReq struct {
+type CreateSSHCertWithMFAReq struct {
 	// User is a teleport username
 	User string `json:"user"`
-	// We only issue U2F sign requests after checking the password, so there's no need to check again.
+	// Password for the user, to authenticate in case no MFA check was
+	// performed.
+	Password string `json:"password"`
+
 	// U2FSignResponse is the signature from the U2F device
-	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
+	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
+	// TOTPCode is a code from the TOTP device.
+	TOTPCode string `json:"totp_code"`
 	// PubKey is a public key user wishes to sign
 	PubKey []byte `json:"pub_key"`
 	// TTL is a desired TTL for the cert (max is still capped by server,
@@ -137,19 +142,6 @@ type CreateSSHCertWithU2FReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-}
-
-// PingResponse contains data about the Teleport server like supported
-// authentication types, server version, etc.
-type PingResponse struct {
-	// Auth contains the forms of authentication the auth server supports.
-	Auth AuthenticationSettings `json:"auth"`
-	// Proxy contains the proxy settings.
-	Proxy ProxySettings `json:"proxy"`
-	// ServerVersion is the version of Teleport that is running.
-	ServerVersion string `json:"server_version"`
-	// MinClientVersion is the minimum client version required by the server.
-	MinClientVersion string `json:"min_client_version"`
 }
 
 // SSHLogin contains common SSH login parameters.
@@ -202,98 +194,13 @@ type SSHLoginDirect struct {
 	OTPToken string
 }
 
-// SSHLoginU2F contains SSH login parameters for U2F login.
-type SSHLoginU2F struct {
+// SSHLoginMFA contains SSH login parameters for MFA login.
+type SSHLoginMFA struct {
 	SSHLogin
 	// User is the login username.
 	User string
 	// User is the login password.
 	Password string
-}
-
-// ProxySettings contains basic information about proxy settings
-type ProxySettings struct {
-	// Kube is a kubernetes specific proxy section
-	Kube KubeProxySettings `json:"kube"`
-	// SSH is SSH specific proxy settings
-	SSH SSHProxySettings `json:"ssh"`
-}
-
-// KubeProxySettings is kubernetes proxy settings
-type KubeProxySettings struct {
-	// Enabled is true when kubernetes proxy is enabled
-	Enabled bool `json:"enabled,omitempty"`
-	// PublicAddr is a kubernetes proxy public address if set
-	PublicAddr string `json:"public_addr,omitempty"`
-	// ListenAddr is the address that the kubernetes proxy is listening for
-	// connections on.
-	ListenAddr string `json:"listen_addr,omitempty"`
-}
-
-// SSHProxySettings is SSH specific proxy settings.
-type SSHProxySettings struct {
-	// ListenAddr is the address that the SSH proxy is listening for
-	// connections on.
-	ListenAddr string `json:"listen_addr,omitempty"`
-
-	// TunnelListenAddr
-	TunnelListenAddr string `json:"tunnel_listen_addr,omitempty"`
-
-	// PublicAddr is the public address of the HTTP proxy.
-	PublicAddr string `json:"public_addr,omitempty"`
-
-	// SSHPublicAddr is the public address of the SSH proxy.
-	SSHPublicAddr string `json:"ssh_public_addr,omitempty"`
-
-	// TunnelPublicAddr is the public address of the SSH reverse tunnel.
-	TunnelPublicAddr string `json:"ssh_tunnel_public_addr,omitempty"`
-}
-
-// PingResponse contains the form of authentication the auth server supports.
-type AuthenticationSettings struct {
-	// Type is the type of authentication, can be either local or oidc.
-	Type string `json:"type"`
-	// SecondFactor is the type of second factor to use in authentication.
-	// Supported options are: off, otp, and u2f.
-	SecondFactor string `json:"second_factor,omitempty"`
-	// U2F contains the Universal Second Factor settings needed for authentication.
-	U2F *U2FSettings `json:"u2f,omitempty"`
-	// OIDC contains OIDC connector settings needed for authentication.
-	OIDC *OIDCSettings `json:"oidc,omitempty"`
-	// SAML contains SAML connector settings needed for authentication.
-	SAML *SAMLSettings `json:"saml,omitempty"`
-	// Github contains Github connector settings needed for authentication.
-	Github *GithubSettings `json:"github,omitempty"`
-}
-
-// U2FSettings contains the AppID for Universal Second Factor.
-type U2FSettings struct {
-	// AppID is the U2F AppID.
-	AppID string `json:"app_id"`
-}
-
-// SAMLSettings contains the Name and Display string for SAML
-type SAMLSettings struct {
-	// Name is the internal name of the connector.
-	Name string `json:"name"`
-	// Display is the display name for the connector.
-	Display string `json:"display"`
-}
-
-// OIDCSettings contains the Name and Display string for OIDC.
-type OIDCSettings struct {
-	// Name is the internal name of the connector.
-	Name string `json:"name"`
-	// Display is the display name for the connector.
-	Display string `json:"display"`
-}
-
-// GithubSettings contains the Name and Display string for Github connector.
-type GithubSettings struct {
-	// Name is the internal name of the connector
-	Name string `json:"name"`
-	// Display is the connector display name
-	Display string `json:"display"`
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -334,59 +241,6 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClien
 	}
 
 	return clt, u, nil
-}
-
-// Ping serves two purposes. The first is to validate the HTTP endpoint of a
-// Teleport proxy. This leads to better user experience: users get connection
-// errors before being asked for passwords. The second is to return the form
-// of authentication that the server supports. This also leads to better user
-// experience: users only get prompted for the type of authentication the server supports.
-func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool, connectorName string) (*PingResponse, error) {
-	clt, _, err := initClient(proxyAddr, insecure, pool)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	endpoint := clt.Endpoint("webapi", "ping")
-	if connectorName != "" {
-		endpoint = clt.Endpoint("webapi", "ping", connectorName)
-	}
-
-	response, err := clt.Get(ctx, endpoint, url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var pr *PingResponse
-	err = json.Unmarshal(response.Bytes(), &pr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return pr, nil
-}
-
-// Find is like ping, but used by servers to only fetch discovery data,
-// without auth connector data, it is designed for servers in IOT mode
-// to fetch proxy public addresses on a large scale.
-func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (*PingResponse, error) {
-	clt, _, err := initClient(proxyAddr, insecure, pool)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := clt.Get(ctx, clt.Endpoint("webapi", "find"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var pr *PingResponse
-	err = json.Unmarshal(response.Bytes(), &pr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return pr, nil
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
@@ -488,18 +342,18 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 	return out, nil
 }
 
-// SSHAgentU2FLogin requests a U2F sign request (authentication challenge) via
-// the proxy. If the credentials are valid, the proxy wiil return a challenge.
-// We then call the official u2f-host binary to perform the signing and pass
-// the signature to the proxy. If the authentication succeeds, we will get a
-// temporary certificate back.
-func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginResponse, error) {
+// SSHAgentMFALogin requests a MFA challenge (U2F or OTP) via the proxy. If the
+// credentials are valid, the proxy wiil return a challenge. We then prompt the
+// user to provide 2nd factor and pass the response to the proxy. If the
+// authentication succeeds, we will get a temporary certificate back.
+func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	u2fSignRequest, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
+	// TODO(awly): mfa: rename endpoint
+	chalRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), MFAChallengeRequest{
 		User: login.User,
 		Pass: login.Password,
 	})
@@ -507,90 +361,69 @@ func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	// Pass the JSON-encoded data undecoded to the u2f-host binary
-	facet := "https://" + strings.ToLower(login.ProxyAddr)
-	cmd := exec.Command("u2f-host", "-aauthenticate", "-o", facet)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
+	var chal auth.MFAAuthenticateChallenge
+	if err := json.Unmarshal(chalRaw.Bytes(), &chal); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if len(chal.U2FChallenges) == 0 && chal.AuthenticateChallenge != nil {
+		// Challenge sent by a pre-6.0 auth server, fall back to the old
+		// single-device format.
+		chal.U2FChallenges = []u2f.AuthenticateChallenge{*chal.AuthenticateChallenge}
 	}
 
-	if err := cmd.Start(); err != nil {
-		return nil, trace.Wrap(err)
+	// Convert to auth gRPC proto challenge.
+	protoChal := new(proto.MFAAuthenticateChallenge)
+	if chal.TOTPChallenge {
+		protoChal.TOTP = new(proto.TOTPChallenge)
 	}
-	defer func() {
-		// If we returned before cmd.Wait was called, clean up the spawned
-		// process. ProcessState will be empty until cmd.Wait or cmd.Run
-		// return.
-		if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
-			cmd.Process.Kill()
-		}
-	}()
-	_, err = stdin.Write(u2fSignRequest.Bytes())
-	stdin.Close()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fmt.Println("Please press the button on your U2F key")
-
-	// The origin URL is passed back base64-encoded and the keyHandle is passed back as is.
-	// A very long proxy hostname or keyHandle can overflow a fixed-size buffer.
-	signResponseLen := 500 + len(u2fSignRequest.Bytes()) + len(login.ProxyAddr)*4/3
-	signResponseBuf := make([]byte, signResponseLen)
-	signResponseLen, err = io.ReadFull(stdout, signResponseBuf)
-	// unexpected EOF means we have read the data completely.
-	if err == nil {
-		return nil, trace.LimitExceeded("u2f sign response exceeded buffer size")
+	for _, u2fChal := range chal.U2FChallenges {
+		protoChal.U2F = append(protoChal.U2F, &proto.U2FChallenge{
+			KeyHandle: u2fChal.KeyHandle,
+			Challenge: u2fChal.Challenge,
+			AppID:     u2fChal.AppID,
+		})
 	}
 
-	// Read error message (if any). 100 bytes is more than enough for any error message u2f-host outputs
-	errMsgBuf := make([]byte, 100)
-	errMsgLen, err := io.ReadFull(stderr, errMsgBuf)
-	if err == nil {
-		return nil, trace.LimitExceeded("u2f error message exceeded buffer size")
-	}
-
-	err = cmd.Wait()
-	if err != nil {
-		return nil, trace.AccessDenied("u2f-host returned error: " + string(errMsgBuf[:errMsgLen]))
-	} else if signResponseLen == 0 {
-		return nil, trace.NotFound("u2f-host returned no error and no sign response")
-	}
-
-	var u2fSignResponse *u2f.SignResponse
-	err = json.Unmarshal(signResponseBuf[:signResponseLen], &u2fSignResponse)
+	protoResp, err := PromptMFAChallenge(ctx, login.ProxyAddr, protoChal, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), CreateSSHCertWithU2FReq{
+	chalResp := CreateSSHCertWithMFAReq{
 		User:              login.User,
-		U2FSignResponse:   *u2fSignResponse,
+		Password:          login.Password,
 		PubKey:            login.PubKey,
 		TTL:               login.TTL,
 		Compatibility:     login.Compatibility,
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
-	})
+	}
+	// Convert back from auth gRPC proto response.
+	switch r := protoResp.Response.(type) {
+	case *proto.MFAAuthenticateResponse_TOTP:
+		chalResp.TOTPCode = r.TOTP.Code
+	case *proto.MFAAuthenticateResponse_U2F:
+		chalResp.U2FSignResponse = &u2f.AuthenticateChallengeResponse{
+			KeyHandle:     r.U2F.KeyHandle,
+			SignatureData: r.U2F.Signature,
+			ClientData:    r.U2F.ClientData,
+		}
+	default:
+		// No challenge was sent, so we send back just username/password.
+	}
+
+	loginRespRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), chalResp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var out *auth.SSHLoginResponse
-	err = json.Unmarshal(re.Bytes(), &out)
+	var loginResp *auth.SSHLoginResponse
+	err = json.Unmarshal(loginRespRaw.Bytes(), &loginResp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return out, nil
+	return loginResp, nil
 }
 
 // HostCredentials is used to fetch host credentials for a node.

@@ -138,6 +138,8 @@ type InstanceSecrets struct {
 	ListenAddr string `json:"tunnel_addr"`
 	// WebProxyAddr is address for web proxy
 	WebProxyAddr string `json:"web_proxy_addr"`
+	// MySQLProxyAddr is the address of MySQL proxy.
+	MySQLProxyAddr string `json:"mysql_proxy_addr"`
 	// list of users i instance trusts (key in the map is username)
 	Users map[string]*User `json:"users"`
 }
@@ -182,8 +184,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		fatalIf(err)
 	}
 	// generate instance secrets (keys):
-	keygen, err := native.New(context.TODO(), native.PrecomputeKeys(0))
-	fatalIf(err)
+	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
 	if cfg.Priv == nil || cfg.Pub == nil {
 		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair("")
 	}
@@ -207,7 +208,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		TTL:                 24 * time.Hour,
 	})
 	fatalIf(err)
-	tlsCA, err := tlsca.New(tlsCACert, tlsCAKey)
+	tlsCA, err := tlsca.FromKeys(tlsCACert, tlsCAKey)
 	fatalIf(err)
 	cryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)
@@ -233,15 +234,16 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		log:           cfg.log,
 	}
 	secrets := InstanceSecrets{
-		SiteName:     cfg.ClusterName,
-		PrivKey:      cfg.Priv,
-		PubKey:       cfg.Pub,
-		Cert:         cert,
-		TLSCACert:    tlsCACert,
-		TLSCert:      tlsCert,
-		ListenAddr:   net.JoinHostPort(cfg.NodeName, i.GetPortReverseTunnel()),
-		WebProxyAddr: net.JoinHostPort(cfg.NodeName, i.GetPortWeb()),
-		Users:        make(map[string]*User),
+		SiteName:       cfg.ClusterName,
+		PrivKey:        cfg.Priv,
+		PubKey:         cfg.Pub,
+		Cert:           cert,
+		TLSCACert:      tlsCACert,
+		TLSCert:        tlsCert,
+		ListenAddr:     net.JoinHostPort(cfg.NodeName, i.GetPortReverseTunnel()),
+		WebProxyAddr:   net.JoinHostPort(cfg.NodeName, i.GetPortWeb()),
+		MySQLProxyAddr: net.JoinHostPort(cfg.NodeName, i.GetPortMySQL()),
+		Users:          make(map[string]*User),
 	}
 	if cfg.MultiplexProxy {
 		secrets.ListenAddr = secrets.WebProxyAddr
@@ -355,6 +357,10 @@ func (i *TeleInstance) GetPortReverseTunnel() string {
 	return strconv.Itoa(i.Ports[4])
 }
 
+func (i *TeleInstance) GetPortMySQL() string {
+	return strconv.Itoa(i.Ports[5])
+}
+
 // GetSiteAPI() is a helper which returns an API endpoint to a site with
 // a given name. i endpoint implements HTTP-over-SSH access to the
 // site's auth server.
@@ -394,7 +400,7 @@ type UserCreds struct {
 
 // SetupUserCreds sets up user credentials for client
 func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds) error {
-	_, err := tc.AddKey(proxyHost, &creds.Key)
+	_, err := tc.AddKey(&creds.Key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -560,6 +566,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	}
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
+	tconf.Proxy.MySQLAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMySQL())
 	tconf.Proxy.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -646,7 +653,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// if user keys are not present, auto-geneate keys:
+		// if user keys are not present, auto-generate keys:
 		if user.Key == nil || len(user.Key.Pub) == 0 {
 			priv, pub, _ := tconf.Keygen.GenerateKeyPair("")
 			user.Key = &client.Key{
@@ -666,16 +673,16 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 
 // StartNode starts a SSH node and connects it to the cluster.
 func (i *TeleInstance) StartNode(tconf *service.Config) (*service.TeleportProcess, error) {
-	return i.startNode(tconf, false)
+	return i.startNode(tconf, i.GetPortAuth())
 }
 
 // StartReverseTunnelNode starts a SSH node and connects it to the cluster via reverse tunnel.
 func (i *TeleInstance) StartReverseTunnelNode(tconf *service.Config) (*service.TeleportProcess, error) {
-	return i.startNode(tconf, true)
+	return i.startNode(tconf, i.GetPortWeb())
 }
 
 // startNode starts a node and connects it to the cluster.
-func (i *TeleInstance) startNode(tconf *service.Config, reverseTunnel bool) (*service.TeleportProcess, error) {
+func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*service.TeleportProcess, error) {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -683,11 +690,6 @@ func (i *TeleInstance) startNode(tconf *service.Config, reverseTunnel bool) (*se
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf.DataDir = dataDir
-
-	authPort := i.GetPortAuth()
-	if reverseTunnel {
-		authPort = i.GetPortWeb()
-	}
 
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
@@ -1118,6 +1120,8 @@ type ClientConfig struct {
 	JumpHost bool
 	// Labels represents host labels
 	Labels map[string]string
+	// Interactive launches with the terminal attached if true
+	Interactive bool
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1158,6 +1162,11 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		sshProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.SSHPort))
 	}
 
+	fwdAgentMode := client.ForwardAgentNo
+	if cfg.ForwardAgent {
+		fwdAgentMode = client.ForwardAgentYes
+	}
+
 	cconf := &client.Config{
 		Username:           cfg.Login,
 		Host:               cfg.Host,
@@ -1166,10 +1175,11 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		InsecureSkipVerify: true,
 		KeysDir:            keyDir,
 		SiteName:           cfg.Cluster,
-		ForwardAgent:       cfg.ForwardAgent,
+		ForwardAgent:       fwdAgentMode,
 		Labels:             cfg.Labels,
 		WebProxyAddr:       webProxyAddr,
 		SSHProxyAddr:       sshProxyAddr,
+		Interactive:        cfg.Interactive,
 	}
 
 	// JumpHost turns on jump host mode
@@ -1199,7 +1209,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 	if user.Key == nil {
 		return nil, trace.BadParameter("user %q has no key", cfg.Login)
 	}
-	_, err = tc.AddKey(cfg.Host, user.Key)
+	_, err = tc.AddKey(user.Key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

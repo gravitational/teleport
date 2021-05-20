@@ -19,6 +19,7 @@ package reversetunnel
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -95,6 +96,7 @@ func TestServerKeyAuth(t *testing.T) {
 					Roles:               []string{"dev", "admin"},
 					RouteToCluster:      "user-cluster-name",
 					CertificateFormat:   teleport.CertificateFormatStandard,
+					TTL:                 time.Minute,
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)

@@ -17,16 +17,12 @@ limitations under the License.
 package types
 
 import (
-	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // ReverseTunnel is SSH reverse tunnel established between a local Proxy
@@ -47,8 +43,6 @@ type ReverseTunnel interface {
 	GetDialAddrs() []string
 	// Check checks tunnel for errors
 	Check() error
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 }
 
 // NewReverseTunnel returns new version of reverse tunnel
@@ -112,8 +106,10 @@ func (r *ReverseTunnelV2) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
-func (r *ReverseTunnelV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (r *ReverseTunnelV2) SetTTL(clock Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
 
@@ -178,155 +174,8 @@ func (r *ReverseTunnelV2) Check() error {
 	if strings.TrimSpace(r.Spec.ClusterName) == "" {
 		return trace.BadParameter("Reverse tunnel validation error: empty cluster name")
 	}
-
 	if len(r.Spec.DialAddrs) == 0 {
 		return trace.BadParameter("Invalid dial address for reverse tunnel '%v'", r.Spec.ClusterName)
 	}
-
-	for _, addr := range r.Spec.DialAddrs {
-		if _, err := utils.ParseAddr(addr); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
-}
-
-// TunnelType is the type of tunnel.
-type TunnelType string
-
-const (
-	// NodeTunnel is a tunnel where the node connects to the proxy (dial back).
-	NodeTunnel TunnelType = "node"
-
-	// ProxyTunnel is a tunnel where a proxy connects to the proxy (trusted cluster).
-	ProxyTunnel TunnelType = "proxy"
-
-	// AppTunnel is a tunnel where the application proxy dials back to the proxy.
-	AppTunnel TunnelType = "app"
-
-	// KubeTunnel is a tunnel where the kubernetes service dials back to the proxy.
-	KubeTunnel TunnelType = "kube"
-
-	// DatabaseTunnel is a tunnel where a database proxy dials back to the proxy.
-	DatabaseTunnel TunnelType = "db"
-)
-
-// GetReverseTunnelSchema returns role schema with optionally injected
-// schema for extensions
-func GetReverseTunnelSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ReverseTunnelSpecV2Schema, DefaultDefinitions)
-}
-
-// ReverseTunnelSpecV2Schema is JSON schema for reverse tunnel spec
-const ReverseTunnelSpecV2Schema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["cluster_name", "dial_addrs"],
-  "properties": {
-    "cluster_name": {"type": "string"},
-    "type": {"type": "string"},
-    "dial_addrs": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    }
-  }
-}`
-
-// UnmarshalReverseTunnel unmarshals reverse tunnel from JSON or YAML,
-// sets defaults and checks the schema
-func UnmarshalReverseTunnel(data []byte, opts ...MarshalOption) (ReverseTunnel, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing tunnel data")
-	}
-	var h ResourceHeader
-	err := json.Unmarshal(data, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch h.Version {
-	case V2:
-		var r ReverseTunnelV2
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &r); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetReverseTunnelSchema(), &r, data); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		}
-		if err := r.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			r.SetResourceID(cfg.ID)
-		}
-		if !cfg.Expires.IsZero() {
-			r.SetExpiry(cfg.Expires)
-		}
-		return &r, nil
-	}
-	return nil, trace.BadParameter("reverse tunnel version %v is not supported", h.Version)
-}
-
-// ReverseTunnelMarshaler implements marshal/unmarshal of reverse tunnel implementations
-type ReverseTunnelMarshaler interface {
-	// UnmarshalReverseTunnel unmarshals reverse tunnel from binary representation
-	UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel, error)
-	// MarshalReverseTunnel marshals reverse tunnel to binary representation
-	MarshalReverseTunnel(ReverseTunnel, ...MarshalOption) ([]byte, error)
-}
-
-// teleportTunnelMarshaler implements ReverseTunnelMarshaler
-type teleportTunnelMarshaler struct{}
-
-// UnmarshalReverseTunnel unmarshals reverse tunnel from JSON or YAML
-func (*teleportTunnelMarshaler) UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel, error) {
-	return UnmarshalReverseTunnel(bytes, opts...)
-}
-
-// MarshalReverseTunnel marshalls role into JSON
-func (*teleportTunnelMarshaler) MarshalReverseTunnel(rt ReverseTunnel, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch reverseTunnel := rt.(type) {
-	case *ReverseTunnelV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *reverseTunnel
-			copy.SetResourceID(0)
-			reverseTunnel = &copy
-		}
-		return utils.FastMarshal(reverseTunnel)
-	default:
-		return nil, trace.BadParameter("unrecognized reversetunnel version %T", rt)
-	}
-}
-
-var tunnelMarshaler ReverseTunnelMarshaler = &teleportTunnelMarshaler{}
-
-// SetReverseTunnelMarshaler sets global ReverseTunnelMarshaler
-func SetReverseTunnelMarshaler(m ReverseTunnelMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	tunnelMarshaler = m
-}
-
-// GetReverseTunnelMarshaler returns currently set ReverseTunnelMarshaler
-func GetReverseTunnelMarshaler() ReverseTunnelMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return tunnelMarshaler
 }

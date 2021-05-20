@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -96,12 +97,12 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	}
 	if r.Schedule == nil {
 		var err error
-		r.Schedule, err = services.GenerateSchedule(clock, *r.GracePeriod)
+		r.Schedule, err = services.GenerateSchedule(clock.Now(), *r.GracePeriod)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		if err := r.Schedule.CheckAndSetDefaults(clock); err != nil {
+		if err := r.Schedule.CheckAndSetDefaults(clock.Now()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -611,7 +612,7 @@ func startNewRotation(req rotationReq, ca services.CertAuthority) error {
 	// explicitly set in the config file. If the config file doesn't set a value,
 	// preserve the signing algorithm of the existing CA.
 	if req.caSigningAlg != nil {
-		ca.SetSigningAlg(*req.caSigningAlg)
+		sshutils.SetSigningAlgName(ca, *req.caSigningAlg)
 	}
 
 	return nil

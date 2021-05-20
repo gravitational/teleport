@@ -17,6 +17,8 @@ limitations under the License.
 package ui
 
 import (
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -39,6 +41,14 @@ type accessStrategy struct {
 	Prompt string `json:"prompt"`
 }
 
+// AccessCapabilities defines allowable access request rules defined in a user's roles.
+type AccessCapabilities struct {
+	// RequestableRoles is a list of roles that the user can select when requesting access.
+	RequestableRoles []string `json:"requestableRoles"`
+	// SuggestedReviewers is a list of reviewers that the user can select when creating a request.
+	SuggestedReviewers []string `json:"suggestedReviewers"`
+}
+
 type userACL struct {
 	// Sessions defines access to recorded sessions
 	Sessions access `json:"sessions"`
@@ -56,12 +66,18 @@ type userACL struct {
 	Tokens access `json:"tokens"`
 	// Nodes defines access to nodes.
 	Nodes access `json:"nodes"`
-	// AppServers defines access to application servers.
+	// AppServers defines access to application servers
 	AppServers access `json:"appServers"`
+	// DBServers defines access to database servers.
+	DBServers access `json:"dbServers"`
+	// KubeServers defines access to kubernetes servers.
+	KubeServers access `json:"kubeServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
-	// AccessRequests defines access to access requests.
+	// AccessRequests defines access to access requests
 	AccessRequests access `json:"accessRequests"`
+	// Billing defines access to billing information
+	Billing access `json:"billing"`
 }
 
 type authType string
@@ -71,7 +87,7 @@ const (
 	authSSO   authType = "sso"
 )
 
-// UserContext describes a users settings to various resources.
+// UserContext describes user settings and access to various resources.
 type UserContext struct {
 	// AuthType is auth method of this user.
 	AuthType authType `json:"authType"`
@@ -83,8 +99,8 @@ type UserContext struct {
 	Cluster *Cluster `json:"cluster"`
 	// AccessStrategy describes how a user should access teleport resources.
 	AccessStrategy accessStrategy `json:"accessStrategy"`
-	// RequestableRoles are roles that the user can assume when requesting access.
-	RequestableRoles []string `json:"requestableRoles"`
+	// AccessCapabilities defines allowable access request rules defined in a user's roles.
+	AccessCapabilities AccessCapabilities `json:"accessCapabilities"`
 }
 
 func getLogins(roleSet services.RoleSet) []string {
@@ -156,7 +172,7 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContext, error) {
+func NewUserContext(user services.User, userRoles services.RoleSet, features proto.Features) (*UserContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
 	roleAccess := newAccess(userRoles, ctx, services.KindRole)
@@ -167,7 +183,14 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
+	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
+	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
 	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
+
+	var billingAccess access
+	if features.Cloud {
+		billingAccess = newAccess(userRoles, ctx, services.KindBilling)
+	}
 
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
@@ -175,6 +198,8 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	acl := userACL{
 		AccessRequests:  requestAccess,
 		AppServers:      appServerAccess,
+		DBServers:       dbServerAccess,
+		KubeServers:     kubeServerAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,
@@ -184,6 +209,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 		Users:           userAccess,
 		Tokens:          tokenAccess,
 		Nodes:           nodeAccess,
+		Billing:         billingAccess,
 	}
 
 	// local user

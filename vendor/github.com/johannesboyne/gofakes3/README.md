@@ -159,5 +159,8 @@ exports.handle = function (e, ctx) {
 
 ## Contributors
 
-- [Johannes Boyne @johannesboyne](https://github.com/johannesboyne)
-- [Blake Williams @shabbyrobe](https://github.com/shabbyrobe)
+A big thank you to all the [contributors](https://github.com/johannesboyne/gofakes3/graphs/contributors),
+especially [Blake @shabbyrobe](https://github.com/shabbyrobe) who pushed this
+little project to the next level!
+
+**Help wanred**

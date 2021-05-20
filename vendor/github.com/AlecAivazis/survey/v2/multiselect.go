@@ -113,7 +113,8 @@ func (m *MultiSelect) OnChange(key rune, config *PromptConfig) {
 		m.filter = ""
 	} else if key == terminal.KeyDelete || key == terminal.KeyBackspace {
 		if m.filter != "" {
-			m.filter = m.filter[0 : len(m.filter)-1]
+			runeFilter := []rune(m.filter)
+			m.filter = string(runeFilter[0 : len(runeFilter)-1])
 		}
 	} else if key >= terminal.KeySpace {
 		m.filter += string(key)

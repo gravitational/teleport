@@ -1,0 +1,85 @@
+---
+title: Introduction to Teleport
+description: How to install and quickly get up and running with Teleport to set up SSH and Kubernetes access to cloud environments.
+h1: Introduction
+---
+
+## What is Teleport
+
+Teleport is a Certificate Authority and an Access Plane for your infrastructure. With Teleport you can:
+
+- Set up single sign-on and have one place to access your SSH servers, Kubernetes, Databases, and Web Apps.
+- Use your favorite programming language to define access policies to your infrastructure.
+- Share and record interactive sessions across all environments.
+
+<TileSet>
+  <Tile icon="bolt" title="Server Access" href="./getting-started.mdx">
+    Single Sign-On, short-lived certificates, and audit for SSH servers.
+  </Tile>
+  <Tile icon="window" title="Application Access" href="./application-access/introduction.mdx">
+    Provide secure access to internal dashboards and web applications.
+  </Tile>
+  <Tile icon="kubernetes" title="Kubernetes Access" href="./kubernetes-access/introduction.mdx">
+    Single Sign-On, audit and unified access for Kubernetes clusters.
+  </Tile>
+  <Tile icon="database" title="Database Access" href="./database-access/introduction.mdx">
+    Secure access to PostgreSQL and MySQL databases.
+  </Tile>
+  <Tile icon="cloud" title="Cloud" href="./cloud/introduction.mdx">
+    Connect your nodes, web apps, kubernetes clusters and databases to Teleport as a service.
+  </Tile>
+  <Tile icon="building" title="Enterprise" href="./enterprise/introduction.mdx">
+    OIDC, SAML, compliance controls and commercial support.
+  </Tile>
+</TileSet>
+
+<iframe
+  width="712"
+  height="400"
+  src="https://www.youtube-nocookie.com/embed/0HlyGk8dihM?rel=0&modestbranding=1"
+  frameBorder="0"
+  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
+
+<TileSet>
+  <TileList title="Reach out" icon="question">
+  <TileListItem href="https://github.com/gravitational/teleport/discussions">
+    Ask a question in the discussions forum.
+    </TileListItem>
+  <TileListItem href="https://goteleport.com/slack">
+    Join our Slack channel to get help with your setup.
+  </TileListItem>
+  <TileListItem href="https://github.com/gravitational/teleport/">
+    Create an issue in GitHub.
+  </TileListItem>
+  <TileListItem href="https://goteleport.com/get-started/">
+    Reach out sales for a demo of Teleport Enterprise.
+  </TileListItem>
+  </TileList>
+  <TileList title="For security teams" icon="lock">
+    <TileListItem href="./openssh-teleport.mdx">
+     Capture sessions and manage certificates for existing OpenSSH fleet.
+    </TileListItem>
+    <TileListItem href="./architecture/authentication.mdx#issuing-user-certificates">
+      Replace static keys and passwords with short-lived certificates.
+    </TileListItem>
+    <TileListItem href="./cli-docs.mdx#tsh-play">
+     Gather structured events and session recording/replay for `ssh` and `kubectl`.
+     </TileListItem>
+    <TileListItem href="./access-controls/guides/u2f.mdx">
+     Enforce two-factor auth with U2F or TOTP.
+    </TileListItem>
+  </TileList>
+  <TileList title="For developers" icon="stack">
+    <TileListItem href="./user-manual.mdx#sharing-sessions">
+      Collaborate through session sharing.
+    </TileListItem>
+    <TileListItem href="./admin-guide.mdx#labeling-nodes-and-applications">
+      Discover servers and clusters with dynamic node labels.
+    </TileListItem>
+    <TileListItem href="./admin-guide.mdx#adding-a-node-located-behind-nat">
+     Connect to computing resources located behind firewalls or without static IPs.
+    </TileListItem>
+  </TileList>
+</TileSet>

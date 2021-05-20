@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -142,9 +143,9 @@ func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, session 
 // authenticate will check if request carries a session cookie matching a
 // session in the backend.
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
-	cookieValue, err := extractCookie(r)
+	sessionID, err := h.extractSessionID(r)
 	if err != nil {
-		h.log.Warnf("Failed to extract session cookie: %v.", err)
+		h.log.Warnf("Failed to extract session id: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -152,7 +153,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
 	ws, err := h.c.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{
-		SessionID: cookieValue,
+		SessionID: sessionID,
 	})
 	if err != nil {
 		h.log.Debugf("Failed to fetch application session: not found.")
@@ -168,6 +169,31 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	}
 
 	return session, nil
+}
+
+// extractSessionID extracts application access session ID from either the
+// cookie or the client certificate of the provided request.
+func (h *Handler) extractSessionID(r *http.Request) (sessionID string, err error) {
+	// We have a client certificate with encoded session id in application
+	// access CLI flow i.e. when users log in using "tsh app login" and
+	// then connect to the apps with the issued certs.
+	if HasClientCert(r) {
+		certificate := r.TLS.PeerCertificates[0]
+		identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		sessionID = identity.RouteToApp.SessionID
+	} else {
+		sessionID, err = extractCookie(r)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+	if sessionID == "" {
+		return "", trace.NotFound("empty session id")
+	}
+	return sessionID, nil
 }
 
 // getSession returns a request session used to proxy the request to the
@@ -220,6 +246,11 @@ func HasSession(r *http.Request) bool {
 	return err == nil
 }
 
+// HasClientCert checks if the request has a client certificate.
+func HasClientCert(r *http.Request) bool {
+	return r.TLS != nil && len(r.TLS.PeerCertificates) > 0
+}
+
 // HasName checks if the client is attempting to connect to a
 // host that is different than the public address of the proxy. If it is, it
 // redirects back to the application launcher in the Web UI.
@@ -260,5 +291,9 @@ func HasName(r *http.Request, proxyPublicAddr string) (string, bool) {
 
 const (
 	// CookieName is the name of the application session cookie.
-	CookieName = "grv_app_session"
+	CookieName = "__Host-grv_app_session"
+
+	// AuthStateCookieName is the name of the state cookie used during the
+	// initial authentication flow.
+	AuthStateCookieName = "__Host-grv_app_auth_state"
 )

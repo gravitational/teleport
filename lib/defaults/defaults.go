@@ -27,7 +27,9 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+	"gopkg.in/square/go-jose.v2"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -57,6 +59,9 @@ const (
 	// When running as a "SSH Proxy" this port will be used to
 	// serve auth requests.
 	AuthListenPort = 3025
+
+	// MySQLListenPort is the default listen port for MySQL proxy.
+	MySQLListenPort = 3036
 
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
@@ -126,6 +131,10 @@ const (
 	// ReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
 	ReadHeadersTimeout = time.Second
+
+	// HandshakeReadDeadline is the default time to wait for the client during
+	// the TLS handshake.
+	HandshakeReadDeadline = 5 * time.Second
 
 	// SignupTokenTTL is a default TTL for a web signup one time token
 	SignupTokenTTL = time.Hour
@@ -277,7 +286,7 @@ var (
 	// Median sleep time between node pings is this value / 2 + random
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
-	ServerAnnounceTTL = 600 * time.Second
+	ServerAnnounceTTL = defaults.ServerAnnounceTTL
 
 	// ServerKeepAliveTTL is a period between server keep alives,
 	// when servers announce only presence withough sending full data
@@ -420,13 +429,12 @@ const (
 )
 
 const (
-	// MinCertDuration specifies minimum duration of validity of issued cert
+	// MinCertDuration specifies minimum duration of validity of issued certificate
 	MinCertDuration = time.Minute
-	// MaxCertDuration limits maximum duration of validity of issued cert
+	// MaxCertDuration limits maximum duration of validity of issued certificate
 	MaxCertDuration = defaults.MaxCertDuration
-	// CertDuration is a default certificate duration
-	// 12 is default as it' longer than average working day (I hope so)
-	CertDuration = 12 * time.Hour
+	// CertDuration is a default certificate duration.
+	CertDuration = defaults.CertDuration
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
@@ -450,17 +458,20 @@ const (
 	// RoleApp is an application proxy.
 	RoleApp = "app"
 	// RoleDatabase is a database proxy role.
-	RoleDatabase = "database"
+	RoleDatabase = "db"
 )
 
 const (
 	// ProtocolPostgres is the PostgreSQL database protocol.
 	ProtocolPostgres = "postgres"
+	// ProtocolMySQL is the MySQL database protocol.
+	ProtocolMySQL = "mysql"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
 var DatabaseProtocols = []string{
 	ProtocolPostgres,
+	ProtocolMySQL,
 }
 
 const (
@@ -493,13 +504,20 @@ var (
 	DataDir = "/var/lib/teleport"
 
 	// StartRoles is default roles teleport assumes when started via 'start' command
-	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp}
+	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp, RoleDatabase}
 
 	// ETCDPrefix is default key in ETCD clustered configurations
 	ETCDPrefix = "/teleport"
 
 	// ConfigEnvar is a name of teleport's configuration environment variable
 	ConfigEnvar = "TELEPORT_CONFIG"
+
+	// ConfigFileEnvar is the name of the environment variable used to specify a path to
+	// the Teleport configuration file that tctl reads on use
+	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
+
+	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
+	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
 
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"
@@ -610,6 +628,9 @@ const (
 
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
+
+	// WebsocketU2FChallenge is sending a U2F challenge.
+	WebsocketU2FChallenge = "u"
 )
 
 // The following are cryptographic primitives Teleport does not support in
@@ -627,7 +648,7 @@ const (
 	ApplicationTokenKeyType = "RSA"
 	// ApplicationTokenAlgorithm is the default algorithm used to sign
 	// application access tokens.
-	ApplicationTokenAlgorithm = defaults.ApplicationTokenAlgorithm
+	ApplicationTokenAlgorithm = jose.RS256
 )
 
 // WindowsOpenSSHNamedPipe is the address of the named pipe that the

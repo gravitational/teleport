@@ -11,13 +11,14 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=6.0.0-alpha.1
+VERSION=7.0.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
+ASSETS_BUILDDIR ?= lib/web/build
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
@@ -27,18 +28,34 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
-GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple,golint"
+# Windows requires extra parameters to cross-compile with CGO.
+ifeq ("$(OS)","windows")
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
+CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
+endif
+
+ifeq ("$(OS)","linux")
+# ARM builds need to specify the correct C compiler
+ifeq ("$(ARCH)","arm")
+CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+endif
+# ARM64 builds need to specify the correct C compiler
+ifeq ("$(ARCH)","arm64")
+CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+endif
+endif
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 FIPS ?=
-RELEASE=teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
+RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 # FIPS support must be requested at build time.
 FIPS_MESSAGE := "without FIPS support"
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_MESSAGE := "with FIPS support"
+RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 endif
 
 # PAM support will only be built into Teleport if headers exist at build time.
@@ -57,9 +74,14 @@ endif
 
 # BPF support will only be built into Teleport if headers exist at build time.
 BPF_MESSAGE := "without BPF support"
+
+# BPF cannot currently be compiled on ARMv7 due to this bug: https://github.com/iovisor/gobpf/issues/272
+# ARM64 builds are not affected.
+ifneq ("$(ARCH)","arm")
 ifneq ("$(wildcard /usr/include/bcc/libbpf.h)","")
 BPF_TAG := bpf
 BPF_MESSAGE := "with BPF support"
+endif
 endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
@@ -99,7 +121,7 @@ $(BUILDDIR)/tctl:
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
@@ -111,12 +133,9 @@ $(BUILDDIR)/tsh:
 # only tsh is built.
 #
 .PHONY:full
-full: all $(BUILDDIR)/webassets.zip
+full: $(ASSETS_BUILDDIR)/webassets.zip
 ifneq ("$(OS)", "windows")
-	@echo "---> Attaching OSS web assets."
-	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
-	rm -fr $(BUILDDIR)/webassets.zip
-	zip -q -A $(BUILDDIR)/teleport
+	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
 
 #
@@ -125,7 +144,9 @@ endif
 .PHONY:full-ent
 full-ent:
 ifneq ("$(OS)", "windows")
-	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
+	@if [ -f e/Makefile ]; then \
+	rm $(ASSETS_BUILDDIR)/webassets.zip; \
+	$(MAKE) -C e full; fi
 endif
 
 #
@@ -155,6 +176,23 @@ else
 	$(MAKE) --no-print-directory release-unix
 endif
 
+# These are aliases used to make build commands uniform.
+.PHONY: release-amd64
+release-amd64:
+	$(MAKE) release ARCH=amd64
+
+.PHONY: release-386
+release-386:
+	$(MAKE) release ARCH=386
+
+.PHONY: release-arm
+release-arm:
+	$(MAKE) release ARCH=arm
+
+.PHONY: release-arm64
+release-arm64:
+	$(MAKE) release ARCH=arm64
+
 #
 # make release-unix - Produces a binary release tarball containing teleport,
 # tctl, and tsh.
@@ -173,7 +211,10 @@ release-unix: clean full
 	tar -czf $(RELEASE).tar.gz teleport
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+	@if [ -f e/Makefile ]; then \
+		rm -fr $(ASSETS_BUILDDIR)/webassets.zip; \
+		$(MAKE) -C e release; \
+	fi
 
 #
 # make release-windows - Produces a binary release tarball containing teleport,
@@ -194,21 +235,6 @@ release-windows: clean all
 	@echo "---> Created $(RELEASE).zip."
 
 #
-# Builds docs using containerized mkdocs
-#
-.PHONY:docs
-docs: docs-test
-	$(MAKE) -C build.assets docs
-
-#
-# Runs the documentation site inside a container on localhost with live updates
-# Convenient for editing documentation.
-#
-.PHONY:run-docs
-run-docs:
-	$(MAKE) -C build.assets run-docs
-
-#
 # Remove trailing whitespace in all markdown files under docs/.
 #
 # Note: this runs in a busybox container to avoid incompatibilities between
@@ -223,7 +249,7 @@ docs-fix-whitespace:
 # Test docs for trailing whitespace and broken links
 #
 .PHONY:docs-test
-docs-test: docs-test-whitespace docs-test-links
+docs-test: docs-test-whitespace
 
 #
 # Check for trailing whitespace in all markdown files under docs/
@@ -236,34 +262,48 @@ docs-test-whitespace:
 		exit 1; \
 	fi
 
-#
-# Run milv in docs to detect broken internal links.
-# milv is installed if missing.
-#
-.PHONY:docs-test-links
-docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
-docs-test-links:
-	for docs_dir in $(DOCS_FOLDERS); do \
-		echo "running milv -ignore-external in $${docs_dir}"; \
-		cd $${docs_dir} && milv -ignore-external; cd $(PWD); \
-	done
 
 #
-# Runs all tests except integration, called by CI/CD.
-#
-# Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
+# Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: ensure-webassets
-test: FLAGS ?= '-race'
-test: PACKAGES := $(shell go list ./... | grep -v integration)
-test: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
-test: $(VERSRC)
+test: test-sh test-api test-go
+
+#
+# Runs all Go tests except integration, called by CI/CD.
+# Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
+#
+.PHONY: test-go
+test-go: ensure-webassets
+test-go: FLAGS ?= '-race'
+test-go: PACKAGES := $(shell go list ./... | grep -v integration)
+test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
+test-go: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
 
+# Runs API Go tests. These have to be run separately as the package name is different.
+#
+.PHONY: test-api
+test-api:
+test-api: FLAGS ?= '-race'
+test-api: PACKAGES := $(shell cd api && go list ./...)
+test-api: $(VERSRC)
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+
+# Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
+.PHONY: test-sh
+test-sh:
+	@if ! type bats 2>&1 >/dev/null; then \
+		echo "Not running 'test-sh' target as 'bats' is not installed."; \
+		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		exit 0; \
+	fi; \
+	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
+
 #
 # Integration tests. Need a TTY to work.
+# Any tests which need to run as root must be skipped during regular integration testing.
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
@@ -273,27 +313,35 @@ integration:
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
 
 #
+# Integration tests which need to be run as root in order to complete successfully
+# are run separately to all other integration tests. Need a TTY to work.
+#
+INTEGRATION_ROOT_REGEX := ^TestRoot
+.PHONY: integration-root
+integration-root: FLAGS ?= -v -race
+integration-root: PACKAGES := $(shell go list ./... | grep integration)
+integration-root:
+	go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+
+#
 # Lint the Go code.
-# By default lint scans the entire repo. Pass FLAGS='--new' to only scan local
+# By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-go lint-sh
+lint: lint-sh lint-helm lint-api lint-go
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
-	golangci-lint run \
-		--disable-all \
-		--exclude-use-default \
-		--exclude='S1002: should omit comparison to bool constant' \
-		--skip-dirs vendor \
-		--uniq-by-line=false \
-		--max-same-issues=0 \
-		--max-issues-per-linter 0 \
-		--timeout=5m \
-		--enable $(GO_LINTERS) \
-		$(GO_LINT_FLAGS)
+	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
+
+# api is no longer part of the teleport package, so golangci-lint skips it by default
+# GOMODCACHE needs to be set here as api downloads dependencies and cannot write to /go/pkg/mod/cache
+.PHONY: lint-api
+lint-api: GO_LINT_API_FLAGS ?=
+lint-api:
+	cd api && golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -310,7 +358,38 @@ lint-sh:
 		shellcheck \
 		--exclude=SC2086 \
 		--exclude=SC1091 \
+		--exclude=SC2129 \
 		$(SH_LINT_FLAGS)
+
+# Lints all the Helm charts found in directories under examples/chart and exits on failure
+# If there is a .lint directory inside, the chart gets linted once for each .yaml file in that directory
+# We inherit yamllint's 'relaxed' configuration as it's more compatible with Helm output and will only error on
+# show-stopping issues. Kubernetes' YAML parser is not particularly fussy.
+# If errors are found, the file is printed with line numbers to aid in debugging.
+.PHONY: lint-helm
+lint-helm:
+	@if ! type yamllint 2>&1 >/dev/null; then \
+		echo "Not running 'lint-helm' target as 'yamllint' is not installed."; \
+		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		exit 0; \
+	fi; \
+	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
+		if [ -d $${CHART}/.lint ]; then \
+			for VALUES in $${CHART}/.lint/*.yaml; do \
+				export HELM_TEMP=$$(mktemp); \
+				echo -n "Using values from '$${VALUES}': "; \
+				yamllint -c examples/chart/.lint-config.yaml $${VALUES} || { cat -en $${VALUES}; exit 1; }; \
+				helm lint --strict $${CHART} -f $${VALUES} || exit 1; \
+				helm template test $${CHART} -f $${VALUES} 1>$${HELM_TEMP} || exit 1; \
+				yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
+			done \
+		else \
+			export HELM_TEMP=$$(mktemp); \
+			helm lint --strict $${CHART} || exit 1; \
+			helm template test $${CHART} 1>$${HELM_TEMP} || exit 1; \
+			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
+		fi; \
+	done
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
@@ -330,11 +409,16 @@ tag:
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
-$(BUILDDIR)/webassets.zip:
+$(ASSETS_BUILDDIR)/webassets.zip: ensure-webassets $(ASSETS_BUILDDIR)
 ifneq ("$(OS)", "windows")
-	@echo "---> Building OSS web assets."
-	cd webassets/teleport/ ; zip -qr ../../$(BUILDDIR)/webassets.zip .
+	@echo "---> Building OSS web assets."; \
+	rm $(ASSETS_BUILDDIR)/webassets.zip; \
+	cd webassets/teleport/ ; zip -qr ../../$@ .
 endif
+
+$(ASSETS_BUILDDIR):
+	mkdir -p $@
+
 
 .PHONY: test-package
 test-package: remove-temp-files
@@ -376,29 +460,12 @@ docker-binaries: clean
 enter:
 	make -C build.assets enter
 
-PROTOC_VER ?= 3.6.1
-GOGO_PROTO_TAG ?= v1.1.1
-PLATFORM := linux-x86_64
-BUILDBOX_TAG := teleport-grpc-buildbox:0.0.1
-
-# buildbox builds docker buildbox image used to compile binaries and generate GRPc stuff
-.PHONY: buildbox
-buildbox:
-	cd build.assets/grpc && docker build \
-          --build-arg PROTOC_VER=$(PROTOC_VER) \
-          --build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
-          --build-arg PLATFORM=$(PLATFORM) \
-          -t $(BUILDBOX_TAG) .
-
-# proto generates GRPC defs from service definitions
+# grpc generates GRPC stubs from service definitions
 .PHONY: grpc
-grpc: buildbox
-	docker run \
-		--rm \
-		-v $(shell pwd):/go/src/github.com/gravitational/teleport $(BUILDBOX_TAG) \
-		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
+grpc:
+	make -C build.assets grpc
 
-# proto generates GRPC stuff inside buildbox
+# buildbox-grpc generates GRPC stubs inside buildbox
 .PHONY: buildbox-grpc
 buildbox-grpc:
 # standard GRPC output
@@ -408,30 +475,30 @@ buildbox-grpc:
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/events \
-		--gofast_out=plugins=grpc:api/types/events \
+		--gogofast_out=plugins=grpc:api/types/events \
 		events.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/wrappers \
-		--gofast_out=plugins=grpc:api/types/wrappers \
+		--gogofast_out=plugins=grpc:api/types/wrappers \
 		wrappers.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types \
-		--gofast_out=plugins=grpc:api/types \
+		--gogofast_out=plugins=grpc:api/types \
 		types.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/client/proto \
-		--gofast_out=plugins=grpc:api/client/proto \
+		--gogofast_out=plugins=grpc:api/client/proto \
 		authservice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
+	  --gogofast_out=plugins=grpc:.\
     *.proto
 
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
+	  --gogofast_out=plugins=grpc:.\
     *.proto
 
 .PHONY: goinstall
@@ -582,5 +649,25 @@ init-submodules-e: init-webapps-submodules-e
 
 .PHONY: update-vendor
 update-vendor:
+	# update modules in api/
+	cd api && go mod tidy
+	# update modules in root directory
 	go mod tidy
 	go mod vendor
+	# delete the vendored api package. In its place
+	# create a symlink to the the original api package
+	rm -r vendor/github.com/gravitational/teleport/api
+	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+
+# update-webassets updates the minified code in the webassets repo using the latest webapps
+# repo and creates a PR in the teleport repo to update webassets submodule.
+.PHONY: update-webassets
+update-webassets: WEBAPPS_BRANCH ?= 'master'
+update-webassets: TELEPORT_BRANCH ?= 'master'
+update-webassets:
+	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
+
+# dronegen generates .drone.yml config
+.PHONY: dronegen
+dronegen:
+	go run ./dronegen

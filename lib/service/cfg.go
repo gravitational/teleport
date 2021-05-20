@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,15 +20,19 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -38,7 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -200,6 +206,9 @@ type Config struct {
 
 	// Log optionally specifies the logger
 	Log utils.Logger
+
+	// PluginRegistry allows adding enterprise logic to Teleport services
+	PluginRegistry plugin.Registry
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -337,6 +346,9 @@ type ProxyConfig struct {
 	// SSHAddr is address of ssh proxy
 	SSHAddr utils.NetAddr
 
+	// MySQLAddr is address of MySQL proxy.
+	MySQLAddr utils.NetAddr
+
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
@@ -350,9 +362,17 @@ type ProxyConfig struct {
 	SSHPublicAddrs []utils.NetAddr
 
 	// TunnelPublicAddrs is a list of the public addresses the proxy advertises
-	// for the tunnel endpoint. The hosts in in PublicAddr are included in the
+	// for the tunnel endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	TunnelPublicAddrs []utils.NetAddr
+
+	// PostgresPublicAddrs is a list of the public addresses the proxy
+	// advertises for Postgres clients.
+	PostgresPublicAddrs []utils.NetAddr
+
+	// MySQLPublicAddrs is a list of the public addresses the proxy
+	// advertises for MySQL clients.
+	MySQLPublicAddrs []utils.NetAddr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
@@ -470,6 +490,12 @@ type AuthConfig struct {
 	// ClusterConfig stores cluster level configuration.
 	ClusterConfig services.ClusterConfig
 
+	// NetworkingConfig stores cluster networking configuration.
+	NetworkingConfig types.ClusterNetworkingConfig
+
+	// SessionRecordingConfig stores session recording configuration.
+	SessionRecordingConfig types.SessionRecordingConfig
+
 	// LicenseFile is a full path to the license file
 	LicenseFile string
 
@@ -496,6 +522,14 @@ type SSHConfig struct {
 
 	// BPF holds BPF configuration for Teleport.
 	BPF *bpf.Config
+
+	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
+	// discovered proxy fails.
+	// This configuration is not exposed directly but can be set from environment via
+	// defaults.ProxyFallbackAddrEnvar.
+	//
+	// See github.com/gravitational/teleport/issues/4141 for details.
+	ProxyReverseTunnelFallbackAddr *utils.NetAddr
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -550,14 +584,32 @@ type Database struct {
 	DynamicLabels services.CommandLabels
 	// CACert is an optional database CA certificate.
 	CACert []byte
-	// AWS contains AWS specific settings for RDS/Aurora.
+	// AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
 	AWS DatabaseAWS
+	// GCP contains GCP specific settings for Cloud SQL databases.
+	GCP DatabaseGCP
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
 type DatabaseAWS struct {
 	// Region is the cloud region database is running in when using AWS RDS.
 	Region string
+	// Redshift contains Redshift specific settings.
+	Redshift DatabaseAWSRedshift
+}
+
+// DatabaseAWSRedshift contains AWS Redshift specific settings.
+type DatabaseAWSRedshift struct {
+	// ClusterID is the Redshift cluster identifier.
+	ClusterID string
+}
+
+// DatabaseGCP contains GCP specific settings for Cloud SQL databases.
+type DatabaseGCP struct {
+	// ProjectID is the GCP project ID where the database is deployed.
+	ProjectID string
+	// InstanceID is the Cloud SQL instance ID.
+	InstanceID string
 }
 
 // Check validates the database proxy configuration.
@@ -585,6 +637,32 @@ func (d *Database) Check() error {
 				d.Name, err)
 		}
 	}
+	// Validate Redshift specific configuration.
+	if d.AWS.Redshift.ClusterID != "" {
+		if d.AWS.Region == "" {
+			return trace.BadParameter("missing AWS region for Redshift database %q", d.Name)
+		}
+	}
+	// Validate Cloud SQL specific configuration.
+	switch {
+	case d.GCP.ProjectID != "" && d.GCP.InstanceID == "":
+		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.Name)
+	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
+		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
+	case d.GCP.ProjectID != "" && d.GCP.InstanceID != "":
+		// Only Postgres Cloud SQL instances currently support IAM authentication.
+		// It's a relatively new feature so we'll be able to enable it once it
+		// expands to MySQL as well:
+		//   https://cloud.google.com/sql/docs/postgres/authentication
+		if d.Protocol != defaults.ProtocolPostgres {
+			return trace.BadParameter("Cloud SQL IAM authentication is currently supported only for PostgreSQL databases, can't use database %q with protocol %q", d.Name, d.Protocol)
+		}
+		// TODO(r0mant): See if we can download it automatically similar to RDS:
+		// https://cloud.google.com/sql/docs/postgres/instance-info#rest-v1beta4
+		if len(d.CACert) == 0 {
+			return trace.BadParameter("missing Cloud SQL instance root certificate for database %q", d.Name)
+		}
+	}
 	return nil
 }
 
@@ -606,6 +684,9 @@ type AppsConfig struct {
 type App struct {
 	// Name of the application.
 	Name string
+
+	// Description is the app description.
+	Description string
 
 	// URI is the internal address of the application.
 	URI string
@@ -633,7 +714,7 @@ func (a App) Check() error {
 		return trace.BadParameter("missing application name")
 	}
 	if a.URI == "" {
-		return trace.BadParameter("missing application URI")
+		return trace.BadParameter("missing application %q URI", a.Name)
 	}
 	// Check if the application name is a valid subdomain. Don't allow names that
 	// are invalid subdomains because for trusted clusters the name is used to
@@ -643,19 +724,29 @@ func (a App) Check() error {
 	}
 	// Parse and validate URL.
 	if _, err := url.Parse(a.URI); err != nil {
-		return trace.BadParameter("application URI invalid: %v", err)
+		return trace.BadParameter("application %q URI invalid: %v", a.Name, err)
 	}
 	// If a port was specified or an IP address was provided for the public
 	// address, return an error.
 	if a.PublicAddr != "" {
 		if _, _, err := net.SplitHostPort(a.PublicAddr); err == nil {
-			return trace.BadParameter("public_addr %q can not contain a port, applications will be available on the same port as the web proxy", a.PublicAddr)
+			return trace.BadParameter("application %q public_addr %q can not contain a port, applications will be available on the same port as the web proxy", a.Name, a.PublicAddr)
 		}
 		if net.ParseIP(a.PublicAddr) != nil {
-			return trace.BadParameter("public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.PublicAddr)
+			return trace.BadParameter("application %q public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.Name, a.PublicAddr)
 		}
 	}
-
+	// Make sure there are no reserved headers in the rewrite configuration.
+	// They wouldn't be rewritten even if we allowed them here but catch it
+	// early and let the user know.
+	if a.Rewrite != nil {
+		for _, h := range a.Rewrite.Headers {
+			if app.IsReservedHeader(h.Name) {
+				return trace.BadParameter("invalid application %q header rewrite configuration: header %q is reserved and can't be rewritten",
+					a.Name, http.CanonicalHeaderKey(h.Name))
+			}
+		}
+	}
 	return nil
 }
 
@@ -663,6 +754,48 @@ func (a App) Check() error {
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
 	Redirect []string
+	// Headers is a list of extra headers to inject in the request.
+	Headers []Header
+}
+
+// Header represents a single http header passed over to the proxied application.
+type Header struct {
+	// Name is the http header name.
+	Name string
+	// Value is the http header value.
+	Value string
+}
+
+// ParseHeader parses the provided string as a http header.
+func ParseHeader(header string) (*Header, error) {
+	parts := strings.SplitN(header, ":", 2)
+	if len(parts) != 2 {
+		return nil, trace.BadParameter("failed to parse %q as http header", header)
+	}
+	name := strings.TrimSpace(parts[0])
+	value := strings.TrimSpace(parts[1])
+	if !httpguts.ValidHeaderFieldName(name) {
+		return nil, trace.BadParameter("invalid http header name: %q", header)
+	}
+	if !httpguts.ValidHeaderFieldValue(value) {
+		return nil, trace.BadParameter("invalid http header value: %q", header)
+	}
+	return &Header{
+		Name:  name,
+		Value: value,
+	}, nil
+}
+
+// ParseHeaders parses the provided list as http headers.
+func ParseHeaders(headers []string) (headersOut []Header, err error) {
+	for _, header := range headers {
+		h, err := ParseHeader(header)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		headersOut = append(headersOut, *h)
+	}
+	return headersOut, nil
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
@@ -716,6 +849,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
 	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
+	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
+	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
 	cfg.Auth.Preference = services.DefaultAuthPreference()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
@@ -767,5 +902,5 @@ func ApplyFIPSDefaults(cfg *Config) {
 
 	// Update cluster configuration to record sessions at node, this way the
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.
-	cfg.Auth.ClusterConfig.SetSessionRecording(services.RecordAtNode)
+	cfg.Auth.SessionRecordingConfig.SetMode(services.RecordAtNode)
 }

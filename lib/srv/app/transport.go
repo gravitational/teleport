@@ -25,13 +25,16 @@ import (
 	"path"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // transportConfig is configuration for a rewriting transport.
@@ -44,6 +47,8 @@ type transportConfig struct {
 	jwt                string
 	rewrite            *services.Rewrite
 	w                  events.StreamWriter
+	traits             wrappers.Traits
+	log                logrus.FieldLogger
 }
 
 // Check validates configuration.
@@ -63,6 +68,9 @@ func (c *transportConfig) Check() error {
 	if c.jwt == "" {
 		return trace.BadParameter("jwt missing")
 	}
+	if c.log == nil {
+		c.log = logrus.WithField(trace.Component, "transport")
+	}
 
 	return nil
 }
@@ -77,6 +85,8 @@ type transport struct {
 	tr http.RoundTripper
 
 	uri *url.URL
+
+	ws *websocketTransport
 }
 
 // newTransport creates a new transport.
@@ -106,6 +116,7 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 		c:            c,
 		uri:          uri,
 		tr:           tr,
+		ws:           newWebsocketTransport(uri, tr.TLSClientConfig),
 	}, nil
 }
 
@@ -162,11 +173,61 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Scheme = t.uri.Scheme
 	r.URL.Host = t.uri.Host
 
-	// Add in JWT header.
-	r.Header.Add(teleport.AppJWTHeader, t.c.jwt)
-	r.Header.Add(teleport.AppCFHeader, t.c.jwt)
+	// Add headers from rewrite configuration.
+	if t.c.rewrite != nil && len(t.c.rewrite.Headers) > 0 {
+		t.rewriteHeaders(r)
+	}
+
+	// Add in JWT headers.
+	r.Header.Set(teleport.AppJWTHeader, t.c.jwt)
+	r.Header.Set(teleport.AppCFHeader, t.c.jwt)
 
 	return nil
+}
+
+// rewriteHeaders applies headers rewrites from the application configuration.
+func (t *transport) rewriteHeaders(r *http.Request) {
+	for _, header := range t.c.rewrite.Headers {
+		if IsReservedHeader(header.Name) {
+			t.c.log.Debugf("Not rewriting Teleport header %q.", header.Name)
+			continue
+		}
+		values, err := services.ApplyValueTraits(header.Value, t.c.traits)
+		if err != nil {
+			t.c.log.Debugf("Failed to apply traits to %q: %v.", header.Value, err)
+			continue
+		}
+		r.Header.Del(header.Name)
+		for _, value := range values {
+			switch http.CanonicalHeaderKey(header.Name) {
+			case teleport.HostHeader:
+				r.Host = value
+			default:
+				r.Header.Add(header.Name, value)
+			}
+		}
+	}
+}
+
+// ReservedHeaders is a list of headers injected by Teleport.
+var ReservedHeaders = []string{
+	teleport.AppJWTHeader,
+	teleport.AppCFHeader,
+	forward.XForwardedFor,
+	forward.XForwardedHost,
+	forward.XForwardedProto,
+	forward.XForwardedServer,
+}
+
+// IsReservedHeader returns true if the provided header is one of headers
+// injected by Teleport.
+func IsReservedHeader(header string) bool {
+	for _, h := range ReservedHeaders {
+		if http.CanonicalHeaderKey(header) == http.CanonicalHeaderKey(h) {
+			return true
+		}
+	}
+	return false
 }
 
 // needsPathRedirect checks if the request should be redirected to a different path.
@@ -279,4 +340,40 @@ func isRedirect(code int) bool {
 		return true
 	}
 	return false
+}
+
+// websocketTransport combines parameters for websockets transport.
+//
+// Implements forward.ReqRewriter.
+type websocketTransport struct {
+	uri    *url.URL
+	dialer forward.Dialer
+}
+
+// newWebsocketTransport returns transport that knows how to rewrite and
+// dial websocket requests.
+func newWebsocketTransport(uri *url.URL, tlsConfig *tls.Config) *websocketTransport {
+	return &websocketTransport{
+		uri: uri,
+		dialer: func(network, address string) (net.Conn, error) {
+			// Request is going to "wss://".
+			if uri.Scheme == "https" {
+				return tls.Dial(network, address, tlsConfig)
+			}
+			// Request is going to "ws://".
+			return net.Dial(network, address)
+		},
+	}
+}
+
+// Rewrite rewrites the websocket request.
+func (r *websocketTransport) Rewrite(req *http.Request) {
+	// Update scheme and host to those of the target app's to make sure
+	// it's forwarded correctly.
+	req.URL.Scheme = "ws"
+	if r.uri.Scheme == "https" {
+		req.URL.Scheme = "wss"
+	}
+	req.URL.Host = r.uri.Host
+	req.Host = r.uri.Host
 }

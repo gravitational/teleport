@@ -22,8 +22,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
 )
 
@@ -32,24 +31,8 @@ type StaticSuite struct {
 
 var _ = check.Suite(&StaticSuite{})
 
-func (s *StaticSuite) SetUpSuite(c *check.C) {
-	debugAssetsPath = "../../webassets/teleport"
-}
-
-func (s *StaticSuite) TestDebugModeEnv(c *check.C) {
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "no")
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "0")
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "1")
-	c.Assert(isDebugMode(), check.Equals, true)
-	os.Setenv(teleport.DebugEnvVar, "true")
-	c.Assert(isDebugMode(), check.Equals, true)
-}
-
 func (s *StaticSuite) TestLocalFS(c *check.C) {
-	fs, err := NewStaticFileSystem(true)
+	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	c.Assert(err, check.IsNil)
 	c.Assert(fs, check.NotNil)
 
@@ -65,7 +48,7 @@ func (s *StaticSuite) TestLocalFS(c *check.C) {
 }
 
 func (s *StaticSuite) TestZipFS(c *check.C) {
-	fs, err := readZipArchive("../../fixtures/assets.zip")
+	fs, err := readZipArchiveAt("../../fixtures/assets.zip")
 	c.Assert(err, check.IsNil)
 	c.Assert(fs, check.NotNil)
 
@@ -105,4 +88,20 @@ func (s *StaticSuite) TestZipFS(c *check.C) {
 	bytes, err = ioutil.ReadAll(f)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(bytes), check.Equals, 100)
+}
+
+func readZipArchiveAt(path string) (ResourceMap, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// file needs to stay open for http.FileSystem reads to work
+	//
+	// feed the binary into the zip reader and enumerate all files
+	// found in the attached zip file:
+	info, err := file.Stat()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return readZipArchive(file, info.Size())
 }

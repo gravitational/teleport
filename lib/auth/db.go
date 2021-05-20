@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -47,7 +48,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, err := hostCA.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(hostCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -77,6 +78,11 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
+	if !modules.GetModules().Features().DB {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster doesn't support database access, please contact the cluster administrator")
+	}
+
 	log.Debugf("Signing database CSR for cluster %v.", req.ClusterName)
 
 	clusterName, err := s.GetClusterName()
@@ -134,7 +140,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	tlsAuthority, err := userCA.TLSCA()
+	tlsAuthority, err := tlsca.FromAuthority(userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

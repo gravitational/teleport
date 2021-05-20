@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -13,7 +12,6 @@ type Suite struct {
 }
 
 var _ = check.Suite(&Suite{})
-var _ = fmt.Printf
 
 func (s *Suite) SetUpSuite(c *check.C) {
 }
@@ -47,6 +45,10 @@ func (s *Suite) TestSanitizeBucket(c *check.C) {
 		{
 			inKey:    RangeEnd([]byte("/")),
 			outError: false,
+		},
+		{
+			inKey:    RangeEnd([]byte("Malformed \xf0\x90\x28\xbc UTF8")),
+			outError: true,
 		},
 	}
 

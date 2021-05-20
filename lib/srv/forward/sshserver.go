@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -38,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
@@ -289,17 +289,18 @@ func New(c ServerConfig) (*Server, error) {
 	}
 
 	// Common auth handlers.
-	s.authHandlers = &srv.AuthHandlers{
-		Entry: logrus.WithFields(logrus.Fields{
-			trace.Component:       teleport.ComponentForwardingNode,
-			trace.ComponentFields: logrus.Fields{},
-		}),
+	authHandlerConfig := srv.AuthHandlerConfig{
 		Server:      s,
 		Component:   teleport.ComponentForwardingNode,
+		Emitter:     c.Emitter,
 		AccessPoint: c.AuthClient,
 		FIPS:        c.FIPS,
-		Emitter:     c.Emitter,
 		Clock:       c.Clock,
+	}
+
+	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Common term handlers.
@@ -412,6 +413,13 @@ func (s *Server) GetClock() clockwork.Clock {
 	return s.clock
 }
 
+// GetUtmpPath returns returns the optional override of the utmp and wtmp path.
+// These values are never set for the forwarding server because utmp and wtmp
+// are updated by the target server and not the forwarding server.
+func (s *Server) GetUtmpPath() (string, string) {
+	return "", ""
+}
+
 func (s *Server) Serve() {
 	config := &ssh.ServerConfig{}
 
@@ -427,7 +435,7 @@ func (s *Server) Serve() {
 	config.KeyExchanges = s.kexAlgorithms
 	config.MACs = s.macAlgorithms
 
-	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
+	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(s.Context())
 	if err != nil {
 		s.log.Errorf("Unable to fetch cluster config: %v.", err)
 		return
@@ -490,8 +498,8 @@ func (s *Server) Serve() {
 			s.sconn,
 			s.remoteClient,
 		},
-		Interval:     clusterConfig.GetKeepAliveInterval(),
-		MaxCount:     clusterConfig.GetKeepAliveCountMax(),
+		Interval:     netConfig.GetKeepAliveInterval(),
+		MaxCount:     netConfig.GetKeepAliveCountMax(),
 		CloseContext: ctx,
 		CloseCancel:  func() { s.connectionContext.Close() },
 	})
@@ -559,7 +567,7 @@ func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := proxy.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)
+	client, err := apisshutils.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -705,8 +713,9 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 			Code: events.PortForwardCode,
 		},
 		UserMetadata: events.UserMetadata{
-			Login: s.identityContext.Login,
-			User:  s.identityContext.TeleportUser,
+			Login:        s.identityContext.Login,
+			User:         s.identityContext.TeleportUser,
+			Impersonator: s.identityContext.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),
@@ -1042,8 +1051,9 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			Type: events.X11ForwardEvent,
 		},
 		UserMetadata: events.UserMetadata{
-			Login: s.identityContext.Login,
-			User:  s.identityContext.TeleportUser,
+			Login:        s.identityContext.Login,
+			User:         s.identityContext.TeleportUser,
+			Impersonator: s.identityContext.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),

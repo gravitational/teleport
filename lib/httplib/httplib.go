@@ -20,13 +20,16 @@ package httplib
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"errors"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -34,6 +37,10 @@ import (
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 )
+
+// timeoutMessage is a generic "timeout" error message that is displayed as a more user-friendly alternative to
+// the timeout errors returned by net/http
+const timeoutMessage = "unable to complete the request due to a timeout, please try again in a few minutes"
 
 // HandlerFunc specifies HTTP handler function that returns error
 type HandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error)
@@ -108,7 +115,7 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 // ReadJSON reads HTTP json request and unmarshals it
 // into passed interface{} obj
 func ReadJSON(r *http.Request, val interface{}) error {
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,6 +131,11 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 	if err != nil {
 		if uerr, ok := err.(*url.Error); ok && uerr != nil && uerr.Err != nil {
 			return nil, trace.ConnectionProblem(uerr.Err, uerr.Error())
+		}
+		if nerr, ok := errors.Unwrap(err).(net.Error); ok && nerr.Timeout() {
+			// Using `ConnectionProblem` instead of `LimitExceeded` allows us to preserve the original error
+			// while adding a more user-friendly message.
+			return nil, trace.ConnectionProblem(err, timeoutMessage)
 		}
 		return nil, trace.ConvertSystemError(err)
 	}

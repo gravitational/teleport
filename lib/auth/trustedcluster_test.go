@@ -2,25 +2,22 @@ package auth
 
 import (
 	"context"
-	"io/ioutil"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
-	a := newTestAuthServer(t)
+	ctx := context.Background()
+	a := newTestAuthServer(ctx, t)
 
 	rc, err := services.NewRemoteCluster("rc")
 	require.NoError(t, err)
@@ -88,22 +85,22 @@ func TestRemoteClusterStatus(t *testing.T) {
 	require.Empty(t, cmp.Diff(rc, gotRC))
 }
 
-func newTestAuthServer(t *testing.T) *Server {
-	// Create SQLite backend in a temp directory.
-	dataDir, err := ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(dataDir) })
-	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: dataDir})
+func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { bk.Close() })
 
+	clusterName := "me.localhost"
+	if len(name) != 0 {
+		clusterName = name[0]
+	}
 	// Create a cluster with minimal viable config.
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
+	clusterNameRes, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
 	authConfig := &InitConfig{
-		ClusterName:            clusterName,
+		ClusterName:            clusterNameRes,
 		Backend:                bk,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
@@ -111,6 +108,8 @@ func newTestAuthServer(t *testing.T) *Server {
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
 	t.Cleanup(func() { a.Close() })
+	require.NoError(t, a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
+	require.NoError(t, a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 	require.NoError(t, a.SetClusterConfig(services.DefaultClusterConfig()))
 
 	return a

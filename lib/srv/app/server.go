@@ -214,11 +214,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	}
 
 	// Pick up TCP keep-alive settings from the cluster level.
-	clusterConfig, err := s.c.AccessPoint.GetClusterConfig()
+	netConfig, err := s.c.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.keepAlive = clusterConfig.GetKeepAliveInterval()
+	s.keepAlive = netConfig.GetKeepAliveInterval()
 
 	// Figure out the port the proxy is running on.
 	s.proxyPort = s.getProxyPort()
@@ -244,7 +244,7 @@ func (s *Server) GetServerInfo() (services.Resource, error) {
 	s.server.SetApps(apps)
 
 	// Update the TTL.
-	s.server.SetTTL(s.c.Clock, defaults.ServerAnnounceTTL)
+	s.server.SetExpiry(s.c.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 
 	// Update rotation state.
 	rotation, err := s.c.GetRotation(teleport.RoleApp)
@@ -374,9 +374,17 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	err = authContext.Checker.CheckAccessToApp(defaults.Namespace, app)
+	ap, err := s.c.AccessPoint.GetAuthPreference()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
+	}
+	mfaParams := services.AccessMFAParams{
+		Verified:       identity.MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
+	err = authContext.Checker.CheckAccessToApp(defaults.Namespace, app, mfaParams)
+	if err != nil {
+		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
 
 	return &identity, app, nil

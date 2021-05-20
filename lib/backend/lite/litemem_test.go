@@ -18,14 +18,12 @@ package lite
 
 import (
 	"context"
-	"fmt"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
 
@@ -35,18 +33,18 @@ type LiteMemSuite struct {
 }
 
 var _ = check.Suite(&LiteMemSuite{})
-var _ = testing.Verbose
-var _ = fmt.Printf
 
 func (s *LiteMemSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	clock := clockwork.NewFakeClock()
 	newBackend := func() (backend.Backend, error) {
-		return New(context.Background(), map[string]interface{}{
-			"memory":             true,
-			"poll_stream_period": 300 * time.Millisecond,
+		return NewWithConfig(context.Background(), Config{
+			Memory:           true,
+			PollStreamPeriod: 300 * time.Millisecond,
+			Clock:            clock,
 		})
 	}
 	s.suite.NewBackend = newBackend
+	s.suite.Clock = clock
 }
 
 func (s *LiteMemSuite) SetUpTest(c *check.C) {
@@ -99,7 +97,7 @@ func (s *LiteMemSuite) TestPutRange(c *check.C) {
 }
 
 func (s *LiteMemSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }
 
 func (s *LiteMemSuite) TestConcurrentOperations(c *check.C) {

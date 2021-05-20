@@ -21,19 +21,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 // TestHeartbeatKeepAlive tests keep alive cycle used for nodes and apps.
 func TestHeartbeatKeepAlive(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	var tests = []struct {
 		name       string
 		mode       HeartbeatMode
@@ -115,7 +114,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 				ServerTTL:       600 * time.Second,
 				Clock:           clock,
 				GetServerInfo: func() (services.Resource, error) {
-					server.SetTTL(clock, defaults.ServerAnnounceTTL)
+					server.SetExpiry(clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 					return server, nil
 				},
 			})
@@ -232,7 +231,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 							Hostname: "2",
 						},
 					}
-					srv.SetTTL(clock, defaults.ServerAnnounceTTL)
+					srv.SetExpiry(clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 					return srv, nil
 				},
 			})
@@ -325,7 +324,7 @@ func (f *fakeAnnouncer) UpsertDatabaseServer(ctx context.Context, s types.Databa
 	return &types.KeepAlive{}, nil
 }
 
-func (f *fakeAnnouncer) UpsertNode(s services.Server) (*services.KeepAlive, error) {
+func (f *fakeAnnouncer) UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeNode]++
 	if f.err != nil {
 		return nil, f.err

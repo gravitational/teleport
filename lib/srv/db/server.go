@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,12 +30,15 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	"github.com/gravitational/teleport/lib/srv/db/session"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
+	"github.com/aws/aws-sdk-go/aws"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
@@ -54,6 +57,10 @@ type Config struct {
 	AccessPoint auth.AccessPoint
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
+	// NewAudit allows to override audit logger in tests.
+	NewAudit NewAuditFn
+	// NewAuth allows to override authenticator in tests.
+	NewAuth NewAuthFn
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
 	// Authorizer is used to authorize requests coming from proxy.
@@ -61,16 +68,23 @@ type Config struct {
 	// GetRotation returns the certificate rotation state.
 	GetRotation func(role teleport.Role) (*services.Rotation, error)
 	// Servers contains a list of database servers this service proxies.
-	Servers []types.DatabaseServer
-	// Credentials are credentials to AWS API.
-	Credentials *credentials.Credentials
+	Servers types.DatabaseServers
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
+	// GCPIAM allows to override GCP IAM client used in tests.
+	GCPIAM *gcpcredentials.IamCredentialsClient
 }
+
+type (
+	// NewAuditFn defines a function that creates an audit logger.
+	NewAuditFn func(common.AuditConfig) (common.Audit, error)
+	// NewAuthFn defines a function that creates authenticator.
+	NewAuthFn func(common.AuthConfig) (common.Auth, error)
+)
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
 // to function.
-func (c *Config) CheckAndSetDefaults() error {
+func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
@@ -86,6 +100,12 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.StreamEmitter == nil {
 		return trace.BadParameter("missing StreamEmitter")
 	}
+	if c.NewAudit == nil {
+		c.NewAudit = common.NewAudit
+	}
+	if c.NewAuth == nil {
+		c.NewAuth = common.NewAuth
+	}
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing TLSConfig")
 	}
@@ -98,20 +118,11 @@ func (c *Config) CheckAndSetDefaults() error {
 	if len(c.Servers) == 0 {
 		return trace.BadParameter("missing Servers")
 	}
-	if c.Credentials == nil {
-		session, err := awssession.NewSessionWithOptions(awssession.Options{
-			SharedConfigState: awssession.SharedConfigEnable,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Credentials = session.Config.Credentials
-	}
 	return nil
 }
 
-// Server is an application server. It authenticates requests from the web
-// proxy and forwards them to internal applications.
+// Server is a database server. It accepts database client requests coming over
+// reverse tunnel from Teleport proxy and proxies them to databases.
 type Server struct {
 	// cfg is the database server configuration.
 	cfg Config
@@ -125,17 +136,18 @@ type Server struct {
 	dynamicLabels map[string]*labels.Dynamic
 	// heartbeats holds hearbeats for database servers.
 	heartbeats map[string]*srv.Heartbeat
-	// rdsCACerts contains loaded RDS root certificates for required regions.
-	rdsCACerts map[string][]byte
 	// mu protects access to server infos.
 	mu sync.RWMutex
 	// log is used for logging.
 	log *logrus.Entry
+	// awsSessions contains per-region AWS sessions which are only initialized
+	// if there are any RDS/Aurora/Redshift databases in respective regions.
+	awsSessions map[string]*awssession.Session
 }
 
-// New returns a new application server.
+// New returns a new database server.
 func New(ctx context.Context, config Config) (*Server, error) {
-	err := config.CheckAndSetDefaults()
+	err := config.CheckAndSetDefaults(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,7 +160,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		closeFunc:     cancel,
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		heartbeats:    make(map[string]*srv.Heartbeat),
-		rdsCACerts:    make(map[string][]byte),
+		awsSessions:   make(map[string]*awssession.Session),
 		middleware: &auth.Middleware{
 			AccessPoint:   config.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
@@ -178,8 +190,46 @@ func (s *Server) initDatabaseServer(ctx context.Context, server types.DatabaseSe
 	if err := s.initHeartbeat(ctx, server); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.initRDSRootCert(ctx, server); err != nil {
+	if err := s.initCACert(ctx, server); err != nil {
 		return trace.Wrap(err)
+	}
+	if err := s.initCloudClients(ctx, server); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *Server) initCloudClients(ctx context.Context, server types.DatabaseServer) error {
+	var err error
+	switch server.GetType() {
+	case types.DatabaseTypeRDS, types.DatabaseTypeRedshift:
+		region := server.GetAWS().Region
+		if _, ok := s.awsSessions[region]; ok {
+			return nil // Already initialized.
+		}
+		session, err := awssession.NewSessionWithOptions(awssession.Options{
+			SharedConfigState: awssession.SharedConfigEnable,
+			Config: aws.Config{
+				Region: aws.String(region),
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err, "failed to initialize AWS session in region %q for database %q",
+				region, server.GetName())
+		}
+		s.awsSessions[region] = session
+	case types.DatabaseTypeCloudSQL:
+		if s.cfg.GCPIAM != nil {
+			return nil // Already initialized.
+		}
+		s.cfg.GCPIAM, err = gcpcredentials.NewIamCredentialsClient(ctx)
+		if err != nil {
+			return trace.Wrap(err, "failed to initialize GCP IAM client for database %q",
+				server.GetName())
+		}
+	default:
+		// For other types of databases e.g. self-hosted we don't need to
+		// initialize any cloud API clients.
 	}
 	return nil
 }
@@ -222,8 +272,11 @@ func (s *Server) initHeartbeat(ctx context.Context, server types.DatabaseServer)
 
 func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services.Resource, error) {
 	return func() (services.Resource, error) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
+		// Make sure to return a new object, because it gets cached by
+		// heartbeat and will always compare as equal otherwise.
+		s.mu.RLock()
+		server = server.Copy()
+		s.mu.RUnlock()
 		// Update dynamic labels.
 		labels, ok := s.dynamicLabels[server.GetName()]
 		if ok {
@@ -239,18 +292,9 @@ func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services
 			}
 		}
 		// Update TTL.
-		server.SetTTL(s.cfg.Clock, defaults.ServerAnnounceTTL)
-		// Make sure to return a new object, because it gets cached by
-		// heartbeat and will always compare as equal otherwise.
-		return server.Copy(), nil
+		server.SetExpiry(s.cfg.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
+		return server, nil
 	}
-}
-
-// getServers returns database servers this service is handling, used in tests.
-func (s *Server) getServers() []types.DatabaseServer {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.cfg.Servers
 }
 
 // Start starts heartbeating the presence of service.Databases that this
@@ -277,6 +321,10 @@ func (s *Server) Close() error {
 	var errors []error
 	for _, heartbeat := range s.heartbeats {
 		errors = append(errors, heartbeat.Close())
+	}
+	// Close the GCP IAM client if needed.
+	if s.cfg.GCPIAM != nil {
+		errors = append(errors, s.cfg.GCPIAM.Close())
 	}
 	return trace.NewAggregate(errors...)
 }
@@ -357,34 +405,46 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	return nil
 }
 
-// DatabaseEngine defines an interface for specific database protocol engine
-// such as postgres or mysql.
-type DatabaseEngine interface {
-	// HandleConnection takes the connection from the proxy and starts
-	// proxying it to the particular database instance.
-	HandleConnection(context.Context, *session.Context, net.Conn) error
-}
-
 // dispatch returns an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *session.Context, streamWriter events.StreamWriter) (DatabaseEngine, error) {
+func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter) (common.Engine, error) {
+	auth, err := s.cfg.NewAuth(common.AuthConfig{
+		AuthClient: s.cfg.AuthClient,
+		AWSSession: s.awsSessions[sessionCtx.Server.GetAWS().Region],
+		GCPIAM:     s.cfg.GCPIAM,
+		Clock:      s.cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	audit, err := s.cfg.NewAudit(common.AuditConfig{
+		Emitter: streamWriter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	switch sessionCtx.Server.GetProtocol() {
 	case defaults.ProtocolPostgres:
 		return &postgres.Engine{
-			AuthClient:     s.cfg.AuthClient,
-			Credentials:    s.cfg.Credentials,
-			RDSCACerts:     s.rdsCACerts,
-			OnSessionStart: s.emitSessionStartEventFn(streamWriter),
-			OnSessionEnd:   s.emitSessionEndEventFn(streamWriter),
-			OnQuery:        s.emitQueryEventFn(streamWriter),
-			Clock:          s.cfg.Clock,
-			Log:            sessionCtx.Log,
+			Auth:    auth,
+			Audit:   audit,
+			Context: s.closeContext,
+			Clock:   s.cfg.Clock,
+			Log:     sessionCtx.Log,
+		}, nil
+	case defaults.ProtocolMySQL:
+		return &mysql.Engine{
+			Auth:    auth,
+			Audit:   audit,
+			Context: s.closeContext,
+			Clock:   s.cfg.Clock,
+			Log:     sessionCtx.Log,
 		}, nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
 		sessionCtx.Server.GetProtocol())
 }
 
-func (s *Server) authorize(ctx context.Context) (*session.Context, error) {
+func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
 	userType := ctx.Value(auth.ContextUser)
 	switch userType.(type) {
@@ -406,15 +466,23 @@ func (s *Server) authorize(ctx context.Context) (*session.Context, error) {
 			server = s
 		}
 	}
+	if server == nil {
+		return nil, trace.NotFound("%q not found among registered database servers: %v",
+			identity.RouteToDatabase.ServiceName, s.cfg.Servers)
+	}
 	s.log.Debugf("Will connect to database %q at %v.", server.GetName(),
 		server.GetURI())
 	id := uuid.New()
-	return &session.Context{
+	return &common.Session{
 		ID:                id,
+		ClusterName:       identity.RouteToCluster,
 		Server:            server,
 		Identity:          identity,
+		DatabaseUser:      identity.RouteToDatabase.Username,
+		DatabaseName:      identity.RouteToDatabase.Database,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
+		Statements:        common.NewStatementsCache(),
 		Log: s.log.WithFields(logrus.Fields{
 			"id": id,
 			"db": server.GetName(),

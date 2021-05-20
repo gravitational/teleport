@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -37,12 +38,18 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 type CacheSuite struct{}
 
@@ -50,10 +57,6 @@ var _ = check.Suite(&CacheSuite{})
 
 // bootstrap check
 func TestState(t *testing.T) { check.TestingT(t) }
-
-func (s *CacheSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 // testPack contains pack of
 // services used for test run
@@ -71,9 +74,11 @@ type testPack struct {
 
 	usersS         services.UsersService
 	accessS        services.Access
-	dynamicAccessS services.DynamicAccess
+	dynamicAccessS services.DynamicAccessCore
 	presenceS      services.Presence
 	appSessionS    services.AppSession
+	webSessionS    types.WebSessionInterface
+	webTokenS      types.WebTokenInterface
 }
 
 func (t *testPack) Close() {
@@ -138,8 +143,13 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 
 	p.eventsC = make(chan Event, 100)
 
+	clusterConfig, err := local.NewClusterConfigurationService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	p.trustS = local.NewCAService(p.backend)
-	p.clusterConfigS = local.NewClusterConfigurationService(p.backend)
+	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
 	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend)}
 	p.presenceS = local.NewPresenceService(p.backend)
@@ -147,6 +157,8 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	p.accessS = local.NewAccessService(p.backend)
 	p.dynamicAccessS = local.NewDynamicAccessService(p.backend)
 	p.appSessionS = local.NewIdentityService(p.backend)
+	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
+	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 
 	return p, nil
 }
@@ -170,6 +182,8 @@ func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
@@ -236,6 +250,8 @@ func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
@@ -449,6 +465,8 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 			DynamicAccess: p.dynamicAccessS,
 			Presence:      p.presenceS,
 			AppSession:    p.appSessionS,
+			WebSession:    p.webSessionS,
+			WebToken:      p.webTokenS,
 			RetryPeriod:   200 * time.Millisecond,
 			EventsC:       p.eventsC,
 			PreferRecent: PreferRecent{
@@ -503,6 +521,8 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -562,6 +582,8 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -594,6 +616,8 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -637,6 +661,8 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -750,6 +776,7 @@ func (s *CacheSuite) TestRecovery(c *check.C) {
 
 // TestTokens tests static and dynamic tokens
 func (s *CacheSuite) TestTokens(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
@@ -783,7 +810,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 	token, err := services.NewProvisionToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, expires)
 	c.Assert(err, check.IsNil)
 
-	err = p.provisionerS.UpsertToken(token)
+	err = p.provisionerS.UpsertToken(ctx, token)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -793,12 +820,12 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	tout, err := p.cache.GetToken(token.GetName())
+	tout, err := p.cache.GetToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 	token.SetResourceID(tout.GetResourceID())
 	fixtures.DeepCompare(c, token, tout)
 
-	err = p.provisionerS.DeleteToken(token.GetName())
+	err = p.provisionerS.DeleteToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -808,7 +835,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetToken(token.GetName())
+	_, err = p.cache.GetToken(ctx, token.GetName())
 	fixtures.ExpectNotFound(c, err)
 }
 
@@ -817,9 +844,30 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	// update cluster config to record at the proxy
+	// DELETE IN 8.0.0
+	err := p.clusterConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+	c.Assert(err, check.IsNil)
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// DELETE IN 8.0.0
+	err = p.clusterConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+	c.Assert(err, check.IsNil)
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// update cluster config
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtProxy,
 		Audit: services.AuditConfig{
 			AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 		},
@@ -1006,7 +1054,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
-	role, err = p.accessS.GetRole(role.GetName())
+	role, err = p.accessS.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1016,7 +1064,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetRole(role.GetName())
+	out, err := p.cache.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, role, out)
@@ -1027,7 +1075,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
-	role, err = p.accessS.GetRole(role.GetName())
+	role, err = p.accessS.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1037,7 +1085,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetRole(role.GetName())
+	out, err = p.cache.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, role, out)
@@ -1051,7 +1099,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetRole(role.GetName())
+	_, err = p.cache.GetRole(ctx, role.GetName())
 	fixtures.ExpectNotFound(c, err)
 }
 
@@ -1126,11 +1174,11 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 	defer p.Close()
 
 	clusterName := "example.com"
-	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
+	hb := time.Now().UTC()
 	conn, err := services.NewTunnelConnection("conn1", services.TunnelConnectionSpecV2{
 		ClusterName:   clusterName,
 		ProxyName:     "p1",
-		LastHeartbeat: dt,
+		LastHeartbeat: hb,
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(p.presenceS.UpsertTunnelConnection(conn), check.IsNil)
@@ -1155,8 +1203,8 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 	fixtures.DeepCompare(c, conn, out[0])
 
 	// update conn's parameters
-	dt = time.Date(2015, 6, 5, 5, 3, 2, 1, time.UTC).UTC()
-	conn.SetLastHeartbeat(dt)
+	hb = hb.Add(time.Second)
+	conn.SetLastHeartbeat(hb)
 
 	err = p.presenceS.UpsertTunnelConnection(conn)
 	c.Assert(err, check.IsNil)
@@ -1196,14 +1244,16 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 
 // TestNodes tests nodes cache
 func (s *CacheSuite) TestNodes(c *check.C) {
+	ctx := context.Background()
+
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
 	server := suite.NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
-	_, err := p.presenceS.UpsertNode(server)
+	_, err := p.presenceS.UpsertNode(ctx, server)
 	c.Assert(err, check.IsNil)
 
-	out, err := p.presenceS.GetNodes(defaults.Namespace)
+	out, err := p.presenceS.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv := out[0]
@@ -1215,7 +1265,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1226,10 +1276,10 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	srv.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
 	srv.SetAddr("127.0.0.2:2033")
 
-	lease, err := p.presenceS.UpsertNode(srv)
+	lease, err := p.presenceS.UpsertNode(ctx, srv)
 	c.Assert(err, check.IsNil)
 
-	out, err = p.presenceS.GetNodes(defaults.Namespace)
+	out, err = p.presenceS.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv = out[0]
@@ -1241,7 +1291,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1261,7 +1311,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1269,7 +1319,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	srv.SetExpiry(lease.Expires)
 	fixtures.DeepCompare(c, srv, out[0])
 
-	err = p.presenceS.DeleteAllNodes(defaults.Namespace)
+	err = p.presenceS.DeleteAllNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1278,7 +1328,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 }

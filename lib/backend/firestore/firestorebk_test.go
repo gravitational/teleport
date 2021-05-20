@@ -19,6 +19,7 @@ package firestore
 import (
 	"context"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -26,12 +27,17 @@ import (
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
 	"google.golang.org/protobuf/proto"
-
 	"gopkg.in/check.v1"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 // TestMarshal tests index operation metadata marshal and unmarshal
 // to verify backwards compatibility. Gogoproto is incompatible with ApiV2 protoc-gen-go code.
@@ -57,8 +63,6 @@ type FirestoreSuite struct {
 var _ = check.Suite(&FirestoreSuite{})
 
 func (s *FirestoreSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	if !emulatorRunning() {
 		c.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
@@ -76,6 +80,9 @@ func (s *FirestoreSuite) SetUpSuite(c *check.C) {
 	s.bk = bk.(*Backend)
 	s.suite.B = s.bk
 	s.suite.NewBackend = newBackend
+	clock := clockwork.NewFakeClock()
+	s.bk.clock = clock
+	s.suite.Clock = clock
 }
 
 func emulatorRunning() bool {
@@ -142,7 +149,7 @@ func (s *FirestoreSuite) TestWatchersClose(c *check.C) {
 }
 
 func (s *FirestoreSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }
 
 func (s *FirestoreSuite) TestReadLegacyRecord(c *check.C) {

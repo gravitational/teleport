@@ -1,0 +1,12 @@
+teleportVersionOverride: "5"
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: kube,app,db
+kubeClusterName: test-kube-cluster-name
+labels:
+  cluster: testing
+apps:
+  - name: grafana
+    uri: http://localhost:3000
+    labels:
+      environment: test

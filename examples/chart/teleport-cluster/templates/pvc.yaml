@@ -1,0 +1,15 @@
+{{- if and (eq .Values.chartMode "standalone") (not .Values.standalone.existingClaimName) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ required "standalone.volumeSize is required in chart values" .Values.standalone.volumeSize }}
+{{- end }}

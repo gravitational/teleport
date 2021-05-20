@@ -18,6 +18,7 @@ package lite
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -26,8 +27,14 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestLite(t *testing.T) { check.TestingT(t) }
 
@@ -39,14 +46,16 @@ type LiteSuite struct {
 var _ = check.Suite(&LiteSuite{})
 
 func (s *LiteSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	clock := clockwork.NewFakeClock()
 	newBackend := func() (backend.Backend, error) {
-		return New(context.Background(), map[string]interface{}{
-			"path":               c.MkDir(),
-			"poll_stream_period": 300 * time.Millisecond,
+		return NewWithConfig(context.Background(), Config{
+			Path:             c.MkDir(),
+			PollStreamPeriod: 300 * time.Millisecond,
+			Clock:            clock,
 		})
 	}
 	s.suite.NewBackend = newBackend
+	s.suite.Clock = clock
 }
 
 func (s *LiteSuite) SetUpTest(c *check.C) {
@@ -99,7 +108,7 @@ func (s *LiteSuite) TestPutRange(c *check.C) {
 }
 
 func (s *LiteSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }
 
 // Import tests importing values

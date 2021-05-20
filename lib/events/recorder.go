@@ -121,7 +121,7 @@ func NewForwardRecorder(cfg ForwardRecorderConfig) (*ForwardRecorder, error) {
 		DataDir:        cfg.DataDir,
 		RecordSessions: cfg.RecordSessions,
 		Namespace:      cfg.Namespace,
-		ForwardTo:      cfg.ForwardTo,
+		IAuditLog:      cfg.ForwardTo,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -140,6 +140,12 @@ func NewForwardRecorder(cfg ForwardRecorderConfig) (*ForwardRecorder, error) {
 // GetAuditLog returns audit log associated with this recorder
 func (r *ForwardRecorder) GetAuditLog() IAuditLog {
 	return r.AuditLog
+}
+
+// EmitAuditEvent is not implemented
+// Events are forwarded to the auth server and is then emitted from there
+func (r *Forwarder) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	return trace.NotImplemented("not implemented")
 }
 
 // Write takes a chunk and writes it into the audit log

@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/stretchr/testify/require"
@@ -30,33 +31,40 @@ import (
 // dynamic labels and heartbeats its presence to the auth server.
 func TestDatabaseServerStart(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t)
-	t.Cleanup(func() { testCtx.Close() })
+	testCtx := setupTestContext(ctx, t,
+		withSelfHostedPostgres("postgres"),
+		withSelfHostedMySQL("mysql"))
 
 	err := testCtx.server.Start()
 	require.NoError(t, err)
-	t.Cleanup(func() { testCtx.server.Close() })
 
-	labels, ok := testCtx.server.dynamicLabels[testCtx.dbServer.GetName()]
-	require.True(t, ok)
-	require.Equal(t, "test", labels.Get()["echo"].GetResult())
+	tests := []struct {
+		server types.DatabaseServer
+	}{
+		{
+			server: testCtx.postgres["postgres"].server,
+		},
+		{
+			server: testCtx.mysql["mysql"].server,
+		},
+	}
 
-	heartbeat, ok := testCtx.server.heartbeats[testCtx.dbServer.GetName()]
-	require.True(t, ok)
+	for _, test := range tests {
+		labels, ok := testCtx.server.dynamicLabels[test.server.GetName()]
+		require.True(t, ok)
+		require.Equal(t, "test", labels.Get()["echo"].GetResult())
 
-	err = heartbeat.ForceSend(time.Second)
-	require.NoError(t, err)
+		heartbeat, ok := testCtx.server.heartbeats[test.server.GetName()]
+		require.True(t, ok)
 
+		err = heartbeat.ForceSend(time.Second)
+		require.NoError(t, err)
+	}
+
+	// Make sure servers were announced and their labels updated.
 	servers, err := testCtx.authClient.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, testCtx.server.getServers(), servers)
-
-	// Update the server, force the heartbeat and make sure it was re-announced.
-	testCtx.dbServer.SetStaticLabels(map[string]string{"a": "b"})
-	err = heartbeat.ForceSend(time.Second)
-	require.NoError(t, err)
-
-	servers, err = testCtx.authClient.GetDatabaseServers(ctx, defaults.Namespace)
-	require.NoError(t, err)
-	require.EqualValues(t, testCtx.server.getServers(), servers)
+	for _, server := range servers {
+		require.Equal(t, map[string]string{"echo": "test"}, server.GetAllLabels())
+	}
 }

@@ -78,7 +78,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	return ok(), nil
+	return OK(), nil
 }
 
 type fileTransfer struct {
@@ -144,7 +144,7 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 		return nil, trace.BadParameter("missing login")
 	}
 
-	servers, err := f.authClient.GetNodes(req.namespace)
+	servers, err := f.authClient.GetNodes(httpReq.Context(), req.namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

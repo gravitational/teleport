@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,8 +21,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net"
+	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -30,6 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -94,7 +99,8 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	server := &ProxyServer{
 		cfg: config,
 		middleware: &auth.Middleware{
-			AccessPoint: config.AccessPoint,
+			AccessPoint:   config.AccessPoint,
+			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 		closeCtx: ctx,
 		log:      logrus.WithField(trace.Component, "db:proxy"),
@@ -114,6 +120,9 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 		// The connection is expected to come through via multiplexer.
 		clientConn, err := listener.Accept()
 		if err != nil {
+			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) || trace.IsConnectionProblem(err) {
+				return nil
+			}
 			return trace.Wrap(err)
 		}
 		// The multiplexed connection contains information about detected
@@ -129,21 +138,38 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 			defer clientConn.Close()
 			err := proxy.HandleConnection(s.closeCtx, clientConn)
 			if err != nil {
-				s.log.WithError(err).Error("Failed to handle client connection.")
+				s.log.WithError(err).Warn("Failed to handle client connection.")
 			}
 		}()
 	}
 }
 
-// DatabaseProxy defines an interface a database proxy should implement.
-type DatabaseProxy interface {
-	// HandleConnection takes the client connection, handles all database
-	// specific startup actions and starts proxying to remote server.
-	HandleConnection(context.Context, net.Conn) error
+// ServeMySQL starts accepting MySQL client connections.
+func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
+	s.log.Debug("Started MySQL proxy.")
+	defer s.log.Debug("MySQL proxy exited.")
+	for {
+		// Accept the connection from a MySQL client.
+		clientConn, err := listener.Accept()
+		if err != nil {
+			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		// Pass over to the MySQL proxy handler.
+		go func() {
+			defer clientConn.Close()
+			err := s.mysqlProxy().HandleConnection(s.closeCtx, clientConn)
+			if err != nil {
+				s.log.WithError(err).Error("Failed to handle MySQL client connection.")
+			}
+		}()
+	}
 }
 
 // dispatch dispatches the connection to appropriate database proxy.
-func (s *ProxyServer) dispatch(clientConn net.Conn) (DatabaseProxy, error) {
+func (s *ProxyServer) dispatch(clientConn net.Conn) (common.Proxy, error) {
 	muxConn, ok := clientConn.(*multiplexer.Conn)
 	if !ok {
 		return nil, trace.BadParameter("expected multiplexer connection, got %T", clientConn)
@@ -151,25 +177,42 @@ func (s *ProxyServer) dispatch(clientConn net.Conn) (DatabaseProxy, error) {
 	switch muxConn.Protocol() {
 	case multiplexer.ProtoPostgres:
 		s.log.Debugf("Accepted Postgres connection from %v.", muxConn.RemoteAddr())
-		return &postgres.Proxy{
-			TLSConfig:     s.cfg.TLSConfig,
-			Middleware:    s.middleware,
-			ConnectToSite: s.connectToSite,
-			Log:           s.log,
-		}, nil
+		return s.postgresProxy(), nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
 		muxConn.Protocol())
 }
 
-// connectToSite connects to the database server running on a remote site
+// postgresProxy returns a new instance of the Postgres protocol aware proxy.
+func (s *ProxyServer) postgresProxy() *postgres.Proxy {
+	return &postgres.Proxy{
+		TLSConfig:  s.cfg.TLSConfig,
+		Middleware: s.middleware,
+		Service:    s,
+		Log:        s.log,
+	}
+}
+
+// mysqlProxy returns a new instance of the MySQL protocol aware proxy.
+func (s *ProxyServer) mysqlProxy() *mysql.Proxy {
+	return &mysql.Proxy{
+		TLSConfig:  s.cfg.TLSConfig,
+		Middleware: s.middleware,
+		Service:    s,
+		Log:        s.log,
+	}
+}
+
+// Connect connects to the database server running on a remote cluster
 // over reverse tunnel and upgrades this end of the connection to TLS so
 // the identity can be passed over it.
 //
 // The passed in context is expected to contain the identity information
 // decoded from the client certificate by auth.Middleware.
-func (s *ProxyServer) connectToSite(ctx context.Context) (net.Conn, error) {
-	authContext, err := s.authorize(ctx)
+//
+// Implements common.Service.
+func (s *ProxyServer) Connect(ctx context.Context, user, database string) (net.Conn, error) {
+	authContext, err := s.authorize(ctx, user, database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -177,10 +220,10 @@ func (s *ProxyServer) connectToSite(ctx context.Context) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	siteConn, err := authContext.site.Dial(reversetunnel.DialParams{
+	serviceConn, err := authContext.cluster.Dial(reversetunnel.DialParams{
 		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@db-proxy"},
 		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-		ServerID: fmt.Sprintf("%v.%v", authContext.server.GetHostID(), authContext.site.GetName()),
+		ServerID: fmt.Sprintf("%v.%v", authContext.server.GetHostID(), authContext.cluster.GetName()),
 		ConnType: types.DatabaseTunnel,
 	})
 	if err != nil {
@@ -189,35 +232,71 @@ func (s *ProxyServer) connectToSite(ctx context.Context) (net.Conn, error) {
 	// Upgrade the connection so the client identity can be passed to the
 	// remote server during TLS handshake. On the remote side, the connection
 	// received from the reverse tunnel will be handled by tls.Server.
-	siteConn = tls.Client(siteConn, tlsConfig)
-	return siteConn, nil
+	serviceConn = tls.Client(serviceConn, tlsConfig)
+	return serviceConn, nil
+}
+
+// Proxy starts proxying all traffic received from database client between
+// this proxy and Teleport database service over reverse tunnel.
+//
+// Implements common.Service.
+func (s *ProxyServer) Proxy(ctx context.Context, clientConn, serviceConn io.ReadWriteCloser) error {
+	errCh := make(chan error, 2)
+	go func() {
+		defer s.log.Debug("Stop proxying from client to service.")
+		defer serviceConn.Close()
+		defer clientConn.Close()
+		_, err := io.Copy(serviceConn, clientConn)
+		errCh <- err
+	}()
+	go func() {
+		defer s.log.Debug("Stop proxying from service to client.")
+		defer serviceConn.Close()
+		defer clientConn.Close()
+		_, err := io.Copy(clientConn, serviceConn)
+		errCh <- err
+	}()
+	var errs []error
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errCh:
+			if err != nil && !utils.IsOKNetworkError(err) {
+				s.log.WithError(err).Warn("Connection problem.")
+				errs = append(errs, err)
+			}
+		case <-ctx.Done():
+			return trace.ConnectionProblem(nil, "context is closing")
+		}
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // proxyContext contains parameters for a database session being proxied.
 type proxyContext struct {
 	// identity is the authorized client identity.
 	identity tlsca.Identity
-	// site is the remote site running the database server.
-	site reversetunnel.RemoteSite
+	// cluster is the remote cluster running the database server.
+	cluster reversetunnel.RemoteSite
 	// server is a database server that has the requested database.
 	server types.DatabaseServer
 }
 
-func (s *ProxyServer) authorize(ctx context.Context) (*proxyContext, error) {
+func (s *ProxyServer) authorize(ctx context.Context, user, database string) (*proxyContext, error) {
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
-	s.log.Debugf("Client identity: %#v.", identity)
-	site, server, err := s.pickDatabaseServer(ctx, identity)
+	identity.RouteToDatabase.Username = user
+	identity.RouteToDatabase.Database = database
+	cluster, server, err := s.pickDatabaseServer(ctx, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	s.log.Debugf("Will proxy to database %q on server %s.", server.GetName(), server)
 	return &proxyContext{
 		identity: identity,
-		site:     site,
+		cluster:  cluster,
 		server:   server,
 	}, nil
 }
@@ -225,11 +304,11 @@ func (s *ProxyServer) authorize(ctx context.Context) (*proxyContext, error) {
 // pickDatabaseServer finds a database server instance to proxy requests
 // to based on the routing information from the provided identity.
 func (s *ProxyServer) pickDatabaseServer(ctx context.Context, identity tlsca.Identity) (reversetunnel.RemoteSite, types.DatabaseServer, error) {
-	site, err := s.cfg.Tunnel.GetSite(identity.RouteToCluster)
+	cluster, err := s.cfg.Tunnel.GetSite(identity.RouteToCluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	accessPoint, err := site.CachingAccessPoint()
+	accessPoint, err := cluster.CachingAccessPoint()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -237,14 +316,14 @@ func (s *ProxyServer) pickDatabaseServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	s.log.Debugf("Available database servers on %v: %s.", site.GetName(), servers)
+	s.log.Debugf("Available database servers on %v: %s.", cluster.GetName(), servers)
 	// Find out which database servers proxy the database a user is
 	// connecting to using routing information from identity.
 	for _, server := range servers {
 		if server.GetName() == identity.RouteToDatabase.ServiceName {
 			// TODO(r0mant): Return all matching servers and round-robin
 			// between them.
-			return site, server, nil
+			return cluster, server, nil
 		}
 	}
 	return nil, nil, trace.NotFound("database %q not found among registered database servers on cluster %q",
@@ -278,7 +357,6 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.log.Debug("Generated database certificate.")
 	pool := x509.NewCertPool()
 	for _, caCert := range response.CACerts {
 		ok := pool.AppendCertsFromPEM(caCert)

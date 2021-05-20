@@ -38,6 +38,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -70,14 +71,13 @@ type SrvSuite struct {
 	up          *upack
 	signer      ssh.Signer
 	user        string
-	server      *auth.TestTLSServer
 	proxyClient *auth.Client
 	proxyID     string
 	nodeClient  *auth.Client
 	nodeID      string
 	adminClient *auth.Client
-	testServer  *auth.TestAuthServer
 	clock       clockwork.FakeClock
+	server      *auth.TestServer
 }
 
 // teleportTestUser is additional user used for tests
@@ -93,6 +93,7 @@ var _ = Suite(&SrvSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	if len(os.Args) == 2 &&
 		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
 		srv.RunAndExit(os.Args[1])
@@ -101,10 +102,6 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 	os.Exit(code)
-}
-
-func (s *SrvSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(testing.Verbose())
 }
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -116,15 +113,14 @@ func (s *SrvSuite) SetUpTest(c *C) {
 
 	s.clock = clockwork.NewFakeClock()
 
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		ClusterName: "localhost",
-		Dir:         c.MkDir(),
-		Clock:       s.clock,
+	s.server, err = auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         c.MkDir(),
+			Clock:       s.clock,
+		},
 	})
 	c.Assert(err, IsNil)
-	s.server, err = authServer.NewTestTLSServer()
-	c.Assert(err, IsNil)
-	s.testServer = authServer
 
 	// create proxy client used in some tests
 	s.proxyID = uuid.New()
@@ -227,11 +223,11 @@ func (s *SrvSuite) TearDownTest(c *C) {
 	if s.clt != nil {
 		c.Assert(s.clt.Close(), IsNil)
 	}
-	if s.server != nil {
-		c.Assert(s.server.Close(), IsNil)
-	}
 	if s.srv != nil {
 		c.Assert(s.srv.Close(), IsNil)
+	}
+	if s.server != nil {
+		c.Assert(s.server.Shutdown(context.Background()), IsNil)
 	}
 }
 
@@ -278,7 +274,7 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 	var (
 		advIP      = utils.MustParseAddr("10.10.10.1")
 		advIPPort  = utils.MustParseAddr("10.10.10.1:1234")
-		advBadAddr = utils.MustParseAddr("localhost:badport")
+		advBadAddr = &utils.NetAddr{Addr: "localhost:badport", AddrNetwork: "tcp"}
 	)
 	// IP-only advertiseAddr should use the port from srvAddress.
 	s.srv.setAdvertiseAddr(advIP)
@@ -303,7 +299,7 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(false)
@@ -333,7 +329,7 @@ func (s *SrvSuite) TestMaxSessions(c *C) {
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.MaxSessions = maxSessions
@@ -377,7 +373,7 @@ func (s *SrvSuite) TestOpenExecSessionSetsSession(c *C) {
 func (s *SrvSuite) TestAgentForward(c *C) {
 	ctx := context.Background()
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)
@@ -725,6 +721,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
+	defer reverseTunnelServer.Close()
 
 	proxy, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
@@ -894,6 +891,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
 
 	c.Assert(reverseTunnelServer.Start(), IsNil)
+	defer reverseTunnelServer.Close()
 
 	proxy, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
@@ -1001,6 +999,9 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	c.Assert(reverseTunnelServer.Start(), IsNil)
+	defer reverseTunnelServer.Close()
+
 	proxy, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		s.server.ClusterName(),
@@ -1019,6 +1020,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
+	defer proxy.Close()
 
 	// set up SSH client using the user private key for signing
 	up, err := s.newUpack(s.user, []string{s.user}, wildcardAllow)
@@ -1204,12 +1206,14 @@ func (s *SrvSuite) TestServerAliveInterval(c *C) {
 // TestGlobalRequestRecordingProxy simulates sending a global out-of-band
 // recording-proxy@teleport.com request.
 func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
+	ctx := context.Background()
+
 	// set cluster config to record at the node
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtNode,
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: services.RecordAtNode,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	c.Assert(err, IsNil)
 
 	// send the request again, we have cluster config and when we parse the
@@ -1222,11 +1226,11 @@ func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
 	c.Assert(response, Equals, false)
 
 	// set cluster config to record at the proxy
-	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtProxy,
+	recConfig, err = types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: services.RecordAtProxy,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	c.Assert(err, IsNil)
 
 	// send request again, now that we have cluster config and it's set to record
@@ -1378,12 +1382,15 @@ func (s *SrvSuite) startX11EchoServer(ctx context.Context, c *C) *rawNode {
 // TestX11ProxySupport verifies that recording proxies correctly forward
 // X11 request/channels.
 func (s *SrvSuite) TestX11ProxySupport(c *C) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// set cluster config to record at the proxy
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtProxy,
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: services.RecordAtProxy,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	c.Assert(err, IsNil)
 
 	// verify that the proxy is in recording mode
@@ -1395,8 +1402,6 @@ func (s *SrvSuite) TestX11ProxySupport(c *C) {
 	c.Assert(response, Equals, true)
 
 	// setup our fake X11 echo server
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
 	node := s.startX11EchoServer(ctx, c)
 
 	// Create a direct TCP/IP connection from proxy to our X11 test server.
@@ -1509,7 +1514,7 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ucert, err := s.testServer.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CertificateFormatStandard)
+	ucert, err := s.server.AuthServer.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CertificateFormatStandard)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

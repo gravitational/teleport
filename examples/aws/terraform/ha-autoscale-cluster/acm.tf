@@ -16,10 +16,10 @@ resource "aws_acm_certificate" "cert" {
 }
 
 resource "aws_route53_record" "cert_validation" {
-  name    = aws_acm_certificate.cert[0].domain_validation_options[0].resource_record_name
-  type    = aws_acm_certificate.cert[0].domain_validation_options[0].resource_record_type
+  name    = tolist(aws_acm_certificate.cert[0].domain_validation_options)[0].resource_record_name
+  type    = tolist(aws_acm_certificate.cert[0].domain_validation_options)[0].resource_record_type
   zone_id = data.aws_route53_zone.proxy.zone_id
-  records = [aws_acm_certificate.cert[0].domain_validation_options[0].resource_record_value]
+  records = [tolist(aws_acm_certificate.cert[0].domain_validation_options)[0].resource_record_value]
   ttl     = 60
   count   = var.use_acm ? 1 : 0
 }
@@ -29,4 +29,3 @@ resource "aws_acm_certificate_validation" "cert" {
   validation_record_fqdns = [aws_route53_record.cert_validation[0].fqdn]
   count                   = var.use_acm ? 1 : 0
 }
-

@@ -18,10 +18,11 @@ package local
 
 import (
 	"context"
-	"fmt"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
@@ -32,17 +33,17 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 type ServicesSuite struct {
 	bk    backend.Backend
 	suite *suite.ServicesTestSuite
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&ServicesSuite{})
-
-func (s *ServicesSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *ServicesSuite) SetUpTest(c *check.C) {
 	var err error
@@ -64,6 +65,9 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 	eventsService := NewEventsService(s.bk)
 	presenceService := NewPresenceService(s.bk)
 
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
+
 	s.suite = &suite.ServicesTestSuite{
 		CAS:           NewCAService(s.bk),
 		PresenceS:     presenceService,
@@ -72,7 +76,7 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		Access:        NewAccessService(s.bk),
 		EventsS:       eventsService,
 		ChangesC:      make(chan interface{}),
-		ConfigS:       NewClusterConfigurationService(s.bk),
+		ConfigS:       clusterConfig,
 		Clock:         clock,
 		NewProxyWatcher: func() (*services.ProxyWatcher, error) {
 			return services.NewProxyWatcher(services.ProxyWatcherConfig{
@@ -87,6 +91,14 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 			})
 		},
 	}
+
+	// DELETE IN 8.0.0
+	err = s.suite.ConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+	c.Assert(err, check.IsNil)
+
+	// DELETE IN 8.0.0
+	err = s.suite.ConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+	c.Assert(err, check.IsNil)
 }
 
 func (s *ServicesSuite) TearDownTest(c *check.C) {

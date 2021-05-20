@@ -100,6 +100,10 @@ const (
 	// SessionStartTime is the timestamp at which the session began.
 	SessionStartTime = "session_start"
 
+	// SessionRecordingType is the type of session recording.
+	// Possible values are node (default), proxy, node-sync, proxy-sync, or off.
+	SessionRecordingType = "session_recording"
+
 	// SessionEndTime is the timestamp at which the session ended.
 	SessionEndTime = "session_stop"
 
@@ -117,6 +121,9 @@ const (
 	// SessionServerLabels are the labels (static and dynamic) of the server the
 	// session occurred on.
 	SessionServerLabels = "server_labels"
+
+	// SessionClusterName is the cluster name that the session occurred in
+	SessionClusterName = "cluster_name"
 
 	// SessionByteOffset is the number of bytes written to session stream since
 	// the beginning
@@ -184,6 +191,8 @@ const (
 	AccessRequestCreateEvent = "access_request.create"
 	// AccessRequestUpdateEvent is emitted when a request's state is updated.
 	AccessRequestUpdateEvent = "access_request.update"
+	// AccessRequestReviewEvent is emitted when a review is applied to a request.
+	AccessRequestReviewEvent = "access_request.review"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"
@@ -191,6 +200,15 @@ const (
 	AccessRequestState = "state"
 	// AccessRequestID is the ID of an access request.
 	AccessRequestID = "id"
+
+	// BillingCardCreateEvent is emitted when a user creates a new credit card.
+	BillingCardCreateEvent = "billing.create_card"
+	// BillingCardDeleteEvent is emitted when a user deletes a credit card.
+	BillingCardDeleteEvent = "billing.delete_card"
+	// BillingCardUpdateEvent is emitted when a user updates an existing credit card.
+	BillingCardUpdateEvent = "billing.update_card"
+	// BillingInformationUpdateEvent is emitted when a user updates their billing information.
+	BillingInformationUpdateEvent = "billing.update_info"
 
 	// UpdatedBy indicates the user who modified some resource:
 	//  - updating a request state
@@ -344,11 +362,14 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
-	// DatabaseSessionStartEvent indicates the start of a database session.
+	// DatabaseSessionStartEvent is emitted when a database client attempts
+	// to connect to a database.
 	DatabaseSessionStartEvent = "db.session.start"
-	// DatabaseSessionEndEvent indicates the end of a database session.
+	// DatabaseSessionEndEvent is emitted when a database client disconnects
+	// from a database.
 	DatabaseSessionEndEvent = "db.session.end"
-	// DatabaseSessionQueryEvent indicates a database query execution.
+	// DatabaseSessionQueryEvent is emitted when a database client executes
+	// a query.
 	DatabaseSessionQueryEvent = "db.session.query"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
@@ -365,6 +386,11 @@ const (
 	// KubeRequestEvent fires when a proxy handles a generic kubernetes
 	// request.
 	KubeRequestEvent = "kube.request"
+
+	// MFADeviceAddEvent is an event type for users adding MFA devices.
+	MFADeviceAddEvent = "mfa.add"
+	// MFADeviceDeleteEvent is an event type for users deleting MFA devices.
+	MFADeviceDeleteEvent = "mfa.delete"
 )
 
 const (
@@ -489,6 +515,22 @@ type MultipartUploader interface {
 	// ListUploads lists uploads that have been initiated but not completed with
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
+	// GetUploadMetadata gets the upload metadata
+	GetUploadMetadata(sessionID session.ID) UploadMetadata
+}
+
+// UploadMetadata contains data about the session upload
+type UploadMetadata struct {
+	// URL is the url at which the session recording is located
+	// it is free-form and uploader-specific
+	URL string
+	// SessionID is the event session ID
+	SessionID session.ID
+}
+
+// UploadMetadataGetter gets the metadata for session upload
+type UploadMetadataGetter interface {
+	GetUploadMetadata(sid session.ID) UploadMetadata
 }
 
 // StreamWriter implements io.Writer to be plugged into the multi-writer
@@ -516,6 +558,9 @@ type IAuditLog interface {
 	// DELETE IN: 5.0.0
 	EmitAuditEventLegacy(Event, EventFields) error
 
+	// EmitAuditEvent emits audit event
+	EmitAuditEvent(context.Context, AuditEvent) error
+
 	// DELETE IN: 2.7.0
 	// This method is no longer necessary as nodes and proxies >= 2.7.0
 	// use UploadSessionRecording method.
@@ -541,19 +586,22 @@ type IAuditLog interface {
 	// replay recorded session streams.
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
 
-	// SearchEvents is a flexible way to find events. The format of a query string
-	// depends on the implementing backend. A recommended format is urlencoded
-	// (good enough for Lucene/Solr)
+	// SearchEvents is a flexible way to find events.
 	//
-	// Pagination is also defined via backend-specific query format.
+	// Event types to filter can be specified and pagination is handled by an iterator key that allows
+	// a query to be resumed.
 	//
 	// The only mandatory requirement is a date range (UTC). Results must always
 	// show up sorted by date (newest first)
-	SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error)
+	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]AuditEvent, string, error)
 
-	// SearchSessionEvents returns session related events only. This is used to
-	// find completed session.
-	SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]EventFields, error)
+	// SearchSessionEvents is a flexible way to find session events.
+	// Only session events are returned by this function.
+	// This is used to find completed session.
+	//
+	// Event types to filter can be specified and pagination is handled by an iterator key that allows
+	// a query to be resumed.
+	SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error)
 
 	// WaitForDelivery waits for resources to be released and outstanding requests to
 	// complete after calling Close method
@@ -602,7 +650,7 @@ func (f EventFields) GetString(key string) string {
 	return v
 }
 
-// GetString returns an int representation of a logged field
+// GetInt returns an int representation of a logged field
 func (f EventFields) GetInt(key string) int {
 	val, found := f[key]
 	if !found {
@@ -618,7 +666,7 @@ func (f EventFields) GetInt(key string) int {
 	return v
 }
 
-// GetString returns an int representation of a logged field
+// GetTime returns an int representation of a logged field
 func (f EventFields) GetTime(key string) time.Time {
 	val, found := f[key]
 	if !found {

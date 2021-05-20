@@ -493,7 +493,7 @@ func (c *authPrefCollection) resources() (r []services.Resource) {
 func (c *authPrefCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Type", "Second Factor"})
 	for _, authPref := range c.authPrefs {
-		t.AddRow([]string{authPref.GetType(), authPref.GetSecondFactor()})
+		t.AddRow([]string{authPref.GetType(), string(authPref.GetSecondFactor())})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

@@ -17,23 +17,20 @@ limitations under the License.
 package types
 
 import (
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // GithubConnector defines an interface for a Github OAuth2 connector
 type GithubConnector interface {
 	// ResourceWithSecrets is a common interface for all resources
 	ResourceWithSecrets
-	// CheckAndSetDefaults validates the connector and sets some defaults
-	CheckAndSetDefaults() error
+	// SetMetadata sets object metadata
+	SetMetadata(meta Metadata)
 	// GetClientID returns the connector client ID
 	GetClientID() string
 	// SetClientID sets the connector client ID
@@ -70,49 +67,6 @@ func NewGithubConnector(name string, spec GithubConnectorSpecV3) GithubConnector
 		},
 		Spec: spec,
 	}
-}
-
-// GithubConnectorV3 represents a Github connector
-type GithubConnectorV3 struct {
-	// Kind is a resource kind, for Github connector it is "github"
-	Kind string `json:"kind"`
-	// SubKind is a resource sub kind
-	SubKind string `json:"sub_kind,omitempty"`
-	// Version is resource version
-	Version string `json:"version"`
-	// Metadata is resource metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains connector specification
-	Spec GithubConnectorSpecV3 `json:"spec"`
-}
-
-// GithubConnectorSpecV3 is the current Github connector spec
-type GithubConnectorSpecV3 struct {
-	// ClientID is the Github OAuth app client ID
-	ClientID string `json:"client_id"`
-	// ClientSecret is the Github OAuth app client secret
-	ClientSecret string `json:"client_secret"`
-	// RedirectURL is the authorization callback URL
-	RedirectURL string `json:"redirect_url"`
-	// TeamsToLogins maps Github team memberships onto allowed logins/roles
-	TeamsToLogins []TeamMapping `json:"teams_to_logins"`
-	// Display is the connector display name
-	Display string `json:"display"`
-}
-
-// TeamMapping represents a single team membership mapping
-type TeamMapping struct {
-	// Organization is a Github organization a user belongs to
-	Organization string `json:"organization"`
-	// Team is a team within the organization a user belongs to
-	Team string `json:"team"`
-	// Logins is a list of allowed logins for this org/team
-	Logins []string `json:"logins,omitempty"`
-	// KubeGroups is a list of allowed kubernetes groups for this org/team
-	KubeGroups []string `json:"kubernetes_groups,omitempty"`
-	// KubeUsers is a list of allowed kubernetes users to impersonate for
-	// this org/team
-	KubeUsers []string `json:"kubernetes_users,omitempty"`
 }
 
 // GithubClaims represents Github user information obtained during OAuth2 flow
@@ -173,9 +127,16 @@ func (c *GithubConnectorV3) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets the connector TTL
-func (c *GithubConnectorV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (c *GithubConnectorV3) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
+}
+
+// SetMetadata sets connector metadata
+func (c *GithubConnectorV3) SetMetadata(meta Metadata) {
+	c.Metadata = meta
 }
 
 // GetMetadata returns the connector metadata
@@ -271,130 +232,4 @@ func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, 
 		}
 	}
 	return utils.Deduplicate(logins), utils.Deduplicate(kubeGroups), utils.Deduplicate(kubeUsers)
-}
-
-// GithubConnectorV3SchemaTemplate is the JSON schema for a Github connector
-const GithubConnectorV3SchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["kind", "spec", "metadata", "version"],
-  "properties": {
-	"kind": {"type": "string"},
-	"version": {"type": "string", "default": "v3"},
-	"metadata": %v,
-	"spec": %v
-  }
-}`
-
-// GithubConnectorSpecV3Schema is the JSON schema for Github connector spec
-var GithubConnectorSpecV3Schema = fmt.Sprintf(`{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["client_id", "client_secret", "redirect_url"],
-  "properties": {
-	"client_id": {"type": "string"},
-	"client_secret": {"type": "string"},
-	"redirect_url": {"type": "string"},
-	"display": {"type": "string"},
-	"teams_to_logins": {
-	  "type": "array",
-	  "items": %v
-	}
-  }
-}`, TeamMappingSchema)
-
-// TeamMappingSchema is the JSON schema for team membership mapping
-var TeamMappingSchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["organization", "team"],
-  "properties": {
-	"organization": {"type": "string"},
-	"team": {"type": "string"},
-	"logins": {
-	  "type": "array",
-	  "items": {
-	  	"type": "string"
-	  }
-	},
-	"kubernetes_groups": {
-	  "type": "array",
-	  "items": {
-		"type": "string"
-	  }
-    }
-  }
-}`
-
-// GetGithubConnectorSchema returns schema for Github connector
-func GetGithubConnectorSchema() string {
-	return fmt.Sprintf(GithubConnectorV3SchemaTemplate, MetadataSchema, GithubConnectorSpecV3Schema)
-}
-
-// GithubConnectorMarshaler defines interface for Github connector marshaler
-type GithubConnectorMarshaler interface {
-	// Unmarshal unmarshals connector from binary representation
-	Unmarshal(bytes []byte) (GithubConnector, error)
-	// Marshal marshals connector to binary representation
-	Marshal(c GithubConnector, opts ...MarshalOption) ([]byte, error)
-}
-
-type teleportGithubConnectorMarshaler struct{}
-
-// Unmarshal unmarshals Github connector from JSON
-func (*teleportGithubConnectorMarshaler) Unmarshal(bytes []byte) (GithubConnector, error) {
-	var h ResourceHeader
-	if err := json.Unmarshal(bytes, &h); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch h.Version {
-	case V3:
-		var c GithubConnectorV3
-		if err := utils.UnmarshalWithSchema(GetGithubConnectorSchema(), &c, bytes); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := c.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &c, nil
-	}
-	return nil, trace.BadParameter(
-		"Github connector resource version %q is not supported", h.Version)
-}
-
-// Marshal marshals Github connector to JSON
-func (*teleportGithubConnectorMarshaler) Marshal(c GithubConnector, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch resource := c.(type) {
-	case *GithubConnectorV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *resource
-			copy.SetResourceID(0)
-			resource = &copy
-		}
-		return utils.FastMarshal(resource)
-	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", c)
-	}
-}
-
-var githubConnectorMarshaler GithubConnectorMarshaler = &teleportGithubConnectorMarshaler{}
-
-// SetGithubConnectorMarshaler sets Github connector marshaler
-func SetGithubConnectorMarshaler(m GithubConnectorMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	githubConnectorMarshaler = m
-}
-
-// GetGithubConnectorMarshaler returns currently set Github connector marshaler
-func GetGithubConnectorMarshaler() GithubConnectorMarshaler {
-	marshalerMutex.RLock()
-	defer marshalerMutex.RUnlock()
-	return githubConnectorMarshaler
 }

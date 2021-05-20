@@ -32,7 +32,7 @@ import (
 type Announcer interface {
 	// UpsertNode registers node presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertNode(s services.Server) (*services.KeepAlive, error)
+	UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error)
 
 	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
@@ -73,14 +73,26 @@ type ReadAccessPoint interface {
 	// GetClusterConfig returns cluster level configuration.
 	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
 
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference() (services.AuthPreference, error)
+
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]services.Namespace, error)
 
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*services.Namespace, error)
 
+	// GetNode returns a node by name and namespace.
+	GetNode(ctx context.Context, namespace, name string) (services.Server, error)
+
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]services.Server, error)
@@ -101,10 +113,10 @@ type ReadAccessPoint interface {
 	GetUsers(withSecrets bool) ([]services.User, error)
 
 	// GetRole returns role by name
-	GetRole(name string) (services.Role, error)
+	GetRole(ctx context.Context, name string) (services.Role, error)
 
 	// GetRoles returns a list of roles
-	GetRoles() ([]services.Role, error)
+	GetRoles(ctx context.Context) ([]services.Role, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error)
@@ -117,6 +129,12 @@ type ReadAccessPoint interface {
 
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, services.GetAppSessionRequest) (services.WebSession, error)
+
+	// GetWebSession gets a web session for the given request
+	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
+
+	// GetWebToken gets a web token for the given request
+	GetWebToken(context.Context, types.GetWebTokenRequest) (types.WebToken, error)
 
 	// GetRemoteClusters returns a list of remote clusters
 	GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error)
@@ -161,6 +179,12 @@ type AccessCache interface {
 	// GetClusterConfig returns cluster level configuration.
 	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
 
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)
 }
@@ -174,10 +198,10 @@ type Cache interface {
 	GetStaticTokens() (services.StaticTokens, error)
 
 	// GetTokens returns all active (non-expired) provisioning tokens
-	GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error)
+	GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error)
 
 	// GetToken finds and returns token by ID
-	GetToken(token string) (services.ProvisionToken, error)
+	GetToken(ctx context.Context, token string) (services.ProvisionToken, error)
 
 	// NewWatcher returns a new event watcher
 	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)
@@ -216,8 +240,8 @@ func (w *Wrapper) Close() error {
 }
 
 // UpsertNode is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertNode(s services.Server) (*services.KeepAlive, error) {
-	return w.NoCache.UpsertNode(s)
+func (w *Wrapper) UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
+	return w.NoCache.UpsertNode(ctx, s)
 }
 
 // UpsertAuthServer is part of auth.AccessPoint implementation

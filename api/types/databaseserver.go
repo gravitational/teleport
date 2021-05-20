@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,11 +20,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/defaults"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // DatabaseServer represents a database access server.
@@ -65,14 +64,20 @@ type DatabaseServer interface {
 	GetURI() string
 	// GetCA returns the database CA certificate bytes.
 	GetCA() []byte
-	// GetRegion returns the AWS region for RDS/Aurora databases.
-	GetRegion() string
-	// GetType returns the database type, self-hosted or AWS RDS.
+	// SetCA sets the database CA certificate bytes.
+	SetCA([]byte)
+	// GetAWS returns AWS information for RDS/Aurora databases.
+	GetAWS() AWS
+	// GetGCP returns GCP information for Cloud SQL databases.
+	GetGCP() GCPCloudSQL
+	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
 	GetType() string
-	// IsRDS returns true if this an RDS/Aurora database.
+	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
+	// IsRedshift returns true if this is a Redshift database.
+	IsRedshift() bool
+	// IsCloudSQL returns true if this is a Cloud SQL database.
+	IsCloudSQL() bool
 	// Copy returns a copy of this database server object.
 	Copy() DatabaseServer
 }
@@ -156,8 +161,10 @@ func (s *DatabaseServerV3) Expiry() time.Time {
 	return s.Metadata.Expiry()
 }
 
-// SetTTL sets the resource TTL.
-func (s *DatabaseServerV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (s *DatabaseServerV3) SetTTL(clock Clock, ttl time.Duration) {
 	s.Metadata.SetTTL(clock, ttl)
 }
 
@@ -234,9 +241,19 @@ func (s *DatabaseServerV3) GetCA() []byte {
 	return s.Spec.CACert
 }
 
-// GetRegion returns the AWS region for RDS/Aurora databases.
-func (s *DatabaseServerV3) GetRegion() string {
-	return s.Spec.AWS.Region
+// SetCA sets the database CA certificate bytes.
+func (s *DatabaseServerV3) SetCA(bytes []byte) {
+	s.Spec.CACert = bytes
+}
+
+// GetAWS returns AWS information for RDS/Aurora databases.
+func (s *DatabaseServerV3) GetAWS() AWS {
+	return s.Spec.AWS
+}
+
+// GetGCP returns GCP information for Cloud SQL databases.
+func (s *DatabaseServerV3) GetGCP() GCPCloudSQL {
+	return s.Spec.GCP
 }
 
 // IsRDS returns true if this database represents AWS RDS/Aurora instance.
@@ -244,18 +261,34 @@ func (s *DatabaseServerV3) IsRDS() bool {
 	return s.GetType() == DatabaseTypeRDS
 }
 
+// IsRedshift returns true if this is a Redshift database instance.
+func (s *DatabaseServerV3) IsRedshift() bool {
+	return s.GetType() == DatabaseTypeRedshift
+}
+
+// IsCloudSQL returns true if this database is a Cloud SQL instance.
+func (s *DatabaseServerV3) IsCloudSQL() bool {
+	return s.GetType() == DatabaseTypeCloudSQL
+}
+
 // GetType returns the database type, self-hosted or AWS RDS.
 func (s *DatabaseServerV3) GetType() string {
+	if s.Spec.AWS.Redshift.ClusterID != "" {
+		return DatabaseTypeRedshift
+	}
 	if s.Spec.AWS.Region != "" {
 		return DatabaseTypeRDS
+	}
+	if s.Spec.GCP.ProjectID != "" {
+		return DatabaseTypeCloudSQL
 	}
 	return DatabaseTypeSelfHosted
 }
 
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
-	return fmt.Sprintf("DatabaseServer(Name=%v, Version=%v, Labels=%v)",
-		s.GetName(), s.GetTeleportVersion(), s.GetStaticLabels())
+	return fmt.Sprintf("DatabaseServer(Name=%v, Type=%v, Version=%v, Labels=%v)",
+		s.GetName(), s.GetType(), s.GetTeleportVersion(), s.GetStaticLabels())
 }
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
@@ -288,114 +321,7 @@ func (s *DatabaseServerV3) CheckAndSetDefaults() error {
 
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
-	return &DatabaseServerV3{
-		Kind:     KindDatabaseServer,
-		Version:  V3,
-		Metadata: s.Metadata,
-		Spec:     s.Spec,
-	}
-}
-
-// DatabaseServerSpecV3Schema is JSON schema for a database server spec.
-const DatabaseServerSpecV3Schema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "description": {"type": "string"},
-    "protocol": {"type": "string"},
-    "uri": {"type": "string"},
-    "ca_cert": {"type": "string"},
-    "aws": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "region": {"type": "string"}
-      }
-    },
-    "version": {"type": "string"},
-    "hostname": {"type": "string"},
-    "host_id": {"type": "string"},
-    "dynamic_labels": {
-      "type": "object",
-      "additionalProperties": false,
-      "patternProperties": {
-        "^.*$": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["command"],
-          "properties": {
-            "command": {"type": "array", "items": {"type": "string"}},
-            "period": {"type": "string"},
-            "result": {"type": "string"}
-          }
-        }
-      }
-    },
-    "rotation": %v
-  }
-}`
-
-// GetDatabaseServerSchema returns full database server JSON schema.
-func GetDatabaseServerSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(DatabaseServerSpecV3Schema, RotationSchema), DefaultDefinitions)
-}
-
-// MarshalDatabaseServer marshals the database server resource.
-func MarshalDatabaseServer(s DatabaseServer, opts ...MarshalOption) ([]byte, error) {
-	if err := s.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	server := s
-	if !cfg.PreserveResourceID {
-		// Avoid modifying the original object to prevent unexpected
-		// data races.
-		server = s.Copy()
-		server.SetResourceID(0)
-	}
-	return utils.FastMarshal(server)
-}
-
-// UnmarshalDatabaseServer unmarshals the database server resource.
-func UnmarshalDatabaseServer(data []byte, opts ...MarshalOption) (DatabaseServer, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing database server data")
-	}
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var h ResourceHeader
-	if err := utils.FastUnmarshal(data, &h); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch h.Version {
-	case V3:
-		var s DatabaseServerV3
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &s); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetDatabaseServerSchema(), &s, data); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		}
-		if err := s.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
-		}
-		if !cfg.Expires.IsZero() {
-			s.SetExpiry(cfg.Expires)
-		}
-		return &s, nil
-	}
-	return nil, trace.BadParameter("database server resource version %q is not supported", h.Version)
+	return proto.Clone(s).(*DatabaseServerV3)
 }
 
 const (
@@ -403,4 +329,23 @@ const (
 	DatabaseTypeSelfHosted = "self-hosted"
 	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.
 	DatabaseTypeRDS = "rds"
+	// DatabaseTypeRedshift is AWS Redshift database.
+	DatabaseTypeRedshift = "redshift"
+	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
+	DatabaseTypeCloudSQL = "gcp"
 )
+
+// SortedDatabaseServers implements sorter for database servers.
+type SortedDatabaseServers []DatabaseServer
+
+// Len returns the slice length.
+func (s SortedDatabaseServers) Len() int { return len(s) }
+
+// Less compares database servers by name.
+func (s SortedDatabaseServers) Less(i, j int) bool { return s[i].GetName() < s[j].GetName() }
+
+// Swap swaps two database servers.
+func (s SortedDatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// DatabaseServers is a list of database servers.
+type DatabaseServers []DatabaseServer

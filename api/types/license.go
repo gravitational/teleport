@@ -22,57 +22,55 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // License defines teleport License Information
 type License interface {
 	Resource
+
 	// GetReportsUsage returns true if teleport cluster reports usage
 	// to control plane
 	GetReportsUsage() Bool
+	// SetReportsUsage sets usage report
+	SetReportsUsage(Bool)
 
 	// GetCloud returns true if teleport cluster is hosted by Gravitational
 	GetCloud() Bool
-
 	// SetCloud sets cloud flag
 	SetCloud(Bool)
-
-	// SetReportsUsage sets usage report
-	SetReportsUsage(Bool)
 
 	// GetAWSProductID returns product id that limits usage to AWS instance
 	// with a similar product ID
 	GetAWSProductID() string
-
 	// SetAWSProductID sets AWS product ID
 	SetAWSProductID(string)
 
 	// GetAWSAccountID limits usage to AWS instance within account ID
 	GetAWSAccountID() string
-
 	// SetAWSAccountID sets AWS account ID that will be limiting
 	// usage to AWS instance
 	SetAWSAccountID(accountID string)
 
 	// GetSupportsKubernetes returns kubernetes support flag
 	GetSupportsKubernetes() Bool
-
 	// SetSupportsKubernetes sets kubernetes support flag
 	SetSupportsKubernetes(Bool)
+
+	// GetSupportsApplicationAccess returns application access support flag
+	GetSupportsApplicationAccess() Bool
+	// SetSupportsApplicationAccess sets application access support flag
+	SetSupportsApplicationAccess(Bool)
+
+	// GetSupportsDatabaseAccess returns database access support flag
+	GetSupportsDatabaseAccess() Bool
+	// SetSupportsDatabaseAccess sets database access support flag
+	SetSupportsDatabaseAccess(Bool)
 
 	// SetLabels sets metadata labels
 	SetLabels(labels map[string]string)
 
 	// GetAccountID returns Account ID
 	GetAccountID() string
-
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for License.
-	CheckAndSetDefaults() error
 }
 
 // NewLicense is a convenience method to to create LicenseV3.
@@ -166,8 +164,10 @@ func (c *LicenseV3) SetExpiry(t time.Time) {
 	c.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using current clock
-func (c *LicenseV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (c *LicenseV3) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 
@@ -239,25 +239,57 @@ func (c *LicenseV3) SetSupportsKubernetes(supportsK8s Bool) {
 	c.Spec.SupportsKubernetes = supportsK8s
 }
 
+// GetSupportsApplicationAccess returns application access support flag
+func (c *LicenseV3) GetSupportsApplicationAccess() Bool {
+	// For backward compatibility return true if app access flag isn't set,
+	// or it will stop working for all users who are already using it and
+	// were issued licenses without this flag.
+	if c.Spec.SupportsApplicationAccess == nil {
+		return Bool(true)
+	}
+	return *c.Spec.SupportsApplicationAccess
+}
+
+// SetSupportsApplicationAccess sets application access support flag
+func (c *LicenseV3) SetSupportsApplicationAccess(value Bool) {
+	c.Spec.SupportsApplicationAccess = &value
+}
+
+// GetSupportsDatabaseAccess returns database access support flag
+func (c *LicenseV3) GetSupportsDatabaseAccess() Bool {
+	return c.Spec.SupportsDatabaseAccess
+}
+
+// SetSupportsDatabaseAccess sets database access support flag
+func (c *LicenseV3) SetSupportsDatabaseAccess(value Bool) {
+	c.Spec.SupportsDatabaseAccess = value
+}
+
 // String represents a human readable version of license enabled features
 func (c *LicenseV3) String() string {
 	var features []string
 	if !c.Expiry().IsZero() {
 		features = append(features, fmt.Sprintf("expires at %v", c.Expiry()))
 	}
-	if c.Spec.ReportsUsage.Value() {
+	if c.GetReportsUsage() {
 		features = append(features, "reports usage")
 	}
-	if c.Spec.SupportsKubernetes.Value() {
+	if c.GetSupportsKubernetes() {
 		features = append(features, "supports kubernetes")
 	}
-	if c.Spec.Cloud.Value() {
+	if c.GetSupportsApplicationAccess() {
+		features = append(features, "supports application access")
+	}
+	if c.GetSupportsDatabaseAccess() {
+		features = append(features, "supports database access")
+	}
+	if c.GetCloud() {
 		features = append(features, "is hosted by Gravitational")
 	}
-	if c.Spec.AWSProductID != "" {
+	if c.GetAWSProductID() != "" {
 		features = append(features, fmt.Sprintf("is limited to AWS product ID %q", c.Spec.AWSProductID))
 	}
-	if c.Spec.AWSAccountID != "" {
+	if c.GetAWSAccountID() != "" {
 		features = append(features, fmt.Sprintf("is limited to AWS account ID %q", c.Spec.AWSAccountID))
 	}
 	if len(features) == 0 {
@@ -276,84 +308,13 @@ type LicenseSpecV3 struct {
 	AWSAccountID string `json:"aws_account,omitempty"`
 	// SupportsKubernetes turns kubernetes support on or off
 	SupportsKubernetes Bool `json:"k8s"`
+	// SupportsApplicationAccess turns application access on or off
+	// Note it's a pointer for backward compatibility
+	SupportsApplicationAccess *Bool `json:"app,omitempty"`
+	// SupportsDatabaseAccess turns database access on or off
+	SupportsDatabaseAccess Bool `json:"db,omitempty"`
 	// ReportsUsage turns usage reporting on or off
 	ReportsUsage Bool `json:"usage,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational
 	Cloud Bool `json:"cloud,omitempty"`
-}
-
-// LicenseSpecV3Template is a template for V3 License JSON schema
-const LicenseSpecV3Template = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-		"account_id": {
-			"type": ["string"]
-		},
-		"plan_id": {
-			"type": ["string"]
-		},
-		"usage": {
-			"type": ["string", "boolean"]
-		},
-		"aws_pid": {
-			"type": ["string"]
-		},
-		"aws_account": {
-			"type": ["string"]
-		},
-		"k8s": {
-			"type": ["string", "boolean"]
-		},
-		"cloud": {
-			"type": ["string", "boolean"]
-		}
-  }
-}`
-
-// UnmarshalLicense unmarshals License from JSON or YAML
-// and validates schema
-func UnmarshalLicense(bytes []byte) (License, error) {
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, LicenseSpecV3Template, DefaultDefinitions)
-
-	var license LicenseV3
-	err := utils.UnmarshalWithSchema(schema, &license, bytes)
-	if err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-
-	if license.Version != V3 {
-		return nil, trace.BadParameter("unsupported version %v, expected version %v", license.Version, V3)
-	}
-
-	if err := license.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &license, nil
-}
-
-// MarshalLicense marshals role to JSON or YAML.
-func MarshalLicense(license License, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch resource := license.(type) {
-	case *LicenseV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *resource
-			copy.SetResourceID(0)
-			resource = &copy
-		}
-		return utils.FastMarshal(resource)
-	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", license)
-	}
 }

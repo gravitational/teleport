@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
-	"fmt"
 	"io/ioutil"
 	"sort"
 	"strings"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -46,6 +44,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/gravitational/teleport"
 )
 
 var (
@@ -109,21 +109,15 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
+
+	prometheusCollectors = []prometheus.Collector{
+		writeLatencies, txLatencies, batchReadLatencies,
+		readLatencies, writeRequests, txRequests, batchReadRequests, readRequests,
+	}
 )
 
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(writeLatencies)
-	prometheus.MustRegister(txLatencies)
-	prometheus.MustRegister(batchReadLatencies)
-	prometheus.MustRegister(readLatencies)
-	prometheus.MustRegister(writeRequests)
-	prometheus.MustRegister(txRequests)
-	prometheus.MustRegister(batchReadRequests)
-	prometheus.MustRegister(readRequests)
-}
-
 type EtcdBackend struct {
+	backend.NoMigrations
 	nodes []string
 	*log.Entry
 	cfg              *Config
@@ -170,14 +164,6 @@ type Config struct {
 	MaxClientMsgSizeBytes int `json:"etcd_max_client_msg_size_bytes,omitempty"`
 }
 
-// legacyDefaultPrefix was used instead of Config.Key prior to 4.3. It's used
-// below to allow a safe migration to the correct usage of Config.Key during
-// 4.3 and will be removed in 4.4
-//
-// DELETE IN 4.4: legacy prefix support for migration of
-// https://github.com/gravitational/teleport/issues/2883
-const legacyDefaultPrefix = "/teleport/"
-
 // GetName returns the name of etcd backend as it appears in 'storage/type' section
 // in Teleport YAML file. This function is a part of backend API
 func GetName() string {
@@ -189,7 +175,11 @@ var _ backend.Backend = &EtcdBackend{}
 
 // New returns new instance of Etcd-powered backend
 func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
-	var err error
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if params == nil {
 		return nil, trace.BadParameter("missing etcd configuration")
 	}
@@ -224,11 +214,10 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		buf:              buf,
 	}
 
+	// Check that the etcd nodes are at least the minimum version supported
 	if err = b.reconnect(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Check that the etcd nodes are at least the minimum version supported
 	timeout, cancel := context.WithTimeout(ctx, time.Second*3*time.Duration(len(cfg.Nodes)))
 	defer cancel()
 	for _, n := range cfg.Nodes {
@@ -244,6 +233,13 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 				status.Version, n, teleport.MinimumEtcdVersion)
 		}
 	}
+
+	// Reconnect the etcd client to work around a data race in their code.
+	// Upstream fix: https://github.com/etcd-io/etcd/pull/12992
+	if err = b.reconnect(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go b.asyncWatch()
 
 	// Wrap backend in a input sanitizer and return it.
 	return b, nil
@@ -300,6 +296,12 @@ func (b *EtcdBackend) CloseWatchers() {
 }
 
 func (b *EtcdBackend) reconnect(ctx context.Context) error {
+	if b.client != nil {
+		if err := b.client.Close(); err != nil {
+			b.Entry.WithError(err).Warning("Failed closing existing etcd client on reconnect.")
+		}
+	}
+
 	tlsConfig := utils.TLSConfig(nil)
 
 	if b.cfg.TLSCertFile != "" {
@@ -318,24 +320,22 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	}
 
-	var caCertPEM []byte
 	if b.cfg.TLSCAFile != "" {
-		var err error
-		caCertPEM, err = ioutil.ReadFile(b.cfg.TLSCAFile)
+		caCertPEM, err := ioutil.ReadFile(b.cfg.TLSCAFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
-	}
 
-	certPool := x509.NewCertPool()
-	parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
-	if err != nil {
-		return trace.Wrap(err, "failed to parse CA certificate")
-	}
-	certPool.AddCert(parsedCert)
+		certPool := x509.NewCertPool()
+		parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
+		if err != nil {
+			return trace.Wrap(err, "failed to parse CA certificate %q", b.cfg.TLSCAFile)
+		}
+		certPool.AddCert(parsedCert)
 
-	tlsConfig.RootCAs = certPool
-	tlsConfig.ClientCAs = certPool
+		tlsConfig.RootCAs = certPool
+		tlsConfig.ClientCAs = certPool
+	}
 
 	clt, err := clientv3.New(clientv3.Config{
 		Endpoints:          b.nodes,
@@ -350,7 +350,6 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	b.client = clt
-	go b.asyncWatch()
 	return nil
 }
 
@@ -669,126 +668,6 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	}
 	event.Item.Value = value
 	return event, nil
-}
-
-func (b *EtcdBackend) Migrate(ctx context.Context) error {
-	// DELETE IN 4.4: legacy prefix support for migration of
-	// https://github.com/gravitational/teleport/issues/2883
-	if err := b.syncLegacyPrefix(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DELETE IN 4.4: legacy prefix support for migration of
-// https://github.com/gravitational/teleport/issues/2883
-//
-// syncLegacyPrefix is a temporary migration step for 4.3 release. It will
-// attempt to replicate the data from '/teleport' prefix (legacyDefaultPrefix)
-// into the correct prefix specified in teleport.yaml (b.cfg.Key).
-//
-// The goal is to prevent the need for admin intervention when upgrading
-// Teleport clusters and to avoid losing any data during the upgrade to a fixed
-// version of Teleport. See issue linked above for more context.
-//
-// The replication will happen when:
-// - there's data under legacy prefix
-// - the configured prefix is different from the legacy prefix
-// - the configured prefix is empty OR older than the legacy prefix
-func (b *EtcdBackend) syncLegacyPrefix(ctx context.Context) error {
-	// Using the same prefix, nothing to migrate.
-	if b.cfg.Key == legacyDefaultPrefix {
-		return nil
-	}
-	legacyData, err := b.client.Get(ctx, legacyDefaultPrefix, clientv3.WithPrefix())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// No data in the legacy prefix, assume this is a new Teleport cluster and
-	// skip sync early.
-	if legacyData.Count == 0 {
-		return nil
-	}
-	prefixData, err := b.client.Get(ctx, b.cfg.Key, clientv3.WithPrefix())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !shouldSync(legacyData.Kvs, prefixData.Kvs) {
-		return nil
-	}
-
-	b.Infof("Migrating Teleport etcd data from legacy prefix %q to configured prefix %q, see https://github.com/gravitational/teleport/issues/2883 for context", legacyDefaultPrefix, b.cfg.Key)
-	defer b.Infof("Teleport etcd data migration complete")
-
-	// Now we know that legacy prefix has some data newer than the configured
-	// prefix. Migrate it over to configured prefix.
-	//
-	// First, let's backup the data under configured prefix, in case the
-	// migration kicked in by mistake.
-	backupPrefix := b.backupPrefix(b.cfg.Key)
-	b.Infof("Backup everything under %q to %q", b.cfg.Key, backupPrefix)
-	for _, kv := range prefixData.Kvs {
-		// Replace the prefix.
-		key := backupPrefix + strings.TrimPrefix(string(kv.Key), b.cfg.Key)
-		b.Debugf("Copying %q -> %q", kv.Key, key)
-		if _, err := b.client.Put(ctx, key, string(kv.Value)); err != nil {
-			return trace.WrapWithMessage(err, "failed backing up %q to %q: %v; the problem could be with your etcd credentials or etcd cluster itself (e.g. running out of disk space); this backup is a safety precaution for migrating the data from etcd prefix %q (old default) to %q (from your teleport.yaml config), see https://github.com/gravitational/teleport/issues/2883 for context", kv.Key, key, err, legacyDefaultPrefix, b.cfg.Key)
-		}
-	}
-
-	// Now delete existing prefix data.
-	b.Infof("Deleting everything under %q", b.cfg.Key)
-	deletePrefix := b.cfg.Key
-	// Make sure the prefix ends with a '/', so that we don't delete the backup
-	// created above or any other unrelated data.
-	if !strings.HasSuffix(deletePrefix, "/") {
-		deletePrefix += "/"
-	}
-	if _, err := b.client.Delete(ctx, deletePrefix, clientv3.WithPrefix()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	b.Infof("Copying everything under %q to %q", legacyDefaultPrefix, b.cfg.Key)
-	var errs []error
-	// Finally, copy over all the data from the legacy prefix to the new one.
-	for _, kv := range legacyData.Kvs {
-		// Replace the prefix.
-		key := b.cfg.Key + "/" + strings.TrimPrefix(string(kv.Key), legacyDefaultPrefix)
-		b.Debugf("Copying %q -> %q", kv.Key, key)
-		if _, err := b.client.Put(ctx, key, string(kv.Value)); err != nil {
-			errs = append(errs, trace.WrapWithMessage(err, "failed copying %q to %q: %v", kv.Key, key, err))
-		}
-	}
-	return trace.NewAggregate(errs...)
-}
-
-func (b *EtcdBackend) backupPrefix(p string) string {
-	return fmt.Sprintf("%s-backup-%s/", strings.TrimSuffix(p, "/"), b.clock.Now().UTC().Format(time.RFC3339))
-}
-
-func shouldSync(legacyData, prefixData []*mvccpb.KeyValue) bool {
-	latestRev := func(kvs []*mvccpb.KeyValue) int64 {
-		var rev int64
-		for _, kv := range kvs {
-			if kv.CreateRevision > rev {
-				rev = kv.CreateRevision
-			}
-			if kv.ModRevision > rev {
-				rev = kv.ModRevision
-			}
-		}
-		return rev
-	}
-	if len(legacyData) == 0 {
-		return false
-	}
-	if len(prefixData) == 0 {
-		return true
-	}
-	// Data under the new prefix was updated more recently than data under the
-	// legacy prefix. Assume we already did a sync before and legacy prefix
-	// hasn't been touched since.
-	return latestRev(legacyData) > latestRev(prefixData)
 }
 
 // seconds converts duration to seconds, rounds up to 1 second

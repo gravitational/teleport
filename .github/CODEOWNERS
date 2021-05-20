@@ -1,35 +1,9 @@
 # Default owners for items not matched below.
 * @klizhentas @russjones @r0mant
 
-# Release Engineering.
-/assets/ @webvictim @russjones @awly @r0mant
-/build.assets/ @webvictim @russjones @awly @r0mant
-/docker/ @webvictim @russjones @awly @r0mant
-/examples/ @webvictim @russjones @awly @r0mant
-/vagrant/ @webvictim @russjones @awly @r0mant
-.drone.yml @webvictim @russjones @awly @r0mant
-.gitattributes @webvictim @russjones @awly @r0mant
-.gitignore @webvictim @russjones @awly @r0mant
-.gitmodules @webvictim @russjones @awly @r0mant
-Makefile @webvictim @russjones @awly @r0mant
-
-# Product.
-*.md @klizhentas @benarent @webvictim
-/docs/ @klizhentas @benarent @webvictim
-/rfd/ @klizhentas @russjones @benarent
-
-# Backend Engineering.
-/*.go @klizhentas @russjones @fspmarshall @webvictim @awly @a-palchikov @r0mant
-/e/ @klizhentas @russjones @fspmarshall @webvictim @awly @a-palchikov @r0mant
-/fixtures/ @klizhentas @russjones @fspmarshall @webvictim @awly @a-palchikov @r0mant
-/integration/ @klizhentas @russjones @fspmarshall @webvictim @awly @a-palchikov @r0mant
-/lib/ @klizhentas @russjones @fspmarshall @webvictim @awly @a-palchikov @r0mant
-/modules/ @klizhentas @russjones @fspmarshall @webvictim @awly @a-palchikov @r0mant
-/tool/ @klizhentas @russjones @fspmarshall @webvictim @awly @a-palchikov @r0mant
-/vendor/ @klizhentas @russjones @fspmarshall @webvictim @awly @a-palchikov @r0mant
-go.mod @klizhentas @russjones @fspmarshall @webvictim @awly @a-palchikov @r0mant
-go.sum @klizhentas @russjones @fspmarshall @webvictim @awly @a-palchikov @r0mant
+# Documentation.
+/docs/ @inertial-frame @klizhentas
 
 # Frontend Engineering.
-/lib/web/ @alex-kovoy @russjones @fspmarshall @webvictim @awly @kimlisa
-/webassets/ @alex-kovoy @kimlisa
+/lib/web/ @alex-kovoy @russjones  @r0mant
+/webassets/ @alex-kovoy @russjones  @r0mant

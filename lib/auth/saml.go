@@ -21,9 +21,13 @@ import (
 	"compress/flate"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -36,7 +40,7 @@ import (
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
-	if err := a.Identity.UpsertSAMLConnector(connector); err != nil {
+	if err := a.Identity.UpsertSAMLConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
@@ -45,7 +49,8 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector services.SAM
 			Code: events.SAMLConnectorCreatedCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User: clientUsername(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: connector.GetName(),
@@ -59,7 +64,7 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector services.SAM
 
 // DeleteSAMLConnector deletes a SAML connector by name.
 func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) error {
-	if err := a.Identity.DeleteSAMLConnector(connectorName); err != nil {
+	if err := a.Identity.DeleteSAMLConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
@@ -68,7 +73,8 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) 
 			Code: events.SAMLConnectorDeletedCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User: clientUsername(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: connectorName,
@@ -81,7 +87,8 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) 
 }
 
 func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
-	connector, err := a.Identity.GetSAMLConnector(req.ConnectorID, true)
+	ctx := context.TODO()
+	connector, err := a.Identity.GetSAMLConnector(ctx, req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,12 +125,12 @@ func (a *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServic
 	defer a.lock.Unlock()
 
 	providerPack, ok := a.samlProviders[conn.GetName()]
-	if ok && providerPack.connector.Equals(conn) {
+	if ok && cmp.Equal(providerPack.connector, conn) {
 		return providerPack.provider, nil
 	}
 	delete(a.samlProviders, conn.GetName())
 
-	serviceProvider, err := conn.GetServiceProvider(a.clock)
+	serviceProvider, err := services.GetSAMLServiceProvider(conn, a.clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,7 +150,7 @@ func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionIn
 
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
-	p.roles = connector.GetTraitMappings().TraitsToRoles(p.traits)
+	p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
 		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
@@ -164,7 +171,7 @@ func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
 
-	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
+	user := &services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -187,15 +194,12 @@ func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
 				},
 				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
-					Type:     teleport.ConnectorSAML,
+					Type:     teleport.SAML,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},
 			},
 		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Get the user to check if it already exists or not.
@@ -303,27 +307,31 @@ func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, e
 	if re != nil && re.attributeStatements != nil {
 		attributes, err := events.EncodeMapStrings(re.attributeStatements)
 		if err != nil {
-			log.WithError(err).Warn("Failed to encode identity attributes.")
+			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
+			log.WithError(err).Debug("Failed to encode identity attributes.")
 		} else {
 			event.IdentityAttributes = attributes
 		}
 	}
+
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
 		event.Status.Success = false
 		event.Status.Error = trace.Unwrap(err).Error()
 		event.Status.UserMessage = err.Error()
 		if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-			log.WithError(err).Warn("Failed to emit SAML login success event.")
+			log.WithError(err).Warn("Failed to emit SAML login failed event.")
 		}
 		return nil, trace.Wrap(err)
 	}
 	event.Status.Success = true
 	event.User = re.auth.Username
 	event.Code = events.UserSSOLoginCode
+
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-		log.WithError(err).Warn("Failed to emit SAML login failure event.")
+		log.WithError(err).Warn("Failed to emit SAML login event.")
 	}
+
 	return &re.auth, nil
 }
 
@@ -333,6 +341,7 @@ type samlAuthResponse struct {
 }
 
 func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, error) {
+	ctx := context.TODO()
 	requestID, err := parseSAMLInResponseTo(samlResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -341,7 +350,7 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := a.Identity.GetSAMLConnector(request.ConnectorID, true)
+	connector, err := a.Identity.GetSAMLConnector(ctx, request.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -406,7 +415,13 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 
 	// If the request is coming from a browser, create a web session.
 	if request.CreateWebSession {
-		session, err := a.createWebSession(user, params.sessionTTL)
+		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
+			User:       user.GetName(),
+			Roles:      user.GetRoles(),
+			Traits:     user.GetTraits(),
+			SessionTTL: params.sessionTTL,
+			LoginTime:  a.clock.Now().UTC(),
+		})
 		if err != nil {
 			return re, trace.Wrap(err)
 		}

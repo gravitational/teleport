@@ -28,14 +28,21 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 type AuditTestSuite struct {
 	dataDir string
@@ -78,10 +85,6 @@ func (a *AuditTestSuite) makeLogWithClock(c *check.C, dataDir string, recordSess
 		return nil, trace.Wrap(err)
 	}
 	return alog, nil
-}
-
-func (a *AuditTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (a *AuditTestSuite) SetUpTest(c *check.C) {
@@ -131,7 +134,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
 		RecordSessions: true,
-		ForwardTo:      alog,
+		IAuditLog:      alog,
 		Clock:          fakeClock,
 	})
 	c.Assert(err, check.IsNil)
@@ -143,14 +146,14 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 		SessionID: sessionID,
 		Chunks: []*SessionChunk{
 			// start the session
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionStartEvent,
 				Data:       marshal(EventFields{EventLogin: "bob"}),
 			},
 			// type "hello" into session "100"
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				ChunkIndex: 0,
@@ -159,7 +162,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 				Data:       firstMessage,
 			},
 			// emitting session end event should close the session
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 4,
 				EventType:  SessionEndEvent,
@@ -251,7 +254,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
 		RecordSessions: false,
-		ForwardTo:      alog,
+		IAuditLog:      alog,
 		Clock:          fakeClock,
 	})
 	c.Assert(err, check.IsNil)
@@ -263,14 +266,14 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 		SessionID: sessionID,
 		Chunks: []*SessionChunk{
 			// start the session
-			&SessionChunk{
+			{
 				Time:       alog.Clock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionStartEvent,
 				Data:       marshal(EventFields{EventLogin: username}),
 			},
 			// type "hello" into session "100"
-			&SessionChunk{
+			{
 				Time:       alog.Clock.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				ChunkIndex: 0,
@@ -279,7 +282,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 				Data:       firstMessage,
 			},
 			// end the session
-			&SessionChunk{
+			{
 				Time:       alog.Clock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionEndEvent,
@@ -294,11 +297,15 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	upload(c, uploadDir, fakeClock, alog)
 
 	// get all events from the audit log, should have two session event and one upload event
-	found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 0)
+	found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), defaults.Namespace, nil, 0, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.HasLen, 3)
-	c.Assert(found[0].GetString(EventLogin), check.Equals, username)
-	c.Assert(found[1].GetString(EventLogin), check.Equals, username)
+	eventA, okA := found[0].(*SessionStart)
+	eventB, okB := found[1].(*SessionEnd)
+	c.Assert(okA, check.Equals, true)
+	c.Assert(okB, check.Equals, true)
+	c.Assert(eventA.Login, check.Equals, username)
+	c.Assert(eventB.Login, check.Equals, username)
 
 	// inspect the session log for "200", should have two events
 	history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, true)
@@ -311,11 +318,10 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 }
 
 func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
-	now := time.Now().In(time.UTC).Round(time.Second)
 	// create audit log, write a couple of events into it, close it
-	alog, err := a.makeLog(c, a.dataDir, true)
+	clock := clockwork.NewFakeClock()
+	alog, err := a.makeLogWithClock(c, a.dataDir, true, clock)
 	c.Assert(err, check.IsNil)
-	alog.Clock = clockwork.NewFakeClockAt(now)
 
 	// emit regular event:
 	err = alog.EmitAuditEventLegacy(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
@@ -327,7 +333,8 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	bytes, err := ioutil.ReadFile(logfile)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(bytes), check.Equals,
-		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n", now.Format(time.RFC3339), fixtures.UUID))
+		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n",
+			clock.Now().Format(time.RFC3339), fixtures.UUID))
 }
 
 // TestLogRotation makes sure that logs are rotated
@@ -349,7 +356,11 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		clock.Advance(duration)
 
 		// emit regular event:
-		err = alog.EmitAuditEventLegacy(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
+		event := &events.Resize{
+			Metadata:     events.Metadata{Type: "resize"},
+			TerminalSize: "10:10",
+		}
+		err = alog.EmitAuditEvent(context.TODO(), event)
 		c.Assert(err, check.IsNil)
 		logfile := alog.localLog.file.Name()
 
@@ -361,15 +372,17 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		// read back what's been written:
 		bytes, err := ioutil.ReadFile(logfile)
 		c.Assert(err, check.IsNil)
-		contents := fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n", now.Format(time.RFC3339), fixtures.UUID)
-		c.Assert(string(bytes), check.Equals, contents)
+		contents, err := json.Marshal(event)
+		contents = append(contents, '\n')
+		c.Assert(err, check.IsNil)
+		c.Assert(string(bytes), check.Equals, string(contents))
 
 		// read back the contents using symlink
 		bytes, err = ioutil.ReadFile(filepath.Join(alog.localLog.SymlinkDir, SymlinkFilename))
 		c.Assert(err, check.IsNil)
-		c.Assert(string(bytes), check.Equals, contents)
+		c.Assert(string(bytes), check.Equals, string(contents))
 
-		found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 0)
+		found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), defaults.Namespace, nil, 0, "")
 		c.Assert(err, check.IsNil)
 		c.Assert(found, check.HasLen, 1)
 	}
@@ -395,7 +408,6 @@ func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
 // TestLegacyHandler tests playback for legacy sessions
 // that are stored on disk in unpacked format
 func (a *AuditTestSuite) TestLegacyHandler(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
 	memory := NewMemoryUploader()
 	wrapper, err := NewLegacyHandler(LegacyHandlerConfig{
 		Handler: memory,
@@ -488,7 +500,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 		ServerID:       "upload",
 		DataDir:        uploadDir,
 		RecordSessions: true,
-		ForwardTo:      alog,
+		IAuditLog:      alog,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -499,14 +511,14 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 		SessionID: string(sessionID),
 		Chunks: []*SessionChunk{
 			// start the seession
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionStartEvent,
 				Data:       marshal(EventFields{EventLogin: "bob"}),
 			},
 			// type "hello" into session "100"
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				ChunkIndex: 0,
@@ -515,7 +527,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 				Data:       firstMessage,
 			},
 			// emitting session end event should close the session
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 4,
 				EventType:  SessionEndEvent,

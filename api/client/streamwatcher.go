@@ -31,15 +31,10 @@ import (
 func (c *Client) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
 	var protoWatch proto.Watch
-	for _, k := range watch.Kinds {
-		protoWatch.Kinds = append(protoWatch.Kinds, proto.WatchKind{
-			Name:        k.Name,
-			Kind:        k.Kind,
-			LoadSecrets: k.LoadSecrets,
-			Filter:      k.Filter,
-		})
+	for _, kind := range watch.Kinds {
+		protoWatch.Kinds = append(protoWatch.Kinds, proto.FromWatchKind(kind))
 	}
-	stream, err := c.grpc.WatchEvents(cancelCtx, &protoWatch)
+	stream, err := c.grpc.WatchEvents(cancelCtx, &protoWatch, c.callOpts...)
 	if err != nil {
 		cancel()
 		return nil, trail.FromGRPC(err)
@@ -92,7 +87,7 @@ func (w *streamWatcher) receiveEvents() {
 			w.closeWithError(trail.FromGRPC(err))
 			return
 		}
-		out, err := EventFromGRPC(*event)
+		out, err := eventFromGRPC(*event)
 		if err != nil {
 			w.closeWithError(trail.FromGRPC(err))
 			return
@@ -102,6 +97,96 @@ func (w *streamWatcher) receiveEvents() {
 		case <-w.Done():
 			return
 		}
+	}
+}
+
+// eventFromGRPC converts an proto.Event to a types.Event
+func eventFromGRPC(in proto.Event) (*types.Event, error) {
+	eventType, err := eventTypeFromGRPC(in.Type)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := types.Event{
+		Type: eventType,
+	}
+	if eventType == types.OpInit {
+		return &out, nil
+	}
+	if r := in.GetResourceHeader(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetCertAuthority(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetStaticTokens(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetProvisionToken(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetClusterName(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetClusterConfig(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetUser(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetRole(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetNamespace(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetServer(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetReverseTunnel(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetTunnelConnection(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetAccessRequest(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetAppSession(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetWebSession(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetWebToken(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetRemoteCluster(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetDatabaseServer(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetClusterNetworkingConfig(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetSessionRecordingConfig(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else {
+		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
+	}
+}
+
+func eventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
+	switch in {
+	case proto.Operation_INIT:
+		return types.OpInit, nil
+	case proto.Operation_PUT:
+		return types.OpPut, nil
+	case proto.Operation_DELETE:
+		return types.OpDelete, nil
+	default:
+		return types.OpInvalid, trace.BadParameter("unsupported operation type: %v", in)
 	}
 }
 

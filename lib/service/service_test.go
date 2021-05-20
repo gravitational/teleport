@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -42,23 +43,29 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 type ServiceTestSuite struct {
 }
 
 var _ = check.Suite(&ServiceTestSuite{})
 
-func (s *ServiceTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+func (s *ServiceTestSuite) TestDebugModeEnv(c *check.C) {
+	c.Assert(isDebugMode(), check.Equals, false)
+	os.Setenv(teleport.DebugEnvVar, "no")
+	c.Assert(isDebugMode(), check.Equals, false)
+	os.Setenv(teleport.DebugEnvVar, "0")
+	c.Assert(isDebugMode(), check.Equals, false)
+	os.Setenv(teleport.DebugEnvVar, "1")
+	c.Assert(isDebugMode(), check.Equals, true)
+	os.Setenv(teleport.DebugEnvVar, "true")
+	c.Assert(isDebugMode(), check.Equals, true)
 }
 
 func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
-	fileExists := func(fp string) bool {
-		_, err := os.Stat(fp)
-		if err != nil && os.IsNotExist(err) {
-			return false
-		}
-		return true
-	}
 	cfg := &Config{
 		DataDir:  c.MkDir(),
 		Hostname: "example.com",
@@ -67,8 +74,8 @@ func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
 	err := initSelfSignedHTTPSCert(cfg)
 	c.Assert(err, check.IsNil)
 	c.Assert(cfg.Proxy.KeyPairs, check.HasLen, 1)
-	c.Assert(fileExists(cfg.Proxy.KeyPairs[0].Certificate), check.Equals, true)
-	c.Assert(fileExists(cfg.Proxy.KeyPairs[0].PrivateKey), check.Equals, true)
+	c.Assert(utils.FileExists(cfg.Proxy.KeyPairs[0].Certificate), check.Equals, true)
+	c.Assert(utils.FileExists(cfg.Proxy.KeyPairs[0].PrivateKey), check.Equals, true)
 }
 
 func TestMonitor(t *testing.T) {
@@ -290,9 +297,11 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			HostUUID:    "global-uuid",
 			AdvertiseIP: "1.2.3.4",
 			Proxy: ProxyConfig{
-				PublicAddrs:       utils.MustParseAddrList("proxy-public-1", "proxy-public-2"),
-				SSHPublicAddrs:    utils.MustParseAddrList("proxy-ssh-public-1", "proxy-ssh-public-2"),
-				TunnelPublicAddrs: utils.MustParseAddrList("proxy-tunnel-public-1", "proxy-tunnel-public-2"),
+				PublicAddrs:         utils.MustParseAddrList("proxy-public-1", "proxy-public-2"),
+				SSHPublicAddrs:      utils.MustParseAddrList("proxy-ssh-public-1", "proxy-ssh-public-2"),
+				TunnelPublicAddrs:   utils.MustParseAddrList("proxy-tunnel-public-1", "proxy-tunnel-public-2"),
+				PostgresPublicAddrs: utils.MustParseAddrList("proxy-postgres-public-1", "proxy-postgres-public-2"),
+				MySQLPublicAddrs:    utils.MustParseAddrList("proxy-mysql-public-1", "proxy-mysql-public-2"),
 				Kube: KubeProxyConfig{
 					Enabled:     true,
 					PublicAddrs: utils.MustParseAddrList("proxy-kube-public-1", "proxy-kube-public-2"),
@@ -328,6 +337,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"proxy-ssh-public-2",
 				"proxy-tunnel-public-1",
 				"proxy-tunnel-public-2",
+				"proxy-postgres-public-1",
+				"proxy-postgres-public-2",
+				"proxy-mysql-public-1",
+				"proxy-mysql-public-2",
 				"proxy-kube-public-1",
 				"proxy-kube-public-2",
 			},

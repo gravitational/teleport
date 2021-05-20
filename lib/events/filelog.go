@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -104,9 +103,11 @@ func NewFileLog(cfg FileLogConfig) (*FileLog, error) {
 type FileLog struct {
 	*log.Entry
 	FileLogConfig
-	sync.Mutex
+	// rw protects the file from rotation during concurrent
+	// event emission.
+	rw sync.RWMutex
 	// file is the current global event log file. As the time goes
-	// on, it will be replaced by a new file every day
+	// on, it will be replaced by a new file every day.
 	file *os.File
 	// fileTime is a rounded (to a day, by default) timestamp of the
 	// currently opened file
@@ -115,11 +116,29 @@ type FileLog struct {
 
 // EmitAuditEvent adds a new event to the log.
 func (l *FileLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	l.rw.RLock()
+	defer l.rw.RUnlock()
+
 	// see if the log needs to be rotated
-	err := l.rotateLog()
-	if err != nil {
-		log.Error(err)
+	if l.mightNeedRotation() {
+		// log might need rotation; switch to write-lock
+		// to avoid rotating during concurrent event emission.
+		l.rw.RUnlock()
+		l.rw.Lock()
+
+		// perform rotation if still necessary (rotateLog rechecks the
+		// requirements internally, since rotation may have been performed
+		// during our switch from read to write locks)
+		err := l.rotateLog()
+
+		// switch back to read lock
+		l.rw.Unlock()
+		l.rw.RLock()
+		if err != nil {
+			log.Error(err)
+		}
 	}
+
 	// line is the text to be logged
 	line, err := utils.FastMarshal(event)
 	if err != nil {
@@ -136,12 +155,30 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
 
 // EmitAuditEventLegacy adds a new event to the log. Part of auth.IFileLog interface.
 func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
+	l.rw.RLock()
+	defer l.rw.RUnlock()
+
 	// see if the log needs to be rotated
-	err := l.rotateLog()
-	if err != nil {
-		log.Error(err)
+	if l.mightNeedRotation() {
+		// log might need rotation; switch to write-lock
+		// to avoid rotating during concurrent event emission.
+		l.rw.RUnlock()
+		l.rw.Lock()
+
+		// perform rotation if still necessary (rotateLog rechecks the
+		// requirements internally, since rotation may have been performed
+		// during our switch from read to write locks)
+		err := l.rotateLog()
+
+		// switch back to read lock
+		l.rw.Unlock()
+		l.rw.RLock()
+		if err != nil {
+			log.Error(err)
+		}
 	}
-	err = UpdateEventFields(event, fields, l.Clock, l.UIDGenerator)
+
+	err := UpdateEventFields(event, fields, l.Clock, l.UIDGenerator)
 	if err != nil {
 		log.Error(err)
 	}
@@ -157,38 +194,35 @@ func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	return nil
 }
 
-// SearchEvents finds events. Results show up sorted by date (newest first),
-// limit is used when set to value > 0
-func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	l.Debugf("SearchEvents(%v, %v, query=%v, limit=%v)", fromUTC, toUTC, query, limit)
+func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]AuditEvent, string, error) {
+	l.Debugf("SearchEvents(%v, %v, namespace=%v, eventType=%v, limit=%v)", fromUTC, toUTC, namespace, eventTypes, limit)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
 	if limit > defaults.EventsMaxIterationLimit {
-		return nil, trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
+		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
 	}
 	// how many days of logs to search?
 	days := int(toUTC.Sub(fromUTC).Hours() / 24)
 	if days < 0 {
-		return nil, trace.BadParameter("invalid days")
-	}
-	queryVals, err := url.ParseQuery(query)
-	if err != nil {
-		return nil, trace.BadParameter("invalid query")
+		return nil, "", trace.BadParameter("invalid days")
 	}
 	filtered, err := l.matchingFiles(fromUTC, toUTC)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
+	foundStart := startKey == ""
 	var total int
+	var lastKey string
 	// search within each file:
-	events := make([]EventFields, 0)
+	dynamicEvents := make([]EventFields, 0)
 	for i := range filtered {
-		found, err := l.findInFile(filtered[i].path, queryVals, &total, limit)
+		var found []EventFields
+		found, lastKey, foundStart, err = l.findInFile(filtered[i].path, eventTypes, &total, limit, startKey, foundStart)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
-		events = append(events, found...)
+		dynamicEvents = append(dynamicEvents, found...)
 		if limit > 0 && total >= limit {
 			break
 		}
@@ -197,38 +231,43 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int
 	// in case if events are associated with the same session, to make
 	// sure that events are not displayed out of order in case of multiple
 	// auth servers.
-	sort.Sort(ByTimeAndIndex(events))
-	return events, nil
+	sort.Sort(ByTimeAndIndex(dynamicEvents))
+
+	events := make([]AuditEvent, 0, len(dynamicEvents))
+	for _, dynamicEvent := range dynamicEvents {
+		event, err := FromEventFields(dynamicEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		events = append(events, event)
+	}
+
+	return events, lastKey, nil
 }
 
-// SearchSessionEvents searches for session related events. Used to find completed sessions.
-func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
+func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
 	l.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	// only search for specific event types
-	query := url.Values{}
-	query[EventType] = []string{
-		SessionStartEvent,
-		SessionEndEvent,
-	}
+	eventTypes := []string{SessionStartEvent, SessionEndEvent}
 
 	// because of the limit and distributed nature of auth server event
 	// logs, some events can be fetched with session end event and without
 	// session start event. to fix this, the code below filters out the events without
 	// start event to guarantee that all events in the range will get fetched
-	events, err := l.SearchEvents(fromUTC, toUTC, query.Encode(), limit)
+	events, lastKey, err := l.SearchEvents(fromUTC, toUTC, "default", eventTypes, limit, startKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, lastKey, trace.Wrap(err)
 	}
 
 	// filter out 'session end' events that do not
 	// have a corresponding 'session start' event
 	started := make(map[string]struct{}, len(events)/2)
-	filtered := make([]EventFields, 0, len(events))
+	filtered := make([]AuditEvent, 0, len(events))
 	for i := range events {
 		event := events[i]
-		eventType := event[EventType]
-		sessionID := event.GetString(SessionEventID)
+		eventType := event.GetType()
+		sessionID := GetSessionID(event)
 		if sessionID == "" {
 			continue
 		}
@@ -243,14 +282,14 @@ func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]Ev
 		}
 	}
 
-	return filtered, nil
+	return filtered, lastKey, nil
 }
 
 // Close closes the audit log, which inluces closing all file handles and releasing
 // all session loggers
 func (l *FileLog) Close() error {
-	l.Lock()
-	defer l.Unlock()
+	l.rw.Lock()
+	defer l.rw.Unlock()
 
 	var err error
 	if l.file != nil {
@@ -308,17 +347,27 @@ func (l *FileLog) GetSessionEvents(namespace string, sid session.ID, after int, 
 	return nil, trace.NotImplemented("not implemented")
 }
 
+// mightNeedRotation checks if the current log file looks older than a given duration,
+// used by rotateLog to decide if it should acquire a write lock.  Must be called under
+// read lock.
+func (l *FileLog) mightNeedRotation() bool {
+
+	if l.file == nil {
+		return true
+	}
+
+	// determine the timestamp for the current log file rounded to the day.
+	fileTime := l.Clock.Now().UTC().Truncate(24 * time.Hour)
+
+	return l.fileTime.Before(fileTime)
+}
+
 // rotateLog checks if the current log file is older than a given duration,
-// and if it is, closes it and opens a new one.
+// and if it is, closes it and opens a new one.  Must be called under write lock.
 func (l *FileLog) rotateLog() (err error) {
-	l.Lock()
-	defer l.Unlock()
 
-	// determine the timestamp for the current log file
-	fileTime := l.Clock.Now().In(time.UTC)
-
-	// truncate time to the resolution of one day, cutting at the day end boundary
-	fileTime = time.Date(fileTime.Year(), fileTime.Month(), fileTime.Day(), 0, 0, 0, 0, time.UTC)
+	// determine the timestamp for the current log file rounded to the day.
+	fileTime := l.Clock.Now().UTC().Truncate(24 * time.Hour)
 
 	logFilename := filepath.Join(l.Dir,
 		fileTime.Format(defaults.AuditLogTimeFormat)+LogfileExt)
@@ -426,22 +475,16 @@ func parseFileTime(filename string) (time.Time, error) {
 
 // findInFile scans a given log file and returns events that fit the criteria
 // This simplistic implementation ONLY SEARCHES FOR EVENT TYPE(s)
-//
-// You can pass multiple types like "event=session.start&event=session.end"
-func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int) ([]EventFields, error) {
-	l.Debugf("Called findInFile(%s, %v).", fn, query)
+func (l *FileLog) findInFile(fn string, eventFilter []string, total *int, limit int, startKey string, foundStart bool) ([]EventFields, string, bool, error) {
+	l.Debugf("Called findInFile(%s, %v).", fn, eventFilter)
 	retval := make([]EventFields, 0)
-
-	eventFilter, ok := query[EventType]
-	if !ok && len(query) > 0 {
-		return nil, nil
-	}
+	var lastKey string
 	doFilter := len(eventFilter) > 0
 
 	// open the log file:
 	lf, err := os.OpenFile(fn, os.O_RDONLY, 0)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", false, trace.Wrap(err)
 	}
 	defer lf.Close()
 
@@ -473,15 +516,22 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 				break
 			}
 		}
-		if accepted || !doFilter {
+
+		id := ef.GetString(EventID)
+		if id == startKey {
+			foundStart = true
+		}
+
+		if (accepted || !doFilter) && foundStart {
 			retval = append(retval, ef)
+			lastKey = id
 			*total++
 			if limit > 0 && *total >= limit {
 				break
 			}
 		}
 	}
-	return retval, nil
+	return retval, lastKey, foundStart, nil
 }
 
 type eventFile struct {
