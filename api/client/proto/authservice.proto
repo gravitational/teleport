@@ -78,6 +78,9 @@ message Event {
         // ClusterNetworkingConfig is a resource for cluster networking configuration.
         types.ClusterNetworkingConfigV2 ClusterNetworkingConfig = 20
             [ (gogoproto.jsontag) = "cluster_networking_config,omitempty" ];
+        // SessionRecordingConfigV2 is a resource for session recording configuration.
+        types.SessionRecordingConfigV2 SessionRecordingConfig = 21
+            [ (gogoproto.jsontag) = "session_recording_config,omitempty" ];
     }
 }
 
@@ -152,10 +155,21 @@ message UserCertsRequest {
     string NodeName = 9 [ (gogoproto.jsontag) = "node_name,omitempty" ];
 
     enum CertUsage {
+        // All means a request for both SSH and TLS certificates for the
+        // overall user session. These certificates are not specific to any SSH
+        // node, Kubernetes cluster, database or web app.
         All = 0;
+        // SSH means a request for an SSH certificate for access to a specific
+        // SSH node, as specified by NodeName.
         SSH = 1;
+        // Kubernetes means a request for a TLS certificate for access to a
+        // specific Kubernetes cluster, as specified by KubernetesCluster.
         Kubernetes = 2;
+        // Database means a request for a TLS certificate for access to a
+        // specific database, as specified by RouteToDatabase.
         Database = 3;
+        // App means a request for a TLS certificate for access to a specific
+        // web app, as specified by RouteToApp.
         App = 4;
     }
     // CertUsage limits the resulting user certificate to a single protocol.
@@ -804,6 +818,49 @@ message SingleUseUserCert {
     }
 }
 
+message GetEventsRequest {
+    // Namespace, if not set, defaults to 'default'
+    string Namespace = 1;
+    // StartDate is the oldest date of returned events
+    google.protobuf.Timestamp StartDate = 2
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // EndDate is the newest date of returned events
+    google.protobuf.Timestamp EndDate = 3
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // EventTypes is optional, if not set, returns all events
+    repeated string EventTypes = 4;
+    // Limit is the maximum amount of events returned
+    int32 Limit = 5;
+    // StartKey is used to resume a query in order to enable pagination.
+    // If the previous response had LastKey set then this should be
+    // set to its value. Otherwise leave empty.
+    string StartKey = 6;
+}
+
+message GetSessionEventsRequest {
+    // StartDate is the oldest date of returned events
+    google.protobuf.Timestamp StartDate = 1
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // EndDate is the newest date of returned events
+    google.protobuf.Timestamp EndDate = 2
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // Limit is the maximum amount of events to retrieve.
+    int32 Limit = 3;
+    // StartKey is used to resume a query in order to enable pagination.
+    // If the previous response had LastKey set then this should be
+    // set to its value. Otherwise leave empty.
+    string StartKey = 4;
+}
+
+message Events {
+    // Items is a list of typed gRPC formatted audit events.
+    repeated events.OneOf Items = 1;
+    // the key of the last event if the returned set did not contain all events found i.e limit <
+    // actual amount. this is the key clients can supply in another API request to continue fetching
+    // events from the previous last position
+    string LastKey = 2;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1043,4 +1100,17 @@ service AuthService {
     rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
     // SetClusterNetworkingConfig sets cluster networking configuration.
     rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty);
+
+    // GetSessionRecordingConfig gets session recording configuration.
+    rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2);
+    // SetSessionRecordingConfig sets session recording configuration.
+    rpc SetSessionRecordingConfig(types.SessionRecordingConfigV2) returns (google.protobuf.Empty);
+
+    // ResetAuthPreference resets cluster auth preference to defaults.
+    rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // Out-of-session request for audit events.
+    rpc GetEvents(GetEventsRequest) returns (Events);
+    // In-session request for audit events.
+    rpc GetSessionEvents(GetSessionEventsRequest) returns (Events);
 }
