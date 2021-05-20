@@ -1,6 +1,6 @@
 ---
-title: Application Access Getting Started Guide
-description: Getting started with Teleport Application Access
+title: Getting Started with Teleport Application Access
+description: Getting started with Teleport Application Access.
 ---
 
 # Getting Started
@@ -24,12 +24,9 @@ Let's connect to Grafana using Teleport Application Access in three steps:
 
 ## Prerequisites
 
-- We will use Docker to launch Grafana in a container. Alternatively, if you
-  have another web application you'd like to protect with App Access, you can
-  use that instead.
+- We will use Docker to launch Grafana in a container. Alternatively, if you have another web application you'd like to protect with App Access, you can use that instead.
 - We will assume your Teleport cluster is accessible at `teleport.example.com`
-  and `*.teleport.example.com`. Configured DNS records are required to
-  automatically fetch a [Let's Encrypt](https://letsencrypt.org) certificate.
+  and `*.teleport.example.com`. Configured DNS records are required to automatically fetch a [Let's Encrypt](https://letsencrypt.org) certificate.
 
 ## Step 1/3. Start Grafana
 
@@ -40,11 +37,11 @@ expose, skip over to **Step 2**.
 Grafana can be launched in a [Docker container](https://grafana.com/docs/grafana/latest/installation/docker/)
 with a single command:
 
-```sh
-$ docker run -d -p 3000:3000 grafana/grafana
+```bash
+docker run -d -p 3000:3000 grafana/grafana
 ```
 
-## Step 2/3. Install and Configure Teleport
+## Step 2/3. Install and configure Teleport
 
 Download the latest version of Teleport for your platform from our
 [downloads page](https://goteleport.com/teleport/download).
@@ -55,10 +52,15 @@ using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol.
 We will assume that you have configured DNS records for `teleport.example.com`
 and `*.teleport.example.com` to point to the Teleport node.
 
+
+<Admonition type="warning" title="Warning">
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
+</Admonition>
+
 Let's generate a Teleport config with ACME enabled:
 
-```shell
-$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
+```bash
+sudo teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
 ```
 
 <Admonition
@@ -66,15 +68,13 @@ $ teleport configure --cluster-name=teleport.example.com --acme --acme-email=ali
   title="Web Proxy Port"
 >
   Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
-  ACME challenge to validate certificate requests which only works on port `443`.
-  As such, in order to use ACME for certificate management, web proxy needs to
-  be accessible on port `443`.
+  ACME challenge to validate certificate requests which only works on port `443`. Make sure your Teleport proxy is accessible on port `443` when using ACME for certificate management.
 </Admonition>
 
 Now start Teleport and point it to the application endpoint:
 
-```shell
-$ sudo teleport start \
+```bash
+sudo teleport start \
   --roles=proxy,auth,app \
   --app-name=grafana \
   --app-uri=http://localhost:3000
@@ -83,18 +83,17 @@ $ sudo teleport start \
 Make sure to update `--app-name` and `--app-uri` accordingly if you're using
 your own web application.
 
-Next let's create a user that access to the application we've just connected.
+Next, let's create a user to access the application we've just connected.
 Teleport has a built-in role called `access` that allows users to access cluster
 resources. Create a local user assigned this role:
 
-```sh
-$ tctl users add --roles=access alice
+```bash
+sudo tctl users add --roles=access alice
 ```
 
-The command will output a signup link. Use it to choose a password and set up
-second factor. After that it will take you to the Teleport web UI.
+The command will output a signup link. Use it to choose a password and set up a second factor. After that, it will take you to the Teleport web UI.
 
-## Step 3/3. Access the Application
+## Step 3/3. Access the application
 
 There are a couple of ways to access the proxied application.
 
@@ -104,12 +103,12 @@ the `--app-public-addr` flag, so go to `https://grafana.teleport.example.com`
 (replace with your app public address) to access the app. If you're not logged into Teleport,
 you will need to authenticate before the application will show.
 
-Alternatively, log into the Teleport web UI at `https://teleport.example.com`
+Alternatively, log into the Teleport Web Interface at `https://teleport.example.com`
 (replace with your proxy public address). All available applications are
 displayed on the Applications tab. Click on the Grafana application tile
 to access it.
 
-## Next Steps
+## Next steps
 
 Dive deeper into the topics relevant to your Application Access use-case:
 

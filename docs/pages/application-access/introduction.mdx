@@ -41,17 +41,25 @@ Get started with Application Access in a 10 minute [guide](./getting-started.mdx
 
 ## Guides
 
-- [Connecting Applications](./guides/connecting-apps.mdx)
-- [JWT Tokens](./guides/jwt.mdx)
-- [API Access](./guides/api-access.mdx)
+<TileSet>
+  <Tile icon="server" title="Connecting Applications" href="./guides/connecting-apps.mdx">
+    How to use Teleport for Application Access.
+  </Tile>
+  <Tile icon="server" title="JWT Tokens" href="./guides/jwt.mdx">
+    How to use JWT tokens with Application Access.
+  </Tile>
+    <Tile icon="server" title="API Access" href="./guides/api-access.mdx">
+    How to access REST APIs with Teleport Application Access.
+  </Tile>
+</TileSet>
 
-## Example Legacy Apps
+## Example legacy apps
 
 A load balancer might display network telemetry through 
 a control panel but might lack the ability to authenticate with 
-and be accessed by resources outside your private newtork.
+and be accessed by resources outside your private network.
 
-Teleport let's team members access these resources securely, even outside a private network:
+Teleport lets team members access these resources securely, even outside a private network:
 
 - Team members can access private resources securely using certificates and SSH tunnels.
 - No sharing of resource secrets, passwords, or credentials.
@@ -63,7 +71,7 @@ Other common legacy app scenarios:
 - An internal admin tool.
 - Control panel for networking devices.
 
-## Example Modern Apps
+## Example modern apps
 
 Teleport Application Access also supports modern web applications such as internal web
 tools and infrastructure software:
@@ -71,5 +79,5 @@ tools and infrastructure software:
 - Kubernetes Dashboard.
 - Grafana.
 - Jupyter notebooks.
-- In-house Single Page Apps (SPA).
+- In-house Single-Page Apps (SPA).
 - SPA with custom JSON Web Token support (JWT).

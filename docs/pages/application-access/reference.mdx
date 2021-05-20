@@ -1,13 +1,11 @@
 ---
-title: Application Access Reference
-description: Configuration and CLI reference for Teleport Application Access
+title: Application Access Reference Documentation
+description: Configuration and CLI reference documentation for Teleport Application Access.
 ---
-
-# Application Access Reference
 
 ## Configuration
 
-The following snippet shows full YAML configuration of an Application Service
+The following snippet shows the full YAML configuration of an Application Service
 appearing in the `teleport.yaml` configuration file:
 
 ```yaml
@@ -55,8 +53,8 @@ This section shows CLI commands relevant for Application Access.
 
 Lists available applications.
 
-```sh
-$ tsh app ls
+```bash
+tsh app ls
 ```
 
 ### tsh app login
@@ -64,7 +62,7 @@ $ tsh app ls
 Retrieves short-lived X.509 certificate for CLI application access.
 
 ```sh
-$ tsh app login grafana
+tsh app login grafana
 ```
 
 ### tsh app logout
@@ -73,31 +71,31 @@ Removes CLI application access certificate.
 
 ```sh
 # Log out of a particular app.
-$ tsh app logout grafana
+tsh app logout grafana
 
 # Log out of all apps.
-$ tsh app logout
+tsh app logout
 ```
 
 ### tsh app config
 
 Prints application connection information.
 
-```sh
+```bash
 # Print app information in a table form.
-$ tsh app config
+tsh app config
 
 # Print information for a particular app.
-$ tsh app config grafana
+tsh app config grafana
 
 # Print an example curl command.
-$ tsh app config --format=curl
+tsh app config --format=curl
 
 # Construct a curl command.
-$ curl $(tsh app config --format=uri) \
-    --cacert $(tsh app config --format=ca) \
-    --cert $(tsh app config --format=cert) \
-    --key $(tsh app config --format=key)
+curl $(tsh app config --format=uri) \
+  --cacert $(tsh app config --format=ca) \
+  --cert $(tsh app config --format=cert) \
+  --key $(tsh app config --format=key)
 ```
 
 | Flag | Description |

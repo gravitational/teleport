@@ -1,31 +1,30 @@
 ---
-title: Using Application Access to Access APIs
-description: How to access RESTful APIs using Teleport Application Access
+title: Access REST APIs With Teleport Application Access
+description: How to access REST APIs with Teleport Application Access.
 ---
 
-# API Access
+# Application API Access
 
-Application Access can be used to access applications' RESTful APIs with
+Teleport Application Access can be used to access applications' (REST or Teleport's own gRPC) APIs with
 tools like [curl](https://man7.org/linux/man-pages/man1/curl.1.html) or
 Postman.
 
 ## Prerequisites
 
-We will assume that you followed the [Getting Started](../getting-started.mdx)
-guide or the general [App Access Usage](./connecting-apps.mdx) guide to connect the web
-application providing an API to Teleport.
+We'll assume that you followed the [Getting Started](../getting-started.mdx)
+guide or the general [App Access Usage](./connecting-apps.mdx) guide to connect the web application providing an API to Teleport.
 
-For the simplicity of the guide, we will be using Grafana running in a
+For simplicity's sake, we'll use Grafana running in a
 [Docker container](https://grafana.com/docs/grafana/latest/installation/docker/)
-and run API queries against it. You can launch Grafana too with a single Docker
+and execute API queries against it. You can launch Grafana too with a single Docker
 command:
 
-```sh
-$ docker run -d -p 3000:3000 grafana/grafana
+```bash
+docker run -d -p 3000:3000 grafana/grafana
 ```
 
 Connect Grafana to your Teleport cluster by adding the following section in
-the Teleport App Service configuration file:
+the Teleport App Service YAML configuration file:
 
 ```yaml
 app_service:
@@ -38,23 +37,24 @@ app_service:
       "env": "dev"
 ```
 
-## Accessing API
+## Accessing the API
 
 Log into your Teleport cluster and view available applications:
 
-```sh
-$ tsh login --proxy=teleport.example.com:3080
-$ tsh app ls
-Application Description         Public Address               Labels
------------ ------------------- ---------------------------- -------
-grafana     Test Grafana server grafana.teleport.example.com env=dev
+```bash
+tsh login --proxy=teleport.example.com:3080
+tsh app ls
+
+# Application Description         Public Address               Labels
+# ----------- ------------------- ---------------------------- -------
+# grafana     Test Grafana server grafana.teleport.example.com env=dev
 ```
 
 Retrieve short-lived X.509 certificate for the application:
 
-```sh
-$ tsh app login grafana
-Logged into app grafana. Example curl command:
+```bash
+tsh app login grafana
+# Logged into app grafana. Example curl command:
 
 curl \
   --cacert /Users/alice/.tsh/keys/teleport.example.com/certs.pem \
@@ -70,71 +70,77 @@ target application's API through Teleport App Access.
   type="note"
   title="CA and Key Pair Files"
 >
-  Note the paths to the CA certificate and your user's certificate/key pair in
-  the command - `curl` will use a client certificate to authenticate with Teleport.
+  Note the paths to the CA certificate and your user's certificate/key pair in the command - `curl` will use a client certificate to authenticate with Teleport.
 </Admonition>
 
 As Grafana's API requires authentication, let's update the `curl` command to
 provide basic auth information using default Grafana username/password and
 call its `/api/users` endpoint:
 
-```sh
-$ curl --user admin:admin \
-    --cacert /Users/alice/.tsh/keys/teleport.example.com/certs.pem \
-    --cert /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem \
-    --key /Users/alice/.tsh/keys/teleport.example.com/alice \
+```bash
+curl --user admin:admin \
+  --cacert /Users/alice/.tsh/keys/teleport.example.com/certs.pem \
+  --cert /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem \
+  --key /Users/alice/.tsh/keys/teleport.example.com/alice \
     https://grafana.teleport.example.com:3080/api/users
-[{"id":1,"name":"","login":"admin","email":"admin@localhost","avatarUrl":"/avatar/46d229b033af06a191ff2267bca9ae56","isAdmin":true,"isDisabled":false,"lastSeenAt":"2021-03-18T17:25:59Z","lastSeenAtAge":"\u003c 1m","authLabels":[]}]
+
+# [{"id":1,"name":"","login":"admin","email":"admin@localhost","avatarUrl":"/avatar/46d229b033af06a191ff2267bca9ae56","isAdmin":true,"isDisabled":false,"lastSeenAt":"2021-03-18T17:25:59Z","lastSeenAtAge":"\u003c 1m","authLabels":[]}]
 ```
 
 The app's X.509 certificate will expire on its own after the TTL allowed by
 your user's role. You can also remove it explicitly:
 
-```sh
-$ tsh app logout
-Logged out of app "grafana"
+```bash
+tsh app logout
+# Logged out of app "grafana"
 ```
 
-## App Information
+## Application information
 
-`tsh app config` shows current app URI and paths to the secrets. This is useful
-when configuring CLI tools (such as `curl`) or GUI tools (such as Postman).
+```bash
+tsh app config
+```
+
+shows current app URI and paths to the secrets. 
+
+This is useful when configuring CLI tools (such as `curl`) or GUI tools (such as Postman).
 
 Let's print the app information in a table format:
 
-```sh
-$ tsh app config
-Name:      grafana
-URI:       https://grafana.teleport.example.com:3080
-CA:        /Users/alice/.tsh/keys/teleport.example.com/certs.pem
-Cert:      /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
-Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
+```bash
+tsh app config
+
+# Name:      grafana
+# URI:       https://grafana.teleport.example.com:3080
+# CA:        /Users/alice/.tsh/keys/teleport.example.com/certs.pem
+# Cert:      /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
+# Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
 ```
 
 We can also provide different `--format` values to print specific parts
 of the app configuration:
 
-```sh
-$ tsh app config --format=uri
-https://grafana-root.gravitational.io:3080
+```bash
+tsh app config --format=uri
+# https://grafana-root.gravitational.io:3080
 
-$ tsh app config --format=ca
-/Users/alice/.tsh/keys/teleport.example.com/certs.pem
+tsh app config --format=ca
+# /Users/alice/.tsh/keys/teleport.example.com/certs.pem
 
-$ tsh app config --format=cert
-/Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
+tsh app config --format=cert
+# /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
 
-$ tsh app config --format=key
-/Users/alice/.tsh/keys/teleport.example.com/alice
+tsh app config --format=key
+# /Users/alice/.tsh/keys/teleport.example.com/alice
 ```
 
 This can be useful in automation for simple templating e.g. to construct an
 appropriate `curl` command. Using our Grafana `/api/users` example above:
 
-```sh
-$ curl --user admin:admin \
-    --cacert $(tsh app config --format=ca) \
-    --cert $(tsh app config --format=cert) \
-    --key $(tsh app config --format=key) \
+```bash
+curl --user admin:admin \
+  --cacert $(tsh app config --format=ca) \
+  --cert $(tsh app config --format=cert) \
+  --key $(tsh app config --format=key) \
     $(tsh app config --format=uri)/api/users
 ```
