@@ -21,6 +21,10 @@ Documentation is:
 - Not marketing although it plays a role in onboarding customers. Page views matter, but accuracy and customer satisfaction matter most.
 - Often essential to leadership when they're evaluating a product. Doubly so when potential customers are in high-regulation spaces like finance or government. Many teams neglect their documentation only to fail to secure (or have delayed) the lucrative contracts that such potential customers can bring.
 
+<Admonition type="tip">
+  Read through the great: https://www.divio.com/ documentation to get a sense about the kind of documentation we want to transform our current documentation into.
+</Admonition>
+
 ## Kinds of documents
 
 This section ennumerates the most-common kinds of documents we write at Teleport and include within our document set.
@@ -29,16 +33,16 @@ This section ennumerates the most-common kinds of documents we write at Teleport
 
 *Getting started guides* are self-contained, *quickstart*, articles and should aim to get a user up and running in the shortest way.
 
-These are designed for beginners, often people who may not have heard about Teleport before.
-
-A good *quickstart* takes 5-10 minutes, states the utility of completing the article at the beginning, and a demo video.
+- These are *Tutorials* in [DIVIO parlance](https://www.divio.com/), articles designed for beginners, and often people who may not have heard about Teleport before. This is one of the first interactions they'll have with the product so we want it to be stress-free and fun.
+- We should strive to preclude anything that breaks the reader's focus or their ability to complete the sequence (missing code, incomplete examples, something they can't just copy-paste).
+- A good *quickstart* takes 5-10 minutes, states the utility of completing the article at the beginning, and a demo video.
 
 Example:
 
 1. Getting started title: `"SSO and Audit for Kubernetes in 3 steps"`
 2. Followed by a demo video. 
 3. Prerequisites and tools used should go next. 
-4. Two-three sub-sections with the setup. 
+4. Several sub-sections describing a concrete, completable, portion of the Tutorial sequence.
 5. Wrap up with "Next steps" section.
 
 Getting started guides should be written with the goal to keep a busy user engaged. 
@@ -55,9 +59,11 @@ Each step is clearly stated so users can easily follow the sequence: "Step 1 out
 
 *Guides* are self-contained articles for intermediate readers (readers with some familiarity working with Teleport already) setting up Teleport for a specific scenario.
 
+These are *How-To's* in [DIVIO parlance](https://www.divio.com/). They describe a way to use Teleport for a specific purpose. Here, conceptual information is deprioritized and the hand-on ability to complete the objective is made paramount.
+
 Example: 
 
-1. Guide title: "Kubernetes Access on GKE" which features a High Availability setup using Firebase and GCS backend.
+1. Guide title: "Kubernetes Access on GKE" which features a high availability setup using Firebase and GCS backend.
 2. Followed by the guide purpose.
 3. Followed by prerequisites.
 4. Next, the setup steps.
@@ -77,7 +83,8 @@ Specific kinds of *guides* include:
 
 *Architecture* articles explain how Teleport works to advanced readers. Architects, devsecops, or similar professional constitute the most-common audience. 
 
-These articles are used to make a decision about whether and how to use Teleport.
+- These are (partly) *Concepts* in [DIVIO parlance](https://www.divio.com/). They describe high-level concepts with a narrowed focus on architectural concerns.
+- These articles are therefore used to evaluate architectural decisions, configuration, and use-scenarios.
 
 Specific kinds of *architecture* articles include:
 
@@ -85,13 +92,21 @@ Specific kinds of *architecture* articles include:
 2. **Security** - lists security protocols and primitives. Secops will look for an attack vector tree diagram. Make sure to include these sections when appropriate!
 3. **Deployment** - should include a deployment diagram which in turn explains components and how they interact with databases and each other.
 
+### Admin and User guides
+
+These articles comprehensively ennumerate *Concepts* (in [DIVIO parlance](https://www.divio.com/)) from the perspective of a user or admin.
+
+- We should think of these not as *How-To's* but as continuations of our *Architectural* article work.
+- Whereas the former is concerned with how to use, find, or create something using Teleport tools, the latter is concerned with the interaction of containers, nodes, security, and infrastructure.
+- Some overlap will be likely between admin and *Architecture* articles.
+
 ### Reference manuals
 
 *Reference manuals* provide an exhaustive list of configuration options and API methods (*reference documentation*).
 
-HTML or Markdown tables are often the best formats for this kind of article (or sections within them).
-
-A good *reference manual* is search friendly and lists all content on the same page.
+- HTML or Markdown tables are often the best formats for this kind of article (or sections within them).
+- A good *reference manual* is search friendly and lists all content on the same page.
+- These should avoid prose and be expressed with great brevity in a dry, crisp, and accurate manner.
 
 ## Next Steps
 
