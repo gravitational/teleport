@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -102,7 +103,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 // newStreamWriter creates a streamer that will be used to stream the
 // requests that occur within this session to the audit log.
 func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter, error) {
-	clusterConfig, err := s.c.AccessPoint.GetClusterConfig()
+	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(s.closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,7 +119,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 	chunkID := uuid.New()
 
 	// Create a sync or async streamer depending on configuration of cluster.
-	streamer, err := s.newStreamer(s.closeContext, chunkID, clusterConfig)
+	streamer, err := s.newStreamer(s.closeContext, chunkID, recConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -131,7 +132,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		SessionID:    session_pkg.ID(chunkID),
 		Namespace:    defaults.Namespace,
 		ServerID:     s.c.Server.GetName(),
-		RecordOutput: clusterConfig.GetSessionRecording() != services.RecordOff,
+		RecordOutput: recConfig.GetMode() != services.RecordOff,
 		Component:    teleport.ComponentApp,
 		ClusterName:  clusterName.GetClusterName(),
 	})
@@ -171,9 +172,8 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 // of the server and the session, sync streamer sends the events
 // directly to the auth server and blocks if the events can not be received,
 // async streamer buffers the events to disk and uploads the events later
-func (s *Server) newStreamer(ctx context.Context, sessionID string, clusterConfig services.ClusterConfig) (events.Streamer, error) {
-	mode := clusterConfig.GetSessionRecording()
-	if services.IsRecordSync(mode) {
+func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig types.SessionRecordingConfig) (events.Streamer, error) {
+	if services.IsRecordSync(recConfig.GetMode()) {
 		s.log.Debugf("Using sync streamer for session %v.", sessionID)
 		return s.c.AuthClient, nil
 	}

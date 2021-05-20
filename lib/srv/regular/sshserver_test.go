@@ -38,6 +38,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1205,12 +1206,14 @@ func (s *SrvSuite) TestServerAliveInterval(c *C) {
 // TestGlobalRequestRecordingProxy simulates sending a global out-of-band
 // recording-proxy@teleport.com request.
 func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
+	ctx := context.Background()
+
 	// set cluster config to record at the node
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtNode,
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: services.RecordAtNode,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	c.Assert(err, IsNil)
 
 	// send the request again, we have cluster config and when we parse the
@@ -1223,11 +1226,11 @@ func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
 	c.Assert(response, Equals, false)
 
 	// set cluster config to record at the proxy
-	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtProxy,
+	recConfig, err = types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: services.RecordAtProxy,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	c.Assert(err, IsNil)
 
 	// send request again, now that we have cluster config and it's set to record
@@ -1379,12 +1382,15 @@ func (s *SrvSuite) startX11EchoServer(ctx context.Context, c *C) *rawNode {
 // TestX11ProxySupport verifies that recording proxies correctly forward
 // X11 request/channels.
 func (s *SrvSuite) TestX11ProxySupport(c *C) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// set cluster config to record at the proxy
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtProxy,
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: services.RecordAtProxy,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	c.Assert(err, IsNil)
 
 	// verify that the proxy is in recording mode
@@ -1396,8 +1402,6 @@ func (s *SrvSuite) TestX11ProxySupport(c *C) {
 	c.Assert(response, Equals, true)
 
 	// setup our fake X11 echo server
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
 	node := s.startX11EchoServer(ctx, c)
 
 	// Create a direct TCP/IP connection from proxy to our X11 test server.
