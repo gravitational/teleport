@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
@@ -135,7 +136,7 @@ func (c *TopCommand) Top(client *roundtrip.Client) error {
 func (c *TopCommand) render(ctx context.Context, re Report, eventID string) error {
 	h := widgets.NewParagraph()
 	h.Text = fmt.Sprintf("Report Generated at %v for host %v. Press <q> or Ctrl-C to quit.",
-		re.Timestamp.Format(teleport.HumanDateFormatSeconds), re.Hostname)
+		re.Timestamp.Format(constants.HumanDateFormatSeconds), re.Hostname)
 	h.Border = false
 	h.TextStyle = ui.NewStyle(ui.ColorMagenta)
 
@@ -184,7 +185,7 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 	t2.ColumnWidths = []int{30, 50000}
 	t2.RowSeparator = false
 	t2.Rows = [][]string{
-		[]string{"Start Time", re.Process.StartTime.Format(teleport.HumanDateFormatSeconds)},
+		[]string{"Start Time", re.Process.StartTime.Format(constants.HumanDateFormatSeconds)},
 		[]string{"Resident Memory Bytes", humanize.Bytes(uint64(re.Process.ResidentMemoryBytes))},
 		[]string{"Open File Descriptors", humanize.FormatFloat("", re.Process.OpenFDs)},
 		[]string{"CPU Seconds Total", humanize.FormatFloat("", re.Process.CPUSecondsTotal)},

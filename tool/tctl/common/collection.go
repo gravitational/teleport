@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/services"
@@ -53,7 +53,7 @@ func (r *roleCollection) resources() (res []types.Resource) {
 func (r *roleCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Role", "Allowed to login as", "Node Labels", "Access to resources"})
 	for _, r := range r.roles {
-		if r.GetName() == teleport.DefaultImplicitRole {
+		if r.GetName() == constants.DefaultImplicitRole {
 			continue
 		}
 		t.AddRow([]string{

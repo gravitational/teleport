@@ -25,8 +25,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-semver/semver"
@@ -35,7 +34,7 @@ import (
 // KernelVersion parses /proc/sys/kernel/osrelease and returns the kernel
 // version of the host. This only returns something meaningful on Linux.
 func KernelVersion() (*semver.Version, error) {
-	if runtime.GOOS != teleport.LinuxOS {
+	if runtime.GOOS != constants.LinuxOS {
 		return nil, trace.BadParameter("requested kernel version on non-Linux host")
 	}
 

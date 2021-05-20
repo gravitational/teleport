@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -200,7 +201,7 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 	}{
 		// 0 - standard, has roles
 		{
-			teleport.CertificateFormatStandard,
+			constants.CertificateFormatStandard,
 			true,
 		},
 		// 1 - oldssh, no roles

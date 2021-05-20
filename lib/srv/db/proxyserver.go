@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -132,7 +133,7 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 		// The connection is expected to come through via multiplexer.
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) || trace.IsConnectionProblem(err) {
+			if strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -164,7 +165,7 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 		// Accept the connection from a MySQL client.
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+			if strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection) {
 				return nil
 			}
 			return trace.Wrap(err)

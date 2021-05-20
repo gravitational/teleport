@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -395,7 +396,7 @@ func (a *Server) createGithubUser(p *createUserParams) (types.User, error) {
 				User: types.UserRef{Name: teleport.UserSystem},
 				Time: a.GetClock().Now().UTC(),
 				Connector: &types.ConnectorRef{
-					Type:     teleport.Github,
+					Type:     constants.Github,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},

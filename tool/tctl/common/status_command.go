@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -105,8 +105,8 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 				table.AddRow([]string{info,
 					fmt.Sprintf("%v, update_servers: %v, complete: %v",
 						rotation.String(),
-						rotation.Schedule.UpdateServers.Format(teleport.HumanDateFormatSeconds),
-						rotation.Schedule.Standby.Format(teleport.HumanDateFormatSeconds),
+						rotation.Schedule.UpdateServers.Format(constants.HumanDateFormatSeconds),
+						rotation.Schedule.Standby.Format(constants.HumanDateFormatSeconds),
 					)})
 			} else {
 				table.AddRow([]string{info, rotation.String()})

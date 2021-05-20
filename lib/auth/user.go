@@ -26,7 +26,7 @@ package auth
 import (
 	"context"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -52,7 +52,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 
 	var connectorName string
 	if user.GetCreatedBy().Connector == nil {
-		connectorName = teleport.Local
+		connectorName = constants.Local
 	} else {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
@@ -87,7 +87,7 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 
 	var connectorName string
 	if user.GetCreatedBy().Connector == nil {
-		connectorName = teleport.Local
+		connectorName = constants.Local
 	} else {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
@@ -123,7 +123,7 @@ func (s *Server) UpsertUser(user types.User) error {
 
 	var connectorName string
 	if user.GetCreatedBy().Connector == nil {
-		connectorName = teleport.Local
+		connectorName = constants.Local
 	} else {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}

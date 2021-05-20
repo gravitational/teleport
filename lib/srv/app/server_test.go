@@ -37,6 +37,7 @@ import (
 	"github.com/pborman/uuid"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -318,7 +319,7 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	}()
 
 	// Issue request.
-	resp, err := httpClient.Get("https://" + teleport.APIDomain)
+	resp, err := httpClient.Get("https://" + constants.APIDomain)
 	c.Assert(err, check.IsNil)
 
 	// Check response.

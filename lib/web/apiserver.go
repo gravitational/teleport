@@ -543,7 +543,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 
 func localSettings(authClient auth.ClientI, cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: cap.GetSecondFactor(),
 	}
 
@@ -563,7 +563,7 @@ func localSettings(authClient auth.ClientI, cap types.AuthPreference) (webclient
 
 func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webclient.AuthenticationSettings {
 	return webclient.AuthenticationSettings{
-		Type: teleport.OIDC,
+		Type: constants.OIDC,
 		OIDC: &webclient.OIDCSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
@@ -575,7 +575,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 
 func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webclient.AuthenticationSettings {
 	return webclient.AuthenticationSettings{
-		Type: teleport.SAML,
+		Type: constants.SAML,
 		SAML: &webclient.SAMLSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
@@ -587,7 +587,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 
 func githubSettings(connector types.GithubConnector, cap types.AuthPreference) webclient.AuthenticationSettings {
 	return webclient.AuthenticationSettings{
-		Type: teleport.Github,
+		Type: constants.Github,
 		Github: &webclient.GithubSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
@@ -605,12 +605,12 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 	var as webclient.AuthenticationSettings
 
 	switch cap.GetType() {
-	case teleport.Local:
+	case constants.Local:
 		as, err = localSettings(authClient, cap)
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
-	case teleport.OIDC:
+	case constants.OIDC:
 		if cap.GetConnectorName() != "" {
 			oidcConnector, err := authClient.GetOIDCConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
@@ -629,7 +629,7 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 
 			as = oidcSettings(oidcConnectors[0], cap)
 		}
-	case teleport.SAML:
+	case constants.SAML:
 		if cap.GetConnectorName() != "" {
 			samlConnector, err := authClient.GetSAMLConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
@@ -648,7 +648,7 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 
 			as = samlSettings(samlConnectors[0], cap)
 		}
-	case teleport.Github:
+	case constants.Github:
 		if cap.GetConnectorName() != "" {
 			githubConnector, err := authClient.GetGithubConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
@@ -710,7 +710,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		ServerVersion: teleport.Version,
 	}
 
-	if connectorName == teleport.Local {
+	if connectorName == constants.Local {
 		as, err := localSettings(h.cfg.ProxyClient, cap)
 		if err != nil {
 			return nil, trace.Wrap(err)

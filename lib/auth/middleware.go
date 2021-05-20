@@ -25,6 +25,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -241,7 +242,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	switch info.ServerName {
 	case "":
 		// Client does not use SNI, will validate against all known CAs.
-	case teleport.APIDomain:
+	case constants.APIDomain:
 		// REMOVE IN 4.4: all 4.3+ clients must specify the correct cluster name.
 		//
 		// Instead, this case should either default to current cluster CAs or

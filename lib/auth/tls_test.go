@@ -1699,7 +1699,7 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 			PublicKey:      pub,
 			Username:       user,
 			Expires:        time.Now().Add(time.Hour).UTC(),
-			Format:         teleport.CertificateFormatStandard,
+			Format:         constants.CertificateFormatStandard,
 			AccessRequests: reqIDs,
 		})
 	}
@@ -1949,7 +1949,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey: pub,
 			Username:  user1.GetName(),
 			Expires:   time.Now().Add(time.Hour).UTC(),
-			Format:    teleport.CertificateFormatStandard,
+			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), err.Error())
@@ -1966,7 +1966,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey: pub,
 			Username:  user1.GetName(),
 			Expires:   time.Now().Add(time.Hour).UTC(),
-			Format:    teleport.CertificateFormatStandard,
+			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
@@ -2025,7 +2025,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey: pub,
 			Username:  superImpersonator.GetName(),
 			Expires:   clock.Now().Add(1000 * time.Hour).UTC(),
-			Format:    teleport.CertificateFormatStandard,
+			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
 
@@ -2048,7 +2048,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey: pub,
 			Username:  user1.GetName(),
 			Expires:   clock.Now().Add(time.Hour).UTC(),
-			Format:    teleport.CertificateFormatStandard,
+			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
 		require.IsType(t, &trace.AccessDeniedError{}, trace.Unwrap(err))
@@ -2066,7 +2066,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey: pub,
 			Username:  user1.GetName(),
 			Expires:   time.Now().Add(time.Hour).UTC(),
-			Format:    teleport.CertificateFormatStandard,
+			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
 		require.IsType(t, &trace.AccessDeniedError{}, trace.Unwrap(err))
@@ -2082,7 +2082,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey:      pub,
 			Username:       superImpersonator.GetName(),
 			Expires:        clock.Now().Add(time.Hour).UTC(),
-			Format:         teleport.CertificateFormatStandard,
+			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc.GetName(),
 		})
 		require.NoError(t, err)
@@ -2114,7 +2114,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey:      pub,
 			Username:       user2.GetName(),
 			Expires:        time.Now().Add(100 * time.Hour).UTC(),
-			Format:         teleport.CertificateFormatStandard,
+			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc1.GetName(),
 		})
 		require.NoError(t, err)
@@ -2139,7 +2139,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey: pub,
 			Username:  user1.GetName(),
 			Expires:   time.Now().Add(40 * time.Hour).UTC(),
-			Format:    teleport.CertificateFormatStandard,
+			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
 
@@ -2164,7 +2164,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey: pub,
 			Username:  user1.GetName(),
 			Expires:   time.Now().Add(1 * time.Hour).UTC(),
-			Format:    teleport.CertificateFormatStandard,
+			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
 		parsedCert, _ = parseCert(userCerts.SSH)
@@ -2180,7 +2180,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey: pub,
 			Username:  user1.GetName(),
 			Expires:   time.Now().Add(time.Hour).UTC(),
-			Format:    teleport.CertificateFormatStandard,
+			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
 
@@ -2194,7 +2194,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey:      pub,
 			Username:       user2.GetName(),
 			Expires:        time.Now().Add(100 * time.Hour).UTC(),
-			Format:         teleport.CertificateFormatStandard,
+			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: "unknown_cluster",
 		})
 		require.Error(t, err)
@@ -2213,7 +2213,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey:      pub,
 			Username:       user2.GetName(),
 			Expires:        time.Now().Add(100 * time.Hour).UTC(),
-			Format:         teleport.CertificateFormatStandard,
+			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc2.GetName(),
 		})
 		require.Error(t, err)
@@ -2227,7 +2227,7 @@ func TestGenerateCerts(t *testing.T) {
 			PublicKey:      pub,
 			Username:       user2.GetName(),
 			Expires:        time.Now().Add(100 * time.Hour).UTC(),
-			Format:         teleport.CertificateFormatStandard,
+			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc2.GetName(),
 		})
 		require.NoError(t, err)
@@ -2337,7 +2337,7 @@ func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 		// 1 - override the role
 		{
 			teleport.CertificateFormatOldSSH,
-			teleport.CertificateFormatStandard,
+			constants.CertificateFormatStandard,
 			true,
 		},
 	}
@@ -2438,7 +2438,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, check.IsNil)
@@ -2542,7 +2542,7 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, check.IsNil)

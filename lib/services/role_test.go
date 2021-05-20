@@ -26,7 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -174,7 +174,7 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
-						CertificateFormat: teleport.CertificateFormatStandard,
+						CertificateFormat: constants.CertificateFormatStandard,
 						MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
 						PortForwarding:    types.NewBoolOption(true),
 						BPF:               defaults.EnhancedEvents(),
@@ -242,7 +242,7 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
-						CertificateFormat:     teleport.CertificateFormatStandard,
+						CertificateFormat:     constants.CertificateFormatStandard,
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
 						ClientIdleTimeout:     types.NewDuration(17 * time.Minute),
@@ -323,7 +323,7 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
-						CertificateFormat:     teleport.CertificateFormatStandard,
+						CertificateFormat:     constants.CertificateFormatStandard,
 						ForwardAgent:          types.NewBool(true),
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
@@ -392,7 +392,7 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
-						CertificateFormat:     teleport.CertificateFormatStandard,
+						CertificateFormat:     constants.CertificateFormatStandard,
 						ForwardAgent:          types.NewBool(true),
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),

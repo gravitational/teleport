@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
@@ -520,7 +521,7 @@ func RemoveFromSlice(slice []string, values ...string) []string {
 // CheckCertificateFormatFlag checks if the certificate format is valid.
 func CheckCertificateFormatFlag(s string) (string, error) {
 	switch s {
-	case teleport.CertificateFormatStandard, teleport.CertificateFormatOldSSH, teleport.CertificateFormatUnspecified:
+	case constants.CertificateFormatStandard, teleport.CertificateFormatOldSSH, teleport.CertificateFormatUnspecified:
 		return s, nil
 	default:
 		return "", trace.BadParameter("invalid certificate format parameter: %q", s)

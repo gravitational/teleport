@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -888,7 +889,7 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		// generate certificates for our user
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
 			pub, user.GetName(), time.Hour,
-			teleport.CertificateFormatStandard,
+			constants.CertificateFormatStandard,
 			"localhost",
 		)
 		require.NoError(t, err)

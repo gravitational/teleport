@@ -17,7 +17,7 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 
 	"gopkg.in/check.v1"
@@ -141,7 +141,7 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 		},
 		{
 			name:   "passthrough match ignores implicit role",
-			remote: []string{"remote-devs", teleport.DefaultImplicitRole},
+			remote: []string{"remote-devs", constants.DefaultImplicitRole},
 			local:  []string{"remote-devs"},
 			roleMap: types.RoleMap{
 				{Remote: "^(.*)$", Local: []string{"$1"}},

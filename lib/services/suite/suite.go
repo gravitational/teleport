@@ -683,7 +683,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 			Options: types.RoleOptions{
 				MaxSessionTTL:     types.Duration(time.Hour),
 				PortForwarding:    types.NewBoolOption(true),
-				CertificateFormat: teleport.CertificateFormatStandard,
+				CertificateFormat: constants.CertificateFormatStandard,
 				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{

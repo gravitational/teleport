@@ -51,7 +51,7 @@ func TestMFADeviceManagement(t *testing.T) {
 
 	// Enable U2F support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -546,7 +546,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 	// Enable U2F support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -871,7 +871,7 @@ func TestIsMFARequired(t *testing.T) {
 
 	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -930,7 +930,7 @@ func TestDeleteLastMFADevice(t *testing.T) {
 
 	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",

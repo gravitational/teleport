@@ -23,7 +23,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -137,7 +137,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	// actually performed using the transport created for this session but these
 	// are needed for the forwarder.
 	r.URL.Scheme = "https"
-	r.URL.Host = teleport.APIDomain
+	r.URL.Host = constants.APIDomain
 
 	// Don't trust any "X-Forward-*" headers the client sends, instead set own and then
 	// forward request.

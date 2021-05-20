@@ -106,7 +106,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -113,7 +114,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 	// this is a migration clutch, used to re-register
 	// in case if identity of the auth server does not have the wildcard cert
 	if role == teleport.RoleAdmin || role == teleport.RoleAuth {
-		if !identity.HasDNSNames([]string{"*." + teleport.APIDomain}) {
+		if !identity.HasDNSNames([]string{"*." + constants.APIDomain}) {
 			process.log.Debugf("Detected Auth server certificate without wildcard principals: %v, regenerating.", identity.Cert.ValidPrincipals)
 			return process.firstTimeConnect(role)
 		}

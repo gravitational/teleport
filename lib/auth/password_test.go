@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -241,7 +240,7 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 
 func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)
@@ -272,7 +271,7 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 
 func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
@@ -309,7 +308,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 
 func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
@@ -427,7 +426,7 @@ func (s *PasswordSuite) prepareForPasswordChange(user string, pass []byte, secon
 	}
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: secondFactorType,
 	})
 	if err != nil {

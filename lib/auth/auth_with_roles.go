@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -433,7 +434,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 	}
 
 	switch handle.GetType() {
-	case teleport.KeepAliveNode:
+	case constants.KeepAliveNode:
 		if serverName != handle.Name {
 			return trace.AccessDenied("access denied")
 		}
@@ -443,7 +444,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		if err := a.action(defaults.Namespace, types.KindNode, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
-	case teleport.KeepAliveApp:
+	case constants.KeepAliveApp:
 		if serverName != handle.Name {
 			return trace.AccessDenied("access denied")
 		}
@@ -453,7 +454,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		if err := a.action(defaults.Namespace, types.KindAppServer, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
-	case teleport.KeepAliveDatabase:
+	case constants.KeepAliveDatabase:
 		// There can be multiple database servers per host so they send their
 		// host ID in a separate field because unlike SSH nodes the resource
 		// name cannot be the host ID.

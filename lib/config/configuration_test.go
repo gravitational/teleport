@@ -534,7 +534,7 @@ func TestApplyConfig(t *testing.T) {
 			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{
-			Type:         teleport.Local,
+			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOTP,
 			U2F: &types.U2F{
 				AppID:  "app-id",

@@ -27,6 +27,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -198,7 +199,7 @@ func (a *Server) createSAMLUser(p *createUserParams) (types.User, error) {
 				},
 				Time: a.clock.Now().UTC(),
 				Connector: &types.ConnectorRef{
-					Type:     teleport.SAML,
+					Type:     constants.SAML,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},

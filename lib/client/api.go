@@ -1124,7 +1124,7 @@ func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string
 	// If no caching policy was set or on Windows (where Teleport does not
 	// support file locking at the moment), return direct access to the access
 	// point.
-	if tc.CachePolicy == nil || runtime.GOOS == teleport.WindowsOS {
+	if tc.CachePolicy == nil || runtime.GOOS == constants.WindowsOS {
 		log.Debugf("not using caching access point")
 		return clt, nil
 	}
@@ -2204,13 +2204,13 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	var response *auth.SSHLoginResponse
 
 	switch pr.Auth.Type {
-	case teleport.Local:
+	case constants.Local:
 		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.Pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case teleport.OIDC:
-		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.Pub, teleport.OIDC)
+	case constants.OIDC:
+		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.Pub, constants.OIDC)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2219,8 +2219,8 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if tc.localAgent != nil {
 			tc.localAgent.username = response.Username
 		}
-	case teleport.SAML:
-		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, teleport.SAML)
+	case constants.SAML:
+		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, constants.SAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2229,8 +2229,8 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if tc.localAgent != nil {
 			tc.localAgent.username = response.Username
 		}
-	case teleport.Github:
-		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, teleport.Github)
+	case constants.Github:
+		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, constants.Github)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

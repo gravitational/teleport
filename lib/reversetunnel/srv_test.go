@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -95,7 +96,7 @@ func TestServerKeyAuth(t *testing.T) {
 					AllowedLogins:       []string{con.User()},
 					Roles:               []string{"dev", "admin"},
 					RouteToCluster:      "user-cluster-name",
-					CertificateFormat:   teleport.CertificateFormatStandard,
+					CertificateFormat:   constants.CertificateFormatStandard,
 					TTL:                 time.Minute,
 				})
 				require.NoError(t, err)

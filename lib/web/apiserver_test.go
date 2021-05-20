@@ -350,7 +350,7 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
@@ -1244,7 +1244,7 @@ func (s *WebSuite) TestPlayback(c *C) {
 
 func (s *WebSuite) TestLogin(c *C) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)
@@ -1311,7 +1311,7 @@ func (s *WebSuite) TestLogin(c *C) {
 
 func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
@@ -1371,7 +1371,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 
 func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorU2F,
 		U2F: &types.U2F{
 			AppID:  "https://" + s.server.ClusterName(),
@@ -1445,7 +1445,7 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 
 	// configure cluster authentication preferences
 	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorU2F,
 		U2F: &types.U2F{
 			AppID:  "https://" + env.server.TLS.ClusterName(),
@@ -2703,7 +2703,7 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	require.NoError(t, err)

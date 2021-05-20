@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -844,7 +845,7 @@ func (process *TeleportProcess) getLocalAuth() *auth.Server {
 
 // adminCreds returns admin UID and GID settings based on the OS
 func adminCreds() (*int, *int, error) {
-	if runtime.GOOS != teleport.LinuxOS {
+	if runtime.GOOS != constants.LinuxOS {
 		return nil, nil, nil
 	}
 	// if the user member of adm linux group,
@@ -3160,7 +3161,7 @@ func warnOnErr(err error, log logrus.FieldLogger) {
 	if err != nil {
 		// don't warn on double close, happens sometimes when
 		// calling accept on a closed listener
-		if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+		if strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection) {
 			return
 		}
 		log.WithError(err).Warn("Got error while cleaning up.")

@@ -28,6 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -291,7 +292,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	// the standard format was requested. Certificate extensions are not included
 	// legacy SSH certificates due to a bug in OpenSSH <= OpenSSH 7.1:
 	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
-	if c.CertificateFormat == teleport.CertificateFormatStandard {
+	if c.CertificateFormat == constants.CertificateFormatStandard {
 		traits, err := wrappers.MarshalTraits(&c.Traits)
 		if err != nil {
 			return nil, trace.Wrap(err)

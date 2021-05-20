@@ -38,6 +38,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -1514,7 +1515,7 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ucert, err := s.server.AuthServer.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CertificateFormatStandard)
+	ucert, err := s.server.AuthServer.GenerateUserCert(upub, user.GetName(), 5*time.Minute, constants.CertificateFormatStandard)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

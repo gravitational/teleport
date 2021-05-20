@@ -23,7 +23,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -1220,11 +1220,11 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 	// Update the prefix off the type information in the keep alive.
 	var key []byte
 	switch h.GetType() {
-	case teleport.KeepAliveNode:
+	case constants.KeepAliveNode:
 		key = backend.Key(nodesPrefix, h.Namespace, h.Name)
-	case teleport.KeepAliveApp:
+	case constants.KeepAliveApp:
 		key = backend.Key(appsPrefix, serversPrefix, h.Namespace, h.Name)
-	case teleport.KeepAliveDatabase:
+	case constants.KeepAliveDatabase:
 		key = backend.Key(dbServersPrefix, h.Namespace, h.HostID, h.Name)
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())

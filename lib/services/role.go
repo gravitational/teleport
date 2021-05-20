@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -118,7 +119,7 @@ func NewAdminRole() types.Role {
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
-				CertificateFormat: teleport.CertificateFormatStandard,
+				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
@@ -149,7 +150,7 @@ func NewImplicitRole() types.Role {
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
-			Name:      teleport.DefaultImplicitRole,
+			Name:      constants.DefaultImplicitRole,
 			Namespace: defaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
@@ -179,7 +180,7 @@ func RoleForUser(u types.User) types.Role {
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
-				CertificateFormat: teleport.CertificateFormatStandard,
+				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
@@ -217,7 +218,7 @@ func NewDowngradedOSSAdminRole() types.Role {
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
-				CertificateFormat: teleport.CertificateFormatStandard,
+				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
@@ -255,7 +256,7 @@ func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) 
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
-				CertificateFormat: teleport.CertificateFormatStandard,
+				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
@@ -1106,7 +1107,7 @@ func MatchLabels(selector types.Labels, target map[string]string) (bool, string,
 func (set RoleSet) RoleNames() []string {
 	out := make([]string, 0, len(set))
 	for _, r := range set {
-		if r.GetName() == teleport.DefaultImplicitRole {
+		if r.GetName() == constants.DefaultImplicitRole {
 			continue
 		}
 		out = append(out, r.GetName())
@@ -1127,7 +1128,7 @@ func (set RoleSet) HasRole(role string) bool {
 // WithoutImplicit returns this role set with default implicit role filtered out.
 func (set RoleSet) WithoutImplicit() (out RoleSet) {
 	for _, r := range set {
-		if r.GetName() == teleport.DefaultImplicitRole {
+		if r.GetName() == constants.DefaultImplicitRole {
 			continue
 		}
 		out = append(out, r)
@@ -1403,7 +1404,7 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 
 func (set RoleSet) hasPossibleLogins() bool {
 	for _, role := range set {
-		if role.GetName() == teleport.DefaultImplicitRole {
+		if role.GetName() == constants.DefaultImplicitRole {
 			continue
 		}
 		if len(role.GetLogins(Allow)) != 0 {
@@ -1997,7 +1998,7 @@ func (set RoleSet) CertificateFormat() string {
 
 	// if no formats were found, return standard
 	if len(formats) == 0 {
-		return teleport.CertificateFormatStandard
+		return constants.CertificateFormatStandard
 	}
 
 	// sort the slice so the most permissive is the first element
@@ -2029,7 +2030,7 @@ func certificatePriority(s string) int {
 	switch s {
 	case teleport.CertificateFormatOldSSH:
 		return 0
-	case teleport.CertificateFormatStandard:
+	case constants.CertificateFormatStandard:
 		return 1
 	default:
 		return 2

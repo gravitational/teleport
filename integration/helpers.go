@@ -40,6 +40,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -467,7 +468,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	}
 	a := req.Process.GetAuthServer()
 	sshCert, x509Cert, err := a.GenerateUserTestCerts(
-		pub, req.Username, time.Hour, teleport.CertificateFormatStandard, req.RouteToCluster)
+		pub, req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -663,7 +664,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 		// sign user's keys:
 		ttl := 24 * time.Hour
-		user.Key.Cert, user.Key.TLSCert, err = auth.GenerateUserTestCerts(user.Key.Pub, teleUser.GetName(), ttl, teleport.CertificateFormatStandard, "")
+		user.Key.Cert, user.Key.TLSCert, err = auth.GenerateUserTestCerts(user.Key.Pub, teleUser.GetName(), ttl, constants.CertificateFormatStandard, "")
 		if err != nil {
 			return err
 		}

@@ -24,7 +24,7 @@ import "C"
 import (
 	"context"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
@@ -142,7 +142,7 @@ func (s *NOP) CloseSession(ctx *SessionContext) error {
 
 // IsHostCompatible checks that BPF programs can run on this host.
 func IsHostCompatible() error {
-	minKernel := semver.New(teleport.EnhancedRecordingMinKernel)
+	minKernel := semver.New(constants.EnhancedRecordingMinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
 		return trace.Wrap(err)
