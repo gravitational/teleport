@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/google/go-cmp/cmp"
@@ -65,8 +66,9 @@ func TestPrincipals(t *testing.T) {
 	require.ElementsMatch(t, certIPs, ips)
 }
 
-// TestKubeExtensions test ASN1 subject kubernetes extensions
-func TestKubeExtensions(t *testing.T) {
+// TestIdentitySubject verifies identity marshaling/unmarshaling to and from
+// x509 certificate's subject field.
+func TestIdentitySubject(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	ca, err := FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
 	require.NoError(t, err)
@@ -74,29 +76,7 @@ func TestKubeExtensions(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
 	require.NoError(t, err)
 
-	expires := clock.Now().Add(time.Hour)
-	identity := Identity{
-		Username:     "alice@example.com",
-		Groups:       []string{"admin"},
-		Impersonator: "bob@example.com",
-		// Generate a certificate restricted for
-		// use against a kubernetes endpoint, and not the API server endpoint
-		// otherwise proxies can generate certs for any user.
-		Usage:             []string{teleport.UsageKubeOnly},
-		KubernetesGroups:  []string{"system:masters", "admin"},
-		KubernetesUsers:   []string{"IAM#alice@example.com"},
-		KubernetesCluster: "kube-cluster",
-		TeleportCluster:   "tele-cluster",
-		RouteToDatabase: RouteToDatabase{
-			ServiceName: "postgres-rds",
-			Protocol:    "postgres",
-			Username:    "postgres",
-		},
-		DatabaseNames: []string{"postgres", "main"},
-		DatabaseUsers: []string{"postgres", "alice"},
-		Expires:       expires,
-	}
-
+	identity := testIdentity(clock)
 	subj, err := identity.Subject()
 	require.NoError(t, err)
 
@@ -104,13 +84,82 @@ func TestKubeExtensions(t *testing.T) {
 		Clock:     clock,
 		PublicKey: privateKey.Public(),
 		Subject:   subj,
-		NotAfter:  expires,
+		NotAfter:  identity.Expires,
 	})
 	require.NoError(t, err)
 
 	cert, err := ParseCertificatePEM(certBytes)
 	require.NoError(t, err)
-	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	out, err := FromCertificate(cert)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(out, &identity))
+}
+
+// TestIdentityExtensions verifies identity marshaling/unmarshaling to and from
+// x509 certificate's x509v3 extensions.
+func TestIdentityExtensions(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	require.NoError(t, err)
+
+	identity := testIdentity(clock)
+	extensions, err := identity.Extensions()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:      clock,
+		PublicKey:  privateKey.Public(),
+		Subject:    pkix.Name{CommonName: "test"},
+		Extensions: extensions,
+		NotAfter:   identity.Expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromCertificate(cert)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(out, &identity))
+}
+
+func testIdentity(clock clockwork.Clock) Identity {
+	return Identity{
+		Username:     "alice@example.com",
+		Impersonator: "bob@example.com",
+		Roles:        []string{"admin"},
+		// Generate a certificate restricted for
+		// use against a kubernetes endpoint, and not the API server endpoint
+		// otherwise proxies can generate certs for any user.
+		Usage:             []string{teleport.UsageKubeOnly},
+		Principals:        []string{"root", "ubuntu"},
+		KubernetesGroups:  []string{"system:masters", "admin"},
+		KubernetesUsers:   []string{"IAM#alice@example.com"},
+		RouteToCluster:    "leaf",
+		KubernetesCluster: "kube-cluster",
+		Traits: wrappers.Traits{
+			"username": []string{"alice"},
+			"group":    []string{"admins"},
+		},
+		RouteToApp: RouteToApp{
+			SessionID:   "app-session-id",
+			PublicAddr:  "app-public-addr",
+			ClusterName: "app-cluster-name",
+			Name:        "app-name",
+		},
+		TeleportCluster: "tele-cluster",
+		RouteToDatabase: RouteToDatabase{
+			ServiceName: "postgres-rds",
+			Protocol:    "postgres",
+			Username:    "postgres",
+			Database:    "test",
+		},
+		DatabaseNames: []string{"postgres", "main"},
+		DatabaseUsers: []string{"postgres", "alice"},
+		MFAVerified:   "true",
+		ClientIP:      "1.2.3.4",
+		Expires:       clock.Now().Add(time.Hour),
+	}
 }

@@ -59,7 +59,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	// Request a JWT token that will be attached to all requests.
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, jwt_pkg.GenerateAppTokenRequest{
 		Username: identity.Username,
-		Roles:    identity.Groups,
+		Roles:    identity.Roles,
 		URI:      app.URI,
 		Expires:  identity.Expires,
 	})

@@ -6,7 +6,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/rand"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
@@ -29,11 +28,11 @@ func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 	// Requested user identity, presented in CSR Subject.
 	userID := tlsca.Identity{
 		Username:         username,
-		Groups:           []string{roleA, roleB},
+		Roles:            []string{roleA, roleB},
 		Usage:            []string{"usage a", "usage b"},
 		Principals:       []string{"principal a", "principal b"},
 		KubernetesGroups: []string{"k8s group a", "k8s group b"},
-		Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+		Traits:           map[string][]string{"trait a": {"b", "c"}},
 		TeleportCluster:  clusterName,
 	}
 	subj, err := userID.Subject()
@@ -67,10 +66,11 @@ func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 	// before encoding becomes Names after decoding), they wouldn't match.
 	// Therefore, convert back to Identity, which handles this oddity and
 	// should match.
-	gotUserID, err := tlsca.FromSubject(cert.Subject, time.Time{})
+	gotUserID, err := tlsca.FromCertificate(cert)
 	c.Assert(err, check.IsNil)
 
 	wantUserID := userID
+	wantUserID.Expires = gotUserID.Expires
 	// Auth server should overwrite the Usage field and enforce UsageKubeOnly.
 	wantUserID.Usage = []string{teleport.UsageKubeOnly}
 	c.Assert(*gotUserID, check.DeepEquals, wantUserID)

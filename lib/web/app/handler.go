@@ -179,7 +179,7 @@ func (h *Handler) extractSessionID(r *http.Request) (sessionID string, err error
 	// then connect to the apps with the issued certs.
 	if HasClientCert(r) {
 		certificate := r.TLS.PeerCertificates[0]
-		identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+		identity, err := tlsca.FromCertificate(certificate)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

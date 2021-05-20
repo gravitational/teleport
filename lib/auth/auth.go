@@ -811,7 +811,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
-		Groups:            req.checker.RoleNames(),
+		Roles:             req.checker.RoleNames(),
 		Principals:        allowedLogins,
 		Usage:             req.usage,
 		RouteToCluster:    req.routeToCluster,
@@ -837,15 +837,23 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		MFAVerified:   req.mfaVerified,
 		ClientIP:      req.clientIP,
 	}
+	// DELETE IN 8.0.0: By then all officially compatible clients will be
+	// parsing identity from x509v3 extensions so encoding in subject will no
+	// longer be needed.
 	subject, err := identity.Subject()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	extensions, err := identity.Extensions()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	certRequest := tlsca.CertificateRequest{
-		Clock:     a.clock,
-		PublicKey: cryptoPubKey,
-		Subject:   subject,
-		NotAfter:  a.clock.Now().UTC().Add(sessionTTL),
+		Clock:      a.clock,
+		PublicKey:  cryptoPubKey,
+		Subject:    subject,
+		Extensions: extensions,
+		NotAfter:   a.clock.Now().UTC().Add(sessionTTL),
 	}
 	tlsCert, err := tlsAuthority.GenerateCertificate(certRequest)
 	if err != nil {
@@ -1416,7 +1424,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// generate host TLS certificate
 	identity := tlsca.Identity{
 		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
-		Groups:          req.Roles.StringSlice(),
+		Roles:           req.Roles.StringSlice(),
 		TeleportCluster: clusterName.GetClusterName(),
 	}
 	subject, err := identity.Subject()

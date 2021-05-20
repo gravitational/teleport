@@ -214,7 +214,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	fatalIf(err)
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
-		Groups:   []string{string(teleport.RoleAdmin)},
+		Roles:    []string{string(teleport.RoleAdmin)},
 	}
 	clock := clockwork.NewRealClock()
 	subject, err := identity.Subject()

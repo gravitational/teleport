@@ -1215,7 +1215,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 
 	id := tlsca.Identity{
 		Username:         cfg.username,
-		Groups:           user.GetRoles(),
+		Roles:            user.GetRoles(),
 		KubernetesUsers:  cfg.kubeUsers,
 		KubernetesGroups: cfg.kubeGroups,
 		RouteToCluster:   cfg.routeToCluster,

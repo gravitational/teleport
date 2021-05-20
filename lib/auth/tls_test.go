@@ -1710,10 +1710,10 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 		cert, err := tlsca.ParseCertificatePEM(tlsCert)
 		c.Assert(err, check.IsNil)
 
-		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		identity, err := tlsca.FromCertificate(cert)
 		c.Assert(err, check.IsNil)
 
-		return utils.SliceContainsStr(identity.Groups, role)
+		return utils.SliceContainsStr(identity.Roles, role)
 	}
 
 	// certLogins extracts the logins from an ssh certificate
@@ -2034,7 +2034,7 @@ func TestGenerateCerts(t *testing.T) {
 
 		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
-		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		identity, err := tlsca.FromCertificate(tlsCert)
 		require.NoError(t, err)
 
 		// Because the original request has maxed out the possible max
@@ -2089,7 +2089,7 @@ func TestGenerateCerts(t *testing.T) {
 		// Make sure impersonator was not lost in the renewed cert
 		tlsCert, err = tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
-		identity, err = tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		identity, err = tlsca.FromCertificate(tlsCert)
 		require.NoError(t, err)
 		require.Equal(t, identity.Expires.Sub(clock.Now()), time.Hour)
 		require.Equal(t, impersonator.GetName(), identity.Impersonator)
@@ -2124,7 +2124,7 @@ func TestGenerateCerts(t *testing.T) {
 
 		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
-		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		identity, err := tlsca.FromCertificate(tlsCert)
 		require.NoError(t, err)
 		require.True(t, identity.Expires.Before(time.Now().Add(testUser2.TTL)))
 		require.Equal(t, identity.RouteToCluster, rc1.GetName())
@@ -2234,7 +2234,7 @@ func TestGenerateCerts(t *testing.T) {
 
 		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
-		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		identity, err := tlsca.FromCertificate(tlsCert)
 		require.NoError(t, err)
 		require.Equal(t, identity.RouteToCluster, rc2.GetName())
 	})

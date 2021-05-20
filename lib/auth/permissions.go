@@ -201,7 +201,7 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 	// identity information and confusing who's accessing a resource.
 	identity := tlsca.Identity{
 		Username:         user.GetName(),
-		Groups:           user.GetRoles(),
+		Roles:            user.GetRoles(),
 		Traits:           wrappers.Traits(traits),
 		Principals:       principals,
 		KubernetesGroups: kubeGroups,

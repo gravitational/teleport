@@ -724,7 +724,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
 
-					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					identity, err := tlsca.FromCertificate(cert)
 					require.NoError(t, err)
 					require.Equal(t, identity.MFAVerified, u2fDevID)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
@@ -756,7 +756,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
 
-					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					identity, err := tlsca.FromCertificate(cert)
 					require.NoError(t, err)
 					require.Equal(t, identity.MFAVerified, u2fDevID)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())

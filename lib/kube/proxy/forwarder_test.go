@@ -61,7 +61,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "remote-bob",
-				Groups:           []string{"remote group a", "remote group b"},
+				Roles:            []string{"remote group a", "remote group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
@@ -69,7 +69,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 			}),
 			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
-				Groups:           []string{"group a", "group b"},
+				Roles:            []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"k8s group a", "k8s group b"},
@@ -93,7 +93,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	c.Assert(csrBlock, check.NotNil)
 	csr, err := x509.ParseCertificateRequest(csrBlock.Bytes)
 	c.Assert(err, check.IsNil)
-	idFromCSR, err := tlsca.FromSubject(csr.Subject, time.Time{})
+	idFromCSR, err := tlsca.FromCSR(csr)
 	c.Assert(err, check.IsNil)
 	c.Assert(*idFromCSR, check.DeepEquals, ctx.UnmappedIdentity.GetIdentity())
 }
@@ -594,7 +594,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "remote-bob",
-				Groups:           []string{"remote group a", "remote group b"},
+				Roles:            []string{"remote group a", "remote group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
@@ -602,7 +602,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 			}),
 			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
-				Groups:           []string{"group a", "group b"},
+				Roles:            []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"k8s group a", "k8s group b"},
@@ -633,7 +633,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "remote-bob",
-				Groups:           []string{"remote group a", "remote group b"},
+				Roles:            []string{"remote group a", "remote group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
@@ -641,7 +641,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 			}),
 			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
-				Groups:           []string{"group a", "group b"},
+				Roles:            []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"k8s group a", "k8s group b"},
@@ -670,7 +670,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "remote-bob",
-				Groups:           []string{"remote group a", "remote group b"},
+				Roles:            []string{"remote group a", "remote group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
@@ -678,7 +678,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 			}),
 			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
-				Groups:           []string{"group a", "group b"},
+				Roles:            []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"k8s group a", "k8s group b"},

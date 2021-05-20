@@ -938,7 +938,7 @@ func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, 
 		return u.GetRoles(), u.GetTraits(), nil
 	}
 
-	return identity.Groups, identity.Traits, nil
+	return identity.Roles, identity.Traits, nil
 }
 
 // FetchRoleList fetches roles by their names, applies the traits to role
@@ -983,7 +983,7 @@ func isFormatOld(cert *ssh.Certificate) bool {
 // missingIdentity returns true if the identity is missing or the identity
 // has no roles or traits.
 func missingIdentity(identity tlsca.Identity) bool {
-	if len(identity.Groups) == 0 || len(identity.Traits) == 0 {
+	if len(identity.Roles) == 0 || len(identity.Traits) == 0 {
 		return true
 	}
 	return false

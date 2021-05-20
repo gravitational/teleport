@@ -244,7 +244,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	c.Assert(gotTLSCert.PublicKey, DeepEquals, inCryptoPub)
 	wantID := tlsca.Identity{
 		Username:         user,
-		Groups:           []string{role.GetName()},
+		Roles:            []string{role.GetName()},
 		Principals:       []string{user},
 		KubernetesUsers:  []string{user},
 		KubernetesGroups: []string{"system:masters"},
@@ -252,7 +252,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		RouteToCluster:   "me.localhost",
 		TeleportCluster:  "me.localhost",
 	}
-	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	gotID, err := tlsca.FromCertificate(gotTLSCert)
 	c.Assert(err, IsNil)
 	c.Assert(*gotID, DeepEquals, wantID)
 
@@ -273,7 +273,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	c.Assert(err, IsNil)
 	wantID = tlsca.Identity{
 		Username:         user,
-		Groups:           []string{role.GetName()},
+		Roles:            []string{role.GetName()},
 		Principals:       []string{user},
 		KubernetesUsers:  []string{user},
 		KubernetesGroups: []string{"system:masters"},
@@ -284,7 +284,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		RouteToCluster:    "leaf.localhost",
 		TeleportCluster:   "me.localhost",
 	}
-	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	gotID, err = tlsca.FromCertificate(gotTLSCert)
 	c.Assert(err, IsNil)
 	c.Assert(*gotID, DeepEquals, wantID)
 
@@ -317,7 +317,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	c.Assert(err, IsNil)
 	wantID = tlsca.Identity{
 		Username:          user,
-		Groups:            []string{role.GetName()},
+		Roles:             []string{role.GetName()},
 		Principals:        []string{user},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
@@ -326,7 +326,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		RouteToCluster:    "me.localhost",
 		TeleportCluster:   "me.localhost",
 	}
-	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	gotID, err = tlsca.FromCertificate(gotTLSCert)
 	c.Assert(err, IsNil)
 	c.Assert(*gotID, DeepEquals, wantID)
 
@@ -350,7 +350,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	c.Assert(err, IsNil)
 	wantID = tlsca.Identity{
 		Username:          user,
-		Groups:            []string{role.GetName()},
+		Roles:             []string{role.GetName()},
 		Principals:        []string{user},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
@@ -359,7 +359,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		RouteToCluster:    "me.localhost",
 		TeleportCluster:   "me.localhost",
 	}
-	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	gotID, err = tlsca.FromCertificate(gotTLSCert)
 	c.Assert(err, IsNil)
 	c.Assert(*gotID, DeepEquals, wantID)
 
@@ -392,7 +392,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	c.Assert(err, IsNil)
 	wantID = tlsca.Identity{
 		Username:          user,
-		Groups:            []string{role.GetName()},
+		Roles:             []string{role.GetName()},
 		Principals:        []string{user},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
@@ -401,7 +401,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		RouteToCluster:    "me.localhost",
 		TeleportCluster:   "me.localhost",
 	}
-	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	gotID, err = tlsca.FromCertificate(gotTLSCert)
 	c.Assert(err, IsNil)
 	c.Assert(*gotID, DeepEquals, wantID)
 
@@ -425,7 +425,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	c.Assert(err, IsNil)
 	wantID = tlsca.Identity{
 		Username:          user,
-		Groups:            []string{role.GetName()},
+		Roles:             []string{role.GetName()},
 		Principals:        []string{user},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
@@ -434,7 +434,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		RouteToCluster:    "me.localhost",
 		TeleportCluster:   "me.localhost",
 	}
-	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	gotID, err = tlsca.FromCertificate(gotTLSCert)
 	c.Assert(err, IsNil)
 	c.Assert(*gotID, DeepEquals, wantID)
 

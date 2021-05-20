@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -104,7 +103,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	// Extract the identity from the CSR.
-	id, err := tlsca.FromSubject(csr.Subject, time.Time{})
+	id, err := tlsca.FromCSR(csr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,7 +122,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	// Extract user roles from the identity.
-	roles, err := services.FetchRoles(id.Groups, s, id.Traits)
+	roles, err := services.FetchRoles(id.Roles, s, id.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

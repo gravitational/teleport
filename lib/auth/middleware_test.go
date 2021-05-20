@@ -60,35 +60,35 @@ func TestMiddlewareGetUser(t *testing.T) {
 	var (
 		localUserIdentity = tlsca.Identity{
 			Username:        "foo",
-			Groups:          []string{"devs"},
+			Roles:           []string{"devs"},
 			TeleportCluster: localClusterName,
 			Expires:         now,
 		}
 		localUserIdentityNoTeleportCluster = tlsca.Identity{
 			Username: "foo",
-			Groups:   []string{"devs"},
+			Roles:    []string{"devs"},
 			Expires:  now,
 		}
 		localSystemRole = tlsca.Identity{
 			Username:        "node",
-			Groups:          []string{string(teleport.RoleNode)},
+			Roles:           []string{string(teleport.RoleNode)},
 			TeleportCluster: localClusterName,
 			Expires:         now,
 		}
 		remoteUserIdentity = tlsca.Identity{
 			Username:        "foo",
-			Groups:          []string{"devs"},
+			Roles:           []string{"devs"},
 			TeleportCluster: remoteClusterName,
 			Expires:         now,
 		}
 		remoteUserIdentityNoTeleportCluster = tlsca.Identity{
 			Username: "foo",
-			Groups:   []string{"devs"},
+			Roles:    []string{"devs"},
 			Expires:  now,
 		}
 		remoteSystemRole = tlsca.Identity{
 			Username:        "node",
-			Groups:          []string{string(teleport.RoleNode)},
+			Roles:           []string{string(teleport.RoleNode)},
 			TeleportCluster: remoteClusterName,
 			Expires:         now,
 		}
@@ -161,7 +161,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 			wantID: RemoteUser{
 				ClusterName: remoteClusterName,
 				Username:    remoteUserIdentity.Username,
-				RemoteRoles: remoteUserIdentity.Groups,
+				RemoteRoles: remoteUserIdentity.Roles,
 				Identity:    remoteUserIdentity,
 			},
 			assertErr: require.NoError,
@@ -176,7 +176,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 			wantID: RemoteUser{
 				ClusterName: remoteClusterName,
 				Username:    remoteUserIdentity.Username,
-				RemoteRoles: remoteUserIdentity.Groups,
+				RemoteRoles: remoteUserIdentity.Roles,
 				Identity:    remoteUserIdentity,
 			},
 			assertErr: require.NoError,

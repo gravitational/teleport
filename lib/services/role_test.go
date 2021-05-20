@@ -1938,7 +1938,7 @@ func TestExtractFrom(t *testing.T) {
 	// Create a TLS identity.
 	identity := &tlsca.Identity{
 		Username: "foo",
-		Groups:   origRoles,
+		Roles:    origRoles,
 		Traits:   origTraits,
 	}
 
@@ -1998,7 +1998,7 @@ func TestExtractFromLegacy(t *testing.T) {
 	// Create a TLS identity with only roles.
 	identity := &tlsca.Identity{
 		Username: "foo",
-		Groups:   origRoles,
+		Roles:    origRoles,
 	}
 
 	// At this point, services.User and the certificate/identity are still in

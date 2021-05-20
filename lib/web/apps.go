@@ -166,7 +166,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	identity, err := tlsca.FromCertificate(certificate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

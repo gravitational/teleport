@@ -425,7 +425,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	}
 	clientCert := peers[0]
 
-	identity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
+	identity, err := tlsca.FromCertificate(clientCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -464,7 +464,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 		// the local auth server can not truste remote servers
 		// to issue certificates with system roles (e.g. Admin),
 		// to get unrestricted access to the local cluster
-		systemRole := findSystemRole(identity.Groups)
+		systemRole := findSystemRole(identity.Roles)
 		if systemRole != nil {
 			return RemoteBuiltinRole{
 				Role:        *systemRole,
@@ -481,14 +481,14 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 			KubernetesUsers:  identity.KubernetesUsers,
 			DatabaseNames:    identity.DatabaseNames,
 			DatabaseUsers:    identity.DatabaseUsers,
-			RemoteRoles:      identity.Groups,
+			RemoteRoles:      identity.Roles,
 			Identity:         *identity,
 		}, nil
 	}
 	// code below expects user or service from local cluster, to distinguish between
 	// interactive users and services (e.g. proxies), the code below
 	// checks for presence of system roles issued in certificate identity
-	systemRole := findSystemRole(identity.Groups)
+	systemRole := findSystemRole(identity.Roles)
 	// in case if the system role is present, assume this is a service
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {

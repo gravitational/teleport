@@ -1067,7 +1067,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 		return nil, trace.Wrap(err, "failed to parse TLS certificate")
 	}
 
-	id, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	id, err := tlsca.FromCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1081,7 +1081,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 		return nil, trace.BadParameter("misssing cluster name")
 	}
 	identity := &Identity{
-		ID:              IdentityID{HostUUID: id.Username, Role: teleport.Role(id.Groups[0])},
+		ID:              IdentityID{HostUUID: id.Username, Role: teleport.Role(id.Roles[0])},
 		ClusterName:     clusterName,
 		KeyBytes:        keyBytes,
 		TLSCertBytes:    certBytes,

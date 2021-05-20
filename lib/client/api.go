@@ -571,7 +571,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsID, err := tlsca.FromSubject(tlsCert.Subject, time.Time{})
+	tlsID, err := tlsca.FromCertificate(tlsCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -582,7 +582,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}
 	var databases []tlsca.RouteToDatabase
 	for _, cert := range dbCerts {
-		tlsID, err := tlsca.FromSubject(cert.Subject, time.Time{})
+		tlsID, err := tlsca.FromCertificate(&cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -597,7 +597,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}
 	var apps []tlsca.RouteToApp
 	for _, cert := range appCerts {
-		tlsID, err := tlsca.FromSubject(cert.Subject, time.Time{})
+		tlsID, err := tlsca.FromCertificate(&cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

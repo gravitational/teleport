@@ -47,7 +47,7 @@ func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*sess
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	identity, err := tlsca.FromCertificate(certificate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

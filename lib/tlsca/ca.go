@@ -82,8 +82,8 @@ type Identity struct {
 	Username string
 	// Impersonator is a username of a user impersonating this user
 	Impersonator string
-	// Groups is a list of groups (Teleport roles) encoded in the identity
-	Groups []string
+	// Roles is a list of Teleport roles encoded in the identity
+	Roles []string
 	// Usage is a list of usage restrictions encoded in the identity
 	Usage []string
 	// Principals is a list of Unix logins allowed.
@@ -184,7 +184,7 @@ func (id *Identity) CheckAndSetDefaults() error {
 	if id.Username == "" {
 		return trace.BadParameter("missing identity username")
 	}
-	if len(id.Groups) == 0 {
+	if len(id.Roles) == 0 {
 		return trace.BadParameter("missing identity groups")
 	}
 
@@ -238,6 +238,30 @@ var (
 	// application name into a certificate.
 	AppNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 10}
 
+	// UsernameASN1ExtensionOID is an extension ID used when encoding/decoding
+	// Teleport user name into certificates.
+	UsernameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 11}
+
+	// RolesASN1ExtensionOID is an extension ID used when encoding/decoding
+	// Teleport user roles into certificates.
+	RolesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 12}
+
+	// UsageASN1ExtensionOID is an extension ID used when encoding/decoding
+	// accepted usage into certificates.
+	UsageASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 13}
+
+	// PrincipalsASN1ExtensionOID is an extension ID used when encoding/decoding
+	// principals into certificates.
+	PrincipalsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 14}
+
+	// RouteToClusterASN1ExtensionOID is an extension ID used when encoding/decoding
+	// route to cluster into certificates.
+	RouteToClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 15}
+
+	// TraitsASN1ExtensionOID is an extension ID used when encoding/decoding
+	// user traits into certificates.
+	TraitsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 16}
+
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
 	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
@@ -267,7 +291,158 @@ var (
 	ImpersonatorASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 7}
 )
 
+// Extensions encodes this identity as x509v3 extensions.
+func (id *Identity) Extensions() (extensions []pkix.Extension, err error) {
+	rawTraits, err := wrappers.MarshalTraits(&id.Traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if id.Username != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    UsernameASN1ExtensionOID,
+			Value: []byte(id.Username),
+		})
+	}
+	for i := range id.Roles {
+		extensions = append(extensions, pkix.Extension{
+			Id:    RolesASN1ExtensionOID,
+			Value: []byte(id.Roles[i]),
+		})
+	}
+	for i := range id.Usage {
+		extensions = append(extensions, pkix.Extension{
+			Id:    UsageASN1ExtensionOID,
+			Value: []byte(id.Usage[i]),
+		})
+	}
+	for i := range id.Principals {
+		extensions = append(extensions, pkix.Extension{
+			Id:    PrincipalsASN1ExtensionOID,
+			Value: []byte(id.Principals[i]),
+		})
+	}
+	if id.RouteToCluster != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    RouteToClusterASN1ExtensionOID,
+			Value: []byte(id.RouteToCluster),
+		})
+	}
+	if len(id.Traits) != 0 {
+		extensions = append(extensions, pkix.Extension{
+			Id:    TraitsASN1ExtensionOID,
+			Value: rawTraits,
+		})
+	}
+	for i := range id.KubernetesUsers {
+		extensions = append(extensions, pkix.Extension{
+			Id:    KubeUsersASN1ExtensionOID,
+			Value: []byte(id.KubernetesUsers[i]),
+		})
+	}
+	for i := range id.KubernetesGroups {
+		extensions = append(extensions, pkix.Extension{
+			Id:    KubeGroupsASN1ExtensionOID,
+			Value: []byte(id.KubernetesGroups[i]),
+		})
+	}
+	if id.KubernetesCluster != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    KubeClusterASN1ExtensionOID,
+			Value: []byte(id.KubernetesCluster),
+		})
+	}
+	if id.RouteToApp.SessionID != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    AppSessionIDASN1ExtensionOID,
+			Value: []byte(id.RouteToApp.SessionID),
+		})
+	}
+	if id.RouteToApp.PublicAddr != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    AppPublicAddrASN1ExtensionOID,
+			Value: []byte(id.RouteToApp.PublicAddr),
+		})
+	}
+	if id.RouteToApp.ClusterName != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    AppClusterNameASN1ExtensionOID,
+			Value: []byte(id.RouteToApp.ClusterName),
+		})
+	}
+	if id.RouteToApp.Name != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    AppNameASN1ExtensionOID,
+			Value: []byte(id.RouteToApp.Name),
+		})
+	}
+	if id.TeleportCluster != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    TeleportClusterASN1ExtensionOID,
+			Value: []byte(id.TeleportCluster),
+		})
+	}
+	if id.MFAVerified != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    MFAVerifiedASN1ExtensionOID,
+			Value: []byte(id.MFAVerified),
+		})
+	}
+	if id.ClientIP != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    ClientIPASN1ExtensionOID,
+			Value: []byte(id.ClientIP),
+		})
+	}
+	if id.RouteToDatabase.ServiceName != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    DatabaseServiceNameASN1ExtensionOID,
+			Value: []byte(id.RouteToDatabase.ServiceName),
+		})
+	}
+	if id.RouteToDatabase.Protocol != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    DatabaseProtocolASN1ExtensionOID,
+			Value: []byte(id.RouteToDatabase.Protocol),
+		})
+	}
+	if id.RouteToDatabase.Username != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    DatabaseUsernameASN1ExtensionOID,
+			Value: []byte(id.RouteToDatabase.Username),
+		})
+	}
+	if id.RouteToDatabase.Database != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    DatabaseNameASN1ExtensionOID,
+			Value: []byte(id.RouteToDatabase.Database),
+		})
+	}
+	for i := range id.DatabaseNames {
+		extensions = append(extensions, pkix.Extension{
+			Id:    DatabaseNamesASN1ExtensionOID,
+			Value: []byte(id.DatabaseNames[i]),
+		})
+	}
+	for i := range id.DatabaseUsers {
+		extensions = append(extensions, pkix.Extension{
+			Id:    DatabaseUsersASN1ExtensionOID,
+			Value: []byte(id.DatabaseUsers[i]),
+		})
+	}
+	if id.Impersonator != "" {
+		extensions = append(extensions, pkix.Extension{
+			Id:    ImpersonatorASN1ExtensionOID,
+			Value: []byte(id.Impersonator),
+		})
+	}
+	return extensions, nil
+}
+
 // Subject converts identity to X.509 subject name
+//
+// DELETE IN 8.0.0: By then all officially compatible clients will be parsing
+// identity from x509v3 extensions so encoding in subject will no longer be
+// needed.
 func (id *Identity) Subject() (pkix.Name, error) {
 	rawTraits, err := wrappers.MarshalTraits(&id.Traits)
 	if err != nil {
@@ -277,7 +452,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	subject := pkix.Name{
 		CommonName: id.Username,
 	}
-	subject.Organization = append([]string{}, id.Groups...)
+	subject.Organization = append([]string{}, id.Roles...)
 	subject.OrganizationalUnit = append([]string{}, id.Usage...)
 	subject.Locality = append([]string{}, id.Principals...)
 
@@ -425,126 +600,148 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	return subject, nil
 }
 
-// FromSubject returns identity from subject name
-func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
+// FromCertificate parses identity from the provided x509 certificate.
+func FromCertificate(cert *x509.Certificate) (*Identity, error) {
+	return FromSubjectAndExtensions(cert.Subject, cert.Extensions, cert.NotAfter)
+}
+
+// FromCSR parses identity from the provided certificate request.
+func FromCSR(csr *x509.CertificateRequest) (*Identity, error) {
+	return FromSubjectAndExtensions(csr.Subject, csr.Extensions, time.Time{})
+}
+
+// FromSubjectAndExtensions parses identity from the provided x509v3 extensions
+// with fallback to subject where identity was encoded previously.
+func FromSubjectAndExtensions(subject pkix.Name, extensions []pkix.Extension, expires time.Time) (*Identity, error) {
 	id := &Identity{
-		Username:   subject.CommonName,
-		Groups:     subject.Organization,
-		Usage:      subject.OrganizationalUnit,
-		Principals: subject.Locality,
-		Expires:    expires,
+		Expires: expires,
 	}
-	if len(subject.StreetAddress) > 0 {
+
+	// First decode identity properties that were previously encoded in the
+	// standard subject fields (such as CN, O, OU, etc).
+	id.Username = getExtensionValue(extensions, UsernameASN1ExtensionOID)
+	if len(id.Username) == 0 {
+		id.Username = subject.CommonName
+	}
+	id.Roles = getExtensionValues(extensions, RolesASN1ExtensionOID)
+	if len(id.Roles) == 0 {
+		id.Roles = subject.Organization
+	}
+	id.Usage = getExtensionValues(extensions, UsageASN1ExtensionOID)
+	if len(id.Usage) == 0 {
+		id.Usage = subject.OrganizationalUnit
+	}
+	id.Principals = getExtensionValues(extensions, PrincipalsASN1ExtensionOID)
+	if len(id.Principals) == 0 {
+		id.Principals = subject.Locality
+	}
+	id.RouteToCluster = getExtensionValue(extensions, RouteToClusterASN1ExtensionOID)
+	if len(id.RouteToCluster) == 0 && len(subject.StreetAddress) > 0 {
 		id.RouteToCluster = subject.StreetAddress[0]
 	}
-	if len(subject.PostalCode) > 0 {
-		err := wrappers.UnmarshalTraits([]byte(subject.PostalCode[0]), &id.Traits)
-		if err != nil {
+	rawTraits := getExtensionValue(extensions, TraitsASN1ExtensionOID)
+	if len(rawTraits) == 0 && len(subject.PostalCode) > 0 {
+		rawTraits = subject.PostalCode[0]
+	}
+	if len(rawTraits) != 0 {
+		if err := wrappers.UnmarshalTraits([]byte(rawTraits), &id.Traits); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	for _, attr := range subject.Names {
-		switch {
-		case attr.Type.Equal(KubeUsersASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.KubernetesUsers = append(id.KubernetesUsers, val)
-			}
-		case attr.Type.Equal(KubeGroupsASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.KubernetesGroups = append(id.KubernetesGroups, val)
-			}
-		case attr.Type.Equal(KubeClusterASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.KubernetesCluster = val
-			}
-		case attr.Type.Equal(AppSessionIDASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.RouteToApp.SessionID = val
-			}
-		case attr.Type.Equal(AppPublicAddrASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.RouteToApp.PublicAddr = val
-			}
-		case attr.Type.Equal(AppClusterNameASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.RouteToApp.ClusterName = val
-			}
-		case attr.Type.Equal(AppNameASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.RouteToApp.Name = val
-			}
-		case attr.Type.Equal(TeleportClusterASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.TeleportCluster = val
-			}
-		case attr.Type.Equal(MFAVerifiedASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.MFAVerified = val
-			}
-		case attr.Type.Equal(ClientIPASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.ClientIP = val
-			}
-		case attr.Type.Equal(DatabaseServiceNameASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.RouteToDatabase.ServiceName = val
-			}
-		case attr.Type.Equal(DatabaseProtocolASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.RouteToDatabase.Protocol = val
-			}
-		case attr.Type.Equal(DatabaseUsernameASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.RouteToDatabase.Username = val
-			}
-		case attr.Type.Equal(DatabaseNameASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.RouteToDatabase.Database = val
-			}
-		case attr.Type.Equal(DatabaseNamesASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.DatabaseNames = append(id.DatabaseNames, val)
-			}
-		case attr.Type.Equal(DatabaseUsersASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.DatabaseUsers = append(id.DatabaseUsers, val)
-			}
-		case attr.Type.Equal(ImpersonatorASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.Impersonator = val
-			}
-		}
-	}
+	// Remaining identity properties were being encoded in the subject as
+	// extensions fields with the same OIDs as we're using now for x509v3
+	// extensions.
+	id.KubernetesUsers = getValues(subject, extensions, KubeUsersASN1ExtensionOID)
+	id.KubernetesGroups = getValues(subject, extensions, KubeGroupsASN1ExtensionOID)
+	id.KubernetesCluster = getValue(subject, extensions, KubeClusterASN1ExtensionOID)
+	id.RouteToApp.SessionID = getValue(subject, extensions, AppSessionIDASN1ExtensionOID)
+	id.RouteToApp.PublicAddr = getValue(subject, extensions, AppPublicAddrASN1ExtensionOID)
+	id.RouteToApp.ClusterName = getValue(subject, extensions, AppClusterNameASN1ExtensionOID)
+	id.RouteToApp.Name = getValue(subject, extensions, AppNameASN1ExtensionOID)
+	id.TeleportCluster = getValue(subject, extensions, TeleportClusterASN1ExtensionOID)
+	id.MFAVerified = getValue(subject, extensions, MFAVerifiedASN1ExtensionOID)
+	id.ClientIP = getValue(subject, extensions, ClientIPASN1ExtensionOID)
+	id.RouteToDatabase.ServiceName = getValue(subject, extensions, DatabaseServiceNameASN1ExtensionOID)
+	id.RouteToDatabase.Protocol = getValue(subject, extensions, DatabaseProtocolASN1ExtensionOID)
+	id.RouteToDatabase.Username = getValue(subject, extensions, DatabaseUsernameASN1ExtensionOID)
+	id.RouteToDatabase.Database = getValue(subject, extensions, DatabaseNameASN1ExtensionOID)
+	id.DatabaseNames = getValues(subject, extensions, DatabaseNamesASN1ExtensionOID)
+	id.DatabaseUsers = getValues(subject, extensions, DatabaseUsersASN1ExtensionOID)
+	id.Impersonator = getValue(subject, extensions, ImpersonatorASN1ExtensionOID)
 
-	// DELETE IN(5.0.0): This logic is using Province field
-	// from subject in case if Kubernetes groups were not populated
-	// from ASN1 extension, after 5.0 Province field will be ignored
-	if len(id.KubernetesGroups) == 0 {
-		id.KubernetesGroups = subject.Province
-	}
-
+	// Make sure the identity we got in the end is valid.
 	if err := id.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return id, nil
+}
+
+// getValue returns a string value of the specified extension from x509v3
+// extensions with fallback to subject.
+func getValue(subject pkix.Name, extensions []pkix.Extension, oid asn1.ObjectIdentifier) string {
+	value := getExtensionValue(extensions, oid)
+	if len(value) == 0 {
+		value = getSubjectValue(subject, oid)
+	}
+	return value
+}
+
+// getValues returns a list of string values of the specified extension from
+// x509v3 extensions with fallback to subject.
+func getValues(subject pkix.Name, extensions []pkix.Extension, oid asn1.ObjectIdentifier) []string {
+	values := getExtensionValues(extensions, oid)
+	if len(values) == 0 {
+		values = getSubjectValues(subject, oid)
+	}
+	return values
+}
+
+// getExtensionValue returns a string value of the specified x509v3 extension.
+func getExtensionValue(extensions []pkix.Extension, oid asn1.ObjectIdentifier) string {
+	for _, extension := range extensions {
+		if extension.Id.Equal(oid) {
+			return string(extension.Value)
+		}
+	}
+	return ""
+}
+
+// getExtensionValues returns a list of string values of the specified x509v3
+// extension.
+func getExtensionValues(extensions []pkix.Extension, oid asn1.ObjectIdentifier) (result []string) {
+	for _, extension := range extensions {
+		if extension.Id.Equal(oid) {
+			result = append(result, string(extension.Value))
+		}
+	}
+	return result
+}
+
+// getSubjectValue returns a string value of the specified extension encoded
+// in subject.
+func getSubjectValue(subject pkix.Name, oid asn1.ObjectIdentifier) string {
+	for _, value := range subject.Names {
+		if value.Type.Equal(oid) {
+			if s, ok := value.Value.(string); ok {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+// getSubjectValues returns a list of string values of the specified extension
+// encoded in subject.
+func getSubjectValues(subject pkix.Name, oid asn1.ObjectIdentifier) (result []string) {
+	for _, value := range subject.Names {
+		if value.Type.Equal(oid) {
+			if s, ok := value.Value.(string); ok {
+				result = append(result, s)
+			}
+		}
+	}
+	return result
 }
 
 // CertificateRequest is a X.509 signing certificate request
@@ -555,6 +752,8 @@ type CertificateRequest struct {
 	PublicKey crypto.PublicKey
 	// Subject is a subject to include in certificate
 	Subject pkix.Name
+	// Extensions is x509v3 extensions to include in the certificate
+	Extensions []pkix.Extension
 	// NotAfter is a time after which the issued certificate
 	// will be no longer valid
 	NotAfter time.Time
@@ -602,6 +801,8 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject:      req.Subject,
+		// Must use ExtraExtensions, not Extensions, when marshaling certificates.
+		ExtraExtensions: req.Extensions,
 		// NotBefore is one minute in the past to prevent "Not yet valid" errors on
 		// time skewed clusters.
 		NotBefore:   req.Clock.Now().UTC().Add(-1 * time.Minute),

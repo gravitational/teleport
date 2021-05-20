@@ -17,8 +17,6 @@ limitations under the License.
 package auth
 
 import (
-	"time"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -93,7 +91,7 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 
 	// Extract identity from the CSR. Pass zero time for id.Expiry, it won't be
 	// used here.
-	id, err := tlsca.FromSubject(csr.Subject, time.Time{})
+	id, err := tlsca.FromCSR(csr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -105,19 +103,19 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	roleNames := id.Groups
+	roleNames := id.Roles
 	// This is a remote user, map roles to local roles first.
 	if id.TeleportCluster != clusterName.GetClusterName() {
 		ca, err := s.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: id.TeleportCluster}, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		roleNames, err = services.MapRoles(ca.CombinedMapping(), id.Groups)
+		roleNames, err = services.MapRoles(ca.CombinedMapping(), id.Roles)
 		if err != nil {
-			return nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q with remote roles %v", id.Username, id.TeleportCluster, id.Groups)
+			return nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q with remote roles %v", id.Username, id.TeleportCluster, id.Roles)
 		}
 		if len(roleNames) == 0 {
-			return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q with remote roles %v", id.Username, id.TeleportCluster, id.Groups)
+			return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q with remote roles %v", id.Username, id.TeleportCluster, id.Roles)
 		}
 	}
 
