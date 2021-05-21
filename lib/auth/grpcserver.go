@@ -65,6 +65,10 @@ type GRPCServer struct {
 	server *grpc.Server
 }
 
+func (g *GRPCServer) serverContext() context.Context {
+	return g.AuthServer.closeCtx
+}
+
 // GetServer returns an instance of grpc server
 func (g *GRPCServer) GetServer() (*grpc.Server, error) {
 	if g.server == nil {
@@ -1483,7 +1487,7 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
-	if err := g.Emitter.EmitAuditEvent(g.Context, &apievents.MFADeviceAdd{
+	if err := g.Emitter.EmitAuditEvent(g.serverContext(), &apievents.MFADeviceAdd{
 		Metadata: apievents.Metadata{
 			Type:        events.MFADeviceAddEvent,
 			Code:        events.MFADeviceAddEventCode,
@@ -1768,7 +1772,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 		if err != nil {
 			return trail.ToGRPC(err)
 		}
-		if err := g.Emitter.EmitAuditEvent(g.Context, &apievents.MFADeviceDelete{
+		if err := g.Emitter.EmitAuditEvent(g.serverContext(), &apievents.MFADeviceDelete{
 			Metadata: apievents.Metadata{
 				Type:        events.MFADeviceDeleteEvent,
 				Code:        events.MFADeviceDeleteEventCode,
