@@ -477,7 +477,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 
 	modifyquery := func(query firestore.Query) firestore.Query {
 		if startKey != "" {
-			return query.StartAt(parsedStartKey)
+			return query.StartAfter(parsedStartKey)
 		}
 
 		return query

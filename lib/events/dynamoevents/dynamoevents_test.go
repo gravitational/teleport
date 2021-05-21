@@ -89,6 +89,7 @@ func (s *DynamoeventsSuite) TestPagination(c *check.C) {
 }
 
 func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
+	c.Assert(0, check.Equals, 5)
 	s.SessionEventsCRUD(c)
 
 	// In addition to the normal CRUD test above, we also check that we can retrieve all items from a large table
