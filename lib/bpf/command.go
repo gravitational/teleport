@@ -24,25 +24,19 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/iovisor/gobpf/bcc"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var (
-	lostCommandEvents = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricLostCommandEvents,
-			Help: "Number of lost command events.",
-		},
-	)
+var lostCommandEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricLostCommandEvents,
+		Help: "Number of lost command events.",
+	},
 )
-
-func init() {
-	prometheus.MustRegister(lostCommandEvents)
-}
 
 // rawExecEvent is sent by the eBPF program that Teleport pulls off the perf
 // buffer.
@@ -83,7 +77,10 @@ type exec struct {
 // startExec will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
 func startExec(closeContext context.Context, pageCount int) (*exec, error) {
-	var err error
+	err := utils.RegisterPrometheusCollectors(lostCommandEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	e := &exec{
 		closeContext: closeContext,

@@ -54,6 +54,7 @@ var (
 		},
 		[]string{"cluster"},
 	)
+
 	trustedClustersStats = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: teleport.MetricTrustedClusters,
@@ -61,13 +62,9 @@ var (
 		},
 		[]string{"cluster", "state"},
 	)
-)
 
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(remoteClustersStats)
-	prometheus.MustRegister(trustedClustersStats)
-}
+	prometheusCollectors = []prometheus.Collector{remoteClustersStats, trustedClustersStats}
+)
 
 // server is a "reverse tunnel server". it exposes the cluster capabilities
 // (like access to a cluster's auth) to remote trusted clients
@@ -255,6 +252,11 @@ func (cfg *Config) CheckAndSetDefaults() error {
 // NewServer creates and returns a reverse tunnel server which is fully
 // initialized but hasn't been started yet
 func NewServer(cfg Config) (Server, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -553,11 +555,13 @@ func (s *server) Start() error {
 
 func (s *server) Close() error {
 	s.cancel()
+	s.proxyWatcher.Close()
 	return s.srv.Close()
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
 	s.cancel()
+	s.proxyWatcher.Close()
 	return s.srv.Shutdown(ctx)
 }
 

@@ -176,9 +176,6 @@ var (
 	RecordOff         = types.RecordOff
 	RecordAtNodeSync  = types.RecordAtNodeSync
 	RecordAtProxySync = types.RecordAtProxySync
-
-	HostKeyCheckYes = types.HostKeyCheckYes
-	HostKeyCheckNo  = types.HostKeyCheckNo
 )
 
 // clustername.go

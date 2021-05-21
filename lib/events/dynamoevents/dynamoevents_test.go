@@ -19,8 +19,10 @@ package dynamoevents
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -29,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -81,6 +84,10 @@ func (s *DynamoeventsSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func (s *DynamoeventsSuite) TestPagination(c *check.C) {
+	s.EventPagination(c)
+}
+
 func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 	s.SessionEventsCRUD(c)
 
@@ -101,7 +108,7 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 
 	time.Sleep(s.EventsSuite.QueryDelay)
 
-	history, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), "", 0)
+	history, _, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 0, "")
 	c.Assert(err, check.IsNil)
 
 	// `check.HasLen` prints the entire array on failure, which pollutes the output
@@ -165,19 +172,15 @@ func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 	waitStart := time.Now()
 
 	for time.Since(waitStart) < attemptWaitFor {
-		events, err := s.log.SearchEvents(start, end, "?event=test.event", 1000)
+		events, _, err := s.log.searchEventsRaw(start, end, defaults.Namespace, []string{"test.event"}, 1000, "")
+		sort.Sort(byTimeAndIndexRaw(events))
 		c.Assert(err, check.IsNil)
 		correct := true
 
 		for _, event := range events {
-			timestampUnix := event[keyCreatedAt].(int64)
+			timestampUnix := event.CreatedAt
 			dateString := time.Unix(timestampUnix, 0).Format(iso8601DateFormat)
-			eventDateInterface, ok := event[keyDate]
-			if !ok {
-				correct = false
-			}
-			eventDateString, ok := eventDateInterface.(string)
-			if !ok || dateString != eventDateString {
+			if dateString != event.CreatedAtDate {
 				correct = false
 			}
 		}
@@ -190,6 +193,57 @@ func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 	}
 
 	c.Error("Events failed to migrate within 5 minutes")
+}
+
+type byTimeAndIndexRaw []event
+
+func (f byTimeAndIndexRaw) Len() int {
+	return len(f)
+}
+
+func (f byTimeAndIndexRaw) Less(i, j int) bool {
+	var fi events.EventFields
+	data := []byte(f[i].Fields)
+	if err := json.Unmarshal(data, &fi); err != nil {
+		panic("failed to unmarshal event")
+	}
+	var fj events.EventFields
+	data = []byte(f[j].Fields)
+	if err := json.Unmarshal(data, &fj); err != nil {
+		panic("failed to unmarshal event")
+	}
+
+	itime := getTime(fi[events.EventTime])
+	jtime := getTime(fj[events.EventTime])
+	if itime.Equal(jtime) && fi[events.SessionEventID] == fj[events.SessionEventID] {
+		return getEventIndex(fi[events.EventIndex]) < getEventIndex(fj[events.EventIndex])
+	}
+	return itime.Before(jtime)
+}
+
+func (f byTimeAndIndexRaw) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
+// getTime converts json time to string
+func getTime(v interface{}) time.Time {
+	sval, ok := v.(string)
+	if !ok {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, sval)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
+func getEventIndex(v interface{}) float64 {
+	switch val := v.(type) {
+	case float64:
+		return val
+	}
+	return 0
 }
 
 type preRFD24event struct {
