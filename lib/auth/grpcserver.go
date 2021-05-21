@@ -51,11 +51,22 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 )
 
+var heartbeatConnectionsReceived = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricHeartbeatConnectionsReceived,
+		Help: "Number of times auth received a heartbeat connection",
+	},
+)
+
 // GRPCServer is GPRC Auth Server API
 type GRPCServer struct {
 	*logrus.Entry
 	APIConfig
 	server *grpc.Server
+}
+
+func (g *GRPCServer) serverContext() context.Context {
+	return g.AuthServer.closeCtx
 }
 
 // GetServer returns an instance of grpc server
@@ -65,19 +76,6 @@ func (g *GRPCServer) GetServer() (*grpc.Server, error) {
 	}
 
 	return g.server, nil
-}
-
-var (
-	heartbeatConnectionsReceived = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricHeartbeatConnectionsReceived,
-			Help: "Number of times auth received a heartbeat connection",
-		},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(heartbeatConnectionsReceived)
 }
 
 // EmitAuditEvent emits audit event
@@ -400,6 +398,10 @@ func eventToGRPC(in types.Event) (*proto.Event, error) {
 	case *types.ClusterNetworkingConfigV2:
 		out.Resource = &proto.Event_ClusterNetworkingConfig{
 			ClusterNetworkingConfig: r,
+		}
+	case *types.SessionRecordingConfigV2:
+		out.Resource = &proto.Event_SessionRecordingConfig{
+			SessionRecordingConfig: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -1485,7 +1487,7 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
-	if err := g.Emitter.EmitAuditEvent(g.Context, &apievents.MFADeviceAdd{
+	if err := g.Emitter.EmitAuditEvent(g.serverContext(), &apievents.MFADeviceAdd{
 		Metadata: apievents.Metadata{
 			Type:        events.MFADeviceAddEvent,
 			Code:        events.MFADeviceAddEventCode,
@@ -1770,7 +1772,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 		if err != nil {
 			return trail.ToGRPC(err)
 		}
-		if err := g.Emitter.EmitAuditEvent(g.Context, &apievents.MFADeviceDelete{
+		if err := g.Emitter.EmitAuditEvent(g.serverContext(), &apievents.MFADeviceDelete{
 			Metadata: apievents.Metadata{
 				Type:        events.MFADeviceDeleteEvent,
 				Code:        events.MFADeviceDeleteEventCode,
@@ -2476,6 +2478,47 @@ func (g *GRPCServer) SetClusterNetworkingConfig(ctx context.Context, netConfig *
 	return &empty.Empty{}, nil
 }
 
+// GetSessionRecordingConfig gets session recording configuration.
+func (g *GRPCServer) GetSessionRecordingConfig(ctx context.Context, _ *empty.Empty) (*types.SessionRecordingConfigV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	recConfig, err := auth.ServerWithRoles.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", recConfig))
+	}
+	return recConfigV2, nil
+}
+
+// SetSessionRecordingConfig sets session recording configuration.
+func (g *GRPCServer) SetSessionRecordingConfig(ctx context.Context, recConfig *types.SessionRecordingConfigV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.SetSessionRecordingConfig(ctx, recConfig); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// ResetAuthPreference resets cluster auth preference to defaults.
+func (g *GRPCServer) ResetAuthPreference(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.ResetAuthPreference(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*Context
 	*ServerWithRoles
@@ -2600,6 +2643,11 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 
 // NewGRPCServer returns a new instance of GRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
+	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
