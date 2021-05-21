@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
@@ -1387,7 +1388,31 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 	}
 
 	if req.AccessRequestID != "" && req.Switchback {
-		return nil, trace.BadParameter("Failed to renew session: fields 'AccessRequestID' and 'Switchback' cannot be both set")
+		return nil, trace.BadParameter("failed to renew session: fields 'AccessRequestID' and 'Switchback' cannot be both set")
+	}
+
+	// DELETE IN 7.0
+	// Auth server versions less than v6.2 doesn't have checks for switchbacks and just renews session for current roles
+	// which makes it appear to the user in the UI that they switched back to their defaults, when in fact they didn't.
+	if req.Switchback {
+		res, err := h.auth.Ping(context.TODO())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		baseSemver, err := semver.NewVersion("6.2.0")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		authSemver, err := semver.NewVersion(res.GetServerVersion())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if !authSemver.Equal(*baseSemver) && authSemver.LessThan(*baseSemver) {
+			return nil, trace.BadParameter("unable to switchback, auth server version needs to be >= v6.2")
+		}
 	}
 
 	newSession, err := ctx.extendWebSession(req.AccessRequestID, req.Switchback)
