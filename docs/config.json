@@ -77,7 +77,8 @@
             { "title": "Multiple Clusters", "slug": "/kubernetes-access/guides/multiple-clusters/" },
             { "title": "CI/CD", "slug": "/kubernetes-access/guides/cicd/" },
             { "title": "Federation", "slug": "/kubernetes-access/guides/federation/" },
-            { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" }
+            { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" },
+            { "title": "Standalone", "slug": "/kubernetes-access/guides/standalone-teleport/" }
           ]
         },
         {
