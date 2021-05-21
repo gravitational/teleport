@@ -21,17 +21,11 @@ The disadvantage is that session recordings can be bypassed using several techni
 Furthermore, due to their unstructured nature, session recordings are difficult to
 ingest and perform monitoring/alerting on.
 
-<Admonition type="note">
-  Enhanced Session Recording requires all parts of the Teleport system to be running
-  4.2+.
-</Admonition>
-
 # Requirements
 
 ## Step 1/5. Check / Patch kernel
 
-Teleport 4.2+ with Enhanced Session Recording requires Linux kernel 4.18 (or above) as
-well as kernel headers.
+Teleport with Enhanced Session Recording requires Linux kernel 4.18+ as well as kernel headers.
 
 <Admonition type="tip">
   Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/authentication.mdx#audit-log) for more details.
@@ -359,24 +353,25 @@ ssh_service:
 The resulting enhanced session recording will be shown in [Teleport's Audit Log](../architecture/authentication.mdx#audit-log).
 
 ```bash
-$ teleport-auth ~:  tree /var/lib/teleport/log
-/var/lib/teleport/log
-├── 1048a649-8f3f-4431-9529-0c53339b65a5
-│   ├── 2020-01-13.00:00:00.log
-│   └── sessions
-│       └── default
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.chunks.gz
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.events.gz
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.command-events.gz
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.network-events.gz
-│           └── fad07202-35bb-11ea-83aa-125400432324.index
-├── events.log -> /var/lib/teleport/log/1048a649-8f3f-4431-9529-0c53339b65a5/2020-01-13.00:00:00.log
-├── playbacks
-│   └── sessions
-│       └── default
-└── upload
-    └── sessions
-        └── default
+teleport-auth ~:  tree /var/lib/teleport/log
+
+# /var/lib/teleport/log
+# ├── 1048a649-8f3f-4431-9529-0c53339b65a5
+# │   ├── 2020-01-13.00:00:00.log
+# │   └── sessions
+# │       └── default
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.chunks.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.events.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.command-events.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.network-events.gz
+# │           └── fad07202-35bb-11ea-83aa-125400432324.index
+# ├── events.log -> /var/lib/teleport/log/1048a649-8f3f-4431-9529-0c53339b65a5/2020-01-13.00:00:00.log
+# ├── playbacks
+# │   └── sessions
+# │       └── default
+# └── upload
+#     └── sessions
+#         └── default
 ```
 
 To quickly check the status of the audit log, you can simply tail the logs with
@@ -384,14 +379,14 @@ To quickly check the status of the audit log, you can simply tail the logs with
 be a JSON log for each command and network request.
 
 <Tabs>
-  <TabItem label="json">
-    ```json
+  <TabItem label="JSON">
+    ```JSON
     {"argv":["google.com"],"cgroup_id":4294968064,"code":"T4000I","ei":5,"event":"session.command","login":"root","namespace":"default","path":"/bin/ping","pid":2653,"ppid":2660,"program":"ping","return_code":0,"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644","sid":"44c6cea8-362f-11ea-83aa-125400432324","time":"2020-01-13T18:05:53.919Z","uid":"734930bb-00e6-4ee6-8798-37f1e9473fac","user":"benarent"}
     ```
   </TabItem>
 
-  <TabItem label="json formatted">
-    ```json
+  <TabItem label="JSON formatted">
+    ```JSON
     {
       "argv":[
         "google.com"
