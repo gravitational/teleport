@@ -1451,26 +1451,6 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 	return retval, nil
 }
 
-// SearchEvents allows searching for audit events with pagination support.
-func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return events, lastKey, nil
-}
-
-// SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, startKey)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return events, lastKey, nil
-}
-
 // GetNamespaces returns a list of namespaces
 func (c *Client) GetNamespaces() ([]services.Namespace, error) {
 	out, err := c.Get(c.Endpoint("namespaces"), url.Values{})
