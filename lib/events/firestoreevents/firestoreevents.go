@@ -465,7 +465,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 
 	var lastKey int64
 	var values []events.EventFields
-	var parsedStartKey int64 = -1
+	var parsedStartKey int64
 	var err error
 
 	if startKey != "" {
@@ -477,7 +477,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 
 	modifyquery := func(query firestore.Query) firestore.Query {
 		if startKey != "" {
-			return query.StartAt(parsedStartKey)
+			return query.StartAfter(parsedStartKey)
 		}
 
 		return query
