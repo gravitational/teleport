@@ -38,6 +38,10 @@ kubectl version
 # Server Version: version.Info{Major:"1", Minor:"17+"}
 ```
 
+<Admonition type="warning" title="Warning">
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
+</Admonition>
+
 ## Step 1/3. Install Teleport
 
 Let's start with a single-pod Teleport using persistent volume as a backend.
@@ -92,7 +96,7 @@ to create a public IP for Teleport.
     # Save the pod IP. If the IP is not available, check the pod and load balancer status.
     MYIP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
     echo $MYIP
-    192.168.2.1
+    # 192.168.2.1
     ```
   </TabItem>
 
@@ -103,13 +107,13 @@ to create a public IP for Teleport.
 
     # Service is up, load balancer is created
     kubectl get services
-    NAME                   TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
-    teleport-cluster-ent   LoadBalancer   10.4.4.73    104.199.126.88   443:31204/TCP,3026:32690/TCP   89s
+    # NAME                   TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
+    # teleport-cluster-ent   LoadBalancer   10.4.4.73    104.199.126.88   443:31204/TCP,3026:32690/TCP   89s
 
     # Save the pod IP. If the IP is not available, check the pod and load balancer status.
     MYIP=$(kubectl get services teleport-cluster-ent -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
     echo $MYIP
-    192.168.2.1
+    # 192.168.2.1
     ```
   </TabItem>
 </Tabs>
@@ -198,12 +202,12 @@ kubectl exec -i ${POD?} -- tctl create -f < member.yaml
 # Generate an invite link for the user.
 kubectl exec -ti ${POD?} -- tctl users add alice --roles=member
 
-User "alice" has been created but requires a password. Share this URL with the user to
-complete user setup, link is valid for 1h:
+# User "alice" has been created but requires a password. Share this URL with the user to
+# complete user setup, link is valid for 1h:
 
-https://tele.example.com:443/web/invite/random-token-id-goes-here
+# https://tele.example.com:443/web/invite/random-token-id-goes-here
 
-NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
+# NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
 ```
 
 Let's install `tsh` and `tctl` on Linux.
