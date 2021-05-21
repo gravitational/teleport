@@ -75,8 +75,7 @@ func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
 	s.log = log
 	s.EventsSuite.Log = log
 	s.EventsSuite.Clock = fakeClock
-	s.EventsSuite.QueryDelay = time.Second * 30
-
+	s.EventsSuite.QueryDelay = time.Second * 5
 }
 
 func (s *DynamoeventsSuite) SetUpTest(c *check.C) {
@@ -106,10 +105,18 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 		c.Assert(err, check.IsNil)
 	}
 
-	time.Sleep(s.EventsSuite.QueryDelay)
+	var history []events.AuditEvent
 
-	history, _, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 0, "")
-	c.Assert(err, check.IsNil)
+	for i := 0; i < 10; i++ {
+		time.Sleep(s.EventsSuite.QueryDelay)
+
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 0, "")
+		c.Assert(err, check.IsNil)
+
+		if len(history) == 4000 {
+			break
+		}
+	}
 
 	// `check.HasLen` prints the entire array on failure, which pollutes the output
 	c.Assert(len(history), check.Equals, 4000)
