@@ -64,8 +64,9 @@ labels: {}
 # Container image for the agent. Since this runs without the auth_service, we
 # don't need the enterprise version.
 image: quay.io/gravitational/teleport
-# Optional secret to use when pulling image from a private registry
-imagePullSecret: ""
+# Optional array of imagePullSecrets, to use when pulling from a private registry
+imagePullSecrets:
+# - name: myRegistryKeySecretName
 # Number of replicas for the agent deployment.
 replicaCount: 1
 # Name of the ClusterRole, used by the agent's service account.
