@@ -63,7 +63,7 @@ The user
 experience looks like this:
 
 ```bash
-# login using the root "root" cluster credentials:
+# Log in using the root "root" cluster credentials:
 tsh login --proxy=root.example.com
 
 # SSH into some host inside the "root" cluster:
@@ -146,7 +146,7 @@ Consider the security implications when deciding which token method to use. Shor
 
 ### Dynamic Join Tokens
 
-Creating a token dynamically with a CLI tool offers the advantage of applying a *time to live* (TTL) interval on it, i.e. it will be impossible to re-use such token after a specified time.
+Creating a token dynamically with a CLI tool offers the advantage of applying a time-to-live (TTL) interval on it, i.e. it will be impossible to re-use such token after a specified time.
 
 To create a token using the CLI tool, execute this command on the *auth server*
 of cluster "root":
@@ -154,7 +154,7 @@ of cluster "root":
 ```bash
 # Generates a trusted cluster token to allow an inbound connection from a leaf cluster:
 sudo tctl tokens add --type=trusted_cluster --ttl=5m
-# Example output
+# Example output:
 # The cluster invite token: ba4825847f0378bcdfe18113c4998498
 # This token will expire in 5 minutes
 
@@ -319,7 +319,7 @@ map user roles from one cluster to another, you can even capture parts of the re
 role name and use reference it to name the local role:
 
 ```yaml
-  # in this example, remote users with a remote role called 'remote-one' will be
+  # In this example, remote users with a remote role called 'remote-one' will be
   # mapped to a local role called 'local-one', and `remote-two` becomes `local-two`, etc:
   - remote: "^remote-(.*)$"
     local: [local-$1]
@@ -566,7 +566,7 @@ servers on both clusters. Usually, this can be done by adding `--debug` flag to
 file for both auth servers:
 
 ```yaml
-# snippet from /etc/teleport.yaml
+# Snippet from /etc/teleport.yaml
 teleport:
   log:
     output: stderr

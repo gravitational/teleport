@@ -29,9 +29,9 @@ Let's look at this table:
 
 | Teleport User | Allowed OS Logins | Description |
 | - | - | - |
-| joe | joe, root | Teleport user 'joe' can log in into member nodes as OS user 'joe' or 'root' |
-| juliet | juliet | Teleport user 'juliet' can log in into member nodes only as OS user 'juliet' |
-| ross | | If no OS login is specified, it defaults to the same name as the Teleport user, here this is "ross". |
+| joe | joe, root | Teleport user `joe` can log in into member nodes as OS user `joe` or `root`. |
+| juliet | juliet | Teleport user `juliet` can log in into member nodes only as OS user `juliet`. |
+| ross | | If no OS login is specified, it defaults to the same name as the Teleport user, here this is `ross`. |
 
 To add a new user to Teleport, you have to use the `tctl` tool on the same node
 where the auth server is running, i.e. `teleport` was started with
