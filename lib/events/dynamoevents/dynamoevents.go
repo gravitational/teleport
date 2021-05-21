@@ -177,9 +177,6 @@ const (
 	// keyEventIndex is EventIndex key
 	keyEventIndex = "EventIndex"
 
-	// keyEventNamespace
-	keyEventNamespace = "EventNamespace"
-
 	// keyCreatedAt identifies created at key
 	keyCreatedAt = "CreatedAt"
 
