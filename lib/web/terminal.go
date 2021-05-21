@@ -82,13 +82,13 @@ type TerminalRequest struct {
 
 // AuthProvider is a subset of the full Auth API.
 type AuthProvider interface {
-	GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
-func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionContext) (*TerminalHandler, error) {
+func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext) (*TerminalHandler, error) {
 	// Make sure whatever session is requested is a valid session.
 	_, err := session.ParseID(string(req.SessionID))
 	if err != nil {
@@ -102,7 +102,7 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	servers, err := authProvider.GetNodes(req.Namespace, services.SkipValidation())
+	servers, err := authProvider.GetNodes(ctx, req.Namespace, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,7 +121,7 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 			trace.Component: teleport.ComponentWebsocket,
 		}),
 		params:       req,
-		ctx:          ctx,
+		ctx:          sessCtx,
 		hostName:     hostName,
 		hostPort:     hostPort,
 		hostUUID:     req.Server,
@@ -258,7 +258,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
-	clientConfig.ForwardAgent = true
+	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.HostLogin = t.params.Login
 	clientConfig.Namespace = t.params.Namespace
 	clientConfig.Stdout = stream

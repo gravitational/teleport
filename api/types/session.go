@@ -57,12 +57,8 @@ type WebSession interface {
 	Resource
 	// GetShortName returns visible short name used in logging
 	GetShortName() string
-	// GetName returns session name
-	GetName() string
 	// GetUser returns the user this session is associated with
 	GetUser() string
-	// SetName sets session name
-	SetName(string)
 	// SetUser sets user associated with this session
 	SetUser(string)
 	// GetPub is returns public certificate signed by auth server
@@ -82,14 +78,14 @@ type WebSession interface {
 	GetBearerTokenExpiryTime() time.Time
 	// GetExpiryTime - absolute time when web session expires
 	GetExpiryTime() time.Time
+	// GetLoginTime returns the time this user recently logged in.
+	GetLoginTime() time.Time
+	// SetLoginTime sets when this user logged in.
+	SetLoginTime(time.Time)
 	// WithoutSecrets returns copy of the web session but without private keys
 	WithoutSecrets() WebSession
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 	// String returns string representation of the session.
 	String() string
-	// Expiry is the expiration time for this resource.
-	Expiry() time.Time
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -252,6 +248,16 @@ func (ws *WebSessionV2) GetExpiryTime() time.Time {
 	return ws.Spec.Expires
 }
 
+// GetLoginTime returns the time this user recently logged in.
+func (ws *WebSessionV2) GetLoginTime() time.Time {
+	return ws.Spec.LoginTime
+}
+
+// SetLoginTime sets when this user logged in.
+func (ws *WebSessionV2) SetLoginTime(loginTime time.Time) {
+	ws.Spec.LoginTime = loginTime
+}
+
 // GetAppSessionRequest contains the parameters to request an application
 // web session.
 type GetAppSessionRequest struct {
@@ -342,8 +348,6 @@ type WebToken interface {
 	// Resource represents common properties for all resources.
 	Resource
 
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 	// GetToken returns the token value
 	GetToken() string
 	// SetToken sets the token value
@@ -490,6 +494,8 @@ type NewWebSessionRequest struct {
 	// SessionTTL optionally specifies the session time-to-live.
 	// If left unspecified, the default certificate duration is used.
 	SessionTTL time.Duration
+	// LoginTime is the time that this user recently logged in.
+	LoginTime time.Time
 }
 
 // Check validates the request.
@@ -564,9 +570,4 @@ func (f *WebSessionFilter) Match(session WebSession) bool {
 		return false
 	}
 	return true
-}
-
-// Equals compares two filters.
-func (f *WebSessionFilter) Equals(o WebSessionFilter) bool {
-	return f.User == o.User
 }

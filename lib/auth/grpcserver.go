@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -40,6 +39,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -51,11 +51,22 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 )
 
+var heartbeatConnectionsReceived = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricHeartbeatConnectionsReceived,
+		Help: "Number of times auth received a heartbeat connection",
+	},
+)
+
 // GRPCServer is GPRC Auth Server API
 type GRPCServer struct {
 	*logrus.Entry
 	APIConfig
 	server *grpc.Server
+}
+
+func (g *GRPCServer) serverContext() context.Context {
+	return g.AuthServer.closeCtx
 }
 
 // GetServer returns an instance of grpc server
@@ -92,6 +103,7 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 		return trail.ToGRPC(err)
 	}
 	g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
+	heartbeatConnectionsReceived.Inc()
 	for {
 		keepAlive, err := stream.Recv()
 		if err == io.EOF {
@@ -282,7 +294,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		case <-watcher.Done():
 			return trail.ToGRPC(watcher.Error())
 		case event := <-watcher.Events():
-			out, err := client.EventToGRPC(event)
+			out, err := eventToGRPC(event)
 			if err != nil {
 				return trail.ToGRPC(err)
 			}
@@ -293,27 +305,121 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 	}
 }
 
-// UpsertNode upserts node
-func (g *GRPCServer) UpsertNode(ctx context.Context, server *services.ServerV2) (*services.KeepAlive, error) {
-	auth, err := g.authenticate(ctx)
+// eventToGRPC converts a types.Event to an proto.Event
+func eventToGRPC(in types.Event) (*proto.Event, error) {
+	eventType, err := eventTypeToGRPC(in.Type)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
+	out := proto.Event{
+		Type: eventType,
+	}
+	if in.Type == types.OpInit {
+		return &out, nil
+	}
+	switch r := in.Resource.(type) {
+	case *types.ResourceHeader:
+		out.Resource = &proto.Event_ResourceHeader{
+			ResourceHeader: r,
+		}
+	case *types.CertAuthorityV2:
+		out.Resource = &proto.Event_CertAuthority{
+			CertAuthority: r,
+		}
+	case *types.StaticTokensV2:
+		out.Resource = &proto.Event_StaticTokens{
+			StaticTokens: r,
+		}
+	case *types.ProvisionTokenV2:
+		out.Resource = &proto.Event_ProvisionToken{
+			ProvisionToken: r,
+		}
+	case *types.ClusterNameV2:
+		out.Resource = &proto.Event_ClusterName{
+			ClusterName: r,
+		}
+	case *types.ClusterConfigV3:
+		out.Resource = &proto.Event_ClusterConfig{
+			ClusterConfig: r,
+		}
+	case *types.UserV2:
+		out.Resource = &proto.Event_User{
+			User: r,
+		}
+	case *types.RoleV3:
+		out.Resource = &proto.Event_Role{
+			Role: r,
+		}
+	case *types.Namespace:
+		out.Resource = &proto.Event_Namespace{
+			Namespace: r,
+		}
+	case *types.ServerV2:
+		out.Resource = &proto.Event_Server{
+			Server: r,
+		}
+	case *types.ReverseTunnelV2:
+		out.Resource = &proto.Event_ReverseTunnel{
+			ReverseTunnel: r,
+		}
+	case *types.TunnelConnectionV2:
+		out.Resource = &proto.Event_TunnelConnection{
+			TunnelConnection: r,
+		}
+	case *types.AccessRequestV3:
+		out.Resource = &proto.Event_AccessRequest{
+			AccessRequest: r,
+		}
+	case *types.WebSessionV2:
+		switch r.GetSubKind() {
+		case types.KindAppSession:
+			out.Resource = &proto.Event_AppSession{
+				AppSession: r,
+			}
+		case types.KindWebSession:
+			out.Resource = &proto.Event_WebSession{
+				WebSession: r,
+			}
+		default:
+			return nil, trace.BadParameter("only %q supported", types.WebSessionSubKinds)
+		}
+	case *types.WebTokenV3:
+		out.Resource = &proto.Event_WebToken{
+			WebToken: r,
+		}
+	case *types.RemoteClusterV3:
+		out.Resource = &proto.Event_RemoteCluster{
+			RemoteCluster: r,
+		}
+	case *types.DatabaseServerV3:
+		out.Resource = &proto.Event_DatabaseServer{
+			DatabaseServer: r,
+		}
+	case *types.ClusterNetworkingConfigV2:
+		out.Resource = &proto.Event_ClusterNetworkingConfig{
+			ClusterNetworkingConfig: r,
+		}
+	case *types.SessionRecordingConfigV2:
+		out.Resource = &proto.Event_SessionRecordingConfig{
+			SessionRecordingConfig: r,
+		}
+	default:
+		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
+	}
+	return &out, nil
+}
 
-	// Extract peer (remote host) from context and if the server sent 0.0.0.0 as
-	// its address (meaning it did not set an advertise address) update it with
-	// the address of the peer.
-	p, ok := peer.FromContext(ctx)
-	if !ok {
-		return nil, trail.ToGRPC(trace.BadParameter("unable to find peer"))
+func eventTypeToGRPC(in types.OpType) (proto.Operation, error) {
+	switch in {
+	case types.OpInit:
+		return proto.Operation_INIT, nil
+	case types.OpPut:
+		return proto.Operation_PUT, nil
+	case types.OpDelete:
+		return proto.Operation_DELETE, nil
+	default:
+		return -1, trace.BadParameter("event type %v is not supported", in)
 	}
-	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), p.Addr.String()))
-
-	keepAlive, err := auth.UpsertNode(server)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-	return keepAlive, nil
 }
 
 func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCertsRequest) (*proto.Certs, error) {
@@ -1381,7 +1487,7 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
-	if err := g.Emitter.EmitAuditEvent(g.Context, &apievents.MFADeviceAdd{
+	if err := g.Emitter.EmitAuditEvent(g.serverContext(), &apievents.MFADeviceAdd{
 		Metadata: apievents.Metadata{
 			Type:        events.MFADeviceAddEvent,
 			Code:        events.MFADeviceAddEventCode,
@@ -1615,13 +1721,49 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	// Find the device and delete it from backend.
 	devs, err := auth.GetMFADevices(ctx, user)
 	if err != nil {
-		return trace.Wrap(err)
+		return trail.ToGRPC(err)
+	}
+	authPref, err := auth.GetAuthPreference()
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	var numTOTPDevs, numU2FDevs int
+	for _, d := range devs {
+		switch d.Device.(type) {
+		case *types.MFADevice_Totp:
+			numTOTPDevs++
+		case *types.MFADevice_U2F:
+			numU2FDevs++
+		default:
+			return trail.ToGRPC(trace.BadParameter("unknown MFA device type: %T", d.Device))
+		}
 	}
 	for _, d := range devs {
 		// Match device by name or ID.
 		if d.Metadata.Name != initReq.DeviceName && d.Id != initReq.DeviceName {
 			continue
 		}
+
+		// Make sure that the user won't be locked out by deleting the last MFA
+		// device. This only applies when the cluster requires MFA.
+		switch authPref.GetSecondFactor() {
+		case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
+		case constants.SecondFactorOTP:
+			if _, ok := d.Device.(*types.MFADevice_Totp); ok && numTOTPDevs == 1 {
+				return trail.ToGRPC(trace.BadParameter("cannot delete the last OTP device for this user; add a replacement device first to avoid getting locked out"))
+			}
+		case constants.SecondFactorU2F:
+			if _, ok := d.Device.(*types.MFADevice_U2F); ok && numU2FDevs == 1 {
+				return trail.ToGRPC(trace.BadParameter("cannot delete the last U2F device for this user; add a replacement device first to avoid getting locked out"))
+			}
+		case constants.SecondFactorOn:
+			if len(devs) == 1 {
+				return trail.ToGRPC(trace.BadParameter("cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out"))
+			}
+		default:
+			log.Warningf("Unknown second factor value in cluster AuthPreference: %q", authPref.GetSecondFactor())
+		}
+
 		if err := auth.DeleteMFADevice(ctx, user, d.Id); err != nil {
 			return trail.ToGRPC(err)
 		}
@@ -1630,7 +1772,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 		if err != nil {
 			return trail.ToGRPC(err)
 		}
-		if err := g.Emitter.EmitAuditEvent(g.Context, &apievents.MFADeviceDelete{
+		if err := g.Emitter.EmitAuditEvent(g.serverContext(), &apievents.MFADeviceDelete{
 			Metadata: apievents.Metadata{
 				Type:        events.MFADeviceDeleteEvent,
 				Code:        events.MFADeviceDeleteEventCode,
@@ -1891,13 +2033,13 @@ func (g *GRPCServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWi
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	oidcConnector, err := auth.ServerWithRoles.GetOIDCConnector(ctx, req.Name, req.WithSecrets)
+	oc, err := auth.ServerWithRoles.GetOIDCConnector(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	oidcConnectorV2, ok := oidcConnector.(*types.OIDCConnectorV2)
+	oidcConnectorV2, ok := oc.(*types.OIDCConnectorV2)
 	if !ok {
-		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected OIDC connector type %T", oidcConnector))
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected OIDC connector type %T", oc))
 	}
 	return oidcConnectorV2, nil
 }
@@ -1908,12 +2050,12 @@ func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.Resources
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	oidcConnectors, err := auth.ServerWithRoles.GetOIDCConnectors(ctx, req.WithSecrets)
+	ocs, err := auth.ServerWithRoles.GetOIDCConnectors(ctx, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	oidcConnectorsV2 := make([]*types.OIDCConnectorV2, len(oidcConnectors))
-	for i, oc := range oidcConnectors {
+	oidcConnectorsV2 := make([]*types.OIDCConnectorV2, len(ocs))
+	for i, oc := range ocs {
 		var ok bool
 		if oidcConnectorsV2[i], ok = oc.(*types.OIDCConnectorV2); !ok {
 			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected OIDC connector type %T", oc))
@@ -1957,13 +2099,13 @@ func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWi
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	samlConnector, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets)
+	sc, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	samlConnectorV2, ok := samlConnector.(*types.SAMLConnectorV2)
+	samlConnectorV2, ok := sc.(*types.SAMLConnectorV2)
 	if !ok {
-		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected SAML connector type: %T", samlConnector))
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected SAML connector type: %T", sc))
 	}
 	return samlConnectorV2, nil
 }
@@ -1974,15 +2116,15 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	samlConnectors, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets)
+	scs, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	samlConnectorsV2 := make([]*types.SAMLConnectorV2, len(samlConnectors))
-	for i, sc := range samlConnectors {
+	samlConnectorsV2 := make([]*types.SAMLConnectorV2, len(scs))
+	for i, sc := range scs {
 		var ok bool
 		if samlConnectorsV2[i], ok = sc.(*types.SAMLConnectorV2); !ok {
-			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", sc))
+			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected SAML connector type: %T", sc))
 		}
 	}
 	return &types.SAMLConnectorV2List{
@@ -2023,13 +2165,13 @@ func (g *GRPCServer) GetGithubConnector(ctx context.Context, req *types.Resource
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	githubConnector, err := auth.ServerWithRoles.GetGithubConnector(ctx, req.Name, req.WithSecrets)
+	gc, err := auth.ServerWithRoles.GetGithubConnector(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	githubConnectorV3, ok := githubConnector.(*types.GithubConnectorV3)
+	githubConnectorV3, ok := gc.(*types.GithubConnectorV3)
 	if !ok {
-		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Github connector type: %T", githubConnector))
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Github connector type: %T", gc))
 	}
 	return githubConnectorV3, nil
 }
@@ -2040,15 +2182,15 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	githubConnectors, err := auth.ServerWithRoles.GetGithubConnectors(ctx, req.WithSecrets)
+	gcs, err := auth.ServerWithRoles.GetGithubConnectors(ctx, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	githubConnectorsV3 := make([]*types.GithubConnectorV3, len(githubConnectors))
-	for i, gc := range githubConnectors {
+	githubConnectorsV3 := make([]*types.GithubConnectorV3, len(gcs))
+	for i, gc := range gcs {
 		var ok bool
 		if githubConnectorsV3[i], ok = gc.(*types.GithubConnectorV3); !ok {
-			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", gc))
+			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Github connector type: %T", gc))
 		}
 	}
 	return &types.GithubConnectorV3List{
@@ -2103,15 +2245,15 @@ func (g *GRPCServer) GetTrustedClusters(ctx context.Context, _ *empty.Empty) (*t
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	trustedClusters, err := auth.ServerWithRoles.GetTrustedClusters(ctx)
+	tcs, err := auth.ServerWithRoles.GetTrustedClusters(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	trustedClustersV2 := make([]*types.TrustedClusterV2, len(trustedClusters))
-	for i, tc := range trustedClusters {
+	trustedClustersV2 := make([]*types.TrustedClusterV2, len(tcs))
+	for i, tc := range tcs {
 		var ok bool
 		if trustedClustersV2[i], ok = tc.(*types.TrustedClusterV2); !ok {
-			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", tc))
+			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc))
 		}
 	}
 	return &types.TrustedClusterV2List{
@@ -2128,14 +2270,14 @@ func (g *GRPCServer) UpsertTrustedCluster(ctx context.Context, cluster *types.Tr
 	if err = services.ValidateTrustedCluster(cluster); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	trustedCluster, err := auth.ServerWithRoles.UpsertTrustedCluster(ctx, cluster)
+	tc, err := auth.ServerWithRoles.UpsertTrustedCluster(ctx, cluster)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
 	if !ok {
-		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Trusted Cluster type"))
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc))
 	}
 	return trustedClusterV2, nil
 }
@@ -2158,13 +2300,13 @@ func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	token, err := auth.ServerWithRoles.GetToken(ctx, req.Name)
+	t, err := auth.ServerWithRoles.GetToken(ctx, req.Name)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	provisionTokenV2, ok := token.(*types.ProvisionTokenV2)
+	provisionTokenV2, ok := t.(*types.ProvisionTokenV2)
 	if !ok {
-		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected token type: %T", token))
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected token type: %T", t))
 	}
 	return provisionTokenV2, nil
 }
@@ -2175,12 +2317,12 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *empty.Empty) (*types.Prov
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	tokens, err := auth.ServerWithRoles.GetTokens(ctx)
+	ts, err := auth.ServerWithRoles.GetTokens(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	provisionTokensV2 := make([]*types.ProvisionTokenV2, len(tokens))
-	for i, t := range tokens {
+	provisionTokensV2 := make([]*types.ProvisionTokenV2, len(ts))
+	for i, t := range ts {
 		var ok bool
 		if provisionTokensV2[i], ok = t.(*types.ProvisionTokenV2); !ok {
 			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected token type: %T", t))
@@ -2210,6 +2352,168 @@ func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest
 		return nil, trail.ToGRPC(err)
 	}
 	if err := auth.ServerWithRoles.DeleteToken(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetNode retrieves a node by name and namespace.
+func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*types.ServerV2, error) {
+	if req.Namespace == "" {
+		return nil, trail.ToGRPC(trace.BadParameter("missing parameter namespace"))
+	}
+	if req.Name == "" {
+		return nil, trail.ToGRPC(trace.BadParameter("missing parameter name"))
+	}
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	node, err := auth.ServerWithRoles.GetNode(ctx, req.Namespace, req.Name)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	serverV2, ok := node.(*types.ServerV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected node type: %T", node))
+	}
+	return serverV2, nil
+}
+
+// GetNodes retrieves all nodes in the given namespace.
+func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	ns, err := auth.ServerWithRoles.GetNodes(ctx, req.Namespace)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	serversV2 := make([]*types.ServerV2, len(ns))
+	for i, t := range ns {
+		var ok bool
+		if serversV2[i], ok = t.(*types.ServerV2); !ok {
+			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected node type: %T", t))
+		}
+	}
+	return &types.ServerV2List{
+		Servers: serversV2,
+	}, nil
+}
+
+// UpsertNode upserts a node.
+func (g *GRPCServer) UpsertNode(ctx context.Context, node *services.ServerV2) (*services.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	// Extract peer (remote host) from context and if the node sent 0.0.0.0 as
+	// its address (meaning it did not set an advertise address) update it with
+	// the address of the peer.
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unable to find peer"))
+	}
+	node.SetAddr(utils.ReplaceLocalhost(node.GetAddr(), p.Addr.String()))
+
+	keepAlive, err := auth.ServerWithRoles.UpsertNode(ctx, node)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteNode deletes a node by name.
+func (g *GRPCServer) DeleteNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.DeleteNode(ctx, req.Namespace, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllNodes deletes all nodes in a given namespace.
+func (g *GRPCServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.DeleteAllNodes(ctx, req.Namespace); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *empty.Empty) (*types.ClusterNetworkingConfigV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	netConfig, err := auth.ServerWithRoles.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	netConfigV2, ok := netConfig.(*types.ClusterNetworkingConfigV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", netConfig))
+	}
+	return netConfigV2, nil
+}
+
+// SetClusterNetworkingConfig sets cluster networking configuration.
+func (g *GRPCServer) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.SetClusterNetworkingConfig(ctx, netConfig); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (g *GRPCServer) GetSessionRecordingConfig(ctx context.Context, _ *empty.Empty) (*types.SessionRecordingConfigV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	recConfig, err := auth.ServerWithRoles.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", recConfig))
+	}
+	return recConfigV2, nil
+}
+
+// SetSessionRecordingConfig sets session recording configuration.
+func (g *GRPCServer) SetSessionRecordingConfig(ctx context.Context, recConfig *types.SessionRecordingConfigV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.SetSessionRecordingConfig(ctx, recConfig); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// ResetAuthPreference resets cluster auth preference to defaults.
+func (g *GRPCServer) ResetAuthPreference(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.ResetAuthPreference(ctx); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
@@ -2251,6 +2555,64 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	}, nil
 }
 
+// GetEvents searches for events on the backend and sends them back in a response.
+func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest) (*proto.Events, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(req.StartDate, req.EndDate, req.Namespace, req.EventTypes, int(req.Limit), req.StartKey)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var res *proto.Events = &proto.Events{}
+
+	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
+
+	for _, rawEvent := range rawEvents {
+		event, err := events.ToOneOf(rawEvent)
+		if err != nil {
+			return nil, trail.ToGRPC(err)
+		}
+		encodedEvents = append(encodedEvents, event)
+	}
+
+	res.Items = encodedEvents
+	res.LastKey = lastkey
+	return res, nil
+}
+
+// GetEvents searches for session events on the backend and sends them back in a response.
+func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSessionEventsRequest) (*proto.Events, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), req.StartKey)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var res *proto.Events = &proto.Events{}
+
+	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
+
+	for _, rawEvent := range rawEvents {
+		event, err := events.ToOneOf(rawEvent)
+		if err != nil {
+			return nil, trail.ToGRPC(err)
+		}
+		encodedEvents = append(encodedEvents, event)
+	}
+
+	res.Items = encodedEvents
+	res.LastKey = lastkey
+	return res, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
@@ -2281,6 +2643,11 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 
 // NewGRPCServer returns a new instance of GRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
+	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

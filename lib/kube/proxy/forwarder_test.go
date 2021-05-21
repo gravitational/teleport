@@ -11,9 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -22,14 +21,16 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"k8s.io/client-go/transport"
-
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
+	"k8s.io/client-go/transport"
 )
 
 type ForwarderSuite struct{}
@@ -101,11 +102,18 @@ func TestAuthenticate(t *testing.T) {
 	t.Parallel()
 
 	cc, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		ClientIdleTimeout:     services.NewDuration(time.Hour),
 		DisconnectExpiredCert: true,
 	})
 	require.NoError(t, err)
-	ap := &mockAccessPoint{clusterConfig: cc}
+	nc, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout: services.NewDuration(time.Hour),
+	})
+	require.NoError(t, err)
+	ap := &mockAccessPoint{
+		clusterConfig:   cc,
+		netConfig:       nc,
+		recordingConfig: types.DefaultSessionRecordingConfig(),
+	}
 
 	user, err := services.NewUser("user-a")
 	require.NoError(t, err)
@@ -435,7 +443,7 @@ func TestAuthenticate(t *testing.T) {
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
 				cmp.AllowUnexported(authContext{}, teleportClusterClient{}),
-				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "clusterConfig", "disconnectExpiredCert"),
+				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert"),
 				cmpopts.IgnoreFields(teleportClusterClient{}, "dial", "isRemoteClosed"),
 			))
 		})
@@ -755,16 +763,39 @@ func (s mockRemoteSite) GetName() string { return s.name }
 type mockAccessPoint struct {
 	auth.AccessPoint
 
-	clusterConfig services.ClusterConfig
-	kubeServices  []services.Server
+	clusterConfig   services.ClusterConfig
+	netConfig       types.ClusterNetworkingConfig
+	recordingConfig types.SessionRecordingConfig
+	kubeServices    []services.Server
+	cas             map[string]types.CertAuthority
 }
 
 func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (services.ClusterConfig, error) {
 	return ap.clusterConfig, nil
 }
 
+func (ap mockAccessPoint) GetClusterNetworkingConfig(context.Context, ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	return ap.netConfig, nil
+}
+
+func (ap mockAccessPoint) GetSessionRecordingConfig(context.Context, ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	return ap.recordingConfig, nil
+}
+
 func (ap mockAccessPoint) GetKubeServices(ctx context.Context) ([]services.Server, error) {
 	return ap.kubeServices, nil
+}
+
+func (ap mockAccessPoint) GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+	var cas []types.CertAuthority
+	for _, ca := range ap.cas {
+		cas = append(cas, ca)
+	}
+	return cas, nil
+}
+
+func (ap mockAccessPoint) GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+	return ap.cas[id.DomainName], nil
 }
 
 type mockRevTunnel struct {

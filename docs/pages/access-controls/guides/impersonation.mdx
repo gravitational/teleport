@@ -14,7 +14,7 @@ CI/CD user Jenkins and a security scanner.
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud.mdx) >= (=teleport.version=)
+- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
 - [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
 
 Verify that your Teleport client is connected:
@@ -280,10 +280,10 @@ $ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner
 Here is a summary of variables and functions we used in this guide:
 
 <table>
-<th>
-  <td>Variable or Function</td>
-  <td>Description</td>
-</th>
+<tr>
+  <th>Variable or Function</th>
+  <th>Description</th>
+</tr>
 <tr>
   <td>`user.spec.traits`</td>
   <td>Access traits of local or SSO user.</td>

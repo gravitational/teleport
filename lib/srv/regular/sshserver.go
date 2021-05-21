@@ -52,12 +52,22 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentNode,
-})
+var (
+	log = logrus.WithFields(logrus.Fields{
+		trace.Component: teleport.ComponentNode,
+	})
+
+	userSessionLimitHitCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricUserMaxConcurrentSessionsHit,
+			Help: "Number of times a user exceeded their max concurrent ssh connections",
+		},
+	)
+)
 
 // Server implements SSH server that uses configuration backend and
 // certificate-based authentication
@@ -211,12 +221,12 @@ func (s *Server) GetBPF() bpf.BPF {
 // and this is a Teleport node.
 func (s *Server) isAuditedAtProxy() bool {
 	// always be safe, better to double record than not record at all
-	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
+	recConfig, err := s.GetAccessPoint().GetSessionRecordingConfig(s.ctx)
 	if err != nil {
 		return false
 	}
 
-	isRecordAtProxy := services.IsRecordAtProxy(clusterConfig.GetSessionRecording())
+	isRecordAtProxy := services.IsRecordAtProxy(recConfig.GetMode())
 	isTeleportNode := s.Component() == teleport.ComponentNode
 
 	if isRecordAtProxy && isTeleportNode {
@@ -497,7 +507,12 @@ func New(addr utils.NetAddr,
 	dataDir string,
 	advertiseAddr string,
 	proxyPublicAddr utils.NetAddr,
-	options ...ServerOption) (*Server, error) {
+	options ...ServerOption,
+) (*Server, error) {
+	err := utils.RegisterPrometheusCollectors(userSessionLimitHitCount)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// read the host UUID:
 	uuid, err := utils.ReadOrMakeHostUUID(dataDir)
@@ -561,17 +576,18 @@ func New(addr utils.NetAddr,
 	}
 
 	// add in common auth handlers
-	s.authHandlers = &srv.AuthHandlers{
-		Entry: logrus.WithFields(logrus.Fields{
-			trace.Component:       component,
-			trace.ComponentFields: logrus.Fields{},
-		}),
+	authHandlerConfig := srv.AuthHandlerConfig{
 		Server:      s,
 		Component:   component,
 		AccessPoint: s.authService,
 		FIPS:        s.fips,
 		Emitter:     s.StreamEmitter,
 		Clock:       s.clock,
+	}
+
+	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// common term handlers
@@ -862,14 +878,14 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		return ctx, nil
 	}
 
-	cfg, err := s.authService.GetClusterConfig()
+	netConfig, err := s.authService.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
 
 	lock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: s.authService,
-		Expiry:  cfg.GetSessionControlTimeout(),
+		Expiry:  netConfig.GetSessionControlTimeout(),
 		Params: services.AcquireSemaphoreRequest{
 			SemaphoreKind: services.SemaphoreKindConnection,
 			SemaphoreName: identityContext.TeleportUser,
@@ -880,6 +896,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	if err != nil {
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
 			// user has exceeded their max concurrent ssh connections.
+			userSessionLimitHitCount.Inc()
 			if err := s.EmitAuditEvent(s.ctx, &events.SessionReject{
 				Metadata: events.Metadata{
 					Type: events.SessionRejectedEvent,
@@ -1190,10 +1207,10 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 
 	ch = scx.TrackActivity(ch)
 
-	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
+	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
-		log.Errorf("Unable to fetch cluster config: %v.", err)
-		writeStderr(ch, "Unable to fetch cluster configuration.")
+		log.Errorf("Unable to fetch cluster networking config: %v.", err)
+		writeStderr(ch, "Unable to fetch cluster networking configuration.")
 		return
 	}
 
@@ -1204,8 +1221,8 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 		Conns: []srv.RequestSender{
 			scx.ServerConn,
 		},
-		Interval:     clusterConfig.GetKeepAliveInterval(),
-		MaxCount:     clusterConfig.GetKeepAliveCountMax(),
+		Interval:     netConfig.GetKeepAliveInterval(),
+		MaxCount:     netConfig.GetKeepAliveCountMax(),
 		CloseContext: ctx,
 		CloseCancel:  scx.CancelFunc(),
 	})
@@ -1361,7 +1378,7 @@ func (s *Server) handleAgentForwardNode(req *ssh.Request, ctx *srv.ServerContext
 func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContext) error {
 	// Forwarding an agent to the proxy is only supported when the proxy is in
 	// recording mode.
-	if services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) == false {
+	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) == false {
 		return trace.BadParameter("agent forwarding to proxy only supported in recording mode")
 	}
 
@@ -1437,7 +1454,7 @@ func (s *Server) handleRecordingProxy(req *ssh.Request) {
 
 	if req.WantReply {
 		// get the cluster config, if we can't get it, reply false
-		clusterConfig, err := s.authService.GetClusterConfig()
+		recConfig, err := s.authService.GetSessionRecordingConfig(s.ctx)
 		if err != nil {
 			err := req.Reply(false, nil)
 			if err != nil {
@@ -1448,7 +1465,7 @@ func (s *Server) handleRecordingProxy(req *ssh.Request) {
 
 		// reply true that we were able to process the message and reply with a
 		// bool if we are in recording mode or not
-		recordingProxy = services.IsRecordAtProxy(clusterConfig.GetSessionRecording())
+		recordingProxy = services.IsRecordAtProxy(recConfig.GetMode())
 		err = req.Reply(true, []byte(strconv.FormatBool(recordingProxy)))
 		if err != nil {
 			log.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
@@ -1483,10 +1500,10 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 
 	ch = scx.TrackActivity(ch)
 
-	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
+	recConfig, err := s.GetAccessPoint().GetSessionRecordingConfig(ctx)
 	if err != nil {
-		log.Errorf("Unable to fetch cluster config: %v.", err)
-		writeStderr(ch, "Unable to fetch cluster configuration.")
+		log.Errorf("Unable to fetch session recording config: %v.", err)
+		writeStderr(ch, "Unable to fetch session recording configuration.")
 		return
 	}
 
@@ -1515,13 +1532,20 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	// "out of band", before SSH client actually asks for it
 	// which is a hack, but the only way we can think of making it work,
 	// ideas are appreciated.
-	if services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
+	if services.IsRecordAtProxy(recConfig.GetMode()) {
 		err = s.handleAgentForwardProxy(&ssh.Request{}, scx)
 		if err != nil {
 			log.Warningf("Failed to request agent in recording mode: %v", err)
 			writeStderr(ch, "Failed to request agent")
 			return
 		}
+	}
+
+	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		log.Errorf("Unable to fetch cluster networking config: %v.", err)
+		writeStderr(ch, "Unable to fetch cluster networking configuration.")
+		return
 	}
 
 	// The keep-alive loop will keep pinging the remote server and after it has
@@ -1531,8 +1555,8 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 		Conns: []srv.RequestSender{
 			scx.ServerConn,
 		},
-		Interval:     clusterConfig.GetKeepAliveInterval(),
-		MaxCount:     clusterConfig.GetKeepAliveCountMax(),
+		Interval:     netConfig.GetKeepAliveInterval(),
+		MaxCount:     netConfig.GetKeepAliveCountMax(),
 		CloseContext: ctx,
 		CloseCancel:  scx.CancelFunc(),
 	})

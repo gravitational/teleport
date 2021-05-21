@@ -16,7 +16,11 @@ limitations under the License.
 
 package services
 
-import "context"
+import (
+	"context"
+
+	"github.com/gravitational/teleport/api/types"
+)
 
 // ClusterConfiguration stores the cluster configuration in the backend. All
 // the resources modified by this interface can only have a single instance
@@ -46,10 +50,24 @@ type ClusterConfiguration interface {
 	// DeleteAuthPreference deletes services.AuthPreference from the backend.
 	DeleteAuthPreference(ctx context.Context) error
 
+	// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
+	GetSessionRecordingConfig(context.Context, ...MarshalOption) (types.SessionRecordingConfig, error)
+	// SetSessionRecordingConfig sets SessionRecordingConfig from the backend.
+	SetSessionRecordingConfig(context.Context, types.SessionRecordingConfig) error
+	// DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.
+	DeleteSessionRecordingConfig(ctx context.Context) error
+
 	// GetClusterConfig gets services.ClusterConfig from the backend.
 	GetClusterConfig(opts ...MarshalOption) (ClusterConfig, error)
 	// SetClusterConfig sets services.ClusterConfig on the backend.
 	SetClusterConfig(ClusterConfig) error
 	// DeleteClusterConfig deletes cluster config resource
 	DeleteClusterConfig() error
+
+	// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
+	GetClusterNetworkingConfig(context.Context, ...MarshalOption) (types.ClusterNetworkingConfig, error)
+	// SetClusterNetworkingConfig sets ClusterNetworkingConfig from the backend.
+	SetClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) error
+	// DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
+	DeleteClusterNetworkingConfig(ctx context.Context) error
 }

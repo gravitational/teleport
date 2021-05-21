@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,7 +37,15 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+)
+
+var proxyConnectionLimitHitCount = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricProxyConnectionLimitHit,
+		Help: "Number of times the proxy connection limit was exceeded",
+	},
 )
 
 // Server is a generic implementation of an SSH server. All Teleport
@@ -144,8 +152,12 @@ func NewServer(
 	h NewChanHandler,
 	hostSigners []ssh.Signer,
 	ah AuthMethods,
-	opts ...ServerOption) (*Server, error) {
-	var err error
+	opts ...ServerOption,
+) (*Server, error) {
+	err := utils.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
@@ -407,6 +419,9 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		log.Errorf(err.Error())
 	}
 	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
+		if trace.IsLimitExceeded(err) {
+			proxyConnectionLimitHitCount.Inc()
+		}
 		log.Errorf(err.Error())
 		conn.Close()
 		return
@@ -439,7 +454,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 	// Connection successfully initiated
-	s.log.Debugf("Incoming connection %v -> %v vesion: %v.",
+	s.log.Debugf("Incoming connection %v -> %v version: %v.",
 		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
 
 	// will be called when the connection is closed
@@ -598,8 +613,10 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 	return nil
 }
 
-type PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
-type PasswordFunc func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
+type (
+	PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
+	PasswordFunc  func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
+)
 
 // HandshakePayload structure is sent as a JSON blob by the teleport
 // proxy to every SSH server who identifies itself as Teleport server
@@ -653,7 +670,7 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	}
 	// chop off extra unused bytes at the end of the buffer:
 	buff = buff[:n]
-	var skip = 0
+	skip := 0
 
 	// are we reading from a Teleport proxy?
 	if bytes.HasPrefix(buff, []byte(ProxyHelloSignature)) {

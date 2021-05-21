@@ -47,7 +47,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -293,6 +295,9 @@ type TeleportProcess struct {
 	// appDependCh is used by application service in single process mode to block
 	// until auth and reverse tunnel servers are ready.
 	appDependCh chan Event
+
+	// clusterFeatures contain flags for supported and unsupported features.
+	clusterFeatures proto.Features
 }
 
 type keyPairKey struct {
@@ -353,6 +358,22 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 	defer process.Unlock()
 
 	process.connectors[connector.ClientIdentity.ID.Role] = connector
+}
+
+func (process *TeleportProcess) setClusterFeatures(features *proto.Features) {
+	process.Lock()
+	defer process.Unlock()
+
+	if features != nil {
+		process.clusterFeatures = *features
+	}
+}
+
+func (process *TeleportProcess) getClusterFeatures() proto.Features {
+	process.Lock()
+	defer process.Unlock()
+
+	return process.clusterFeatures
 }
 
 // GetIdentity returns the process identity (credentials to the auth server) for a given
@@ -1043,7 +1064,7 @@ func (process *TeleportProcess) initAuthService() error {
 		// check if session recording has been disabled. note, we will continue
 		// logging audit events, we just won't record sessions.
 		recordSessions := true
-		if cfg.Auth.ClusterConfig.GetSessionRecording() == services.RecordOff {
+		if cfg.Auth.SessionRecordingConfig.GetMode() == services.RecordOff {
 			recordSessions = false
 
 			warningMessage := "Warning: Teleport session recording have been turned off. " +
@@ -1136,33 +1157,35 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
-		Backend:              b,
-		Authority:            cfg.Keygen,
-		ClusterConfiguration: cfg.ClusterConfiguration,
-		ClusterConfig:        cfg.Auth.ClusterConfig,
-		ClusterName:          cfg.Auth.ClusterName,
-		AuthServiceName:      cfg.Hostname,
-		DataDir:              cfg.DataDir,
-		HostUUID:             cfg.HostUUID,
-		NodeName:             cfg.Hostname,
-		Authorities:          cfg.Auth.Authorities,
-		Resources:            cfg.Auth.Resources,
-		ReverseTunnels:       cfg.ReverseTunnels,
-		Trust:                cfg.Trust,
-		Presence:             cfg.Presence,
-		Events:               cfg.Events,
-		Provisioner:          cfg.Provisioner,
-		Identity:             cfg.Identity,
-		Access:               cfg.Access,
-		StaticTokens:         cfg.Auth.StaticTokens,
-		Roles:                cfg.Auth.Roles,
-		AuthPreference:       cfg.Auth.Preference,
-		OIDCConnectors:       cfg.OIDCConnectors,
-		AuditLog:             process.auditLog,
-		CipherSuites:         cfg.CipherSuites,
-		CASigningAlg:         cfg.CASignatureAlgorithm,
-		Emitter:              checkingEmitter,
-		Streamer:             events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+		Backend:                 b,
+		Authority:               cfg.Keygen,
+		ClusterConfiguration:    cfg.ClusterConfiguration,
+		ClusterConfig:           cfg.Auth.ClusterConfig,
+		ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
+		SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
+		ClusterName:             cfg.Auth.ClusterName,
+		AuthServiceName:         cfg.Hostname,
+		DataDir:                 cfg.DataDir,
+		HostUUID:                cfg.HostUUID,
+		NodeName:                cfg.Hostname,
+		Authorities:             cfg.Auth.Authorities,
+		Resources:               cfg.Auth.Resources,
+		ReverseTunnels:          cfg.ReverseTunnels,
+		Trust:                   cfg.Trust,
+		Presence:                cfg.Presence,
+		Events:                  cfg.Events,
+		Provisioner:             cfg.Provisioner,
+		Identity:                cfg.Identity,
+		Access:                  cfg.Access,
+		StaticTokens:            cfg.Auth.StaticTokens,
+		Roles:                   cfg.Auth.Roles,
+		AuthPreference:          cfg.Auth.Preference,
+		OIDCConnectors:          cfg.OIDCConnectors,
+		AuditLog:                process.auditLog,
+		CipherSuites:            cfg.CipherSuites,
+		CASigningAlg:            cfg.CASignatureAlgorithm,
+		Emitter:                 checkingEmitter,
+		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1646,12 +1669,11 @@ func (process *TeleportProcess) initSSH() error {
 
 		// If session recording is disabled at the cluster level and the node is
 		// attempting to enabled enhanced session recording, show an error.
-		clusterConfig, err := authClient.GetClusterConfig()
+		recConfig, err := authClient.GetSessionRecordingConfig(process.ExitContext())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if clusterConfig.GetSessionRecording() == services.RecordOff &&
-			cfg.SSH.BPF.Enabled {
+		if recConfig.GetMode() == services.RecordOff && cfg.SSH.BPF.Enabled {
 			return trace.BadParameter("session recording is disabled at the cluster " +
 				"level. To enable enhanced session recording, enable session recording at " +
 				"the cluster level, then restart Teleport.")
@@ -2003,7 +2025,11 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	// Create a state machine that will process and update the internal state of
 	// Teleport based off Events. Use this state machine to return return the
 	// status from the /readyz endpoint.
-	ps := newProcessState(process)
+	ps, err := newProcessState(process)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	process.RegisterFunc("readyz.monitor", func() error {
 		// Start loop to monitor for events that are used to update Teleport state.
 		eventCh := make(chan Event, 1024)
@@ -2099,6 +2125,8 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 		)
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
+		addrs = append(addrs, process.Config.Proxy.PostgresPublicAddrs...)
+		addrs = append(addrs, process.Config.Proxy.MySQLPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
 		// Automatically add wildcards for every proxy public address for k8s SNI routing
 		if process.Config.Proxy.Kube.Enabled {
@@ -2269,7 +2297,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	case cfg.Proxy.DisableWebService && cfg.Proxy.DisableReverseTunnel:
 		process.log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy are disabled.")
 		return &listeners, nil
-	case cfg.Proxy.ReverseTunnelListenAddr.Equals(cfg.Proxy.WebAddr) && !cfg.Proxy.DisableTLS:
+	case cfg.Proxy.ReverseTunnelListenAddr == cfg.Proxy.WebAddr && !cfg.Proxy.DisableTLS:
 		process.log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
 		listener, err := process.importOrCreateListener(listenerProxyTunnelAndWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
@@ -2486,11 +2514,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var webServer *http.Server
 	var webHandler *web.RewritingHandler
 	if !process.Config.Proxy.DisableWebService {
-		proxySettings := client.ProxySettings{
-			Kube: client.KubeProxySettings{
+		proxySettings := webclient.ProxySettings{
+			Kube: webclient.KubeProxySettings{
 				Enabled: cfg.Proxy.Kube.Enabled,
 			},
-			SSH: client.SSHProxySettings{
+			SSH: webclient.SSHProxySettings{
 				ListenAddr:       proxySSHAddr.Addr,
 				TunnelListenAddr: cfg.Proxy.ReverseTunnelListenAddr.String(),
 			},
@@ -2510,8 +2538,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
 		}
+		if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
+			proxySettings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
+		}
 		if !cfg.Proxy.MySQLAddr.IsEmpty() {
 			proxySettings.DB.MySQLListenAddr = cfg.Proxy.MySQLAddr.String()
+		}
+		if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
+			proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
 		}
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {
@@ -2520,23 +2554,25 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return trace.Wrap(err)
 			}
 		}
+
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:          tsrv,
-				AuthServers:    cfg.AuthServers[0],
-				DomainName:     cfg.Hostname,
-				ProxyClient:    conn.Client,
-				ProxySSHAddr:   proxySSHAddr,
-				ProxyWebAddr:   cfg.Proxy.WebAddr,
-				ProxySettings:  proxySettings,
-				CipherSuites:   cfg.CipherSuites,
-				FIPS:           cfg.FIPS,
-				AccessPoint:    accessPoint,
-				Emitter:        streamEmitter,
-				PluginRegistry: process.PluginRegistry,
-				HostUUID:       process.Config.HostUUID,
-				Context:        process.ExitContext(),
-				StaticFS:       fs,
+				Proxy:           tsrv,
+				AuthServers:     cfg.AuthServers[0],
+				DomainName:      cfg.Hostname,
+				ProxyClient:     conn.Client,
+				ProxySSHAddr:    proxySSHAddr,
+				ProxyWebAddr:    cfg.Proxy.WebAddr,
+				ProxySettings:   proxySettings,
+				CipherSuites:    cfg.CipherSuites,
+				FIPS:            cfg.FIPS,
+				AccessPoint:     accessPoint,
+				Emitter:         streamEmitter,
+				PluginRegistry:  process.PluginRegistry,
+				HostUUID:        process.Config.HostUUID,
+				Context:         process.ExitContext(),
+				StaticFS:        fs,
+				ClusterFeatures: process.getClusterFeatures(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3007,6 +3043,13 @@ func (process *TeleportProcess) initApps() {
 				a.Rewrite = &services.Rewrite{
 					Redirect: app.Rewrite.Redirect,
 				}
+				for _, header := range app.Rewrite.Headers {
+					a.Rewrite.Headers = append(a.Rewrite.Headers,
+						&types.Header{
+							Name:  header.Name,
+							Value: header.Value,
+						})
+				}
 			}
 
 			applications = append(applications, a)
@@ -3104,7 +3147,6 @@ func (process *TeleportProcess) initApps() {
 
 		log.Infof("Exited.")
 	})
-
 }
 
 func warnOnErr(err error, log logrus.FieldLogger) {

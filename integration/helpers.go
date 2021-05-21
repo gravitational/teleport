@@ -653,7 +653,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// if user keys are not present, auto-geneate keys:
+		// if user keys are not present, auto-generate keys:
 		if user.Key == nil || len(user.Key.Pub) == 0 {
 			priv, pub, _ := tconf.Keygen.GenerateKeyPair("")
 			user.Key = &client.Key{
@@ -673,16 +673,16 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 
 // StartNode starts a SSH node and connects it to the cluster.
 func (i *TeleInstance) StartNode(tconf *service.Config) (*service.TeleportProcess, error) {
-	return i.startNode(tconf, false)
+	return i.startNode(tconf, i.GetPortAuth())
 }
 
 // StartReverseTunnelNode starts a SSH node and connects it to the cluster via reverse tunnel.
 func (i *TeleInstance) StartReverseTunnelNode(tconf *service.Config) (*service.TeleportProcess, error) {
-	return i.startNode(tconf, true)
+	return i.startNode(tconf, i.GetPortWeb())
 }
 
 // startNode starts a node and connects it to the cluster.
-func (i *TeleInstance) startNode(tconf *service.Config, reverseTunnel bool) (*service.TeleportProcess, error) {
+func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*service.TeleportProcess, error) {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -690,11 +690,6 @@ func (i *TeleInstance) startNode(tconf *service.Config, reverseTunnel bool) (*se
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf.DataDir = dataDir
-
-	authPort := i.GetPortAuth()
-	if reverseTunnel {
-		authPort = i.GetPortWeb()
-	}
 
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
@@ -1167,6 +1162,11 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		sshProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.SSHPort))
 	}
 
+	fwdAgentMode := client.ForwardAgentNo
+	if cfg.ForwardAgent {
+		fwdAgentMode = client.ForwardAgentYes
+	}
+
 	cconf := &client.Config{
 		Username:           cfg.Login,
 		Host:               cfg.Host,
@@ -1175,7 +1175,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		InsecureSkipVerify: true,
 		KeysDir:            keyDir,
 		SiteName:           cfg.Cluster,
-		ForwardAgent:       cfg.ForwardAgent,
+		ForwardAgent:       fwdAgentMode,
 		Labels:             cfg.Labels,
 		WebProxyAddr:       webProxyAddr,
 		SSHProxyAddr:       sshProxyAddr,

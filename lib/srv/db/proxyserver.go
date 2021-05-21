@@ -99,7 +99,8 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	server := &ProxyServer{
 		cfg: config,
 		middleware: &auth.Middleware{
-			AccessPoint: config.AccessPoint,
+			AccessPoint:   config.AccessPoint,
+			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 		closeCtx: ctx,
 		log:      logrus.WithField(trace.Component, "db:proxy"),
@@ -137,8 +138,7 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 			defer clientConn.Close()
 			err := proxy.HandleConnection(s.closeCtx, clientConn)
 			if err != nil {
-				s.log.Errorf("Failed to handle client connection: %v.",
-					trace.DebugReport(err))
+				s.log.WithError(err).Warn("Failed to handle client connection.")
 			}
 		}()
 	}
@@ -260,7 +260,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, clientConn, serviceConn io.Read
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-errCh:
-			if err != nil && err != io.EOF && !strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+			if err != nil && !utils.IsOKNetworkError(err) {
 				s.log.WithError(err).Warn("Connection problem.")
 				errs = append(errs, err)
 			}

@@ -43,21 +43,22 @@ type fragmentRequest struct {
 func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
 	switch r.Method {
 	case http.MethodGet:
+		q := r.URL.Query()
 		// If the state query parameter is not set, generate a new state token,
 		// store it in a cookie and redirect back to the app launcher.
-		if r.URL.Query().Get("state") == "" {
+		if q.Get("state") == "" {
 			stateToken, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 			if err != nil {
 				h.log.WithError(err).Debugf("Failed to generate and encode random numbers.")
 				return trace.AccessDenied("access denied")
 			}
 			h.setAuthStateCookie(w, stateToken)
-			p := launcherURLParams{
-				clusterName: r.URL.Query().Get("cluster"),
-				publicAddr:  r.URL.Query().Get("addr"),
+			urlParams := launcherURLParams{
+				clusterName: q.Get("cluster"),
+				publicAddr:  q.Get("addr"),
 				stateToken:  stateToken,
 			}
-			return h.redirectToLauncher(w, r, p)
+			return h.redirectToLauncher(w, r, urlParams)
 		}
 
 		nonce, err := utils.CryptoRandomHex(auth.TokenLenBytes)

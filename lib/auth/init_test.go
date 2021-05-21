@@ -157,84 +157,160 @@ func TestBadIdentity(t *testing.T) {
 // TestAuthPreference ensures that the act of creating an AuthServer sets
 // the AuthPreference (type and second factor) on the backend.
 func TestAuthPreference(t *testing.T) {
-	tempDir := t.TempDir()
-
-	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
-	require.NoError(t, err)
-
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         "local",
-		SecondFactor: "u2f",
-		U2F: &services.U2F{
-			AppID:  "foo",
-			Facets: []string{"bar", "baz"},
-		},
-	})
-	require.NoError(t, err)
-
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
-	require.NoError(t, err)
-
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{},
-	})
-	require.NoError(t, err)
-
-	ac := InitConfig{
-		DataDir:        tempDir,
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   staticTokens,
-		AuthPreference: ap,
-	}
-	as, err := Init(ac)
+	conf := setupConfig(t)
+	conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
+	as, err := Init(conf)
 	require.NoError(t, err)
 	defer as.Close()
 
 	cap, err := as.GetAuthPreference()
 	require.NoError(t, err)
-	require.Equal(t, cap.GetType(), "local")
-	require.Equal(t, cap.GetSecondFactor(), constants.SecondFactorU2F)
+	require.Empty(t, resourceDiff(cap, conf.AuthPreference))
+}
 
-	u, err := cap.GetU2F()
+func TestAuthPreferenceInitFromConfigFileToDefault(t *testing.T) {
+	// Simulate a server with auth preference from config file.
+	var err error
+	conf := setupConfig(t)
+	conf.AuthPreference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		SecondFactor: constants.SecondFactorOff,
+	})
 	require.NoError(t, err)
-	require.Equal(t, u.AppID, "foo")
-	require.Equal(t, u.Facets, []string{"bar", "baz"})
+	authServer, err := Init(conf)
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	storedAuthPref, err := authServer.GetAuthPreference()
+	require.NoError(t, err)
+	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
+
+	// Reset the auth preference to default.
+	conf.AuthPreference = types.DefaultAuthPreference()
+	authServer, err = Init(conf)
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	// Verify the stored auth preference is now labelled as originating from
+	// defaults.
+	storedAuthPref, err = authServer.GetAuthPreference()
+	require.NoError(t, err)
+	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
+}
+
+func TestAuthPreferenceInitFromDynamicToDefault(t *testing.T) {
+	// Simulate a server with auth preference set dynamically.
+	origAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		SecondFactor: constants.SecondFactorOff,
+	})
+	require.NoError(t, err)
+	conf := setupConfig(t)
+	authServer, err := Init(conf)
+	require.NoError(t, err)
+	defer authServer.Close()
+	err = authServer.SetAuthPreference(origAuthPref)
+	require.NoError(t, err)
+
+	storedAuthPref, err := authServer.GetAuthPreference()
+	require.NoError(t, err)
+	require.Empty(t, resourceDiff(origAuthPref, storedAuthPref))
+
+	// Attempt to reset to default should be a no-op.
+	conf.AuthPreference = types.DefaultAuthPreference()
+	authServer, err = Init(conf)
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	// Verify the stored auth preference remains unchanged.
+	storedAuthPref, err = authServer.GetAuthPreference()
+	require.NoError(t, err)
+	require.Empty(t, resourceDiff(origAuthPref, storedAuthPref))
+}
+
+func TestAuthPreferenceInitFromDynamicToConfigFile(t *testing.T) {
+	// Simulate a server with auth preference set dynamically.
+	origAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		SecondFactor: constants.SecondFactorOff,
+	})
+	require.NoError(t, err)
+	conf := setupConfig(t)
+	authServer, err := Init(conf)
+	require.NoError(t, err)
+	defer authServer.Close()
+	err = authServer.SetAuthPreference(origAuthPref)
+	require.NoError(t, err)
+
+	storedAuthPref, err := authServer.GetAuthPreference()
+	require.NoError(t, err)
+	require.Empty(t, resourceDiff(origAuthPref, storedAuthPref))
+
+	// Overwriting with a config-file preference should work.
+	conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
+	authServer, err = Init(conf)
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	// Verify the stored auth preference is updated.
+	storedAuthPref, err = authServer.GetAuthPreference()
+	require.NoError(t, err)
+	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
+}
+
+func TestAuthPreferenceInitWithFirstConfigFile(t *testing.T) {
+	// Simulate a server with default auth preference.
+	conf := setupConfig(t)
+	conf.AuthPreference = types.DefaultAuthPreference()
+	authServer, err := Init(conf)
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	storedAuthPref, err := authServer.GetAuthPreference()
+	require.NoError(t, err)
+	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
+
+	// Overwriting with a config-file preference should work.
+	conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
+	require.NoError(t, err)
+	authServer, err = Init(conf)
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	// Verify the stored auth preference is updated.
+	storedAuthPref, err = authServer.GetAuthPreference()
+	require.NoError(t, err)
+	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
+}
+
+func TestAuthPreferenceInitWithSecondConfigFile(t *testing.T) {
+	// Simulate a server with auth preference from config file.
+	var err error
+	conf := setupConfig(t)
+	conf.AuthPreference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		SecondFactor: constants.SecondFactorOff,
+	})
+	require.NoError(t, err)
+	authServer, err := Init(conf)
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	storedAuthPref, err := authServer.GetAuthPreference()
+	require.NoError(t, err)
+	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
+
+	// Overwriting with a config-file preference should work.
+	conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
+	authServer, err = Init(conf)
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	// Verify the stored auth preference is updated.
+	storedAuthPref, err = authServer.GetAuthPreference()
+	require.NoError(t, err)
+	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
 }
 
 func TestClusterID(t *testing.T) {
-	tempDir := t.TempDir()
-
-	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
-	require.NoError(t, err)
-
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
-	require.NoError(t, err)
-
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type: "local",
-	})
-	require.NoError(t, err)
-
-	authServer, err := Init(InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   services.DefaultStaticTokens(),
-		AuthPreference: authPreference,
-	})
+	conf := setupConfig(t)
+	authServer, err := Init(conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -244,17 +320,7 @@ func TestClusterID(t *testing.T) {
 	require.NotEqual(t, clusterID, "")
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   services.DefaultStaticTokens(),
-		AuthPreference: authPreference,
-	})
+	authServer, err = Init(conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -265,85 +331,29 @@ func TestClusterID(t *testing.T) {
 
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
-	bk, err := lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
-	require.NoError(t, err)
-
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
-	require.NoError(t, err)
-
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type: "local",
-	})
-	require.NoError(t, err)
-
-	authServer, err := Init(InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   services.DefaultStaticTokens(),
-		AuthPreference: authPreference,
-	})
+	conf := setupConfig(t)
+	authServer, err := Init(conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
 	// Start the auth server with a different cluster name. The auth server
 	// should start, but with the original name.
-	clusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
+	newConfig := conf
+	newConfig.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: "dev.localhost",
 	})
 	require.NoError(t, err)
-
-	authServer, err = Init(InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   services.DefaultStaticTokens(),
-		AuthPreference: authPreference,
-	})
+	authServer, err = Init(newConfig)
 	require.NoError(t, err)
 	defer authServer.Close()
 
 	cn, err := authServer.GetClusterName()
 	require.NoError(t, err)
-	require.Equal(t, cn.GetClusterName(), "me.localhost")
+	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
+	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
 }
 
 func TestCASigningAlg(t *testing.T) {
-	bk, err := lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
-	require.NoError(t, err)
-
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
-	require.NoError(t, err)
-
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type: "local",
-	})
-	require.NoError(t, err)
-
-	conf := InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   services.DefaultStaticTokens(),
-		AuthPreference: authPreference,
-	}
-
 	verifyCAs := func(auth *Server, alg string) {
 		hostCAs, err := auth.GetCertAuthorities(services.HostCA, false)
 		require.NoError(t, err)
@@ -358,8 +368,10 @@ func TestCASigningAlg(t *testing.T) {
 	}
 
 	// Start a new server without specifying a signing alg.
+	conf := setupConfig(t)
 	auth, err := Init(conf)
 	require.NoError(t, err)
+	defer auth.Close()
 	verifyCAs(auth, ssh.SigAlgoRSASHA2512)
 
 	require.NoError(t, auth.Close())
@@ -387,7 +399,7 @@ func TestCASigningAlg(t *testing.T) {
 
 func TestMigrateMFADevices(t *testing.T) {
 	ctx := context.Background()
-	as := newTestAuthServer(t)
+	as := newTestAuthServer(ctx, t)
 	clock := clockwork.NewFakeClock()
 	as.SetClock(clock)
 
@@ -463,6 +475,7 @@ func TestMigrateMFADevices(t *testing.T) {
 	cmpOpts := []cmp.Option{
 		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
 		cmpopts.IgnoreFields(types.MFADevice{}, "Id"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.SortSlices(func(a, b types.User) bool { return a.GetName() < b.GetName() }),
 	}
 
@@ -489,7 +502,7 @@ func TestPresets(t *testing.T) {
 		services.NewPresetAuditorRole()}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -509,7 +522,7 @@ func TestPresets(t *testing.T) {
 
 	// Makes sure that existing role with the same name is not modified
 	t.Run("ExistingRole", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -539,7 +552,7 @@ func TestMigrateOSS(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("EmptyCluster", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -561,7 +574,7 @@ func TestMigrateOSS(t *testing.T) {
 	})
 
 	t.Run("User", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -586,7 +599,7 @@ func TestMigrateOSS(t *testing.T) {
 
 	t.Run("TrustedCluster", func(t *testing.T) {
 		clusterName := "test.localhost"
-		as := newTestAuthServer(t, clusterName)
+		as := newTestAuthServer(ctx, t, clusterName)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -647,7 +660,7 @@ func TestMigrateOSS(t *testing.T) {
 	})
 
 	t.Run("GithubConnector", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -716,7 +729,33 @@ func TestMigrateOSS(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, mappings, out.GetTeamsToLogins())
 	})
+}
 
+func setupConfig(t *testing.T) InitConfig {
+	tempDir := t.TempDir()
+
+	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
+	require.NoError(t, err)
+
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	require.NoError(t, err)
+
+	return InitConfig{
+		DataDir:                 tempDir,
+		HostUUID:                "00000000-0000-0000-0000-000000000000",
+		NodeName:                "foo",
+		Backend:                 bk,
+		Authority:               testauthority.New(),
+		ClusterConfig:           services.DefaultClusterConfig(),
+		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
+		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
+		ClusterName:             clusterName,
+		StaticTokens:            services.DefaultStaticTokens(),
+		AuthPreference:          services.DefaultAuthPreference(),
+		SkipPeriodicOperations:  true,
+	}
 }
 
 func newUserWithAuth(t *testing.T, name string, auth *types.LocalAuthSecrets) services.User {
@@ -724,4 +763,17 @@ func newUserWithAuth(t *testing.T, name string, auth *types.LocalAuthSecrets) se
 	require.NoError(t, err)
 	u.SetLocalAuth(auth)
 	return u
+}
+
+func newU2FAuthPreferenceFromConfigFile(t *testing.T) types.AuthPreference {
+	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorU2F,
+		U2F: &types.U2F{
+			AppID:  "foo",
+			Facets: []string{"bar", "baz"},
+		},
+	})
+	require.NoError(t, err)
+	return ap
 }

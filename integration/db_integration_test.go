@@ -202,11 +202,6 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	SetTestTimeouts(100 * time.Millisecond)
 	log := testlog.FailureOnly(t)
 
-	// Create ports allocator.
-	startPort := utils.PortStartingNumber + (3 * AllocatePortsNum) + 1
-	ports, err := utils.GetFreeTCPPorts(AllocatePortsNum, startPort)
-	require.NoError(t, err)
-
 	// Generate keypair.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
 	require.NoError(t, err)
