@@ -667,9 +667,6 @@ func New(addr utils.NetAddr,
 		return nil, trace.Wrap(err)
 	}
 	s.heartbeat = heartbeat
-
-	log.Warnf("******************** NEWSERVER @%p IN PROXY MODE: %v", s, s.proxyMode)
-
 	return s, nil
 }
 
@@ -978,8 +975,6 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 
 // HandleNewChan is called when new channel is opened
 func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
-	s.Logger.Warnf("******************** HANDLENEWCHAN (%v) @ %p->%p", s.portForwardingMode, s, s.srv)
-
 	identityContext, err := s.authHandlers.CreateIdentityContext(ccx.ServerConn)
 	if err != nil {
 		rejectChannel(nch, ssh.Prohibited, fmt.Sprintf("Unable to create identity from connection: %v", err))
@@ -987,9 +982,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	channelType := nch.ChannelType()
-	s.Logger.Warnf("******************** ChanType %v", channelType)
 	if s.proxyMode {
-		s.Logger.Warnf("******************** IN Proxy Mode")
 		switch channelType {
 		// Channels of type "direct-tcpip", for proxies, it's equivalent
 		// of teleport proxy: subsystem
@@ -1025,8 +1018,6 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			return
 		}
 	}
-
-	s.Logger.Warnf("******************** NOT IN Proxy Mode")
 
 	switch channelType {
 	// Channels of type "session" handle requests that are involved in running
@@ -1107,7 +1098,6 @@ func (s *Server) NodeAllowsPortForward() bool {
 	// Because we do not support remote port forwarding (i.e. from the Internet
 	// back to the client), the values `SSHPortForwardingModeAll` and
 	// `SSHPortForwardingModeLocal` are effectively synonyms.
-	s.Logger.Warnf("************ Checking if node allows port forwarding: %v\n", s.portForwardingMode)
 	switch s.portForwardingMode {
 	case SSHPortForwardingModeAll, SSHPortForwardingModeLocal:
 		return true

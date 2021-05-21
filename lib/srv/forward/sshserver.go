@@ -656,7 +656,6 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 			}
 			return
 		}
-
 		ch, _, err := nch.Accept()
 		if err != nil {
 			s.log.Warnf("Unable to accept channel: %v", err)
