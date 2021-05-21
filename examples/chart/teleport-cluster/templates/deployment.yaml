@@ -45,19 +45,26 @@ spec:
         {{- else }}
         podAntiAffinity:
         {{- if .Values.highAvailability.requireAntiAffinity }}
-        requiredDuringSchedulingIgnoredDuringExecution:
-        {{- else if gt (int .Values.highAvailability.replicaCount) 1 }}
-        preferredDuringSchedulingIgnoredDuringExecution:
-        {{- end }}
-        - weight: 50
-          podAffinityTerm:
-            labelSelector:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
               matchExpressions:
               - key: app
                 operator: In
                 values:
                 - {{ .Release.Name }}
             topologyKey: "kubernetes.io/hostname"
+        {{- else if gt (int .Values.highAvailability.replicaCount) 1 }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+        {{- end }}
         {{- end }}
       {{- end }}
       {{- if .Values.tolerations }}
