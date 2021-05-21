@@ -22,8 +22,11 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"time"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
@@ -633,4 +636,110 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	}
 
 	return re, nil
+}
+
+// SearchEvents allows searching for audit events with pagination support.
+func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			log.WithError(err).Debug("Attempted to call SearchEvents over gRPC but received a notImplemented error, falling back to legacy API.")
+			return c.searchEventsFallback(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+		}
+
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
+}
+
+// SearchSessionEvents returns session related events to find completed sessions.
+func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, startKey)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			log.WithError(err).Debug("Attempted to call SearchSessionEvents over gRPC but received a notImplemented error, falling back to legacy API.")
+			return c.searchSessionEventsFallback(context.TODO(), fromUTC, toUTC, limit, startKey)
+		}
+
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
+}
+
+// searchEventsFallback is a fallback version of SearchEvents that queries the deprecated
+// HTTP API if the auth server is on a version < 6.2.
+//
+// DELETE IN 7.0
+func (c *Client) searchEventsFallback(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	if startKey != "" {
+		return nil, "", trace.BadParameter(`HTTP fallback API for SearchEvents does not support "startKey"`)
+	}
+
+	query := url.Values{
+		"to":    []string{toUTC.Format(time.RFC3339)},
+		"from":  []string{toUTC.Format(time.RFC3339)},
+		"limit": []string{fmt.Sprintf("%v", limit)},
+	}
+
+	for _, eventType := range eventTypes {
+		query.Add(events.EventType, eventType)
+	}
+
+	response, err := c.Get(c.Endpoint("events"), query)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	eventArr, err := c.unmarshalEventsResponse(response)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return eventArr, "", nil
+}
+
+// searchSessionEventsFallback is a fallback version of SearchSessionEvents that queries the deprecated
+// HTTP API if the auth server is on a version < 6.2.
+//
+// DELETE IN 7.0
+func (c *Client) searchSessionEventsFallback(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	if startKey != "" {
+		return nil, "", trace.BadParameter(`HTTP fallback API for SearchSessionEvents does not support "startKey"`)
+	}
+
+	query := url.Values{
+		"to":    []string{toUTC.Format(time.RFC3339)},
+		"from":  []string{toUTC.Format(time.RFC3339)},
+		"limit": []string{fmt.Sprintf("%v", limit)},
+	}
+
+	response, err := c.Get(c.Endpoint("events", "session"), query)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	eventArr, err := c.unmarshalEventsResponse(response)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return eventArr, "", nil
+}
+
+// unmarshalEventsResponse extracts weakly typed JSON-style audit events from a HTTP body
+// and converts them into a slice of strongly typed gRPC-style audit events.
+func (c *Client) unmarshalEventsResponse(response *roundtrip.Response) ([]events.AuditEvent, error) {
+	dynEventArr := make([]events.EventFields, 0)
+	if err := json.Unmarshal(response.Bytes(), &dynEventArr); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	eventArr, err := events.FromEventFieldsSlice(dynEventArr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return eventArr, nil
 }
