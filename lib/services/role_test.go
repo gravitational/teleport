@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -163,7 +161,21 @@ func TestRoleParse(t *testing.T) {
 			matchMessage: "missing verbs",
 		},
 		{
-			name: "role with no spec still gets defaults",
+			name:         "validation error, no version",
+			in:           `{"kind": "role", "metadata": {"name": "defrole"}, "spec": {}}`,
+			role:         RoleV3{},
+			error:        trace.BadParameter(""),
+			matchMessage: `role version "" is not supported`,
+		},
+		{
+			name:         "validation error, bad version",
+			in:           `{"kind": "role", "version": "v2", "metadata": {"name": "defrole"}, "spec": {}}`,
+			role:         RoleV3{},
+			error:        trace.BadParameter(""),
+			matchMessage: `role version "v2" is not supported`,
+		},
+		{
+			name: "v3 role with no spec gets v3 defaults",
 			in:   `{"kind": "role", "version": "v3", "metadata": {"name": "defrole"}, "spec": {}}`,
 			role: RoleV3{
 				Kind:    KindRole,
@@ -185,6 +197,33 @@ func TestRoleParse(t *testing.T) {
 						KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
 						DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
 						Namespaces:       []string{defaults.Namespace},
+					},
+					Deny: RoleConditions{
+						Namespaces: []string{defaults.Namespace},
+					},
+				},
+			},
+			error: nil,
+		},
+		{
+			name: "v4 role gets v4 defaults",
+			in:   `{"kind": "role", "version": "v4", "metadata": {"name": "defrole"}, "spec": {}}`,
+			role: RoleV3{
+				Kind:    KindRole,
+				Version: types.V4,
+				Metadata: Metadata{
+					Name:      "defrole",
+					Namespace: defaults.Namespace,
+				},
+				Spec: RoleSpecV3{
+					Options: RoleOptions{
+						CertificateFormat: teleport.CertificateFormatStandard,
+						MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
+						PortForwarding:    NewBoolOption(true),
+						BPF:               defaults.EnhancedEvents(),
+					},
+					Allow: RoleConditions{
+						Namespaces: []string{defaults.Namespace},
 					},
 					Deny: RoleConditions{
 						Namespaces: []string{defaults.Namespace},
@@ -442,7 +481,7 @@ func TestRoleParse(t *testing.T) {
 				}
 			} else {
 				require.NoError(t, err)
-				require.True(t, cmp.Equal(role, &tc.role))
+				require.Equal(t, role, &tc.role)
 
 				err := ValidateRole(role)
 				require.NoError(t, err)
@@ -452,7 +491,7 @@ func TestRoleParse(t *testing.T) {
 
 				role2, err := UnmarshalRole(out)
 				require.NoError(t, err)
-				require.True(t, cmp.Equal(role2, &tc.role))
+				require.Equal(t, role2, &tc.role)
 			}
 		})
 	}
@@ -526,7 +565,8 @@ func TestValidateRole(t *testing.T) {
 				Name:      "name1",
 				Namespace: defaults.Namespace,
 			},
-			Spec: tc.spec,
+			Version: V3,
+			Spec:    tc.spec,
 		})
 		if tc.err != nil {
 			require.Error(t, err, tc.name)
@@ -2100,6 +2140,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		types.DatabaseServerSpecV3{})
 	roleDevStage := &RoleV3{
 		Metadata: Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
+		Version:  V3,
 		Spec: RoleSpecV3{
 			Allow: RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
@@ -2113,8 +2154,10 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 	}
+	require.NoError(t, roleDevStage.CheckAndSetDefaults())
 	roleDevProd := &RoleV3{
 		Metadata: Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
+		Version:  V3,
 		Spec: RoleSpecV3{
 			Allow: RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
@@ -2124,8 +2167,10 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 	}
+	require.NoError(t, roleDevProd.CheckAndSetDefaults())
 	roleDevProdWithMFA := &RoleV3{
 		Metadata: Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
+		Version:  V3,
 		Spec: RoleSpecV3{
 			Options: types.RoleOptions{
 				RequireSessionMFA: true,
@@ -2138,10 +2183,12 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 	}
+	require.NoError(t, roleDevProdWithMFA.CheckAndSetDefaults())
 	// Database labels are not set in allow/deny rules on purpose to test
 	// that they're set during check and set defaults below.
 	roleDeny := &types.RoleV3{
 		Metadata: Metadata{Name: "deny", Namespace: defaults.Namespace},
+		Version:  V3,
 		Spec: RoleSpecV3{
 			Allow: RoleConditions{
 				Namespaces:    []string{defaults.Namespace},

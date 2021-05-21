@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -294,7 +296,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		case <-watcher.Done():
 			return trail.ToGRPC(watcher.Error())
 		case event := <-watcher.Events():
-			out, err := eventToGRPC(event)
+			out, err := eventToGRPC(stream.Context(), event)
 			if err != nil {
 				return trail.ToGRPC(err)
 			}
@@ -306,7 +308,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 }
 
 // eventToGRPC converts a types.Event to an proto.Event
-func eventToGRPC(in types.Event) (*proto.Event, error) {
+func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 	eventType, err := eventTypeToGRPC(in.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -347,6 +349,9 @@ func eventToGRPC(in types.Event) (*proto.Event, error) {
 			User: r,
 		}
 	case *types.RoleV3:
+		if err = downgradeRole(ctx, r); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		out.Resource = &proto.Event_Role{
 			Role: r,
 		}
@@ -1374,6 +1379,27 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 	return &empty.Empty{}, nil
 }
 
+// downgradeRole tests the client version passed through the GRPC metadata, and
+// downgrades the given role to V3 if V4 roles are not known to be supported (client version is unknown or < 6.3).
+func downgradeRole(ctx context.Context, role *types.RoleV3) error {
+	var clientVersion *semver.Version
+	clientVersionString, ok := metadata.VersionFromContext(ctx)
+	if ok {
+		var err error
+		clientVersion, err = semver.NewVersion(clientVersionString)
+		if err != nil {
+			return trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
+		}
+	}
+
+	minSupportedVersionForV4Roles := semver.New("6.3.0-aa") // "aa" is included so that this compares before v6.3.0-alpha
+	if clientVersion == nil || clientVersion.LessThan(*minSupportedVersionForV4Roles) {
+		log.Debugf(`Client version "%s" is unknown or less than 6.3.0, converting role to v3`, clientVersionString)
+		return trace.Wrap(role.DowngradeToV3())
+	}
+	return nil
+}
+
 // GetRole retrieves a role by name.
 func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV3, error) {
 	auth, err := g.authenticate(ctx)
@@ -1387,6 +1413,9 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	roleV3, ok := role.(*types.RoleV3)
 	if !ok {
 		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected role type"))
+	}
+	if err = downgradeRole(ctx, roleV3); err != nil {
+		return nil, trail.ToGRPC(err)
 	}
 	return roleV3, nil
 }
@@ -1406,6 +1435,9 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 		role, ok := r.(*types.RoleV3)
 		if !ok {
 			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", r))
+		}
+		if err = downgradeRole(ctx, role); err != nil {
+			return nil, trail.ToGRPC(err)
 		}
 		rolesV3 = append(rolesV3, role)
 	}

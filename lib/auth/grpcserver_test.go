@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -1017,4 +1018,90 @@ func TestDeleteLastMFADevice(t *testing.T) {
 		},
 		checkErr: require.Error,
 	})
+}
+
+// TestRoleVersions tests that downgraded V3 roles are returned to older
+// clients, and V4 roles are returned to newer clients.
+func TestRoleVersions(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	role := &types.RoleV3{
+		Kind:    types.KindRole,
+		Version: types.V4,
+		Metadata: types.Metadata{
+			Name: "test_role",
+		},
+		Spec: types.RoleSpecV3{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindRole, services.RO()),
+					types.NewRule(types.KindEvent, services.RW()),
+				},
+			},
+		},
+	}
+	user, err := CreateUser(srv.Auth(), "test_user", role)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	testCases := []struct {
+		desc                string
+		clientVersion       string
+		metadataDisabled    bool
+		expectedRoleVersion string
+	}{
+		{
+			desc:                "old",
+			clientVersion:       "6.2.1",
+			expectedRoleVersion: "v3",
+		},
+		{
+			desc:                "new",
+			clientVersion:       "6.3.0",
+			expectedRoleVersion: "v4",
+		},
+		{
+			desc:                "alpha",
+			clientVersion:       "6.3.0-alpha.0",
+			expectedRoleVersion: "v4",
+		},
+		{
+			desc:                "no metadata",
+			metadataDisabled:    true,
+			expectedRoleVersion: "v3",
+		},
+		{
+			desc:                "greater than 10",
+			clientVersion:       "10.0.0-beta",
+			expectedRoleVersion: "v4",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// setup client metadata
+			metadata.SetVersion(tc.clientVersion)
+			metadata.DisabledIs(tc.metadataDisabled)
+
+			// test GetRole
+			gotRole, err := client.GetRole(ctx, role.GetName())
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
+
+			// test GetRoles
+			gotRoles, err := client.GetRoles(ctx)
+			require.NoError(t, err)
+			foundTestRole := false
+			for _, gotRole := range gotRoles {
+				if gotRole.GetName() == role.GetName() {
+					require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
+					foundTestRole = true
+				}
+			}
+			require.True(t, foundTestRole)
+		})
+	}
 }

@@ -147,7 +147,7 @@ func NewAdminRole() Role {
 func NewImplicitRole() Role {
 	return &RoleV3{
 		Kind:    KindRole,
-		Version: V3,
+		Version: types.V4,
 		Metadata: Metadata{
 			Name:      teleport.DefaultImplicitRole,
 			Namespace: defaults.Namespace,
@@ -172,7 +172,7 @@ func NewImplicitRole() Role {
 func RoleForUser(u User) Role {
 	return &RoleV3{
 		Kind:    KindRole,
-		Version: V3,
+		Version: types.V4,
 		Metadata: Metadata{
 			Name:      RoleNameForUser(u.GetName()),
 			Namespace: defaults.Namespace,
@@ -2334,7 +2334,10 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
 	}
 
 	switch h.Version {
-	case V3:
+	case types.V4:
+		// V4 roles are identical to V3 except for their defaults
+		fallthrough
+	case types.V3:
 		var role RoleV3
 		if cfg.SkipValidation {
 			if err := utils.FastUnmarshal(bytes, &role); err != nil {
@@ -2371,7 +2374,8 @@ func MarshalRole(role Role, opts ...MarshalOption) ([]byte, error) {
 
 	switch role := role.(type) {
 	case *RoleV3:
-		if version := role.GetVersion(); version != V3 {
+		// V4 role version is compatible with V3
+		if version := role.GetVersion(); version != types.V3 && version != types.V4 {
 			return nil, trace.BadParameter("mismatched role version %v and type %T", version, role)
 		}
 		if !cfg.PreserveResourceID {
