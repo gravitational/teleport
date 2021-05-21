@@ -23,20 +23,51 @@ So in order to achieve this we have to move the `/metrics` endpoint to its own `
 The config would ideally be something like:
 ```
 metrics_service:
-  enabled: "yes"
-  listen_addr: ...
+  enabled: yes
+  listen_addr: localhost:3081
+  mtls: yes
   keypairs:
-    - key_file: /var/lib/teleport/...
-      cert_file: /var/lib/teleport/...1
-  prometheus_ca_cert: /var/lib/teleport/...
+  - key_file: key.pem
+    cert_file: cert.pem
+    ca: ca.pem
 ```
 
-Supplying a keypair to the service should be the indicator that tls is on and vice versa.
+This implementation will only support user provided certs and CA for now.
+Using Teleport's Host CA and generated certs is an option that can be considered in the future for self hosted teleport instances. That's not optimal for teleport cloud because prometheus would have to wait for teleport to start before it could be provisioned.
+There are other security and design concerns you can read about here https://github.com/gravitational/teleport/pull/6469
 
 ### Backwards compatibility
 
-This is a breaking change for systems relying on metrics being hosted at the `diag-addr`. People would have to update their configurations and use the new endpoint.
-Unless we keep supporting the old endpoint for insecure metrics delivery and disable it if mTLS is configured to be used through the new one, which is not a clean solution in my opinion.
+The existance of the new metrics service and the service currently hosted at the `diag-addr` will be mutually exclusive.
+Having the metrics service enabled in the config will stop metrics from being hosted at the old endpoint but it will still be available for the forseable future for those who wish to continue using it.
+There is no current timeline on when it will be deprecated.
+
+## Migration
+
+To use the new metrics service, prometheus will have to be reconfigured to start listening at the new address defined in the config alongside using certs for mtls if needed.
+
+
+### Summary
+
+As a summary here is a self explanatory config example
+```
+metrics_service:
+  # 'enabled: no' or the absence of this section alltogether means that metrics
+  # will still be hosted at the 'diag-addr' provided to teleport start as a flag..
+  enabled: yes
+  # 'listen_addr' is the new address where the metrics will be hosted
+  listen_addr: localhost:3081
+  # 'mtls: no' will ship metrics in clear text to prometheus
+  mtls: yes
+  # 'keypairs' should be provided alongside 'mtls: yes'. Only user generated
+  # certs and ca are currently supported, but that can change to support
+  # certs provided by teleport if there is a demand for it
+  keypairs:
+  - key_file: key.pem
+    cert_file: cert.pem
+    ca: ca.pem
+```
+
 
 ### Additional work
 
