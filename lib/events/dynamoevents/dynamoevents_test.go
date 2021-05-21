@@ -122,7 +122,7 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 	}
 
 	// `check.HasLen` prints the entire array on failure, which pollutes the output
-	c.Assert(len(history), check.Equals, 4000)
+	c.Assert(len(history), check.Equals, eventCount)
 }
 
 // TestIndexExists tests functionality of the `Log.indexExists` function.
