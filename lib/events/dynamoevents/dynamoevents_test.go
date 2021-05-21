@@ -75,7 +75,7 @@ func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
 	s.log = log
 	s.EventsSuite.Log = log
 	s.EventsSuite.Clock = fakeClock
-	s.EventsSuite.QueryDelay = time.Second
+	s.EventsSuite.QueryDelay = time.Second * 30
 
 }
 
@@ -89,7 +89,6 @@ func (s *DynamoeventsSuite) TestPagination(c *check.C) {
 }
 
 func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
-	c.Assert(0, check.Equals, 5)
 	s.SessionEventsCRUD(c)
 
 	// In addition to the normal CRUD test above, we also check that we can retrieve all items from a large table

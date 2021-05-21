@@ -59,10 +59,6 @@ var tableSchema = []*dynamodb.AttributeDefinition{
 		AttributeType: aws.String("N"),
 	},
 	{
-		AttributeName: aws.String(keyEventNamespace),
-		AttributeType: aws.String("S"),
-	},
-	{
 		AttributeName: aws.String(keyCreatedAt),
 		AttributeType: aws.String("N"),
 	},
@@ -530,13 +526,17 @@ func (l *Log) PostSessionSlice(slice events.SessionSlice) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		timeAt := time.Unix(0, chunk.Time).In(time.UTC)
+
 		event := event{
 			SessionID:      slice.SessionID,
 			EventNamespace: defaults.Namespace,
 			EventType:      chunk.EventType,
 			EventIndex:     chunk.EventIndex,
-			CreatedAt:      time.Unix(0, chunk.Time).In(time.UTC).Unix(),
+			CreatedAt:      timeAt.Unix(),
 			Fields:         string(data),
+			CreatedAtDate:  timeAt.Format(iso8601DateFormat),
 		}
 		l.setExpiry(&event)
 		item, err := dynamodbattribute.MarshalMap(event)
@@ -667,7 +667,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	eventArr := make([]events.AuditEvent, 0, len(rawEvents))
 	for _, rawEvent := range rawEvents {
 		var fields events.EventFields
-		if err := utils.FastUnmarshal([]byte(rawEvent.Fields), fields); err != nil {
+		if err := utils.FastUnmarshal([]byte(rawEvent.Fields), &fields); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		event, err := events.FromEventFields(fields)
