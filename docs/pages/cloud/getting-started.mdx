@@ -3,11 +3,15 @@ title: Getting Started With Teleport Cloud
 description: Teleport hosted and managed by the Teleport team.
 ---
 
-## Step 1/3 Signup
+## Step 1/3. Signup
 
 Sign up [here](https://goteleport.com/get-started/).
 
-## Step 2/3 Install client tools
+## Step 2/3. Install client tools
+
+<Admonition type="warning" title="Warning">
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
+</Admonition>
 
 Install client libraries:
 
@@ -26,26 +30,26 @@ Login into Teleport and test the connection:
 
 ```bash
 # tsh logs you in and receives short-lived certificates
-$ tsh login --proxy=myinstance.teleport.sh:443 --user=email@example.com
+tsh login --proxy=myinstance.teleport.sh:443 --user=email@example.com
 # tctl is a cluster configuration tool
-$ tctl status
+sudo tctl status
 ```
 
-## Step 3/3 Explore your cluster
+## Step 3/3. Explore your cluster
 
 List nodes in the cluster:
 
 ```bash
-$ tctl nodes ls
+sudo tctl nodes ls
 ```
 
 Generate a [dynamic token](../admin-guide.mdx#short-lived-dynamic-tokens):
 
 ```bash
-$ tctl nodes add --ttl=5m --roles=node --token=$(uuid)
+sudo tctl nodes add --ttl=5m --roles=node --token=$(uuid)
 ```
 
-## Next Steps
+## Next steps
 
 - Explore [cloud architecture](./architecture.mdx).
 - Check out [FAQ](./faq.mdx).
