@@ -48,7 +48,7 @@ kubectl --namespace teleport get configmap/teleport -o yaml
 #        output: stderr
 #      storage:
 #        type: dir
-...
+# ...
 ```
 
 <Admonition type="note">
@@ -68,7 +68,7 @@ cat teleport.yaml
 #    output: stderr
 #  storage:
 #    type: dir
-...
+# ...
 ```
 
 Once you have the config, you should upload this to a separate Kubernetes namespace (where you intend to run the `teleport-cluster` chart).
