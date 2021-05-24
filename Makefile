@@ -127,6 +127,10 @@ $(BUILDDIR)/teleport: ensure-webassets
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
+.PHONY: $(BUILDDIR)/term
+$(BUILDDIR)/term:
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/term $(BUILDFLAGS) ./tool/term
+
 #
 # make full - Builds Teleport binaries with the built-in web assets and
 # places them into $(BUILDDIR). On Windows, this target is skipped because
@@ -501,6 +505,25 @@ buildbox-grpc:
 	  --gogofast_out=plugins=grpc:.\
     *.proto
 
+	cd lib/term/proto && protoc -I=.:$$PROTO_INCLUDE \
+	  --gofast_out=plugins=grpc:.\
+      --plugin=protoc-gen-ts=/node_modules/.bin/protoc-gen-ts \
+      --ts_out=service=grpc-web:../../../webapps/packages/term/src/proto \
+      --js_out=import_style=commonjs,binary:../../../webapps/packages/term/src/proto \
+    *.proto
+
+	cd lib/term/proto && protoc -I=.:$$PROTO_INCLUDE \
+      --plugin=protoc-gen-grpc-swift=/usr/local/bin/protoc-gen-grpc-swift \
+      --grpc-swift_opt=Visibility=Public \
+	  --grpc-swift_out=../../../desktop/darwin/Terminal/Sources/Model \
+    *.proto
+
+	cd lib/term/proto && protoc -I=.:$$PROTO_INCLUDE \
+      --plugin=protoc-gen-swift=/usr/local/bin/protoc-gen-swift \
+      --swift_opt=Visibility=Public \
+	  --swift_out=../../../desktop/darwin/Terminal/Sources/Model \
+    *.proto
+
 .PHONY: goinstall
 goinstall:
 	go install $(BUILDFLAGS) \
@@ -657,7 +680,7 @@ update-vendor:
 	# delete the vendored api package. In its place
 	# create a symlink to the the original api package
 	rm -r vendor/github.com/gravitational/teleport/api
-	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+	ln -s $(abspath api) vendor/github.com/gravitational/teleport
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.

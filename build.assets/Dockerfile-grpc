@@ -1,0 +1,77 @@
+ARG RUNTIME
+
+
+FROM quay.io/gravitational/teleport-buildbox:$RUNTIME as gobuild
+
+ARG PROTOC_VER
+ARG PROTOC_PLATFORM
+ARG GOGO_PROTO_TAG
+ARG SWIFT_RUNTIME
+ARG NODE_RUNTIME
+
+# Install some build tools requires for swift and go grpc
+RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true && \
+    apt-get update -y --fix-missing && \
+    apt-get -q -y upgrade && \
+    apt-get install -q -y --no-install-recommends \
+    clang-format \
+    libatomic1 \
+    libcurl4 \
+    libxml2 \
+    libedit2 \
+    libsqlite3-0 \
+    libc6-dev \
+    binutils \
+    libgcc-5-dev \
+    libstdc++-5-dev \
+    zlib1g-dev \
+    libpython3.6 \
+    tzdata \
+    git \
+    pkg-config \
+    && rm -r /var/lib/apt/lists/*
+    
+# Install node
+RUN groupadd --gid 1000 node \
+  && useradd --uid 1000 --gid node --shell /bin/bash --create-home node
+
+RUN (curl -L -o /tmp/node.tar.gz https://nodejs.org/dist/v${NODE_RUNTIME}/node-v${NODE_RUNTIME}-linux-x64.tar.gz && \
+   cd /tmp && ls -l /tmp/node.tar.gz && tar -xzf /tmp/node.tar.gz --directory / --strip-components=1 && \
+   rm /tmp/node.tar.gz)
+RUN npm install yarn --global
+
+# Install swift
+RUN (curl -L -o /tmp/swift.tar.gz https://swift.org/builds/swift-${SWIFT_RUNTIME}-release/ubuntu1804/swift-${SWIFT_RUNTIME}-RELEASE/swift-${SWIFT_RUNTIME}-RELEASE-ubuntu18.04.tar.gz && \
+     cd /tmp && ls -l /tmp/swift.tar.gz && tar -xzf /tmp/swift.tar.gz --strip-components=1 --directory / && \
+     rm /tmp/swift.tar.gz)
+
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
+ENV PROTOC_TARBALL protoc-${PROTOC_VER}-${PROTOC_PLATFORM}.zip
+ENV PROTO_INCLUDE "/usr/local/include":"${GOPATH}/src":"${GOPATH}/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf":"${GOPATH}/src/github.com/gravitational/teleport/lib/services"
+
+# Installs protoc
+RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/google/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+     cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
+     rm /tmp/${PROTOC_TARBALL})
+
+# Install gogoproto (golang's custom plugins generating grpc)
+RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && go install golang.org/x/tools/cmd/goimports@latest && \
+     cd ${GOPATH}/src/github.com/gogo/protobuf && \
+     git reset --hard ${GOGO_PROTO_TAG} && \
+     make install)
+
+# Install swift grpc
+ENV SWIFT_PROTO_TAG 1.0.0
+RUN (git clone https://github.com/grpc/grpc-swift.git ${GOPATH}/src/github.com/grpc/grpc-swift && \
+     cd ${GOPATH}/src/github.com/grpc/grpc-swift && \
+     git reset --hard ${SWIFT_PROTO_TAG} && \
+     make plugins && \
+     mv ./protoc-gen-swift /usr/local/bin/ && \
+     mv ./protoc-gen-grpc-swift /usr/local/bin)
+
+# Install typescript protoc plugin
+RUN yarn add --dev @types/google-protobuf@^3.7.2 ts-protoc-gen@^0.12.0

@@ -88,24 +88,6 @@ RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar 
      cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
      rm -r bats-core-1.2.1)
 
-# Install protobuf and grpc build tools.
-ARG PROTOC_VER
-ARG PROTOC_PLATFORM
-ARG GOGO_PROTO_TAG
-
-ENV PROTOC_TARBALL protoc-${PROTOC_VER}-${PROTOC_PLATFORM}.zip
-ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
-
-RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/google/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
-     cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
-     rm /tmp/${PROTOC_TARBALL})
-RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && go install golang.org/x/tools/cmd/goimports@latest && \
-     cd ${GOPATH}/src/github.com/gogo/protobuf && \
-     git reset --hard ${GOGO_PROTO_TAG} && \
-     make install)
-
-ENV PROTO_INCLUDE "/usr/local/include":"${GOPATH}/src":"${GOPATH}/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf":"${GOPATH}/src/github.com/gravitational/teleport/lib/services"
-
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package proto;
+
+service TickService {
+    // Subscribe returns a stream of tick events
+    rpc Subscribe(TickRequest) returns (stream Tick);
+    // Now return current time
+    rpc Now(TickRequest) returns (Tick);
+}
+
+message Tick { int64 time = 1; }
+
+message TickRequest {}

@@ -15,6 +15,8 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 RUNTIME ?= go1.16.2
+NODE_RUNTIME ?= 12.16.3
+SWIFT_RUNTIME ?= 5.4
 BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
 
 UID := $$(id -u)
@@ -25,6 +27,7 @@ PROTOC_PLATFORM := linux-x86_64
 GOGO_PROTO_TAG ?= v1.3.2
 
 BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
+BUILDBOX_GRPC=quay.io/gravitational/teleport-buildbox-grpc:$(RUNTIME)
 BUILDBOX_FIPS=quay.io/gravitational/teleport-buildbox-fips:$(RUNTIME)
 BUILDBOX_CENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
 BUILDBOX_CENTOS6_FIPS=quay.io/gravitational/teleport-buildbox-centos6-fips:$(RUNTIME)
@@ -101,12 +104,20 @@ buildbox:
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg RUNTIME=$(RUNTIME) \
-			--build-arg PROTOC_VER=$(PROTOC_VER) \
-			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
-			--build-arg PROTOC_PLATFORM=$(PROTOC_PLATFORM) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi
+	docker build \
+			--build-arg UID=$(UID) \
+			--build-arg GID=$(GID) \
+			--build-arg RUNTIME=$(RUNTIME) \
+			--build-arg NODE_RUNTIME=$(NODE_RUNTIME) \
+			--build-arg SWIFT_RUNTIME=$(SWIFT_RUNTIME) \
+			--build-arg PROTOC_VER=$(PROTOC_VER) \
+			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
+			--build-arg PROTOC_PLATFORM=$(PROTOC_PLATFORM) \
+			--cache-from $(BUILDBOX_GRPC) \
+			--tag $(BUILDBOX_GRPC) -f Dockerfile-grpc . ;
 
 #
 # Builds a Docker buildbox for FIPS
@@ -181,7 +192,7 @@ buildbox-arm-fips: buildbox-fips
 .PHONY: grpc
 grpc: buildbox
 	docker run \
-		$(DOCKERFLAGS) $(BCCFLAGS) -t $(BUILDBOX) \
+		$(DOCKERFLAGS) $(BCCFLAGS) -t $(BUILDBOX_GRPC) \
 		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
 
 #
