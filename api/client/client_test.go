@@ -17,11 +17,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-var (
-	authAddr = "localhost:3025"
-	server   = newMockServer()
-)
-
 // mockServer mocks an Auth Server.
 type mockServer struct {
 	grpc *grpc.Server
@@ -43,36 +38,24 @@ func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 
 // mockInsecureCredentials mocks insecure Client credentials.
 // it returns a nil tlsConfig which allows the client to run in insecure mode.
-type mockInsecureCredentials struct{}
+type mockInsecureTLSCredentials struct{}
 
-func (mc *mockInsecureCredentials) Dialer(cfg Config) (ContextDialer, error) {
+func (mc *mockInsecureTLSCredentials) Dialer(cfg Config) (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
-func (mc *mockInsecureCredentials) TLSConfig() (*tls.Config, error) {
+func (mc *mockInsecureTLSCredentials) TLSConfig() (*tls.Config, error) {
 	return nil, nil
 }
 
-func (mc *mockInsecureCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (mc *mockInsecureTLSCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
-}
-
-// TestMain starts mock server listeners and runs the tests.
-func TestMain(m *testing.M) {
-	authListener, err := net.Listen("tcp", authAddr)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	go server.grpc.Serve(authListener)
-
-	result := m.Run()
-	authListener.Close()
-	os.Exit(result)
 }
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
+	addr := "localhost:3025"
+	startServer(t, addr)
 
 	tests := []struct {
 		desc      string
@@ -81,9 +64,9 @@ func TestNew(t *testing.T) {
 	}{{
 		desc: "successfully dial tcp address.",
 		config: Config{
-			Addrs: []string{authAddr},
+			Addrs: []string{addr},
 			Credentials: []Credentials{
-				&mockInsecureCredentials{},
+				&mockInsecureTLSCredentials{},
 			},
 			DialOpts: []grpc.DialOption{
 				grpc.WithInsecure(),
@@ -91,13 +74,13 @@ func TestNew(t *testing.T) {
 		},
 		assertErr: require.NoError,
 	}, {
-		desc: "synchronously dial addr/cred pairs and successfully dial with the 1 good pair.",
+		desc: "synchronously dial addr/cred pairs and succeed with the 1 good pair.",
 		config: Config{
-			Addrs: []string{"bad addr", "bad addr", authAddr},
+			Addrs: []string{"bad addr", addr, "bad addr"},
 			Credentials: []Credentials{
 				&tlsConfigCreds{nil},
+				&mockInsecureTLSCredentials{},
 				&tlsConfigCreds{nil},
-				&mockInsecureCredentials{},
 			},
 			DialOpts: []grpc.DialOption{
 				grpc.WithInsecure(),
@@ -110,7 +93,7 @@ func TestNew(t *testing.T) {
 			DialTimeout: time.Second,
 			Addrs:       []string{"bad addr"},
 			Credentials: []Credentials{
-				&mockInsecureCredentials{},
+				&mockInsecureTLSCredentials{},
 			},
 			DialOpts: []grpc.DialOption{
 				grpc.WithInsecure(),
@@ -137,13 +120,14 @@ func TestNew(t *testing.T) {
 
 func TestNewDialBackground(t *testing.T) {
 	ctx := context.Background()
+	addr := "localhost:3025"
 
 	// Create client before the server is listening.
 	clt, err := New(ctx, Config{
 		DialInBackground: true,
-		Addrs:            []string{authAddr},
+		Addrs:            []string{addr},
 		Credentials: []Credentials{
-			&mockInsecureCredentials{},
+			&mockInsecureTLSCredentials{},
 		},
 		DialOpts: []grpc.DialOption{
 			grpc.WithInsecure(),
@@ -151,14 +135,24 @@ func TestNewDialBackground(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	delayedListener, err := net.Listen("tcp", "localhost:0000")
+	// Ping should fail with a conneection error before the server is up.
+	_, err = clt.Ping(ctx)
+	require.Error(t, err)
+	require.True(t, trace.IsConnectionProblem(err))
+
+	startServer(t, addr)
+	time.Sleep(time.Second * 2)
+
+	_, err = clt.Ping(ctx)
+	require.NoError(t, err)
+}
+
+func startServer(t *testing.T, addr string) {
+	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	t.Cleanup(func() { require.NoError(t, delayedListener.Close()) })
-	go server.grpc.Serve(delayedListener)
-
-	_, err = clt.Ping(ctx)
-	require.NoError(t, err)
+	go newMockServer().grpc.Serve(l)
+	t.Cleanup(func() { require.NoError(t, l.Close()) })
 }
