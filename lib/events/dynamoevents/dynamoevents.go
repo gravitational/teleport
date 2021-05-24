@@ -386,13 +386,25 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 		// If an auth server does in a HA-setup the other auth servers will pick up the migration automatically.
 		if err := backend.AcquireLock(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL); err != nil {
 			log.WithError(err).Fatalf("Failed to acqiure lock: %s", rfd24MigrationLock)
+			return
 		}
 
 		defer func() {
 			if err := backend.ReleaseLock(ctx, l.backend, rfd24MigrationLock); err != nil {
 				log.WithError(err).Fatalf("Failed to release lock: %s", rfd24MigrationLock)
+				return
 			}
 		}()
+
+		hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
+		if err != nil {
+			log.WithError(err).Fatal("Failed to check if migration was completed by another node")
+			return
+		}
+
+		if hasIndexV1 {
+			return
+		}
 
 		for {
 			// Migrate events to the new format so that the V2 index can use them.
