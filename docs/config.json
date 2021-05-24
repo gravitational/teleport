@@ -233,6 +233,11 @@
       "source": "/kubernetes-ssh/",
       "destination": "/kubernetes-access/",
       "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-gsuite/",
+      "destination": "/enterprise/sso/ssh-google-workspace/",
+      "permanent": true
     }
   ]
 }
