@@ -1067,25 +1067,24 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 			// This makes the scan operation slightly slower but the other alternative is scanning a second time
 			// for any missed events after an appropriate grace period which is far worse.
 			ConsistentRead: aws.Bool(true),
-			// 100 seems like a good batch size that compromises
-			// between memory usage and fetch frequency.
-			// The limiting factor in terms of speed is the update ratelimit and not this.
-			Limit:     aws.Int64(100),
+			// 25 is the limit of DynamoDB batch writes.
+			Limit:     aws.Int64(25),
 			TableName: aws.String(l.Tablename),
 			// Without the `date` attribute.
 			FilterExpression: aws.String("attribute_not_exists(CreatedAtDate)"),
 		}
 
 		// Resume the scan at the end of the previous one.
-		// This processes 100 events or 1 MiB of data at maximum
+		// This processes 25 events at maximum
 		// which is why we need to run this multiple times on the dataset.
 		scanOut, err := l.svc.Scan(c)
 		if err != nil {
 			return trace.Wrap(convertError(err))
 		}
 
-		// For every item processed by this scan iteration we send an update action
-		// that adds the new date attribute.
+		writeRequests := make([]*dynamodb.WriteRequest, 0, 25)
+
+		// For every item processed by this scan iteration we generate a write request.
 		for _, item := range scanOut.Items {
 			if time.Since(lastRefresh) > time.Minute {
 				lastRefresh = time.Now()
@@ -1106,37 +1105,35 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 			timestamp := time.Unix(timestampRaw, 0)
 			date := timestamp.Format(iso8601DateFormat)
 
-			attributes := map[string]interface{}{
-				// Value to set the date attribute to.
-				":date": date,
-			}
-
-			attributeMap, err := dynamodbattribute.MarshalMap(attributes)
+			dateAttribute, err := dynamodbattribute.Marshal(date)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
-			// Pull out the needed composite key attributes for the main table in a key object
-			// since this saves on bandwidth and Dynamo will reject anything with
-			// attributes other than those composing the primary key.
-			key := make(map[string]*dynamodb.AttributeValue)
-			key[keySessionID] = item[keySessionID]
-			key[keyEventIndex] = item[keyEventIndex]
+			item[keyDate] = dateAttribute
 
-			c := &dynamodb.UpdateItemInput{
-				TableName:                 aws.String(l.Tablename),
-				Key:                       key,
-				ExpressionAttributeValues: attributeMap,
-				UpdateExpression:          aws.String("SET CreatedAtDate = :date"),
+			wr := &dynamodb.WriteRequest{
+				PutRequest: &dynamodb.PutRequest{
+					Item: item,
+				},
 			}
 
-			_, err = l.svc.UpdateItem(c)
+			writeRequests = append(writeRequests, wr)
+		}
+
+		for {
+			c := &dynamodb.BatchWriteItemInput{
+				RequestItems: map[string][]*dynamodb.WriteRequest{l.Tablename: writeRequests},
+			}
+
+			out, err := l.svc.BatchWriteItem(c)
 			if err != nil {
-				return trace.Wrap(convertError(err))
+				return trace.Wrap(err)
 			}
 
-			if err := ctx.Err(); err != nil {
-				return trace.Wrap(err)
+			writeRequests, ok := out.UnprocessedItems[l.Tablename]
+			if !ok && len(writeRequests) == 0 {
+				break
 			}
 		}
 
