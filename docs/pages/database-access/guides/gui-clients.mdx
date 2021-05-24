@@ -23,12 +23,11 @@ In the "General" tab of the new server dialog, enter the server connection name:
 
 ![pgAdmin General](../../../img/database-access/pgadmin-general@2x.png)
 
-On the Connection tab, enter the default database name (Maintenance database) and the connection service name, same as when you specify connecting using
-`psql`. Leave all the other fields blank:
+In the "Connection" tab, enter the default database name (`Maintenance DB`) and the connection service name, same as when you specify connecting using `psql`. Leave all the other fields blank:
 
 ![pgAdmin Connection](../../../img/database-access/pgadmin-connection@2x.png)
 
-On the SSL tab, set SSL mode to "full":
+In the "SSL" tab, set the SSL mode to "full":
 
 ![pgAdmin SSL](../../../img/database-access/pgadmin-ssl@2x.png)
 
@@ -42,21 +41,21 @@ To connect to a database using MySQL Workbench, first retrieve the database cred
 
 ```bash
 tsh db config
-Name:      aurora
-Host:      root.gravitational.io
-Port:      3036
-User:      r0mant
-Database:
-CA:        /Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-Cert:      /Users/r0mant/.tsh/keys/root.gravitational.io/r0mant-db/root/aurora-x509.pem
-Key:       /Users/r0mant/.tsh/keys/root.gravitational.io/r0mant
+# Name:      aurora
+# Host:      root.gravitational.io
+# Port:      3036
+# User:      r0mant
+# Database:
+# CA:        /Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
+# Cert:      /Users/r0mant/.tsh/keys/root.gravitational.io/r0mant-db/root/aurora-x509.pem
+# Key:       /Users/r0mant/.tsh/keys/root.gravitational.io/r0mant
 ```
 
 In the MySQL Workbench "Setup New Connection" dialog, fill out `Connection Name`, `Hostname`, `Port`, and `Username`:
 
 ![MySQL Workbench Parameters](../../../img/database-access/workbench-parameters@2x.png)
 
-On the SSL tab, set SSL mode to "Require and Verify Identity" and enter the paths to the Certificate Authority, certificate, and private key files from `tsh db config` command:
+In the "SSL" tab, set the SSL mode to "Require and Verify Identity" and enter the paths to the Certificate Authority, certificate, and private key files from `tsh db config` command:
 
 ![MySQL Workbench SSL](../../../img/database-access/workbench-ssl@2x.png)
 
