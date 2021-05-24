@@ -1047,7 +1047,7 @@ func (l *Log) removeV1GSI() error {
 // Invariants:
 // - This function must be called after `createV2GSI` has completed successfully on the table.
 // - This function must not be called concurrently with itself.
-// - The rfd24MigrationLock must exist.
+// - The rfd24MigrationLock must be held by the node.
 func (l *Log) migrateDateAttribute(ctx context.Context) error {
 	var total int64 = 0
 	var startKey map[string]*dynamodb.AttributeValue
