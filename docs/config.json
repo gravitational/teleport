@@ -181,7 +181,7 @@
           "title": "FedRAMP for SSH & K8s",
           "slug": "/enterprise/ssh-kubernetes-fedramp/"
         },
-        { "title": "RBAC", "slug": "/enterprise/ssh-rbac/" }
+        { "title": "Role-Based Access Control (RBAC)", "slug": "/enterprise/ssh-rbac/" }
       ]
     },
     {
