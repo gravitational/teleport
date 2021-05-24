@@ -108,33 +108,40 @@ type Kube struct {
 
 // MakeKubes creates ui kube objects and returns a list..
 func MakeKubes(clusterName string, servers []types.Server) []Kube {
-	uiKubeClusters := []Kube{}
+	kubeClusters := map[string]*types.KubernetesCluster{}
+
+	// Get unique kube clusters
 	for _, server := range servers {
 		// Process each kube cluster.
 		for _, cluster := range server.GetKubernetesClusters() {
-			uiLabels := []Label{}
+			kubeClusters[cluster.Name] = cluster
+		}
+	}
 
-			for name, value := range cluster.StaticLabels {
-				uiLabels = append(uiLabels, Label{
-					Name:  name,
-					Value: value,
-				})
-			}
+	uiKubeClusters := make([]Kube, 0, len(kubeClusters))
+	for _, cluster := range kubeClusters {
+		uiLabels := []Label{}
 
-			for name, cmd := range cluster.DynamicLabels {
-				uiLabels = append(uiLabels, Label{
-					Name:  name,
-					Value: cmd.GetResult(),
-				})
-			}
-
-			sort.Sort(sortedLabels(uiLabels))
-
-			uiKubeClusters = append(uiKubeClusters, Kube{
-				Name:   cluster.Name,
-				Labels: uiLabels,
+		for name, value := range cluster.StaticLabels {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: value,
 			})
 		}
+
+		for name, cmd := range cluster.DynamicLabels {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: cmd.GetResult(),
+			})
+		}
+
+		sort.Sort(sortedLabels(uiLabels))
+
+		uiKubeClusters = append(uiKubeClusters, Kube{
+			Name:   cluster.Name,
+			Labels: uiLabels,
+		})
 	}
 
 	return uiKubeClusters
