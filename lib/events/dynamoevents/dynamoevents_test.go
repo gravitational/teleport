@@ -72,7 +72,7 @@ func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
 
 	fakeClock := clockwork.NewFakeClock()
 	log, err := New(context.Background(), Config{
-		Region:       "us-west-1",
+		Region:       "eu-north-1",
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),

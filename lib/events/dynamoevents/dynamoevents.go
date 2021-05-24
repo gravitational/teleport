@@ -385,13 +385,13 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 		// Acquire a lock so that only one auth server attempts to perform the migration at any given time.
 		// If an auth server does in a HA-setup the other auth servers will pick up the migration automatically.
 		if err := backend.AcquireLock(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL); err != nil {
-			log.WithError(err).Fatalf("Failed to acqiure lock: %s", rfd24MigrationLock)
+			log.WithError(err).Fatalf("Failed to acquire lock: %q", rfd24MigrationLock)
 			return
 		}
 
 		defer func() {
 			if err := backend.ReleaseLock(ctx, l.backend, rfd24MigrationLock); err != nil {
-				log.WithError(err).Fatalf("Failed to release lock: %s", rfd24MigrationLock)
+				log.WithError(err).Fatalf("Failed to release lock: %q", rfd24MigrationLock)
 				return
 			}
 		}()
@@ -930,18 +930,28 @@ func (l *Log) createV2GSI(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	defer func() {
+	release := func() error {
 		if err := backend.ReleaseLock(ctx, l.backend, indexV2CreationLock); err != nil {
-			log.WithError(err).Fatalf("Failed to release lock: %s", indexV2CreationLock)
+			return trace.Wrap(err)
 		}
-	}()
+
+		return nil
+	}
 
 	v2Exists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
 	if err != nil {
+		if err := release(); err != nil {
+			return trace.Wrap(err)
+		}
+
 		return trace.Wrap(err)
 	}
 
 	if v2Exists {
+		if err := release(); err != nil {
+			return trace.Wrap(err)
+		}
+
 		return nil
 	}
 
@@ -981,6 +991,10 @@ func (l *Log) createV2GSI(ctx context.Context) error {
 	}
 
 	if _, err := l.svc.UpdateTable(&c); err != nil {
+		if err := release(); err != nil {
+			return trace.Wrap(err)
+		}
+
 		return trace.Wrap(convertError(err))
 	}
 
@@ -992,6 +1006,10 @@ func (l *Log) createV2GSI(ctx context.Context) error {
 	for time.Now().Before(endWait) {
 		indexExists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
 		if err != nil {
+			if err := release(); err != nil {
+				return trace.Wrap(err)
+			}
+
 			return trace.Wrap(err)
 		}
 
@@ -1003,6 +1021,10 @@ func (l *Log) createV2GSI(ctx context.Context) error {
 		select {
 		case <-time.After(time.Second * 5):
 		case <-ctx.Done():
+			if err := release(); err != nil {
+				return trace.Wrap(err)
+			}
+
 			return trace.Wrap(ctx.Err())
 		}
 
@@ -1010,6 +1032,9 @@ func (l *Log) createV2GSI(ctx context.Context) error {
 		log.Infof("Creating new DynamoDB index, %f seconds elapsed...", elapsed)
 	}
 
+	if err := release(); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
