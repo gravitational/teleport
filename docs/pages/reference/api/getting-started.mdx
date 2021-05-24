@@ -42,7 +42,7 @@ Log in as the newly created user with `tsh`.
 
 ```bash
 # generate tsh profile
-sudo tsh login --user=api-admin --proxy=tele.example.com:443
+tsh login --user=api-admin --proxy=tele.example.com:443
 ```
 
 The [Profile Credentials loader](https://pkg.go.dev/github.com/gravitational/teleport/api/client#LoadProfile)
@@ -103,7 +103,7 @@ func main() {
 EOF
 ```
 
-Now you can run the program and connect the client to the Teleport Auth server and fetch the server version.
+Now you can run the program and connect the client to the Teleport Auth server to fetch the server version.
 
 ```bash
 go run main.go
