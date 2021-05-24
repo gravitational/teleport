@@ -29,16 +29,12 @@ There is no need to open any ports on your infrastructure for inbound traffic.
 
 ### How can I access the tctl admin tool?
 
-<Admonition type="warning" title="Warning">
-  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
-</Admonition>
-
 We have made changes to allow you to log into your cluster using `tsh`, then use `tctl` remotely:
 
 ```bash
 tsh login --proxy=myinstance.teleport.sh:443
 # tctl (Enterprise edition) can use tsh credentials as of version 5.0
-sudo tctl status
+tctl status
 ```
 
 ### Why am I getting `permission denied` errors when using `tctl`?
@@ -56,7 +52,7 @@ After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Clo
 [dynamic tokens](../admin-guide.mdx#short-lived-dynamic-tokens):
 
 ```bash
-sudo tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
+tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
 ```
 
 ### When will a security audit be available?
@@ -92,13 +88,11 @@ FIPS is not currently an option for Teleport Cloud clusters.
 
 ### How do you store passwords?
 
-Password hashes are generated using
-[Golang's bcrypt](https://pkg.go.dev/golang.org/x/crypto/bcrypt).
+Password hashes are generated using [Golang's bcrypt](https://pkg.go.dev/golang.org/x/crypto/bcrypt).
 
 ### How does Teleport manage web certificates? Can I upload my own?
 
-Teleport uses [letsencrypt.org](https://letsencrypt.org/) to issue
-certificates for every customer. 
+Teleport uses [letsencrypt.org](https://letsencrypt.org/) to issue certificates for every customer. 
 
 It's not possible to upload a custom certificate or use a custom domain name.
 

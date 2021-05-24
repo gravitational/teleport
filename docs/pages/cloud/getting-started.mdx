@@ -9,10 +9,6 @@ Sign up [here](https://goteleport.com/get-started/).
 
 ## Step 2/3. Install client tools
 
-<Admonition type="warning" title="Warning">
-  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
-</Admonition>
-
 Install client libraries:
 
 <Tabs>
@@ -32,7 +28,7 @@ Login into Teleport and test the connection:
 # tsh logs you in and receives short-lived certificates
 tsh login --proxy=myinstance.teleport.sh:443 --user=email@example.com
 # tctl is a cluster configuration tool
-sudo tctl status
+tctl status
 ```
 
 ## Step 3/3. Explore your cluster
@@ -40,13 +36,13 @@ sudo tctl status
 List nodes in the cluster:
 
 ```bash
-sudo tctl nodes ls
+tctl nodes ls
 ```
 
 Generate a [dynamic token](../admin-guide.mdx#short-lived-dynamic-tokens):
 
 ```bash
-sudo tctl nodes add --ttl=5m --roles=node --token=$(uuid)
+tctl nodes add --ttl=5m --roles=node --token=$(uuid)
 ```
 
 ## Next steps
