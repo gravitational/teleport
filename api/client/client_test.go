@@ -53,9 +53,10 @@ func (mc *mockInsecureTLSCredentials) SSHClientConfig() (*ssh.ClientConfig, erro
 }
 
 func TestNew(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	addr := "localhost:3025"
-	startServer(t, addr)
+	startMockServer(t, addr)
 
 	tests := []struct {
 		desc      string
@@ -111,6 +112,7 @@ func TestNew(t *testing.T) {
 			tt.assertErr(t, err)
 
 			if err == nil {
+				// requests to the server should succeed.
 				_, err = clt.Ping(ctx)
 				require.NoError(t, err)
 			}
@@ -119,8 +121,9 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewDialBackground(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	addr := "localhost:3025"
+	addr := "localhost:4025"
 
 	// Create client before the server is listening.
 	clt, err := New(ctx, Config{
@@ -135,19 +138,55 @@ func TestNewDialBackground(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Ping should fail with a conneection error before the server is up.
+	// requests to the server will result in a connection error.
 	_, err = clt.Ping(ctx)
 	require.Error(t, err)
 	require.True(t, trace.IsConnectionProblem(err))
 
-	startServer(t, addr)
-	time.Sleep(time.Second * 2)
+	// Start the server and wait for the client connection to be ready.
+	startMockServer(t, addr)
+	require.True(t, clt.WaitForConnectionReady(ctx))
 
+	// requests to the server should succeed.
 	_, err = clt.Ping(ctx)
 	require.NoError(t, err)
 }
 
-func startServer(t *testing.T, addr string) {
+func TestWaitForConnectionReady(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	addr := "localhost:5025"
+
+	// Create client before the server is listening.
+	clt, err := New(ctx, Config{
+		DialInBackground: true,
+		Addrs:            []string{addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{},
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithInsecure(),
+		},
+	})
+	require.NoError(t, err)
+
+	// WaitForConnectionReady should return false once the
+	// context is canceled if the server isn't open to connections.
+	cancelCtx, cancel := context.WithTimeout(ctx, time.Second*3)
+	defer cancel()
+	require.False(t, clt.WaitForConnectionReady(cancelCtx))
+
+	// WaitForConnectionReady should return true if the server is open to connections
+	startMockServer(t, addr)
+	require.True(t, clt.WaitForConnectionReady(ctx))
+
+	// WaitForConnectionReady should return false if the grpc connection is closed.
+	clt.GetConnection().Close()
+	require.False(t, clt.WaitForConnectionReady(ctx))
+}
+
+// startMockServer starts a new mock server. Parallel tests cannot use the same addr.
+func startMockServer(t *testing.T, addr string) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

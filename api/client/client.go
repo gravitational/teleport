@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
@@ -373,6 +374,29 @@ func (c *Client) Config() *tls.Config {
 // Dialer returns the ContextDialer the client connected with.
 func (c *Client) Dialer() ContextDialer {
 	return c.dialer
+}
+
+// WaitForConnectionReady waits for the client's grpc connection finish dialing,
+// returning true if it becomes ready and returning false if the ctx is canceled
+// or the connection enters a closed state. This can be used alongside the
+// DialInBackground client config option to wait until background dialing has completed.
+func (c *Client) WaitForConnectionReady(ctx context.Context) bool {
+	for {
+		switch state := c.conn.GetState(); state {
+		case connectivity.Ready:
+			return true
+		case connectivity.TransientFailure, connectivity.Connecting:
+			// The connection will begin in `TransientFailure`, then begin
+			// `Connecting` until it either succeeds as `Ready` or fails.
+			// Expect and wait for these two begginning states to change.
+			if !c.conn.WaitForStateChange(ctx, state) {
+				// ctx canceled
+				return false
+			}
+		default:
+			return false
+		}
+	}
 }
 
 // GetConnection returns GRPC connection.
