@@ -4,7 +4,7 @@ description: How to customize SSH and Kubernetes access using Teleport.
 h1: Teleport Access Requests
 ---
 
-#### Approving Requests using an External Integration
+#### Approving Requests using an external integration
 
 - [Integrating Teleport with Slack](ssh-approval-slack.mdx)
 - [Integrating Teleport with Mattermost](ssh-approval-mattermost.mdx)
@@ -12,7 +12,7 @@ h1: Teleport Access Requests
 - [Integrating Teleport with Jira Server](ssh-approval-jira-server.mdx)
 - [Integrating Teleport with PagerDuty](ssh-approval-pagerduty.mdx)
 
-## Access Requests Setup
+## Access Requests setup
 
 Teleport has the ability for users to request additional roles. The Access Request API makes it easy to dynamically approve or deny these requests.
 
@@ -122,7 +122,7 @@ deny:
     roles: ['admin']
 ```
 
-## Adding a Reason to Access Requests
+## Adding a reason to Access Requests
 
 Teleport now has the ability for users to request additional roles. `tctl`
 or the Access Requests API makes it easy to dynamically approve or deny these requests.
@@ -135,7 +135,7 @@ Teams can leverage claims (traits) provided by external identity providers both 
 determining which roles a user is allowed to request, and if a specific request
 should be approved/denied.
 
-### Example Setup
+### Example setup
 
 **Unprivileged User**<br/>
 In this example, we have an employee who isn't able to access any systems. When they
@@ -230,7 +230,7 @@ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 ri
   older versions of Teleport, since only the issuing Auth Server needs any particular
   knowledge of the feature.
 
-## Integrating with an External Tool
+## Integrating with an external tool
 
 | Integration | Feature | Type | Setup Instructions |
 | - | - | - | - |

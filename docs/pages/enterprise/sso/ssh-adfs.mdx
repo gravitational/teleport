@@ -1,5 +1,5 @@
 ---
-title: SSH Authentication With ADFS How To
+title: How To Use SSH Authentication With ADFS
 description: How to configure SSH access with Active Directory (ADFS) using Teleport
 h1: SSH Authentication with ADFS
 ---
@@ -9,8 +9,7 @@ h1: SSH Authentication with ADFS
 This guide will cover how to configure Active Directory Federation Services
 [ADFS](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services) to be
 a single sign-on (SSO) provider to issue
-SSH credentials to specific groups of users. When used in combination with role
-based access control (RBAC) it allows SSH administrators to define policies
+SSH credentials to specific groups of users. When used in combination with role-based access control (RBAC) it allows SSH administrators to define policies
 like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
@@ -26,9 +25,9 @@ like:
   an SSO provider.
 </Admonition>
 
-## Enable ADFS Authentication
+## Enable ADFS authentication
 
-First, configure Teleport auth server to use ADFS authentication instead of the local
+First, configure the Teleport auth server to use ADFS authentication instead of the local
 user database. Update `/etc/teleport.yaml` as shown below and restart the
 teleport daemon.
 
@@ -53,7 +52,7 @@ separate normal users and admins).
 ![Name ID Configuration](../../../img/adfs-1.png)
 ![Group Configuration](../../../img/adfs-2.png)
 
-In addition if you are using dynamic roles (see below), it may be useful to map
+Also, if you are using dynamic roles (see below), it may be useful to map
 the LDAP Attribute `SAM-Account-Name` to `Windows account name` and create
 another mapping of `E-Mail-Addresses` to `UPN`.
 
@@ -63,10 +62,10 @@ another mapping of `E-Mail-Addresses` to `UPN`.
 You'll also need to create a Relying Party Trust, use the below information to
 help guide you through the Wizard. Note, for development purposes we recommend
 using `https://localhost:3080/v1/webapi/saml/acs` as the Assertion Consumer
-Service (ACS) URL, but for production you'll want to change this to a domain
+Service (ACS) URL, but for production, you'll want to change this to a domain
 that can be accessed by other users as well.
 
-- Create a claims aware trust.
+- Create a claims-aware trust.
 - Enter data about the relying party manually.
 - Set the display name to something along the lines of "Teleport".
 - Skip the token encryption certificate.
@@ -85,9 +84,9 @@ associated with it. To check this open Server Manager then
 *"Tools -> Active Directory Users and Computers"* and select the user and right
 click and open properties. Make sure the email address field is filled out.
 
-## Create Teleport Roles
+## Create Teleport roles
 
-Lets create two Teleport roles: one for administrators and the other is for
+Let's create two Teleport roles: one for administrators and the other is for
 normal users. You can create them using `tctl create {file name}` CLI command
 or via the Web UI.
 
@@ -128,11 +127,11 @@ spec:
 
 This role declares:
 
-- Devs are only allowed to login to nodes labelled with `access: relaxed` label.
+- Devs are only allowed to log in to nodes labeled with `access: relaxed` label.
 - Developers can log in as `ubuntu` user
 - Notice `{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}` login. It configures Teleport to look at
   *"[http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"](http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname")* ADFS claim and use that field as an allowed login for each user.
-  Also note the double quotes (`"`) and square brackets (`[]`) around the claim name - these are important.
+  Also, note the double quotes (`"`) and square brackets (`[]`) around the claim name - these are important.
 - Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
@@ -151,15 +150,19 @@ name is `http://schemas.xmlsoap.org/claims/Group` with a value of *"admins"*
 to the *"admin"* role. Groups with the value *"users"* is being mapped to the
 *"users"* role.
 
-## Export the Signing Key
+## Export the signing key
+
+<Admonition type="warning" title="Warning">
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
+</Admonition>
 
 For the last step, you'll need to export the signing key:
 
-```bsh
-$ tctl saml export adfs
+```bash
+sudo tctl saml export adfs
 ```
 
-Save the output to a file named `saml.crt`, return back to ADFS, open the
+Save the output to a file named `saml.crt`, return to ADFS, open the
 "Relying Party Trust" and add this file as one of the signature verification
 certificates.
 
@@ -168,8 +171,8 @@ certificates.
 The Web UI will now contain a new button: "Login with MS Active Directory". The CLI is
 the same as before:
 
-```bsh
-$ tsh --proxy=proxy.example.com login
+```bash
+tsh --proxy=proxy.example.com login
 ```
 
 This command will print the SSO login URL (and will try to open it
@@ -187,9 +190,7 @@ automatically in a browser).
   type="note"
   title="IMPORTANT"
 >
-  Teleport only supports sending party initiated flows for SAML 2.0. This
-  means you can not initiate login from your identity provider, you have to
-  initiate login from either the Teleport Web UI or CLI.
+  Teleport only supports sending party-initiated flows for SAML 2.0. This means you can not initiate login from your identity provider, you have to initiate login from either the Teleport Web UI or CLI.
 </Admonition>
 
 ## Troubleshooting
@@ -201,8 +202,8 @@ default and it will contain the detailed reason why a user's login was denied.
 Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
-```bsh
-$ sudo journalctl -fu teleport
+```bash
+sudo journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
