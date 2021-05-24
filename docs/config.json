@@ -161,6 +161,7 @@
       "title": "Infrastructure Guides",
       "entries": [
         { "title": "AWS", "slug": "/aws-oss-guide/" },
+        { "title": "AWS Terraform", "slug": "/aws-terraform-guide/" },
         { "title": "GCP", "slug": "/gcp-guide/" },
         { "title": "IBM", "slug": "/ibm-cloud-guide/" }
       ]
