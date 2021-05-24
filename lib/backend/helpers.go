@@ -74,3 +74,18 @@ func ResetLockTTL(ctx context.Context, backend Backend, lockName string) error {
 
 	return nil
 }
+
+// RunWhileLocked allows you to run a function while a lock is held.
+func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl time.Duration, fn func() error) error {
+	if err := AcquireLock(ctx, backend, lockName, ttl); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fnErr := fn()
+
+	if err := ReleaseLock(ctx, backend, lockName); err != nil {
+		return trace.NewAggregate(fnErr, err)
+	}
+
+	return fnErr
+}

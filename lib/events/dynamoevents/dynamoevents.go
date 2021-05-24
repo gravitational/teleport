@@ -382,49 +382,42 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 	// interruptible without breaking data and can be resumed from the
 	// last point so no checkpointing state needs to be managed here.
 	go func() {
-		// Acquire a lock so that only one auth server attempts to perform the migration at any given time.
-		// If an auth server does in a HA-setup the other auth servers will pick up the migration automatically.
-		if err := backend.AcquireLock(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL); err != nil {
-			log.WithError(err).Fatalf("Failed to acquire lock: %q", rfd24MigrationLock)
-			return
-		}
-
-		defer func() {
-			if err := backend.ReleaseLock(ctx, l.backend, rfd24MigrationLock); err != nil {
-				log.WithError(err).Fatalf("Failed to release lock: %q", rfd24MigrationLock)
-				return
-			}
-		}()
-
-		hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
-		if err != nil {
-			log.WithError(err).Fatal("Failed to check if migration was completed by another node")
-			return
-		}
-
-		if hasIndexV1 {
-			return
-		}
-
 		for {
-			// Migrate events to the new format so that the V2 index can use them.
-			log.Info("Starting event migration to v6.2 format")
-			err := l.migrateDateAttribute(ctx)
-			if err != nil {
-				log.WithError(err).Error("Encountered error migrating events to v6.2 format")
-			} else {
+			// Acquire a lock so that only one auth server attempts to perform the migration at any given time.
+			// If an auth server does in a HA-setup the other auth servers will pick up the migration automatically.
+			err := backend.RunWhileLocked(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL, func() error {
+				hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				if !hasIndexV1 {
+					return nil
+				}
+
+				// Migrate events to the new format so that the V2 index can use them.
+				log.Info("Starting event migration to v6.2 format")
+				err = l.migrateDateAttribute(ctx)
+				if err != nil {
+					return trace.WrapWithMessage(err, "Encountered error migrating events to v6.2 format")
+				}
+
 				// Remove the old index, marking migration as complete
 				log.Info("Removing old DynamoDB index")
 				err = l.removeV1GSI()
 				if err != nil {
-					log.WithError(err).Error("Migrated all events to v6.2 format successfully but failed to remove old index.")
-				} else {
-					break
+					return trace.WrapWithMessage(err, "Migrated all events to v6.2 format successfully but failed to remove old index.")
 				}
+
+				return nil
+			})
+
+			if err != nil {
+				break
 			}
 
 			delay := utils.HalfJitter(time.Minute)
-			log.Errorf("Background migration task failed, retrying in %f seconds", delay.Seconds())
+			log.WithError(err).Errorf("Background migration task failed, retrying in %f seconds", delay.Seconds())
 			select {
 			case <-time.After(delay):
 			case <-ctx.Done():
@@ -926,115 +919,88 @@ func (l *Log) indexExists(tableName, indexName string) (bool, error) {
 // - This function must be called before the
 //   backend is considered initialized and the main Teleport process is started.
 func (l *Log) createV2GSI(ctx context.Context) error {
-	if err := backend.AcquireLock(ctx, l.backend, indexV2CreationLock, 5*time.Minute); err != nil {
-		return trace.Wrap(err)
-	}
-
-	release := func() error {
-		if err := backend.ReleaseLock(ctx, l.backend, indexV2CreationLock); err != nil {
+	err := backend.RunWhileLocked(ctx, l.backend, indexV2CreationLock, 5*time.Minute, func() error {
+		v2Exists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		return nil
-	}
-
-	v2Exists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
-	if err != nil {
-		if err := release(); err != nil {
-			return trace.Wrap(err)
+		if v2Exists {
+			return nil
 		}
 
-		return trace.Wrap(err)
-	}
-
-	if v2Exists {
-		if err := release(); err != nil {
-			return trace.Wrap(err)
+		provisionedThroughput := dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(l.ReadCapacityUnits),
+			WriteCapacityUnits: aws.Int64(l.WriteCapacityUnits),
 		}
 
-		return nil
-	}
-
-	provisionedThroughput := dynamodb.ProvisionedThroughput{
-		ReadCapacityUnits:  aws.Int64(l.ReadCapacityUnits),
-		WriteCapacityUnits: aws.Int64(l.WriteCapacityUnits),
-	}
-
-	// This defines the update event we send to DynamoDB.
-	// This update sends an updated schema and an child event
-	// to create the new global secondary index.
-	c := dynamodb.UpdateTableInput{
-		TableName:            aws.String(l.Tablename),
-		AttributeDefinitions: tableSchema,
-		GlobalSecondaryIndexUpdates: []*dynamodb.GlobalSecondaryIndexUpdate{
-			{
-				Create: &dynamodb.CreateGlobalSecondaryIndexAction{
-					IndexName: aws.String(indexTimeSearchV2),
-					KeySchema: []*dynamodb.KeySchemaElement{
-						{
-							// Partition by date instead of namespace.
-							AttributeName: aws.String(keyDate),
-							KeyType:       aws.String("HASH"),
+		// This defines the update event we send to DynamoDB.
+		// This update sends an updated schema and an child event
+		// to create the new global secondary index.
+		c := dynamodb.UpdateTableInput{
+			TableName:            aws.String(l.Tablename),
+			AttributeDefinitions: tableSchema,
+			GlobalSecondaryIndexUpdates: []*dynamodb.GlobalSecondaryIndexUpdate{
+				{
+					Create: &dynamodb.CreateGlobalSecondaryIndexAction{
+						IndexName: aws.String(indexTimeSearchV2),
+						KeySchema: []*dynamodb.KeySchemaElement{
+							{
+								// Partition by date instead of namespace.
+								AttributeName: aws.String(keyDate),
+								KeyType:       aws.String("HASH"),
+							},
+							{
+								AttributeName: aws.String(keyCreatedAt),
+								KeyType:       aws.String("RANGE"),
+							},
 						},
-						{
-							AttributeName: aws.String(keyCreatedAt),
-							KeyType:       aws.String("RANGE"),
+						Projection: &dynamodb.Projection{
+							ProjectionType: aws.String("ALL"),
 						},
+						ProvisionedThroughput: &provisionedThroughput,
 					},
-					Projection: &dynamodb.Projection{
-						ProjectionType: aws.String("ALL"),
-					},
-					ProvisionedThroughput: &provisionedThroughput,
 				},
 			},
-		},
-	}
-
-	if _, err := l.svc.UpdateTable(&c); err != nil {
-		if err := release(); err != nil {
-			return trace.Wrap(err)
 		}
 
-		return trace.Wrap(convertError(err))
-	}
+		if _, err := l.svc.UpdateTable(&c); err != nil {
+			return trace.Wrap(convertError(err))
+		}
 
-	// If we hit this time, we give up waiting.
-	waitStart := time.Now()
-	endWait := waitStart.Add(time.Minute * 10)
+		// If we hit this time, we give up waiting.
+		waitStart := time.Now()
+		endWait := waitStart.Add(time.Minute * 10)
 
-	// Wait until the index is created and active or updating.
-	for time.Now().Before(endWait) {
-		indexExists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
-		if err != nil {
-			if err := release(); err != nil {
+		// Wait until the index is created and active or updating.
+		for time.Now().Before(endWait) {
+			indexExists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
+			if err != nil {
 				return trace.Wrap(err)
 			}
 
-			return trace.Wrap(err)
-		}
-
-		if indexExists {
-			log.Info("DynamoDB index created")
-			break
-		}
-
-		select {
-		case <-time.After(time.Second * 5):
-		case <-ctx.Done():
-			if err := release(); err != nil {
-				return trace.Wrap(err)
+			if indexExists {
+				log.Info("DynamoDB index created")
+				break
 			}
 
-			return trace.Wrap(ctx.Err())
+			select {
+			case <-time.After(time.Second * 5):
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			}
+
+			elapsed := time.Since(waitStart).Seconds()
+			log.Infof("Creating new DynamoDB index, %f seconds elapsed...", elapsed)
 		}
 
-		elapsed := time.Since(waitStart).Seconds()
-		log.Infof("Creating new DynamoDB index, %f seconds elapsed...", elapsed)
+		return nil
+	})
+
+	if err != nil {
+		return trace.Wrap(nil)
 	}
 
-	if err := release(); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
@@ -1049,7 +1015,7 @@ func (l *Log) removeV1GSI() error {
 		return trace.Wrap(err)
 	}
 
-	if v1Exists {
+	if !v1Exists {
 		log.Info("v1 event index already deleted.")
 		return nil
 	}
