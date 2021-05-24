@@ -18,7 +18,6 @@ package common
 
 import (
 	"context"
-	"io"
 	"net"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -36,7 +35,7 @@ type Service interface {
 	// Connect is used to connect to remote database server over reverse tunnel.
 	Connect(ctx context.Context, user, database string) (net.Conn, *auth.Context, error)
 	// Proxy starts proxying between client and service connections.
-	Proxy(ctx context.Context, authContext *auth.Context, clientConn net.Conn, serviceConn io.ReadWriteCloser) error
+	Proxy(ctx context.Context, authContext *auth.Context, clientConn, serviceConn net.Conn) error
 }
 
 // Engine defines an interface for specific database protocol engine such

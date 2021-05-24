@@ -232,14 +232,55 @@ func (ch trackingChannel) Write(buf []byte) (int, error) {
 	return n, err
 }
 
+// TrackingReadConnConfig is a TrackingReadConn configuration.
+type TrackingReadConnConfig struct {
+	//Conn is a client connection.
+	Conn net.Conn
+	// Clock is a clock, realtime or fixed in tests.
+	Clock clockwork.Clock
+	// Context is an external context to cancel the operation.
+	Context context.Context
+	// Cancel is called whenever client context is closed.
+	Cancel context.CancelFunc
+}
+
+// CheckAndSetDefaults checks and sets defaults.
+func (c *TrackingReadConnConfig) CheckAndSetDefaults() error {
+	if c.Conn == nil {
+		return trace.BadParameter("missing parameter Conn")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+	if c.Context == nil {
+		return trace.BadParameter("missing parameter Context")
+	}
+	if c.Cancel == nil {
+		return trace.BadParameter("missing parameter Cancel")
+	}
+	return nil
+}
+
+
+// NewTrackingReadConn returns a new tracking read connection.
+func NewTrackingReadConn(cfg TrackingReadConnConfig) (*TrackingReadConn, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &TrackingReadConn{
+		cfg:        cfg,
+		RWMutex:    sync.RWMutex{},
+		Conn:       cfg.Conn,
+		lastActive: time.Time{},
+	}, nil
+}
+
 // TrackingReadConn allows to wrap net.Conn and keeps track of the latest conn read activity.
 type TrackingReadConn struct {
+	cfg TrackingReadConnConfig
 	sync.RWMutex
 	net.Conn
-	Clock      clockwork.Clock
 	lastActive time.Time
-	Ctx        context.Context
-	Cancel     context.CancelFunc
 }
 
 // Read reads data from the connection.
@@ -248,11 +289,11 @@ type TrackingReadConn struct {
 func (t *TrackingReadConn) Read(b []byte) (int, error) {
 	n, err := t.Conn.Read(b)
 	t.UpdateClientActivity()
-	return n, err
+	return n, trace.Wrap(err)
 }
 
 func (t *TrackingReadConn) Close() error {
-	t.Cancel()
+	t.cfg.Cancel()
 	return t.Conn.Close()
 }
 
@@ -267,5 +308,5 @@ func (t *TrackingReadConn) GetClientLastActive() time.Time {
 func (t *TrackingReadConn) UpdateClientActivity() {
 	t.Lock()
 	defer t.Unlock()
-	t.lastActive = t.Clock.Now().UTC()
+	t.lastActive = t.cfg.Clock.Now().UTC()
 }

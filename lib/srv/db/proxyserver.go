@@ -73,7 +73,7 @@ type ProxyServerConfig struct {
 	Tunnel reversetunnel.Server
 	// TLSConfig is the proxy server TLS configuration.
 	TLSConfig *tls.Config
-	// Audit Event emitter.
+	// Emitter is used to emit audit events.
 	Emitter events.Emitter
 	// Clock to override clock in tests.
 	Clock clockwork.Clock
@@ -250,7 +250,7 @@ func (s *ProxyServer) Connect(ctx context.Context, user, database string) (net.C
 // this proxy and Teleport database service over reverse tunnel.
 //
 // Implements common.Service.
-func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clientConn net.Conn, serviceConn io.ReadWriteCloser) error {
+func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clientConn, serviceConn net.Conn) error {
 	tc, err := s.monitorConn(ctx, authContext, clientConn)
 	if err != nil {
 		clientConn.Close()
@@ -307,17 +307,20 @@ func (s *ProxyServer) monitorConn(ctx context.Context, authContext *auth.Context
 		disconnectCertExpired = certExpires
 	}
 
-	idleTimeout := authContext.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 	if disconnectCertExpired.IsZero() && idleTimeout == 0 {
 		return conn, nil
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
-	tc := &srv.TrackingReadConn{
-		Conn:   conn,
-		Clock:  clockwork.NewRealClock(),
-		Ctx:    ctx,
-		Cancel: cancel,
+	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
+		Conn:    conn,
+		Clock:   s.cfg.Clock,
+		Context: ctx,
+		Cancel:  cancel,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	mon, err := srv.NewMonitor(srv.MonitorConfig{
@@ -335,6 +338,7 @@ func (s *ProxyServer) monitorConn(ctx context.Context, authContext *auth.Context
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Start monitoring client connection. When client connection is close the the goroutine exits.
 	go mon.Start()
 	return tc, nil
 }

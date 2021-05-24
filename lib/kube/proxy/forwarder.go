@@ -1279,6 +1279,7 @@ type clusterSession struct {
 	noAuditEvents bool
 }
 
+// monitorConn wraps a client connection with TrackingReadConn and starts a connection monitor.
 func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1287,11 +1288,14 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		return conn, nil
 	}
 	ctx, cancel := context.WithCancel(s.parent.ctx)
-	tc := &srv.TrackingReadConn{
-		Conn:   conn,
-		Clock:  s.parent.cfg.Clock,
-		Ctx:    ctx,
-		Cancel: cancel,
+	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
+		Conn:    conn,
+		Clock:   s.parent.cfg.Clock,
+		Context: s.parent.cfg.Context,
+		Cancel:  cancel,
+	})
+	if err != nil {
+		trace.Wrap(err)
 	}
 
 	mon, err := srv.NewMonitor(srv.MonitorConfig{
