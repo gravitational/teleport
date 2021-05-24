@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"time"
 
@@ -769,6 +770,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		},
 		TerminalSize:     params.Serialize(),
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
+		AccessRequests:   parseAccessRequestIDs(ctx.Identity.ActiveRequests),
 	}
 
 	// Local address only makes sense for non-tunnel nodes.
@@ -913,6 +915,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
+		AccessRequests:   parseAccessRequestIDs(ctx.Identity.ActiveRequests),
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
@@ -1417,4 +1420,11 @@ func (p *party) Close() (err error) {
 		close(p.termSizeC)
 	})
 	return err
+}
+
+func parseAccessRequestIDs(str string) []string {
+	re := regexp.MustCompile(`\[(.*?)\]`)
+	accessIDs := re.Find([]byte(str))
+	reg := regexp.MustCompile(`\"(.*?)\"`)
+	return reg.FindAllString(string(accessIDs), -1)
 }
