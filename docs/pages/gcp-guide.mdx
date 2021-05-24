@@ -7,27 +7,11 @@ We've created this guide to give customers a high-level overview of how to use T
 
 We have split this guide into:
 
-- [Teleport on GCP FAQ](#teleport-on-gcp-faq)
 - [GCP Teleport Introduction](#gcp-teleport-introduction)
-- [GCP Quickstart](#create-resources)
+- [GCP Quickstart](#quickstart)
+- [Teleport on GCP FAQ](#teleport-on-gcp-faq)
 
-## Teleport on GCP FAQ
-
-### Why would you want to use Teleport with GCP?
-
-As a [BeyondCorp](https://cloud.google.com/beyondcorp/) leader, GCP already provides some great tools out of the box such as [Cloud Identity-Aware Proxy](https://cloud.google.com/iap/).
-
-This is an excellent tool to quickly get set up securely with GCP but it can become complicated to integrate into existing workflows and complicated if you want to share
-tool across clouds.
-
-### Which Services can I use Teleport with?
-
-You can use Teleport for all the services that you would SSH into. This guide is
-focused on Google Compute Engine. 
-
-We plan on expanding our guide to eventually include using Teleport with Google Kubernetes Engine (GKE).
-
-## GCP Teleport Introduction
+## GCP Teleport introduction
 
 This guide will cover how to set up, configure and run Teleport on GCP.
 
@@ -54,13 +38,13 @@ stores the state of the system and Google Cloud Storage stores the audit logs.
 
 ![GCP Intro Image](../img/gcp/gcp-teleport.svg)
 
-### Compute Engine: VM Instances with Instance Groups
+### Compute Engine: VM instances with Instance Groups
 
 To run Teleport in a High Availability configuration we recommend using `n1-standard-2` instances in
 Production. It's best practice to separate the proxy and authentication server, using
 Instance groups for the proxy and auth server.
 
-### Computer Engine: Health Checks
+### Computer Engine: health checks
 
 GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/docs/health-checks),
 this is helpful when adding new instances to an instance group.
@@ -70,7 +54,7 @@ see  [Admin Guide: Troubleshooting](admin-guide.mdx#troubleshooting) for more in
 
 ### Storage: Cloud Firestore
 
-[Cloud Firestore](https://cloud.google.com/firestore/) This storage backend uses real-time
+[Cloud Firestore](https://cloud.google.com/firestore/) is a storage backend that uses real-time
 updates to keep individual auth instances in sync and requires Firestore configured
 in native mode.
 
@@ -101,7 +85,7 @@ storage:
     ...
 ```
 
-### Network Services: Load Balancing
+### Network Services: load balancing
 
 Load Balancing is required for Proxy and SSH traffic. Use `TCP Load Balancing` as
 Teleport requires custom ports for SSH and Web Traffic.
@@ -120,17 +104,19 @@ The Authentication server will need to read and write to Firestore.  For this, i
 **Download JSON Service Key**
 ![GCP Service Key](../img/gcp/gcp-service-key.png)
 
-## Create resources
+## Quickstart
+
+### Create resources
 
 We recommend starting by creating the resources. We highly recommend creating these using an infrastructure automation tool such as [Cloud Deployment Manager](https://cloud.google.com/deployment-manager/) or Terraform.
 
-## Install and configure Teleport
+### Install and configure Teleport
 
 Follow install instructions from our [installation page](installation.mdx#linux).
 
-We recommend configuring Teleport using the following steps.
+We recommend further configuring Teleport using the following steps.
 
-## Step 1/4. Configure Teleport Auth Server
+## Step 1/4. Configure Teleport Auth server
 
 Use the `teleport.yaml` below:
 
@@ -209,3 +195,19 @@ proxy_service:
 ## Step 4/4. Add users
 
 Follow [adding users](enterprise/quickstart-enterprise.mdx#adding-users) or integrate with [Google Workspace](enterprise/sso/ssh-google-workspace.mdx) to provide SSO access.
+
+## Teleport on GCP FAQ
+
+### Why would you want to use Teleport with GCP?
+
+As a [BeyondCorp](https://cloud.google.com/beyondcorp/) leader, GCP already provides some great tools out of the box such as [Cloud Identity-Aware Proxy](https://cloud.google.com/iap/).
+
+This is an excellent tool to quickly get set up securely with GCP but it can become complicated to integrate into existing workflows and complicated if you want to share
+tool across clouds.
+
+### Which services can I use Teleport with?
+
+You can use Teleport for all the services that you would SSH into. This guide is
+focused on Google Compute Engine. 
+
+We plan on expanding our guide to eventually include using Teleport with Google Kubernetes Engine (GKE).
