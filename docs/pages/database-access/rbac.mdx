@@ -5,21 +5,24 @@ description: Role-based access control (RBAC) for Teleport Database Access
 
 # Database Access Role-Based Access Control
 
-Role-based access control (or RBAC, for short) allows administrators to set up
+Role-Based Access Control (RBAC) allows administrators to set up
 granular access policies for databases connected to Teleport.
 
-An example of a policy could be, *"database administrators have access to
-everything, QA team and engineers have full access to staging databases, and
-engineers can gain temporary access to the production database in case of
-emergency"*.
+RBAC allows Teleport administrators to grant granular access permissions to users following the security best practice that: *users should be given access only what their role requires*.
 
-For a more general description of Teleport roles and examples see [RBAC](../access-controls/introduction.mdx), as
-this section focuses on configuring RBAC for Database Access.
+A typical scenario where RBAC is used might limit roles in the following way: 
+
+1. *database administrators* have access to everything.
+2. *QA and engineering* teams have full access to staging databases.
+3. *engineers* can gain temporary access to the production database in case of emergency.
+
+Each role is defined by specific permissions and limits on access. 
+
+Read [Role-Based Access Control](../access-controls/introduction.mdx) for a general overview about RBAC Enterprise support.
 
 ## Role Configuration
 
-Teleport's "role" resource provides the following instruments for restricting
-database access:
+Teleport's "role" resource provides the following instruments for restricting database access:
 
 ```yaml
 kind: role
@@ -48,10 +51,9 @@ spec:
     db_names: ["main", "metrics", "postgres"]
 ```
 
-It is possible to use wildcards to match any database names/users.
+It's possible to use wildcards to match any database names/users.
 
-For example, the following role permits access to any database/user within a
-production database except for the internal "postgres" database/user:
+For example, the following role permits access to any database/user within a production database except for the internal "postgres" database/user:
 
 ```yaml
 kind: role
@@ -73,39 +75,30 @@ spec:
   type="note"
   title="Deny Rules"
 >
-  Deny rules will match greedily. In the example above, a database connection
-  attempting to use "postgres" database account (regardless of database instance
-  or database name) or "postgres" database name (regardless of database instance
-  or database account) will be rejected.
+  Deny rules will match greedily. In the example above, a database connection attempting to use "postgres" database account (regardless of database instance or database name) or "postgres" database name (regardless of database instance or database account) will be rejected.
 </Admonition>
 
-## Database Names
+## Database names
 
 There's a distinction in how different database servers handle logical databases
 which leads to a difference in how `db_names` role field is applied to a connection
 attempt.
 
 PostgreSQL supports multiple logical databases, and each logical database can
-contain multiple schemas. In order to change to a different database, a user
-disconnects from the current one and establishes a new connection. During a
-PostgreSQL connection attempt, `db_names` field is checked against the name
+contain multiple schemas. To change to another database, a user disconnects from the current one and establishes a new connection. During a PostgreSQL connection attempt, `db_names` field is checked against the name
 of the logical database that the user is connecting to.
 
-In MySQL a logical "database" and a "schema" are synonyms for each other, and
-the scope of permissions a user has once connected is determined by the permission
-grants set on the account within the database. As such, `db_names` role field
+In MySQL, a logical "database" and a "schema" are synonyms for each other, and the scope of permissions a user has once connected is determined by the permission grants set on the account within the database. As such, `db_names` role field
 is not currently enforced on MySQL connection attempts.
 
-## Template Variables
+## Template variables
 
 Similar to other role fields, `db_*` fields support templating variables.
 
 The `{{external.xyz}}` variables are replaced with values from external [SSO](../enterprise/sso/ssh-sso.mdx)
-providers. For OIDC, they will be expanded with a value of an "xyz" claim; for
-SAML — with an "xyz" assertion value.
+providers. For OIDC, they will be expanded with a value of an "xyz" claim; for SAML — with an "xyz" assertion value.
 
-For example, here is what a role may look like if you want to assign allowed
-database names from the user's Okta `databases` assertion:
+For example, here is what a role may look like if you want to assign allowed database names from the user's Okta `databases` assertion:
 
 ```yaml
 spec:
@@ -113,8 +106,7 @@ spec:
     db_names: ["{{external.databases}}"]
 ```
 
-The `{{internal.db_users}}` and `{{internal.db_names}}` variables permit sharing
-allowed database accounts and names with remote clusters. They will be replaced
+The `{{internal.db_users}}` and `{{internal.db_names}}` variables permit sharing allowed database accounts and names with remote clusters. They will be replaced
 with the respective properties of a remote user connecting from a root cluster.
 
 For example, suppose a user in the root cluster has the following role:
@@ -126,8 +118,7 @@ spec:
     db_names: ["postgres"]
 ```
 
-The role on the leaf cluster can be set up to use the user's allowed database
-accounts and names:
+The role on the leaf cluster can be set up to use the user's allowed database accounts and names:
 
 ```yaml
 spec:
