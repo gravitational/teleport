@@ -110,7 +110,8 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	server := &ProxyServer{
 		cfg: config,
 		middleware: &auth.Middleware{
-			AccessPoint: config.AccessPoint,
+			AccessPoint:   config.AccessPoint,
+			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 		closeCtx: ctx,
 		log:      logrus.WithField(trace.Component, "db:proxy"),

@@ -434,7 +434,7 @@ func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw service
 
 	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
 	if !rc.confirm && managedByStaticConfig {
-		return trace.BadParameter(managedByStaticConfigMsg)
+		return trace.BadParameter(managedByStaticCreateMsg)
 	}
 
 	if err := client.SetAuthPreference(newAuthPref); err != nil {
@@ -446,7 +446,8 @@ func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw service
 
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
-	if rc.ref.Kind == "" || rc.ref.Name == "" {
+	singletonResources := []string{services.KindClusterAuthPreference}
+	if !utils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
@@ -517,8 +518,30 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("kubernetes service %v has been deleted\n", rc.ref.Name)
+	case services.KindClusterAuthPreference:
+		if err = resetAuthPreference(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("cluster auth preference has been reset to defaults\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
+	}
+	return nil
+}
+
+func resetAuthPreference(ctx context.Context, client auth.ClientI) error {
+	storedAuthPref, err := client.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	managedByStatic := storedAuthPref.Origin() == types.OriginConfigFile
+	if managedByStatic {
+		return trace.BadParameter(managedByStaticDeleteMsg)
+	}
+
+	if err = client.ResetAuthPreference(ctx); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -868,6 +891,8 @@ func UpsertVerb(exists bool, force bool) string {
 	}
 }
 
-const managedByStaticConfigMsg = `This resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
+const managedByStaticCreateMsg = `This resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
 
 If you would still like to proceed, re-run the command with both --force and --confirm flags.`
+
+const managedByStaticDeleteMsg = `This resource is managed by static configuration. In order to reset it to defaults, remove relevant configuration from teleport.yaml and restart the servers.`

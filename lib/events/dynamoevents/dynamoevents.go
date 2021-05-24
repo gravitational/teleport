@@ -20,6 +20,7 @@ package dynamoevents
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/url"
 	"sort"
 	"time"
@@ -56,10 +57,6 @@ var tableSchema = []*dynamodb.AttributeDefinition{
 	{
 		AttributeName: aws.String(keyEventIndex),
 		AttributeType: aws.String("N"),
-	},
-	{
-		AttributeName: aws.String(keyEventNamespace),
-		AttributeType: aws.String("S"),
 	},
 	{
 		AttributeName: aws.String(keyCreatedAt),
@@ -179,9 +176,6 @@ const (
 
 	// keyEventIndex is EventIndex key
 	keyEventIndex = "EventIndex"
-
-	// keyEventNamespace
-	keyEventNamespace = "EventNamespace"
 
 	// keyCreatedAt identifies created at key
 	keyCreatedAt = "CreatedAt"
@@ -529,13 +523,17 @@ func (l *Log) PostSessionSlice(slice events.SessionSlice) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		timeAt := time.Unix(0, chunk.Time).In(time.UTC)
+
 		event := event{
 			SessionID:      slice.SessionID,
 			EventNamespace: defaults.Namespace,
 			EventType:      chunk.EventType,
 			EventIndex:     chunk.EventIndex,
-			CreatedAt:      time.Unix(0, chunk.Time).In(time.UTC).Unix(),
+			CreatedAt:      timeAt.Unix(),
 			Fields:         string(data),
+			CreatedAtDate:  timeAt.Format(iso8601DateFormat),
 		}
 		l.setExpiry(&event)
 		item, err := dynamodbattribute.MarshalMap(event)
@@ -642,39 +640,106 @@ func daysBetween(start, end time.Time) []string {
 	return days
 }
 
-// SearchEvents is a flexible way to find  The format of a query string
-// depends on the implementing backend. A recommended format is urlencoded
-// (good enough for Lucene/Solr)
+type checkpointKey struct {
+	// The date that the Dynamo iterator corresponds to.
+	Date string `json:"date,omitempty"`
+
+	// A DynamoDB query iterator. Allows us to resume a partial query.
+	Iterator map[string]*dynamodb.AttributeValue `json:"iterator,omitempty"`
+}
+
+// SearchEvents is a flexible way to find events.
 //
-// Pagination is also defined via backend-specific query format.
+// Event types to filter can be specified and pagination is handled by an iterator key that allows
+// a query to be resumed.
 //
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) ([]events.EventFields, error) {
-	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Filter": filter, "Limit": limit})
-	filterVals, err := url.ParseQuery(filter)
+func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	rawEvents, lastKey, err := l.searchEventsRaw(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
 	if err != nil {
-		return nil, trace.BadParameter("missing parameter query")
+		return nil, "", trace.Wrap(err)
 	}
-	eventFilter, ok := filterVals[events.EventType]
-	if !ok && len(filterVals) > 0 {
-		return nil, nil
-	}
-	doFilter := len(eventFilter) > 0
 
-	var values []events.EventFields
+	eventArr := make([]events.AuditEvent, 0, len(rawEvents))
+	for _, rawEvent := range rawEvents {
+		var fields events.EventFields
+		if err := utils.FastUnmarshal([]byte(rawEvent.Fields), &fields); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		eventArr = append(eventArr, event)
+	}
+
+	sort.Sort(byTimeAndIndex(eventArr))
+	return eventArr, lastKey, nil
+}
+
+// ByTimeAndIndex sorts events by time
+// and if there are several session events with the same session by event index.
+type byTimeAndIndex []events.AuditEvent
+
+func (f byTimeAndIndex) Len() int {
+	return len(f)
+}
+
+func (f byTimeAndIndex) Less(i, j int) bool {
+	itime := f[i].GetTime()
+	jtime := f[j].GetTime()
+	if itime.Equal(jtime) && events.GetSessionID(f[i]) == events.GetSessionID(f[j]) {
+		return f[i].GetIndex() < f[j].GetIndex()
+	}
+	return itime.Before(jtime)
+}
+
+func (f byTimeAndIndex) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
+// searchEventsRaw is a low level function for searching for events. This is kept
+// separate from the SearchEvents function in order to allow tests to grab more metadata.
+func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]event, string, error) {
+	var checkpoint checkpointKey
+
+	// If a checkpoint key is provided, unmarshal it so we can work with it's parts.
+	if startKey != "" {
+		if err := json.Unmarshal([]byte(startKey), &checkpoint); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	var values []event
 	dates := daysBetween(fromUTC, toUTC)
 	query := "CreatedAtDate = :date AND CreatedAt BETWEEN :start and :end"
+	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
+	var left int64
+	if limit != 0 {
+		left = int64(limit)
+	} else {
+		left = math.MaxInt64
+	}
+	doFilter := len(eventTypes) > 0
 
-	var total int
+	// Resume scanning at the correct date. We need to do this because we send individual queries per date
+	// and you can't resume a query with the wrong iterator checkpoint.
+	//
+	// We need to perform a guard check on the length of `dates` here in case a query is submitted with
+	// `toUTC` occurring before `fromUTC`.
+	if checkpoint.Date != "" && len(dates) > 0 {
+		for dates[0] != checkpoint.Date {
+			dates = dates[1:]
+		}
+	}
 
+	// This is the main query loop, here we send individual queries for each date and
+	// we stop if we hit `limit` or process all dates, whichever comes first.
 dateLoop:
 	for _, date := range dates {
-		if limit > 0 && total >= limit {
-			break dateLoop
-		}
+		checkpoint.Date = date
 
-		var lastEvaluatedKey map[string]*dynamodb.AttributeValue
 		attributes := map[string]interface{}{
 			":date":  date,
 			":start": fromUTC.Unix(),
@@ -683,80 +748,86 @@ dateLoop:
 
 		attributeValues, err := dynamodbattribute.MarshalMap(attributes)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 
-		// Because the maximum size of the dynamo db response size is 900K according to documentation,
-		// we arbitrary limit the total size to 100MB to prevent runaway loops.
-	pageLoop:
-		for pageCount := 0; pageCount < 100; pageCount++ {
+		for {
 			input := dynamodb.QueryInput{
 				KeyConditionExpression:    aws.String(query),
 				TableName:                 aws.String(l.Tablename),
 				ExpressionAttributeValues: attributeValues,
 				IndexName:                 aws.String(indexTimeSearchV2),
-				ExclusiveStartKey:         lastEvaluatedKey,
+				ExclusiveStartKey:         checkpoint.Iterator,
+				Limit:                     aws.Int64(left),
 			}
+
 			start := time.Now()
 			out, err := l.svc.Query(&input)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
 			g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items)}).Debugf("Query completed.")
+			checkpoint.Iterator = out.LastEvaluatedKey
 
-		itemLoop:
 			for _, item := range out.Items {
 				var e event
 				if err := dynamodbattribute.UnmarshalMap(item, &e); err != nil {
-					return nil, trace.BadParameter("failed to unmarshal event for %v", err)
+					return nil, "", trace.WrapWithMessage(err, "failed to unmarshal event")
 				}
 				var fields events.EventFields
 				data := []byte(e.Fields)
 				if err := json.Unmarshal(data, &fields); err != nil {
-					return nil, trace.BadParameter("failed to unmarshal event %v", err)
+					return nil, "", trace.BadParameter("failed to unmarshal event %v", err)
 				}
-				var accepted bool
-				for i := range eventFilter {
-					if fields.GetString(events.EventType) == eventFilter[i] {
+				accepted := false
+				for i := range eventTypes {
+					if e.EventType == eventTypes[i] {
 						accepted = true
-						break itemLoop
+						break
 					}
 				}
 				if accepted || !doFilter {
-					values = append(values, fields)
-					total++
-					if limit > 0 && total >= limit {
+					values = append(values, e)
+					left--
+					if left == 0 {
 						break dateLoop
 					}
 				}
 			}
 
-			// AWS returns a `lastEvaluatedKey` in case the response is truncated, i.e. needs to be fetched with
-			// multiple requests. According to their documentation, the final response is signaled by not setting
-			// this value - therefore we use it as our break condition.
-			lastEvaluatedKey = out.LastEvaluatedKey
-			if len(lastEvaluatedKey) == 0 {
-				break pageLoop
+			if len(checkpoint.Iterator) == 0 {
+				continue dateLoop
 			}
 		}
-
-		g.Error("DynamoDB response size exceeded limit.")
 	}
 
-	sort.Sort(events.ByTimeAndIndex(values))
-	return values, nil
+	// When no events are left we set the checkpoint to null
+	if len(values) == 0 {
+		checkpoint = checkpointKey{}
+	}
+
+	var lastKey []byte
+	var err error
+
+	if len(values) > 0 {
+		lastKey, err = json.Marshal(&checkpoint)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return values, string(lastKey), nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]events.EventFields, error) {
+func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
 	// only search for specific event types
-	query := url.Values{}
-	query[events.EventType] = []string{
+	query := []string{
 		events.SessionStartEvent,
 		events.SessionEndEvent,
 	}
-	return l.SearchEvents(fromUTC, toUTC, query.Encode(), limit)
+	return l.SearchEvents(fromUTC, toUTC, defaults.Namespace, query, limit, startKey)
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to

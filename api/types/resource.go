@@ -54,6 +54,9 @@ type Resource interface {
 	GetResourceID() int64
 	// SetResourceID sets resource ID
 	SetResourceID(int64)
+	// CheckAndSetDefaults validates the Resource and sets any empty fields to
+	// default values.
+	CheckAndSetDefaults() error
 }
 
 // ResourceWithSecrets includes additional properties which must
@@ -145,6 +148,16 @@ func (h *ResourceHeader) SetSubKind(s string) {
 	h.SubKind = s
 }
 
+func (h *ResourceHeader) CheckAndSetDefaults() error {
+	if h.Kind == "" {
+		return trace.BadParameter("resource has an empty Kind field")
+	}
+	if h.Version == "" {
+		return trace.BadParameter("resource has an empty Version field")
+	}
+	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
+}
+
 // GetID returns resource ID
 func (m *Metadata) GetID() int64 {
 	return m.ID
@@ -229,7 +242,7 @@ func (m *Metadata) CheckAndSetDefaults() error {
 
 	// Check the origin value.
 	if !utils.SliceContainsStr(append(OriginValues, ""), m.Origin()) {
-		return trace.BadParameter("invalid origin value %q, should be one of %v (this is a bug)", m.Origin(), OriginValues)
+		return trace.BadParameter("invalid origin value %q, must be one of %v", m.Origin(), OriginValues)
 	}
 
 	return nil

@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -257,7 +258,7 @@ type authContext struct {
 	kubeUsers       map[string]struct{}
 	kubeCluster     string
 	teleportCluster teleportClusterClient
-	clusterConfig   services.ClusterConfig
+	recordingConfig types.SessionRecordingConfig
 	// clientIdleTimeout sets information on client idle timeout
 	clientIdleTimeout time.Duration
 	// disconnectExpiredCert if set, controls the time when the connection
@@ -430,16 +431,6 @@ func (f *Forwarder) formatResponseError(rw http.ResponseWriter, respErr error) {
 func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUser bool, certExpires time.Time) (*authContext, error) {
 	roles := ctx.Checker
 
-	clusterConfig, err := f.cfg.CachingAuthClient.GetClusterConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	netConfig, err := f.cfg.CachingAuthClient.GetClusterNetworkingConfig(f.ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// adjust session ttl to the smaller of two values: the session
 	// ttl requested in tsh or the session ttl for the role.
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
@@ -461,6 +452,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// For remote clusters, everything will be remapped to new roles on the
 	// leaf and checked there.
 	if !isRemoteCluster {
+		var err error
 		// check signing TTL and return a list of allowed logins
 		kubeGroups, kubeUsers, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false)
 		if err != nil {
@@ -534,13 +526,28 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		isRemoteClosed = func() bool { return false }
 	}
 
+	clusterConfig, err := f.cfg.CachingAuthClient.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	netConfig, err := f.cfg.CachingAuthClient.GetClusterNetworkingConfig(f.ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	recordingConfig, err := f.cfg.CachingAuthClient.GetSessionRecordingConfig(f.ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authCtx := &authContext{
 		clientIdleTimeout: roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		sessionTTL:        sessionTTL,
 		Context:           ctx,
 		kubeGroups:        utils.StringsSet(kubeGroups),
 		kubeUsers:         utils.StringsSet(kubeUsers),
-		clusterConfig:     clusterConfig,
+		recordingConfig:   recordingConfig,
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -625,8 +632,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 // directly to the auth server and blocks if the events can not be received,
 // async streamer buffers the events to disk and uploads the events later
 func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
-	mode := ctx.clusterConfig.GetSessionRecording()
-	if services.IsRecordSync(mode) {
+	if services.IsRecordSync(ctx.recordingConfig.GetMode()) {
 		f.log.Debugf("Using sync streamer for session.")
 		return f.cfg.AuthClient, nil
 	}
@@ -706,7 +712,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			SessionID:    sessionID,
 			ServerID:     f.cfg.ServerID,
 			Namespace:    f.cfg.Namespace,
-			RecordOutput: ctx.clusterConfig.GetSessionRecording() != services.RecordOff,
+			RecordOutput: ctx.recordingConfig.GetMode() != services.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
 			ClusterName:  f.cfg.ClusterName,
 		})
@@ -795,6 +801,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			KubernetesClusterMetadata: ctx.eventClusterMeta(),
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
+			SessionRecording:          ctx.recordingConfig.GetMode(),
 		}
 		if err := emitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit event.")
@@ -912,6 +919,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				KubernetesClusterMetadata: ctx.eventClusterMeta(),
 				KubernetesPodMetadata:     eventPodMeta,
 				InitialCommand:            request.cmd,
+				SessionRecording:          ctx.recordingConfig.GetMode(),
 			}
 			if err := emitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
 				f.log.WithError(err).Warn("Failed to emit session end event.")

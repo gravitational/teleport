@@ -431,11 +431,10 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	testCtx.authServer = testCtx.tlsServer.Auth()
 
 	// Use sync recording to not involve the uploader.
-	clusterConfig, err := authServer.AuthServer.GetClusterConfig()
+	recConfig, err := authServer.AuthServer.GetSessionRecordingConfig(ctx)
 	require.NoError(t, err)
-	clusterConfig.SetSessionRecording(types.RecordAtNodeSync)
-
-	err = authServer.AuthServer.SetClusterConfig(clusterConfig)
+	recConfig.SetMode(types.RecordAtNodeSync)
+	err = authServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Auth client/authorizer for database service.
