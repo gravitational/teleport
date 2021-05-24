@@ -61,3 +61,16 @@ func ReleaseLock(ctx context.Context, backend Backend, lockName string) error {
 	}
 	return nil
 }
+
+// ResetLockTTL resets the TTL on a given lock.
+func ResetLockTTL(ctx context.Context, backend Backend, lockName string) error {
+	if lockName == "" {
+		return trace.BadParameter("missing parameter lock name")
+	}
+	key := []byte(filepath.Join(locksPrefix, lockName))
+	if _, err := backend.Get(ctx, key); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}

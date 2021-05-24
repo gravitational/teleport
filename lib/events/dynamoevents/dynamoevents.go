@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -68,6 +69,10 @@ var tableSchema = []*dynamodb.AttributeDefinition{
 		AttributeType: aws.String("S"),
 	},
 }
+
+const indexV2CreationLock = "dynamoEvents/indexV2Creation"
+const rfd24MigrationLock = "dynamoEvents/rfd24Migration"
+const rfd24MigrationLockTTL = 5 * time.Minute
 
 // Config structure represents DynamoDB confniguration as appears in `storage` section
 // of Teleport YAML
@@ -154,6 +159,10 @@ type Log struct {
 
 	// session holds the AWS client.
 	session *awssession.Session
+
+	// Backend holds the data backend used.
+	// This is used for locking.
+	backend backend.Backend
 }
 
 type event struct {
@@ -206,7 +215,7 @@ const (
 
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, cfg Config) (*Log, error) {
+func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error) {
 	l := log.WithFields(log.Fields{
 		trace.Component: teleport.Component(teleport.ComponentDynamoDB),
 	})
@@ -217,8 +226,9 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 	b := &Log{
-		Entry:  l,
-		Config: cfg,
+		Entry:   l,
+		Config:  cfg,
+		backend: backend,
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
@@ -361,25 +371,29 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 		return nil
 	}
 
-	hasIndexV2, err := l.indexExists(l.Tablename, indexTimeSearchV2)
+	// Creates the v2 index if it doesn't already exist.
+	// This function takes a lock internally to prevent race conditions.
+	err = l.createV2GSI(ctx)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	// Table does not have the new index, so we send off an API
-	// request to create it and wait until it's active.
-	if !hasIndexV2 {
-		log.Info("Creating new DynamoDB index...")
-		err = l.createV2GSI(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	// Kick off a background task to migrate events, this task is safely
 	// interruptible without breaking data and can be resumed from the
 	// last point so no checkpointing state needs to be managed here.
 	go func() {
+		// Acquire a lock so that only one auth server attempts to perform the migration at any given time.
+		// If an auth server does in a HA-setup the other auth servers will pick up the migration automatically.
+		if err := backend.AcquireLock(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL); err != nil {
+			log.WithError(err).Fatalf("Failed to acqiure lock: %s", rfd24MigrationLock)
+		}
+
+		defer func() {
+			if err := backend.ReleaseLock(ctx, l.backend, rfd24MigrationLock); err != nil {
+				log.WithError(err).Fatalf("Failed to release lock: %s", rfd24MigrationLock)
+			}
+		}()
+
 		for {
 			// Migrate events to the new format so that the V2 index can use them.
 			log.Info("Starting event migration to v6.2 format")
@@ -890,18 +904,35 @@ func (l *Log) indexExists(tableName, indexName string) (bool, error) {
 	return false, nil
 }
 
-// createV2GSI creates the new global secondary Index and updates
+// createV2GSI creates the new global secondary index if it does not exist and updates
 // the schema to add a string key `date`.
 //
 // This does not remove the old global secondary index.
 // This must be done at a later point in time when all events have been migrated as per RFD 24.
 //
 // Invariants:
-// - The new global secondary index must not exist.
-// - This function must not be called concurrently with itself.
 // - This function must be called before the
 //   backend is considered initialized and the main Teleport process is started.
 func (l *Log) createV2GSI(ctx context.Context) error {
+	if err := backend.AcquireLock(ctx, l.backend, indexV2CreationLock, 5*time.Minute); err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		if err := backend.ReleaseLock(ctx, l.backend, indexV2CreationLock); err != nil {
+			log.WithError(err).Fatalf("Failed to release lock: %s", indexV2CreationLock)
+		}
+	}()
+
+	v2Exists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if v2Exists {
+		return nil
+	}
+
 	provisionedThroughput := dynamodb.ProvisionedThroughput{
 		ReadCapacityUnits:  aws.Int64(l.ReadCapacityUnits),
 		WriteCapacityUnits: aws.Int64(l.WriteCapacityUnits),
@@ -973,10 +1004,19 @@ func (l *Log) createV2GSI(ctx context.Context) error {
 // removeV1GSI removes the pre RFD 24 global secondary index from the table.
 //
 // Invariants:
-// - The pre RFD 24 global secondary index must exist.
 // - This function must not be called concurrently with itself.
 // - This may only be executed after the post RFD 24 global secondary index has been created.
 func (l *Log) removeV1GSI() error {
+	v1Exists, err := l.indexExists(l.Tablename, indexTimeSearch)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if v1Exists {
+		log.Info("v1 event index already deleted.")
+		return nil
+	}
+
 	c := dynamodb.UpdateTableInput{
 		TableName: aws.String(l.Tablename),
 		GlobalSecondaryIndexUpdates: []*dynamodb.GlobalSecondaryIndexUpdate{
@@ -1007,9 +1047,14 @@ func (l *Log) removeV1GSI() error {
 // Invariants:
 // - This function must be called after `createV2GSI` has completed successfully on the table.
 // - This function must not be called concurrently with itself.
+// - The rfd24MigrationLock must exist.
 func (l *Log) migrateDateAttribute(ctx context.Context) error {
 	var total int64 = 0
 	var startKey map[string]*dynamodb.AttributeValue
+
+	// We use this variable to figure out when to refresh the lock TTL
+	// to indicate to other auth servers that we are still migrating.
+	lastRefresh := time.Now()
 
 	for {
 		c := &dynamodb.ScanInput{
@@ -1039,6 +1084,12 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 		// For every item processed by this scan iteration we send an update action
 		// that adds the new date attribute.
 		for _, item := range scanOut.Items {
+			if time.Since(lastRefresh) > time.Minute {
+				if err := backend.ResetLockTTL(ctx, l.backend, rfd24MigrationLock); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+
 			// Extract the UTC timestamp integer of the event.
 			timestampAttribute := item[keyCreatedAt]
 			var timestampRaw int64

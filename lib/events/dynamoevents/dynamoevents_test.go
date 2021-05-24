@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
@@ -66,13 +67,16 @@ func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
 		c.Skip("Skipping AWS-dependent test suite.")
 	}
 
+	backend, err := memory.New(memory.Config{})
+	c.Assert(err, check.IsNil)
+
 	fakeClock := clockwork.NewFakeClock()
 	log, err := New(context.Background(), Config{
 		Region:       "us-west-1",
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
-	})
+	}, backend)
 	c.Assert(err, check.IsNil)
 	s.log = log
 	s.EventsSuite.Log = log
