@@ -19,7 +19,7 @@ database flag under "Customize your instance / Flags" section:
 ![Enable IAM Authentication](../../../img/database-access/guides/cloudsql/iam-new-instance@2x.png)
 
 To check whether IAM authentication is enabled for an existing Cloud SQL instance,
-look for the flag on the Configuration panel on the instance's Overview page:
+look for the flag in the "Configuration" panel on the instance's "Overview" page:
 
 ![Check IAM Authentication](../../../img/database-access/guides/cloudsql/iam-existing-instance@2x.png)
 
@@ -105,7 +105,7 @@ Overview page:
 - Cloud SQL instance endpoint.
 
 You will use the instance's public IP address to connect to it. It can be viewed
-on the "Connect to this instance" panel on the Overview page:
+in the "Connect to this instance" panel on the "Overview" page:
 
 ![Instance Public IP](../../../img/database-access/guides/cloudsql/instance-public-ip@2x.png)
 
@@ -334,7 +334,7 @@ When logging into a PostgreSQL database, `tsh` automatically configures a sectio
 in the [connection service file](https://www.postgresql.org/docs/current/libpq-pgservice.html)
 with the name of `<cluster-name>-<database-service-name>`.
 
-Suppose the cluster name is "teleport.example.com", then you can connect to the
+Suppose the cluster name is `teleport.example.com`, then you can connect to the
 database using the following `psql` command:
 
 ```bash
