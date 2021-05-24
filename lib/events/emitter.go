@@ -300,11 +300,13 @@ func NewLoggingEmitter() *LoggingEmitter {
 type LoggingEmitter struct {
 }
 
-// EmitAuditEvent logs audit event, skips session print events
-// and session disk events, because they are very verbose
+// EmitAuditEvent logs audit event, skips session print events, session
+// disk events and app session request events, because they are very verbose.
 func (*LoggingEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
 	switch event.GetType() {
 	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, "":
+		return nil
+	case AppSessionRequestCode:
 		return nil
 	}
 
