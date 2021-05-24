@@ -275,19 +275,16 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
 
-	dialOptions := append(
-		c.c.DialOpts,
-		grpc.WithContextDialer(c.grpcDialer()),
-	)
-
+	dialOpts := append([]grpc.DialOption{}, c.c.DialOpts...)
+	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
 	// to explicitly provide gprc.WithInsecure in the client's dial options.
 	if c.tlsConfig != nil {
-		dialOptions = append(dialOptions, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 	}
 
 	var err error
-	if c.conn, err = grpc.DialContext(dialContext, addr, dialOptions...); err != nil {
+	if c.conn, err = grpc.DialContext(dialContext, addr, dialOpts...); err != nil {
 		return trace.Wrap(err)
 	}
 	c.grpc = proto.NewAuthServiceClient(c.conn)
