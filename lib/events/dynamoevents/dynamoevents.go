@@ -1085,6 +1085,7 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 		// that adds the new date attribute.
 		for _, item := range scanOut.Items {
 			if time.Since(lastRefresh) > time.Minute {
+				lastRefresh = time.Now()
 				if err := backend.ResetLockTTL(ctx, l.backend, rfd24MigrationLock); err != nil {
 					return trace.Wrap(err)
 				}
