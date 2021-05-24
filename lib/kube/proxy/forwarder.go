@@ -1287,7 +1287,6 @@ type clusterSession struct {
 	noAuditEvents bool
 }
 
-// monitorConn wraps a client connection with TrackingReadConn and starts a connection monitor.
 func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -289,6 +289,9 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 	return trace.NewAggregate(errs...)
 }
 
+// monitorConn wraps a client connection with TrackingReadConn, starts a connection monitor and
+// returns a tracking connection that will be auto-terminated in case disconnect_expired_cert or idle timeout is
+// configured, and unmodified client connection otherwise.
 func (s *ProxyServer) monitorConn(ctx context.Context, authContext *auth.Context, conn net.Conn) (net.Conn, error) {
 	checker := authContext.Checker
 	certExpires := authContext.Identity.GetIdentity().Expires
@@ -339,7 +342,7 @@ func (s *ProxyServer) monitorConn(ctx context.Context, authContext *auth.Context
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Start monitoring client connection. When client connection is close the the goroutine exits.
+	// Start monitoring client connection. When client connection is close the monitor goroutine exits.
 	go mon.Start()
 	return tc, nil
 }

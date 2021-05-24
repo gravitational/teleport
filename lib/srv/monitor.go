@@ -261,7 +261,6 @@ func (c *TrackingReadConnConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-
 // NewTrackingReadConn returns a new tracking read connection.
 func NewTrackingReadConn(cfg TrackingReadConnConfig) (*TrackingReadConn, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
