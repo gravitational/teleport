@@ -148,7 +148,7 @@ The documentation layout and structure is presently:
     - [ ] YAML
     - [ ] CLI
     - [ ] Metrics
-    - [ ] Reference
+    - [ ] API
         - [ ] Teleport API Introduction
         - [ ] Getting Started
         - [ ] API Architecture
@@ -860,7 +860,7 @@ The documentation layout and structure is presently:
         - [ ] tctl
     - [ ] Metrics
         - [ ] Teleport Prometheus endpoint
-    - [ ] Reference
+    - [ ] API
         - [ ] pkg.go
         - w/ Tile landing
         - [ ] Teleport API Introduction
