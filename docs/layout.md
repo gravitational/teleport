@@ -32,6 +32,7 @@ Along with a fifth for:
 
 ### Product and Reference Documentation (Article-Level)
 
+The documentation layout and structure is presently:
 
 - [ ] Home Section
     - [ ] Introduction
@@ -106,7 +107,29 @@ Along with a fifth for:
 - [ ] Preview Section
     - [ ] Upcoming Releases
 - [ ] Infrastructure Guides Section
+    - [ ] AWS
+    - [ ] AWS Terraform
+    - [ ] GCP
+    - [ ] IBM
 - [ ] Teleport Enterprise Section
+    - [ ] Introduction
+    - [ ] Quick Start Guide
+    - [ ] Single Sign-On (SSO)
+        - [ ] Azure Active Directory (AD)
+        - [ ] Active Directory (ADFS)
+        - [ ] Google Workspace
+        - [ ] GitLab
+        - [ ] OneLogin
+        - [ ] OIDC
+        - [ ] Okta
+    - [ ] Access Requests
+        - [ ] Integrating Teleport with Slack
+        - [ ] Integrating Teleport with Mattermost
+        - [ ] Integrating Teleport with Jira Cloud
+        - [ ] Integrating Teleport with Jira Server
+        - [ ] Integrating Teleport with PagerDuty
+    - [ ] FedRAMP for SSH & K8s
+    - [ ] Role-Based Access Control
 - [ ] Cloud Section
     - [ ] Introduction
     - [ ] Getting Started
@@ -604,7 +627,160 @@ The documentation layout and structure is presently:
         - [ ] Teleport Cloud "Washington"
         - [ ] Semantic Versioning
 - [ ] Infrastructure Guides Section
+    - [ ] AWS
+        - [ ] Teleport introduction
+        - [ ] Setting up a High Availability Teleport cluster
+        - [ ] Deploying with CloudFormation
+        - [ ] Deploying with Terraform
+        - [ ] Upgrading
+        - [ ] Using Teleport with EKS
+        - [ ] Running Teleport Enterprise on AWS
+        - [ ] Teleport AWS Tips and Tricks
+    - [ ] AWS Terraform
+        - [ ] Prerequisites
+        - [ ] Get the Terraform code
+        - [ ] Set up variables
+        - [ ] Reference deployment defaults
+        - [ ] Deploying with Terraform
+        - [ ] Accessing the cluster after Terraform setup
+        - [ ] Restarting/checking Teleport services
+        - [ ] Adding EC2 instances to your Teleport cluster
+        - [ ] Script to quickly connect to instances
+    - [ ] GCP
+        - [ ] GCP Teleport introduction
+        - [ ] Quickstart
+        - [ ] Step 1/4. Configure Teleport Auth server
+        - [ ] Step 2/4. Setup Proxy
+        - [ ] Step 3/4. Setup Teleport Nodes
+        - [ ] Step 4/4. Add users
+        - [ ] Teleport on GCP FAQ
+    - [ ] IBM
+        - [ ] Teleport on IBM Cloud FAQ
+        - [ ] IBM Teleport introduction
 - [ ] Teleport Enterprise Section
+    - [ ] Introduction
+        - [ ] Role-Based Access Control
+        - [ ] Single Sign-On
+        - [ ] FedRAMP/FIPS
+        - [ ] Access Requests
+    - [ ] Quick Start Guide
+        - [ ] Prerequisites
+        - [ ] Step 1/3. Installing
+        - [ ] Step 2/3. Start Teleport on auth.example.com
+        - [ ] Step 3/3. Adding users
+        - [ ] Run Teleport Enterprise using Docker
+        - [ ] Troubleshooting
+        - [ ] Getting help
+    - [ ] Single Sign-On (SSO)
+        - [ ] How does SSO work with SSH?
+        - [ ] Configuring SSO
+        - [ ] Working with external email identity
+        - [ ] Multiple SSO Providers
+        - [ ] SSO customization
+        - [ ] Troubleshooting
+        - Guides
+            - [ ] Azure Active Directory (AD)
+                - [ ] Prerequisites
+                - [ ] Configure Azure AD
+                - [ ] Create a SAML connector
+                - [ ] Create Teleport roles
+                - [ ] Testing
+                - [ ] Token encryption
+                - [ ] Troubleshooting
+            - [ ] Active Directory (ADFS)
+                - [ ] Active Directory as an SSO provider for SSH authentication
+                - [ ] Enable ADFS authentication
+                - [ ] Configure ADFS
+                - [ ] Create Teleport roles
+                - [ ] Export the signing key
+                - [ ] Testing
+                - [ ] Troubleshooting
+            - [ ] Google Workspace
+                - [ ] Google Workspace as SSO for SSH
+                - [ ] Prerequisites
+                - [ ] Configure G Suite
+                - [ ] Create a Service Account
+                - [ ] Manage API scopes
+                - [ ] Create a OIDC Connector
+                - [ ] Testing
+                - [ ] Troubleshooting
+            - [ ] GitLab
+                - [ ] How to use GitLab as a single sign-on (SSO) provider with Teleport
+                - [ ] Enable OIDC Authentication
+                - [ ] Configure GitLab
+                - [ ] Configure Teleport
+                - [ ] Create Teleport Roles
+                - [ ] Testing
+                - [ ] Troubleshooting
+            - [ ] OneLogin
+                - [ ] Using OneLogin as a single sign-on (SSO) provider for SSH
+                - [ ] Enable SAML Authentication
+                - [ ] Configure Application
+                - [ ] Create a SAML Connector
+                - [ ] Create Teleport Roles
+                - [ ] Testing
+                - [ ] Troubleshooting
+            - [ ] OIDC
+                - [ ] Enable OIDC Authentication
+                - [ ] Identity Providers
+                - [ ] OIDC Redirect URL
+                - [ ] OIDC connector configuration
+                - [ ] Create Teleport Roles
+                - [ ] Testing
+                - [ ] Troubleshooting
+            - [ ] Okta
+                - [ ] How to use Okta as a single sign-on (SSO) provider for SSH
+                - [ ] Enable SAML Authentication
+                - [ ] Configure Okta
+                - [ ] Configure the App
+                - [ ] Create & Assign Groups
+                - [ ] Create a SAML Connector
+                - [ ] Create Teleport Roles
+                - [ ] Testing
+                - [ ] Troubleshooting
+    - [ ] Access Requests
+        - [ ] Access Requests setup
+        - [ ] Adding a reason to Access Requests
+        - [ ] Integrating with an external tool
+        - Integration Guides
+            - [ ] Integrating Teleport with Slack
+                - [ ] Setup
+                - [ ] Installing the Teleport Slack Plugin
+                - [ ] Test run
+                - [ ] Audit log
+                - [ ] Feedback
+            - [ ] Integrating Teleport with Mattermost
+                - [ ] Setup
+                - [ ] Downloading and installing the plugin
+                - [ ] Audit log
+                - [ ] Feedback
+            - [ ] Integrating Teleport with Jira Cloud
+                - [ ] Teleport Jira Plugin Setup
+                - [ ] Setup
+                - [ ] Setting up your Jira project
+                - [ ] Installing
+                - [ ] Testing
+                - [ ] Audit log
+                - [ ] Feedback
+            - [ ] Integrating Teleport with Jira Server
+                - [ ] Teleport Jira Server Plugin Setup
+                - [ ] Setup
+                - [ ] Installing
+                - [ ] Testing
+                - [ ] Audit log
+                - [ ] Feedback
+            - [ ] Integrating Teleport with PagerDuty
+                - [ ] Teleport Pagerduty Plugin Setup
+                - [ ] Setup
+                - [ ] Downloading and installing the plugin
+                - [ ] Audit log
+                - [ ] Feedback
+    - [ ] FedRAMP for SSH & K8s
+        - [ ] Setup
+        - [ ] Configuration
+        - [ ] What else does the Teleport FIPS binary enforce?
+    - [ ] Role-Based Access Control
+        - Links to Access Controls Introduction
 - [ ] Cloud Section
     - [ ] Introduction
         - [ ] Next steps
