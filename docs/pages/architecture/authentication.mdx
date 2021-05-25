@@ -73,7 +73,7 @@ certificate on a node makes it a cluster member.
   [`tctl nodes add --ttl`](../cli-docs.mdx#tctl-nodes-add) flag.
 </Admonition>
 
-2. When a new node joins the cluster, the auth server generates a new public/private keypair for the node and signs its certificate. This node
+2. When a new node joins the cluster, the auth server generates a new public/private key-pair for the node and signs its certificate. This node
    certificate contains the node's role(s) (`proxy`, `auth` or `node`) as a
    certificate extension (opaque signed string).
 
