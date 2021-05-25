@@ -718,7 +718,7 @@ func onLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	tc.HomePath = cf.HomePath
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
@@ -1624,9 +1624,6 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 
-	// Set tsh home directory
-	c.HomePath = cf.HomePath
-
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {
 		hosts, err := utils.ParseProxyJump(cf.ProxyJump)
@@ -1701,7 +1698,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	} else {
 		// load profile. if no --proxy is given the currently active profile is used, otherwise
 		// fetch profile for exact proxy we are trying to connect to.
-		err = c.LoadProfile("", cf.Proxy)
+		err = c.LoadProfile(cf.HomePath, cf.Proxy)
 		if err != nil {
 			fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", cf.Proxy, err)
 		}
@@ -1802,6 +1799,13 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 
 	// pass along mock sso login if provided (only used in tests)
 	c.MockSSOLogin = cf.mockSSOLogin
+
+	// Set tsh home directory
+	c.HomePath = cf.HomePath
+
+	if c.KeysDir == "" {
+		c.KeysDir = c.HomePath
+	}
 
 	tc, err := client.NewClient(c)
 	if err != nil {
@@ -2241,6 +2245,5 @@ func readTeleportHome(cf *CLIConf, fn envGetter) {
 }
 
 func tshHomeFullPath(dir string) string {
-	cleaned := path.Clean(dir)
-	return cleaned + profile.ProfileDir
+	return filepath.Join(path.Clean(dir), profile.ProfileDir)
 }
