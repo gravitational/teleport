@@ -122,9 +122,8 @@ sudo systemctl enable teleport
 When using `teleport start --fips`, Teleport will start in FIPS mode.
 
 Teleport will configure the TLS and SSH servers with FIPS-compliant
-cryptographic algorithms.  In FIPS mode, if non-compliant algorithms are
-chosen, Teleport will fail to start.  Teleport also checks if the
-binary was compiled against an approved cryptographic module (BoringCrypto) and
+cryptographic algorithms. In FIPS mode, if non-compliant algorithms are
+chosen, Teleport will fail to start. Teleport also checks if the binary was compiled against an approved cryptographic module (BoringCrypto) and
 fails to start if it was not.
 
 - For Teleport Open Source and Enterprise binaries not compiled with BoringCrypto, this flag will report that this version of Teleport is not compiled with the appropriate cryptographic module.
