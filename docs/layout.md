@@ -302,7 +302,7 @@ The documentation layout and structure is presently:
         - [ ] Guides
         - w/ Demo video
         - w/ Tile landing
-    - [ ] Getting Started 
+    - [ ] Getting Started
         - [ ] Getting Started
         - [ ] Follow along with our video guide
         - [ ] Prerequisites
