@@ -94,7 +94,7 @@ Before you get started you’ll need:
   The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
 </Admonition>
 
-## Create a SAML Connector
+## Create a SAML connector
 
 Now, create a SAML connector [resource](../../admin-guide.mdx#resources).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the entity_descriptor resource.
 Write down this template as `azure-connector.yaml`:
@@ -139,9 +139,9 @@ sudo tctl create azure-connector.yaml
   ```
 </Admonition>
 
-## Create Teleport Roles
+## Create Teleport roles
 
-We are going to create 2 roles:
+We are going to create two roles:
 
 - Privileged role `admin` who can log in as root and is capable of administrating
   the cluster
@@ -220,7 +220,7 @@ automatically in a browser).
   can be passed via `tsh login --auth=connector_name`
 </Admonition>
 
-## Token Encryption
+## Token encryption
 
 AzureAD's SAML token encryption encrypts the SAML assertions sent to Teleport during SSO redirect.
 
@@ -232,7 +232,7 @@ AzureAD's SAML token encryption encrypts the SAML assertions sent to Teleport du
   You can read more about it [here](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption)
 </Admonition>
 
-### Setup Teleport Token Encryption
+### Setup Teleport token encryption
 
 Start with generating a public/private key and a certificate. You will configure Azure Active Directory with the public certificate and configure Teleport with the private key.
 
