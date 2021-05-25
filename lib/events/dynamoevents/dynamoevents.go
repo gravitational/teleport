@@ -1061,7 +1061,7 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 	var startKey map[string]*dynamodb.AttributeValue
 	workerCounter := atomic.NewInt32(0)
 	totalProcessed := atomic.NewInt32(0)
-	workerErrors := make(chan error)
+	workerErrors := make(chan error, maxMigrationWorkers)
 
 	// We use this variable to figure out when to refresh the lock TTL
 	// to indicate to other auth servers that we are still migrating.
@@ -1090,14 +1090,14 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 		}
 
 		// Resume the scan at the end of the previous one.
-		// This processes 25 events at maximum
+		// This processes `25*maxMigrationWorkers` events at maximum
 		// which is why we need to run this multiple times on the dataset.
 		scanOut, err := l.svc.Scan(c)
 		if err != nil {
 			return trace.Wrap(convertError(err))
 		}
 
-		writeRequests := make([]*dynamodb.WriteRequest, 0, 25)
+		writeRequests := make([]*dynamodb.WriteRequest, 0, 25*maxMigrationWorkers)
 
 		// For every item processed by this scan iteration we generate a write request.
 		for _, item := range scanOut.Items {
@@ -1139,18 +1139,18 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 		for len(writeRequests) > 0 {
 			var top int
 			if len(writeRequests) > 25 {
-				top = 24
+				top = 25
 			} else {
-				top = len(writeRequests) - 1
+				top = len(writeRequests)
 			}
 
-			batch := writeRequests[top:]
+			batch := writeRequests[:top]
 			writeRequests = writeRequests[top:]
 
 			// Don't exceed maximum workers.
 			for workerCounter.Load() >= maxMigrationWorkers {
 				select {
-				case <-time.After(time.Millisecond * 100):
+				case <-time.After(time.Millisecond * 50):
 				case <-ctx.Done():
 					return trace.Wrap(ctx.Err())
 				}
@@ -1182,6 +1182,22 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 		}
 	}
 
+	// Wait for all workers to complete.
+	for workerCounter.Load() != 0 {
+		select {
+		case <-time.After(time.Millisecond * 50):
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
+
+	// Check for worker errors and escalate if found.
+	select {
+	case err := <-workerErrors:
+		return trace.Wrap(err)
+	default:
+	}
+
 	return nil
 }
 
@@ -1197,13 +1213,11 @@ func (l *Log) uploadBatch(writeRequests []*dynamodb.WriteRequest) error {
 			return trace.Wrap(err)
 		}
 
-		writeRequests, ok := out.UnprocessedItems[l.Tablename]
-		if !ok && len(writeRequests) == 0 {
-			break
+		writeRequests := out.UnprocessedItems[l.Tablename]
+		if len(writeRequests) == 0 {
+			return nil
 		}
 	}
-
-	return nil
 }
 
 // createTable creates a DynamoDB table with a requested name and applies
