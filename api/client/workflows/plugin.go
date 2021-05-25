@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 
@@ -43,13 +42,13 @@ import (
 // We have already integrated with some popular external tools using this Plugin.
 // See https://goteleport.com/docs/enterprise/workflow/#integrating-with-an-external-tool.
 type Plugin struct {
-	client *client.Client
+	client Client
 	name   string
 }
 
 // NewPlugin creates a new plugin using the given client and plugin name.
 // The plugin's name is used for auditing and to store plugin data on access requests.
-func NewPlugin(ctx context.Context, name string, client *client.Client) *Plugin {
+func NewPlugin(ctx context.Context, name string, client Client) *Plugin {
 	return &Plugin{
 		client: client,
 		name:   name,

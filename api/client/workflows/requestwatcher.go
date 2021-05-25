@@ -20,7 +20,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
@@ -46,7 +45,7 @@ type RequestEvent struct {
 }
 
 // NewRequestWatcher creates a new RequestWatcher.
-func NewRequestWatcher(ctx context.Context, clt *client.Client, filter types.AccessRequestFilter) (*RequestWatcher, error) {
+func NewRequestWatcher(ctx context.Context, clt Client, filter types.AccessRequestFilter) (*RequestWatcher, error) {
 	eventWatcher, err := clt.NewWatcher(ctx,
 		types.Watch{
 			Kinds: []types.WatchKind{
