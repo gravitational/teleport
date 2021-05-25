@@ -37,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -1622,6 +1623,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
+
+	// Set tsh home directory
+	c.HomePath = cf.HomePath
 
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {
