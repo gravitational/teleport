@@ -1082,7 +1082,7 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 			// This makes the scan operation slightly slower but the other alternative is scanning a second time
 			// for any missed events after an appropriate grace period which is far worse.
 			ConsistentRead: aws.Bool(true),
-			// 25*32 is the maximum concurrent event uploads.
+			// `25*maxMigrationWorkers` is the maximum concurrent event uploads.
 			Limit:     aws.Int64(25 * maxMigrationWorkers),
 			TableName: aws.String(l.Tablename),
 			// Without the `date` attribute.
@@ -1136,28 +1136,40 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 			writeRequests = append(writeRequests, wr)
 		}
 
-		// Don't exceed maximum workers.
-		for workerCounter.Load() >= maxMigrationWorkers {
-			select {
-			case <-time.After(time.Millisecond * 100):
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
+		for len(writeRequests) > 0 {
+			var top int
+			if len(writeRequests) > 25 {
+				top = 24
+			} else {
+				top = len(writeRequests) - 1
 			}
+
+			batch := writeRequests[top:]
+			writeRequests = writeRequests[top:]
+
+			// Don't exceed maximum workers.
+			for workerCounter.Load() >= maxMigrationWorkers {
+				select {
+				case <-time.After(time.Millisecond * 100):
+				case <-ctx.Done():
+					return trace.Wrap(ctx.Err())
+				}
+			}
+
+			workerCounter.Add(1)
+			go func() {
+				defer workerCounter.Sub(1)
+				amountProcessed := len(batch)
+
+				if err := l.uploadBatch(batch); err != nil {
+					workerErrors <- trace.Wrap(err)
+					return
+				}
+
+				total := totalProcessed.Add(int32(amountProcessed))
+				log.Infof("Migrated %d total events to 6.2 format...", total)
+			}()
 		}
-
-		workerCounter.Add(1)
-		go func() {
-			defer workerCounter.Sub(1)
-			amountProcessed := len(writeRequests)
-
-			if err := l.uploadBatch(writeRequests); err != nil {
-				workerErrors <- trace.Wrap(err)
-				return
-			}
-
-			total := totalProcessed.Add(int32(amountProcessed))
-			log.Infof("Migrated %d total events to 6.2 format...", total)
-		}()
 
 		// Setting the startKey to the last evaluated key of the previous scan so that
 		// the next scan doesn't return processed events.
