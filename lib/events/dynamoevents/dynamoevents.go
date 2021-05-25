@@ -54,6 +54,9 @@ const iso8601DateFormat = "2006-01-02"
 // fast migration of millions of events.
 const maxMigrationWorkers = 32
 
+// The maximum size of a DynamoDB batch write.
+const DynamoBatchSize = 25
+
 // Defines the attribute schema for the DynamoDB event table and index.
 var tableSchema = []*dynamodb.AttributeDefinition{
 	// Existing attributes pre RFD 24.
@@ -1082,22 +1085,22 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 			// This makes the scan operation slightly slower but the other alternative is scanning a second time
 			// for any missed events after an appropriate grace period which is far worse.
 			ConsistentRead: aws.Bool(true),
-			// `25*maxMigrationWorkers` is the maximum concurrent event uploads.
-			Limit:     aws.Int64(25 * maxMigrationWorkers),
+			// `DynamoBatchSize*maxMigrationWorkers` is the maximum concurrent event uploads.
+			Limit:     aws.Int64(DynamoBatchSize * maxMigrationWorkers),
 			TableName: aws.String(l.Tablename),
 			// Without the `date` attribute.
 			FilterExpression: aws.String("attribute_not_exists(CreatedAtDate)"),
 		}
 
 		// Resume the scan at the end of the previous one.
-		// This processes `25*maxMigrationWorkers` events at maximum
+		// This processes `DynamoBatchSize*maxMigrationWorkers` events at maximum
 		// which is why we need to run this multiple times on the dataset.
 		scanOut, err := l.svc.Scan(c)
 		if err != nil {
 			return trace.Wrap(convertError(err))
 		}
 
-		writeRequests := make([]*dynamodb.WriteRequest, 0, 25*maxMigrationWorkers)
+		writeRequests := make([]*dynamodb.WriteRequest, 0, DynamoBatchSize*maxMigrationWorkers)
 
 		// For every item processed by this scan iteration we generate a write request.
 		for _, item := range scanOut.Items {
@@ -1138,8 +1141,8 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 
 		for len(writeRequests) > 0 {
 			var top int
-			if len(writeRequests) > 25 {
-				top = 25
+			if len(writeRequests) > DynamoBatchSize {
+				top = DynamoBatchSize
 			} else {
 				top = len(writeRequests)
 			}
@@ -1201,7 +1204,7 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 	return nil
 }
 
-// uploadBatch creates or updates a batch of 25 events or less in one API call.
+// uploadBatch creates or updates a batch of `DynamoBatchSize` events or less in one API call.
 func (l *Log) uploadBatch(writeRequests []*dynamodb.WriteRequest) error {
 	for {
 		c := &dynamodb.BatchWriteItemInput{
