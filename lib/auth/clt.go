@@ -1451,45 +1451,24 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 	return retval, nil
 }
 
-// SearchEvents returns events that fit the criteria
-func (c *Client) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {
-	q, err := url.ParseQuery(query)
+// SearchEvents allows searching for audit events with pagination support.
+func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
 	if err != nil {
-		return nil, trace.BadParameter("query")
+		return nil, "", trace.Wrap(err)
 	}
-	q.Set("from", from.Format(time.RFC3339))
-	q.Set("to", to.Format(time.RFC3339))
-	q.Set("limit", fmt.Sprintf("%v", limit))
-	response, err := c.Get(c.Endpoint("events"), q)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	retval := make([]events.EventFields, 0)
-	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return retval, nil
+
+	return events, lastKey, nil
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(from, to time.Time, limit int) ([]events.EventFields, error) {
-	query := url.Values{
-		"to":    []string{to.Format(time.RFC3339)},
-		"from":  []string{from.Format(time.RFC3339)},
-		"limit": []string{fmt.Sprintf("%v", limit)},
-	}
-
-	response, err := c.Get(c.Endpoint("events", "session"), query)
+func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, startKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
-	retval := make([]events.EventFields, 0)
-	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return retval, nil
+	return events, lastKey, nil
 }
 
 // GetNamespaces returns a list of namespaces
@@ -1669,6 +1648,11 @@ func (c *Client) DeleteAuthPreference(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	return c.APIClient.GetClusterNetworkingConfig(ctx)
+}
+
 // GetLocalClusterName returns local cluster name
 func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()
@@ -1795,6 +1779,11 @@ func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID
 // DELETE IN 7.0.0
 func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
 // WebService implements features used by Web UI clients
@@ -2059,4 +2048,7 @@ type ClientI interface {
 	// GetWebToken queries the existing web token described with req.
 	// Implements ReadAccessPoint.
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+
+	// ResetAuthPreference resets cluster auth preference to defaults.
+	ResetAuthPreference(ctx context.Context) error
 }

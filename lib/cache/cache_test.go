@@ -143,8 +143,13 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 
 	p.eventsC = make(chan Event, 100)
 
+	clusterConfig, err := local.NewClusterConfigurationService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	p.trustS = local.NewCAService(p.backend)
-	p.clusterConfigS = local.NewClusterConfigurationService(p.backend)
+	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
 	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend)}
 	p.presenceS = local.NewPresenceService(p.backend)
@@ -839,9 +844,30 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	// update cluster config to record at the proxy
+	// DELETE IN 8.0.0
+	err := p.clusterConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+	c.Assert(err, check.IsNil)
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// DELETE IN 8.0.0
+	err = p.clusterConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+	c.Assert(err, check.IsNil)
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// update cluster config
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtProxy,
 		Audit: services.AuditConfig{
 			AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 		},

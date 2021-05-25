@@ -539,12 +539,12 @@ func (a *fakeLog) GetSessionEvents(namespace string, sid rsession.ID, after int,
 	return nil, trace.NotFound("")
 }
 
-func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]events.EventFields, error) {
-	return nil, trace.NotFound("")
+func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	return nil, "", trace.NotFound("")
 }
 
-func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]events.EventFields, error) {
-	return nil, trace.NotFound("")
+func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	return nil, "", trace.NotFound("")
 }
 
 func (a *fakeLog) WaitForDelivery(context.Context) error {

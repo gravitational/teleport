@@ -60,8 +60,6 @@ type CertAuthority interface {
 	// FirstSigningKey returns first signing key or returns error if it's not here
 	// The first key is returned because multiple keys can exist during key rotation.
 	FirstSigningKey() ([]byte, error)
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 	// SetSigningKeys sets signing keys
 	SetSigningKeys([][]byte) error
 	// SetCheckingKeys sets signing keys

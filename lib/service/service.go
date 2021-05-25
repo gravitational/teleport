@@ -1064,7 +1064,7 @@ func (process *TeleportProcess) initAuthService() error {
 		// check if session recording has been disabled. note, we will continue
 		// logging audit events, we just won't record sessions.
 		recordSessions := true
-		if cfg.Auth.ClusterConfig.GetSessionRecording() == services.RecordOff {
+		if cfg.Auth.SessionRecordingConfig.GetMode() == services.RecordOff {
 			recordSessions = false
 
 			warningMessage := "Warning: Teleport session recording have been turned off. " +
@@ -1157,33 +1157,35 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
-		Backend:              b,
-		Authority:            cfg.Keygen,
-		ClusterConfiguration: cfg.ClusterConfiguration,
-		ClusterConfig:        cfg.Auth.ClusterConfig,
-		ClusterName:          cfg.Auth.ClusterName,
-		AuthServiceName:      cfg.Hostname,
-		DataDir:              cfg.DataDir,
-		HostUUID:             cfg.HostUUID,
-		NodeName:             cfg.Hostname,
-		Authorities:          cfg.Auth.Authorities,
-		Resources:            cfg.Auth.Resources,
-		ReverseTunnels:       cfg.ReverseTunnels,
-		Trust:                cfg.Trust,
-		Presence:             cfg.Presence,
-		Events:               cfg.Events,
-		Provisioner:          cfg.Provisioner,
-		Identity:             cfg.Identity,
-		Access:               cfg.Access,
-		StaticTokens:         cfg.Auth.StaticTokens,
-		Roles:                cfg.Auth.Roles,
-		AuthPreference:       cfg.Auth.Preference,
-		OIDCConnectors:       cfg.OIDCConnectors,
-		AuditLog:             process.auditLog,
-		CipherSuites:         cfg.CipherSuites,
-		CASigningAlg:         cfg.CASignatureAlgorithm,
-		Emitter:              checkingEmitter,
-		Streamer:             events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+		Backend:                 b,
+		Authority:               cfg.Keygen,
+		ClusterConfiguration:    cfg.ClusterConfiguration,
+		ClusterConfig:           cfg.Auth.ClusterConfig,
+		ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
+		SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
+		ClusterName:             cfg.Auth.ClusterName,
+		AuthServiceName:         cfg.Hostname,
+		DataDir:                 cfg.DataDir,
+		HostUUID:                cfg.HostUUID,
+		NodeName:                cfg.Hostname,
+		Authorities:             cfg.Auth.Authorities,
+		Resources:               cfg.Auth.Resources,
+		ReverseTunnels:          cfg.ReverseTunnels,
+		Trust:                   cfg.Trust,
+		Presence:                cfg.Presence,
+		Events:                  cfg.Events,
+		Provisioner:             cfg.Provisioner,
+		Identity:                cfg.Identity,
+		Access:                  cfg.Access,
+		StaticTokens:            cfg.Auth.StaticTokens,
+		Roles:                   cfg.Auth.Roles,
+		AuthPreference:          cfg.Auth.Preference,
+		OIDCConnectors:          cfg.OIDCConnectors,
+		AuditLog:                process.auditLog,
+		CipherSuites:            cfg.CipherSuites,
+		CASigningAlg:            cfg.CASignatureAlgorithm,
+		Emitter:                 checkingEmitter,
+		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1667,12 +1669,11 @@ func (process *TeleportProcess) initSSH() error {
 
 		// If session recording is disabled at the cluster level and the node is
 		// attempting to enabled enhanced session recording, show an error.
-		clusterConfig, err := authClient.GetClusterConfig()
+		recConfig, err := authClient.GetSessionRecordingConfig(process.ExitContext())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if clusterConfig.GetSessionRecording() == services.RecordOff &&
-			cfg.SSH.BPF.Enabled {
+		if recConfig.GetMode() == services.RecordOff && cfg.SSH.BPF.Enabled {
 			return trace.BadParameter("session recording is disabled at the cluster " +
 				"level. To enable enhanced session recording, enable session recording at " +
 				"the cluster level, then restart Teleport.")
@@ -2024,7 +2025,11 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	// Create a state machine that will process and update the internal state of
 	// Teleport based off Events. Use this state machine to return return the
 	// status from the /readyz endpoint.
-	ps := newProcessState(process)
+	ps, err := newProcessState(process)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	process.RegisterFunc("readyz.monitor", func() error {
 		// Start loop to monitor for events that are used to update Teleport state.
 		eventCh := make(chan Event, 1024)
@@ -3142,7 +3147,6 @@ func (process *TeleportProcess) initApps() {
 
 		log.Infof("Exited.")
 	})
-
 }
 
 func warnOnErr(err error, log logrus.FieldLogger) {

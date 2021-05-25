@@ -73,14 +73,23 @@ type ReadAccessPoint interface {
 	// GetClusterConfig returns cluster level configuration.
 	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
 
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference() (services.AuthPreference, error)
+
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]services.Namespace, error)
 
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*services.Namespace, error)
+
+	// GetNode returns a node by name and namespace.
+	GetNode(ctx context.Context, namespace, name string) (services.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
@@ -169,6 +178,12 @@ type AccessCache interface {
 
 	// GetClusterConfig returns cluster level configuration.
 	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
+
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)

@@ -46,7 +46,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: true},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindStaticTokens},
 		{Kind: services.KindToken},
 		{Kind: services.KindUser},
@@ -77,7 +79,9 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -105,6 +109,8 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -131,6 +137,8 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -154,7 +162,9 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		// Node only needs to "know" about default
@@ -173,7 +183,9 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
@@ -190,7 +202,9 @@ func ForApps(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindProxy},
@@ -208,7 +222,9 @@ func ForDatabases(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindProxy},
@@ -545,7 +561,14 @@ func New(config Config) (*Cache, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	wrapper := backend.NewWrapper(config.Backend)
+
+	clusterConfigCache, err := local.NewClusterConfigurationService(wrapper)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
 		wrapper:            wrapper,
@@ -555,7 +578,7 @@ func New(config Config) (*Cache, error) {
 		generation:         atomic.NewUint64(0),
 		initC:              make(chan struct{}),
 		trustCache:         local.NewCAService(wrapper),
-		clusterConfigCache: local.NewClusterConfigurationService(wrapper),
+		clusterConfigCache: clusterConfigCache,
 		provisionerCache:   local.NewProvisioningService(wrapper),
 		usersCache:         local.NewIdentityService(wrapper),
 		accessCache:        local.NewAccessService(wrapper),
@@ -1014,6 +1037,16 @@ func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (services.Clust
 	return rg.clusterConfig.GetClusterConfig(services.AddOptions(opts, services.SkipValidation())...)
 }
 
+// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
+func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetClusterNetworkingConfig(ctx, services.AddOptions(opts, services.SkipValidation())...)
+}
+
 // GetClusterName gets the name of the cluster from the backend.
 func (c *Cache) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
 	rg, err := c.read()
@@ -1072,6 +1105,16 @@ func (c *Cache) GetNamespaces() ([]services.Namespace, error) {
 	}
 	defer rg.Release()
 	return rg.presence.GetNamespaces()
+}
+
+// GetNode finds and returns a node by name and namespace.
+func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.GetNode(ctx, namespace, name)
 }
 
 // GetNodes is a part of auth.AccessPoint implementation
@@ -1263,4 +1306,14 @@ func (c *Cache) GetAuthPreference() (services.AuthPreference, error) {
 	}
 	defer rg.Release()
 	return rg.clusterConfig.GetAuthPreference()
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetSessionRecordingConfig(ctx, services.AddOptions(opts, services.SkipValidation())...)
 }

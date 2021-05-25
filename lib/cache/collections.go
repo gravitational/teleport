@@ -75,11 +75,21 @@ func setupCollections(c *Cache, watches []services.WatchKind) (map[resourceKind]
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
 			collections[resourceKind] = &clusterConfig{watch: watch, Cache: c}
+		case types.KindClusterNetworkingConfig:
+			if c.ClusterConfig == nil {
+				return nil, trace.BadParameter("missing parameter ClusterConfig")
+			}
+			collections[resourceKind] = &clusterNetworkingConfig{watch: watch, Cache: c}
 		case types.KindClusterAuthPreference:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
 			collections[resourceKind] = &authPreference{watch: watch, Cache: c}
+		case types.KindSessionRecordingConfig:
+			if c.ClusterConfig == nil {
+				return nil, trace.BadParameter("missing parameter ClusterConfig")
+			}
+			collections[resourceKind] = &sessionRecordingConfig{watch: watch, Cache: c}
 		case services.KindUser:
 			if c.Users == nil {
 				return nil, trace.BadParameter("missing parameter Users")
@@ -1738,5 +1748,145 @@ func (c *authPreference) processEvent(ctx context.Context, event services.Event)
 }
 
 func (c *authPreference) watchKind() services.WatchKind {
+	return c.watch
+}
+
+type clusterNetworkingConfig struct {
+	*Cache
+	watch services.WatchKind
+}
+
+func (c *clusterNetworkingConfig) erase(ctx context.Context) error {
+	if err := c.clusterConfigCache.DeleteClusterNetworkingConfig(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *clusterNetworkingConfig) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var noConfig bool
+	resource, err := c.ClusterConfig.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		noConfig = true
+	}
+	return func(ctx context.Context) error {
+		// either zero or one instance exists, so we either erase or
+		// update, but not both.
+		if noConfig {
+			if err := c.erase(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+
+		c.setTTL(resource)
+		if err := c.clusterConfigCache.SetClusterNetworkingConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}, nil
+}
+
+func (c *clusterNetworkingConfig) processEvent(ctx context.Context, event services.Event) error {
+	switch event.Type {
+	case backend.OpDelete:
+		err := c.clusterConfigCache.DeleteClusterNetworkingConfig(ctx)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case backend.OpPut:
+		resource, ok := event.Resource.(types.ClusterNetworkingConfig)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		c.setTTL(resource)
+		if err := c.clusterConfigCache.SetClusterNetworkingConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *clusterNetworkingConfig) watchKind() services.WatchKind {
+	return c.watch
+}
+
+type sessionRecordingConfig struct {
+	*Cache
+	watch services.WatchKind
+}
+
+func (c *sessionRecordingConfig) erase(ctx context.Context) error {
+	if err := c.clusterConfigCache.DeleteSessionRecordingConfig(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *sessionRecordingConfig) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var noConfig bool
+	resource, err := c.ClusterConfig.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		noConfig = true
+	}
+	return func(ctx context.Context) error {
+		// either zero or one instance exists, so we either erase or
+		// update, but not both.
+		if noConfig {
+			if err := c.erase(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+
+		c.setTTL(resource)
+		if err := c.clusterConfigCache.SetSessionRecordingConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}, nil
+}
+
+func (c *sessionRecordingConfig) processEvent(ctx context.Context, event services.Event) error {
+	switch event.Type {
+	case backend.OpDelete:
+		err := c.clusterConfigCache.DeleteSessionRecordingConfig(ctx)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case backend.OpPut:
+		resource, ok := event.Resource.(types.SessionRecordingConfig)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		c.setTTL(resource)
+		if err := c.clusterConfigCache.SetSessionRecordingConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *sessionRecordingConfig) watchKind() services.WatchKind {
 	return c.watch
 }

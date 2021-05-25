@@ -308,6 +308,8 @@ func (r *EmptyResource) GetMetadata() Metadata {
 	return r.Metadata
 }
 
+func (r *EmptyResource) CheckAndSetDefaults() error { return nil }
+
 // BoolPredicateParser extends predicate.Parser with a convenience method
 // for evaluating bool predicates.
 type BoolPredicateParser interface {
