@@ -19,9 +19,7 @@ package client
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
-	"os"
 	"testing"
 	"time"
 
@@ -54,6 +52,7 @@ func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 
 // mockInsecureCredentials mocks insecure Client credentials.
 // it returns a nil tlsConfig which allows the client to run in insecure mode.
+// TODO(Joerger) replace insecure credentials with proper TLS credentials.
 type mockInsecureTLSCredentials struct{}
 
 func (mc *mockInsecureTLSCredentials) Dialer(cfg Config) (ContextDialer, error) {
@@ -83,10 +82,10 @@ func TestNew(t *testing.T) {
 		config: Config{
 			Addrs: []string{addr},
 			Credentials: []Credentials{
-				&mockInsecureTLSCredentials{},
+				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 			},
 			DialOpts: []grpc.DialOption{
-				grpc.WithInsecure(),
+				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
 			},
 		},
 		assertErr: require.NoError,
@@ -96,11 +95,11 @@ func TestNew(t *testing.T) {
 			Addrs: []string{"bad addr", addr, "bad addr"},
 			Credentials: []Credentials{
 				&tlsConfigCreds{nil},
-				&mockInsecureTLSCredentials{},
+				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 				&tlsConfigCreds{nil},
 			},
 			DialOpts: []grpc.DialOption{
-				grpc.WithInsecure(),
+				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
 			},
 		},
 		assertErr: require.NoError,
@@ -110,15 +109,14 @@ func TestNew(t *testing.T) {
 			DialTimeout: time.Second,
 			Addrs:       []string{"bad addr"},
 			Credentials: []Credentials{
-				&mockInsecureTLSCredentials{},
+				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 			},
 			DialOpts: []grpc.DialOption{
-				grpc.WithInsecure(),
+				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
 			},
 		},
 		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-			require.Error(t, err)
-			require.Containsf(t, err.Error(), "context deadline exceeded", "")
+			require.EqualError(t, err, "all auth methods failed\n\tcontext deadline exceeded")
 		},
 	}}
 
@@ -147,10 +145,10 @@ func TestNewDialBackground(t *testing.T) {
 		DialInBackground: true,
 		Addrs:            []string{addr},
 		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{},
+			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 		},
 		DialOpts: []grpc.DialOption{
-			grpc.WithInsecure(),
+			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
 		},
 	})
 	require.NoError(t, err)
@@ -162,7 +160,7 @@ func TestNewDialBackground(t *testing.T) {
 
 	// Start the server and wait for the client connection to be ready.
 	startMockServer(t, addr)
-	require.True(t, clt.WaitForConnectionReady(ctx))
+	require.NoError(t, clt.WaitForConnectionReady(ctx))
 
 	// requests to the server should succeed.
 	_, err = clt.Ping(ctx)
@@ -179,10 +177,10 @@ func TestWaitForConnectionReady(t *testing.T) {
 		DialInBackground: true,
 		Addrs:            []string{addr},
 		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{},
+			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 		},
 		DialOpts: []grpc.DialOption{
-			grpc.WithInsecure(),
+			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
 		},
 	})
 	require.NoError(t, err)
@@ -191,24 +189,21 @@ func TestWaitForConnectionReady(t *testing.T) {
 	// context is canceled if the server isn't open to connections.
 	cancelCtx, cancel := context.WithTimeout(ctx, time.Second*3)
 	defer cancel()
-	require.False(t, clt.WaitForConnectionReady(cancelCtx))
+	require.Error(t, clt.WaitForConnectionReady(cancelCtx))
 
 	// WaitForConnectionReady should return true if the server is open to connections
 	startMockServer(t, addr)
-	require.True(t, clt.WaitForConnectionReady(ctx))
+	require.NoError(t, clt.WaitForConnectionReady(ctx))
 
 	// WaitForConnectionReady should return false if the grpc connection is closed.
-	clt.GetConnection().Close()
-	require.False(t, clt.WaitForConnectionReady(ctx))
+	require.NoError(t, clt.GetConnection().Close())
+	require.Error(t, clt.WaitForConnectionReady(ctx))
 }
 
 // startMockServer starts a new mock server. Parallel tests cannot use the same addr.
 func startMockServer(t *testing.T, addr string) {
 	l, err := net.Listen("tcp", addr)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	require.NoError(t, err)
 	go newMockServer().grpc.Serve(l)
 	t.Cleanup(func() { require.NoError(t, l.Close()) })
 }

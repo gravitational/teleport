@@ -373,25 +373,23 @@ func (c *Client) Dialer() ContextDialer {
 	return c.dialer
 }
 
-// WaitForConnectionReady waits for the client's grpc connection finish dialing,
-// returning true if it becomes ready and returning false if the ctx is canceled
-// or the connection enters a closed state. This can be used alongside the
-// DialInBackground client config option to wait until background dialing has completed.
-func (c *Client) WaitForConnectionReady(ctx context.Context) bool {
+// WaitForConnectionReady waits for the client's grpc connection finish dialing, returning an errror
+// if the ctx is canceled or the client's gRPC connection enters an unexpected state. This can be used
+// alongside the DialInBackground client config option to wait until background dialing has completed.
+func (c *Client) WaitForConnectionReady(ctx context.Context) error {
 	for {
 		switch state := c.conn.GetState(); state {
 		case connectivity.Ready:
-			return true
+			return nil
 		case connectivity.TransientFailure, connectivity.Connecting:
-			// The connection will begin in `TransientFailure`, then begin
-			// `Connecting` until it either succeeds as `Ready` or fails.
-			// Expect and wait for these two begginning states to change.
+			// Wait for expected state transitions. For details about grpc.ClientConn state changes
+			// see https://github.com/grpc/grpc/blob/master/doc/connectivity-semantics-and-api.md
 			if !c.conn.WaitForStateChange(ctx, state) {
 				// ctx canceled
-				return false
+				return trace.Wrap(ctx.Err())
 			}
-		default:
-			return false
+		case connectivity.Idle, connectivity.Shutdown:
+			return trace.Errorf("client gRPC connection entered an unexpected state: %v", state)
 		}
 	}
 }
