@@ -48,10 +48,10 @@ The documentation layout and structure is presently:
         - [ ] Admin manual subsections split
     - [ ] Terraform (moved from infrastructure guides)
     - [ ] Helm Guides (moved from Kubernetes)
-        - [ ] AWS EKS Cluster
-        - [ ] Google Cloud GKE Cluster
-        - [ ] Customize Deployment Config
-        - [ ] Migration From Older Charts
+        - [x] AWS EKS Cluster
+        - [x] Google Cloud GKE Cluster
+        - [x] Customize Deployment Config
+        - [x] Migration From Older Charts
 - [ ] Reference Section
     - [x] YAML
         - [ ] Need full config here
