@@ -1082,8 +1082,8 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 			// This makes the scan operation slightly slower but the other alternative is scanning a second time
 			// for any missed events after an appropriate grace period which is far worse.
 			ConsistentRead: aws.Bool(true),
-			// 25 is the limit of DynamoDB batch writes.
-			Limit:     aws.Int64(25),
+			// 25*32 is the maximum concurrent event uploads.
+			Limit:     aws.Int64(25 * maxMigrationWorkers),
 			TableName: aws.String(l.Tablename),
 			// Without the `date` attribute.
 			FilterExpression: aws.String("attribute_not_exists(CreatedAtDate)"),
@@ -1137,7 +1137,7 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 		}
 
 		// Don't exceed maximum workers.
-		for workerCounter.Load() < maxMigrationWorkers {
+		for workerCounter.Load() >= maxMigrationWorkers {
 			select {
 			case <-time.After(time.Millisecond * 100):
 			case <-ctx.Done():
