@@ -423,7 +423,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
-		proxyAddr = cfg.AuthServers[0].Addr
+		proxyAddr = ccf.AuthServerAddr[0]
 	}
 
 	profile, _, err := client.Status("", proxyAddr)
