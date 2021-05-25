@@ -268,7 +268,7 @@ func NewTrackingReadConn(cfg TrackingReadConnConfig) (*TrackingReadConn, error) 
 	}
 	return &TrackingReadConn{
 		cfg:        cfg,
-		RWMutex:    sync.RWMutex{},
+		mtx:        sync.RWMutex{},
 		Conn:       cfg.Conn,
 		lastActive: time.Time{},
 	}, nil
@@ -277,7 +277,7 @@ func NewTrackingReadConn(cfg TrackingReadConnConfig) (*TrackingReadConn, error) 
 // TrackingReadConn allows to wrap net.Conn and keeps track of the latest conn read activity.
 type TrackingReadConn struct {
 	cfg TrackingReadConnConfig
-	sync.RWMutex
+	mtx sync.RWMutex
 	net.Conn
 	lastActive time.Time
 }
@@ -298,14 +298,14 @@ func (t *TrackingReadConn) Close() error {
 
 // GetClientLastActive returns time when client was last active
 func (t *TrackingReadConn) GetClientLastActive() time.Time {
-	t.RLock()
-	defer t.RUnlock()
+	t.mtx.RLock()
+	defer t.mtx.RUnlock()
 	return t.lastActive
 }
 
 // UpdateClientActivity sets last recorded client activity
 func (t *TrackingReadConn) UpdateClientActivity() {
-	t.Lock()
-	defer t.Unlock()
+	t.mtx.Lock()
+	defer t.mtx.Unlock()
 	t.lastActive = t.cfg.Clock.Now().UTC()
 }

@@ -1302,7 +1302,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		Cancel:  cancel,
 	})
 	if err != nil {
-		trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	mon, err := srv.NewMonitor(srv.MonitorConfig{

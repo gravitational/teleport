@@ -342,7 +342,7 @@ func (s *ProxyServer) monitorConn(ctx context.Context, authContext *auth.Context
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Start monitoring client connection. When client connection is close the monitor goroutine exits.
+	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
 	go mon.Start()
 	return tc, nil
 }
