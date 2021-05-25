@@ -48,6 +48,11 @@ func TestTeleportMain(t *testing.T) {
 	err = ioutil.WriteFile(configFile, []byte(YAMLConfig), 0660)
 	require.NoError(t, err)
 
+	// generate the fixture bootstrap file
+	bootstrapFile := filepath.Join(t.TempDir(), "bootstrap.yaml")
+	err = ioutil.WriteFile(bootstrapFile, []byte(YAMLBootstrap), 0660)
+	require.NoError(t, err)
+
 	// set defaults to test-mode (non-existing files&locations)
 	defaults.ConfigFilePath = "/tmp/teleport/etc/teleport.yaml"
 	defaults.DataDir = "/tmp/teleport/var/lib/teleport"
@@ -110,6 +115,22 @@ func TestTeleportMain(t *testing.T) {
 		require.Equal(t, "xxxyyy", conf.Token)
 		require.Equal(t, "10.5.5.5", conf.AdvertiseIP)
 		require.Equal(t, map[string]string{"a": "a1", "b": "b1"}, conf.SSH.Labels)
+	})
+
+	t.Run("Bootstrap", func(t *testing.T) {
+		_, cmd, conf := Run(Options{
+			Args: []string{
+				"start", "--roles=node",
+				"--labels=a=a1,b=b1",
+				"--config=" + configFile,
+				"--bootstrap=" + bootstrapFile,
+			},
+			InitOnly: true,
+		})
+		require.Equal(t, "start", cmd)
+		require.Equal(t, 2, len(conf.Auth.Resources))
+		require.Equal(t, "github", conf.Auth.Resources[0].GetKind())
+		require.Equal(t, "role", conf.Auth.Resources[1].GetKind())
 	})
 }
 
@@ -181,4 +202,37 @@ ssh_service:
   - name: date
     command: [/bin/date]
     period: 20ms
+`
+
+const YAMLBootstrap = `
+kind: github
+version: v3
+metadata:
+  name: github
+spec:
+  client_id: client_id
+  client_secret: client_secret
+  display: Github
+  redirect_url: https://test.com
+  teams_to_logins:
+  - organization: test
+    team: test
+    logins:
+    - test-role
+---
+kind: role
+version: v3
+metadata:
+  name: test-role
+spec:
+  allow:
+    logins: []
+    kubernetes_groups:
+    - test
+    app_labels:
+      '*': '*'
+    node_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
 `

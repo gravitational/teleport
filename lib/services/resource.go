@@ -418,6 +418,25 @@ func init() {
 		return rsc, nil
 	})
 
+	RegisterResourceMarshaler(KindRole, func(r Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(Role)
+		if !ok {
+			return nil, trace.BadParameter("expected Role, got %T", r)
+		}
+		raw, err := MarshalRole(rsc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return raw, nil
+	})
+	RegisterResourceUnmarshaler(KindRole, func(b []byte, opts ...MarshalOption) (Resource, error) {
+		rsc, err := UnmarshalRole(b, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rsc, nil
+	})
+
 	RegisterResourceMarshaler(KindCertAuthority, func(r Resource, opts ...MarshalOption) ([]byte, error) {
 		rsc, ok := r.(CertAuthority)
 		if !ok {
