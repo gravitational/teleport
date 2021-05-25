@@ -16,7 +16,7 @@ limitations under the License.
 
 package workflows_test
 
-// this package adds godoc examples for several Client types and functions
+// This test file adds godoc examples for workflows package
 // See https://pkg.go.dev/github.com/fluhus/godoc-tricks#Examples
 
 import (
@@ -92,6 +92,7 @@ func ExamplePlugin_WatchRequests() {
 	if err != nil {
 		log.Fatalf("failed to create watcher: %v", err)
 	}
+	defer watcher.Close()
 }
 func ExamplePlugin_CreateRequest() {
 	req, err := plugin.CreateRequest(ctx, "alice", "admin-role1", "admin-role2")
@@ -160,7 +161,7 @@ func ExampleRequestWatcher() {
 		log.Fatalf("watcher failed to initialize: %v", err)
 	}
 
-	// loop over incoming events until the event channel is closed.
+	// Loop over incoming events until the event channel is closed.
 	for event := range watcher.Events() {
 		log.Printf("type: %v, request: %v", event.Request, event.Type)
 		switch event.Type {
@@ -175,6 +176,29 @@ func ExampleRequestWatcher() {
 	log.Fatalf("watcher closed: %v", watcher.Error())
 }
 
+func ExampleNewRequestWatcher() {
+	// Create a client with an open connection to a Teleport Auth server.
+	// More documentation on creating a Teleport client can be found at
+	// pkg.go.dev/github.com/gravitational/teleport/api/client#New.
+	client, err := client.New(ctx, client.Config{
+		Addrs: []string{"proxy.example.com:3080"},
+		Credentials: []client.Credentials{
+			client.LoadIdentityFile("path/to/identity_file"),
+		},
+		InsecureAddressDiscovery: false,
+	})
+	if err != nil {
+		log.Fatalf("failed to create client: %v", err)
+	}
+	defer client.Close()
+
+	watcher, err = workflows.NewRequestWatcher(ctx, client, types.AccessRequestFilter{})
+	if err != nil {
+		log.Fatalf("failed to create watcher: %v", err)
+	}
+	defer watcher.Close()
+}
+
 func ExampleRequestWatcher_WaitInit() {
 	if err := watcher.WaitInit(ctx); err != nil {
 		log.Fatalf("watcher failed to init: %v", err)
@@ -182,7 +206,7 @@ func ExampleRequestWatcher_WaitInit() {
 }
 
 func ExampleRequestWatcher_Events() {
-	// loop over incoming events until the event channel is closed.
+	// Loop over incoming events until the event channel is closed.
 	for event := range watcher.Events() {
 		log.Printf("type: %v, request: %v", event.Request, event.Type)
 		switch event.Type {

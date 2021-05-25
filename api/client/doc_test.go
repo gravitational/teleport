@@ -16,7 +16,7 @@ limitations under the License.
 
 package client_test
 
-// this package adds godoc examples for several Client types and functions
+// This test file adds godoc examples for the client package.
 // See https://pkg.go.dev/github.com/fluhus/godoc-tricks#Examples
 
 import (

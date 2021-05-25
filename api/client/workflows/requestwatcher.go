@@ -32,7 +32,7 @@ type RequestWatcher struct {
 	types.Watcher
 	initC   chan struct{}
 	eventsC chan RequestEvent
-	emux    sync.Mutex
+	errMux  sync.Mutex
 	err     error
 }
 
@@ -45,8 +45,8 @@ type RequestEvent struct {
 	Request types.AccessRequest
 }
 
-// newRequestWatcher creates a new RequestWatcher using the given client and filter.
-func newRequestWatcher(ctx context.Context, clt *client.Client, filter types.AccessRequestFilter) (*RequestWatcher, error) {
+// NewRequestWatcher creates a new RequestWatcher.
+func NewRequestWatcher(ctx context.Context, clt *client.Client, filter types.AccessRequestFilter) (*RequestWatcher, error) {
 	eventWatcher, err := clt.NewWatcher(ctx,
 		types.Watch{
 			Kinds: []types.WatchKind{
@@ -80,25 +80,20 @@ func (w *RequestWatcher) receiveEvents() {
 			close(w.initC)
 			continue
 		default:
-			w.setError(trace.Errorf("unexpected event op type %s", event.Type))
+			w.closeWithError(trace.Errorf("unexpected event op type %s", event.Type))
 			return
 		}
 
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
-			w.setError(trace.Errorf("unexpected resource type %T", event.Resource))
+			w.closeWithError(trace.Errorf("unexpected resource type %T", event.Resource))
 			return
 		}
 
-		reqEvent := RequestEvent{
-			Type:    event.Type,
-			Request: req,
-		}
-
 		select {
-		case w.eventsC <- reqEvent:
+		case w.eventsC <- RequestEvent{Type: event.Type, Request: req}:
 		case <-w.Done():
-			close(w.eventsC)
+			return
 		}
 	}
 }
@@ -123,17 +118,18 @@ func (w *RequestWatcher) Events() <-chan RequestEvent {
 
 // Error returns the last error of the RequestWatcher.
 func (w *RequestWatcher) Error() error {
-	w.emux.Lock()
-	defer w.emux.Unlock()
-	if w.err != nil {
-		return w.err
+	w.errMux.Lock()
+	defer w.errMux.Unlock()
+	if w.err == nil {
+		return w.Watcher.Error()
 	}
-	return w.Watcher.Error()
+	return w.err
 }
 
-// setError sets the RequestWatcher error.
-func (w *RequestWatcher) setError(err error) {
-	w.emux.Lock()
-	defer w.emux.Unlock()
+// setError closes the Watcher and sets the RequestWatcher error.
+func (w *RequestWatcher) closeWithError(err error) {
+	w.errMux.Lock()
+	defer w.errMux.Unlock()
+	w.Close()
 	w.err = err
 }
