@@ -40,6 +40,7 @@ fi
 BUILD_TIMESTAMP=$(<"${TIMESTAMP_FILE}")
 
 # Iterate through AMIs
+IFS=","
 for REGION in ${REGION_LIST}; do
     AMI_ID=$(aws ec2 describe-images --region ${REGION} --filters "Name=name,Values=${NAME_FILTER}" "Name=tag:BuildTimestamp,Values=${BUILD_TIMESTAMP}" "Name=tag:BuildType,Values=${AMI_TAG}"| jq -r '.Images[0].ImageId')
     if [[ "${AMI_ID}" == "" || "${AMI_ID}" == "null" ]]; then
