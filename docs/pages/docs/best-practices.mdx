@@ -36,6 +36,9 @@ Our documentation is primarily built with [Next](https://github.com/gravitationa
 **Diagrams:**
 
 - Use [Teleport's lucidchart library](https://app.lucidchart.com/lucidchart/dfcf1f4a-5cf0-4758-8ebb-f6ea86900aba/edit) to create diagrams with a consistent design language.
+- Diagram multistep sections using sequence diagrams that depicts steps linearly.
+- Several great examples are available here: https://gravitational.slab.com/posts/diagrams-ix9nzhpd.
+- Reach out to the design team for custom requests and for advice to improve your designs.
 
 **Videos:**
 
@@ -70,8 +73,8 @@ For production, upload to the website and refer from there:
 
 ```html
 <video autoplay loop muted playsinline>
-  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4">
-  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm">
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4" />
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm" />
 Your browser does not support the video tag.
 </video>
 ```
@@ -86,19 +89,26 @@ The following standards are already in use. Please follow them (although these a
 2. All ports or values should be enclosed in tic marks `443`.
 3. Footnotes should be ordered by appearance (chronological precedence). `2` should not come before `1`.
 4. Tend to write sparser one to two-sentence groupings rather than lengthier text block paragraphs.
-5. Use periods at the end of a line even in a list.
-6. Use lists aggressively.
+5. Use periods at the end of a line even in a list unless the ending item is a command.
+6. Titles should have all words capitalized except for determiners (`a`, `the`, etc.) - headings should be sentence-case. `How to Access a Teleport Node` vs. `Step 2/3. How to access a Teleport Node`. Also, `Next steps` is preferred over `Next Steps`. The reasoning for this is that Titles render more pleasingly using word-casing. We want to clarify proper nouns and products in steps by using sentence-casing. Please use consistent header sentence-casing (`I am an example header`, `I Am another Example header`, `I am a Third header`).
+7. Prefer putting commands (like BASH) into full-line elements:
+   ```
+   #Example
+   ```
+   vs `Example`. The full-line element renders with a handy copy icon.
+8. Article titles should follow a `Title Name | Teleport Docs` format. The total character count should not exceed 70 for the entire title since this can impact SEO. **The suffix** (`| Teleport Docs`) **will be added automatically by the Next engine** but keep a lookout for character count and that titles correctly render. 
+9. Page rank matters less now but content matters more. Make sure to have a good, well-worded, description that uses common keywords around the subject. Also, liberally sprinkle said keywords throughout the article.
+10. Use numbered lists for any sequence of steps **but use these sparingly**. We prefer short paragraph blocks with minimal bullet points and numbered lists. This leads to a preference for completeness and brevity rather than ennumeration. Also, prefer bullet points.
+11. We should avoid using scare-quotes `""` to refer to a sub-service/proper noun - these often have negative connotations associated with them. E.g. - "Trusted Cluster" vs  *Trusted Cluster*. Use italics for concept keywords and tic marks for values. (Clarification: it's harmless to use quotes to approximate or indicate something but not to name or refer to a proper noun. It can be quite conversational and friendly in those other contexts.)
+12. Avoid scare-quotes when describing something - just describe it. `Teleport is a way to "access stuff"` vs. `Teleport represents an evolution of SSH`.
 
 The rest are subject to final approval by the developer relations team. In general, it's still a good idea to adopt some of these when writing your next article:
 
-1. Consistent header casing (`I am an example header`, `I Am another Example header`, `I am a Third header`).
-2. Consistent acronyms and concept keyword use (`2-factor`, `two-factor`, `2fa`, `tfa`).
-3. We should avoid using scare-quotes `""` to refer to a sub-service/proper noun - these often have negative connotations associated with them. E.g. - "Trusted Cluster" vs  *Trusted Cluster*. Use italics for concept keywords and tic marks for values. (Clarification: it's harmless to use quotes to approximate or indicate something but not to name or refer to a proper noun. It can be quite conversational and friendly in those other contexts.)
-4. Consistent use of contractions - many teams tend to favor an all-or-nothing approach here. Contractions keep the language sparse, concise, and conversational. For more formal language, we'd probably want to avoid them.
-5. Use numbered lists for any sequence of steps.
-6. Product proper nouns should be capitalized. `trusted cluster` -> `Trusted Cluster`
-7. Product proper nouns should be bolded. `Trusted Cluster` -> **Trusted Cluster**
-8. Acronyms should always be introduced following a concept keyword and then consistently used thereafter (no concept keyword used) in an article (saves space, typing, and reading - guarantees the shorthanded term is available).
+1. Consistent acronyms and concept keyword use (`2-factor`, `two-factor`, `2fa`, `tfa`).
+2. Consistent use of contractions - many teams tend to favor an all-or-nothing approach here. Contractions keep the language sparse, concise, and conversational. For more formal language, we'd probably want to avoid them.
+3. Product proper nouns should be capitalized. `trusted cluster` -> `Trusted Cluster`
+4. Product proper nouns should be bolded. `Trusted Cluster` -> **Trusted Cluster**
+5. Acronyms should always be introduced following a concept keyword and then consistently used thereafter (no concept keyword used) in an article (saves space, typing, and reading - guarantees the shorthanded term is available).
 
 **Pros:**
 
@@ -132,7 +142,7 @@ To ease this burden, we can replace links and code examples with *variables* so 
 - Variables are stored in the `docs/config.json` file under the key `variables`.
 - Variables can be nested inside the config.
 - To insert variables into the page use `(\= path.to.variable \=)` syntax (remove backslashes in actual code).
-- Variables will be linted when a PR is created as part of our CI/CD process. If the variable didn't exist in the config, it would throw an error which you must remedy in order to merge.
+- Variables will be linted when a PR is created as part of our CI/CD process. If the variable didn't exist in the config, it would throw an error which you must remedy to merge.
 
 ### Includes
 
@@ -219,7 +229,7 @@ If `title` is omitted, `type` will be used instead as the title value.
   </TabItem>
 </Tabs>
 
-To inser tabs block like the one above use this syntax:
+To insert tabs block like the one above use this syntax:
 
 ```jsx
 <Tabs>
@@ -230,4 +240,26 @@ To inser tabs block like the one above use this syntax:
     Second tab.
   </TabItem>
 </Tabs>
+```
+
+### Figures
+
+The new Figure component can help with customizing and using images, figures, and diagrams:
+
+<Figure
+  align="center"
+  bordered
+  caption="Example"
+>
+  ![Example](../../img/overview.png)
+</Figure>
+
+```jsx
+<Figure
+  align="center"
+  bordered
+  caption="Example"
+>
+  ![Example](../../img/overview.png)
+</Figure>
 ```
