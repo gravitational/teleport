@@ -19,6 +19,7 @@ Teleport has the ability for users to request additional roles. The Access Reque
 ### Setup
 
 **Contractor Role**
+
 This role allows the contractor to request the role DBA.
 
 ```yaml
@@ -37,6 +38,7 @@ spec:
 ```
 
 **DBA Role**
+
 This role allows the contractor to request the role DBA.
 
 ```yaml
@@ -55,6 +57,7 @@ spec:
 ```
 
 **Admin Role**
+
 This role allows the admin to approve the contractor's request.
 
 ```yaml
@@ -77,6 +80,10 @@ rules:
       verbs: [list, read, update, delete]
 ```
 
+<Admonition type="warning" title="Warning">
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
+</Admonition>
+
 ```bash
 tsh login teleport-cluster --request-roles=dba
 # Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
@@ -85,7 +92,7 @@ tsh login teleport-cluster --request-roles=dba
 As a Teleport Administrator:
 
 ```bash
-tctl request ls
+sudo tctl request ls
 # Token                                Requestor Metadata       Created At (UTC)    Status
 # ------------------------------------ --------- -------------- ------------------- -------
 # bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UTC PENDING
@@ -124,8 +131,7 @@ deny:
 
 ## Adding a reason to Access Requests
 
-Teleport now has the ability for users to request additional roles. `tctl`
-or the Access Requests API makes it easy to dynamically approve or deny these requests.
+Teleport now has the ability for users to request additional roles. `tctl` or the Access Requests API makes it easy to dynamically approve or deny these requests.
 
 By requiring a reason along with an access request, you can provide users with a default
 unprivileged state where they must always go through the Access Requests API to
@@ -138,6 +144,7 @@ should be approved/denied.
 ### Example setup
 
 **Unprivileged User**<br/>
+
 In this example, we have an employee who isn't able to access any systems. When they
 log in, they'll always need to provide a reason for access.
 
@@ -213,13 +220,13 @@ tsh login --request-reason="..."
 A number of new parameters are now available that grant the plugin or administrator greater insight into approvals/denials:
 
 ```bash
-tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
+sudo tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
 Because automatically generated requests always include all roles that the user is allowed to request, approvers can now specify a smaller subset of the requested roles that should be applied, allowing for sub-selection in cases where full escalation is not a desirable default:
 
 ```bash
-tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
+sudo tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
 ### Other features of Access Requests

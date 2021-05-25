@@ -1,6 +1,6 @@
 ---
 title: How To Use SSH Authentication With ADFS
-description: How to configure SSH access with Active Directory (ADFS) using Teleport
+description: How to configure SSH access with Active Directory (ADFS) using Teleport.
 h1: SSH Authentication with ADFS
 ---
 
@@ -127,7 +127,7 @@ spec:
 
 This role declares:
 
-- Devs are only allowed to log in to nodes labeled with `access: relaxed` label.
+- Devs are only allowed to log in to nodes labeled with the `access: relaxed` label.
 - Developers can log in as `ubuntu` user
 - Notice `{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}` login. It configures Teleport to look at
   *"[http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"](http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname")* ADFS claim and use that field as an allowed login for each user.
