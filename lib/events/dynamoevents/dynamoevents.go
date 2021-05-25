@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"go.uber.org/atomic"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -47,6 +48,11 @@ import (
 
 // iso8601DateFormat is the time format used by the date attribute on events.
 const iso8601DateFormat = "2006-01-02"
+
+// The maximum amount of concurrent batch upload workers for data migration.
+// 32 was chosen here as it's a non-crazy number that allows reasonably
+// fast migration of millions of events.
+const maxMigrationWorkers = 32
 
 // Defines the attribute schema for the DynamoDB event table and index.
 var tableSchema = []*dynamodb.AttributeDefinition{
@@ -1052,14 +1058,23 @@ func (l *Log) removeV1GSI() error {
 // - This function must not be called concurrently with itself.
 // - The rfd24MigrationLock must be held by the node.
 func (l *Log) migrateDateAttribute(ctx context.Context) error {
-	var total int64 = 0
 	var startKey map[string]*dynamodb.AttributeValue
+	workerCounter := atomic.NewInt32(0)
+	totalProcessed := atomic.NewInt32(0)
+	workerErrors := make(chan error)
 
 	// We use this variable to figure out when to refresh the lock TTL
 	// to indicate to other auth servers that we are still migrating.
 	lastRefresh := time.Now()
 
 	for {
+		// Check for worker errors and escalate if found.
+		select {
+		case err := <-workerErrors:
+			return trace.Wrap(err)
+		default:
+		}
+
 		c := &dynamodb.ScanInput{
 			ExclusiveStartKey: startKey,
 			// Without consistent reads we may miss events as DynamoDB does not
@@ -1121,32 +1136,57 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 			writeRequests = append(writeRequests, wr)
 		}
 
-		for {
-			c := &dynamodb.BatchWriteItemInput{
-				RequestItems: map[string][]*dynamodb.WriteRequest{l.Tablename: writeRequests},
-			}
-
-			out, err := l.svc.BatchWriteItem(c)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			writeRequests, ok := out.UnprocessedItems[l.Tablename]
-			if !ok && len(writeRequests) == 0 {
-				break
+		// Don't exceed maximum workers.
+		for workerCounter.Load() < maxMigrationWorkers {
+			select {
+			case <-time.After(time.Millisecond * 100):
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
 			}
 		}
+
+		workerCounter.Add(1)
+		go func() {
+			defer workerCounter.Sub(1)
+			amountProcessed := len(writeRequests)
+
+			if err := l.uploadBatch(writeRequests); err != nil {
+				workerErrors <- trace.Wrap(err)
+				return
+			}
+
+			total := totalProcessed.Add(int32(amountProcessed))
+			log.Infof("Migrated %d total events to 6.2 format...", total)
+		}()
 
 		// Setting the startKey to the last evaluated key of the previous scan so that
 		// the next scan doesn't return processed events.
 		startKey = scanOut.LastEvaluatedKey
 
-		total += *scanOut.Count
-		log.Infof("Migrated %d total events to 6.2 format...", total)
-
 		// If the `LastEvaluatedKey` field is not set we have finished scanning
 		// the entire dataset and we can now break out of the loop.
 		if scanOut.LastEvaluatedKey == nil {
+			break
+		}
+	}
+
+	return nil
+}
+
+// uploadBatch creates or updates a batch of 25 events or less in one API call.
+func (l *Log) uploadBatch(writeRequests []*dynamodb.WriteRequest) error {
+	for {
+		c := &dynamodb.BatchWriteItemInput{
+			RequestItems: map[string][]*dynamodb.WriteRequest{l.Tablename: writeRequests},
+		}
+
+		out, err := l.svc.BatchWriteItem(c)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		writeRequests, ok := out.UnprocessedItems[l.Tablename]
+		if !ok && len(writeRequests) == 0 {
 			break
 		}
 	}
