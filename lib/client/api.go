@@ -317,6 +317,9 @@ type Config struct {
 
 	// MockSSOLogin is used in tests for mocking the SSO login response.
 	MockSSOLogin SSOLoginFunc
+
+	// HomePath is where tsh stores profiles
+	HomePath string
 }
 
 // CachePolicy defines cache policy for local clients
