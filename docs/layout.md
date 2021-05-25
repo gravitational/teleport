@@ -69,8 +69,8 @@ The documentation layout and structure is presently:
   - [x] Introduction (New)
   - [x] Getting Started (New)
   - [x] Guides
-    - [ ] SSH  (moved from user guide)
-    - [x] PAM 
+    - [ ] SSH (moved from user guide)
+    - [x] PAM
     - [x] OpenSSH
     - [ ] Enhanced Session Recording (moved from Features)
 - [x] Kubernetes Access
