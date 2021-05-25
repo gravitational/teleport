@@ -9,6 +9,8 @@ This checklist is to be run after cutting a release.
 - [ ] Create PR to update default AMI versions in Makefile and AMIs.md under https://github.com/gravitational/teleport/blob/master/assets/aws
   - Example: https://github.com/gravitational/teleport/pull/4608
 - [ ] Create PR to update app version and Helm chart version (https://github.com/gravitational/teleport/blob/master/examples/chart)
+- [ ] Verify Blog post links point to the correct articles and don't 404.
+- [ ] Verify that any version-specific information in the README.md is updated.
 
 ### Major/minor releases only
 
