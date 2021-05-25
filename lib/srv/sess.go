@@ -1441,15 +1441,15 @@ func parseAccessRequestIDs(str string) ([]string, error) {
 	var ar AccessRequests
 	err := json.Unmarshal(bytes, &ar)
 	if err != nil {
-		return accessRequestIDs, err
+		return []string{}, err
 	}
 	for _, v := range ar.IDs {
 		id, err := uuid.Parse(v)
 		if err != nil {
-			return accessRequestIDs, trace.WrapWithMessage(err, "failed to parse access request ID")
+			return []string{}, trace.WrapWithMessage(err, "failed to parse access request ID")
 		}
 		if fmt.Sprintf("%v", id) == "" {
-			return accessRequestIDs, trace.Errorf("invalid uuid: %v", id)
+			return []string{}, trace.Errorf("invalid uuid: %v", id)
 		}
 		accessRequestIDs = append(accessRequestIDs, v)
 	}
