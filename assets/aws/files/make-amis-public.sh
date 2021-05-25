@@ -10,6 +10,8 @@ else
     REGION_LIST="$2"
 fi
 
+# Note: to run this script on MacOS you will need to install coreutils (using Brew), then edit the PATH in your shell's
+# RC file to use coreutils versions first (something like "export PATH=/usr/local/opt/coreutils/libexec/gnubin:$PATH")
 ABSPATH=$(readlink -f "$0")
 SCRIPT_DIR=$(dirname "${ABSPATH}")
 BUILD_DIR=$(readlink -f "${SCRIPT_DIR}/build")
