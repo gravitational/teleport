@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Note: to run this script on MacOS you will need to:
+# - install gnu-sed (using Brew), then edit the PATH in your shell's RC file to use the GNU version first
+# -- (something like "export PATH=/usr/local/opt/gnu-sed/libexec/gnubin:$PATH")
+# - install findutils (using Brew), then edit the PATH in your shell's RC file to use the GNU version first
+# -- (something like "export PATH=/usr/local/opt/findutils/libexec/gnubin:$PATH")
+
 # shellcheck disable=SC2086
 usage() { echo "Usage: $(basename $0) [-a <AWS account ID>] [-m <cloudformation/terraform>] [-t <oss/ent/ent-fips>] [-r <comma-separated regions>] [-v version]" 1>&2; exit 1; }
 while getopts ":a:m:t:r:v:" o; do
