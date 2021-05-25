@@ -1436,20 +1436,20 @@ type AccessRequests struct {
 }
 
 func parseAccessRequestIDs(str string) ([]string, error) {
+	var accessRequestIDs []string
 	bytes := []byte(str)
 	var ar AccessRequests
 	err := json.Unmarshal(bytes, &ar)
 	if err != nil {
-		return nil, err
+		return accessRequestIDs, err
 	}
-	var accessRequestIDs []string
 	for _, v := range ar.IDs {
 		id, err := uuid.Parse(v)
 		if err != nil {
-			return nil, trace.WrapWithMessage(err, "failed to parse access request ID")
+			return accessRequestIDs, trace.WrapWithMessage(err, "failed to parse access request ID")
 		}
 		if fmt.Sprintf("%v", id) == "" {
-			return nil, trace.Errorf("invalid uuid: %v", id)
+			return accessRequestIDs, trace.Errorf("invalid uuid: %v", id)
 		}
 		accessRequestIDs = append(accessRequestIDs, v)
 	}
