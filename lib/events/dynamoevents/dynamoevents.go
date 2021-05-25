@@ -418,7 +418,7 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 				return nil
 			})
 
-			if err != nil {
+			if err == nil {
 				break
 			}
 
