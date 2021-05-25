@@ -563,6 +563,8 @@ func (t *TeeStream) EmitAuditEvent(ctx context.Context, event AuditEvent) error 
 	switch event.GetType() {
 	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, "":
 		return trace.NewAggregate(errors...)
+	case AppSessionRequestCode:
+		return trace.NewAggregate(errors...)
 	}
 	if err := t.emitter.EmitAuditEvent(ctx, event); err != nil {
 		errors = append(errors, err)
