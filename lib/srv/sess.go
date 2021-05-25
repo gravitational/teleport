@@ -896,7 +896,6 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	if err != nil {
 		s.log.WithError(err).Warn("failed to parse access request IDs")
 	}
-
 	// Emit a session.start event for the exec session.
 	sessionStartEvent := &events.SessionStart{
 		Metadata: events.Metadata{
@@ -1441,15 +1440,15 @@ func parseAccessRequestIDs(str string) ([]string, error) {
 	var ar AccessRequests
 	err := json.Unmarshal(bytes, &ar)
 	if err != nil {
-		return []string{}, err
+		return nil, err
 	}
 	for _, v := range ar.IDs {
 		id, err := uuid.Parse(v)
 		if err != nil {
-			return []string{}, trace.WrapWithMessage(err, "failed to parse access request ID")
+			return nil, trace.WrapWithMessage(err, "failed to parse access request ID")
 		}
 		if fmt.Sprintf("%v", id) == "" {
-			return []string{}, trace.Errorf("invalid uuid: %v", id)
+			return nil, trace.Errorf("invalid uuid: %v", id)
 		}
 		accessRequestIDs = append(accessRequestIDs, v)
 	}

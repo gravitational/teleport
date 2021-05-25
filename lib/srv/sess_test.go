@@ -40,19 +40,19 @@ func TestParseAccessRequestIDs(t *testing.T) {
 			input:     `{"access_requests":["1a7483e0-575a-4bd1-9faa-022500a49325","30b344f5-d1ba-49fc-b2aa"]}`,
 			comment:   "invalid uuid",
 			assertErr: require.Error,
-			result:    []string{},
+			result:    nil,
 		},
 		{
 			input:     `{"access_requests":[nil,"30b344f5-d1ba-49fc-b2aa-b04234d0a4ec"]}`,
 			comment:   "invalid value, value in slice is nil",
 			assertErr: require.Error,
-			result:    []string{},
+			result:    nil,
 		},
 		{
 			input:     `{"access_requests":nil}`,
 			comment:   "invalid value, whole value is nil",
 			assertErr: require.Error,
-			result:    []string{},
+			result:    nil,
 		},
 	}
 	for _, tt := range testCases {
