@@ -1147,7 +1147,8 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 				top = len(writeRequests)
 			}
 
-			batch := writeRequests[:top]
+			// We need to make a copy of the slice here so it doesn't get changed later due to subslicing.
+			batch := append(make([]*dynamodb.WriteRequest, 0, DynamoBatchSize), writeRequests[:top]...)
 			writeRequests = writeRequests[top:]
 
 			// Don't exceed maximum workers.
