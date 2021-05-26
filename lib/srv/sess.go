@@ -1440,7 +1440,7 @@ func parseAccessRequestIDs(str string) ([]string, error) {
 
 	err := json.Unmarshal([]byte(str), &ar)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	for _, v := range ar.IDs {
 		id, err := uuid.Parse(v)
