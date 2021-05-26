@@ -1,0 +1,15 @@
+
+# example slack plugin configuration TOML file
+
+[teleport]
+auth_server = "example.teleport.sh:443"           # Teleport Auth Server GRPC API address
+identity = "/var/lib/teleport/plugins/slack/access-plugin.pem" # Identity file to authenticate the access-request service user
+
+[slack]
+token = "xoxb-11xx"             # Slack Bot OAuth token
+# Optional Slack Rooms
+recipients = ["team","devops"]
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/slack.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
