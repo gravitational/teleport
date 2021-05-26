@@ -152,6 +152,7 @@ tsh status
 
 # > Profile URL:  https://proxy.example.com:3080
 #  Logged in as: johndoe
+#  Cluster:      tele.example.com
 #  Roles:        admin*
 #  Logins:       root, admin, guest
 #  Valid until:  2017-04-25 15:02:30 -0700 PDT [valid for 1h0m0s]
@@ -217,7 +218,7 @@ CI/CD pipeline.
 For such automation, it is recommended to create a separate Teleport user for
 bots and request a certificate for them with a long time to live (TTL).
 
-In this example, we're creating a certificate with a TTL of 10 years for the
+In this example, we're creating a certificate with a TTL of 1-hour for the
 jenkins user and storing it in a `jenkins.pem` file, which can be later used with
 `-i` (identity) flag for `tsh`.
 
@@ -244,11 +245,11 @@ with the `tsh ls` command:
 tsh ls
 
 # Output:
-# Node Name     Node ID                Address            Labels
-# ---------     -------                -------            ------
-# turing        11111111-dddd-4132     10.1.0.5:3022      os:linux
-# turing        22222222-cccc-8274     10.1.0.6:3022      os:linux
-# graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
+# Node Name     Address            Labels
+# ---------     -------            ------
+# turing        10.1.0.5:3022      os:linux
+# turing        10.1.0.6:3022      os:linux
+# graviton      10.1.0.7:3022      os:osx
 ```
 
 [CLI Docs - tsh ls](cli-docs.mdx#tsh-ls)
@@ -259,7 +260,7 @@ tsh ls
 # Only show nodes with os label set to 'osx':
 tsh ls os=osx
 
-# Node Name     Node ID                Address            Labels
+# Nodename      UUID                   Address            Labels
 # ---------     -------                -------            ------
 # graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
