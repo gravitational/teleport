@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-production
+  namespace: teleport
+spec:
+  acme:
+    email: gus+helm@goteleport.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-production
+    solvers:
+    - selector:
+        dnsZones:
+          - "teleportdemo.net"
+      dns01:
+        route53:
+          region: us-east-1
+          hostedZoneID: Z0159221358P96JYAUAU3
