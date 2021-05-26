@@ -74,6 +74,18 @@ func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time
 
 // Release forces lock release
 func (l *Lock) Release(ctx context.Context, backend Backend) error {
+	prev, err := backend.Get(ctx, l.key)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.CompareFailed("cannot release lock %s (expired)", l.id)
+		}
+		return trace.Wrap(err)
+	}
+
+	if !bytes.Equal(prev.Value, l.id) {
+		return trace.CompareFailed("cannot release lock %s (ownership changed)", l.id)
+	}
+
 	if err := backend.Delete(ctx, l.key); err != nil {
 		return trace.Wrap(err)
 	}
