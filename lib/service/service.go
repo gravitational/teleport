@@ -2750,6 +2750,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		component := teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube)
+		kubeServiceType := kubeproxy.ProxyService
+		if cfg.Proxy.Kube.LegacyKubeProxy {
+			kubeServiceType = kubeproxy.LegacyProxyService
+		}
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:         defaults.Namespace,
@@ -2765,6 +2769,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ClusterOverride:   cfg.Proxy.Kube.ClusterOverride,
 				KubeconfigPath:    cfg.Proxy.Kube.KubeconfigPath,
 				Component:         component,
+				KubeServiceType:   kubeServiceType,
 			},
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,

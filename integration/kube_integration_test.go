@@ -1119,6 +1119,7 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 	tconf.Proxy.Kube.Enabled = true
 	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, ports.Pop())
 	tconf.Proxy.Kube.KubeconfigPath = s.kubeConfigPath
+	tconf.Proxy.Kube.LegacyKubeProxy = true
 
 	return tconf
 }
