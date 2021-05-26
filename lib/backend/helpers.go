@@ -24,7 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/siddontang/go-log/log"
+	log "github.com/sirupsen/logrus"
 )
 
 const locksPrefix = ".locks"
