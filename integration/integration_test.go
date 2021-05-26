@@ -256,8 +256,8 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
 			makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
-				clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-					Audit: types.AuditConfig{AuditSessionsURI: tt.auditSessionsURI},
+				auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+					AuditSessionsURI: tt.auditSessionsURI,
 				})
 				require.NoError(t, err)
 
@@ -268,7 +268,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 				tconf := suite.defaultServiceConfig()
 				tconf.Auth.Enabled = true
-				tconf.Auth.ClusterConfig = clusterConfig
+				tconf.Auth.AuditConfig = auditConfig
 				tconf.Auth.SessionRecordingConfig = recConfig
 				tconf.Proxy.Enabled = true
 				tconf.Proxy.DisableWebService = true

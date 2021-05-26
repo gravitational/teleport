@@ -399,6 +399,10 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_DatabaseServer{
 			DatabaseServer: r,
 		}
+	case *types.ClusterAuditConfigV2:
+		out.Resource = &proto.Event_ClusterAuditConfig{
+			ClusterAuditConfig: r,
+		}
 	case *types.ClusterNetworkingConfigV2:
 		out.Resource = &proto.Event_ClusterNetworkingConfig{
 			ClusterNetworkingConfig: r,
@@ -2478,6 +2482,35 @@ func (g *GRPCServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInN
 		return nil, trace.Wrap(err)
 	}
 	if err = auth.ServerWithRoles.DeleteAllNodes(ctx, req.Namespace); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetClusterAuditConfig gets cluster audit configuration.
+func (g *GRPCServer) GetClusterAuditConfig(ctx context.Context, _ *empty.Empty) (*types.ClusterAuditConfigV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	auditConfig, err := auth.ServerWithRoles.GetClusterAuditConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	auditConfigV2, ok := auditConfig.(*types.ClusterAuditConfigV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", auditConfig)
+	}
+	return auditConfigV2, nil
+}
+
+// SetClusterAuditConfig sets cluster audit configuration.
+func (g *GRPCServer) SetClusterAuditConfig(ctx context.Context, auditConfig *types.ClusterAuditConfigV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = auth.ServerWithRoles.SetClusterAuditConfig(ctx, auditConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil

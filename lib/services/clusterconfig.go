@@ -38,24 +38,6 @@ func DefaultClusterConfig() types.ClusterConfig {
 	}
 }
 
-// AuditConfigFromObject returns audit config from interface object
-func AuditConfigFromObject(in interface{}) (*types.AuditConfig, error) {
-	var cfg types.AuditConfig
-	if in == nil {
-		return &cfg, nil
-	}
-	if err := utils.ObjectToStruct(in, &cfg); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &cfg, nil
-}
-
-// ShouldUploadSessions returns whether audit config
-// instructs server to upload sessions
-func ShouldUploadSessions(a types.AuditConfig) bool {
-	return a.AuditSessionsURI != ""
-}
-
 // UnmarshalClusterConfig unmarshals the ClusterConfig resource from JSON.
 func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (types.ClusterConfig, error) {
 	var clusterConfig types.ClusterConfigV3
