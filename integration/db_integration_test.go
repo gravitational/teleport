@@ -188,11 +188,11 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		leafAuthServer = pack.leaf.cluster.Process.GetAuthServer()
 		leafRole       = pack.leaf.role
 
-		idleTimeout         = time.Millisecond * 400
+		idleTimeout         = time.Millisecond * 600
 		idleTimoutWithDelay = idleTimeout + time.Millisecond*200
 	)
 
-	mkMysqlLeafDBClient := func() *client.Conn {
+	mkMysqlLeafDBClient := func(t *testing.T) *client.Conn {
 		// Connect to the database service in leaf cluster via root cluster.
 		client, err := mysql.MakeTestClient(common.TestClientConfig{
 			AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -211,7 +211,7 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 	}
 
 	t.Run("root role without idle timeout", func(t *testing.T) {
-		client := mkMysqlLeafDBClient()
+		client := mkMysqlLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
@@ -224,7 +224,7 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("root role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, rootAuthServer, rootRole, idleTimeout)
-		client := mkMysqlLeafDBClient()
+		client := mkMysqlLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
@@ -236,7 +236,7 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("leaf role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, leafAuthServer, leafRole, idleTimeout)
-		client := mkMysqlLeafDBClient()
+		client := mkMysqlLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
