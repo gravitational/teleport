@@ -289,7 +289,7 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 	}
 
 	// Migrate the table according to RFD 24 if it still has the old schema.
-	if err := b.migrateRFD24WithRetry(ctx); err != nil {
+	if err := b.migrateRFD24(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -336,31 +336,6 @@ const (
 	tableStatusNeedsMigration
 	tableStatusOK
 )
-
-// migrateRFD24WithRetry repeatedly attempts to kick off RFD 24 migration in the event
-// of an error on a long and jittered interval.
-func (l *Log) migrateRFD24WithRetry(ctx context.Context) error {
-	// Disable queries until the new index is in place.
-	l.readyForQuery.Store(false)
-
-	for {
-		if err := l.migrateRFD24(ctx); err != nil {
-			delay := utils.HalfJitter(time.Minute)
-			log.WithError(err).Errorf("Failed RFD 24 migration, making another attempt in %f seconds", delay.Seconds())
-
-			select {
-			case <-time.After(delay):
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			}
-		} else {
-			l.readyForQuery.Store(true)
-			break
-		}
-	}
-
-	return nil
-}
 
 // migrateRFD24 checks if any migration actions need to be performed
 // as specified in RFD 24 and applies them as needed.
