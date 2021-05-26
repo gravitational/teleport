@@ -44,6 +44,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const dynamoDBLargeQueryRetries int = 10
+
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
@@ -75,8 +77,7 @@ func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
 	s.log = log
 	s.EventsSuite.Log = log
 	s.EventsSuite.Clock = fakeClock
-	s.EventsSuite.QueryDelay = time.Second
-
+	s.EventsSuite.QueryDelay = time.Second * 5
 }
 
 func (s *DynamoeventsSuite) SetUpTest(c *check.C) {
@@ -96,7 +97,8 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 	err := s.log.deleteAllItems()
 	c.Assert(err, check.IsNil)
 
-	for i := 0; i < 4000; i++ {
+	const eventCount int = 4000
+	for i := 0; i < eventCount; i++ {
 		err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
 			events.LoginMethod:        events.LoginMethodSAML,
 			events.AuthAttemptSuccess: true,
@@ -106,13 +108,21 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 		c.Assert(err, check.IsNil)
 	}
 
-	time.Sleep(s.EventsSuite.QueryDelay)
+	var history []events.AuditEvent
 
-	history, _, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 0, "")
-	c.Assert(err, check.IsNil)
+	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
+		time.Sleep(s.EventsSuite.QueryDelay)
+
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 0, "")
+		c.Assert(err, check.IsNil)
+
+		if len(history) == eventCount {
+			break
+		}
+	}
 
 	// `check.HasLen` prints the entire array on failure, which pollutes the output
-	c.Assert(len(history), check.Equals, 4000)
+	c.Assert(len(history), check.Equals, eventCount)
 }
 
 // TestIndexExists tests functionality of the `Log.indexExists` function.
