@@ -219,7 +219,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			Context:           process.ExitContext(),
 			KubeconfigPath:    cfg.Kube.KubeconfigPath,
 			KubeClusterName:   cfg.Kube.KubeClusterName,
-			NewKubeService:    true,
+			KubeServiceType:   kubeproxy.KubeService,
 			Component:         teleport.ComponentKube,
 			StaticLabels:      cfg.Kube.StaticLabels,
 			DynamicLabels:     dynLabels,
