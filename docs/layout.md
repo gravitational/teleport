@@ -73,6 +73,7 @@ The documentation layout and structure is presently:
     - [x] OpenSSH
     - [ ] Enhanced Session Recording (moved from Features)
     - [ ] Resource Catalog/Introspection (move all introspection, management items into here)
+    - [ ] Proxy, NAT, Connecting (think we can factor out a bunch of stuff in the admin guide and move into here)
 - [x] Kubernetes Access
     - [x] Introduction
     - [x] Getting Started
