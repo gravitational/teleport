@@ -187,7 +187,7 @@ func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 	var eventArr []event
 
 	for time.Since(waitStart) < attemptWaitFor {
-		utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+		err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 			eventArr, _, err = s.log.searchEventsRaw(start, end, defaults.Namespace, []string{"test.event"}, 1000, "")
 			return err
 		})

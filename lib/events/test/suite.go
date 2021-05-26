@@ -103,7 +103,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	var checkpoint string
 
 	for _, name := range names {
-		utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+		err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 			arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
 			return err
 		})
@@ -148,11 +148,10 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 
 	var history []events.AuditEvent
 
-	utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, "")
 		return err
 	})
-
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 1)
 

@@ -379,7 +379,7 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 
 				// Acquire a lock so that only one auth server attempts to perform the migration at any given time.
 				// If an auth server does in a HA-setup the other auth servers will pick up the migration automatically.
-				err = backend.RunWhileLocked(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL, func() error {
+				err = backend.RunWhileLocked(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL, func(ctx context.Context) error {
 					hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
 					if err != nil {
 						return trace.Wrap(err)
@@ -930,7 +930,7 @@ func (l *Log) indexExists(tableName, indexName string) (bool, error) {
 // - This function must be called before the
 //   backend is considered initialized and the main Teleport process is started.
 func (l *Log) createV2GSI(ctx context.Context) error {
-	err := backend.RunWhileLocked(ctx, l.backend, indexV2CreationLock, 5*time.Minute, func() error {
+	err := backend.RunWhileLocked(ctx, l.backend, indexV2CreationLock, 5*time.Minute, func(ctx context.Context) error {
 		v2Exists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1068,10 +1068,6 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 	totalProcessed := atomic.NewInt32(0)
 	workerErrors := make(chan error, maxMigrationWorkers)
 
-	// We use this variable to figure out when to refresh the lock TTL
-	// to indicate to other auth servers that we are still migrating.
-	lastRefresh := time.Now()
-
 	for {
 		// Check for worker errors and escalate if found.
 		select {
@@ -1106,13 +1102,6 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 
 		// For every item processed by this scan iteration we generate a write request.
 		for _, item := range scanOut.Items {
-			if time.Since(lastRefresh) > time.Minute {
-				lastRefresh = time.Now()
-				if err := backend.ResetLockTTL(ctx, l.backend, rfd24MigrationLock); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-
 			// Extract the UTC timestamp integer of the event.
 			timestampAttribute := item[keyCreatedAt]
 			var timestampRaw int64
