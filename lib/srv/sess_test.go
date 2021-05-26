@@ -23,7 +23,6 @@ import (
 )
 
 func TestParseAccessRequestIDs(t *testing.T) {
-	// emptySlice := make([]string, 0)
 	testCases := []struct {
 		input     string
 		comment   string

@@ -1436,9 +1436,9 @@ type AccessRequests struct {
 
 func parseAccessRequestIDs(str string) ([]string, error) {
 	var accessRequestIDs []string
-	bytes := []byte(str)
 	var ar AccessRequests
-	err := json.Unmarshal(bytes, &ar)
+
+	err := json.Unmarshal([]byte(str), &ar)
 	if err != nil {
 		return nil, err
 	}
