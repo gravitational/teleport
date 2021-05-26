@@ -384,6 +384,15 @@ proxy_service:
     # optional: set a different public address for kubernetes access
     kube_public_addr: kube.example.com:3026
 
+    # Get automatic certificate from Letsencrypt.org using ACME via TLS_ALPN-01 challenge.
+    # When using ACME, the cluster name must match the 'public_addr' of Teleport and 
+    # the 'proxy_service' must be publicly accessible over port 443.
+    # Also set using the CLI command:
+    # 'teleport configure --acme --acme-email=email@example.com --cluster-name=tele.example.com -o file' 
+    #acme:
+    #  enabled: yes
+    #  email: "user@example.com"
+
 # This section configures the 'application service'
 app_service:
     # Turns 'app' role on. Default is 'no'

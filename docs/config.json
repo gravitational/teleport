@@ -184,8 +184,8 @@
       "plugin": {
         "version": "6.1.0"
       },
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:6.1",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6.1"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:6",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6"
     }
   },
   "redirects": [
