@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -252,7 +253,17 @@ func (s *ProxyServer) Connect(ctx context.Context, user, database string) (net.C
 //
 // Implements common.Service.
 func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clientConn, serviceConn net.Conn) error {
-	tc, err := s.monitorConn(ctx, authContext, clientConn)
+	tc, err := monitorConn(ctx, monitorConnConfig{
+		conn:         clientConn,
+		identity:     authContext.Identity.GetIdentity(),
+		checker:      authContext.Checker,
+		clock:        s.cfg.Clock,
+		serverID:     string(teleport.RoleProxy),
+		authClient:   s.cfg.AuthClient,
+		teleportUser: authContext.Identity.GetIdentity().Username,
+		emitter:      s.cfg.Emitter,
+		log:          s.log,
+	})
 	if err != nil {
 		clientConn.Close()
 		serviceConn.Close()
@@ -289,55 +300,61 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 	return trace.NewAggregate(errs...)
 }
 
+// monitorConnConfig is a monitorConn configuration.
+type monitorConnConfig struct {
+	conn         net.Conn
+	checker      services.AccessChecker
+	identity     tlsca.Identity
+	clock        clockwork.Clock
+	serverID     string
+	authClient   *auth.Client
+	teleportUser string
+	emitter      events.Emitter
+	log          logrus.FieldLogger
+}
+
 // monitorConn wraps a client connection with TrackingReadConn, starts a connection monitor and
 // returns a tracking connection that will be auto-terminated in case disconnect_expired_cert or idle timeout is
 // configured, and unmodified client connection otherwise.
-func (s *ProxyServer) monitorConn(ctx context.Context, authContext *auth.Context, conn net.Conn) (net.Conn, error) {
-	checker := authContext.Checker
-	certExpires := authContext.Identity.GetIdentity().Expires
-
-	clusterConfig, err := s.cfg.AuthClient.GetClusterConfig()
+func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
+	certExpires := cfg.identity.Expires
+	clusterConfig, err := cfg.authClient.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	netConfig, err := s.cfg.AuthClient.GetClusterNetworkingConfig(ctx)
+	netConfig, err := cfg.authClient.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && checker.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert()) {
+	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert()) {
 		disconnectCertExpired = certExpires
 	}
-
-	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+	idleTimeout := cfg.checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 	if disconnectCertExpired.IsZero() && idleTimeout == 0 {
-		return conn, nil
+		return cfg.conn, nil
 	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
-		Conn:    conn,
-		Clock:   s.cfg.Clock,
+		Conn:    cfg.conn,
+		Clock:   cfg.clock,
 		Context: ctx,
 		Cancel:  cancel,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	mon, err := srv.NewMonitor(srv.MonitorConfig{
 		DisconnectExpiredCert: disconnectCertExpired,
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  tc,
 		Tracker:               tc,
 		Context:               ctx,
-		Clock:                 s.cfg.Clock,
-		ServerID:              string(teleport.RoleProxy),
-		TeleportUser:          authContext.User.GetName(),
-		Emitter:               s.cfg.Emitter,
-		Entry:                 s.log,
+		Clock:                 cfg.clock,
+		ServerID:              cfg.serverID,
+		TeleportUser:          cfg.teleportUser,
+		Emitter:               cfg.emitter,
+		Entry:                 cfg.log,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -398,6 +398,22 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	conn, err = monitorConn(ctx, monitorConnConfig{
+		conn:         conn,
+		identity:     sessionCtx.Identity,
+		checker:      sessionCtx.Checker,
+		clock:        s.cfg.Clock,
+		serverID:     sessionCtx.Server.GetHostID(),
+		authClient:   s.cfg.AuthClient,
+		teleportUser: sessionCtx.Identity.Username,
+		emitter:      s.cfg.AuthClient,
+		log:          s.log,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	err = engine.HandleConnection(ctx, sessionCtx, conn)
 	if err != nil {
 		return trace.Wrap(err)

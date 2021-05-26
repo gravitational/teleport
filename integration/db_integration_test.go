@@ -37,6 +37,7 @@ import (
 
 	"github.com/jackc/pgconn"
 	"github.com/pborman/uuid"
+	"github.com/siddontang/go-mysql/client"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -172,6 +173,85 @@ func TestDatabaseAccessMySQLLeafCluster(t *testing.T) {
 
 	// Disconnect.
 	err = client.Close()
+	require.NoError(t, err)
+}
+
+// TestRootLeafIdleTimeout tests idle client connection termination by proxy and DB services in
+// trusted cluster setup.
+func TestRootLeafIdleTimeout(t *testing.T) {
+	pack := setupDatabaseTest(t)
+	pack.waitForLeaf(t)
+
+	var (
+		rootAuthServer = pack.root.cluster.Process.GetAuthServer()
+		rootRole       = pack.root.role
+		leafAuthServer = pack.leaf.cluster.Process.GetAuthServer()
+		leafRole       = pack.leaf.role
+
+		idleTimeout         = time.Millisecond * 400
+		idleTimoutWithDelay = idleTimeout + time.Millisecond*200
+	)
+
+	mkMysqlLeafDBClient := func() *client.Conn {
+		// Connect to the database service in leaf cluster via root cluster.
+		client, err := mysql.MakeTestClient(common.TestClientConfig{
+			AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+			AuthServer: pack.root.cluster.Process.GetAuthServer(),
+			Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMySQL()), // Connecting via root cluster.
+			Cluster:    pack.leaf.cluster.Secrets.SiteName,
+			Username:   pack.root.user.GetName(),
+			RouteToDatabase: tlsca.RouteToDatabase{
+				ServiceName: pack.leaf.mysqlService.Name,
+				Protocol:    pack.leaf.mysqlService.Protocol,
+				Username:    "root",
+			},
+		})
+		require.NoError(t, err)
+		return client
+	}
+
+	t.Run("root role without idle timeout", func(t *testing.T) {
+		client := mkMysqlLeafDBClient()
+		_, err := client.Execute("select 1")
+		require.NoError(t, err)
+
+		time.Sleep(idleTimoutWithDelay)
+		_, err = client.Execute("select 1")
+		require.NoError(t, err)
+		err = client.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("root role with idle timeout", func(t *testing.T) {
+		setRoleIdleTimeout(t, rootAuthServer, rootRole, idleTimeout)
+		client := mkMysqlLeafDBClient()
+		_, err := client.Execute("select 1")
+		require.NoError(t, err)
+
+		time.Sleep(idleTimoutWithDelay)
+		_, err = client.Execute("select 1")
+		require.Error(t, err)
+		setRoleIdleTimeout(t, rootAuthServer, rootRole, time.Hour)
+	})
+
+	t.Run("leaf role with idle timeout", func(t *testing.T) {
+		setRoleIdleTimeout(t, leafAuthServer, leafRole, idleTimeout)
+		client := mkMysqlLeafDBClient()
+		_, err := client.Execute("select 1")
+		require.NoError(t, err)
+
+		time.Sleep(idleTimoutWithDelay)
+		_, err = client.Execute("select 1")
+		require.Error(t, err)
+		setRoleIdleTimeout(t, leafAuthServer, leafRole, time.Hour)
+	})
+}
+
+func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role services.Role, idleTimout time.Duration) {
+	opts := role.GetOptions()
+	opts.ClientIdleTimeout = services.Duration(idleTimout)
+	role.SetOptions(opts)
+	err := authServer.UpsertRole(context.Background(), role)
 	require.NoError(t, err)
 }
 
