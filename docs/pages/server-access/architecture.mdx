@@ -8,43 +8,6 @@ Many administrators will consider several factors when configuring Teleport for 
 
 This document surveys key concepts and architectural concerns when using Teleport Server Access.
 
-## Choose your SSH solution
-
-SSH tools are now commonly distributed as clients, servers, or some combination of both.  
-
-Teleport is unopinionated and agnostic about which client and/or server you choose. Admins can select specific Teleport features (like [Session Recording](../features/enhanced-session-recording.mdx) while opting to continue using some or all of their existing SSH solutions.
-
-Teleport features can be used to "wrap" or enhance existing SSH tools while retaining the original, underlying, SSH access flows already in place.
-
-<Admonition title="Tip" type="tip">
-  For an added layer of secrecy, the default Teleport listening ports can be overridden by port numbers of your choice using Teleport YAML configuration files.
-</Admonition>
-
-### Clients
-
-Teleport is compatible with popular clients like [OpenSSH](./guides/openssh.mdx) and also provides its own [built-in SSH client](../cli-docs.mdx#tsh) (`tsh`).
-
-By default, SSH clients can connect to a Teleport cluster through the following port (exposed through the public proxy):
-
-| Port | Service | Description |
-| - | - | - |
-| 3023 | Proxy | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination Node. |
-
-Teleport allows for complex, multi-client, arrangments as well as unified solutions (using Teleport alone in both a dedicated SSH server and as a client through `tsh`). For example, one cluster may be accessible through OpenSSH, another through Teleport `tsh`, and another through Putty.
-  
-### Servers
-
-Teleport is agnostic concerning your choice of SSH server backends and can be used to supplement existing features or serve as an intermediary between them and public clients.
-
-A common strategy involves using Teleport Nodes in Proxy mode to get all the benefits of Audit Logging, Session Recording, and/or 2FA.
-
-Most backends likely expose port `22` for inbound public clients and `tsh` will connect through the specified `--port` value on command:
-
-```bash
-# tsh ssh into a public proxy Node using a specific port
-tsh ssh --port=22 user@tele.example.com
-```
-
 ## Server Access security
 
 Security is a natural and paramount concern for any admin. And, Teleport was built to empower admins by simplifying the configuration of the often byzantine network of resources required for modern operations.
