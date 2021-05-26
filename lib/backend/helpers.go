@@ -29,7 +29,7 @@ import (
 
 const locksPrefix = ".locks"
 
-type BackendLock struct {
+type Lock struct {
 	key []byte
 	id  []byte
 	ttl time.Duration
@@ -45,14 +45,14 @@ func randomID() ([]byte, error) {
 }
 
 // AcquireLock grabs a lock that will be released automatically in TTL
-func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time.Duration) (BackendLock, error) {
+func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time.Duration) (Lock, error) {
 	if lockName == "" {
-		return BackendLock{}, trace.BadParameter("missing parameter lock name")
+		return Lock{}, trace.BadParameter("missing parameter lock name")
 	}
 	key := []byte(filepath.Join(locksPrefix, lockName))
 	id, err := randomID()
 	if err != nil {
-		return BackendLock{}, trace.Wrap(err)
+		return Lock{}, trace.Wrap(err)
 	}
 	for {
 		// Get will clear TTL on a lock
@@ -67,13 +67,13 @@ func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time
 			backend.Clock().Sleep(250 * time.Millisecond)
 			continue
 		}
-		return BackendLock{}, trace.ConvertSystemError(err)
+		return Lock{}, trace.ConvertSystemError(err)
 	}
-	return BackendLock{key: key, id: id, ttl: ttl}, nil
+	return Lock{key: key, id: id, ttl: ttl}, nil
 }
 
 // Release forces lock release
-func (l *BackendLock) Release(ctx context.Context, backend Backend) error {
+func (l *Lock) Release(ctx context.Context, backend Backend) error {
 	if err := backend.Delete(ctx, l.key); err != nil {
 		return trace.Wrap(err)
 	}
@@ -81,7 +81,7 @@ func (l *BackendLock) Release(ctx context.Context, backend Backend) error {
 }
 
 // resetTTL resets the TTL on a given lock.
-func (l *BackendLock) resetTTL(ctx context.Context, backend Backend) error {
+func (l *Lock) resetTTL(ctx context.Context, backend Backend) error {
 	prev, err := backend.Get(ctx, l.key)
 	if err != nil {
 		if trace.IsNotFound(err) {
