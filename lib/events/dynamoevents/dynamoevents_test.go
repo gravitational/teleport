@@ -184,14 +184,18 @@ func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 	end := start.Add(time.Hour * time.Duration(24*11))
 	attemptWaitFor := time.Minute * 5
 	waitStart := time.Now()
+	var eventArr []event
 
 	for time.Since(waitStart) < attemptWaitFor {
-		events, _, err := s.log.searchEventsRaw(start, end, defaults.Namespace, []string{"test.event"}, 1000, "")
-		sort.Sort(byTimeAndIndexRaw(events))
+		utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+			eventArr, _, err = s.log.searchEventsRaw(start, end, defaults.Namespace, []string{"test.event"}, 1000, "")
+			return err
+		})
 		c.Assert(err, check.IsNil)
+		sort.Sort(byTimeAndIndexRaw(eventArr))
 		correct := true
 
-		for _, event := range events {
+		for _, event := range eventArr {
 			timestampUnix := event.CreatedAt
 			dateString := time.Unix(timestampUnix, 0).Format(iso8601DateFormat)
 			if dateString != event.CreatedAtDate {

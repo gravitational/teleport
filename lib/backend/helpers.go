@@ -67,8 +67,15 @@ func ResetLockTTL(ctx context.Context, backend Backend, lockName string) error {
 	if lockName == "" {
 		return trace.BadParameter("missing parameter lock name")
 	}
+
 	key := []byte(filepath.Join(locksPrefix, lockName))
-	if _, err := backend.Get(ctx, key); err != nil {
+
+	item, err := backend.Get(ctx, key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := backend.Put(ctx, *item); err != nil {
 		return trace.Wrap(err)
 	}
 

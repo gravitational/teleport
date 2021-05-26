@@ -172,6 +172,10 @@ type Log struct {
 	// Backend holds the data backend used.
 	// This is used for locking.
 	backend backend.Backend
+
+	// readyForQuery is used to determine if all indexes are in place
+	// for event queries.
+	readyForQuery *atomic.Bool
 }
 
 type event struct {
@@ -235,9 +239,10 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 		return nil, trace.Wrap(err)
 	}
 	b := &Log{
-		Entry:   l,
-		Config:  cfg,
-		backend: backend,
+		Entry:         l,
+		Config:        cfg,
+		backend:       backend,
+		readyForQuery: atomic.NewBool(true),
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
@@ -335,6 +340,9 @@ const (
 // migrateRFD24WithRetry repeatedly attempts to kick off RFD 24 migration in the event
 // of an error on a long and jittered interval.
 func (l *Log) migrateRFD24WithRetry(ctx context.Context) error {
+	// Disable queries until the new index is in place.
+	l.readyForQuery.Store(false)
+
 	for {
 		if err := l.migrateRFD24(ctx); err != nil {
 			delay := utils.HalfJitter(time.Minute)
@@ -346,6 +354,7 @@ func (l *Log) migrateRFD24WithRetry(ctx context.Context) error {
 				return trace.Wrap(ctx.Err())
 			}
 		} else {
+			l.readyForQuery.Store(true)
 			break
 		}
 	}
@@ -367,59 +376,67 @@ func (l *Log) migrateRFD24WithRetry(ctx context.Context) error {
 // jittered interval until retrying migration again. This allows one server to pull ahead
 // and finish or make significant progress on the migration.
 func (l *Log) migrateRFD24(ctx context.Context) error {
-	hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Table is already up to date.
-	// We use the existence of the V1 index as a completion flag
-	// for migration. We remove it at the end of the migration which
-	// means it is finished if it doesn't exist.
-	if !hasIndexV1 {
-		return nil
-	}
-
-	// Creates the v2 index if it doesn't already exist.
-	// This function takes a lock internally to prevent race conditions.
-	err = l.createV2GSI(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Kick off a background task to migrate events, this task is safely
 	// interruptible without breaking data and can be resumed from the
 	// last point so no checkpointing state needs to be managed here.
 	go func() {
 		for {
-			// Acquire a lock so that only one auth server attempts to perform the migration at any given time.
-			// If an auth server does in a HA-setup the other auth servers will pick up the migration automatically.
-			err := backend.RunWhileLocked(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL, func() error {
+			err := func() error {
 				hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 
+				// Table is already up to date.
+				// We use the existence of the V1 index as a completion flag
+				// for migration. We remove it at the end of the migration which
+				// means it is finished if it doesn't exist.
 				if !hasIndexV1 {
 					return nil
 				}
 
-				// Migrate events to the new format so that the V2 index can use them.
-				log.Info("Starting event migration to v6.2 format")
-				err = l.migrateDateAttribute(ctx)
+				// Creates the v2 index if it doesn't already exist.
+				// This function takes a lock internally to prevent race conditions.
+				err = l.createV2GSI(ctx)
 				if err != nil {
-					return trace.WrapWithMessage(err, "Encountered error migrating events to v6.2 format")
+					return trace.Wrap(err)
 				}
 
-				// Remove the old index, marking migration as complete
-				log.Info("Removing old DynamoDB index")
-				err = l.removeV1GSI()
+				// Acquire a lock so that only one auth server attempts to perform the migration at any given time.
+				// If an auth server does in a HA-setup the other auth servers will pick up the migration automatically.
+				err = backend.RunWhileLocked(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL, func() error {
+					hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+
+					if !hasIndexV1 {
+						return nil
+					}
+
+					// Migrate events to the new format so that the V2 index can use them.
+					log.Info("Starting event migration to v6.2 format")
+					err = l.migrateDateAttribute(ctx)
+					if err != nil {
+						return trace.WrapWithMessage(err, "Encountered error migrating events to v6.2 format")
+					}
+
+					// Remove the old index, marking migration as complete
+					log.Info("Removing old DynamoDB index")
+					err = l.removeV1GSI()
+					if err != nil {
+						return trace.WrapWithMessage(err, "Migrated all events to v6.2 format successfully but failed to remove old index.")
+					}
+
+					return nil
+				})
+
 				if err != nil {
-					return trace.WrapWithMessage(err, "Migrated all events to v6.2 format successfully but failed to remove old index.")
+					return trace.Wrap(err)
 				}
 
 				return nil
-			})
+			}()
 
 			if err == nil {
 				break
@@ -727,9 +744,19 @@ func (f byTimeAndIndex) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
 }
 
+type notReadyYetError struct{}
+
+func (notReadyYetError) Error() string {
+	return "The backend is not ready to accept queries yet. Please retry in a couple of seconds."
+}
+
 // searchEventsRaw is a low level function for searching for events. This is kept
 // separate from the SearchEvents function in order to allow tests to grab more metadata.
 func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]event, string, error) {
+	if !l.readyForQuery.Load() {
+		return nil, "", trace.Wrap(notReadyYetError{})
+	}
+
 	var checkpoint checkpointKey
 
 	// If a checkpoint key is provided, unmarshal it so we can work with it's parts.
