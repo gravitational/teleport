@@ -441,6 +441,10 @@ type KubeProxyConfig struct {
 
 	// KubeconfigPath is a path to kubeconfig
 	KubeconfigPath string
+
+	// LegacyKubeProxy specifies that this proxy was configured using the
+	// legacy kubernetes section.
+	LegacyKubeProxy bool
 }
 
 // AuthConfig is a configuration of the auth server
