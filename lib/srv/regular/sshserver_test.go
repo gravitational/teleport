@@ -1210,7 +1210,7 @@ func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
 	ctx := context.Background()
 
 	// set cluster config to record at the node
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtNode,
 	})
 	c.Assert(err, IsNil)
@@ -1227,7 +1227,7 @@ func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
 	c.Assert(response, Equals, false)
 
 	// set cluster config to record at the proxy
-	recConfig, err = types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	c.Assert(err, IsNil)
@@ -1387,7 +1387,7 @@ func (s *SrvSuite) TestX11ProxySupport(c *C) {
 	defer cancel()
 
 	// set cluster config to record at the proxy
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	c.Assert(err, IsNil)
