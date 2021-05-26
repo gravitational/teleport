@@ -1123,6 +1123,17 @@ func (set RoleSet) HasRole(role string) bool {
 	return false
 }
 
+// WithoutImplicit returns this role set with default implicit role filtered out.
+func (set RoleSet) WithoutImplicit() (out RoleSet) {
+	for _, r := range set {
+		if r.GetName() == teleport.DefaultImplicitRole {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
 // AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 // for this role set, otherwise it returns ttl unchanged
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
