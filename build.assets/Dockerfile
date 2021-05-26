@@ -30,6 +30,8 @@ RUN apt-get update -y --fix-missing && \
         gcc \
         gcc-multilib \
         git \
+        google-cloud-sdk \
+        google-cloud-sdk-firestore-emulator \
         gzip \
         libbpfcc-dev \
         libc6-dev \
