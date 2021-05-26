@@ -705,6 +705,35 @@ Kubernetes annotations which should be applied to the `Service` created by the c
   </TabItem>
 </Tabs>
 
+## `annotations.serviceAccount`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `serviceAccount` created by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    serviceAccount:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
 ## `extraArgs`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -1502,6 +1531,35 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
   <TabItem label="--set">
   ```shell
   --set annotations.pod."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
+## `annotations.serviceAccount`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `ServiceAccount` created by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    serviceAccount:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
