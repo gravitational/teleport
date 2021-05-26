@@ -60,7 +60,8 @@
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
             { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" }
           ]
-        }
+        },
+        { "title": "Architecture", "slug": "/server-access/architecture/" }
       ]
     },
     {

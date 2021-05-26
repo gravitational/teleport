@@ -1,0 +1,26 @@
+---
+title: Teleport Access Controls Identity Management
+description: Teleport Access Controls identity management.
+---
+
+# Short-lived certificates
+
+We'll review configuring and managing short-lived certificates for programmatic API access below.
+
+## Create short-lived certificates
+
+Teleport Server Access provides the ability to manage short-lived certificates and give users API and resource access for specified durations of time:
+
+1. Users can define a role to programmatically interact with the Teleport API per the [Teleport API Getting Started](../reference/api/introduction.mdx).
+
+   - This is designed to be convenient for mass deployments or operations that must be repeated (daily jobs, frequent operations, etc.).
+
+2. Admins also create short-lived certificates for resources users must connect to directly:
+
+   - Execute: `tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem` to generate a certificate valid for a specified *Time To Live* (TTL).
+   - Team members can access private resources securely using certificates and SSH tunnels.
+   - No sharing of resource secrets, passwords, or credentials only certificates that are unique to that user and specified length of time.
+
+## Use scenarios for tctl admins
+
+Describe use scenarios for short-lived certificates and `tctl auth` roles.
