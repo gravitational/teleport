@@ -176,27 +176,47 @@ Teleport Slack uses a config file in `TOML` format.
 Generate a boilerplate config by running the following command:
 
 ```bash
-sudo teleport-slack configure > teleport-slack.toml
-sudo mv teleport-slack.toml /etc
+teleport-slack configure > teleport-slack.toml
+```
+
+#### Copy PEM files
+
+Navigate back to the certificates you generated with `tctl auth sign` before. 
+
+The plugin installer creates a folder for them at: `/var/lib/teleport/plugins/slack/'. Copy or move the certificates there and point the config file to them:
+
+```bash
+# Navigate up directories
+cd ../../../
+# Copy PEM files created by 'tctl auth sign'
+sudo cp -f auth.cas /var/lib/teleport/plugins/slack/
+sudo cp -f auth.crt /var/lib/teleport/plugins/slack/
+sudo cp -f auth.key /var/lib/teleport/plugins/slack/
 ```
 
 #### Editing the config file
 
-Teleport YAML configuration files are divided into sections.
+Run the following command to modify the configuration file before we deploy it:
 
-Find the "Teleport" section and add the certificates you generated with `tctl auth sign` before. 
+```bash
+sudo nano teleport-plugins/access/slack/teleport-slack.toml
+```
 
-The plugin installer creates a folder for them at: `/var/lib/teleport/plugins/slack/'. Copy or move the certificates there and point the config file to them:
-
-1. `sudo cp -f auth.cas /var/lib/teleport/plugins/slack/`
-2. `sudo cp -f auth.crt /var/lib/teleport/plugins/slack/`
-3. `sudo cp -f auth.key /var/lib/teleport/plugins/slack/`
-
-Find the "Slack" section and add the OAuth token, signing token, and the desired channel name.
+Teleport YAML configuration files are divided into sections:
 
 ```conf
 (!examples/resources/plugins/teleport-slack.toml!)
 ```
+
+1. Find the "Teleport" section and add the certificates you generated with `tctl auth sign` before.
+
+2. Find the "Slack" section and add the OAuth token, signing token, and the desired channel name.
+
+3. Copy `teleport-slack.toml` to the location used by the Slack Plugin:
+
+   ```bash
+   sudo mv teleport-plugins/access/slack/teleport-slack.toml /etc
+   ```
 
 ## Step 4/4. Test run
 
@@ -209,7 +229,7 @@ sudo teleport-slack start
 If everything works fine, the log output should look like this:
 
 ```bash
-teleport-slack start
+sudo teleport-slack start
 # INFO   Starting Teleport Access Slack (=teleport.plugin.version=).1-0-slack/main.go:145
 # INFO   Starting a request watcher... slack/main.go:330
 # INFO   Starting insecure HTTP server on 0.0.0.0:8081 utils/http.go:64
