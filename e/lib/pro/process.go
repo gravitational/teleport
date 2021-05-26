@@ -104,11 +104,11 @@ func initServices(ctx context.Context, config *proConfig) (*enforcer.Enforcer, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterConfig, err := config.Teleport.GetAuthServer().GetClusterConfig()
+	clusterName, err := config.Teleport.GetAuthServer().GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	anonymizer, err := utils.NewHMACAnonymizer(clusterConfig.GetClusterID())
+	anonymizer, err := utils.NewHMACAnonymizer(clusterName.GetClusterID())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,7 +126,7 @@ func initServices(ctx context.Context, config *proConfig) (*enforcer.Enforcer, e
 		Backend:        config.Teleport.GetBackend(),
 		LicenseKeyPair: config.Teleport.LicenseFile.KeyPair,
 		Insecure:       config.Insecure,
-		ClusterID:      clusterConfig.GetClusterID(),
+		ClusterID:      clusterName.GetClusterID(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
