@@ -330,7 +330,7 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 type CertOption interface {
 	// certPath returns a path to the cert (or to a dir holding the certs)
 	// within the given key dir. For use with FSLocalKeyStore.
-	certPath(keyDir string, idx KeyIndex) string // relativeCertPath returns a path to the cert (or to a dir holding the certs)
+	certPath(keyDir string, idx KeyIndex) string
 	// updateKeyWithBytes adds the cert bytes to the key and performs related checks.
 	updateKeyWithBytes(key *Key, certBytes []byte) error
 	// updateKeyWithMap adds the cert data map to the key and performs related checks.
