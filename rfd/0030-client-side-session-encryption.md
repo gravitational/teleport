@@ -130,6 +130,25 @@ The actual integration build down to a straightforward exercise in abstraction:
 3. Wrap the existing `s3manager` in something that exposes the same interface
 4. Swap out the implementation based on the existence of the master key in the config file
 
+## Alternative Implementations
+
+### Custom KeyPadder
+
+If we are not interested in preserving compatibility with the AWS SDK for other languages, we can easily define a custom key wrapeer using the PCKS7 padder in the AWS SDK. This would remove the need for the AESWrap implementation, but would also make the encryption format Teleport-specific. Other AWS clients would not be able to interpret the at all.
+
+All of the other changes would still need to happen.
+
+If we went down this path, it would be straightforward to create a bulk download & decrypt tool, should this become a pressing issue.
+
+### Manual encryption of session recordings
+
+A second alternative is to bypass the whole idea of encryption via AWS, and define an encrypted file format for recordings. This is probably more complicated than plugging into AWS, but it does have a few advantages:
+
+ * With careful cipher selection we can remove the requirement to fit the whole file in memory, temp file usage, etc, imposed by using AWS
+ * It's a more general solution: all of the other storage system - including local disk - would inherit the functionality
+
+More work would be needed to define a useful file format, but there are plenty of container formats to use as models.
+
 ## Further work
 ### Streaming AEAD Implementation
 
