@@ -188,8 +188,8 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		leafAuthServer = pack.leaf.cluster.Process.GetAuthServer()
 		leafRole       = pack.leaf.role
 
-		idleTimeout         = time.Millisecond * 600
-		idleTimoutWithDelay = idleTimeout + time.Millisecond*200
+		idleTimeout          = time.Millisecond * 600
+		idleTimeoutWithDelay = idleTimeout + time.Millisecond*200
 	)
 
 	mkMysqlLeafDBClient := func(t *testing.T) *client.Conn {
@@ -215,7 +215,7 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		time.Sleep(idleTimoutWithDelay)
+		time.Sleep(idleTimeoutWithDelay)
 		_, err = client.Execute("select 1")
 		require.NoError(t, err)
 		err = client.Close()
@@ -228,7 +228,7 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		time.Sleep(idleTimoutWithDelay)
+		time.Sleep(idleTimeoutWithDelay)
 		_, err = client.Execute("select 1")
 		require.Error(t, err)
 		setRoleIdleTimeout(t, rootAuthServer, rootRole, time.Hour)
@@ -240,7 +240,7 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		time.Sleep(idleTimoutWithDelay)
+		time.Sleep(idleTimeoutWithDelay)
 		_, err = client.Execute("select 1")
 		require.Error(t, err)
 		setRoleIdleTimeout(t, leafAuthServer, leafRole, time.Hour)
