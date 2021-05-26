@@ -68,8 +68,7 @@ var _ = check.Suite(&KubeSuite{})
 type KubeSuite struct {
 	*kubernetes.Clientset
 
-	ports utils.PortList
-	me    *user.User
+	me *user.User
 	// priv/pub pair to avoid re-generating it
 	priv []byte
 	pub  []byte
@@ -104,10 +103,6 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
 
-	s.ports, err = utils.GetFreeTCPPorts(AllocatePortsNum, utils.PortStartingNumber+AllocatePortsNum+1)
-	if err != nil {
-		c.Fatal(err)
-	}
 	s.me, err = user.Current()
 	c.Assert(err, check.IsNil)
 
@@ -177,7 +172,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -266,7 +261,6 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 	term := NewTerminal(250)
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
-	term.closeSend()
 
 	out = &bytes.Buffer{}
 	err = kubeExec(proxyClientConfig, kubeExecArgs{
@@ -310,7 +304,6 @@ loop:
 	// interactive command, allocate pty
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
-	term.closeSend()
 	out = &bytes.Buffer{}
 	err = kubeExec(impersonatingProxyClientConfig, kubeExecArgs{
 		podName:      pod.Name,
@@ -328,7 +321,6 @@ loop:
 	// are allowed by the role
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
-	term.closeSend()
 	out = &bytes.Buffer{}
 	err = kubeExec(scopedProxyClientConfig, kubeExecArgs{
 		podName:      pod.Name,
@@ -354,7 +346,7 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -410,7 +402,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -443,7 +435,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// forward local port to target port 80 of the nginx container
-	localPort := s.ports.Pop()
+	localPort := ports.Pop()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -479,7 +471,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	localPort = s.ports.Pop()
+	localPort = ports.Pop()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      testPod,
@@ -509,7 +501,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		ClusterName: clusterMain,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -533,7 +525,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		ClusterName: clusterAux,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -712,7 +704,7 @@ loop:
 	c.Assert(err.Error(), check.Matches, ".*impersonation request has been denied.*")
 
 	// forward local port to target port 80 of the nginx container
-	localPort := s.ports.Pop()
+	localPort := ports.Pop()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -740,7 +732,7 @@ loop:
 	c.Assert(resp.Body.Close(), check.IsNil)
 
 	// impersonating client requests will be denied
-	localPort = s.ports.Pop()
+	localPort = ports.Pop()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      pod.Name,
@@ -770,7 +762,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		ClusterName: clusterMain,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -794,7 +786,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		ClusterName: clusterAux,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -975,7 +967,7 @@ loop:
 	c.Assert(err.Error(), check.Matches, ".*impersonation request has been denied.*")
 
 	// forward local port to target port 80 of the nginx container
-	localPort := s.ports.Pop()
+	localPort := ports.Pop()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -1003,7 +995,7 @@ loop:
 	c.Assert(resp.Body.Close(), check.IsNil)
 
 	// impersonating client requests will be denied
-	localPort = s.ports.Pop()
+	localPort = ports.Pop()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      pod.Name,
@@ -1053,7 +1045,7 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -1145,8 +1137,9 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true
-	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, s.ports.Pop())
+	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, ports.Pop())
 	tconf.Proxy.Kube.KubeconfigPath = s.kubeConfigPath
+	tconf.Proxy.Kube.LegacyKubeProxy = true
 
 	return tconf
 }

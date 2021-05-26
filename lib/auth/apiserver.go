@@ -365,7 +365,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 			return nil, trace.BadParameter("invalid namespace %q", namespace)
 		}
 		server.SetNamespace(namespace)
-		handle, err := auth.UpsertNode(server)
+		handle, err := auth.UpsertNode(r.Context(), server)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -407,6 +407,7 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if !services.IsValidNamespace(req.Namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", req.Namespace)
 	}
@@ -444,7 +445,7 @@ func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Reques
 		opts = append(opts, services.SkipValidation())
 	}
 
-	servers, err := auth.GetNodes(namespace, opts...)
+	servers, err := auth.GetNodes(r.Context(), namespace, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -457,7 +458,7 @@ func (s *APIServer) deleteAllNodes(auth ClientI, w http.ResponseWriter, r *http.
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	err := auth.DeleteAllNodes(namespace)
+	err := auth.DeleteAllNodes(r.Context(), namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -474,7 +475,7 @@ func (s *APIServer) deleteNode(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if name == "" {
 		return nil, trace.BadParameter("missing node name")
 	}
-	err := auth.DeleteNode(namespace, name)
+	err := auth.DeleteNode(r.Context(), namespace, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1818,12 +1819,9 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 			return nil, trace.BadParameter("failed to parse limit: %q", limit)
 		}
 	}
-	// remove 'to', 'from' and 'limit' fields, passing the rest of the query unmodified
-	// to whatever pluggable search is implemented by the backend
-	query.Del("to")
-	query.Del("from")
-	query.Del("limit")
-	eventsList, err := auth.SearchEvents(from, to, query.Encode(), limit)
+
+	eventTypes := query[events.EventType]
+	eventsList, _, err := auth.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1863,7 +1861,7 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, err := auth.SearchSessionEvents(from, to, limit)
+	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2316,6 +2314,7 @@ func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cap.SetOrigin(types.OriginDynamic)
 
 	err = auth.SetAuthPreference(cap)
 	if err != nil {

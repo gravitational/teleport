@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -212,9 +213,9 @@ type ServerContext struct {
 	// ClusterName is the name of the cluster current user is authenticated with.
 	ClusterName string
 
-	// ClusterConfig holds the cluster configuration at the time this context was
-	// created.
-	ClusterConfig services.ClusterConfig
+	// SessionRecordingConfig holds the session recording configuration at the
+	// time this context was created.
+	SessionRecordingConfig types.SessionRecordingConfig
 
 	// RemoteClient holds a SSH client to a remote server. Only used by the
 	// recording proxy.
@@ -285,21 +286,30 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		return nil, nil, trace.Wrap(err)
 	}
 
+	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	recConfig, err := srv.GetAccessPoint().GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	cancelContext, cancel := context.WithCancel(ctx)
 
 	child := &ServerContext{
-		ConnectionContext: parent,
-		id:                int(atomic.AddInt32(&ctxID, int32(1))),
-		env:               make(map[string]string),
-		srv:               srv,
-		ExecResultCh:      make(chan ExecResult, 10),
-		SubsystemResultCh: make(chan SubsystemResult, 10),
-		ClusterName:       parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
-		ClusterConfig:     clusterConfig,
-		Identity:          identityContext,
-		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
-		cancelContext:     cancelContext,
-		cancel:            cancel,
+		ConnectionContext:      parent,
+		id:                     int(atomic.AddInt32(&ctxID, int32(1))),
+		env:                    make(map[string]string),
+		srv:                    srv,
+		ExecResultCh:           make(chan ExecResult, 10),
+		SubsystemResultCh:      make(chan SubsystemResult, 10),
+		ClusterName:            parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
+		SessionRecordingConfig: recConfig,
+		Identity:               identityContext,
+		clientIdleTimeout:      identityContext.RoleSet.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		cancelContext:          cancelContext,
+		cancel:                 cancel,
 	}
 
 	disconnectExpiredCert := identityContext.RoleSet.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert())
@@ -547,7 +557,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	if c.GetServer().Component() == teleport.ComponentProxy {
 		return
 	}
-	if services.IsRecordAtProxy(c.ClusterConfig.GetSessionRecording()) &&
+	if services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode()) &&
 		c.GetServer().Component() == teleport.ComponentNode {
 		return
 	}
@@ -725,6 +735,13 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 
 			result, err := expr.Interpolate(traits)
 			if err != nil {
+				// If the trait isn't passed by the IdP due to misconfiguration
+				// we fallback to setting a value which will indicate this.
+				if trace.IsNotFound(err) {
+					log.Warnf("Attempted to interpolate custom PAM environment with external trait %[1]q but received SAML response does not contain claim %[1]q", expr.Name())
+					continue
+				}
+
 				return nil, trace.Wrap(err)
 			}
 

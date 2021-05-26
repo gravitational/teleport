@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -530,6 +531,7 @@ func TestApplyConfig(t *testing.T) {
 		Metadata: types.Metadata{
 			Name:      "cluster-auth-preference",
 			Namespace: defaults.Namespace,
+			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         teleport.Local,
@@ -1129,8 +1131,9 @@ func TestProxyKube(t *testing.T) {
 				Service: Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
 			}},
 			want: service.KubeProxyConfig{
-				Enabled:    true,
-				ListenAddr: *utils.MustParseAddr("0.0.0.0:8080"),
+				Enabled:         true,
+				ListenAddr:      *utils.MustParseAddr("0.0.0.0:8080"),
+				LegacyKubeProxy: true,
 			},
 			checkErr: require.NoError,
 		},
@@ -1142,10 +1145,11 @@ func TestProxyKube(t *testing.T) {
 				PublicAddr:     utils.Strings([]string{"kube.example.com:443"}),
 			}},
 			want: service.KubeProxyConfig{
-				Enabled:        true,
-				ListenAddr:     *utils.MustParseAddr("0.0.0.0:8080"),
-				KubeconfigPath: "/tmp/kubeconfig",
-				PublicAddrs:    []utils.NetAddr{*utils.MustParseAddr("kube.example.com:443")},
+				Enabled:         true,
+				ListenAddr:      *utils.MustParseAddr("0.0.0.0:8080"),
+				KubeconfigPath:  "/tmp/kubeconfig",
+				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr("kube.example.com:443")},
+				LegacyKubeProxy: true,
 			},
 			checkErr: require.NoError,
 		},
@@ -1405,6 +1409,21 @@ db_service:
 `,
 			outError: `invalid database "foo" address`,
 		},
+		{
+			desc: "missing Redshift region",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - name: foo
+    protocol: postgres
+    uri: 192.168.1.1:5438
+    aws:
+      redshift:
+        cluster_id: cluster-1
+`,
+			outError: `missing AWS region for Redshift database "foo"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -1422,20 +1441,38 @@ db_service:
 	}
 }
 
-func TestDatabaseFlags(t *testing.T) {
+// TestDatabaseCLIFlags verifies database service can be configured with CLI flags.
+func TestDatabaseCLIFlags(t *testing.T) {
+	// Prepare test CA certificate used to configure some databases.
+	testCertPath := filepath.Join(t.TempDir(), "cert.pem")
+	err := ioutil.WriteFile(testCertPath, fixtures.LocalhostCert, 0644)
+	require.NoError(t, err)
 	tests := []struct {
-		inFlags  CommandLineFlags
-		desc     string
-		outError string
+		inFlags     CommandLineFlags
+		desc        string
+		outDatabase service.Database
+		outError    string
 	}{
 		{
 			desc: "valid database config",
 			inFlags: CommandLineFlags{
 				DatabaseName:     "foo",
-				DatabaseProtocol: "postgres",
+				DatabaseProtocol: defaults.ProtocolPostgres,
 				DatabaseURI:      "localhost:5432",
+				Labels:           "env=test,hostname=[1h:hostname]",
 			},
-			outError: "",
+			outDatabase: service.Database{
+				Name:         "foo",
+				Protocol:     defaults.ProtocolPostgres,
+				URI:          "localhost:5432",
+				StaticLabels: map[string]string{"env": "test"},
+				DynamicLabels: services.CommandLabels{
+					"hostname": &types.CommandLabelV2{
+						Period:  types.Duration(time.Hour),
+						Command: []string{"hostname"},
+					},
+				},
+			},
 		},
 		{
 			desc: "unsupported database protocol",
@@ -1450,7 +1487,7 @@ func TestDatabaseFlags(t *testing.T) {
 			desc: "missing database uri",
 			inFlags: CommandLineFlags{
 				DatabaseName:     "foo",
-				DatabaseProtocol: "postgres",
+				DatabaseProtocol: defaults.ProtocolPostgres,
 			},
 			outError: `invalid database "foo" address`,
 		},
@@ -1458,20 +1495,88 @@ func TestDatabaseFlags(t *testing.T) {
 			desc: "invalid database uri (missing port)",
 			inFlags: CommandLineFlags{
 				DatabaseName:     "foo",
-				DatabaseProtocol: "postgres",
+				DatabaseProtocol: defaults.ProtocolPostgres,
 				DatabaseURI:      "localhost",
 			},
 			outError: `invalid database "foo" address`,
 		},
+		{
+			desc: "RDS database",
+			inFlags: CommandLineFlags{
+				DatabaseName:      "rds",
+				DatabaseProtocol:  defaults.ProtocolMySQL,
+				DatabaseURI:       "localhost:3306",
+				DatabaseAWSRegion: "us-east-1",
+			},
+			outDatabase: service.Database{
+				Name:     "rds",
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost:3306",
+				AWS: service.DatabaseAWS{
+					Region: "us-east-1",
+				},
+				StaticLabels:  map[string]string{},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "Redshift database",
+			inFlags: CommandLineFlags{
+				DatabaseName:                 "redshift",
+				DatabaseProtocol:             defaults.ProtocolPostgres,
+				DatabaseURI:                  "localhost:5432",
+				DatabaseAWSRegion:            "us-east-1",
+				DatabaseAWSRedshiftClusterID: "redshift-cluster-1",
+			},
+			outDatabase: service.Database{
+				Name:     "redshift",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AWS: service.DatabaseAWS{
+					Region: "us-east-1",
+					Redshift: service.DatabaseAWSRedshift{
+						ClusterID: "redshift-cluster-1",
+					},
+				},
+				StaticLabels:  map[string]string{},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "Cloud SQL database",
+			inFlags: CommandLineFlags{
+				DatabaseName:          "gcp",
+				DatabaseProtocol:      defaults.ProtocolPostgres,
+				DatabaseURI:           "localhost:5432",
+				DatabaseCACertFile:    testCertPath,
+				DatabaseGCPProjectID:  "gcp-project-1",
+				DatabaseGCPInstanceID: "gcp-instance-1",
+			},
+			outDatabase: service.Database{
+				Name:     "gcp",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				CACert:   fixtures.LocalhostCert,
+				GCP: service.DatabaseGCP{
+					ProjectID:  "gcp-project-1",
+					InstanceID: "gcp-instance-1",
+				},
+				StaticLabels:  map[string]string{},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			err := Configure(&tt.inFlags, service.MakeDefaultConfig())
+			config := service.MakeDefaultConfig()
+			err := Configure(&tt.inFlags, config)
 			if tt.outError != "" {
-				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.outError)
 			} else {
 				require.NoError(t, err)
+				require.Equal(t, []service.Database{
+					tt.outDatabase,
+				}, config.Databases.Databases)
 			}
 		})
 	}

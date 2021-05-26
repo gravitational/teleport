@@ -1,0 +1,17 @@
+{{- if .Values.highAvailability.certManager.enabled }}
+  {{- $domain:= (required "clusterName is required in chartValues when certManager is enabled" .Values.clusterName) }}
+  {{- $domainWildcard := printf "*.%s" (required "clusterName is required in chartValues when certManager is enabled" .Values.clusterName) }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: teleport-tls
+  dnsNames:
+  - {{ quote $domain }}
+  - {{ quote $domainWildcard }}
+  issuerRef:
+    name: {{ required "highAvailability.certManager.issuerName is required in chart values" .Values.highAvailability.certManager.issuerName }}
+    kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" .Values.highAvailability.certManager.issuerKind }}
+{{- end }}

@@ -17,6 +17,25 @@ func init() { Gitref = \"$(GITREF)\"}  "
 # setver updates version.go and gitref.go with VERSION and GITREF vars
 #
 .PHONY:setver
-setver:
+setver: helm-version
 	@printf $(VERSION_GO) | gofmt > version.go
 	@printf $(GITREF_GO) | gofmt > gitref.go
+
+# helm-version automatically updates the versions of Helm charts to match the version set in the Makefile,
+# so that chart versions are also kept in sync when the Teleport version is updated for a release.
+# If the version contains '-dev' (as it does on the master branch, or for development builds) then we get the latest
+# published major version number by parsing a sorted list of git tags instead, to make deploying the chart from master
+# work as expected. Version numbers are quoted as a string because Helm otherwise treats dotted decimals as floats.
+# The weird -i usage is to make the sed commands work the same on both Linux and Mac. Test on both platforms if you change it.
+.PHONY:helm-version
+helm-version:
+	@if ! echo "$${VERSION}" | grep -q "\-dev"; then \
+		export CHART_VERSION=$${VERSION}; \
+	else \
+		export CHART_VERSION=$$(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1 | cut -d. -f1 | tr -d '^v'); \
+	fi; \
+	for CHART in teleport-cluster teleport-kube-agent; do \
+		sed -i'.bak' -e "s_^version:\ .*_version: \"$${CHART_VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
+		sed -i'.bak' -e "s_^appVersion:\ .*_appVersion: \"$${CHART_VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
+		rm -f examples/chart/$${CHART}/Chart.yaml.bak; \
+	done

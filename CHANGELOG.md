@@ -1,8 +1,91 @@
 # Changelog
 
+## 7.0
+
+Teleport 7.0 is a major release with new features, functionality, and bug fixes.
+
+## Breaking Changes
+
+* Proxy services whose configuration includes a `kube_listen_addr` but no `kubernetes` section will no longer publish a Kubernetes cluster named after the Teleport cluster.
+
+## 6.2
+
+Teleport 6.2 contains new features, improvements, and bug fixes.
+
+**Note:** the DynamoDB migration described [below](#dynamodb-indexing-change)
+may cause rate-limiting errors from AWS APIs and is slow on large deployments
+(1000+ existing audit events). The next patch release, v6.2.1, will improve the
+migration performance. If you run a large DynamoDB-based cluster, we advise you
+to wait for v6.2.1 before upgrading.
+
+## New Features
+
+### Added Amazon Redshift Support
+
+Added support for [Amazon Redshift](https://aws.amazon.com/redshift) to Teleport Database Access.[#6479](https://github.com/gravitational/teleport/pull/6479).
+
+View the [Database Access with Redshift on AWS Guide](https://goteleport.com/docs/ver/6.2/database-access/guides/postgres-redshift/) for more details.
+
+## Improvements
+
+* Added pass-through header support for Teleport Application Access. [#6601](https://github.com/gravitational/teleport/pull/6601)
+* Added ability to propagate claim information from root to leaf clusters. [#6540](https://github.com/gravitational/teleport/pull/6540)
+* Added Proxy Protocol for MySQL Database Access. [#6594](https://github.com/gravitational/teleport/pull/6594)
+* Added prepared statement support for Postgres Database Access. [#6303](https://github.com/gravitational/teleport/pull/6303)
+* Added `GetSessionEventsRequest` RPC endpoint for Audit Log pagination. [RFD 19](https://github.com/gravitational/teleport/blob/master/rfd/0019-event-iteration-api.md) [#6731](https://github.com/gravitational/teleport/pull/6731)
+* Changed DynamoDB indexing strategy for events. [RFD 24](https://github.com/gravitational/teleport/blob/master/rfd/0024-dynamo-event-overflow.md) [#6583](https://github.com/gravitational/teleport/pull/6583)
+
+## Fixes
+
+* Fixed multiple per-session MFA issues. [#6542](https://github.com/gravitational/teleport/pull/6542) [#6567](https://github.com/gravitational/teleport/pull/6567) [#6625](https://github.com/gravitational/teleport/pull/6625) [#6779](https://github.com/gravitational/teleport/pull/6779) [#6948](https://github.com/gravitational/teleport/pull/6948)
+* Fixed etcd JWT renewal issue. [#6905](https://github.com/gravitational/teleport/pull/6905)
+* Fixed issue where `kubectl exec` sessions were not being recorded when the target pod was killed. [#6068](https://github.com/gravitational/teleport/pull/6068)
+* Fixed an issue that prevented Teleport from starting on ARMv7 systems. [#6711](https://github.com/gravitational/teleport/pull/6711).
+* Fixed issue that caused Access Requests to inconsistently allow elevated Kuberentes access. [#6492](https://github.com/gravitational/teleport/pull/6492)
+* Fixed an issue that could cause `session.end` events not to be emitted. [#6756](https://github.com/gravitational/teleport/pull/6756)
+* Fixed an issue with PAM variable interpolation. [#6558](https://github.com/gravitational/teleport/pull/6558)
+
+## Breaking Changes
+
+### Agent Forwarding
+
+Teleport 6.2 brings a potentially backward incompatible change with `tsh` agent forwarding.
+
+Prior to Teleport 6.2, `tsh ssh -A` would create an in-memory SSH agent from your `~/.tsh` directory and forward that agent to the target host.
+
+Starting in Teleport 6.2 `tsh ssh -A` by default now forwards your system SSH agent (available at `$SSH_AUTH_SOCK`). Users wishing to retain the prior behavior can use `tsh ssh -o "ForwardAgent local"`.
+
+For more details see [RFD 22](https://github.com/gravitational/teleport/blob/master/rfd/0022-ssh-agent-forwarding.md) and implementation in [#6525](https://github.com/gravitational/teleport/pull/6525).
+
+### DynamoDB Indexing Change
+
+DynamoDB users should note that the events backend indexing strategy has
+changed and a data migration will be triggered after upgrade. For optimal
+performance perform this migration with only one auth server online. It may
+take some time and progress will be periodically written to the auth server
+log. During this migration, only events that have been migrated will appear in
+the Web UI. After completion, all events will be available.
+
+For more details see [RFD 24](https://github.com/gravitational/teleport/blob/master/rfd/0024-dynamo-event-overflow.md) and implementation in [#6583](https://github.com/gravitational/teleport/pull/6583).
+
+## 6.1.5
+
+This release of Teleport contains multiple bug fixes.
+
+* Added additional Prometheus Metrics. [#6511](https://github.com/gravitational/teleport/pull/6511)
+* Updated the TLS handshake timeout to 5 seconds to avoid timeout issues on large clusters. [#6692](https://github.com/gravitational/teleport/pull/6692)
+* Fixed issue that caused non-interactive SSH output to show up in logs. [#6683](https://github.com/gravitational/teleport/pull/6683)
+* Fixed two issues that could cause Teleport to panic upon startup. [#6431](https://github.com/gravitational/teleport/pull/6431) [#5712](https://github.com/gravitational/teleport/pull/5712)
+
+## 6.1.3
+
+This release of Teleport contains a bug fix.
+
+* Added support for PROXY protocol to Database Access (MySQL). [#6517](https://github.com/gravitational/teleport/issues/6517)
+
 ## 6.1.2
 
-This release of Teleport contains a new feature. 
+This release of Teleport contains a new feature.
 
 * Added log formatting and support to enable timestamps for logs. [#5898](https://github.com/gravitational/teleport/pull/5898)
 
@@ -30,7 +113,7 @@ Added ability to request multiple users to review and approve access requests.
 
 See [#5071](https://github.com/gravitational/teleport/pull/5071) for technical details.
 
-## Improvements 
+## Improvements
 
 * Added the ability to propagate SSO claims to PAM modules. [#6158](https://github.com/gravitational/teleport/pull/6158)
 * Added support for cluster routing to reduce latency to leaf clusters. [RFD 21](https://github.com/gravitational/teleport/blob/master/rfd/0021-cluster-routing.md)

@@ -34,11 +34,6 @@ import (
 type Role interface {
 	// Resource provides common resource methods.
 	Resource
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
-	// Equals returns true if the roles are equal. Roles are equal if options and
-	// conditions match.
-	Equals(other Role) bool
 
 	// GetOptions gets role options.
 	GetOptions() RoleOptions
@@ -150,52 +145,6 @@ const (
 	// Deny is the set of conditions that prevent access.
 	Deny RoleConditionType = false
 )
-
-// Equals returns true if the roles are equal. Roles are equal if options,
-// namespaces, logins, labels, and conditions match.
-func (r *RoleV3) Equals(other Role) bool {
-	if !r.GetOptions().Equals(other.GetOptions()) {
-		return false
-	}
-
-	for _, condition := range []RoleConditionType{Allow, Deny} {
-		if !utils.StringSlicesEqual(r.GetLogins(condition), other.GetLogins(condition)) {
-			return false
-		}
-		if !utils.StringSlicesEqual(r.GetNamespaces(condition), other.GetNamespaces(condition)) {
-			return false
-		}
-		if !r.GetNodeLabels(condition).Equals(other.GetNodeLabels(condition)) {
-			return false
-		}
-		if !r.GetAppLabels(condition).Equals(other.GetAppLabels(condition)) {
-			return false
-		}
-		if !r.GetDatabaseLabels(condition).Equals(other.GetDatabaseLabels(condition)) {
-			return false
-		}
-		if !utils.StringSlicesEqual(r.GetDatabaseNames(condition), other.GetDatabaseNames(condition)) {
-			return false
-		}
-		if !utils.StringSlicesEqual(r.GetDatabaseUsers(condition), other.GetDatabaseUsers(condition)) {
-			return false
-		}
-		if !RuleSlicesEqual(r.GetRules(condition), other.GetRules(condition)) {
-			return false
-		}
-		if !r.GetClusterLabels(condition).Equals(other.GetClusterLabels(condition)) {
-			return false
-		}
-		if !r.GetKubernetesLabels(condition).Equals(other.GetKubernetesLabels(condition)) {
-			return false
-		}
-		if !r.GetImpersonateConditions(condition).Equals(other.GetImpersonateConditions(condition)) {
-			return false
-		}
-	}
-
-	return true
-}
 
 // GetVersion returns resource version
 func (r *RoleV3) GetVersion() string {
@@ -669,73 +618,9 @@ func (r *RoleV3) String() string {
 		r.GetName(), r.Spec.Options, r.Spec.Allow, r.Spec.Deny)
 }
 
-// Equals checks if all the key/values in the RoleOptions map match.
-func (o RoleOptions) Equals(other RoleOptions) bool {
-	return (o.ForwardAgent.Value() == other.ForwardAgent.Value() &&
-		o.MaxSessionTTL.Value() == other.MaxSessionTTL.Value() &&
-		BoolDefaultTrue(o.PortForwarding) == BoolDefaultTrue(other.PortForwarding) &&
-		o.CertificateFormat == other.CertificateFormat &&
-		o.ClientIdleTimeout.Value() == other.ClientIdleTimeout.Value() &&
-		o.DisconnectExpiredCert.Value() == other.DisconnectExpiredCert.Value() &&
-		utils.StringSlicesEqual(o.BPF, other.BPF))
-}
-
-// Equals returns true if the role conditions (logins, namespaces, labels,
-// and rules) are equal and false if they are not.
-func (r *RoleConditions) Equals(o RoleConditions) bool {
-	if !utils.StringSlicesEqual(r.Logins, o.Logins) {
-		return false
-	}
-	if !utils.StringSlicesEqual(r.Namespaces, o.Namespaces) {
-		return false
-	}
-	if !r.NodeLabels.Equals(o.NodeLabels) {
-		return false
-	}
-	if !r.AppLabels.Equals(o.AppLabels) {
-		return false
-	}
-	if !r.KubernetesLabels.Equals(o.KubernetesLabels) {
-		return false
-	}
-	if !r.DatabaseLabels.Equals(o.DatabaseLabels) {
-		return false
-	}
-	if !utils.StringSlicesEqual(r.DatabaseNames, o.DatabaseNames) {
-		return false
-	}
-	if !utils.StringSlicesEqual(r.DatabaseUsers, o.DatabaseUsers) {
-		return false
-	}
-	if len(r.Rules) != len(o.Rules) {
-		return false
-	}
-	for i := range r.Rules {
-		if !r.Rules[i].Equals(o.Rules[i]) {
-			return false
-		}
-	}
-	return true
-}
-
 // IsEmpty returns true if conditions are unspecified
 func (i ImpersonateConditions) IsEmpty() bool {
 	return len(i.Users) == 0 || len(i.Roles) == 0
-}
-
-// Equals returns true if the impersonate conditions (logins, roles
-// and rules) are equal and false if they are not.
-func (i ImpersonateConditions) Equals(o ImpersonateConditions) bool {
-	if !utils.StringSlicesEqual(i.Users, o.Users) {
-		return false
-	}
-	if !utils.StringSlicesEqual(i.Roles, o.Roles) {
-		return false
-	}
-	if i.Where != o.Where {
-		return false
-	}
-	return true
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -778,8 +663,7 @@ func (r *Rule) HasResource(resource string) bool {
 	return false
 }
 
-// HasVerb returns true if the rule has verb,
-// this method also matches wildcard
+// HasVerb returns true if the rule has the specified verb.
 func (r *Rule) HasVerb(verb string) bool {
 	for _, v := range r.Verbs {
 		// readnosecrets can be satisfied by having readnosecrets or read
@@ -796,41 +680,11 @@ func (r *Rule) HasVerb(verb string) bool {
 	return false
 }
 
-// Equals returns true if the rule equals to another
-func (r *Rule) Equals(other Rule) bool {
-	if !utils.StringSlicesEqual(r.Resources, other.Resources) {
-		return false
-	}
-	if !utils.StringSlicesEqual(r.Verbs, other.Verbs) {
-		return false
-	}
-	if !utils.StringSlicesEqual(r.Actions, other.Actions) {
-		return false
-	}
-	if r.Where != other.Where {
-		return false
-	}
-	return true
-}
-
 // CopyRulesSlice copies input slice of Rules and returns the copy
 func CopyRulesSlice(in []Rule) []Rule {
 	out := make([]Rule, len(in))
 	copy(out, in)
 	return out
-}
-
-// RuleSlicesEqual returns true if two rule slices are equal
-func RuleSlicesEqual(a, b []Rule) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if !a[i].Equals(b[i]) {
-			return false
-		}
-	}
-	return true
 }
 
 // Labels is a wrapper around map
@@ -896,19 +750,6 @@ func (l Labels) Clone() Labels {
 		out[key] = cvals
 	}
 	return out
-}
-
-// Equals returns true if two label sets are equal
-func (l Labels) Equals(o Labels) bool {
-	if len(l) != len(o) {
-		return false
-	}
-	for key := range l {
-		if !utils.StringSlicesEqual(l[key], o[key]) {
-			return false
-		}
-	}
-	return true
 }
 
 // NewBool returns Bool struct based on bool value

@@ -214,11 +214,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	}
 
 	// Pick up TCP keep-alive settings from the cluster level.
-	clusterConfig, err := s.c.AccessPoint.GetClusterConfig()
+	netConfig, err := s.c.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.keepAlive = clusterConfig.GetKeepAliveInterval()
+	s.keepAlive = netConfig.GetKeepAliveInterval()
 
 	// Figure out the port the proxy is running on.
 	s.proxyPort = s.getProxyPort()

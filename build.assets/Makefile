@@ -3,7 +3,8 @@
 #
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
+GOMODCACHE ?= /tmp/gomodcache
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE)
 BCCFLAGS := -v "$$(pwd)/bcc:/usr/include/bcc"
 ADDFLAGS ?=
 BATSFLAGS :=
@@ -190,6 +191,7 @@ grpc: buildbox
 clean:
 	docker image rm --force $(BUILDBOX)
 	docker image rm --force $(DOCSBOX)
+	GOMODCACHE=$(GOMODCACHE) go clean -modcache
 
 #
 # Runs tests inside a build container
@@ -201,7 +203,8 @@ test: buildbox
 		$(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
-		gcloud beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
+		type gcloud 2>&1 >/dev/null || exit 1; \
+		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
@@ -315,7 +318,7 @@ release-windows: buildbox
 #
 .PHONY: docsbox
 docsbox:
-	docker pull $(DOCSBOX) || true
+	if ! docker inspect --type=image $(DOCSBOX) 2>&1 >/dev/null; then docker pull $(DOCSBOX) || true; fi
 
 .PHONY: test-docs
 test-docs: DOCS_VERSION := $(shell grep -E ^VERSION $(MAKEFILE_ROOT_DIR)/Makefile | cut -d= -f2 | cut -d. -f1-2)

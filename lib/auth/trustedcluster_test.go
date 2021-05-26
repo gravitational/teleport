@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -14,7 +16,8 @@ import (
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
-	a := newTestAuthServer(t)
+	ctx := context.Background()
+	a := newTestAuthServer(ctx, t)
 
 	rc, err := services.NewRemoteCluster("rc")
 	require.NoError(t, err)
@@ -82,7 +85,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	require.Empty(t, cmp.Diff(rc, gotRC))
 }
 
-func newTestAuthServer(t *testing.T, name ...string) *Server {
+func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { bk.Close() })
@@ -105,6 +108,8 @@ func newTestAuthServer(t *testing.T, name ...string) *Server {
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
 	t.Cleanup(func() { a.Close() })
+	require.NoError(t, a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
+	require.NoError(t, a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 	require.NoError(t, a.SetClusterConfig(services.DefaultClusterConfig()))
 
 	return a

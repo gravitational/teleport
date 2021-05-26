@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -60,6 +61,23 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	utilexec "k8s.io/client-go/util/exec"
+)
+
+// KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
+type KubeServiceType int
+
+const (
+	// KubeService is a Teleport kubernetes_service. A KubeService always forwards
+	// requests directly to a Kubernetes endpoint.
+	KubeService KubeServiceType = iota
+	// ProxyService is a Teleport proxy_service with kube_listen_addr/
+	// kube_public_addr enabled. A ProxyService always forwards requests to a
+	// Teleport KubeService or LegacyProxyService.
+	ProxyService
+	// LegacyProxyService is a Teleport proxy_service with the kubernetes section
+	// enabled. A LegacyProxyService can forward requests directly to a Kubernetes
+	// endpoint, or to another Teleport LegacyProxyService or KubeService.
+	LegacyProxyService
 )
 
 // ForwarderConfig specifies configuration for proxy forwarder
@@ -93,10 +111,8 @@ type ForwarderConfig struct {
 	Context context.Context
 	// KubeconfigPath is a path to kubernetes configuration
 	KubeconfigPath string
-	// NewKubeService specifies whether to apply the additional kubernetes_service features:
-	// - parsing multiple kubeconfig entries
-	// - enforcing self permission check
-	NewKubeService bool
+	// KubeServiceType specifies which Teleport service type this forwarder is for
+	KubeServiceType KubeServiceType
 	// KubeClusterName is the name of the kubernetes cluster that this
 	// forwarder handles.
 	KubeClusterName string
@@ -156,7 +172,14 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.Component == "" {
 		f.Component = "kube_forwarder"
 	}
-	if f.KubeClusterName == "" && f.KubeconfigPath == "" {
+	switch f.KubeServiceType {
+	case KubeService:
+	case ProxyService:
+	case LegacyProxyService:
+	default:
+		return trace.BadParameter("unknown value for KubeServiceType")
+	}
+	if f.KubeClusterName == "" && f.KubeconfigPath == "" && f.KubeServiceType == LegacyProxyService {
 		// Running without a kubeconfig and explicit k8s cluster name. Use
 		// teleport cluster name instead, to ask kubeutils.GetKubeConfig to
 		// attempt loading the in-cluster credentials.
@@ -175,7 +198,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		trace.Component: cfg.Component,
 	})
 
-	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.NewKubeService)
+	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -257,7 +280,7 @@ type authContext struct {
 	kubeUsers       map[string]struct{}
 	kubeCluster     string
 	teleportCluster teleportClusterClient
-	clusterConfig   services.ClusterConfig
+	recordingConfig types.SessionRecordingConfig
 	// clientIdleTimeout sets information on client idle timeout
 	clientIdleTimeout time.Duration
 	// disconnectExpiredCert if set, controls the time when the connection
@@ -430,11 +453,6 @@ func (f *Forwarder) formatResponseError(rw http.ResponseWriter, respErr error) {
 func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUser bool, certExpires time.Time) (*authContext, error) {
 	roles := ctx.Checker
 
-	clusterConfig, err := f.cfg.CachingAuthClient.GetClusterConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// adjust session ttl to the smaller of two values: the session
 	// ttl requested in tsh or the session ttl for the role.
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
@@ -456,6 +474,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// For remote clusters, everything will be remapped to new roles on the
 	// leaf and checked there.
 	if !isRemoteCluster {
+		var err error
 		// check signing TTL and return a list of allowed logins
 		kubeGroups, kubeUsers, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false)
 		if err != nil {
@@ -529,13 +548,28 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		isRemoteClosed = func() bool { return false }
 	}
 
+	clusterConfig, err := f.cfg.CachingAuthClient.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	netConfig, err := f.cfg.CachingAuthClient.GetClusterNetworkingConfig(f.ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	recordingConfig, err := f.cfg.CachingAuthClient.GetSessionRecordingConfig(f.ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authCtx := &authContext{
-		clientIdleTimeout: roles.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
+		clientIdleTimeout: roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		sessionTTL:        sessionTTL,
 		Context:           ctx,
 		kubeGroups:        utils.StringsSet(kubeGroups),
 		kubeUsers:         utils.StringsSet(kubeUsers),
-		clusterConfig:     clusterConfig,
+		recordingConfig:   recordingConfig,
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -620,8 +654,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 // directly to the auth server and blocks if the events can not be received,
 // async streamer buffers the events to disk and uploads the events later
 func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
-	mode := ctx.clusterConfig.GetSessionRecording()
-	if services.IsRecordSync(mode) {
+	if services.IsRecordSync(ctx.recordingConfig.GetMode()) {
 		f.log.Debugf("Using sync streamer for session.")
 		return f.cfg.AuthClient, nil
 	}
@@ -701,7 +734,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			SessionID:    sessionID,
 			ServerID:     f.cfg.ServerID,
 			Namespace:    f.cfg.Namespace,
-			RecordOutput: ctx.clusterConfig.GetSessionRecording() != services.RecordOff,
+			RecordOutput: ctx.recordingConfig.GetMode() != services.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
 			ClusterName:  f.cfg.ClusterName,
 		})
@@ -790,6 +823,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			KubernetesClusterMetadata: ctx.eventClusterMeta(),
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
+			SessionRecording:          ctx.recordingConfig.GetMode(),
 		}
 		if err := emitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit event.")
@@ -907,6 +941,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				KubernetesClusterMetadata: ctx.eventClusterMeta(),
 				KubernetesPodMetadata:     eventPodMeta,
 				InitialCommand:            request.cmd,
+				SessionRecording:          ctx.recordingConfig.GetMode(),
 			}
 			if err := emitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
 				f.log.WithError(err).Warn("Failed to emit session end event.")

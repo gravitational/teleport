@@ -126,7 +126,7 @@ message ResourceHeader {
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version,omitempty" ];
-    // Metadata is User metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata,omitempty" ];
 }
@@ -180,6 +180,15 @@ message DatabaseServerSpecV3 {
 message AWS {
     // Region is a AWS cloud region.
     string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
+    // Redshift contains Redshift specific settings.
+    Redshift Redshift = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "redshift,omitempty" ];
+}
+
+// Redshift contains AWS Redshift specific settings.
+message Redshift {
+    // ClusterID is the Redshift cluster identifier.
+    string ClusterID = 1 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -201,10 +210,16 @@ message ServerV2 {
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is User metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a server spec
     ServerSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// ServerV2List is a list of servers.
+message ServerV2List {
+    // Servers is a list of servers.
+    repeated ServerV2 Servers = 1;
 }
 
 // ServerSpecV2 is a specification for V2 Server
@@ -267,7 +282,18 @@ message App {
 message Rewrite {
     // Redirect defines a list of hosts which will be rewritten to the public
     // address of the application if they occur in the "Location" header.
-    repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect" ];
+    repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect,omitempty" ];
+    // Headers is a list of headers to inject when passing the request over
+    // to the application.
+    repeated Header Headers = 2 [ (gogoproto.jsontag) = "headers,omitempty" ];
+}
+
+// Header represents a single http header passed over to the proxied application.
+message Header {
+    // Name is the http header name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // Value is the http header value.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -396,7 +422,7 @@ message ProvisionTokenV2 {
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is User metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a provisioning token V2 spec
     ProvisionTokenSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
@@ -405,7 +431,7 @@ message ProvisionTokenV2 {
 // ProvisionTokenV2List is a list of provisioning tokens.
 message ProvisionTokenV2List {
     // ProvisionTokens is a list of provisioning tokens.
-    repeated types.ProvisionTokenV2 ProvisionTokens = 1;
+    repeated ProvisionTokenV2 ProvisionTokens = 1;
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -428,7 +454,7 @@ message StaticTokensV2 {
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is User metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a provisioning token V2 spec
     StaticTokensSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
@@ -453,7 +479,7 @@ message ClusterNameV2 {
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is User metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a cluster name V2 spec
     ClusterNameSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
@@ -477,7 +503,7 @@ message ClusterConfigV3 {
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is User metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a cluster config V3 spec
     ClusterConfigSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
@@ -485,48 +511,30 @@ message ClusterConfigV3 {
 
 // ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
 message ClusterConfigSpecV3 {
-    // SessionRecording controls where (or if) the session is recorded.
-    string SessionRecording = 1 [ (gogoproto.jsontag) = "session_recording" ];
+    reserved 1, 3, 5, 7, 8, 10;
 
     // ClusterID is the unique cluster ID that is set once during the first auth
     // server startup.
     string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
 
-    // ProxyChecksHostKeys is used to control if the proxy will check host keys
-    // when in recording mode.
-    string ProxyChecksHostKeys = 3 [ (gogoproto.jsontag) = "proxy_checks_host_keys" ];
-
     // Audit is a section with audit config
     AuditConfig Audit = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "audit" ];
-
-    // ClientIdleTimeout sets global cluster default setting for client idle
-    // timeouts
-    int64 ClientIdleTimeout = 5
-        [ (gogoproto.jsontag) = "client_idle_timeout", (gogoproto.casttype) = "Duration" ];
 
     // DisconnectExpiredCert provides disconnect expired certificate setting -
     // if true, connections with expired client certificates will get disconnected
     bool DisconnectExpiredCert = 6
         [ (gogoproto.jsontag) = "disconnect_expired_cert", (gogoproto.casttype) = "Bool" ];
 
-    // KeepAliveInterval is the interval the server sends keep-alive messsages
-    // to the client at.
-    int64 KeepAliveInterval = 7
-        [ (gogoproto.jsontag) = "keep_alive_interval", (gogoproto.casttype) = "Duration" ];
-
-    // KeepAliveCountMax is the number of keep-alive messages that can be missed
-    // before
-    // the server disconnects the connection to the client.
-    int64 KeepAliveCountMax = 8 [ (gogoproto.jsontag) = "keep_alive_count_max" ];
-
     // LocalAuth is true if local authentication is enabled.
     bool LocalAuth = 9 [ (gogoproto.jsontag) = "local_auth", (gogoproto.casttype) = "Bool" ];
 
-    // SessionControlTimeout is the session control lease expiry and defines
-    // the upper limit of how long a node may be out of contact with the auth
-    // server before it begins terminating controlled sessions.
-    int64 SessionControlTimeout = 10
-        [ (gogoproto.jsontag) = "session_control_timeout", (gogoproto.casttype) = "Duration" ];
+    // DELETE IN 8.0.0
+    ClusterNetworkingConfigSpecV2 NetworkingConfig = 11
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+
+    // DELETE IN 8.0.0
+    LegacySessionRecordingConfigSpec SessionRecordingConfig = 12
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
 }
 
 // AuditConfig represents audit log settings in the cluster
@@ -566,6 +574,88 @@ message AuditConfig {
     int64 WriteMinCapacity = 12 [ (gogoproto.jsontag) = "write_min_capacity,omitempty" ];
     // WriteTargetValue is the ratio of consumed write to provisioned capacity.
     double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
+}
+
+// ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
+message ClusterNetworkingConfigV2 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is resource metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a ClusterNetworkingConfig specification
+    ClusterNetworkingConfigSpecV2 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// ClusterNetworkingConfigSpecV2 is the actual data we care about
+// for ClusterNetworkingConfig.
+message ClusterNetworkingConfigSpecV2 {
+    // ClientIdleTimeout sets global cluster default setting for client idle
+    // timeouts.
+    int64 ClientIdleTimeout = 1
+        [ (gogoproto.jsontag) = "client_idle_timeout", (gogoproto.casttype) = "Duration" ];
+
+    // KeepAliveInterval is the interval at which the server sends keep-alive messsages
+    // to the client.
+    int64 KeepAliveInterval = 2
+        [ (gogoproto.jsontag) = "keep_alive_interval", (gogoproto.casttype) = "Duration" ];
+
+    // KeepAliveCountMax is the number of keep-alive messages that can be
+    // missed before the server disconnects the connection to the client.
+    int64 KeepAliveCountMax = 3 [ (gogoproto.jsontag) = "keep_alive_count_max" ];
+
+    // SessionControlTimeout is the session control lease expiry and defines
+    // the upper limit of how long a node may be out of contact with the auth
+    // server before it begins terminating controlled sessions.
+    int64 SessionControlTimeout = 4
+        [ (gogoproto.jsontag) = "session_control_timeout", (gogoproto.casttype) = "Duration" ];
+}
+
+// SessionRecordingConfigV2 contains session recording configuration.
+message SessionRecordingConfigV2 {
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is resource metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a SessionRecordingConfig specification
+    SessionRecordingConfigSpecV2 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// SessionRecordingConfigSpecV2 is the actual data we care about
+// for SessionRecordingConfig.
+message SessionRecordingConfigSpecV2 {
+    // Mode controls where (or if) the session is recorded.
+    string Mode = 1 [ (gogoproto.jsontag) = "mode" ];
+
+    // ProxyChecksHostKeys is used to control if the proxy will check host keys
+    // when in recording mode.
+    BoolValue ProxyChecksHostKeys = 2 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "proxy_checks_host_keys",
+        (gogoproto.customtype) = "BoolOption"
+    ];
+}
+
+// LegacySessionRecordingConfigSpec facilitates a backward compatible transition
+// from ClusterConfig to standalone SessionRecordingConfig.
+// SessionRecordingConfigSpecV2 itself is not usable for this purpose because
+// of different jsontags.
+// DELETE IN 8.0.0
+message LegacySessionRecordingConfigSpec {
+    string Mode = 1 [ (gogoproto.jsontag) = "session_recording" ];
+    string ProxyChecksHostKeys = 2 [ (gogoproto.jsontag) = "proxy_checks_host_keys" ];
 }
 
 // AuthPreferenceV2 implements the AuthPreference interface.
@@ -630,7 +720,7 @@ message Namespace {
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is User metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a namespace spec
     NamespaceSpec Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
@@ -985,7 +1075,7 @@ message RoleV3 {
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is User metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a role specification
     RoleSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
@@ -1250,7 +1340,7 @@ message UserV2 {
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is User metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a user specification
     UserSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
@@ -1644,7 +1734,7 @@ message RemoteClusterV3 {
     // Version is resource API version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
 
-    // Metadata is User metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Status is a remote cluster status
     RemoteClusterStatusV3 Status = 5
@@ -1758,6 +1848,20 @@ message ResourcesWithSecretsRequest {
     bool WithSecrets = 1 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
 }
 
+// ResourcesInNamespaceRequest is a request relating to a named resource in the given namespace.
+message ResourceInNamespaceRequest {
+    // Name is the name of the resource.
+    string Name = 1;
+    // Namespace is the namespace of resources.
+    string Namespace = 2;
+}
+
+// ResourcesInNamespaceRequest is a request relating to resources in the given namespace.
+message ResourcesInNamespaceRequest {
+    // Namespace is the namespace of resources.
+    string Namespace = 1;
+}
+
 // OIDCConnectorV2 represents an OIDC connector.
 message OIDCConnectorV2 {
     // Kind is a resource kind.
@@ -1775,7 +1879,7 @@ message OIDCConnectorV2 {
 // OIDCConnectorV2List is a list of OIDC connectors.
 message OIDCConnectorV2List {
     // OIDCConnectors is a list of OIDC connectors.
-    repeated types.OIDCConnectorV2 OIDCConnectors = 1;
+    repeated OIDCConnectorV2 OIDCConnectors = 1;
 }
 
 // OIDCConnectorSpecV2 is an OIDC connector specification.
@@ -1834,7 +1938,7 @@ message SAMLConnectorV2 {
 // SAMLConnectorV2List is a list of SAML connectors.
 message SAMLConnectorV2List {
     // SAMLConnectors is a list of SAML connectors.
-    repeated types.SAMLConnectorV2 SAMLConnectors = 1;
+    repeated SAMLConnectorV2 SAMLConnectors = 1;
 }
 
 // SAMLConnectorSpecV2 is a SAML connector specification.
@@ -1909,7 +2013,7 @@ message GithubConnectorV3 {
 // GithubConnectorV3List is a list of Github connectors.
 message GithubConnectorV3List {
     // GithubConnectors is a list of Github connectors.
-    repeated types.GithubConnectorV3 GithubConnectors = 1;
+    repeated GithubConnectorV3 GithubConnectors = 1;
 }
 
 // GithubConnectorSpecV3 is a Github connector specification.
@@ -1959,7 +2063,7 @@ message TrustedClusterV2 {
 // TrustedClusterV2List is a list of trusted cluster.
 message TrustedClusterV2List {
     // TrustedClusters is a list of trusted cluster.
-    repeated types.TrustedClusterV2 TrustedClusters = 1;
+    repeated TrustedClusterV2 TrustedClusters = 1;
 }
 
 // TrustedClusterSpecV2 is a Trusted Cluster specification.

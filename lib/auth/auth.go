@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -72,6 +73,11 @@ type ServerOption func(*Server)
 
 // NewServer creates and configures a new Server instance
 func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}
@@ -91,7 +97,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.DynamicAccessExt = local.NewDynamicAccessService(cfg.Backend)
 	}
 	if cfg.ClusterConfiguration == nil {
-		cfg.ClusterConfiguration = local.NewClusterConfigurationService(cfg.Backend)
+		clusterConfig, err := local.NewClusterConfigurationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.ClusterConfiguration = clusterConfig
 	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
@@ -201,6 +211,25 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
+	// UserLoginCount counts user logins
+	UserLoginCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricUserLoginCount,
+			Help: "Number of times there was a user login",
+		},
+	)
+
+	heartbeatsMissedByAuth = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: teleport.MetricHeartbeatsMissed,
+			Help: "Number of hearbeats missed by auth server",
+		},
+	)
+
+	prometheusCollectors = []prometheus.Collector{
+		generateRequestsCount, generateThrottledRequestsCount,
+		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
+	}
 )
 
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
@@ -276,6 +305,7 @@ func (a *Server) GetCache() Cache {
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
 func (a *Server) runPeriodicOperations() {
+	ctx := context.TODO()
 	// run periodic functions with a semi-random period
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
@@ -284,7 +314,14 @@ func (a *Server) runPeriodicOperations() {
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
 	ticker := time.NewTicker(period)
+	// Create a ticker with jitter
+	heartbeatCheckTicker := interval.New(interval.Config{
+		Duration: defaults.ServerKeepAliveTTL * 2,
+		Jitter:   utils.NewSeventhJitter(),
+	})
+	missedKeepAliveCount := 0
 	defer ticker.Stop()
+	defer heartbeatCheckTicker.Stop()
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -298,6 +335,18 @@ func (a *Server) runPeriodicOperations() {
 					log.Errorf("Failed to perform cert rotation check: %v.", err)
 				}
 			}
+		case <-heartbeatCheckTicker.Next():
+			nodes, err := a.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
+			if err != nil {
+				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
+			}
+			for _, node := range nodes {
+				if services.NodeHasMissedKeepAlives(node) {
+					missedKeepAliveCount++
+				}
+			}
+			// Update prometheus gauge
+			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 		}
 	}
 }
@@ -497,6 +546,7 @@ type certRequestOption func(*certRequest)
 func certRequestMFAVerified(mfaID string) certRequestOption {
 	return func(r *certRequest) { r.mfaVerified = mfaID }
 }
+
 func certRequestClientIP(ip string) certRequestOption {
 	return func(r *certRequest) { r.clientIP = ip }
 }
@@ -1383,7 +1433,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// HTTPS requests need to specify DNS name that should be present in the
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
-	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleApp) {
+	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) || req.Roles.Include(teleport.RoleKube) || req.Roles.Include(teleport.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+teleport.APIDomain, teleport.APIDomain)
 	}
 	// Unlike additional principals, DNS Names is x509 specific and is limited
@@ -1662,7 +1712,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
 		LoginTime:          req.LoginTime,
 	}
-
+	UserLoginCount.Inc()
 	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, sessionSpec), nil
 }
 
@@ -1678,10 +1728,11 @@ func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 }
 
 func (a *Server) DeleteNamespace(namespace string) error {
+	ctx := context.TODO()
 	if namespace == defaults.Namespace {
 		return trace.AccessDenied("can't delete default namespace")
 	}
-	nodes, err := a.Presence.GetNodes(namespace, services.SkipValidation())
+	nodes, err := a.Presence.GetNodes(ctx, namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2009,8 +2060,8 @@ func (a *Server) GetNamespaces() ([]services.Namespace, error) {
 }
 
 // GetNodes is a part of auth.AccessPoint implementation
-func (a *Server) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
-	return a.GetCache().GetNodes(namespace, opts...)
+func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	return a.GetCache().GetNodes(ctx, namespace, opts...)
 }
 
 // GetReverseTunnels is a part of auth.AccessPoint implementation
@@ -2049,7 +2100,7 @@ func (a *Server) GetAllTunnelConnections(opts ...services.MarshalOption) (conns 
 
 // CreateAuditStream creates audit event stream
 func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
-	streamer, err := a.modeStreamer()
+	streamer, err := a.modeStreamer(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2058,7 +2109,7 @@ func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 
 // ResumeAuditStream resumes the stream that has been created
 func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
-	streamer, err := a.modeStreamer()
+	streamer, err := a.modeStreamer(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2066,15 +2117,14 @@ func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID
 }
 
 // modeStreamer creates streamer based on the event mode
-func (a *Server) modeStreamer() (events.Streamer, error) {
-	clusterConfig, err := a.GetClusterConfig()
+func (a *Server) modeStreamer(ctx context.Context) (events.Streamer, error) {
+	recConfig, err := a.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	mode := clusterConfig.GetSessionRecording()
 	// In sync mode, auth server forwards session control to the event log
 	// in addition to sending them and data events to the record storage.
-	if services.IsRecordSync(mode) {
+	if services.IsRecordSync(recConfig.GetMode()) {
 		return events.NewTeeStreamer(a.streamer, a.emitter), nil
 	}
 	// In async mode, clients submit session control events
@@ -2119,7 +2169,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("empty Login field")
 		}
 		// Find the target node and check whether MFA is required.
-		nodes, err := a.GetNodes(defaults.Namespace, services.SkipValidation())
+		nodes, err := a.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2529,12 +2579,4 @@ func isHTTPS(u string) error {
 	}
 
 	return nil
-}
-
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(generateRequestsCount)
-	prometheus.MustRegister(generateThrottledRequestsCount)
-	prometheus.MustRegister(generateRequestsCurrent)
-	prometheus.MustRegister(generateRequestsLatencies)
 }

@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -35,8 +34,6 @@ import (
 
 	"github.com/moby/term"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client/escape"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -44,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 type NodeSession struct {
@@ -188,8 +186,11 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 	// if agent forwarding was requested (and we have a agent to forward),
 	// forward the agent to endpoint.
 	tc := ns.nodeClient.Proxy.teleportClient
-	if tc.ForwardAgent && tc.localAgent.Agent != nil {
-		err = agent.ForwardToAgent(ns.nodeClient.Client, tc.localAgent.Agent)
+	targetAgent := selectKeyAgent(tc)
+
+	if targetAgent != nil {
+		log.Debugf("Forwarding Selected Key Agent")
+		err = agent.ForwardToAgent(ns.nodeClient.Client, targetAgent)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -200,6 +201,22 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 	}
 
 	return sess, nil
+}
+
+// selectKeyAgent picks the appropriate key agent for forwarding to the
+// server, if any.
+func selectKeyAgent(tc *TeleportClient) agent.Agent {
+	switch tc.ForwardAgent {
+	case ForwardAgentYes:
+		log.Debugf("Selecting system key agent.")
+		return tc.localAgent.sshAgent
+	case ForwardAgentLocal:
+		log.Debugf("Selecting local Teleport key agent.")
+		return tc.localAgent.Agent
+	default:
+		log.Debugf("No Key Agent selected.")
+		return nil
+	}
 }
 
 // interactiveSession creates an interactive session on the remote node, executes
@@ -220,19 +237,25 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer remoteTerm.Close()
 
 	// call the passed callback and give them the established
 	// ssh session:
 	if err := callback(sess, remoteTerm); err != nil {
-		remoteTerm.Close()
 		return trace.Wrap(err)
 	}
 
 	// Catch term signals, but only if we're attached to a real terminal
 	if ns.isTerminalAttached() {
 		ns.watchSignals(remoteTerm)
+	}
 
-		// switch the terminal to raw mode (and switch back on exit!)
+	// start piping input into the remote shell and pipe the output from
+	// the remote shell into stdout:
+	ns.pipeInOut(remoteTerm)
+
+	// switch the terminal to raw mode (and switch back on exit!)
+	if ns.isTerminalAttached() {
 		ts, err := term.SetRawTerminal(0)
 		if err != nil {
 			log.Warn(err)
@@ -240,13 +263,8 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 			defer term.RestoreTerminal(0, ts)
 		}
 	}
-
-	// Pipe input into the remote shell and pipe the output from the remote
-	// shell into stdout.
-	//
-	// Note, pipeInOut takes ownership of remoteTerm and will close it upon
-	// completion.
-	ns.pipeInOut(remoteTerm)
+	// wait for the session to end
+	<-ns.closer.C
 	return nil
 }
 
@@ -538,47 +556,23 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 	}()
 }
 
-// pipeInOut pipes the local input into the remote shell, and the output of the
-// remote shell into the local output.
+// pipeInOut launches two goroutines: one to pipe the local input into the remote shell,
+// and another to pipe the output of the remote shell into the local output
 func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	// Create a pipe to use in front of ns.stdin.
-	//
-	// This allows us to close the goroutine sending stdin to the remote shell
-	// while blocked reading from stdin.
-	stdin, stdinSink := io.Pipe()
-	go func() {
-		// Forward actual stdin to the pipe.
-		//
-		// Note: this is not registered with the WaitGroup on purpse. This
-		// goroutine will dangle after the session was terminated, until the
-		// last read from ns.stdin unblocks.
-		_, err := io.Copy(stdinSink, ns.stdin)
-		stdinSink.CloseWithError(err)
-	}()
 	// copy from the remote shell to the local output
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		defer ns.closer.Close()
-		defer stdinSink.Close()
 		_, err := io.Copy(ns.stdout, shell)
 		if err != nil {
-			log.Error("Error copying from shell:", err.Error())
+			log.Errorf(err.Error())
 		}
 	}()
 	// copy from the local input to the remote shell:
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		defer ns.closer.Close()
-		defer shell.Close()
-		defer stdin.Close()
 		buf := make([]byte, 128)
 
-		stdin := io.Reader(stdin)
+		stdin := ns.stdin
 		if ns.isTerminalAttached() && ns.enableEscapeSequences {
 			stdin = escape.NewReader(stdin, ns.stderr, func(err error) {
 				switch err {
@@ -593,21 +587,16 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 			})
 		}
 		for {
-			select {
-			case <-ns.closer.C:
+			n, err := stdin.Read(buf)
+			if err != nil {
+				fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
 				return
-			default:
-				n, err := stdin.Read(buf)
-				if n > 0 {
-					if _, err := shell.Write(buf[:n]); err != nil {
-						ns.ExitMsg = err.Error()
-						return
-					}
-				}
+			}
+
+			if n > 0 {
+				_, err = shell.Write(buf[:n])
 				if err != nil {
-					if err != io.EOF {
-						fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
-					}
+					ns.ExitMsg = err.Error()
 					return
 				}
 			}
@@ -616,5 +605,8 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 }
 
 func (ns *NodeSession) Close() error {
-	return ns.closer.Close()
+	if ns.closer != nil {
+		ns.closer.Close()
+	}
+	return nil
 }

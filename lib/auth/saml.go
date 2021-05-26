@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io/ioutil"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -123,7 +125,7 @@ func (a *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServic
 	defer a.lock.Unlock()
 
 	providerPack, ok := a.samlProviders[conn.GetName()]
-	if ok && providerPack.connector.Equals(conn) {
+	if ok && cmp.Equal(providerPack.connector, conn) {
 		return providerPack.provider, nil
 	}
 	delete(a.samlProviders, conn.GetName())
@@ -148,8 +150,12 @@ func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionIn
 
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
-	p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
+	var warnings []string
+	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
+		if len(warnings) != 0 {
+			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
+		}
 		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
 

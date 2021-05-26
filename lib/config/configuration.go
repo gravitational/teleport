@@ -114,6 +114,8 @@ type CommandLineFlags struct {
 
 	// DatabaseName is the name of the database to proxy.
 	DatabaseName string
+	// DatabaseDescription is a free-form database description.
+	DatabaseDescription string
 	// DatabaseProtocol is the type of the proxied database e.g. postgres or mysql.
 	DatabaseProtocol string
 	// DatabaseURI is the address to connect to the proxied database.
@@ -122,6 +124,12 @@ type CommandLineFlags struct {
 	DatabaseCACertFile string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
 	DatabaseAWSRegion string
+	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
+	DatabaseAWSRedshiftClusterID string
+	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
+	DatabaseGCPProjectID string
+	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
+	DatabaseGCPInstanceID string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -504,15 +512,29 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Set cluster-wide configuration from file configuration.
 	cfg.Auth.ClusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording:      fc.Auth.SessionRecording,
-		ProxyChecksHostKeys:   fc.Auth.ProxyChecksHostKeys,
 		Audit:                 *auditConfig,
-		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
 		DisconnectExpiredCert: fc.Auth.DisconnectExpiredCert,
+		LocalAuth:             localAuth,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Set cluster networking configuration from file configuration.
+	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
 		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
-		LocalAuth:             localAuth,
 		SessionControlTimeout: fc.Auth.SessionControlTimeout,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Set session recording configuration from file configuration.
+	cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode:                fc.Auth.SessionRecording,
+		ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -623,6 +645,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	switch {
 	case legacyKube && !newKube:
 		cfg.Proxy.Kube.Enabled = true
+		cfg.Proxy.Kube.LegacyKubeProxy = true
 		if fc.Proxy.Kube.KubeconfigFile != "" {
 			cfg.Proxy.Kube.KubeconfigPath = fc.Proxy.Kube.KubeconfigFile
 		}
@@ -882,6 +905,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			CACert:        caBytes,
 			AWS: service.DatabaseAWS{
 				Region: database.AWS.Region,
+				Redshift: service.DatabaseAWSRedshift{
+					ClusterID: database.AWS.Redshift.ClusterID,
+				},
 			},
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
@@ -934,8 +960,15 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			InsecureSkipVerify: application.InsecureSkipVerify,
 		}
 		if application.Rewrite != nil {
+			// Parse http rewrite headers if there are any.
+			headers, err := service.ParseHeaders(application.Rewrite.Headers)
+			if err != nil {
+				return trace.Wrap(err, "failed to parse headers rewrite configuration for app %q",
+					application.Name)
+			}
 			app.Rewrite = &service.Rewrite{
 				Redirect: application.Rewrite.Redirect,
+				Headers:  headers,
 			}
 		}
 		if err := app.Check(); err != nil {
@@ -1221,6 +1254,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 		db := service.Database{
 			Name:          clf.DatabaseName,
+			Description:   clf.DatabaseDescription,
 			Protocol:      clf.DatabaseProtocol,
 			URI:           clf.DatabaseURI,
 			StaticLabels:  staticLabels,
@@ -1228,6 +1262,13 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			CACert:        caBytes,
 			AWS: service.DatabaseAWS{
 				Region: clf.DatabaseAWSRegion,
+				Redshift: service.DatabaseAWSRedshift{
+					ClusterID: clf.DatabaseAWSRedshiftClusterID,
+				},
+			},
+			GCP: service.DatabaseGCP{
+				ProjectID:  clf.DatabaseGCPProjectID,
+				InstanceID: clf.DatabaseGCPInstanceID,
 			},
 		}
 		if err := db.Check(); err != nil {
@@ -1273,8 +1314,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			// If sessions are being recorded at the proxy host key checking must be
 			// enabled. This make sure the host certificate key algorithm is FIPS
 			// compliant.
-			if services.IsRecordAtProxy(cfg.Auth.ClusterConfig.GetSessionRecording()) &&
-				cfg.Auth.ClusterConfig.GetProxyChecksHostKeys() == services.HostKeyCheckNo {
+			if services.IsRecordAtProxy(cfg.Auth.SessionRecordingConfig.GetMode()) &&
+				!cfg.Auth.SessionRecordingConfig.GetProxyChecksHostKeys() {
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
 		}

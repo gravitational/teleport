@@ -15,13 +15,10 @@ limitations under the License.
 */
 
 // Package prompt implements CLI prompts to the user.
-//
-// TODO(awly): mfa: support prompt cancellation (without losing data written
-// after cancellation)
 package prompt
 
 import (
-	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -33,13 +30,15 @@ import (
 // The prompt is written to out and the answer is read from in.
 //
 // question should be a plain sentece without "[yes/no]"-type hints at the end.
-func Confirmation(out io.Writer, in io.Reader, question string) (bool, error) {
+//
+// ctx can be canceled to abort the prompt.
+func Confirmation(ctx context.Context, out io.Writer, in *ContextReader, question string) (bool, error) {
 	fmt.Fprintf(out, "%s [y/N]: ", question)
-	scan := bufio.NewScanner(in)
-	if !scan.Scan() {
-		return false, trace.WrapWithMessage(scan.Err(), "failed reading prompt response")
+	answer, err := in.ReadContext(ctx)
+	if err != nil {
+		return false, trace.WrapWithMessage(err, "failed reading prompt response")
 	}
-	switch strings.ToLower(strings.TrimSpace(scan.Text())) {
+	switch strings.ToLower(strings.TrimSpace(string(answer))) {
 	case "y", "yes":
 		return true, nil
 	default:
@@ -51,14 +50,15 @@ func Confirmation(out io.Writer, in io.Reader, question string) (bool, error) {
 // The prompt is written to out and the answer is read from in.
 //
 // question should be a plain sentece without the list of provided options.
-func PickOne(out io.Writer, in io.Reader, question string, options []string) (string, error) {
+//
+// ctx can be canceled to abort the prompt.
+func PickOne(ctx context.Context, out io.Writer, in *ContextReader, question string, options []string) (string, error) {
 	fmt.Fprintf(out, "%s [%s]: ", question, strings.Join(options, ", "))
-	scan := bufio.NewScanner(in)
-	if !scan.Scan() {
-		return "", trace.WrapWithMessage(scan.Err(), "failed reading prompt response")
+	answerOrig, err := in.ReadContext(ctx)
+	if err != nil {
+		return "", trace.WrapWithMessage(err, "failed reading prompt response")
 	}
-	answerOrig := scan.Text()
-	answer := strings.ToLower(strings.TrimSpace(answerOrig))
+	answer := strings.ToLower(strings.TrimSpace(string(answerOrig)))
 	for _, opt := range options {
 		if strings.ToLower(opt) == answer {
 			return opt, nil
@@ -69,11 +69,13 @@ func PickOne(out io.Writer, in io.Reader, question string, options []string) (st
 
 // Input prompts the user for freeform text input.
 // The prompt is written to out and the answer is read from in.
-func Input(out io.Writer, in io.Reader, question string) (string, error) {
+//
+// ctx can be canceled to abort the prompt.
+func Input(ctx context.Context, out io.Writer, in *ContextReader, question string) (string, error) {
 	fmt.Fprintf(out, "%s: ", question)
-	scan := bufio.NewScanner(in)
-	if !scan.Scan() {
-		return "", trace.WrapWithMessage(scan.Err(), "failed reading prompt response")
+	answer, err := in.ReadContext(ctx)
+	if err != nil {
+		return "", trace.WrapWithMessage(err, "failed reading prompt response")
 	}
-	return scan.Text(), nil
+	return strings.TrimSpace(string(answer)), nil
 }

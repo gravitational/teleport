@@ -132,6 +132,10 @@ const (
 	// for the response headers to arrive
 	ReadHeadersTimeout = time.Second
 
+	// HandshakeReadDeadline is the default time to wait for the client during
+	// the TLS handshake.
+	HandshakeReadDeadline = 5 * time.Second
+
 	// SignupTokenTTL is a default TTL for a web signup one time token
 	SignupTokenTTL = time.Hour
 
@@ -500,7 +504,7 @@ var (
 	DataDir = "/var/lib/teleport"
 
 	// StartRoles is default roles teleport assumes when started via 'start' command
-	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp}
+	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp, RoleDatabase}
 
 	// ETCDPrefix is default key in ETCD clustered configurations
 	ETCDPrefix = "/teleport"

@@ -210,7 +210,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				return
 			}
 			require.Empty(t, cmp.Diff(id, tt.wantID,
-				cmpopts.IgnoreFields(BuiltinRole{}, "GetClusterConfig"),
+				cmpopts.IgnoreFields(BuiltinRole{}, "GetSessionRecordingConfig"),
 				cmpopts.EquateEmpty(),
 			))
 		})
