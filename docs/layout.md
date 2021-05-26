@@ -36,7 +36,6 @@ The documentation layout and structure is presently:
 
 - [x] Home (Renamed from documentation)
     - [x] Introduction
-        - [x] Introduction becomes shorter and gets tiles pointing to products and popular use-cases links
     - [x] Adopters
     - [x] Getting Started
     - [ ] FAQ
@@ -58,10 +57,10 @@ The documentation layout and structure is presently:
     - [x] CLI
         - [ ] Need full update here
     - [ ] Glossary (moved from admin guide)
+        - [ ] Link terms in Getting Started Guides to here.
     - [x] Metrics
     - [x] API
         - [x] Client libraries
-            - [x] Golang (A simple page with almost no content and a link to pkg.go.dev done by Brian)
         - [x] Teleport API Introduction
         - [x] Getting Started
         - [x] API Architecture
