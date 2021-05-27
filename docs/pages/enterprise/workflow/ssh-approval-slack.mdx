@@ -83,14 +83,6 @@ $ tctl create -f access.yaml
 Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
 <Tabs>
-<TabItem label="On Premise">
-   On premise where you can  to connect directly through the auth server (`auth.example.com:3025`) you can use the `tls` certificate files.
-   ```bash
-   $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=720h
-   # ...
-   ```
-  The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-teleport-slack).
-</TabItem>
 <TabItem label="Teleport Cloud or via Proxy connection">
   If you are using Teleport Cloud or want to have the plugin only 
 
@@ -99,6 +91,14 @@ Teleport Plugin use the `access-plugin` role and user to perform the approval. W
   # ...
   ```  
   The above sequence will result in one PEM encoded files being generated: access-plugin.pem (certificate, private key, and CA certs respectively).  We'll reference the access-plugin.pem later when [configuring the plugins](#configuring-teleport-slack).
+</TabItem>
+<TabItem label="On Premise">
+  On premise where you can  to connect directly through the auth server (`auth.example.com:3025`) you can use the `tls` certificate files.
+  ```bash
+  $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=720h
+  # ...
+  ```
+ The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-teleport-slack).
 </TabItem>
 </Tabs>
   
@@ -197,16 +197,17 @@ In the Teleport section, use the certificate(s) you've generated with `tctl auth
 In Slack section, use the OAuth token, signing token, setup the desired channel name. The listen URL is the URL the plugin will listen for Slack callbacks.
 
 <Tabs>
+<TabItem label="Teleport Cloud or via Proxy connection">
+  ```toml
+  (!examples/resources/plugins/teleport-slack-proxyconnection.toml!)
+  ```
+</TabItem>  
 <TabItem label="On Premise">
   ```toml
   (!examples/resources/plugins/teleport-slack.toml!)
   ```
 </TabItem>
-<TabItem label="Teleport Cloud or via Proxy connection">
-  ```toml
-  (!examples/resources/plugins/teleport-slack-proxyconnection.toml!)
-  ```
-</TabItem>
+
 </Tabs>
 
 
