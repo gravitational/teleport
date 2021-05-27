@@ -66,6 +66,12 @@ labels: {}
 image: quay.io/gravitational/teleport
 # Number of replicas for the agent deployment.
 replicaCount: 1
+# (optional) Override the name of the ClusterRole used by the agent's service account.
+clusterRoleName: ""
+# (optional) Override the name of the ClusterRoleBinding used by the agent's service account.
+clusterRoleBindingName: ""
+# (optional) Override the name of the service account used by the agent.
+serviceAccountName: ""
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
 # Log level for the Teleport process.

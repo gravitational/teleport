@@ -1348,6 +1348,82 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   </TabItem>
 </Tabs>
 
+## `clusterRoleName`
+
+| Type | Default value |
+| - | - |
+| `string` | `nil` |
+
+`clusterRoleName` can be optionally used to override the name of the Kubernetes `ClusterRole` used by the `teleport-kube-agent` chart's `ServiceAccount`.
+
+<Admonition type="note">
+  Most users will not need to change this.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  clusterRoleName: kubernetes-clusterrole
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```bash
+  --set clusterRoleName=kubernetes-clusterrole
+  ```
+  </TabItem>
+</Tabs>
+
+## `clusterRoleBindingName`
+
+<Admonition type="note">
+  Most users will not need to change this.
+</Admonition>
+
+| Type | Default value |
+| - | - |
+| `string` | `nil` |
+
+
+`clusterRoleBindingName` can be optionally used to override the name of the Kubernetes `ClusterRoleBinding` used by the `teleport-kube-agent` chart's `ServiceAccount`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  clusterRoleBindingName: kubernetes-clusterrolebinding
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```bash
+  --set clusterRoleBindingName=kubernetes-clusterrolebinding
+  ```
+  </TabItem>
+</Tabs>
+
+## `serviceAccountName`
+
+<Admonition type="note">
+  Most users will not need to change this.
+</Admonition>
+
+| Type | Default value |
+| - | - |
+| `string` | `nil` |
+
+`serviceAccountName` can be used to optionally override the name of the Kubernetes `ServiceAccount` used by the `teleport-kube-agent` chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  serviceAccountName: kubernetes-serviceaccount
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```bash
+  --set serviceAccountName=kubernetes-serviceaccount
+  ```
+  </TabItem>
+</Tabs>
+
 ## `secretName`
 
 | Type | Default value |

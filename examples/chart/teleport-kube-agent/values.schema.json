@@ -14,6 +14,9 @@
         "labels",
         "image",
         "replicaCount",
+        "clusterRoleName",
+        "clusterRoleBindingName",
+        "serviceAccountName",
         "secretName",
         "logLevel",
         "affinity",
@@ -111,6 +114,21 @@
             "$id": "#/properties/replicaCount",
             "type": "integer",
             "default": 1
+        },
+        "clusterRoleName": {
+            "$id": "#/properties/clusterRoleName",
+            "type": "string",
+            "default": ""
+        },
+        "clusterRoleBindingName": {
+            "$id": "#/properties/clusterRoleBindingName",
+            "type": "string",
+            "default": ""
+        },
+        "serviceAccountName": {
+            "$id": "#/properties/serviceAccountName",
+            "type": "string",
+            "default": ""
         },
         "secretName": {
             "$id": "#/properties/secretName",
