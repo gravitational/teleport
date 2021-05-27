@@ -157,6 +157,7 @@ The documentation layout and structure is presently:
     - [x] Teleport Auth
     - [x] Teleport Proxy
     - [x] Trusted Clusters
+        - [ ] Move all Trusted Cluster content from the Admin Guide into here as well.
     - [ ] Security - new Article
 - [x] Preview Section
     - [x] Upcoming Releases
