@@ -23,6 +23,7 @@ import (
 	"math"
 	"net/url"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -727,7 +728,7 @@ func (f byTimeAndIndex) Swap(i, j int) {
 type notReadyYetError struct{}
 
 func (notReadyYetError) Error() string {
-	return "The backend is not ready to accept queries yet. Please retry in a couple of seconds."
+	return "The DynamoDB event backend is not ready to accept queries yet. Please retry in a couple of seconds."
 }
 
 // searchEventsRaw is a low level function for searching for events. This is kept
@@ -1065,6 +1066,7 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 	workerCounter := atomic.NewInt32(0)
 	totalProcessed := atomic.NewInt32(0)
 	workerErrors := make(chan error, maxMigrationWorkers)
+	workerBarrier := sync.WaitGroup{}
 
 	for {
 		// Check for worker errors and escalate if found.
@@ -1150,8 +1152,10 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 			}
 
 			workerCounter.Add(1)
+			workerBarrier.Add(1)
 			go func() {
 				defer workerCounter.Sub(1)
+				defer workerBarrier.Done()
 				amountProcessed := len(batch)
 
 				if err := l.uploadBatch(batch); err != nil {
@@ -1175,14 +1179,8 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 		}
 	}
 
-	// Wait for all workers to complete.
-	for workerCounter.Load() != 0 {
-		select {
-		case <-time.After(time.Millisecond * 50):
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		}
-	}
+	// Wait until all upload tasks finish.
+	workerBarrier.Wait()
 
 	// Check for worker errors and escalate if found.
 	select {

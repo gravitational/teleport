@@ -133,7 +133,7 @@ func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl t
 			select {
 			case <-time.After(refreshAfter):
 				if err := lock.resetTTL(ctx, backend); err != nil {
-					cancelFunction()
+					defer cancelFunction()
 					log.Errorf("%v", err)
 					return
 				}
@@ -144,7 +144,7 @@ func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl t
 	}()
 
 	fnErr := fn(subContext)
-	stopRefresh <- struct{}{}
+	close(stopRefresh)
 
 	if err := lock.Release(ctx, backend); err != nil {
 		return trace.NewAggregate(fnErr, err)
