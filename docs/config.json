@@ -294,6 +294,11 @@
       "source": "/openssh-teleport/",
       "destination": "/server-access/guides/openssh/",
       "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-gsuite/",
+      "destination": "/enterprise/sso/ssh-google-workspace/",
+      "permanent": true
     }
   ]
 }
