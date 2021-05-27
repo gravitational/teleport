@@ -70,7 +70,8 @@ The documentation layout and structure is presently:
   - [x] Guides
     - [ ] SSH (moved from user guide)
     - [x] PAM
-    - [x] OpenSSH
+    - [ ] OpenSSH Recording Proxy
+    - [ ] OpenSSH Client
     - [ ] Enhanced Session Recording (moved from Features)
     - [ ] Resource Catalog/Introspection (move all introspection, management items into here)
     - [ ] Proxy, NAT, Connecting (think we can factor out a bunch of stuff in the admin guide and move into here)
