@@ -111,7 +111,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	}
 
 	checkpoint = ""
-	for i := range []int{0, 2} {
+	for _, i := range []int{0, 2} {
 		nameA := names[i]
 		nameB := names[i+1]
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 2, checkpoint)
@@ -174,7 +174,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	// read the session event
 	historyEvents, err := s.Log.GetSessionEvents(defaults.Namespace, sessionID, 0, false)
 	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 2)
+	c.Assert(historyEvents, check.HasLen, 2)
 	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
 	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
 
