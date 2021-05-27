@@ -242,7 +242,7 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 		Entry:         l,
 		Config:        cfg,
 		backend:       backend,
-		readyForQuery: atomic.NewBool(true),
+		readyForQuery: atomic.NewBool(false),
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
@@ -289,9 +289,7 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 	}
 
 	// Migrate the table according to RFD 24 if it still has the old schema.
-	if err := b.migrateRFD24(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	go b.migrateRFD24WithRetry(ctx)
 
 	// Enable continuous backups if requested.
 	if b.Config.EnableContinuousBackups {
@@ -337,6 +335,27 @@ const (
 	tableStatusOK
 )
 
+// migrateRFD24WithRetry tries the migration multiple times until it succeeds in the case
+// of spontaneous errors.
+func (l *Log) migrateRFD24WithRetry(ctx context.Context) {
+	for {
+		err := l.migrateRFD24(ctx)
+
+		if err == nil {
+			break
+		}
+
+		delay := utils.HalfJitter(time.Minute)
+		log.WithError(err).Errorf("Background migration task failed, retrying in %f seconds", delay.Seconds())
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			log.WithError(ctx.Err()).Error("Background migration task cancelled")
+			return
+		}
+	}
+}
+
 // migrateRFD24 checks if any migration actions need to be performed
 // as specified in RFD 24 and applies them as needed.
 //
@@ -351,92 +370,67 @@ const (
 // jittered interval until retrying migration again. This allows one server to pull ahead
 // and finish or make significant progress on the migration.
 func (l *Log) migrateRFD24(ctx context.Context) error {
-	// Kick off a background task to migrate events, this task is safely
-	// interruptible without breaking data and can be resumed from the
-	// last point so no checkpointing state needs to be managed here.
-	go func() {
-		for {
-			err := func() error {
-				hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
-				if err != nil {
-					return trace.Wrap(err)
-				}
+	hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-				// Table is already up to date.
-				// We use the existence of the V1 index as a completion flag
-				// for migration. We remove it at the end of the migration which
-				// means it is finished if it doesn't exist.
-				if !hasIndexV1 {
-					return nil
-				}
+	// Table is already up to date.
+	// We use the existence of the V1 index as a completion flag
+	// for migration. We remove it at the end of the migration which
+	// means it is finished if it doesn't exist.
+	if !hasIndexV1 {
+		l.readyForQuery.Store(true)
+		return nil
+	}
 
-				l.readyForQuery.Store(false)
-
-				// Creates the v2 index if it doesn't already exist.
-				err = backend.RunWhileLocked(ctx, l.backend, indexV2CreationLock, rfd24MigrationLockTTL, func(ctx context.Context) error {
-					err = l.createV2GSI(ctx)
-					l.readyForQuery.Store(true)
-					if err != nil {
-						return trace.Wrap(err)
-					}
-
-					return nil
-				})
-
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				// Acquire a lock so that only one auth server attempts to perform the migration at any given time.
-				// If an auth server does in a HA-setup the other auth servers will pick up the migration automatically.
-				err = backend.RunWhileLocked(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL, func(ctx context.Context) error {
-					hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
-					if err != nil {
-						return trace.Wrap(err)
-					}
-
-					if !hasIndexV1 {
-						return nil
-					}
-
-					// Migrate events to the new format so that the V2 index can use them.
-					log.Info("Starting event migration to v6.2 format")
-					err = l.migrateDateAttribute(ctx)
-					if err != nil {
-						return trace.WrapWithMessage(err, "Encountered error migrating events to v6.2 format")
-					}
-
-					// Remove the old index, marking migration as complete
-					log.Info("Removing old DynamoDB index")
-					err = l.removeV1GSI()
-					if err != nil {
-						return trace.WrapWithMessage(err, "Migrated all events to v6.2 format successfully but failed to remove old index.")
-					}
-
-					return nil
-				})
-
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				return nil
-			}()
-
-			if err == nil {
-				break
-			}
-
-			delay := utils.HalfJitter(time.Minute)
-			log.WithError(err).Errorf("Background migration task failed, retrying in %f seconds", delay.Seconds())
-			select {
-			case <-time.After(delay):
-			case <-ctx.Done():
-				log.WithError(ctx.Err()).Error("Background migration task cancelled")
-				return
-			}
+	// Creates the v2 index if it doesn't already exist.
+	err = backend.RunWhileLocked(ctx, l.backend, indexV2CreationLock, rfd24MigrationLockTTL, func(ctx context.Context) error {
+		err = l.createV2GSI(ctx)
+		l.readyForQuery.Store(true)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-	}()
+
+		return nil
+	})
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Acquire a lock so that only one auth server attempts to perform the migration at any given time.
+	// If an auth server does in a HA-setup the other auth servers will pick up the migration automatically.
+	err = backend.RunWhileLocked(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL, func(ctx context.Context) error {
+		hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !hasIndexV1 {
+			return nil
+		}
+
+		// Migrate events to the new format so that the V2 index can use them.
+		log.Info("Starting event migration to v6.2 format")
+		err = l.migrateDateAttribute(ctx)
+		if err != nil {
+			return trace.WrapWithMessage(err, "Encountered error migrating events to v6.2 format")
+		}
+
+		// Remove the old index, marking migration as complete
+		log.Info("Removing old DynamoDB index")
+		err = l.removeV1GSI()
+		if err != nil {
+			return trace.WrapWithMessage(err, "Migrated all events to v6.2 format successfully but failed to remove old index.")
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
