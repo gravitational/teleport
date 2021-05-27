@@ -29,7 +29,8 @@ metrics_service:
   keypairs:
   - key_file: key.pem
     cert_file: cert.pem
-    ca: ca.pem
+  ca_certs:
+  - ca.pem
 ```
 
 This implementation will only support user provided certs and CA for now.
@@ -65,7 +66,10 @@ metrics_service:
   keypairs:
   - key_file: key.pem
     cert_file: cert.pem
-    ca: ca.pem
+  # 'ca_certs' should be provided alongside 'mtls: yes'. Those are the CA certs
+  # of the prometheus instances consuming the metrics
+  ca_certs:
+  - ca.pem
 ```
 
 
