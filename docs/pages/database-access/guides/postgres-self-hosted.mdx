@@ -32,7 +32,7 @@ Run the command:
 ```sh
 # Export Teleport's certificate authority and generate certificate/key pair
 # for host db.example.com with a one year validity period.
-sudo tctl auth sign --format=db --host=db.example.com --out=server --ttl=1h
+tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 ```
 
 Flag descriptions:
@@ -42,7 +42,7 @@ Flag descriptions:
 - `--host=db.example.com`: server name to encode in the certificate, should
   match the hostname Teleport will be connecting to the database at.
 - `--out=server`: name prefix for output files.
-- `--ttl=1h`: certificate validity period.
+- `--ttl=2190h`: certificate validity period.
 
 The command will create 3 files: `server.cas` with Teleport's certificate
 authority and `server.crt`/`server.key` with generated certificate/key pair.

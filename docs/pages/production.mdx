@@ -217,12 +217,15 @@ is a hashed value of its private key, i.e. it cannot be forged by an attacker.
 To get the current CA pin run the following code on the auth server:
 
 ```bash
-sudo tctl status
+tctl status
+
+# Output
 Cluster  staging.example.com
 User CA  never updated
 Host CA  never updated
 CA pin   sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 The CA pin at the bottom needs to be passed to the new nodes when they're starting
 for the first time, i.e. when they join a cluster:
@@ -232,7 +235,7 @@ Via CLI:
 ```bash
 sudo teleport start \
    --roles=node \
-   --token=1ac590d36493acdaa2387bc1c492db1a \
+   --token=./token.file \
    --ca-pin=sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1 \
    --auth-server=10.12.0.6:3025
 ```

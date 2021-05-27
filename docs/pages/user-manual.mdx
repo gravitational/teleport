@@ -150,15 +150,17 @@ command:
 ```bash
 tsh status
 
-# > Profile URL:  https://proxy.example.com:3080
-#  Logged in as: johndoe
-#  Cluster:      proxy.example.com
-#  Roles:        admin*
-#  Logins:       root, admin, guest
-#  Kubernetes:   disabled
-#  Valid until:  2017-04-25 15:02:30 -0700 PDT [valid for 1h0m0s]
-#  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
+# Output
+> Profile URL:  https://proxy.example.com:3080
+  Logged in as: johndoe
+  Cluster:      proxy.example.com
+  Roles:        admin*
+  Logins:       root, admin, guest
+  Kubernetes:   disabled
+  Valid until:  2017-04-25 15:02:30 -0700 PDT [valid for 1h0m0s]
+  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 [CLI Docs - tsh status](cli-docs.mdx#tsh-status)
 
@@ -201,10 +203,13 @@ In this case, the identity will be saved into two files: `joe` and
 ```bash
 tsh login --proxy=proxy.example.com --out=joe --format=openssh
 ls -lh
-# total 8.0K
-# -rw------- 1 joe staff 1.7K Aug 10 16:16 joe
-# -rw------- 1 joe staff 1.5K Aug 10 16:16 joe-cert.pub
+
+# Output
+total 8.0K
+-rw------- 1 joe staff 1.7K Aug 10 16:16 joe
+-rw------- 1 joe staff 1.5K Aug 10 16:16 joe-cert.pub
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### SSH certificates for automation
 
@@ -225,7 +230,7 @@ jenkins user and storing it in a `jenkins.pem` file, which can be later used wit
 
 ```bash
 # To be executed on a Teleport auth server
-sudo tctl auth sign --ttl=1h--user=jenkins --out=jenkins.pem
+tctl auth sign --ttl=1h--user=jenkins --out=jenkins.pem
 ```
 
 [CLI Docs - tctl auth sign](cli-docs.mdx#tctl-auth-sign)
@@ -245,13 +250,14 @@ with the `tsh ls` command:
 # This command lists all nodes in the cluster which you previously logged in via "tsh login":
 tsh ls
 
-# Output:
-# Node Name     Address            Labels
-# ---------     -------            ------
-# turing        10.1.0.5:3022      os:linux
-# turing        10.1.0.6:3022      os:linux
-# graviton      10.1.0.7:3022      os:osx
+# Output
+Node Name     Address            Labels
+---------     -------            ------
+turing        10.1.0.5:3022      os:linux
+turing        10.1.0.6:3022      os:linux
+graviton      10.1.0.7:3022      os:osx
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 [CLI Docs - tsh ls](cli-docs.mdx#tsh-ls)
 
@@ -261,10 +267,12 @@ tsh ls
 # Only show nodes with os label set to 'osx':
 tsh ls os=osx
 
-# Nodename      UUID                   Address            Labels
-# ---------     -------                -------            ------
-# graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
+# Output
+Nodename      UUID                   Address            Labels
+---------     -------                -------            ------
+graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 [CLI Docs -tsh ls](cli-docs.mdx#tsh-ls)
 
@@ -426,10 +434,11 @@ and ask Teleport for our current session status:
 tsh ssh luna
 >luna $ teleport status
 
-# User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
-# Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
-# Session URL: https://work:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
+User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
+Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
+Session URL: https://work:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Now you can invite another user account to the `work` cluster. You can share the
 URL for access through a web browser, or you can share the session ID, and she can join you through her terminal by typing:
@@ -457,11 +466,13 @@ clusters, a user may use the `tsh clusters` command to see a list of all cluster
 ```bash
 tsh --proxy=work clusters
 
-# Cluster Name     Status
-# ------------     ------
-# staging          online
-# production       offline
+# Output
+Cluster Name     Status
+------------     ------
+staging          online
+production       offline
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 [CLI Docs - tsh clusters](cli-docs.mdx#tsh-clusters)
 
@@ -469,11 +480,14 @@ Now you can use the `--cluster` flag with any `tsh` command. For example, to lis
 
 ```bash
 tsh --proxy=work ls --cluster=production
-# Node Name     Node ID       Address            Labels
-# ---------     -------       -------            ------
-# db-1          xxxxxxxxx     10.0.20.31:3022    kernel:4.4
-# db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
+
+# Output
+Node Name     Node ID       Address            Labels
+---------     -------       -------            ------
+db-1          xxxxxxxxx     10.0.20.31:3022    kernel:4.4
+db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Similarly, if you want to SSH into `db-1` inside the `production` cluster:
 
@@ -595,7 +609,7 @@ want to reset it to a clean state by deleting temporary keys and other data from
 
 ## Getting help
 
-If you need help, please ask on our [community forum](https://community.gravitational.com/). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
+If you need help, please ask on our [community forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
 

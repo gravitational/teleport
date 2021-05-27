@@ -87,8 +87,9 @@ Set up an email to receive updates from Let's Encrypt, and use a valid DNS name 
 
 ```bash
 sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
-# Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
+Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### Configure domain name and obtain TLS certificates using Let's Encrypt
 
@@ -124,7 +125,7 @@ SSH hosts as any of the principals `root`, `ubuntu` or `ec2-user`.
 
 ```bash
 # tctl is an administrative tool that is used to configure Teleport's auth service.
-sudo tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
+tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
 
 Teleport will always enforce the use of two-factor authentication by default. It supports One-Time
@@ -228,7 +229,7 @@ tsh ssh root@node-name
 Generate a short-lived dynamic join token using `tctl`:
 
 ```bash
-sudo tctl tokens add --type=node
+tctl tokens add --type=node
 ```
 
 Bootstrap a new node:
@@ -287,7 +288,7 @@ Bootstrap a new node:
 Generate a short-lived dynamic token to join apps:
 
 ```bash
-sudo tctl tokens add --type=app
+tctl tokens add --type=app
 ```
 
 Add a new application:
