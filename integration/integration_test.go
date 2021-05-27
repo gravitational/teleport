@@ -167,7 +167,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("AuditOff", suite.bind(testAuditOff))
 	t.Run("AuditOn", suite.bind(testAuditOn))
 	t.Run("BPFSessionDifferentiation", suite.bind(testBPFSessionDifferentiation))
-	t.Run("CommandLabels", suite.bind(testCmdLabels))
+	t.Run("CmdLabels", suite.bind(testCmdLabels))
 	t.Run("ControlMaster", suite.bind(testControlMaster))
 	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
 	t.Run("Disconnection", suite.bind(testDisconnectScenarios))
@@ -650,9 +650,7 @@ func (s *integrationTestSuite) newUnstartedTeleport(t *testing.T, logins []strin
 	for _, login := range logins {
 		teleport.AddUser(login, []string{login})
 	}
-	if err := teleport.Create(nil, enableSSH, nil); err != nil {
-		t.Fatalf("Unexpected response from Create: %v", err)
-	}
+	require.NoError(t, teleport.Create(nil, enableSSH, nil))
 	return teleport
 }
 
@@ -660,9 +658,7 @@ func (s *integrationTestSuite) newUnstartedTeleport(t *testing.T, logins []strin
 // with the current user os.user.Current().
 func (s *integrationTestSuite) newTeleport(t *testing.T, logins []string, enableSSH bool) *TeleInstance {
 	teleport := s.newUnstartedTeleport(t, logins, enableSSH)
-	if err := teleport.Start(); err != nil {
-		t.Fatalf("Unexpected response from Start: %v", err)
-	}
+	require.NoError(t, teleport.Start())
 	return teleport
 }
 
@@ -2847,6 +2843,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	var tests = []struct {
+		desc             string
 		inRecordLocation string
 		inForwardAgent   bool
 		inCommand        string
@@ -2857,6 +2854,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 		// will be rejected by the proxy (agent forwarding request rejection is a
 		// soft failure).
 		{
+			desc:             "Record at Node with Agent Forwarding",
 			inRecordLocation: services.RecordAtNode,
 			inForwardAgent:   true,
 			inCommand:        "echo hello",
@@ -2866,6 +2864,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 		// Record at the node, don't forward agent, will work. This is the normal
 		// Teleport mode of operation.
 		{
+			desc:             "Record at Node without Agent Forwarding",
 			inRecordLocation: services.RecordAtNode,
 			inForwardAgent:   false,
 			inCommand:        "echo hello",
@@ -2874,6 +2873,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 		},
 		// Record at the proxy, forward agent. Will work.
 		{
+			desc:             "Record at Proxy with Agent Forwarding",
 			inRecordLocation: services.RecordAtProxy,
 			inForwardAgent:   true,
 			inCommand:        "echo hello",
@@ -2883,6 +2883,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 		// Record at the proxy, don't forward agent, request will fail because
 		// recording proxy requires an agent.
 		{
+			desc:             "Record at Proxy without Agent Forwarding",
 			inRecordLocation: services.RecordAtProxy,
 			inForwardAgent:   false,
 			inCommand:        "echo hello",
@@ -2892,7 +2893,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
+		t.Run(tt.desc, func(t *testing.T) {
 			// Create a Teleport instance with auth, proxy, and node.
 			makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
 				recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
@@ -3054,23 +3055,26 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 	defer tr.Stop()
 
 	var tests = []struct {
+		desc           string
 		inHostKeyCheck bool
 		outError       bool
 	}{
 		// disable host key checking, should be able to connect
 		{
-			false,
-			false,
+			desc:           "Disabled",
+			inHostKeyCheck: false,
+			outError:       false,
 		},
 		// enable host key checking, should NOT be able to connect
 		{
-			true,
-			true,
+			desc:           "Enabled",
+			inHostKeyCheck: true,
+			outError:       true,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
+		t.Run(tt.desc, func(t *testing.T) {
 			hostSigner, err := ssh.ParsePrivateKey(suite.priv)
 			require.NoError(t, err)
 
@@ -3243,6 +3247,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	var tests = []struct {
+		desc          string
 		inEnabled     bool
 		inServiceName string
 		inUsePAMAuth  bool
@@ -3251,6 +3256,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 	}{
 		// 0 - No PAM support, session should work but no PAM related output.
 		{
+			desc:          "Disabled",
 			inEnabled:     false,
 			inServiceName: "",
 			inUsePAMAuth:  true,
@@ -3258,6 +3264,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 		},
 		// 1 - PAM enabled, module account and session functions return success.
 		{
+			desc:          "Enabled with Module Account & Session functions succeeding",
 			inEnabled:     true,
 			inServiceName: "teleport-success",
 			inUsePAMAuth:  true,
@@ -3270,6 +3277,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 		},
 		// 2 - PAM enabled, module account and session functions return success.
 		{
+			desc:          "Enabled with Module & Session functions succeeding",
 			inEnabled:     true,
 			inServiceName: "teleport-success",
 			inUsePAMAuth:  false,
@@ -3281,6 +3289,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 		},
 		// 3 - PAM enabled, module account functions fail.
 		{
+			desc:          "Enabled with all functions failing",
 			inEnabled:     true,
 			inServiceName: "teleport-acct-failure",
 			inUsePAMAuth:  true,
@@ -3288,6 +3297,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 		},
 		// 4 - PAM enabled, module session functions fail.
 		{
+			desc:          "Enabled with Module & Session functions failing",
 			inEnabled:     true,
 			inServiceName: "teleport-session-failure",
 			inUsePAMAuth:  true,
@@ -3295,6 +3305,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 		},
 		// 5 - PAM enabled, custom environment variables are passed.
 		{
+			desc:          "Enabled with custom environment",
 			inEnabled:     true,
 			inServiceName: "teleport-custom-env",
 			inUsePAMAuth:  false,
@@ -3313,7 +3324,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
+		t.Run(tt.desc, func(t *testing.T) {
 			// Create a teleport instance with auth, proxy, and node.
 			makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
 				tconf := suite.defaultServiceConfig()
@@ -4346,7 +4357,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
+		t.Run(tt.inRoleName, func(t *testing.T) {
 			// Create role with logins and labels for this test.
 			role, err := services.NewRole(tt.inRoleName, services.RoleSpecV3{
 				Allow: services.RoleConditions{
@@ -4438,21 +4449,25 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 	// test label patterns that match both nodes, and each
 	// node individually.
 	tts := []struct {
+		desc    string
 		command []string
 		labels  map[string]string
 		expect  string
 	}{
 		{
+			desc:    "Both",
 			command: []string{"echo", "two"},
 			labels:  map[string]string{"spam": "eggs"},
 			expect:  "two\ntwo\n",
 		},
 		{
+			desc:    "Worker only",
 			command: []string{"echo", "worker"},
 			labels:  map[string]string{"role": "worker"},
 			expect:  "worker\n",
 		},
 		{
+			desc:    "Database only",
 			command: []string{"echo", "database"},
 			labels:  map[string]string{"role": "database"},
 			expect:  "database\n",
@@ -4460,7 +4475,7 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, tt := range tts {
-		t.Run("", func(t *testing.T) {
+		t.Run(tt.desc, func(t *testing.T) {
 			cfg := ClientConfig{
 				Login:   suite.me.Username,
 				Cluster: Site,
@@ -4527,12 +4542,14 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	var tests = []struct {
+		desc               string
 		inSessionRecording string
 		inBPFEnabled       bool
 		outFound           bool
 	}{
 		// For session recorded at the node, enhanced events should be found.
 		{
+			desc:               "Enabled and Recorded At Node",
 			inSessionRecording: services.RecordAtNode,
 			inBPFEnabled:       true,
 			outFound:           true,
@@ -4540,6 +4557,7 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 		// For session recorded at the node, but BPF is turned off, no events
 		// should be found.
 		{
+			desc:               "Disabled and Recorded At Node",
 			inSessionRecording: services.RecordAtNode,
 			inBPFEnabled:       false,
 			outFound:           false,
@@ -4547,13 +4565,14 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 		// For session recorded at the proxy, enhanced events should not be found.
 		// BPF turned off simulates an OpenSSH node.
 		{
+			desc:               "Disabled and Recorded At Proxy",
 			inSessionRecording: services.RecordAtProxy,
 			inBPFEnabled:       false,
 			outFound:           false,
 		},
 	}
 	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
+		t.Run(tt.desc, func(t *testing.T) {
 			// Create temporary directory where cgroup2 hierarchy will be mounted.
 			dir := t.TempDir()
 
@@ -4651,12 +4670,14 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	var tests = []struct {
+		desc               string
 		inSessionRecording string
 		inBPFEnabled       bool
 		outFound           bool
 	}{
 		// For session recorded at the node, enhanced events should be found.
 		{
+			desc:               "Enabled and recorded at node",
 			inSessionRecording: services.RecordAtNode,
 			inBPFEnabled:       true,
 			outFound:           true,
@@ -4664,6 +4685,7 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 		// For session recorded at the node, but BPF is turned off, no events
 		// should be found.
 		{
+			desc:               "Disabled and recorded at node",
 			inSessionRecording: services.RecordAtNode,
 			inBPFEnabled:       false,
 			outFound:           false,
@@ -4671,6 +4693,7 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 		// For session recorded at the proxy, enhanced events should not be found.
 		// BPF turned off simulates an OpenSSH node.
 		{
+			desc:               "Disabled and recorded at proxy",
 			inSessionRecording: services.RecordAtProxy,
 			inBPFEnabled:       false,
 			outFound:           false,
@@ -4879,19 +4902,19 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 		outCommand    string
 	}{
 		{
-			name:          "Exec event when PTY is allocated",
+			name:          "PTY allocated",
 			isInteractive: true,
 			outCommand:    lsPath,
 		},
 		{
-			name:          "Exec event when PTY is NOT allocated",
+			name:          "PTY not allocated",
 			isInteractive: false,
 			outCommand:    lsPath,
 		},
 	}
 
 	for _, tt := range execTests {
-		t.Run("", func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			// Create client for each test in grid tests
 			clientConfig := ClientConfig{
 				Login:       suite.me.Username,
