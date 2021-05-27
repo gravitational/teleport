@@ -545,6 +545,12 @@ creating new user roles or connecting trusted clusters.
 The `TELEPORT_CONFIG_FILE` environment variable indicates where the Teleport configuration file is. 
 If you connecting to a remote Teleport cluster (Teleport cloud) through a `tsh` session and have a file `/etc/teleport.yaml` on your machine set the `TELEPORT_CONFIG_FILE` to `""`.  Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine which could result in the error `ERROR: open /var/lib/teleport/host_uuid: permission denied`.
 
+**Example**:
+```bash
+export TELEPORT_CONFIG_FILE=""
+tctl tokens add --type=node
+```
+
 ### tctl Global Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
