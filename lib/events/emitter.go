@@ -306,7 +306,7 @@ func (*LoggingEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) err
 	switch event.GetType() {
 	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, "":
 		return nil
-	case AppSessionRequestCode:
+	case AppSessionRequestEvent:
 		return nil
 	}
 
@@ -563,7 +563,7 @@ func (t *TeeStream) EmitAuditEvent(ctx context.Context, event AuditEvent) error 
 	switch event.GetType() {
 	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, "":
 		return trace.NewAggregate(errors...)
-	case AppSessionRequestCode:
+	case AppSessionRequestEvent:
 		return trace.NewAggregate(errors...)
 	}
 	if err := t.emitter.EmitAuditEvent(ctx, event); err != nil {
