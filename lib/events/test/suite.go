@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -102,7 +103,10 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	var checkpoint string
 
 	for _, name := range names {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+			arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+			return err
+		})
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 1)
 		event, ok := arr[0].(*events.UserLogin)
@@ -142,7 +146,12 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		time.Sleep(s.QueryDelay)
 	}
 
-	history, _, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, "")
+	var history []events.AuditEvent
+
+	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, "")
+		return err
+	})
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 1)
 
