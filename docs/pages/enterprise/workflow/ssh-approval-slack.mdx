@@ -87,7 +87,7 @@ Teleport Plugin use the `access-plugin` role and user to perform the approval. W
   If you are using Teleport Cloud or want to have the plugin only 
 
   ```bash  
-  $ tctl auth sign --user=access-plugin --format=file --out=access-plugin.pem
+  $ tctl auth sign --user=access-plugin --format=file --out=access-plugin.pem --ttl=720h
   # ...
   ```  
   The above sequence will result in one PEM encoded files being generated: access-plugin.pem (certificate, private key, and CA certs respectively).  We'll reference the access-plugin.pem later when [configuring the plugins](#configuring-teleport-slack).
