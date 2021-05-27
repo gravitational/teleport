@@ -119,10 +119,6 @@ func (l *Lock) resetTTL(ctx context.Context, backend Backend) error {
 
 // RunWhileLocked allows you to run a function while a lock is held.
 func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl time.Duration, fn func(context.Context) error) error {
-	if ttl < time.Minute {
-		return trace.BadParameter("lock TTL must be at least one minute")
-	}
-
 	lock, err := AcquireLock(ctx, backend, lockName, ttl)
 	if err != nil {
 		return trace.Wrap(err)
@@ -132,7 +128,7 @@ func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl t
 
 	stopRefresh := make(chan struct{})
 	go func() {
-		refreshAfter := ttl - time.Second*45
+		refreshAfter := ttl / 2
 		for {
 			select {
 			case <-time.After(refreshAfter):
