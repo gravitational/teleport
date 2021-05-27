@@ -6,6 +6,10 @@ h1: Teleport Slack Plugin Setup
 
 This guide will talk through how to setup Teleport with Slack. Teleport to Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components.
 
+<Admonition type="tip">
+  The Access Request workflow is now supported in both the Teleport Open Source and Enterprise Editions.
+</Admonition>
+
 #### Example Slack Request
 
 <video controls>
@@ -28,7 +32,7 @@ This guide will talk through how to setup Teleport with Slack. Teleport to Slack
 
 This guide assumes that you have:
 
-- A running Teleport Cluster
+- Teleport Enterprise 4.2.8 or newer
 - Admin privileges with access to `tctl`
 - Slack Admin Privileges to create an app and install it to your workspace.
 
@@ -78,13 +82,26 @@ $ tctl create -f access.yaml
 
 Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
-```bash
-$ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=720h
-# ...
-```
+<Tabs>
+<TabItem label="On Premise">
+   On premise where you can  to connect directly through the auth server (`auth.example.com:3025`) you can use the `tls` certificate files.
+   ```bash
+   $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=720h
+   # ...
+   ```
+  The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-teleport-slack).
+</TabItem>
+<TabItem label="Teleport Cloud or via Proxy connection">
+  If you are using Teleport Cloud or want to have the plugin only 
 
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-teleport-slack).
-
+  ```bash  
+  $ tctl auth sign --user=access-plugin --format=file --out=access-plugin.pem
+  # ...
+  ```  
+  The above sequence will result in one PEM encoded files being generated: access-plugin.pem (certificate, private key, and CA certs respectively).  We'll reference the access-plugin.pem later when [configuring the plugins](#configuring-teleport-slack).
+</TabItem>
+</Tabs>
+  
 <Admonition
   type="note"
   title="Certificate Lifetime"
@@ -141,7 +158,7 @@ compile these plugins from [source](https://github.com/gravitational/teleport-pl
 <Tabs>
 <TabItem label="Download">
   ```bash
-  $ curl -L https://get.gravitational.com/teleport-access-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ wget https://get.gravitational.com/teleport-access-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
   $ tar -xzf teleport-access-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
   $ cd teleport-access-slack
   $ ./install
@@ -159,7 +176,6 @@ compile these plugins from [source](https://github.com/gravitational/teleport-pl
 </TabItem>
 </Tabs>
 
-
 Run `./install` in from 'teleport-slack' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuring Teleport Slack
@@ -172,22 +188,29 @@ $ teleport-slack configure > teleport-slack.toml
 $ sudo mv teleport-slack.toml /etc
 ```
 
-Then, edit the config as needed.
-
-```yaml
-(!examples/resources/plugins/teleport-slack.toml!)
-```
+  
+  teleport-slack-proxyconnection.toml
 
 #### Editing the config file
 
-In the Teleport section, use the certificates you've generated with `tctl auth sign` before. The plugin installer creates a folder for those certificates in `/var/lib/teleport/plugins/slack/` — so just move the certificates there and make sure the config points to them.
+In the Teleport section, use the certificate(s) you've generated with `tctl auth sign` before. The plugin installer creates a folder for those certificates in `/var/lib/teleport/plugins/slack/` — so just move the certificates there and make sure the config points to them.
 
 In Slack section, use the OAuth token, signing token, setup the desired channel name. The listen URL is the URL the plugin will listen for Slack callbacks.
 
+<Tabs>
+<TabItem label="On Premises">
+  ```toml
+  (!examples/resources/plugins/teleport-slack.toml!)
+  ```
+</TabItem>
+<TabItem label="Teleport Cloud or via Proxy connection">
+  ```toml
+  (!examples/resources/plugins/teleport-slack-proxyconnection.toml!)
+  ```
+</TabItem>
+</Tabs>
 
-```conf
-(!examples/resources/plugins/teleport-slack.toml!)
-```
+
 
 ## Test Run
 
@@ -202,10 +225,7 @@ If everything works fine, the log output should look like this:
 
 ```bash
 $ teleport-slack start
-INFO   Starting Teleport Access Slack (=teleport.plugin.version=).1-0-slack/main.go:145
-INFO   Starting a request watcher... slack/main.go:330
-INFO   Starting insecure HTTP server on 0.0.0.0:8081 utils/http.go:64
-INFO   Watcher connected slack/main.go:298
+INFO   Starting Teleport Access Slack (=teleport.plugin.version=)-slack/main.go:145
 ```
 
 ### Testing the approval workflow
@@ -231,7 +251,7 @@ $ tsh login --request-roles=dba
 The messages should automatically get updated to reflect the action you just clicked. You can also check the request status with `tctl`:
 
 ```bash
-$ tctl request ls
+$ tsh request ls
 ```
 
 ### TSH User Login and Request Admin Role
@@ -239,12 +259,11 @@ $ tctl request ls
 You can also test the full workflow from the user's perspective using `tsh`:
 
 ```bash
-# tsh login --request-roles=REQUESTED_ROLE
+# tsh requent new --request-roles=REQUESTED_ROLE
 Seeking request approval... (id: 8f77d2d1-2bbf-4031-a300-58926237a807)
 ```
 
-You should now see a new request in Teleport, and a message about the request on Slack. You can
-approve or deny it and `tsh` should login successfully or error out right after you click an action button on Slack.
+You should now see a new request in Teleport, and a message about the request on Slack. Based on your open source or licensed version you will get CLI or web console instructions on approving/denying the request.
 
 ### Setup with SystemD
 
