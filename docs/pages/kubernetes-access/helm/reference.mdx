@@ -1127,14 +1127,14 @@ You can specify multiple databases by adding additional list elements.
     protocol: postgres
     aws:
       region: us-east-1
-    labels:
+    static_labels:
       env: staging
   - name: mysql
     uri: mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306
     protocol: mysql
     aws:
       region: us-east-1
-    labels:
+    static_labels:
       env: staging
   ```
 
@@ -1149,12 +1149,12 @@ You can specify multiple databases by adding additional list elements.
   --set "databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432" \
   --set "databases[0].protocol=postgres" \
   --set "databases[0].aws.region=us-east-1" \
-  --set "databases[0].labels.env=staging" \
+  --set "databases[0].static_labels.env=staging" \
   --set "databases[1].name=mysql" \
   --set "databases[1].uri=mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306" \
   --set "databases[1].protocol=mysql" \
   --set "databases[1].aws.region=us-east-1" \
-  --set "databases[1].labels.env=staging" \
+  --set "databases[1].static_labels.env=staging" \
   ```
 
   <Admonition type="note">
@@ -1275,8 +1275,10 @@ These labels can then be used with Teleport's RBAC policies to define access rul
   For historical/backwards compatibility reasons, these labels will only be applied to the Kubernetes cluster being joined via the
   Teleport Kubernetes service.
 
-  To set labels for applications or databases, add a `labels` element to either the [`apps`](#apps) or [`databases`](#databases) section
-  respectively.
+  To set labels for applications, add a `labels` element to the [`apps`](#apps) section.
+  To set labels for databases, add a `static_labels` element to the [`databases`](#databases) section.
+
+  For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../admin-guide.mdx#labeling-nodes-and-applications).
 </Admonition>
 
 <Tabs>
