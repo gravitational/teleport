@@ -302,8 +302,8 @@ github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70 h1:To76nCJtM3DI
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70/go.mod h1:88hFR45MpUd23d2vNWE/dYtesU50jKsbz0I9kH7UaBY=
 github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77 h1:ivambM2XeST8qfxeSm+0Y8CP/DlNbS3o/9tSF2KtGFk=
 github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77/go.mod h1:re0JQZ1Cy5dVlIDGq0YksfDIla/GRZlxqOoC0XPSSGE=
-github.com/gravitational/go-oidc v0.0.3 h1:VKhztRfuXq5KVcAPAEagF2y9rjoNgEXvZ/5PsRX9qt8=
-github.com/gravitational/go-oidc v0.0.3/go.mod h1:SevmOUNdOB0aD9BAIgjptZ6oHkKxMZZgA70nwPfgU/w=
+github.com/gravitational/go-oidc v0.0.4 h1:BOs9LLg2IncufQ7YRNVM22vnTQhg6DTXNAEGTGxTm58=
+github.com/gravitational/go-oidc v0.0.4/go.mod h1:SevmOUNdOB0aD9BAIgjptZ6oHkKxMZZgA70nwPfgU/w=
 github.com/gravitational/gobpf v0.0.1 h1:1NufkXUOOt/farCC4juGZ8FFU1qmA+2Zb4lPaVfUFoE=
 github.com/gravitational/gobpf v0.0.1/go.mod h1:464Ee3TMfw+IBUVWy7xyb4ud4nJkrU7RzE/GjhEGY+c=
 github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible h1:CfyZl3nyo9K5lLqOmqvl9/IElY1UCnOWKZiQxJ8HKdA=
