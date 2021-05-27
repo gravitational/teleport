@@ -101,6 +101,9 @@ type Config struct {
 	// Databases defines database proxy service configuration.
 	Databases DatabasesConfig
 
+	// Metrics defines the metrics service configuration.
+	Metrics MetricsConfig
+
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
@@ -319,7 +322,7 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	//DisableTLS is enabled if we don't want self signed certs
+	// DisableTLS is enabled if we don't want self signed certs
 	DisableTLS bool
 
 	// DisableWebInterface allows to turn off serving the Web UI interface
@@ -616,7 +619,6 @@ type DatabaseGCP struct {
 	InstanceID string
 }
 
-// Check validates the database proxy configuration.
 func (d *Database) Check() error {
 	if d.Name == "" {
 		return trace.BadParameter("empty database name")
@@ -754,6 +756,29 @@ func (a App) Check() error {
 	return nil
 }
 
+// MetricsConfig specifies configuration for the metrics service
+type MetricsConfig struct {
+	// Enabled turns the metrics service role on or off for this process
+	Enabled bool
+
+	// ListenAddr is the address to listen on for incoming metrics requests.
+	// Optional.
+	ListenAddr *utils.NetAddr
+
+	// MTLS turns mTLS on the metrics service on or off
+	MTLS bool
+
+	// KeyPairs are the key and certificate pairs that the metrics service will
+	// use for mTLS.
+	// Used in conjunction with MTLS = true
+	KeyPairs []KeyPairPath
+
+	// CACerts are prometheus ca certs
+	// use for mTLS.
+	// Used in conjunction with MTLS = true
+	CACerts []string
+}
+
 // Rewrite is a list of rewriting rules to apply to requests and responses.
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
@@ -886,6 +911,10 @@ func ApplyDefaults(cfg *Config) {
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false
+
+	// Metrics service defaults.
+	cfg.Metrics.Enabled = false
+	cfg.Metrics.ListenAddr = defaults.MetricsServiceListenAddr()
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

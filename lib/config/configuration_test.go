@@ -304,6 +304,20 @@ func TestConfigReading(t *testing.T) {
 				},
 			},
 		},
+		Metrics: Metrics{
+			Service: Service{
+				ListenAddress: "tcp://metrics",
+				EnabledFlag:   "yes",
+			},
+			MTLSFlag: "yes",
+			KeyPairs: []KeyPair{
+				KeyPair{
+					PrivateKey:  "/etc/teleport/proxy.key",
+					Certificate: "/etc/teleport/proxy.crt",
+				},
+			},
+			CACerts: []string{"/etc/teleport/ca.crt"},
+		},
 	}, cmp.AllowUnexported(Service{})))
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
@@ -317,6 +331,8 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Apps.Enabled())
 	require.True(t, conf.Databases.Configured())
 	require.True(t, conf.Databases.Enabled())
+	require.True(t, conf.Metrics.Configured())
+	require.True(t, conf.Metrics.Enabled())
 
 	// good config from file
 	conf, err = ReadFromFile(testConfigs.configFileStatic)
@@ -585,6 +601,7 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.Empty(t, cfg.SSH.PublicAddrs)
 	require.False(t, cfg.Apps.Enabled)
 	require.False(t, cfg.Databases.Enabled)
+	require.False(t, cfg.Metrics.Enabled)
 	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
 	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
 }
@@ -963,6 +980,18 @@ func makeConfigFixture() string {
 			URI:           "localhost:5432",
 			StaticLabels:  Labels,
 			DynamicLabels: CommandLabels,
+		},
+	}
+
+	// Metrics service.
+	conf.Metrics.EnabledFlag = "yes"
+	conf.Metrics.ListenAddress = "tcp://metrics"
+	conf.Metrics.MTLSFlag = "yes"
+	conf.Metrics.CACerts = []string{"/etc/teleport/ca.crt"}
+	conf.Metrics.KeyPairs = []KeyPair{
+		KeyPair{
+			PrivateKey:  "/etc/teleport/proxy.key",
+			Certificate: "/etc/teleport/proxy.crt",
 		},
 	}
 
@@ -1606,8 +1635,6 @@ func TestTextFormatter(t *testing.T) {
 				LogFormat: tt.formatConfig,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
-
 		})
 	}
-
 }

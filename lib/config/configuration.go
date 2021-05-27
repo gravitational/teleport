@@ -207,6 +207,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Databases.Disabled() {
 		cfg.Databases.Enabled = false
 	}
+	if fc.Metrics.Disabled() {
+		cfg.Metrics.Enabled = false
+	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// apply "advertise_ip" setting:
@@ -366,6 +369,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.Databases.Enabled() {
 		if err := applyDatabasesConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.Metrics.Enabled() {
+		if err := applyMetricsConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -745,7 +753,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Proxy.ACME = *acme
 
 	return nil
-
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
@@ -975,6 +982,68 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
+	}
+
+	return nil
+}
+
+// applyMetricsConfig applies file configuration for the "metrics_service" section.
+func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
+	// Metrics is enabled.
+	cfg.Metrics.Enabled = true
+
+	if fc.Metrics.ListenAddress != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Metrics.ListenAddress, int(defaults.MetricsListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Metrics.ListenAddr = addr
+	}
+
+	cfg.Metrics.MTLS = fc.Metrics.MTLSEnabled()
+
+	for _, p := range fc.Metrics.KeyPairs {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(p.PrivateKey) {
+			return trace.Errorf("metrics service private key does not exist: %s", p.PrivateKey)
+		}
+		if !utils.FileExists(p.Certificate) {
+			return trace.Errorf("metrics service cert does not exist: %s", p.Certificate)
+		}
+
+		certificateChainBytes, err := utils.ReadPath(p.Certificate)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if utils.IsSelfSigned(certificateChain) {
+			warningMessage := "Starting the metrics service with a self-signed TLS certificate."
+			log.Warnf(warningMessage)
+		} else {
+			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
+				return trace.BadParameter("unable to verify the metrics service certificate chain in %v: %s",
+					fc.Proxy.CertFile, utils.UserMessageFromError(err))
+			}
+		}
+
+		cfg.Metrics.KeyPairs = append(cfg.Metrics.KeyPairs, service.KeyPairPath{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
+	}
+
+	for _, caCert := range fc.Metrics.CACerts {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(caCert) {
+			return trace.Errorf("metrics service ca cert does not exist: %s", caCert)
+		}
+
+		cfg.Metrics.CACerts = append(cfg.Metrics.CACerts, caCert)
 	}
 
 	return nil

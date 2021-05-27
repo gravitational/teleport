@@ -70,8 +70,12 @@ type FileConfig struct {
 	Apps Apps `yaml:"app_service,omitempty"`
 
 	// Databases is the "db_service" section in Teleport configuration file
-	// that defined database access configuration.
+	// that defines database access configuration.
 	Databases Databases `yaml:"db_service,omitempty"`
+
+	// Metrics is the "metrics_service" section in Teleport configuration file
+	// that defines the metrics service configuration
+	Metrics Metrics `yaml:"metrics_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -1099,4 +1103,34 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 	return v2, nil
+}
+
+// Metrics is a `metrics_service` section of the config file:
+type Metrics struct {
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
+
+	// MTLSFlag states whether the metrics endpoint should be secured with mTLS
+	// or if metrics should be shipped in clear text
+	MTLSFlag string `yaml:"mtls,omitempty"`
+
+	// KeyPairs is a list of x509 key pairs used for securing the metrics endpoint wihth mTLS.
+	// It should be used alongside MTLS = true
+	KeyPairs []KeyPair `yaml:"keypairs,omitempty"`
+
+	// CACerts is a list of prometheus CA certificates.
+	// It should be used alongside MTLS = true
+	CACerts []string `yaml:"ca_certs,omitempty"`
+}
+
+func (m *Metrics) MTLSEnabled() bool {
+	if m.MTLSFlag == "" {
+		return false
+	}
+
+	v, err := utils.ParseBool(m.MTLSFlag)
+	if err != nil {
+		return false
+	}
+	return v
 }
