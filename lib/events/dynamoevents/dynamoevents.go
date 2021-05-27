@@ -370,9 +370,19 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 					return nil
 				}
 
+				l.readyForQuery.Store(false)
+
 				// Creates the v2 index if it doesn't already exist.
-				// This function takes a lock internally to prevent race conditions.
-				err = l.createV2GSI(ctx)
+				err = backend.RunWhileLocked(ctx, l.backend, indexV2CreationLock, rfd24MigrationLockTTL, func(ctx context.Context) error {
+					err = l.createV2GSI(ctx)
+					l.readyForQuery.Store(true)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+
+					return nil
+				})
+
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -423,6 +433,7 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 			case <-time.After(delay):
 			case <-ctx.Done():
 				log.WithError(ctx.Err()).Error("Background migration task cancelled")
+				return
 			}
 		}
 	}()
@@ -927,89 +938,82 @@ func (l *Log) indexExists(tableName, indexName string) (bool, error) {
 // This must be done at a later point in time when all events have been migrated as per RFD 24.
 //
 // Invariants:
+// - This function may not be called concurrently across the cluster.
 // - This function must be called before the
 //   backend is considered initialized and the main Teleport process is started.
 func (l *Log) createV2GSI(ctx context.Context) error {
-	err := backend.RunWhileLocked(ctx, l.backend, indexV2CreationLock, 5*time.Minute, func(ctx context.Context) error {
-		v2Exists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
+	v2Exists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if v2Exists {
+		return nil
+	}
+
+	provisionedThroughput := dynamodb.ProvisionedThroughput{
+		ReadCapacityUnits:  aws.Int64(l.ReadCapacityUnits),
+		WriteCapacityUnits: aws.Int64(l.WriteCapacityUnits),
+	}
+
+	// This defines the update event we send to DynamoDB.
+	// This update sends an updated schema and an child event
+	// to create the new global secondary index.
+	c := dynamodb.UpdateTableInput{
+		TableName:            aws.String(l.Tablename),
+		AttributeDefinitions: tableSchema,
+		GlobalSecondaryIndexUpdates: []*dynamodb.GlobalSecondaryIndexUpdate{
+			{
+				Create: &dynamodb.CreateGlobalSecondaryIndexAction{
+					IndexName: aws.String(indexTimeSearchV2),
+					KeySchema: []*dynamodb.KeySchemaElement{
+						{
+							// Partition by date instead of namespace.
+							AttributeName: aws.String(keyDate),
+							KeyType:       aws.String("HASH"),
+						},
+						{
+							AttributeName: aws.String(keyCreatedAt),
+							KeyType:       aws.String("RANGE"),
+						},
+					},
+					Projection: &dynamodb.Projection{
+						ProjectionType: aws.String("ALL"),
+					},
+					ProvisionedThroughput: &provisionedThroughput,
+				},
+			},
+		},
+	}
+
+	if _, err := l.svc.UpdateTable(&c); err != nil {
+		return trace.Wrap(convertError(err))
+	}
+
+	// If we hit this time, we give up waiting.
+	waitStart := time.Now()
+	endWait := waitStart.Add(time.Minute * 10)
+
+	// Wait until the index is created and active or updating.
+	for time.Now().Before(endWait) {
+		indexExists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if v2Exists {
-			return nil
+		if indexExists {
+			log.Info("DynamoDB index created")
+			break
 		}
 
-		provisionedThroughput := dynamodb.ProvisionedThroughput{
-			ReadCapacityUnits:  aws.Int64(l.ReadCapacityUnits),
-			WriteCapacityUnits: aws.Int64(l.WriteCapacityUnits),
+		select {
+		case <-time.After(time.Second * 5):
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
 		}
 
-		// This defines the update event we send to DynamoDB.
-		// This update sends an updated schema and an child event
-		// to create the new global secondary index.
-		c := dynamodb.UpdateTableInput{
-			TableName:            aws.String(l.Tablename),
-			AttributeDefinitions: tableSchema,
-			GlobalSecondaryIndexUpdates: []*dynamodb.GlobalSecondaryIndexUpdate{
-				{
-					Create: &dynamodb.CreateGlobalSecondaryIndexAction{
-						IndexName: aws.String(indexTimeSearchV2),
-						KeySchema: []*dynamodb.KeySchemaElement{
-							{
-								// Partition by date instead of namespace.
-								AttributeName: aws.String(keyDate),
-								KeyType:       aws.String("HASH"),
-							},
-							{
-								AttributeName: aws.String(keyCreatedAt),
-								KeyType:       aws.String("RANGE"),
-							},
-						},
-						Projection: &dynamodb.Projection{
-							ProjectionType: aws.String("ALL"),
-						},
-						ProvisionedThroughput: &provisionedThroughput,
-					},
-				},
-			},
-		}
-
-		if _, err := l.svc.UpdateTable(&c); err != nil {
-			return trace.Wrap(convertError(err))
-		}
-
-		// If we hit this time, we give up waiting.
-		waitStart := time.Now()
-		endWait := waitStart.Add(time.Minute * 10)
-
-		// Wait until the index is created and active or updating.
-		for time.Now().Before(endWait) {
-			indexExists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if indexExists {
-				log.Info("DynamoDB index created")
-				break
-			}
-
-			select {
-			case <-time.After(time.Second * 5):
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			}
-
-			elapsed := time.Since(waitStart).Seconds()
-			log.Infof("Creating new DynamoDB index, %f seconds elapsed...", elapsed)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return trace.Wrap(nil)
+		elapsed := time.Since(waitStart).Seconds()
+		log.Infof("Creating new DynamoDB index, %f seconds elapsed...", elapsed)
 	}
 
 	return nil
