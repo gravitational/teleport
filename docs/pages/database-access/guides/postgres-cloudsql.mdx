@@ -159,7 +159,7 @@ Generate a short-lived join token for the database service and save it for
 example in `/tmp/token`:
 
 ```bash
-sudo tctl tokens add \
+tctl tokens add \
     --type=db \
     --db-name=test \
     --db-protocol=postgres \
@@ -171,7 +171,7 @@ sudo tctl tokens add \
 Create local Teleport user with the built-in `access` role:
 
 ```bash
-sudo tctl users add --roles=access alice
+tctl users add --roles=access alice
 ```
 
 The `access` role allows users to see all connected database servers, but
@@ -291,10 +291,13 @@ databases:
 ```bash
 tsh login --proxy=teleport.example.com:3080 --user=alice
 tsh db ls
-# Name     Description              Labels
-# -------- ------------------------ --------
-# cloudsql GCP Cloud SQL PostgreSQL env=dev
+
+# Output
+Name     Description              Labels
+-------- ------------------------ --------
+cloudsql GCP Cloud SQL PostgreSQL env=dev
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Note that you will only be able to see databases your role has access to. See
 [RBAC](../rbac.mdx) section for more details.
