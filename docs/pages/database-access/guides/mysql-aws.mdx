@@ -118,7 +118,7 @@ Generate a short-lived join token for the database service and save it for
 example in `/tmp/token`:
 
 ```bash
-sudo tctl tokens add \
+tctl tokens add \
     --type=db \
     --db-name=aurora \
     --db-protocol=mysql \
@@ -131,7 +131,7 @@ Create the role that will allow a user to connect to any database using any
 database account:
 
 ```bash
-sudo tctl --config=/path/to/teleport.yaml create <<EOF
+tctl --config=/path/to/teleport.yaml create <<EOF
 kind: role
 version: v3
 metadata:
@@ -150,7 +150,7 @@ EOF
 Create the user assigned the `db` role we've just created:
 
 ```bash
-sudo tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
+tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
 ```
 
 ### Start Database Service with CLI flags
@@ -247,10 +247,13 @@ Once the database service has joined the cluster, log in to see the available da
 ```bash
 tsh login --proxy=teleport.example.com:3080 --user=testuser
 tsh db ls
-# Name   Description      Labels
-# ------ ---------------- --------
-# aurora AWS Aurora MySQL env=dev
+
+# Output
+Name   Description      Labels
+------ ---------------- --------
+aurora AWS Aurora MySQL env=dev
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Note that you will only be able to see databases your role has access to. See
 [RBAC](../rbac.mdx) section for more details.
