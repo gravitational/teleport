@@ -1204,7 +1204,7 @@ func (l *Log) uploadBatch(writeRequests []*dynamodb.WriteRequest) error {
 			return trace.Wrap(err)
 		}
 
-		writeRequests := out.UnprocessedItems[l.Tablename]
+		writeRequests = out.UnprocessedItems[l.Tablename]
 		if len(writeRequests) == 0 {
 			return nil
 		}
