@@ -126,13 +126,16 @@ sudo systemctl start teleport
 sudo systemctl status teleport
 # after successful start retrieve the CA pin for using in the node
 sudo tctl status
-# Cluster  teleport
-# Version  (=version=)
-# Host CA  never updated
-# User CA  never updated
-# Jwt CA   never updated
-# CA pin   sha256:58b1c5cb8885d84ce08f3e3a47acb33d49841f12dd7648c0c1dd31bd501628
+
+# Output
+Cluster  teleport
+Version  (=version=)
+Host CA  never updated
+User CA  never updated
+Jwt CA   never updated
+CA pin   sha256:58b1c5cb8885d84ce08f3e3a47acb33d49841f12dd7648c0c1dd31bd501628
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Save the following configuration file as `/etc/teleport.yaml` on the `node.example.com`:
 
@@ -178,14 +181,17 @@ look something like this:
 
 ```bash
 auth.example.com ~: sudo netstat -lptne
-# Active Internet connections (only servers)
-# Proto Recv-Q Send-Q Local Address   State       User       PID/Program name
-# tcp6       0      0 :::3024         LISTEN      0          337/teleport
-# tcp6       0      0 :::3025         LISTEN      0          337/teleport
-# tcp6       0      0 :::3080         LISTEN      0          337/teleport
-# tcp6       0      0 :::3022         LISTEN      0          337/teleport
-# tcp6       0      0 :::3023         LISTEN      0          337/teleport
+
+# Output
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address   State       User       PID/Program name
+tcp6       0      0 :::3024         LISTEN      0          337/teleport
+tcp6       0      0 :::3025         LISTEN      0          337/teleport
+tcp6       0      0 :::3080         LISTEN      0          337/teleport
+tcp6       0      0 :::3022         LISTEN      0          337/teleport
+tcp6       0      0 :::3023         LISTEN      0          337/teleport
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 and `node.example.com` should look something like this:
 
