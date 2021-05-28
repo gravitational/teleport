@@ -78,7 +78,7 @@ const btfFile = "/sys/kernel/btf/vmlinux"
 // that the type information can be opened. Returns nil if BTF is there
 // and accessible, otherwise an error describing the problem.
 func HasBTF() error {
-	if runtime.GOOS != teleport.LinuxOS {
+	if runtime.GOOS != constants.LinuxOS {
 		return trace.BadParameter("requested kernel version on non-Linux host")
 	}
 
