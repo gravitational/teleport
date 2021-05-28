@@ -18,6 +18,7 @@ package utils
 
 import (
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -27,9 +28,10 @@ import (
 // from the disk if it looks like a path,
 // otherwise, treat it as a value
 func ReadToken(token string) (string, error) {
-	if !strings.HasPrefix(token, "/") {
+	if !strings.ContainsRune(token, filepath.Separator) {
 		return token, nil
 	}
+
 	// treat it as a file
 	out, err := ioutil.ReadFile(token)
 	if err != nil {
