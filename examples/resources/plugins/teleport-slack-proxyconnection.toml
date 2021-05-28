@@ -1,8 +1,9 @@
 
-# example slack plugin configuration TOML file
+# example slack plugin configuration TOML file connecting through proxy
 
 [teleport]
-auth_server = "example.teleport.sh:443"           # Teleport Auth Server GRPC API address
+# For teleport cloud the default port is 443. A on-prem installation will use the :3080 port by default.
+auth_server = "example.teleport.sh:443"           # Teleport Auth Server GRPC API address on Teleport Cloud
 identity = "/var/lib/teleport/plugins/slack/access-plugin.pem" # Identity file to authenticate the access-request service user
 
 [slack]
