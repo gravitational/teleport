@@ -54,10 +54,12 @@ them using `tsh kube login`:
 
 ```bash
 tsh kube ls
-# Kube Cluster Name Selected 
-# ----------------- -------- 
-# cookie
-# tele.example.com    *
+
+# Output
+Kube Cluster Name Selected 
+----------------- -------- 
+cookie
+tele.example.com    *
 
 # kubeconfig now points to the cookie cluster
 tsh kube login cookie
@@ -66,3 +68,4 @@ tsh kube login cookie
 # kubectl command executed on `cookie` but is routed through `tele.example.com` cluster.
 kubectl get pods
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}

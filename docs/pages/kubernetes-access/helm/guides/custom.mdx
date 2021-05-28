@@ -117,18 +117,21 @@ Once the chart is installed, you can use `kubectl` commands to view the deployme
 
 ```bash
 kubectl --namespace teleport get all
-# NAME                            READY   STATUS    RESTARTS   AGE
-# pod/teleport-5c56b4d869-znmqk   1/1     Running   0          5h8m
 
-# NAME               TYPE           CLUSTER-IP       EXTERNAL-IP                                                               PORT(S)                                                      AGE
-# service/teleport   LoadBalancer   10.100.162.158   a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com   443:30945/TCP,3023:32342/TCP,3026:30851/TCP,3024:31521/TCP   5h29m
+# Output
+NAME                            READY   STATUS    RESTARTS   AGE
+pod/teleport-5c56b4d869-znmqk   1/1     Running   0          5h8m
 
-# NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-# deployment.apps/teleport   1/1     1            1           5h29m
+NAME               TYPE           CLUSTER-IP       EXTERNAL-IP                                                               PORT(S)                                                      AGE
+service/teleport   LoadBalancer   10.100.162.158   a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com   443:30945/TCP,3023:32342/TCP,3026:30851/TCP,3024:31521/TCP   5h29m
 
-# NAME                                  DESIRED   CURRENT   READY   AGE
-# replicaset.apps/teleport-5c56b4d869   1         1         1       5h8m
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/teleport   1/1     1            1           5h29m
+
+NAME                                  DESIRED   CURRENT   READY   AGE
+replicaset.apps/teleport-5c56b4d869   1         1         1       5h8m
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ## Step 4. Create a Teleport user (optional)
 
@@ -180,10 +183,13 @@ kubectl --namespace teleport create configmap teleport --from-file=teleport.yaml
 
   ```bash
   kubectl --namespace teleport get configmap
-  # NAME       DATA   AGE
-  # teleport   1      2d21h
+
+  # Output
+  NAME       DATA   AGE
+  teleport   1      2d21h
   ```
 </Admonition>
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 After editing the `ConfigMap`, you must initiate a rolling restart of your Teleport deployment to pick up the changed `ConfigMap`:
 

@@ -34,9 +34,11 @@ helm version
 # version.BuildInfo{Version:"v3.4.2"}
 
 kubectl version
-# Client Version: version.Info{Major:"1", Minor:"17+"}
-# Server Version: version.Info{Major:"1", Minor:"17+"}
+# Output
+Client Version: version.Info{Major:"1", Minor:"17+"}
+Server Version: version.Info{Major:"1", Minor:"17+"}
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 <Admonition type="warning" title="Warning">
   The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
@@ -117,6 +119,7 @@ to create a public IP for Teleport.
     ```
   </TabItem>
 </Tabs>
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Set up two `A` DNS records - `tele.example.com` for UI and `*.tele.example.com`
 for web apps using [application access](../application-access/introduction.mdx).
@@ -246,21 +249,25 @@ Teleport updated `KUBECONFIG` with a short-lived 12-hour certificate.
 # List connected Kubernetes clusters
 tsh kube ls
 
-# Kube Cluster Name Selected
-# ----------------- --------
-# tele.example.com
+# Output
+Kube Cluster Name Selected
+----------------- --------
+tele.example.com
 
 # Login to Kubernetes by name
 tsh kube login tele.example.com
-# Kube Cluster Name Selected
-# ----------------- --------
-# tele.example.com  *
+
+# Output
+Kube Cluster Name Selected
+----------------- --------
+tele.example.com  *
 
 # Once working, remove the KUBECONFIG= override to switch to teleport
 KUBECONFIG=${HOME?}/teleport.yaml kubectl get -n teleport-cluster pods
-# NAME                                READY   STATUS    RESTARTS   AGE
-# teleport-cluster-6c9b88fd8f-glmhf   1/1     Running   0          127m
+NAME                                READY   STATUS    RESTARTS   AGE
+teleport-cluster-6c9b88fd8f-glmhf   1/1     Running   0          127m
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ## Step 3/3. SSO for Kubernetes
 

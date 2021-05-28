@@ -44,9 +44,9 @@ Generate a `kubeconfig` using the `jenkins` user and its roles using [`tctl auth
 
 ```bash
 # Create a new local user for Jenkins
-sudo tctl users add jenkins --roles=robot
+tctl users add jenkins --roles=robot
 # Creates a token for 25hrs
-sudo tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=25h
+tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=25h
 
 #  The credentials have been written to kubeconfig
 

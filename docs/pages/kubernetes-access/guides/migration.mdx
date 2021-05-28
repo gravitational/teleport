@@ -199,14 +199,17 @@ clusters using `tsh kube ls` and switch between them using `tsh kube login <kube
 
 ```bash
 tsh kube ls
-# Kube Cluster Name Selected
-# ----------------- --------
-# kube-1            *
-# kube-2
+
+# Output
+Kube Cluster Name Selected
+----------------- --------
+kube-1            *
+kube-2
 
 tsh kube login kube-2
 # Logged into kubernetes cluster "kube-2"
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 #### Option 2: One Teleport agent connected to multiple clusters
 
@@ -306,14 +309,17 @@ between them using `tsh kube login <kube_cluster_name>`:
 
 ```bash
 tsh kube ls
-# Kube Cluster Name Selected
-# ----------------- --------
-# kube-1            *
-# kube-2
+
+# Output
+Kube Cluster Name Selected
+----------------- --------
+kube-1            *
+kube-2
 
 tsh kube login kube-2
 # Logged into kubernetes cluster "kube-2"
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 #### Option 3: Keep using Trusted Clusters
 

@@ -123,7 +123,7 @@ spec:
 Create or update this role using `tctl`:
 
 ```bash
-sudo tctl create -f member.yaml
+tctl create -f member.yaml
 ```
 
 Assign this role to a user in OIDC or SAML connector:
@@ -198,7 +198,7 @@ Local users are mapped to Kubernetes groups using roles:
 ```bash
 # Specify `kubernetes_groups` property in a role "admins" and
 # create a user assigned to the role.
-sudo tctl users add joe --roles="admins"
+tctl users add joe --roles="admins"
 ```
 
 ## Kubernetes labels

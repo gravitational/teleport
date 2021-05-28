@@ -281,19 +281,22 @@ Once the chart is installed, you can use `kubectl` commands to view the deployme
 
 ```bash
 kubectl --namespace teleport get all
-# NAME                            READY   STATUS    RESTARTS   AGE
-# pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
-# pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
 
-# NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
-# service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
+# Output
+NAME                            READY   STATUS    RESTARTS   AGE
+pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
+pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
 
-# NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-# deployment.apps/teleport   2/2     2            2           4m21s
+NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
+service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
 
-# NAME                                  DESIRED   CURRENT   READY   AGE
-# replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/teleport   2/2     2            2           4m21s
+
+NAME                                  DESIRED   CURRENT   READY   AGE
+replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ## Step 6. Set up DNS
 
@@ -329,6 +332,7 @@ CHANGEID=$(aws route53 change-resource-record-sets --hosted-zone-id ${MYZONE?} -
 aws route53 get-change --id ${CHANGEID?} | jq '.ChangeInfo.Status'
 "INSYNC"
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ## Step 7. Create a Teleport user
 
@@ -342,6 +346,7 @@ kubectl --namespace teleport exec deploy/teleport -- tctl users add test --roles
 
 # NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
