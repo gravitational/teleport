@@ -153,20 +153,20 @@ of cluster "root":
 
 ```bash
 # Generates a trusted cluster token to allow an inbound connection from a leaf cluster:
-sudo tctl tokens add --type=trusted_cluster --ttl=5m
+tctl tokens add --type=trusted_cluster --ttl=5m
 # Example output:
 # The cluster invite token: ba4825847f0378bcdfe18113c4998498
 # This token will expire in 5 minutes
 
 # Generates a trusted cluster token with labels:
 # every cluster joined using this token will inherit env:prod labels.
-sudo tctl tokens add --type=trusted_cluster --labels=env=prod
+tctl tokens add --type=trusted_cluster --labels=env=prod
 
 # You can also list the outstanding non-expired tokens:
-sudo tctl tokens ls
+tctl tokens ls
 
 # ... or delete/revoke an invitation:
-sudo tctl tokens rm ba4825847f0378bcdfe18113c4998498
+tctl tokens rm ba4825847f0378bcdfe18113c4998498
 ```
 
 Users of Teleport will recognize that this is the same way you would add any
@@ -204,7 +204,7 @@ spec:
 Then, use `tctl create` to add the file:
 
 ```bash
-sudo tctl create cluster.yaml
+tctl create cluster.yaml
 ```
 
 At this point, the users of the "root" cluster should be able to see "leaf" in the list of available clusters.
@@ -341,13 +341,13 @@ Teleport Proxy UI.
 To update the role map for a trusted cluster, first, we'll need to remove the cluster by executing:
 
 ```bash
-sudo tctl rm tc/root-cluster
+tctl rm tc/root-cluster
 ```
 
 Then following updating the role map, we can re-create the cluster by executing:
 
 ```bash
-sudo tctl create root-user-updated-role.yaml
+tctl create root-user-updated-role.yaml
 ```
 
 ### Updating cluster labels
@@ -360,7 +360,7 @@ An administrator of a root cluster can control a remote/leaf cluster's
 labels using the remote cluster API without any fear of override:
 
 ```bash
-sudo tctl get rc
+tctl get rc
 
 # kind: remote_cluster
 # metadata:
@@ -374,7 +374,7 @@ sudo tctl get rc
 Using `tctl` to update the labels on the remote/leaf cluster:
 
 ```bash
-sudo tctl update rc/two --set-labels=env=prod
+tctl update rc/two --set-labels=env=prod
 
 # Cluster two has been updated
 ```
@@ -382,7 +382,7 @@ sudo tctl update rc/two --set-labels=env=prod
 Using `tctl` to confirm that the updated labels have been set:
 
 ```bash
-sudo tctl get rc
+tctl get rc
 
 # kind: remote_cluster
 # metadata:
@@ -407,21 +407,25 @@ tsh --proxy=root.example.com login admin
 # See the list of available clusters
 tsh clusters
 
-# Cluster Name   Status
-# ------------   ------
-# root           online
-# leaf           online
+# Output
+Cluster Name   Status
+------------   ------
+root           online
+leaf           online
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ```bash
 # See the list of machines (nodes) behind the leaf cluster:
 tsh ls --cluster=leaf
 
-# Node Name Node ID            Address        Labels
-# --------- ------------------ -------------- -----------
-# db1.leaf  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-leader
-# db2.leaf  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
+# Output
+Node Name Node ID            Address        Labels
+--------- ------------------ -------------- -----------
+db1.leaf  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-leader
+db2.leaf  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ```bash
 # SSH into any node in "leaf":
@@ -443,7 +447,7 @@ cluster from "root", edit the YAML definition of the trusted cluster resource
 and set `enabled` to "false", then update it:
 
 ```bash
-sudo tctl create --force cluster.yaml
+tctl create --force cluster.yaml
 ```
 
 ### Remove Leaf Cluster relationship from both sides
@@ -576,7 +580,7 @@ teleport:
 On systemd-based distributions, you can watch the log output via:
 
 ```bash
-sudo journalctl -fu teleport
+journalctl -fu teleport
 ```
 
 Most of the time you will find out that either a join token is
