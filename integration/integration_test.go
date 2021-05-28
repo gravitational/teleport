@@ -356,11 +356,12 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			}
 			session, err := getSession(site)
 			require.NoError(t, err)
+			sessionID := session.ID
 
 			// wait for the user to join this session:
 			for len(session.Parties) == 0 {
 				time.Sleep(time.Millisecond * 5)
-				session, err = site.GetSession(defaults.Namespace, sessions[0].ID)
+				session, err = site.GetSession(defaults.Namespace, sessionID)
 				require.NoError(t, err)
 			}
 			// make sure it's us who joined! :)
