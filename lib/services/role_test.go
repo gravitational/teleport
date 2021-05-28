@@ -1180,7 +1180,7 @@ func TestCheckRuleAccess(t *testing.T) {
 						Allow: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
-								types.NewRule(types.KindSSHSession, []string{types.VerbList, types.VerbRead}),
+								types.NewRule(types.KindSSHSession, []string{types.VerbCreate, types.VerbRead}),
 							},
 						},
 					},
@@ -1188,8 +1188,8 @@ func TestCheckRuleAccess(t *testing.T) {
 			},
 			checks: []check{
 				{rule: types.KindSSHSession, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: true},
-				{rule: types.KindSSHSession, verb: types.VerbList, namespace: defaults.Namespace, hasAccess: true},
-				{rule: types.KindSSHSession, verb: types.VerbList, namespace: "system", hasAccess: false},
+				{rule: types.KindSSHSession, verb: types.VerbCreate, namespace: defaults.Namespace, hasAccess: true},
+				{rule: types.KindSSHSession, verb: types.VerbCreate, namespace: "system", hasAccess: false},
 				{rule: types.KindRole, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
@@ -1205,20 +1205,20 @@ func TestCheckRuleAccess(t *testing.T) {
 						Deny: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
-								types.NewRule(types.KindSSHSession, []string{types.VerbList}),
+								types.NewRule(types.KindSSHSession, []string{types.VerbCreate}),
 							},
 						},
 						Allow: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
-								types.NewRule(types.KindSSHSession, []string{types.VerbList}),
+								types.NewRule(types.KindSSHSession, []string{types.VerbCreate}),
 							},
 						},
 					},
 				},
 			},
 			checks: []check{
-				{rule: types.KindSSHSession, verb: types.VerbList, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindSSHSession, verb: types.VerbCreate, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -1417,14 +1417,14 @@ func TestCheckRuleSorting(t *testing.T) {
 			rules: []types.Rule{
 				{
 					Resources: []string{types.KindUser},
-					Verbs:     []string{types.VerbList},
+					Verbs:     []string{types.VerbCreate},
 				},
 			},
 			set: RuleSet{
 				types.KindUser: []types.Rule{
 					{
 						Resources: []string{types.KindUser},
-						Verbs:     []string{types.VerbList},
+						Verbs:     []string{types.VerbCreate},
 					},
 				},
 			},
@@ -1434,11 +1434,11 @@ func TestCheckRuleSorting(t *testing.T) {
 			rules: []types.Rule{
 				{
 					Resources: []string{types.KindUser},
-					Verbs:     []string{types.VerbList},
+					Verbs:     []string{types.VerbCreate},
 				},
 				{
 					Resources: []string{types.KindUser},
-					Verbs:     []string{types.VerbList},
+					Verbs:     []string{types.VerbCreate},
 					Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 				},
 			},
@@ -1446,12 +1446,12 @@ func TestCheckRuleSorting(t *testing.T) {
 				types.KindUser: []types.Rule{
 					{
 						Resources: []string{types.KindUser},
-						Verbs:     []string{types.VerbList},
+						Verbs:     []string{types.VerbCreate},
 						Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 					},
 					{
 						Resources: []string{types.KindUser},
-						Verbs:     []string{types.VerbList},
+						Verbs:     []string{types.VerbCreate},
 					},
 				},
 			},
@@ -1461,13 +1461,13 @@ func TestCheckRuleSorting(t *testing.T) {
 			rules: []types.Rule{
 				{
 					Resources: []string{types.KindUser},
-					Verbs:     []string{types.VerbList},
+					Verbs:     []string{types.VerbCreate},
 
 					Where: "contains(user.spec.traits[\"groups\"], \"prod\")",
 				},
 				{
 					Resources: []string{types.KindUser},
-					Verbs:     []string{types.VerbList},
+					Verbs:     []string{types.VerbCreate},
 					Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 					Actions: []string{
 						"log(\"info\", \"log entry\")",
@@ -1478,7 +1478,7 @@ func TestCheckRuleSorting(t *testing.T) {
 				types.KindUser: []types.Rule{
 					{
 						Resources: []string{types.KindUser},
-						Verbs:     []string{types.VerbList},
+						Verbs:     []string{types.VerbCreate},
 						Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 						Actions: []string{
 							"log(\"info\", \"log entry\")",
@@ -1486,7 +1486,7 @@ func TestCheckRuleSorting(t *testing.T) {
 					},
 					{
 						Resources: []string{types.KindUser},
-						Verbs:     []string{types.VerbList},
+						Verbs:     []string{types.VerbCreate},
 						Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
 					},
 				},
