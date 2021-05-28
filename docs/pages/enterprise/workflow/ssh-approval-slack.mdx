@@ -80,11 +80,11 @@ $ tctl create -f access.yaml
 
 #### Export access-plugin Certificate
 
-Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
+Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://goteleport.com/docs/cli-docs/#tctl-auth-sign).
 
 <Tabs>
 <TabItem label="Teleport Cloud or via Proxy connection">
-  If you are using Teleport Cloud or want to have the plugin only 
+  If you are using Teleport Cloud or want to have the plugin only connect through the proxy ports you must use a identity file.  When you `tctl auth sign` through Teleport Cloud or remotely you must have [impersonation](https://goteleport.com/docs/access-controls/guides/impersonation/) rights on your user's role.
 
   ```bash  
   $ tctl auth sign --user=access-plugin --format=file --out=access-plugin.pem --ttl=720h
@@ -93,7 +93,7 @@ Teleport Plugin use the `access-plugin` role and user to perform the approval. W
   The above sequence will result in one PEM encoded files being generated: access-plugin.pem (certificate, private key, and CA certs respectively).  We'll reference the access-plugin.pem later when [configuring the plugins](#configuring-teleport-slack).
 </TabItem>
 <TabItem label="On Premise">
-  On premise where you can  to connect directly through the auth server (`auth.example.com:3025`) you can use the `tls` certificate files.
+  On premise you can run this command directly on the auth server (`auth.example.com:3025`) or remotely. If you `tctl auth sign` for another user remotely you must have [impersonation](https://goteleport.com/docs/access-controls/guides/impersonation/) rights on your user's role.
   ```bash
   $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=720h
   # ...
@@ -263,7 +263,7 @@ You can also test the full workflow from the user's perspective using `tsh`:
 Seeking request approval... (id: 8f77d2d1-2bbf-4031-a300-58926237a807)
 ```
 
-You should now see a new request in Teleport, and a message about the request on Slack. Based on your open source or licensed version you will get CLI or web console instructions on approving/denying the request.
+You should now see a new request in Teleport, and a message about the request on Slack. If you are running the community edition you will recieve instructions on approving/denying the request via CLI. The license version allows for approving from the Teleport web console and the CLI.
 
 ### Setup with SystemD
 
