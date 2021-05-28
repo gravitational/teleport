@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -118,7 +119,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 	chunkID := uuid.New()
 
 	// Create a sync or async streamer depending on configuration of cluster.
-	streamer, err := s.newStreamer(s.closeContext, chunkID)
+	streamer, err := s.newStreamer(s.closeContext, chunkID, recConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -167,8 +168,16 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 	return streamWriter, nil
 }
 
-// newStreamer returns an async streamer that saves event buffer to disk and uploads the events later as events batched chunk.
-func (s *Server) newStreamer(ctx context.Context, sessionID string) (events.Streamer, error) {
+// newStreamer returns sync or async streamer based on the configuration
+// of the server and the session, sync streamer sends the events
+// directly to the auth server and blocks if the events can not be received,
+// async streamer buffers the events to disk and uploads the events later
+func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig types.SessionRecordingConfig) (events.Streamer, error) {
+	if services.IsRecordSync(recConfig.GetMode()) {
+		s.log.Debugf("Using sync streamer for session %v.", sessionID)
+		return s.c.AuthClient, nil
+	}
+
 	s.log.Debugf("Using async streamer for session %v.", sessionID)
 	uploadDir := filepath.Join(
 		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
