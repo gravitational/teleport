@@ -43,7 +43,7 @@ join the cluster. Generate a short-lived join token and save it for example
 in `/tmp/token`:
 
 ```bash
-sudo tctl tokens add \
+tctl tokens add \
     --type=app \
     --app-name=grafana \
     --app-uri=http://localhost:3000
@@ -106,7 +106,7 @@ A Teleport user needs their role's permission to access an application. Teleport
 comes with a built-in `access` role that grants access to all apps:
 
 ```bash
-sudo tctl --config=/path/to/teleport.yaml users add --roles=access appuser
+tctl --config=/path/to/teleport.yaml users add --roles=access appuser
 ```
 
 ## Start application service with CLI flags

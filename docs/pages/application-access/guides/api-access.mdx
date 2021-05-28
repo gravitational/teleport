@@ -45,10 +45,12 @@ Log into your Teleport cluster and view available applications:
 tsh login --proxy=teleport.example.com:3080
 tsh app ls
 
-# Application Description         Public Address               Labels
-# ----------- ------------------- ---------------------------- -------
-# grafana     Test Grafana server grafana.teleport.example.com env=dev
+# Output
+Application Description         Public Address               Labels
+----------- ------------------- ---------------------------- -------
+grafana     Test Grafana server grafana.teleport.example.com env=dev
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Retrieve short-lived X.509 certificate for the application:
 
@@ -110,12 +112,14 @@ Let's print the app information in a table format:
 ```bash
 tsh app config
 
-# Name:      grafana
-# URI:       https://grafana.teleport.example.com:3080
-# CA:        /Users/alice/.tsh/keys/teleport.example.com/certs.pem
-# Cert:      /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
-# Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
+# Output
+Name:      grafana
+URI:       https://grafana.teleport.example.com:3080
+CA:        /Users/alice/.tsh/keys/teleport.example.com/certs.pem
+Cert:      /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
+Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 We can also provide different `--format` values to print specific parts
 of the app configuration:

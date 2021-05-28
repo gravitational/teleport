@@ -88,7 +88,7 @@ Teleport has a built-in role called `access` that allows users to access cluster
 resources. Create a local user assigned this role:
 
 ```bash
-sudo tctl users add --roles=access alice
+tctl users add --roles=access alice
 ```
 
 The command will output a signup link. Use it to choose a password and set up a second factor. After that, it will take you to the Teleport web UI.
