@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Features provides supported and unsupported features
@@ -74,6 +75,8 @@ type Modules interface {
 	Features() Features
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
+	// ValidateResource performs additional resource checks.
+	ValidateResource(types.Resource) error
 }
 
 const (
@@ -124,6 +127,11 @@ func (p *defaultModules) IsBoringBinary() bool {
 	// dev.boringcrypto branch of Go.
 	hash := sha256.New()
 	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
+}
+
+// ValidateResource performs additional resource checks.
+func (p *defaultModules) ValidateResource(types.Resource) error {
+	return nil
 }
 
 var (

@@ -85,6 +85,11 @@ func (p *cliModules) IsBoringBinary() bool {
 	return false
 }
 
+// ValidateResource performs additional resource checks.
+func (p *cliModules) ValidateResource(types.Resource) error {
+	return nil
+}
+
 func TestFailedLogin(t *testing.T) {
 	os.RemoveAll(profile.FullProfilePath(""))
 	t.Cleanup(func() {
