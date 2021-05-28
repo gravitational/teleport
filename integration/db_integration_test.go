@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/siddontang/go-mysql/client"
 	"github.com/sirupsen/logrus"
@@ -188,11 +189,10 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		leafAuthServer = pack.leaf.cluster.Process.GetAuthServer()
 		leafRole       = pack.leaf.role
 
-		idleTimeout          = time.Millisecond * 600
-		idleTimeoutWithDelay = idleTimeout + time.Millisecond*200
+		idleTimeout = time.Minute
 	)
 
-	mkMysqlLeafDBClient := func(t *testing.T) *client.Conn {
+	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
 		// Connect to the database service in leaf cluster via root cluster.
 		client, err := mysql.MakeTestClient(common.TestClientConfig{
 			AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -211,11 +211,11 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 	}
 
 	t.Run("root role without idle timeout", func(t *testing.T) {
-		client := mkMysqlLeafDBClient(t)
+		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		time.Sleep(idleTimeoutWithDelay)
+		pack.clock.Advance(idleTimeout)
 		_, err = client.Execute("select 1")
 		require.NoError(t, err)
 		err = client.Close()
@@ -224,11 +224,11 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("root role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, rootAuthServer, rootRole, idleTimeout)
-		client := mkMysqlLeafDBClient(t)
+		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		time.Sleep(idleTimeoutWithDelay)
+		pack.clock.Advance(idleTimeout)
 		_, err = client.Execute("select 1")
 		require.Error(t, err)
 		setRoleIdleTimeout(t, rootAuthServer, rootRole, time.Hour)
@@ -236,11 +236,11 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("leaf role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, leafAuthServer, leafRole, idleTimeout)
-		client := mkMysqlLeafDBClient(t)
+		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		time.Sleep(idleTimeoutWithDelay)
+		pack.clock.Advance(idleTimeout)
 		_, err = client.Execute("select 1")
 		require.Error(t, err)
 		setRoleIdleTimeout(t, leafAuthServer, leafRole, time.Hour)
@@ -256,8 +256,9 @@ func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role services.Rol
 }
 
 type databasePack struct {
-	root databaseClusterPack
-	leaf databaseClusterPack
+	root  databaseClusterPack
+	leaf  databaseClusterPack
+	clock clockwork.FakeClock
 }
 
 type databaseClusterPack struct {
@@ -287,6 +288,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	require.NoError(t, err)
 
 	p := &databasePack{
+		clock: clockwork.NewFakeClockAt(time.Now()),
 		root: databaseClusterPack{
 			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
 			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
@@ -326,6 +328,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	rcConf.Auth.Preference.SetSecondFactor("off")
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
+	rcConf.Clock = p.clock
 
 	// Make leaf cluster config.
 	lcConf := service.MakeDefaultConfig()
@@ -334,6 +337,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	lcConf.Auth.Preference.SetSecondFactor("off")
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
+	lcConf.Clock = p.clock
 
 	// Establish trust b/w root and leaf.
 	err = p.root.cluster.CreateEx(p.leaf.cluster.Secrets.AsSlice(), rcConf)
@@ -391,6 +395,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	}
 	rdConf.Databases.Enabled = true
 	rdConf.Databases.Databases = []service.Database{p.root.postgresService, p.root.mysqlService}
+	rdConf.Clock = p.clock
 	p.root.dbProcess, p.root.dbAuthClient, err = p.root.cluster.StartDatabase(rdConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -419,6 +424,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	}
 	ldConf.Databases.Enabled = true
 	ldConf.Databases.Databases = []service.Database{p.leaf.postgresService, p.leaf.mysqlService}
+	ldConf.Clock = p.clock
 	p.leaf.dbProcess, p.leaf.dbAuthClient, err = p.leaf.cluster.StartDatabase(ldConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {

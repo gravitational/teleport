@@ -399,6 +399,8 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
+	// Wrap a client connection into monitor that auto-terminates
+	// idle connection and connection with expired cert.
 	conn, err = monitorConn(ctx, monitorConnConfig{
 		conn:         conn,
 		identity:     sessionCtx.Identity,

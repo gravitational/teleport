@@ -193,10 +193,11 @@ func (w *Monitor) Start() {
 						now.Sub(clientLastActive), w.ClientIdleTimeout)
 				}
 				w.Entry.Debugf("Disconnecting client: %v", event.Reason)
+				w.Conn.Close()
+
 				if err := w.Emitter.EmitAuditEvent(w.Context, event); err != nil {
 					w.Entry.WithError(err).Warn("Failed to emit audit event.")
 				}
-				w.Conn.Close()
 				return
 			}
 			w.Entry.Debugf("Next check in %v", w.ClientIdleTimeout-now.Sub(clientLastActive))
@@ -234,7 +235,7 @@ func (ch trackingChannel) Write(buf []byte) (int, error) {
 
 // TrackingReadConnConfig is a TrackingReadConn configuration.
 type TrackingReadConnConfig struct {
-	//Conn is a client connection.
+	// Conn is a client connection.
 	Conn net.Conn
 	// Clock is a clock, realtime or fixed in tests.
 	Clock clockwork.Clock

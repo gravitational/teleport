@@ -253,6 +253,8 @@ func (s *ProxyServer) Connect(ctx context.Context, user, database string) (net.C
 //
 // Implements common.Service.
 func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clientConn, serviceConn net.Conn) error {
+	// Wrap a client connection into monitor that auto-terminates
+	// idle connection and connection with expired cert.
 	tc, err := monitorConn(ctx, monitorConnConfig{
 		conn:         clientConn,
 		identity:     authContext.Identity.GetIdentity(),
@@ -347,7 +349,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	mon, err := srv.NewMonitor(srv.MonitorConfig{
 		DisconnectExpiredCert: disconnectCertExpired,
 		ClientIdleTimeout:     idleTimeout,
-		Conn:                  tc,
+		Conn:                  cfg.conn,
 		Tracker:               tc,
 		Context:               ctx,
 		Clock:                 cfg.clock,
