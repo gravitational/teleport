@@ -38,6 +38,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.ArrowsVertical} text="ArrowsVertical" />
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
     <IconBox IconCmpt={Icon.AlarmRing} text="AlarmRing" />
+    <IconBox IconCmpt={Icon.BagDollar} text="BagDollar" />
     <IconBox IconCmpt={Icon.Bubble} text="Bubble" />
     <IconBox IconCmpt={Icon.Camera} text="Camera" />
     <IconBox IconCmpt={Icon.CardView} text="CardView" />
@@ -68,6 +69,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.ClipboardUser} text="ClipboardUser" />
     <IconBox IconCmpt={Icon.Close} text="Close" />
     <IconBox IconCmpt={Icon.Cloud} text="Cloud" />
+    <IconBox IconCmpt={Icon.CloudSync} text="CloudSync" />
     <IconBox IconCmpt={Icon.Cluster} text="Cluster" />
     <IconBox IconCmpt={Icon.Clusters} text="Clusters" />
     <IconBox IconCmpt={Icon.ClusterAdded} text="ClusterAdded" />
@@ -87,6 +89,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.Edit} text="Edit" />
     <IconBox IconCmpt={Icon.Ellipsis} text="Ellipsis" />
     <IconBox IconCmpt={Icon.EmailSolid} text="EmailSolid" />
+    <IconBox IconCmpt={Icon.EnvelopeOpen} text="EnvelopeOpen" />
     <IconBox IconCmpt={Icon.Equalizer} text="Equalizer" />
     <IconBox IconCmpt={Icon.EqualizerVertical} text="EqualizerVertical" />
     <IconBox IconCmpt={Icon.Expand} text="Expand" />
@@ -125,6 +128,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.NewTab} text="NewTab" />
     <IconBox IconCmpt={Icon.NoteAdded} text="NoteAdded" />
     <IconBox IconCmpt={Icon.NotificationsActive} text="NotificationsActive" />
+    <IconBox IconCmpt={Icon.PaperPlane} text="PaperPlane" />
     <IconBox IconCmpt={Icon.Paypal} text="Paypal" />
     <IconBox IconCmpt={Icon.Pencil} text="Pencil" />
     <IconBox IconCmpt={Icon.Person} text="Person" />
@@ -155,7 +159,9 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.Spinner} text="Spinner" />
     <IconBox IconCmpt={Icon.Stars} text="Stars" />
     <IconBox IconCmpt={Icon.Stripe} text="Stripe" />
+    <IconBox IconCmpt={Icon.SyncAlt} text="SyncAlt" />
     <IconBox IconCmpt={Icon.Tablet} text="Tablet" />
+    <IconBox IconCmpt={Icon.Tags} text="Tags" />
     <IconBox IconCmpt={Icon.Terminal} text="Terminal" />
     <IconBox IconCmpt={Icon.Trash} text="Trash" />
     <IconBox IconCmpt={Icon.Twitter} text="Twitter" />

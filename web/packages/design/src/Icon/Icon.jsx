@@ -54,6 +54,7 @@ export const ArrowsVertical = makeFontIcon(
 );
 export const ArrowUp = makeFontIcon('ArrowUp', 'icon-chevron-up');
 export const AlarmRing = makeFontIcon('AlarmRing', 'icon-alarm-ringing');
+export const BagDollar = makeFontIcon('BagDollar', 'icon-bag-dollar');
 export const BitBucket = makeFontIcon('Bitbucket', 'icon-bitbucket');
 export const Bubble = makeFontIcon('Bubble', 'icon-bubble');
 export const Camera = makeFontIcon('Camera', 'icon-camera');
@@ -104,6 +105,7 @@ export const ClipboardUser = makeFontIcon(
 );
 export const Close = makeFontIcon('Close', 'icon-close');
 export const Cloud = makeFontIcon('Cloud', 'icon-cloud');
+export const CloudSync = makeFontIcon('CloudSync', 'icon-cloud-sync');
 export const Cluster = makeFontIcon('Cluster', 'icon-site-map');
 export const Clusters = makeFontIcon('Clusters', 'icon-icons2');
 export const ClusterAdded = makeFontIcon('ClusterAdded', 'icon-cluster-added');
@@ -129,6 +131,7 @@ export const Earth = makeFontIcon('Earth', 'icon-earth');
 export const Edit = makeFontIcon('Edit', 'icon-pencil4');
 export const Ellipsis = makeFontIcon('Ellipsis', 'icon-ellipsis');
 export const EmailSolid = makeFontIcon('EmailSolid', 'icon-email-solid');
+export const EnvelopeOpen = makeFontIcon('EnvelopeOpen', 'icon-envelope-open');
 export const Equalizer = makeFontIcon('Equalizer', 'icon-equalizer');
 export const EqualizerVertical = makeFontIcon(
   'EqualizerVertical',
@@ -182,6 +185,7 @@ export const NotificationsActive = makeFontIcon(
   'icon-notifications_active'
 );
 export const OpenID = makeFontIcon('OpenID', 'icon-openid');
+export const PaperPlane = makeFontIcon('PaperPlane', 'icon-paper-plane');
 export const Paypal = makeFontIcon('Paypal', 'icon-cc-paypal');
 export const Pencil = makeFontIcon('Pencil', 'icon-pencil');
 export const Person = makeFontIcon('Person', 'icon-person');
@@ -227,7 +231,9 @@ export const Speed = makeFontIcon('Speed', 'icon-speed-fast');
 export const Spinner = makeFontIcon('Spinner', 'icon-spinner8');
 export const Stars = makeFontIcon('Stars', 'icon-stars');
 export const Stripe = makeFontIcon('Stripe', 'icon-cc-stripe');
+export const SyncAlt = makeFontIcon('SyncAlt', 'icon-sync2');
 export const Tablet = makeFontIcon('Tablet', 'icon-tablet2');
+export const Tags = makeFontIcon('Tags', 'icon-tags');
 export const Terminal = makeFontIcon('Terminal', 'icon-cli');
 export const Trash = makeFontIcon('Trash', 'icon-trash2');
 export const Twitter = makeFontIcon('Twitter', 'icon-twitter');
