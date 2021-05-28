@@ -143,7 +143,7 @@ There are two options for setting the `google_service_account` value.  You can s
 Create the connector using `tctl` tool:
 
 ```bash
-sudo tctl create gworkspace-connector.yaml
+tctl create gworkspace-connector.yaml
 ```
 
 ## Testing
@@ -182,7 +182,7 @@ Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```bash
-sudo journalctl -fu teleport
+journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass the

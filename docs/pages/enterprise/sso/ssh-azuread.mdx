@@ -120,7 +120,7 @@ spec:
 Create the connector using `tctl` tool:
 
 ```bash
-sudo tctl create azure-connector.yaml
+tctl create azure-connector.yaml
 ```
 
 <Admonition
@@ -186,8 +186,8 @@ spec:
 **Notice:** Replace `ubuntu` with linux login available on your servers!
 
 ```bash
-sudo tctl create admin.yaml
-sudo tctl create dev.yaml
+tctl create admin.yaml
+tctl create dev.yaml
 ```
 
 ## Testing
@@ -243,7 +243,7 @@ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
 If you are modifying the existing connector, first, save it to YAML:
 
 ```bash
-sudo tctl get saml --with-secrets > azure-out.yaml
+tctl get saml --with-secrets > azure-out.yaml
 ```
 
 You will spot that Teleport has generated a `signing_key_pair`. This key pair
@@ -375,7 +375,7 @@ version: v2
 Update the connector:
 
 ```bash
-sudo tctl create -f azure-out.yaml 
+tctl create -f azure-out.yaml 
 ```
 
 ### Activate token encryption
@@ -412,7 +412,7 @@ Some errors (like file-system permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```bash
-sudo journalctl -fu teleport
+journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass the
