@@ -190,8 +190,8 @@ type Server struct {
 	// wtmpPath is the path to the user accounting log.
 	wtmpPath string
 
-	// portForwardingMode is the TCP port forwarding mode allowed
-	// port by this server.
+	// portForwardingMode is the TCP port forwarding mode allowed by this
+	// server.
 	portForwardingMode SSHPortForwardingMode
 }
 
@@ -523,6 +523,9 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 	}
 }
 
+// SetPortForwardingMode sets the TCP port forwarding mode that this server is
+// allowed to offer. The default value is SSHPortForwardingModeAll, i.e. port
+// forwarding is allowed.
 func SetPortForwardingMode(mode SSHPortForwardingMode) ServerOption {
 	return func(s *Server) error {
 		s.portForwardingMode = mode
@@ -1092,9 +1095,9 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 }
 
-// NodeAllowsPortForward checks if this SSH service is allowed forward TCP
+// nodeAllowsPortForward checks if this SSH service is allowed forward TCP
 // connections for the client.
-func (s *Server) NodeAllowsPortForward() bool {
+func (s *Server) nodeAllowsPortForward() bool {
 	// Because we do not support remote port forwarding (i.e. from the Internet
 	// back to the client), the values `SSHPortForwardingModeAll` and
 	// `SSHPortForwardingModeLocal` are effectively synonyms.
@@ -1127,7 +1130,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	channel = scx.TrackActivity(channel)
 
 	// Check if this node allows port forwarding at all
-	if !s.NodeAllowsPortForward() {
+	if !s.nodeAllowsPortForward() {
 		writeStderr(channel, "Node does not allow port forwarding")
 		return
 	}

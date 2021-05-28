@@ -608,7 +608,9 @@ func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
 
 // AllowTCPForwarding describes the possible values of the
 // `allow_tcp_forwarding` SSH settings key. Essentially a wrapper around
-// regular.SSHPortForwardingMode to plug it into the YAML parser.
+// regular.SSHPortForwardingMode to plug it into the YAML parser. This
+// allows us to define the parsing code _here_, rather than cluttering
+// up the SSH server code with irrelevant YAML handling.
 type AllowTCPForwarding regular.SSHPortForwardingMode
 
 // UnmarshalYAML parses a YAML representation of a SSHPortForwardingMode,
@@ -629,13 +631,19 @@ func (mode *AllowTCPForwarding) UnmarshalYAML(unmarshal func(interface{}) error)
 	case "local":
 		value = regular.SSHPortForwardingModeLocal
 	default:
-		return trace.BadParameter("Invalid SSH port forwarding mode %q", text)
+		// Note that this will be hit only if the `allow_tcp_forwarding` key is
+		// set to an invalid value (e.g. "allow_tcp_forwarding: banana"). If
+		// the key is simply not present in the YAML, the config value will
+		// default to the zero value of `SSHPortForwardingModeAll`
+		return trace.BadParameter("Invalid SSH TCP forwarding mode %q", text)
 	}
 
 	(*mode) = AllowTCPForwarding(value)
 	return nil
 }
 
+// AsForwardingMode unwraps the AllowTCPForwarding value into a SSHPortForwardingMode
+// that is usable by the rest of the teleport system.
 func (mode *AllowTCPForwarding) AsForwardingMode() regular.SSHPortForwardingMode {
 	return regular.SSHPortForwardingMode(*mode)
 }
