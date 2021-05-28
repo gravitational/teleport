@@ -78,6 +78,8 @@ type MonitorConfig struct {
 	Emitter apievents.Emitter
 	// Entry is a logging entry
 	Entry log.FieldLogger
+	// A message sent to the client when the idle timeout expires
+	IdleTimeoutMessage string
 }
 
 // CheckAndSetDefaults checks values and sets defaults
@@ -111,17 +113,20 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &Monitor{
+	m := &Monitor{
 		MonitorConfig: cfg,
-	}, nil
+	}
+
+	return m, nil
 }
 
-// Monitor monitors connection activity
-// and disconnects connections with expired certificates
-// or with periods of inactivity
+// Monitor monitors the activity on a single connection and disconnects
+// that connection if the certificate expires or after
+// periods of inactivity
 type Monitor struct {
 	// MonitorConfig is a connection monitor configuration
 	MonitorConfig
+	Shell ssh.Channel
 }
 
 // Start starts monitoring connection
@@ -194,6 +199,10 @@ func (w *Monitor) Start() {
 						now.Sub(clientLastActive), w.ClientIdleTimeout)
 				}
 				w.Entry.Debugf("Disconnecting client: %v", event.Reason)
+
+				if w.Shell != nil && w.IdleTimeoutMessage != "" {
+					w.Shell.Stderr().Write([]byte(w.IdleTimeoutMessage))
+				}
 				w.Conn.Close()
 
 				if err := w.Emitter.EmitAuditEvent(w.Context, event); err != nil {

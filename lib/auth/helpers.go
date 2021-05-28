@@ -58,6 +58,9 @@ type TestAuthServerConfig struct {
 	CipherSuites []uint16
 	// Clock is used to control time in tests.
 	Clock clockwork.FakeClock
+	// ClusterNetworkingConfig allows a test to change the default
+	// networking configuration.
+	ClusterNetworkingConfig types.ClusterNetworkingConfig
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -235,7 +238,12 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	clusterNetworkingCfg := cfg.ClusterNetworkingConfig
+	if clusterNetworkingCfg == nil {
+		clusterNetworkingCfg = types.DefaultClusterNetworkingConfig()
+	}
+
+	err = srv.AuthServer.SetClusterNetworkingConfig(ctx, clusterNetworkingCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

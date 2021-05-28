@@ -172,6 +172,10 @@ type Server struct {
 
 	// wtmpPath is the path to the user accounting log.
 	wtmpPath string
+
+	// IdleTimeoutMessage is the message to send to the client if their session
+	// times out due to inactivity.
+	IdleTimeoutMessage string
 }
 
 // GetClock returns server clock implementation
@@ -498,6 +502,15 @@ func SetBPF(ebpf bpf.BPF) ServerOption {
 func SetOnHeartbeat(fn func(error)) ServerOption {
 	return func(s *Server) error {
 		s.onHeartbeat = fn
+		return nil
+	}
+}
+
+// SetIdleTimeoutMessage sets the idle timeout message to be sent to the user
+// if/when their session times out due to inactivity.
+func SetIdleTimeoutMessage(msg string) ServerOption {
+	return func(s *Server) error {
+		s.IdleTimeoutMessage = msg
 		return nil
 	}
 }
@@ -1209,6 +1222,10 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	defer scx.Close()
 
 	ch = scx.TrackActivity(ch)
+	if scx.Monitor != nil {
+		scx.Monitor.IdleTimeoutMessage = s.IdleTimeoutMessage
+		scx.Monitor.Shell = ch
+	}
 
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {

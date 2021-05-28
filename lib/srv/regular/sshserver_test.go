@@ -257,6 +257,76 @@ func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string
 
 const hostID = "00000000-0000-0000-0000-000000000000"
 
+func startReadAll(r io.Reader) <-chan []byte {
+	ch := make(chan []byte)
+	go func() {
+		data, _ := ioutil.ReadAll(r)
+		ch <- data
+	}()
+	return ch
+}
+
+func waitForBytes(ch <-chan []byte) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	select {
+	case data := <-ch:
+		return data, nil
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func TestInactivityTimeout(t *testing.T) {
+	const timeoutMessage = "You snooze, you loose."
+
+	// Given
+	//  * a running auth server configured with a 10s inactivity timeout,
+	//  * a running SSH server configured with a given disconnection message
+	//  * an client client connected to the SSH server,
+	//  * an SSH session running over the client connection
+	mutateCfg := func(cfg *auth.TestServerConfig) {
+		cfg.Auth.ClusterNetworkingConfig = types.DefaultClusterNetworkingConfig()
+		cfg.Auth.ClusterNetworkingConfig.SetClientIdleTimeout(5 * time.Second)
+	}
+	f := newCustomFixture(t, mutateCfg, SetIdleTimeoutMessage(timeoutMessage))
+
+	se, err := f.ssh.clt.NewSession()
+	require.NoError(t, err)
+	defer se.Close()
+
+	stderr, err := se.StderrPipe()
+	require.NoError(t, err)
+	stdErrCh := startReadAll(stderr)
+
+	endCh := make(chan error)
+	go func() { endCh <- f.ssh.clt.Wait() }()
+
+	// When I let the session idle (with the clock running at approx 10x speed)...
+	deadline := f.clock.Now().Add(6 * time.Second)
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+pollingLoop:
+	for {
+		select {
+		case <-ticker.C:
+			f.clock.Advance(1 * time.Second)
+			require.True(t, f.clock.Now().Before(deadline), "Timeout exceeded waiting for SSH session to end")
+
+		case <-endCh:
+			break pollingLoop
+		}
+	}
+
+	// Expect that the idle timeout has been delivered via stderr
+	text, err := waitForBytes(stdErrCh)
+	require.NoError(t, err)
+	require.Equal(t, timeoutMessage, string(text))
+}
+
 // TestDirectTCPIP ensures that the server can create a "direct-tcpip"
 // channel to the target address. The "direct-tcpip" channel is what port
 // forwarding is built upon.

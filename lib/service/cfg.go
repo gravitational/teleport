@@ -535,6 +535,11 @@ type SSHConfig struct {
 	//
 	// See github.com/gravitational/teleport/issues/4141 for details.
 	ProxyReverseTunnelFallbackAddr *utils.NetAddr
+
+	// IdleTimeoutMessage is sent to the client when a session expires due to
+	// the inactivity timeout expiring. The empty string indicates that no
+	// timeout message will be sent.
+	IdleTimeoutMessage string
 }
 
 // KubeConfig specifies configuration for kubernetes service

@@ -618,6 +618,11 @@ type SSH struct {
 
 	// BPF is used to configure BPF-based auditing for this node.
 	BPF *BPF `yaml:"enhanced_recording,omitempty"`
+
+	// IdleTimeoutMessage is sent to the client when the inactivity timeout
+	// expires. The empty string implies no message should be sent prior to
+	// disconnection.
+	IdleTimeoutMessage string `yaml:"idle_timeout_message,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file

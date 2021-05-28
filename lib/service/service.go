@@ -1777,6 +1777,7 @@ func (process *TeleportProcess) initSSH() error {
 					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode})
 				}
 			}),
+			regular.SetIdleTimeoutMessage(cfg.SSH.IdleTimeoutMessage),
 		)
 		if err != nil {
 			return trace.Wrap(err)
