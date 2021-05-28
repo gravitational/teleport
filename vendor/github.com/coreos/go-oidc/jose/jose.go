@@ -66,6 +66,35 @@ const (
 
 type JOSEHeader map[string]string
 
+// UnmarshalJSON converts float64 values into strings when unmarshalling JOSE
+// headers. This is needed because the IBM Cloud AppID IdP returns non-string
+// values for some header fields. See the following for more details:
+//
+//   https://github.com/gravitational/teleport/issues/6717
+func (a *JOSEHeader) UnmarshalJSON(b []byte) error {
+	var s map[string]interface{}
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	out := make(map[string]string)
+	for k, v := range s {
+		switch vv := v.(type) {
+		case float64:
+			out[k] = fmt.Sprint(vv)
+		case bool:
+			out[k] = fmt.Sprint(vv)
+		case string:
+			out[k] = vv
+		default:
+			return fmt.Errorf("unknown type %T", v)
+		}
+	}
+
+	*a = out
+	return nil
+}
+
 func (j JOSEHeader) Validate() error {
 	if _, exists := j[HeaderKeyAlgorithm]; !exists {
 		return fmt.Errorf("header missing %q parameter", HeaderKeyAlgorithm)
