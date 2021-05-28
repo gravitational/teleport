@@ -45,15 +45,17 @@ two team members for a privileged role `dbadmin`.
 Verify that your Teleport client is connected:
 
 ```bash
-sudo tctl status
+tctl status
 
-# Cluster  acme.example.com
-# Version  6.0.2
-# Host CA  never updated
-# User CA  never updated
-# Jwt CA   never updated
-# CA pin   sha256:e63c7c44be468d37a5b0276b70e9d10b17f24f4be19d6b579810fc94eaa31783
+# Output
+Cluster  acme.example.com
+Version  6.0.2
+Host CA  never updated
+User CA  never updated
+Jwt CA   never updated
+CA pin   sha256:e63c7c44be468d37a5b0276b70e9d10b17f24f4be19d6b579810fc94eaa31783
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ## Set up Teleport bot
 
@@ -111,7 +113,7 @@ spec:
   Here and below follow along and create yaml resources using `tctl create -f`:
 
   ```bash
-  sudo tctl create -f access.yaml
+  tctl create -f access.yaml
   ```
 </Admonition>
 
@@ -122,7 +124,7 @@ Teleport Plugin uses the `access-plugin` role and user to perform the approval.
 We export the identify files, using `tctl auth sign`.
 
 ```bash
-sudo tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=720h
+tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=720h
 ```
 
 Teleport will generate `auth.crt`, `auth.key`, and `auth.cas` - a certificate, a private key, and a set of CA certs respectively.
@@ -222,9 +224,9 @@ Example below creates local users Alice, Ivan and Bob.
 Bob does not have a role `dbadmin` assigned to him, but can create an access request for it.
 
 ```bash
-sudo tctl users add bob@example.com --roles=devops
-sudo tctl users add alice@example.com --roles=reviewer
-sudo tctl users add ivan@example.com --roles=reviewer
+tctl users add bob@example.com --roles=devops
+tctl users add alice@example.com --roles=reviewer
+tctl users add ivan@example.com --roles=reviewer
 ```
 
 ## Access Requests flow
@@ -255,17 +257,20 @@ Alice and Ivan can review and approve request using Web UI or CLI:
 </TabItem>
 <TabItem label="CLI">
   ```bash
-  sudo tsh request list
+  tsh request list
   
-  # ID                                   User             Roles   Created (UTC)       Status
-  # ------------------------------------ ---------------  ------- ------------------- ------- 
-  # 9c721e54-b049-4ef8-a7f6-c777aa066764 bob@example.com  dbadmin 03 Apr 21 03:58 UTC PENDING
+  # Output
+  ID                                   User             Roles   Created (UTC)       Status
+  ------------------------------------ ---------------  ------- ------------------- ------- 
+  9c721e54-b049-4ef8-a7f6-c777aa066764 bob@example.com  dbadmin 03 Apr 21 03:58 UTC PENDING
 
   tsh request review --approve --reason="hello" 9c721e54-b049-4ef8-a7f6-c777aa066764
   # Successfully submitted review.  Request state: APPROVED
   ```
 </TabItem>
 </Tabs>
+
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 If Bob has created a request using CLI, he will assume it once it has been approved.
 Bob can also assume granted access request roles using Web UI:
