@@ -200,10 +200,10 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 ```bash
 # Log in to node `grav-00` as OS User `root` with Teleport User `teleport`
-sudo tsh ssh --proxy proxy.example.com --user teleport -d root@grav-00
+tsh ssh --proxy proxy.example.com --user teleport -d root@grav-00
 # `tsh ssh` takes the same arguments as OpenSSH client:
-sudo tsh ssh -o ForwardAgent=yes root@grav-00
-sudo tsh ssh -o AddKeysToAgent=yes root@grav-00
+tsh ssh -o ForwardAgent=yes root@grav-00
+tsh ssh -o AddKeysToAgent=yes root@grav-00
 ```
 
 ### tsh apps ls
@@ -310,7 +310,7 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 #### Examples
 
 ```bash
-sudo tsh --proxy=proxy.example.com scp -P example.txt user@host/destination/dir
+tsh --proxy=proxy.example.com scp -P example.txt user@host/destination/dir
 ```
 
 ### tsh ls
@@ -341,25 +341,33 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 #### Examples
 
 ```bash
-sudo tsh ls
-# Node Name Address            Labels
-# --------- ------------------ ------
-# grav-00   10.164.0.0:3022    os:linux
-# grav-01   10.156.0.2:3022    os:linux
-# grav-02   10.156.0.7:3022    os:osx
+tsh ls
+
+# Output
+Node Name Address            Labels
+--------- ------------------ ------
+grav-00   10.164.0.0:3022    os:linux
+grav-01   10.156.0.2:3022    os:linux
+grav-02   10.156.0.7:3022    os:osx
+
 tsh ls -v
-# Node Name Node ID                              Address            Labels
-# --------- ------------------------------------ ------------------ ------
-# grav-00   52e3e46a-372f-494b-bdd9-a1d25b9d6dec 10.164.0.0:3022    os:linux
-# grav-01   73d86fc7-7c4b-42e3-9a5f-c46e177a29e8 10.156.0.2:3022    os:linux
-# grav-02  24503590-e8ae-4a0a-ad7a-dd1865c04e30 10.156.0.7:3022     os:osx
+
+# Output
+Node Name Node ID                              Address            Labels
+--------- ------------------------------------ ------------------ ------
+grav-00   52e3e46a-372f-494b-bdd9-a1d25b9d6dec 10.164.0.0:3022    os:linux
+grav-01   73d86fc7-7c4b-42e3-9a5f-c46e177a29e8 10.156.0.2:3022    os:linux
+grav-02  24503590-e8ae-4a0a-ad7a-dd1865c04e30 10.156.0.7:3022     os:osx
 
 # Only show nodes with os label set to 'osx':
 tsh ls os=osx
-# Node Name Address            Labels
-# --------- ------------------ ------
-# grav-02      10.156.0.7:3022    os:osx
+
+# Output
+Node Name Address            Labels
+--------- ------------------ ------
+grav-02   10.156.0.7:3022    os:osx
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### tsh kube ls
 
@@ -373,11 +381,14 @@ tsh kube ls
 
 ```bash
 tsh kube ls
-# Kube Cluster Name                     Selected
-# ------------------------------------- --------
-# gke_bens-demos_us-central1-c_gks-demo *
-# microk8s
+
+# Output
+Kube Cluster Name                     Selected
+------------------------------------- --------
+gke_bens-demos_us-central1-c_gks-demo *
+microk8s
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### tsh clusters
 
@@ -400,14 +411,20 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 ```bash
 tsh clusters
-# Cluster Name Status
-# ------------ ------
-# staging          online
-# production       offline
+
+# Output
+Cluster Name Status
+------------ ------
+staging          online
+production       offline
+
 tsh clusters --quiet
-# staging online
-# production offline
+
+# Output
+staging online
+production offline
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### tsh login
 
@@ -490,18 +507,20 @@ tsh kube login <kube-cluster>
 ```bash
 # tsh kube login to k8s cluster (gke_bens-demos_us-central1-c_gks-demo)
 tsh kube login gke_bens-demos_us-central1-c_gks-demo
-# Logged into kubernetes cluster "gke_bens-demos_us-central1-c_gks-demo"
+Logged into kubernetes cluster "gke_bens-demos_us-central1-c_gks-demo"
 
 # On login, kubeconfig is pointed at the first cluster (alphabetically)
-sudo kubectl config current-context
-# aws-gke_bens-demos_us-central1-c_gks-demo
+kubectl config current-context
+aws-gke_bens-demos_us-central1-c_gks-demo
 
 # But all clusters are populated as contexts
-sudo kubectl config get-contexts
-# CURRENT   NAME                                        CLUSTER                       AUTHINFO                                    NAMESPACE
-# *         aws-gke_bens-demos_us-central1-c_gks-demo   aws                           aws-gke_bens-demos_us-central1-c_gks-demo
-#           aws-microk8s                                aws                           aws-microk8s
+kubectl config get-contexts
+# Output
+CURRENT   NAME                                        CLUSTER                       AUTHINFO                                    NAMESPACE
+*         aws-gke_bens-demos_us-central1-c_gks-demo   aws                           aws-gke_bens-demos_us-central1-c_gks-demo
+          aws-microk8s                                aws                           aws-microk8s
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### tsh logout
 
@@ -524,17 +543,19 @@ tsh status
 ```bash
 tsh status
 
-# > Profile URL:  https://proxy.example.com:3080
-#   Logged in as:       benarent
-#   Cluster:            aws
-#   Roles:              admin*
-#   Logins:             benarent, root, ec2-user, ubunutu
-#   Kubernetes:         enabled
-#   Kubernetes cluster: "gke_bens-demos_us-central1-c_gks-demo"
-#   Kubernetes groups:  system:masters
-#   Valid until:        2020-11-21 01:50:23 -0800 PST [valid for 11h52m0s]
-#   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+# Output
+> Profile URL:  https://proxy.example.com:3080
+  Logged in as:       benarent
+  Cluster:            aws
+  Roles:              admin*
+  Logins:             benarent, root, ec2-user, ubunutu
+  Kubernetes:         enabled
+  Kubernetes cluster: "gke_bens-demos_us-central1-c_gks-demo"
+  Kubernetes groups:  system:masters
+  Valid until:        2020-11-21 01:50:23 -0800 PST [valid for 11h52m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### tsh mfa ls
 
@@ -556,29 +577,35 @@ tsh mfa add
 
 ```bash
 tsh mfa add
-# Choose device type [TOTP, U2F]: u2f
-# Enter device name: desktop yubikey
-# Tap any *registered* security key
-# Tap your *new* security key
-# MFA device "desktop yubikey" added.
+
+# Output
+Choose device type [TOTP, U2F]: u2f
+Enter device name: desktop yubikey
+Tap any *registered* security key
+Tap your *new* security key
+MFA device "desktop yubikey" added.
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ```bash
 tsh mfa add
-# Choose device type [TOTP, U2F]: totp
-# Enter device name: android
-# Tap any *registered* security key
-# Open your TOTP app and create a new manual entry with these fields:
-# Name: awly@example.com:3080
-# Issuer: Teleport
-# Algorithm: SHA1
-# Number of digits: 6
-# Period: 30s
-# Secret: 6DHDR7GWA7ZKLLWEWRIF55WXJKZ52UVJ
+
+# Output
+Choose device type [TOTP, U2F]: totp
+Enter device name: android
+Tap any *registered* security key
+Open your TOTP app and create a new manual entry with these fields:
+Name: awly@example.com:3080
+Issuer: Teleport
+Algorithm: SHA1
+Number of digits: 6
+Period: 30s
+Secret: 6DHDR7GWA7ZKLLWEWRIF55WXJKZ52UVJ
 
 Once created, enter an OTP code generated by the app: 123456
 MFA device "android" added.
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### tsh mfa rm
 
@@ -622,7 +649,7 @@ tctl tokens add --type=node
 Shows help:
 
 ```bash
-sudo tctl help
+tctl help
 ```
 
 ### tctl users add
@@ -630,7 +657,7 @@ sudo tctl help
 Generates a user invitation token:
 
 ```bash
-sudo tctl users add [<flags>] <account> [<local-logins>]
+tctl users add [<flags>] <account> [<local-logins>]
 ```
 
 #### Arguments
@@ -656,10 +683,10 @@ These flags are available for all commands `--debug, --config` . Run
 ```bash
 # Adds teleport user "joe" with mappings to
 # OS users "joe" and "root"
-sudo tctl users add joe joe,root
+tctl users add joe joe,root
 # Adds teleport user "joe" with mappings to
 # OS users "joe" only
-sudo tctl users add joe
+tctl users add joe
 ```
 
 ### tctl users ls
@@ -667,7 +694,7 @@ sudo tctl users add joe
 Lists all user accounts:
 
 ```bash
-sudo tctl users ls [<flags>]
+tctl users ls [<flags>]
 ```
 
 ### tctl users rm
@@ -675,7 +702,7 @@ sudo tctl users ls [<flags>]
 Deletes user accounts:
 
 ```bash
-sudo tctl users rm <logins>
+tctl users rm <logins>
 ```
 
 #### Arguments
@@ -685,7 +712,7 @@ sudo tctl users rm <logins>
 #### Examples
 
 ```bash
-sudo tctl users rm sally,tim
+tctl users rm sally,tim
 # Removes users sally and tim
 ```
 
@@ -723,18 +750,21 @@ tctl request ls
 #### Examples
 
 ```bash
-sudo tctl request ls
-# Token                                Requestor Metadata       Created At (UTC)    Status
-# ------------------------------------ --------- -------------- ------------------- -------
-# request-id-1                         alice     roles=dictator 07 Nov 19 19:38 UTC PENDING
+tctl request ls
+
+# Output
+Token                                Requestor Metadata       Created At (UTC)    Status
+------------------------------------ --------- -------------- ------------------- -------
+request-id-1                         alice     roles=dictator 07 Nov 19 19:38 UTC PENDING
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### tctl request approve
 
 Approve a user's request:
 
 ```bash
-sudo tctl request approve [token]
+tctl request approve [token]
 ```
 
 #### Arguments
@@ -744,7 +774,7 @@ sudo tctl request approve [token]
 #### Examples
 
 ```bash
-sudo tctl request approve request-id-1, request-id-2
+tctl request approve request-id-1, request-id-2
 ```
 
 ### tctl request deny
@@ -752,7 +782,7 @@ sudo tctl request approve request-id-1, request-id-2
 Denies a user's request:
 
 ```bash
-sudo tctl request deny [token]
+tctl request deny [token]
 ```
 
 #### Arguments
@@ -762,7 +792,7 @@ sudo tctl request deny [token]
 #### Examples
 
 ```bash
-sudo tctl request deny request-id-1, request-id-2
+tctl request deny request-id-1, request-id-2
 ```
 
 ### tctl request rm
@@ -770,7 +800,7 @@ sudo tctl request deny request-id-1, request-id-2
 Delete a users role request:
 
 ```bash
-sudo tctl request rm [token]
+tctl request rm [token]
 ```
 
 #### Arguments
@@ -780,7 +810,7 @@ sudo tctl request rm [token]
 #### Examples
 
 ```bash
-sudo tctl request rm request-id-1
+tctl request rm request-id-1
 ```
 
 ### tctl nodes add
@@ -788,7 +818,7 @@ sudo tctl request rm request-id-1
 Generate a node invitation token:
 
 ```bash
-sudo tctl nodes add [<flags>]
+tctl nodes add [<flags>]
 ```
 
 #### Flags
@@ -808,11 +838,11 @@ These flags are available for all commands `--debug, --config`. Run
 
 ```bash
 # Generates a token that can be used by a node to join the cluster, default ttl is 30 minutes
-sudo tctl nodes add
+tctl nodes add
 # Generates a token that can be used to add an SSH node to the cluster.
 # The node will run both the proxy service and the node (ssh) service.
 # This token can be used within an hour.
-sudo tctl nodes add --roles=node,proxy --ttl=1h
+tctl nodes add --roles=node,proxy --ttl=1h
 ```
 
 ### tctl nodes ls
@@ -820,7 +850,7 @@ sudo tctl nodes add --roles=node,proxy --ttl=1h
 List all active SSH nodes within the cluster:
 
 ```bash
-sudo tctl nodes ls [<flags>]
+tctl nodes ls [<flags>]
 ```
 
 #### Flags
@@ -839,7 +869,7 @@ These flags are available for all commands `--debug, --config` . Run
 Create an invitation token:
 
 ```bash
-sudo tctl tokens add --type=TYPE [<flags>]
+tctl tokens add --type=TYPE [<flags>]
 ```
 
 #### Flags
@@ -859,16 +889,16 @@ These flags are available for all commands `--debug, --config` . Run
 
 ```bash
 # Generate an invite token for a trusted_cluster
-sudo tctl tokens add --type=trusted_cluster --ttl=5m
+tctl tokens add --type=trusted_cluster --ttl=5m
 # Generate an invite token for a trusted_cluster with labels
-sudo tctl tokens add --type=trusted_cluster --labels=env=prod
+tctl tokens add --type=trusted_cluster --labels=env=prod
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
-sudo tctl tokens add --type=node
+tctl tokens add --type=node
 # Generate an invite token for a kubernetes_service
-sudo tctl tokens add --type=kube
+tctl tokens add --type=kube
 # Generate an invite token for an app_service
-sudo tctl tokens add --type=app
+tctl tokens add --type=app
 ```
 
 ### tctl tokens rm
@@ -876,7 +906,7 @@ sudo tctl tokens add --type=app
 Delete/revoke an invitation token:
 
 ```bash
-sudo tctl tokens rm [<token>]
+tctl tokens rm [<token>]
 ```
 
 #### Arguments
@@ -888,26 +918,29 @@ sudo tctl tokens rm [<token>]
 List node and user invitation tokens:
 
 ```bash
-sudo tctl tokens ls [<flags>]
+tctl tokens ls [<flags>]
 ```
 
 #### Example
 
 ```bash
-sudo tctl tokens ls
-# Token                            Type            Expiry Time (UTC)
-# -------------------------------- --------------- -------------------
-# ecce46d19bb4144716e5984269db1ac0 Node            11 Oct 19 22:17 UTC
-# fcbf269ca26440f35865ec29994f0fb4 trusted_cluster 11 Oct 19 22:19 UTC
-# 6fd001d4200348deec9b50c4479ba07d User signup     11 Oct 19 22:20 UTC
+tctl tokens ls
+
+# Output
+Token                            Type            Expiry Time (UTC)
+-------------------------------- --------------- -------------------
+ecce46d19bb4144716e5984269db1ac0 Node            11 Oct 19 22:17 UTC
+fcbf269ca26440f35865ec29994f0fb4 trusted_cluster 11 Oct 19 22:19 UTC
+6fd001d4200348deec9b50c4479ba07d User signup     11 Oct 19 22:20 UTC
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### tctl auth export
 
 Export public cluster (CA) keys to stdout:
 
 ```bash
-sudo tctl auth export [<flags>]
+tctl auth export [<flags>]
 ```
 
 #### Flags
@@ -933,11 +966,11 @@ or see the [Global Flags Section](#tctl-global-flags).
 
 ```bash
 # Export all keys
-sudo tctl auth export
+tctl auth export
 # Filter by fingerprint
-sudo tctl auth export --fingerprint=SHA256:8xu5kh1CbHCZRrGuitbQd4hM+d9V+I7YA1mUwA/2tAo
+tctl auth export --fingerprint=SHA256:8xu5kh1CbHCZRrGuitbQd4hM+d9V+I7YA1mUwA/2tAo
 # Export tls certs only
-sudo tctl auth export --type tls
+tctl auth export --type tls
 ```
 
 ### tctl auth sign
@@ -945,7 +978,7 @@ sudo tctl auth export --type tls
 Create an identity file(s) for a given user:
 
 ```bash
-sudo tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags>]
+tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags>]
 ```
 
 #### Flags
@@ -974,27 +1007,27 @@ These flags are available for all commands `--debug, --config`. Run
 ```bash
 # Export identity file to teleport_id.pem
 # for user `teleport` with a ttl set to 5m
-sudo tctl auth sign --format file --ttl=5m --user teleport -o teleport_id.pem
+tctl auth sign --format file --ttl=5m --user teleport -o teleport_id.pem
 # Export identity formatted for openssh to teleport_id.pem
-sudo tctl auth sign --format openssh --user teleport -o teleport_id.pem
+tctl auth sign --format openssh --user teleport -o teleport_id.pem
 # Export host identity, `--format openssh` must be set with `--host`
 # Generates grav-01 (private key) and grav-01-cert.pub in the current directory
-sudo tctl auth sign --format openssh --host grav-00
+tctl auth sign --format openssh --host grav-00
 # Invalid command, only one of --user or --host should be set
-sudo tctl auth sign --format openssh --host grav-00 --user teleport -o grav_host
+tctl auth sign --format openssh --host grav-00 --user teleport -o grav_host
 # error: --user or --host must be specified
 # create a certificate with a TTL of 24 hours for the jenkins user
 # the jenkins.pem file can later be used with `tsh`
-sudo tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
+tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
 # create a certificate with a TTL of 1 day for the jenkins user
 # the jenkins.pem file can later be used with `tsh`
-sudo tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
+tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
 # create a certificate with a TTL of 1 day for the jenkins user
 # The kubeconfig file can later be used with `kubectl` or compatible tooling.
-sudo tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
+tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
 # Exports an identity from the Auth Server in preparation for remote
 # tctl execution.
-sudo tctl auth sign --user=admin --out=identity.pem
+tctl auth sign --user=admin --out=identity.pem
 ```
 
 ### tctl auth rotate
@@ -1002,7 +1035,7 @@ sudo tctl auth sign --user=admin --out=identity.pem
 Rotate certificate authorities in the cluster:
 
 ```bash
-sudo tctl auth rotate [<flags>]
+tctl auth rotate [<flags>]
 ```
 
 #### Flags
@@ -1023,10 +1056,10 @@ These flags are available for all commands `--debug, --config` . Run
 
 ```bash
 # Rotate only user certificates with a grace period of 200 hours:
-sudo tctl auth rotate --type=user --grace-period=200h
+tctl auth rotate --type=user --grace-period=200h
 
 # Rotate only host certificates with a grace period of 8 hours:
-sudo tctl auth rotate --type=host --grace-period=8h
+tctl auth rotate --type=host --grace-period=8h
 ```
 
 ### tctl create
@@ -1037,7 +1070,7 @@ The supported resource types are: user, node, cluster, role, connector.
 See the [Resource Guide](admin-guide.mdx#resources) for complete docs on how to build these yaml files.
 
 ```bash
-sudo tctl create [<flags>] <filename>
+tctl create [<flags>] <filename>
 ```
 
 #### Arguments
@@ -1059,11 +1092,11 @@ These flags are available for all commands `--debug, --config`. Run
 
 ```bash
 # Update a user record
-sudo tctl create -f joe.yaml
+tctl create -f joe.yaml
 # Add a trusted cluster
-sudo tctl create cluster.yaml
+tctl create cluster.yaml
 # Update a trusted cluster
-sudo tctl create -f cluster.yaml
+tctl create -f cluster.yaml
 ```
 
 ### tctl rm
@@ -1071,7 +1104,7 @@ sudo tctl create -f cluster.yaml
 Delete a resource:
 
 ```bash
-sudo tctl rm [<resource-type/resource-name>]
+tctl rm [<resource-type/resource-name>]
 ```
 
 #### Arguments
@@ -1084,10 +1117,10 @@ sudo tctl rm [<resource-type/resource-name>]
 
 ```bash
 # delete a SAML connector called "okta":
-sudo tctl rm saml/okta
+tctl rm saml/okta
 
 # delete a local user called "admin":
-sudo tctl rm users/admin
+tctl rm users/admin
 ```
 
 ### tctl get
@@ -1095,7 +1128,7 @@ sudo tctl rm users/admin
 Print a YAML declaration of various Teleport resources:
 
 ```bash
-sudo tctl get [<flags>] [<resource-type/resource-name>],...
+tctl get [<flags>] [<resource-type/resource-name>],...
 ```
 
 #### Arguments
@@ -1119,15 +1152,15 @@ These flags are available for all commands `--debug, --config` . Run
 #### Examples
 
 ```bash
-sudo tctl get users
+tctl get users
 # dump the user definition into a file:
-sudo tctl get user/joe > joe.yaml
+tctl get user/joe > joe.yaml
 # prints the trusted cluster 'east'
-sudo tctl get cluster/east
+tctl get cluster/east
 # prints all trusted clusters and all users
-sudo tctl get clusters,users
+tctl get clusters,users
 # Dump all resources for backup into state.yaml
-sudo tctl get all > state.yaml
+tctl get all > state.yaml
 ```
 
 ### tctl status
@@ -1135,17 +1168,17 @@ sudo tctl get all > state.yaml
 Report cluster status:
 
 ```bash
-sudo tctl status
+tctl status
 ```
 
 #### Examples
 
 ```bash
 # Checks status of cluster.
-sudo tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
+tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
 pin   sha256:1146cdd2b887772dcc2e879232c8f60012a839f7958724ce5744005474b15b9d
 # Checks remote auth status using exported identity.
-sudo tctl status \
+tctl status \
                 --auth-server=192.168.99.102:3025 \
                 --identity=identity.pem
 ```
@@ -1157,7 +1190,7 @@ Reports diagnostic information.
 The diagnostic metrics endpoint must be enabled with `teleport start --diag-addr=<bind-addr>` for `tctl top` to work.
 
 ```
-sudo tctl top [<diag-addr>] [<refresh>]
+tctl top [<diag-addr>] [<refresh>]
 ```
 
 #### Argument
@@ -1170,7 +1203,7 @@ sudo tctl top [<diag-addr>] [<refresh>]
 ```bash
 sudo teleport start --diag-addr=127.0.0.1:3000
 # View stats with a refresh period of 5 seconds
-sudo tctl top http://127.0.0.1:3000 5s
+tctl top http://127.0.0.1:3000 5s
 ```
 
 ### tctl version
@@ -1178,5 +1211,5 @@ sudo tctl top http://127.0.0.1:3000 5s
 Print cluster version:
 
 ```bash
-sudo tctl version
+tctl version
 ```
