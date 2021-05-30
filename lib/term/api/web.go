@@ -1,7 +1,6 @@
 package api
 
 import (
-	"crypto/tls"
 	"encoding/base64"
 	"html/template"
 	"io/ioutil"
@@ -9,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -20,30 +17,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// New returns unstarted web handler
-func New() (http.Handler, error) {
-	// web handler serves classic HTTP API used by OIDC
-	// and login forms and static assets
-	webHandler, err := NewWebHandler()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// GPRC Handler serves GRPC api over HTTP 2.0 and websocket
-	return NewGRPCHandler(webHandler), nil
-}
-
-// WebHandler is a web handler
-type WebHandler struct {
+// webHandler is a web handler
+type webHandler struct {
 	httprouter.Router
 }
 
-func (h *WebHandler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *webHandler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	return "ok", nil
 }
 
-// NewWebHandler returns a web handler
-func NewWebHandler() (http.Handler, error) {
-	h := &WebHandler{}
+// newWebHandler returns a web handler
+func newWebHandler() (http.Handler, error) {
+	h := &webHandler{}
 
 	// ping endpoint is used to check if the server is up. the /webapi/ping
 	// endpoint returns the default authentication method and configuration that
@@ -130,30 +115,4 @@ func NewStaticFileSystem() (http.FileSystem, error) {
 	}
 	log.Infof("[Web] Using filesystem for serving web assets: %s", assetsPath)
 	return http.Dir(assetsPath), nil
-}
-
-// InitSelfSignedHTTPSCert generates and self-signs a TLS key+cert pair for https connection
-// to the proxy server.
-func InitSelfSignedHTTPSCert(certPath, keyPath string) (err error) {
-	// return the existing pair if they have already been generated:
-	_, err = tls.LoadX509KeyPair(certPath, keyPath)
-	if err == nil {
-		return nil
-	}
-	if !os.IsNotExist(err) {
-		return trace.Wrap(err, "unrecognized error reading certs")
-	}
-
-	creds, err := utils.GenerateSelfSignedCert([]string{"localhost"})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := ioutil.WriteFile(keyPath, creds.PrivateKey, 0600); err != nil {
-		return trace.Wrap(err, "error writing key PEM")
-	}
-	if err := ioutil.WriteFile(certPath, creds.Cert, 0600); err != nil {
-		return trace.Wrap(err, "error writing key PEM")
-	}
-	return nil
 }
