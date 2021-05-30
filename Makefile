@@ -515,13 +515,13 @@ buildbox-grpc:
 	cd lib/term/proto && protoc -I=.:$$PROTO_INCLUDE \
       --plugin=protoc-gen-grpc-swift=/usr/local/bin/protoc-gen-grpc-swift \
       --grpc-swift_opt=Visibility=Public \
-	  --grpc-swift_out=../../../desktop/darwin/Terminal/Sources/Model \
+	  --grpc-swift_out=../../../desktop/macos/Terminal/Sources/Model \
     *.proto
 
 	cd lib/term/proto && protoc -I=.:$$PROTO_INCLUDE \
       --plugin=protoc-gen-swift=/usr/local/bin/protoc-gen-swift \
       --swift_opt=Visibility=Public \
-	  --swift_out=../../../desktop/darwin/Terminal/Sources/Model \
+	  --swift_out=../../../desktop/macos/Terminal/Sources/Model \
     *.proto
 
 .PHONY: goinstall
