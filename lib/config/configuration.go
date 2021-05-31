@@ -411,12 +411,12 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
-	switch strings.ToLower(loggerConfig.Formatter) {
+	switch strings.ToLower(loggerConfig.Format.Output) {
 	case "":
 		fallthrough // not set. defaults to 'fields'
-	case "fields":
+	case "text":
 		formatter := &textFormatter{
-			LogFormat:    loggerConfig.Format,
+			ExtraFields:  loggerConfig.Format.ExtraFields,
 			EnableColors: trace.IsTerminal(os.Stderr),
 		}
 
@@ -426,9 +426,14 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 
 		logger.Formatter = formatter
 	case "json":
-		logger.SetFormatter(&trace.JSONFormatter{})
+		formatter := &jsonFormatter{}
+		if err := formatter.CheckAndSetDefaults(loggerConfig.Format.ExtraFields); err != nil {
+			return trace.Wrap(err)
+		}
+
+		logger.SetFormatter(formatter)
 	default:
-		return trace.BadParameter("unsupported log formatter : %q", loggerConfig.Formatter)
+		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
 
 	return nil
