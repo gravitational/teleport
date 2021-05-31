@@ -63,6 +63,23 @@ import (
 	utilexec "k8s.io/client-go/util/exec"
 )
 
+// KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
+type KubeServiceType int
+
+const (
+	// KubeService is a Teleport kubernetes_service. A KubeService always forwards
+	// requests directly to a Kubernetes endpoint.
+	KubeService KubeServiceType = iota
+	// ProxyService is a Teleport proxy_service with kube_listen_addr/
+	// kube_public_addr enabled. A ProxyService always forwards requests to a
+	// Teleport KubeService or LegacyProxyService.
+	ProxyService
+	// LegacyProxyService is a Teleport proxy_service with the kubernetes section
+	// enabled. A LegacyProxyService can forward requests directly to a Kubernetes
+	// endpoint, or to another Teleport LegacyProxyService or KubeService.
+	LegacyProxyService
+)
+
 // ForwarderConfig specifies configuration for proxy forwarder
 type ForwarderConfig struct {
 	// ReverseTunnelSrv is the teleport reverse tunnel server
@@ -94,10 +111,8 @@ type ForwarderConfig struct {
 	Context context.Context
 	// KubeconfigPath is a path to kubernetes configuration
 	KubeconfigPath string
-	// NewKubeService specifies whether to apply the additional kubernetes_service features:
-	// - parsing multiple kubeconfig entries
-	// - enforcing self permission check
-	NewKubeService bool
+	// KubeServiceType specifies which Teleport service type this forwarder is for
+	KubeServiceType KubeServiceType
 	// KubeClusterName is the name of the kubernetes cluster that this
 	// forwarder handles.
 	KubeClusterName string
@@ -157,7 +172,14 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.Component == "" {
 		f.Component = "kube_forwarder"
 	}
-	if f.KubeClusterName == "" && f.KubeconfigPath == "" {
+	switch f.KubeServiceType {
+	case KubeService:
+	case ProxyService:
+	case LegacyProxyService:
+	default:
+		return trace.BadParameter("unknown value for KubeServiceType")
+	}
+	if f.KubeClusterName == "" && f.KubeconfigPath == "" && f.KubeServiceType == LegacyProxyService {
 		// Running without a kubeconfig and explicit k8s cluster name. Use
 		// teleport cluster name instead, to ask kubeutils.GetKubeConfig to
 		// attempt loading the in-cluster credentials.
@@ -176,7 +198,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		trace.Component: cfg.Component,
 	})
 
-	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.NewKubeService)
+	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
