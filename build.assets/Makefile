@@ -5,7 +5,6 @@ HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE)
-BCCFLAGS := -v "$$(pwd)/bcc:/usr/include/bcc"
 ADDFLAGS ?=
 BATSFLAGS :=
 NOROOT=-u $$(id -u):$$(id -g)
@@ -59,7 +58,7 @@ export
 #
 .PHONY:build
 build: buildbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BUILDBOX) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' release
 
 #
@@ -67,7 +66,7 @@ build: buildbox
 #
 .PHONY:build-binaries
 build-binaries: buildbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BUILDBOX) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' full
 
 #
@@ -75,7 +74,7 @@ build-binaries: buildbox
 #
 .PHONY:build-enterprise-binaries
 build-enterprise-binaries: buildbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BUILDBOX) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) full
 
 #
@@ -84,7 +83,7 @@ build-enterprise-binaries: buildbox
 #
 .PHONY:build-binaries-fips
 build-binaries-fips: buildbox-fips
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BUILDBOX_FIPS) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_FIPS) \
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes full
 
 #
@@ -181,7 +180,7 @@ buildbox-arm-fips: buildbox-fips
 .PHONY: grpc
 grpc: buildbox
 	docker run \
-		$(DOCKERFLAGS) $(BCCFLAGS) -t $(BUILDBOX) \
+		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
 
 #
@@ -200,13 +199,25 @@ clean:
 test: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \
-		$(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
+		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
 		type gcloud 2>&1 >/dev/null || exit 1; \
 		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
+
+.PHONY:test
+test-root: buildbox
+	docker run \
+		--env TELEPORT_ETCD_TEST="yes" \
+		$(DOCKERFLAGS) -t $(BUILDBOX) \
+		/bin/bash -c \
+		"examples/etcd/start-etcd.sh & sleep 1; \
+		type gcloud 2>&1 >/dev/null || exit 1; \
+		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
+		ssh-agent > external.agent.tmp && source external.agent.tmp; \
+		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test-go-root"
 
 .PHONY:test-sh
 test-sh: buildbox
@@ -215,12 +226,12 @@ test-sh: buildbox
 
 .PHONY:integration
 integration: buildbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
 
 .PHONY:integration-root
 integration-root: buildbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -t $(BUILDBOX) \
+	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-root"
 
 #
@@ -228,7 +239,7 @@ integration-root: buildbox
 #
 .PHONY:lint
 lint: buildbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) lint"
 
 #
@@ -236,7 +247,7 @@ lint: buildbox
 #
 .PHONY:enter
 enter: buildbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -ti $(NOROOT) \
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX) /bin/bash
 
 #
@@ -245,7 +256,7 @@ enter: buildbox
 #
 .PHONY:release
 release: buildbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOX_NAME) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
 
 # These are aliases used to make build commands uniform.
@@ -285,7 +296,7 @@ release-amd64-centos6-fips: buildbox-centos6-fips
 .PHONY:release-fips
 release-fips: buildbox-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOX_FIPS_NAME) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_FIPS_NAME) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
 
 #
