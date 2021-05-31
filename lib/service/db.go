@@ -141,7 +141,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
-		Clock:       process.Clock,
 		DataDir:     process.Config.DataDir,
 		AuthClient:  conn.Client,
 		AccessPoint: accessPoint,

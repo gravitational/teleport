@@ -76,7 +76,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serviceConn, authContext, err := p.Service.Connect(ctx, server.GetUser(), server.GetDatabase())
+	serviceConn, err := p.Service.Connect(ctx, server.GetUser(), server.GetDatabase())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -88,10 +88,9 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// Auth has completed, the client enters command phase, start proxying
 	// all messages back-and-forth.
-	err = p.Service.Proxy(ctx, authContext, tlsConn, serviceConn)
+	err = p.Service.Proxy(ctx, tlsConn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
