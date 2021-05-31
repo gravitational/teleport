@@ -180,7 +180,8 @@ func TestDatabaseAccessMySQLLeafCluster(t *testing.T) {
 // TestRootLeafIdleTimeout tests idle client connection termination by proxy and DB services in
 // trusted cluster setup.
 func TestRootLeafIdleTimeout(t *testing.T) {
-	pack := setupDatabaseTest(t)
+	clock := clockwork.NewFakeClockAt(time.Now())
+	pack := setupDatabaseTest(t, withClock(clock))
 	pack.waitForLeaf(t)
 
 	var (
@@ -189,7 +190,8 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		leafAuthServer = pack.leaf.cluster.Process.GetAuthServer()
 		leafRole       = pack.leaf.role
 
-		idleTimeout = time.Minute
+		idleTimeout     = time.Minute
+		disconnectDelay = time.Millisecond * 300
 	)
 
 	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
@@ -215,7 +217,10 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		pack.clock.Advance(idleTimeout)
+		clock.Advance(idleTimeout)
+		// Add delay to make sure that server disconnected the idle client.
+		time.Sleep(disconnectDelay)
+
 		_, err = client.Execute("select 1")
 		require.NoError(t, err)
 		err = client.Close()
@@ -228,7 +233,10 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		pack.clock.Advance(idleTimeout)
+		clock.Advance(idleTimeout)
+		// Add delay to make sure that server disconnected the idle client.
+		time.Sleep(disconnectDelay)
+
 		_, err = client.Execute("select 1")
 		require.Error(t, err)
 		setRoleIdleTimeout(t, rootAuthServer, rootRole, time.Hour)
@@ -240,7 +248,10 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		pack.clock.Advance(idleTimeout)
+		clock.Advance(idleTimeout)
+		// Add delay to make sure that server disconnected the idle client.
+		time.Sleep(disconnectDelay)
+
 		_, err = client.Execute("select 1")
 		require.Error(t, err)
 		setRoleIdleTimeout(t, leafAuthServer, leafRole, time.Hour)
@@ -258,7 +269,7 @@ func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role services.Rol
 type databasePack struct {
 	root  databaseClusterPack
 	leaf  databaseClusterPack
-	clock clockwork.FakeClock
+	clock clockwork.Clock
 }
 
 type databaseClusterPack struct {
@@ -275,7 +286,31 @@ type databaseClusterPack struct {
 	mysql           *mysql.TestServer
 }
 
-func setupDatabaseTest(t *testing.T) *databasePack {
+type testOptions struct {
+	clock clockwork.Clock
+}
+
+type testOptionFunc func(*testOptions)
+
+func (o testOptions) setDefaultIfNotSet() {
+	if o.clock == nil {
+		o.clock = clockwork.NewRealClock()
+	}
+}
+
+func withClock(clock clockwork.Clock) testOptionFunc {
+	return func(o *testOptions) {
+		o.clock = clock
+	}
+}
+
+func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
+	var opts testOptions
+	for _, opt := range options {
+		opt(&opts)
+	}
+	opts.setDefaultIfNotSet()
+
 	// Some global setup.
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
@@ -288,7 +323,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	require.NoError(t, err)
 
 	p := &databasePack{
-		clock: clockwork.NewFakeClockAt(time.Now()),
+		clock: opts.clock,
 		root: databaseClusterPack{
 			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
 			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
