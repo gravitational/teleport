@@ -261,6 +261,8 @@ ports:
     containerPort: 3022
   proxytunnel:
     containerPort: 3024
+  diag:
+    containerPort: 3000
 
 ## Additional container arguments
 extraArgs: []
