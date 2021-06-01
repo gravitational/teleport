@@ -96,7 +96,7 @@ version: v3
 EOF
 
 # Run this to create the user and role in Teleport.
-sudo tctl create -f rscs.yaml
+tctl create -f rscs.yaml
 ```
 
 #### Export access-plugin certificate
@@ -142,7 +142,7 @@ running the following command:
 
 ```bash
 sudo teleport-mattermost configure > teleport-mattermost.toml
-sudo mv teleport-mattermost.toml /etc
+mv teleport-mattermost.toml /etc
 ```
 
 Then, edit the config as needed.

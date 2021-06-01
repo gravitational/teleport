@@ -79,7 +79,7 @@ the `user` role depending on the value returned for `group` within the claims.
 Create the connector:
 
 ```bash
-sudo tctl create oidc-connector.yaml
+tctl create oidc-connector.yaml
 ```
 
 ## Create Teleport Roles
@@ -133,8 +133,8 @@ spec:
 Create both roles:
 
 ```bash
-sudo tctl create role-admin.yaml
-sudo tctl create role-dev.yaml
+tctl create role-admin.yaml
+tctl create role-dev.yaml
 ```
 
 ### Optional: ACR Values
@@ -237,7 +237,7 @@ Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```bash
-sudo journalctl -fu teleport
+journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
