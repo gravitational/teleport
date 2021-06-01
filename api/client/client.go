@@ -961,7 +961,7 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
-	roleV3, ok := role.(*types.RoleV3)
+	roleV3, ok := role.(*types.RoleV4)
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}

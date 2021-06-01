@@ -111,14 +111,14 @@ func RoleNameForCertAuthority(name string) string {
 // is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() types.Role {
 	adminRules := getExtendedAdminUserRules(modules.GetModules().Features())
-	role := &types.RoleV3{
+	role := &types.RoleV4{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      teleport.AdminRoleName,
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -147,14 +147,14 @@ func NewAdminRole() types.Role {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
-	return &types.RoleV3{
+	return &types.RoleV4{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      constants.DefaultImplicitRole,
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
 				// PortForwarding has to be set to false in the default-implicit-role
@@ -172,14 +172,14 @@ func NewImplicitRole() types.Role {
 
 // RoleForUser creates an admin role for a services.User.
 func RoleForUser(u types.User) types.Role {
-	return &types.RoleV3{
+	return &types.RoleV4{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      RoleNameForUser(u.GetName()),
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -212,7 +212,7 @@ func RoleForUser(u types.User) types.Role {
 // This role overrides built in OSS "admin" role to have less privileges.
 // DELETE IN (7.x)
 func NewDowngradedOSSAdminRole() types.Role {
-	role := &types.RoleV3{
+	role := &types.RoleV4{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
@@ -220,7 +220,7 @@ func NewDowngradedOSSAdminRole() types.Role {
 			Namespace: apidefaults.Namespace,
 			Labels:    map[string]string{teleport.OSSMigratedV6: types.True},
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -251,14 +251,14 @@ func NewDowngradedOSSAdminRole() types.Role {
 
 // NewOSSGithubRole creates a role for enabling RBAC for open source Github users
 func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) types.Role {
-	role := &types.RoleV3{
+	role := &types.RoleV4{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "github-" + uuid.New(),
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -288,14 +288,14 @@ func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) 
 
 // RoleForCertAuthority creates role using types.CertAuthority.
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
-	return &types.RoleV3{
+	return &types.RoleV4{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      RoleNameForCertAuthority(ca.GetClusterName()),
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 			},
@@ -863,7 +863,7 @@ type AccessChecker interface {
 }
 
 // FromSpec returns new RoleSet created from spec
-func FromSpec(name string, spec types.RoleSpecV3) (RoleSet, error) {
+func FromSpec(name string, spec types.RoleSpecV4) (RoleSet, error) {
 	role, err := types.NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2168,7 +2168,7 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 		// V4 roles are identical to V3 except for their defaults
 		fallthrough
 	case types.V3:
-		var role types.RoleV3
+		var role types.RoleV4
 		if err := utils.FastUnmarshal(bytes, &role); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -2197,7 +2197,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	switch role := role.(type) {
-	case *types.RoleV3:
+	case *types.RoleV4:
 		// V4 role version is compatible with V3
 		if version := role.GetVersion(); version != types.V3 && version != types.V4 {
 			return nil, trace.BadParameter("mismatched role version %v and type %T", version, role)
@@ -2219,12 +2219,12 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 // older instances. Makes a shallow copy if the conversion is necessary. The
 // passed in role will not be mutated.
 // DELETE IN 8.0.0
-func DowngradeRoleToV3(r *types.RoleV3) (*types.RoleV3, error) {
+func DowngradeRoleToV3(r *types.RoleV4) (*types.RoleV4, error) {
 	switch r.Version {
 	case types.V3:
 		return r, nil
 	case types.V4:
-		var downgraded types.RoleV3
+		var downgraded types.RoleV4
 		downgraded = *r
 		downgraded.Version = types.V3
 
