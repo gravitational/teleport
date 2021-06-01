@@ -121,7 +121,7 @@ Create the role that will allow a user to connect to any database using any
 database account:
 
 ```bash
-sudo tctl create <<EOF
+tctl create <<EOF
 kind: role
 version: v3
 metadata:
@@ -140,7 +140,7 @@ EOF
 Create the Teleport user assigned the `db` role we've just created:
 
 ```bash
-sudo tctl users add --roles=admin,db alice
+tctl users add --roles=admin,db alice
 ```
 
 ## Step 3/3. Connect
