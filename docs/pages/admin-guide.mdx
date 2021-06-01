@@ -637,7 +637,7 @@ tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
 
 # This will save the token to a file.
 # Run this on the new node to join the cluster:
-sudo teleport start --roles=node --token=/token.file --auth-server=teleport-proxy.example.com:3080
+sudo teleport start --roles=node --token=/path/to/token.file --auth-server=teleport-proxy.example.com:3080
 ```
 
 Using the ports in the default configuration, the node needs to be able to talk to ports `3080` and `3024` on the proxy. Port `3080` is used to initially fetch the credentials (SSH and TLS certificates)
