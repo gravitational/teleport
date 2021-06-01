@@ -47,13 +47,16 @@ PAM_ENT_MESSAGE := "with PAM support"
 endif
 
 BPF_ENT_MESSAGE := "without BPF support"
-# BPF cannot currently be compiled on ARMv7 due to this bug: https://github.com/iovisor/gobpf/issues/272
-# ARM64 builds are not affected.
-ifneq ("$(ARCH)","arm")
-# BPF support will only be built into Teleport if headers exist at build time.
-ifneq ("$(wildcard /usr/include/bcc/libbpf.h)","")
+# We don't compile BPF for anything except regular non-FIPS linux/amd64 for now, as other builds
+# have compilation issues that require fixing.
+ifeq ("$(OS)","linux")
+ifeq ("$(ARCH)","amd64")
+ifeq ("$(FIPS)","")
+ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
 BPF_TAG := bpf
 BPF_ENT_MESSAGE := "with BPF support"
+endif
+endif
 endif
 endif
 
