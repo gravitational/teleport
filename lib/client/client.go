@@ -122,7 +122,7 @@ func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]services.Remot
 	}
 	defer clt.Close()
 
-	remoteClusters, err := clt.GetRemoteClusters(services.SkipValidation())
+	remoteClusters, err := clt.GetRemoteClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -545,7 +545,7 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 		return nil, trace.Wrap(err)
 	}
 
-	siteNodes, err := site.GetNodes(ctx, namespace, services.SkipValidation())
+	siteNodes, err := site.GetNodes(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -566,7 +566,7 @@ func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) (
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := authClient.GetAppServers(ctx, namespace, services.SkipValidation())
+	servers, err := authClient.GetAppServers(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -619,7 +619,7 @@ func (proxy *ProxyClient) GetDatabaseServers(ctx context.Context, namespace stri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := authClient.GetDatabaseServers(ctx, namespace, services.SkipValidation())
+	servers, err := authClient.GetDatabaseServers(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

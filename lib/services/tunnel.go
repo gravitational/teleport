@@ -18,7 +18,6 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
@@ -39,29 +38,6 @@ func ValidateReverseTunnel(rt types.ReverseTunnel) error {
 	return nil
 }
 
-// ReverseTunnelSpecV2Schema is JSON schema for reverse tunnel spec
-const ReverseTunnelSpecV2Schema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["cluster_name", "dial_addrs"],
-	"properties": {
-	  "cluster_name": {"type": "string"},
-	  "type": {"type": "string"},
-	  "dial_addrs": {
-		"type": "array",
-		"items": {
-		  "type": "string"
-		}
-	  }
-	}
-  }`
-
-// GetReverseTunnelSchema returns role schema with optionally injected
-// schema for extensions
-func GetReverseTunnelSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ReverseTunnelSpecV2Schema, DefaultDefinitions)
-}
-
 // UnmarshalReverseTunnel unmarshals the ReverseTunnel resource from JSON.
 func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel, error) {
 	if len(bytes) == 0 {
@@ -80,14 +56,8 @@ func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel,
 	switch h.Version {
 	case V2:
 		var r ReverseTunnelV2
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &r); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetReverseTunnelSchema(), &r, bytes); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
+		if err := utils.FastUnmarshal(bytes, &r); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
 		if err := ValidateReverseTunnel(&r); err != nil {
 			return nil, trace.Wrap(err)
