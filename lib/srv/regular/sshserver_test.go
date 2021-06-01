@@ -1405,7 +1405,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 // X11 forwarding request and then dials a single X11 channel which echoes all bytes written
 // to it.  Used to verify the behavior of X11 forwarding in recording proxies. Returns a
 // node and an error channel that can be monitored for asynchronous failures.
-func startX11EchoServer(t *testing.T, ctx context.Context, authSrv *auth.Server) (*rawNode, <-chan error) {
+func startX11EchoServer(ctx context.Context, t *testing.T, authSrv *auth.Server) (*rawNode, <-chan error) {
 	node := newRawNode(t, authSrv)
 
 	sessionMain := func(ctx context.Context, conn *ssh.ServerConn, chs <-chan ssh.NewChannel) error {
@@ -1550,7 +1550,7 @@ func TestX11ProxySupport(t *testing.T) {
 
 	// setup our fake X11 echo server.
 	x11Ctx, x11Cancel := context.WithCancel(ctx)
-	node, errCh := startX11EchoServer(t, x11Ctx, f.testSrv.Auth())
+	node, errCh := startX11EchoServer(x11Ctx, t, f.testSrv.Auth())
 
 	// start gathering errors from the X11 server
 	doneGathering := startGatheringErrors(x11Ctx, errCh)
