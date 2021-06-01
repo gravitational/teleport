@@ -232,3 +232,22 @@ func (r *Linear) After() <-chan time.Time {
 func (r *Linear) String() string {
 	return fmt.Sprintf("Linear(attempt=%v, duration=%v)", r.attempt, r.Duration())
 }
+
+// RetryFastFor retries a function repeatedly for a set amount of
+// time before returning an error.
+//
+// Intended mostly for tests.
+func RetryStaticFor(d time.Duration, w time.Duration, f func() error) error {
+	start := time.Now()
+	var err error
+
+	for time.Since(start) < d {
+		if err = f(); err == nil {
+			break
+		}
+
+		time.Sleep(w)
+	}
+
+	return err
+}
