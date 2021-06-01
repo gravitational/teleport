@@ -120,7 +120,7 @@ To fill in the fields, open `SSO` tab:
 Create the connector using `tctl` tool:
 
 ```bash
-sudo tctl create onelogin-connector.yaml
+tctl create onelogin-connector.yaml
 ```
 
 ## Create Teleport Roles
@@ -167,8 +167,8 @@ spec:
 **Notice:** Replace `ubuntu` with linux login available on your servers!
 
 ```bash
-sudo tctl create admin.yaml
-sudo tctl create dev.yaml
+tctl create admin.yaml
+tctl create dev.yaml
 ```
 
 ## Testing

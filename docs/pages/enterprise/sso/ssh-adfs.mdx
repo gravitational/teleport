@@ -159,7 +159,7 @@ to the *"admin"* role. Groups with the value *"users"* is being mapped to the
 For the last step, you'll need to export the signing key:
 
 ```bash
-sudo tctl saml export adfs
+tctl saml export adfs
 ```
 
 Save the output to a file named `saml.crt`, return to ADFS, open the
@@ -203,7 +203,7 @@ Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```bash
-sudo journalctl -fu teleport
+journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass

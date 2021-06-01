@@ -196,13 +196,13 @@ In Slack section, use the OAuth token, signing token, setup the desired channel 
 Assuming that Teleport is running, and you've created the Slack app, the plugin config, and provided all the certificates — you can now run the plugin and test the workflow!
 
 ```bash
-teleport-slack start
+sudo teleport-slack start
 ```
 
 If everything works fine, the log output should look like this:
 
 ```bash
-teleport-slack start
+sudo teleport-slack start
 # INFO   Starting Teleport Access Slack (=teleport.plugin.version=).1-0-slack/main.go:145
 # INFO   Starting a request watcher... slack/main.go:330
 # INFO   Starting insecure HTTP server on 0.0.0.0:8081 utils/http.go:64
@@ -217,7 +217,7 @@ You can create a test permissions request with `tctl` and check if the plugin wo
 
 ```bash
 # Replace USERNAME with a Teleport local user, and TARGET_ROLE with a Teleport Role
-sudo tctl request create USERNAME --roles=TARGET_ROLE
+tctl request create USERNAME --roles=TARGET_ROLE
 ```
 
 A user can also try using `--request-roles` flag.
@@ -232,7 +232,7 @@ tsh login --request-roles=dba
 The messages should automatically get updated to reflect the action you just clicked. You can also check the request status with `tctl`:
 
 ```bash
-sudo tctl request ls
+tctl request ls
 ```
 
 ### TSH user login and request admin role

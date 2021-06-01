@@ -92,10 +92,10 @@ tsh login teleport-cluster --request-roles=dba
 As a Teleport Administrator:
 
 ```bash
-sudo tctl request ls
-# Token                                Requestor Metadata       Created At (UTC)    Status
-# ------------------------------------ --------- -------------- ------------------- -------
-# bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UTC PENDING
+tctl request ls
+Token                                Requestor Metadata       Created At (UTC)    Status
+------------------------------------ --------- -------------- ------------------- -------
+bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UTC PENDING
 ```
 
 ```bash
@@ -220,13 +220,13 @@ tsh login --request-reason="..."
 A number of new parameters are now available that grant the plugin or administrator greater insight into approvals/denials:
 
 ```bash
-sudo tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
+tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
 Because automatically generated requests always include all roles that the user is allowed to request, approvers can now specify a smaller subset of the requested roles that should be applied, allowing for sub-selection in cases where full escalation is not a desirable default:
 
 ```bash
-sudo tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
+tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
 ### Other features of Access Requests

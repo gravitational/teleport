@@ -105,7 +105,7 @@ version: v2
 Create the connector using `tctl` tool:
 
 ```bash
-sudo tctl create oidc-connector.yaml
+tctl create oidc-connector.yaml
 ```
 
 ## Create Teleport Roles
@@ -155,8 +155,8 @@ spec:
 Create both roles on the auth server:
 
 ```bash
-sudo tctl create admin.yaml
-sudo tctl create dev.yaml
+tctl create admin.yaml
+tctl create dev.yaml
 ```
 
 ## Testing
@@ -196,7 +196,7 @@ Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```bash
-sudo journalctl -fu teleport
+journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
