@@ -1,8 +1,22 @@
 # Changelog
 
+## 7.0
+
+Teleport 7.0 is a major release with new features, functionality, and bug fixes.
+
+## Breaking Changes
+
+* Proxy services whose configuration includes a `kube_listen_addr` but no `kubernetes` section will no longer publish a Kubernetes cluster named after the Teleport cluster.
+
 ## 6.2
 
 Teleport 6.2 contains new features, improvements, and bug fixes.
+
+**Note:** the DynamoDB migration described [below](#dynamodb-indexing-change)
+may cause rate-limiting errors from AWS APIs and is slow on large deployments
+(1000+ existing audit events). The next patch release, v6.2.1, will improve the
+migration performance. If you run a large DynamoDB-based cluster, we advise you
+to wait for v6.2.1 before upgrading.
 
 ## New Features
 
@@ -45,7 +59,12 @@ For more details see [RFD 22](https://github.com/gravitational/teleport/blob/mas
 
 ### DynamoDB Indexing Change
 
-DynamoDB users should note that the events backend indexing strategy has changed and a data migration will be triggered after upgrade. For optimal performance perform this migration with only one auth server online. It may take some time and progress will be periodically written to the auth server log. Once Teleport starts and is accessible via Web UI, the rest of the cluster may be started.
+DynamoDB users should note that the events backend indexing strategy has
+changed and a data migration will be triggered after upgrade. For optimal
+performance perform this migration with only one auth server online. It may
+take some time and progress will be periodically written to the auth server
+log. During this migration, only events that have been migrated will appear in
+the Web UI. After completion, all events will be available.
 
 For more details see [RFD 24](https://github.com/gravitational/teleport/blob/master/rfd/0024-dynamo-event-overflow.md) and implementation in [#6583](https://github.com/gravitational/teleport/pull/6583).
 
@@ -66,7 +85,7 @@ This release of Teleport contains a bug fix.
 
 ## 6.1.2
 
-This release of Teleport contains a new feature. 
+This release of Teleport contains a new feature.
 
 * Added log formatting and support to enable timestamps for logs. [#5898](https://github.com/gravitational/teleport/pull/5898)
 
@@ -94,7 +113,7 @@ Added ability to request multiple users to review and approve access requests.
 
 See [#5071](https://github.com/gravitational/teleport/pull/5071) for technical details.
 
-## Improvements 
+## Improvements
 
 * Added the ability to propagate SSO claims to PAM modules. [#6158](https://github.com/gravitational/teleport/pull/6158)
 * Added support for cluster routing to reduce latency to leaf clusters. [RFD 21](https://github.com/gravitational/teleport/blob/master/rfd/0021-cluster-routing.md)

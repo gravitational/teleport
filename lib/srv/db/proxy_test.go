@@ -19,8 +19,11 @@ package db
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 
 	"github.com/stretchr/testify/require"
@@ -70,4 +73,74 @@ func TestProxyProtocolMySQL(t *testing.T) {
 	mysql, err := testCtx.mysqlClientWithAddr(proxy.Address(), "alice", "mysql", "root")
 	require.NoError(t, err)
 	require.NoError(t, mysql.Close())
+}
+
+// TestProxyClientDisconnectDueToIdleConnection ensures that idle clients will be disconnected.
+func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
+	const (
+		idleClientTimeout             = time.Minute
+		connMonitorDisconnectTimeBuff = time.Second * 5
+	)
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
+	setConfigClientIdleTimoutAndDisconnectExpiredCert(t, testCtx.authServer, idleClientTimeout)
+
+	mysql, err := testCtx.mysqlClient("alice", "mysql", "root")
+	require.NoError(t, err)
+
+	err = mysql.Ping()
+	require.NoError(t, err)
+
+	testCtx.clock.Advance(idleClientTimeout + connMonitorDisconnectTimeBuff)
+
+	requireEvent(t, testCtx, events.DatabaseSessionStartCode)
+	requireEvent(t, testCtx, events.ClientDisconnectCode)
+	err = mysql.Ping()
+	require.Error(t, err)
+}
+
+// TestProxyClientDisconnectDueToCertExpiration ensures that if the DisconnectExpiredCert cluster flag is enabled
+// clients will be disconnected after cert expiration.
+func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
+	const (
+		ttlClientCert = time.Hour
+	)
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
+	setConfigClientIdleTimoutAndDisconnectExpiredCert(t, testCtx.authServer, time.Hour*24)
+
+	mysql, err := testCtx.mysqlClient("alice", "mysql", "root")
+	require.NoError(t, err)
+
+	err = mysql.Ping()
+	require.NoError(t, err)
+
+	testCtx.clock.Advance(ttlClientCert)
+
+	requireEvent(t, testCtx, events.DatabaseSessionStartCode)
+	requireEvent(t, testCtx, events.ClientDisconnectCode)
+	err = mysql.Ping()
+	require.Error(t, err)
+}
+
+func setConfigClientIdleTimoutAndDisconnectExpiredCert(t *testing.T, auth *auth.Server, timeout time.Duration) {
+	clusterConfig, err := auth.GetClusterConfig()
+	require.NoError(t, err)
+	cnc, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout: types.Duration(timeout),
+	})
+	require.NoError(t, err)
+	clusterConfig.SetDisconnectExpiredCert(true)
+	err = clusterConfig.SetNetworkingConfig(cnc)
+	require.NoError(t, err)
+	err = auth.SetClusterConfig(clusterConfig)
+	require.NoError(t, err)
 }

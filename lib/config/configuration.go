@@ -645,6 +645,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	switch {
 	case legacyKube && !newKube:
 		cfg.Proxy.Kube.Enabled = true
+		cfg.Proxy.Kube.LegacyKubeProxy = true
 		if fc.Proxy.Kube.KubeconfigFile != "" {
 			cfg.Proxy.Kube.KubeconfigPath = fc.Proxy.Kube.KubeconfigFile
 		}
