@@ -58,6 +58,17 @@ podSecurityPolicy:
 labels: {}
 
 ################################################################
+# Values that must be provided if using persistent storage for Teleport state
+# enabled: Whether to use persistent storage
+# storageClassName: The name of the kubernetes storage class to use when creating volumes. See https://kubernetes.io/docs/concepts/storage/storage-classes/
+# requests: The size of the volume to request from the persistent storage system
+################################################################
+storage:
+  enabled: false
+  storageClassName: ""
+  requests: 128Mi
+
+################################################################
 # Values that you shouldn't need to change.
 ################################################################
 
@@ -87,6 +98,10 @@ logLevel: INFO
 # Affinity for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 affinity: {}
+
+# nodeSelector to apply for pod assignment
+# https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+nodeSelector: {}
 
 # Kubernetes annotations to apply
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
@@ -132,3 +147,4 @@ resources: {}
 # Tolerations for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 tolerations: []
+
