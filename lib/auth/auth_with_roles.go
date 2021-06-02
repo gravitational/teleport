@@ -2060,6 +2060,23 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role services.Role) er
 	}
 
 	// Some options are only available with enterprise subscription
+	if err := checkRoleFeatureSupport(role); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// access predicate syntax is not checked as part of normal role validation in order
+	// to allow the available namespaces to be extended without breaking compatibility with
+	// older nodes/proxies (which do not need to ever evaluate said predicates).
+	if err := services.ValidateAccessPredicates(role); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.upsertRole(ctx, role)
+}
+
+// checkRoleFeatureSupport verifies that the current build has all features
+// required by this role.
+func checkRoleFeatureSupport(role services.Role) error {
 	features := modules.GetModules().Features()
 	options := role.GetOptions()
 	allowReq, allowRev := role.GetAccessRequestConditions(types.Allow), role.GetAccessReviewConditions(types.Allow)
@@ -2079,15 +2096,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role services.Role) er
 		return trace.AccessDenied(
 			"role field allow.review_requests is only available in enterprise subscriptions")
 	}
-
-	// access predicate syntax is not checked as part of normal role validation in order
-	// to allow the available namespaces to be extended without breaking compatibility with
-	// older nodes/proxies (which do not need to ever evaluate said predicates).
-	if err := services.ValidateAccessPredicates(role); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.upsertRole(ctx, role)
+	return nil
 }
 
 // GetRole returns role by name
