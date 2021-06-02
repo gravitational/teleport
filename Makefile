@@ -117,7 +117,7 @@ ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
 
-VERSRC = version.go gitref.go
+VERSRC = version.go gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
