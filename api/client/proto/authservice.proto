@@ -375,8 +375,8 @@ message FlushAndCloseStream {}
 message GetAppServersRequest {
     // Namespace is the namespace for application.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
-    // SkipValidation is used to skip JSON schema validation.
-    bool SkipValidation = 2 [ (gogoproto.jsontag) = "skip_validation" ];
+    // DEPRECATED: SkipValidation is used to skip JSON schema validation.
+    bool SkipValidation = 2 [ deprecated = true, (gogoproto.jsontag) = "skip_validation" ];
 }
 
 // GetAppServersResponse contains all requested application servers.
@@ -511,8 +511,8 @@ message DeleteAllKubeServicesRequest {}
 message GetDatabaseServersRequest {
     // Namespace is the database server namespace.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
-    // SkipValidation allows to turn off JSON schema validation.
-    bool SkipValidation = 2 [ (gogoproto.jsontag) = "skip_validation" ];
+    // DEPRECATED: SkipValidation allows to turn off JSON schema validation.
+    bool SkipValidation = 2 [ deprecated = true, (gogoproto.jsontag) = "skip_validation" ];
 }
 
 // GetDatabaseServersResponse contains all registered database servers.

@@ -17,25 +17,10 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
-
-// PluginDataSpecSchema is JSON schema for PluginData
-const PluginDataSpecSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"entries": { "type":"object" }
-	}
-}`
-
-// GetPluginDataSchema returns the full PluginDataSchema string
-func GetPluginDataSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, PluginDataSpecSchema, DefaultDefinitions)
-}
 
 //MarshalPluginData marshals the PluginData resource to JSON.
 func MarshalPluginData(pluginData PluginData, opts ...MarshalOption) ([]byte, error) {
@@ -69,14 +54,8 @@ func UnmarshalPluginData(raw []byte, opts ...MarshalOption) (PluginData, error) 
 		return nil, trace.Wrap(err)
 	}
 	var data PluginDataV3
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(raw, &data); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := utils.UnmarshalWithSchema(GetPluginDataSchema(), &data, raw); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := utils.FastUnmarshal(raw, &data); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := data.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"sort"
 
 	"github.com/google/go-cmp/cmp"
@@ -1156,35 +1155,6 @@ func ValidateAccessRequestForUser(getter UserAndRoleGetter, req AccessRequest, o
 	return trace.Wrap(v.Validate(req))
 }
 
-// AccessRequestSpecSchema is JSON schema for AccessRequestSpec
-const AccessRequestSpecSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"user": { "type": "string" },
-		"roles": {
-			"type": "array",
-			"items": { "type": "string" }
-		},
-		"state": { "type": "integer" },
-		"created": { "type": "string" },
-		"expires": { "type": "string" },
-		"request_reason": { "type": "string" },
-		"resolve_reason": { "type": "string" },
-		"resolve_annotations": { "type": "object" },
-		"system_annotations": { "type": "object" },
-		"thresholds": { "type": "array" },
-		"rtm": { "type": "object" },
-		"reviews": { "type": "array" },
-		"suggested_reviewers": { "type": "array" }
-	}
-}`
-
-// GetAccessRequestSchema gets the full AccessRequest JSON schema
-func GetAccessRequestSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, AccessRequestSpecSchema, DefaultDefinitions)
-}
-
 // UnmarshalAccessRequest unmarshals the AccessRequest resource from JSON.
 func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, error) {
 	cfg, err := CollectOptions(opts)
@@ -1192,14 +1162,8 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, 
 		return nil, trace.Wrap(err)
 	}
 	var req AccessRequestV3
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(data, &req); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := utils.UnmarshalWithSchema(GetAccessRequestSchema(), &req, data); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := utils.FastUnmarshal(data, &req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := ValidateAccessRequest(&req); err != nil {
 		return nil, trace.Wrap(err)
