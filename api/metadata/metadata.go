@@ -18,6 +18,7 @@ package metadata
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gravitational/teleport/api/constants"
 	"google.golang.org/grpc"
@@ -29,36 +30,42 @@ const versionKey = "version"
 var (
 	versionValue = constants.Version
 	disabled     = false
+	mu           sync.RWMutex
 )
 
 // SetVersion is used only for tests to set the version value that the client
 // will send in the GRPC metadata.
 func SetVersion(version string) {
+	mu.Lock()
+	defer mu.Unlock()
 	versionValue = version
 }
 
 // DisabledIs disables (or enables) including metadata in GRPC requests. Used in tests.
 func DisabledIs(metadataDisabled bool) {
+	mu.Lock()
+	defer mu.Unlock()
 	disabled = metadataDisabled
 }
 
 func addMetadataToContext(ctx context.Context) context.Context {
+	mu.RLock()
+	defer mu.RUnlock()
+	if disabled {
+		return ctx
+	}
 	return metadata.AppendToOutgoingContext(ctx, versionKey, versionValue)
 }
 
 // StreamClientInterceptor intercepts a GRPC client stream call and adds metadata to the context
 func StreamClientInterceptor(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-	if !disabled {
-		ctx = addMetadataToContext(ctx)
-	}
+	ctx = addMetadataToContext(ctx)
 	return streamer(ctx, desc, cc, method, opts...)
 }
 
 // UnaryClientInterceptor intercepts a GRPC client unary call and adds metadata to the context
 func UnaryClientInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	if !disabled {
-		ctx = addMetadataToContext(ctx)
-	}
+	ctx = addMetadataToContext(ctx)
 	return invoker(ctx, method, req, reply, cc, opts...)
 }
 
