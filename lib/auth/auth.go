@@ -876,7 +876,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	status := user.GetStatus()
 	if status.IsLocked && status.LockExpires.After(a.clock.Now().UTC()) {
 		return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
-			user.GetName(), defaults.MaxLoginAttempts, utils.HumanTimeFormat(status.LockExpires))
+			user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 	}
 	fnErr := authenticateFn()
 	if fnErr == nil {
@@ -910,7 +910,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	}
 	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
 	message := fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
-		username, defaults.MaxLoginAttempts, utils.HumanTimeFormat(status.LockExpires))
+		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 	log.Debug(message)
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	err = a.Identity.UpsertUser(user)
@@ -1043,7 +1043,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 		}
 
 		roles = append(roles, newRoles...)
-		roles = utils.Deduplicate(roles)
+		roles = apiutils.Deduplicate(roles)
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(requestExpiry) {
@@ -1317,7 +1317,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// If the request contains 0.0.0.0, this implies an advertise IP was not
 	// specified on the node. Try and guess what the address by replacing 0.0.0.0
 	// with the RemoteAddr as known to the Auth Server.
-	if utils.SliceContainsStr(req.AdditionalPrincipals, defaults.AnyAddress) {
+	if apiutils.SliceContainsStr(req.AdditionalPrincipals, defaults.AnyAddress) {
 		remoteHost, err := utils.Host(req.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)

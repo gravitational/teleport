@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -413,7 +414,7 @@ func waitForEvent(c *check.C, eventsC <-chan Event, expectedEvent string, skipEv
 		// wait for watcher to restart
 		select {
 		case event := <-eventsC:
-			if utils.SliceContainsStr(skipEvents, event.Type) {
+			if apiutils.SliceContainsStr(skipEvents, event.Type) {
 				continue
 			}
 			c.Assert(event.Type, check.Equals, expectedEvent)

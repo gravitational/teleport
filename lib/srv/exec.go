@@ -32,9 +32,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -529,7 +529,7 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 	// Look for the -t flag, it indicates that an upload occurred. The other
 	// flags do no matter for now.
 	action := events.SCPActionDownload
-	if utils.SliceContainsStr(parts, "-t") {
+	if apiutils.SliceContainsStr(parts, "-t") {
 		action = events.SCPActionUpload
 	}
 

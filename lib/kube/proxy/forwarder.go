@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -493,7 +494,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// any user to access common API methods, e.g. discovery methods
 	// required for initial client usage, without it, restricted user's
 	// kubectl clients will not work
-	if !utils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
+	if !apiutils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
 		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
 	}
 
@@ -1138,7 +1139,7 @@ func setupImpersonationHeaders(log log.FieldLogger, ctx authContext, headers htt
 		}
 	}
 
-	impersonateGroups = utils.Deduplicate(impersonateGroups)
+	impersonateGroups = apiutils.Deduplicate(impersonateGroups)
 
 	// By default, if no kubernetes_users is set (which will be a majority),
 	// user will impersonate themselves, which is the backwards-compatible behavior.

@@ -22,10 +22,10 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -117,7 +117,7 @@ func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, p
 	if len(fqdnParts) != 2 {
 		return nil, nil, "", trace.BadParameter("invalid FQDN: %v", fqdn)
 	}
-	if !utils.SliceContainsStr(proxyDNSNames, fqdnParts[1]) {
+	if !apiutils.SliceContainsStr(proxyDNSNames, fqdnParts[1]) {
 		return nil, nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 	}
 	appName := fqdnParts[0]

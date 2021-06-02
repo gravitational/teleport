@@ -29,11 +29,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
@@ -2559,8 +2559,8 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				KubernetesLabels: types.Labels{
-					"foo": utils.Strings{"bar"},
-					"baz": utils.Strings{"qux"},
+					"foo": apiutils.Strings{"bar"},
+					"baz": apiutils.Strings{"qux"},
 				},
 			},
 		},
@@ -2577,8 +2577,8 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				KubernetesLabels: types.Labels{
-					"foo": utils.Strings{"bar"},
-					"baz": utils.Strings{"qux"},
+					"foo": apiutils.Strings{"bar"},
+					"baz": apiutils.Strings{"qux"},
 				},
 			},
 		},
@@ -2603,8 +2603,8 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				KubernetesLabels: types.Labels{
-					"qux": utils.Strings{"baz"},
-					"bar": utils.Strings{"foo"},
+					"qux": apiutils.Strings{"baz"},
+					"bar": apiutils.Strings{"foo"},
 				},
 			},
 		},

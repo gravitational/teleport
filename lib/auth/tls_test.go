@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1713,7 +1714,7 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 		c.Assert(err, check.IsNil)
 
-		return utils.SliceContainsStr(identity.Groups, role)
+		return apiutils.SliceContainsStr(identity.Groups, role)
 	}
 
 	// certLogins extracts the logins from an ssh certificate
@@ -2218,7 +2219,7 @@ func TestGenerateCerts(t *testing.T) {
 		})
 		require.Error(t, err)
 
-		userRole2.SetClusterLabels(types.Allow, types.Labels{"env": utils.Strings{"prod"}})
+		userRole2.SetClusterLabels(types.Allow, types.Labels{"env": apiutils.Strings{"prod"}})
 		err = srv.Auth().UpsertRole(ctx, userRole2)
 		require.NoError(t, err)
 

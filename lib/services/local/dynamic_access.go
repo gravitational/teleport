@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -91,7 +92,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		req.SetResolveAnnotations(params.Annotations)
 		if len(params.Roles) > 0 {
 			for _, role := range params.Roles {
-				if !utils.SliceContainsStr(req.GetRoles(), role) {
+				if !apiutils.SliceContainsStr(req.GetRoles(), role) {
 					return nil, trace.BadParameter("role %q not in original request, overrides must be a subset of original role list", role)
 				}
 			}

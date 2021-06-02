@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -43,8 +44,8 @@ func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (types.WebSession,
 		if err := utils.FastUnmarshal(bytes, &ws); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		utils.UTC(&ws.Spec.BearerTokenExpires)
-		utils.UTC(&ws.Spec.Expires)
+		apiutils.UTC(&ws.Spec.BearerTokenExpires)
+		apiutils.UTC(&ws.Spec.Expires)
 
 		if err := ws.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -138,7 +139,7 @@ func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (types.WebToken, err
 		if !config.Expires.IsZero() {
 			token.Metadata.SetExpiry(config.Expires)
 		}
-		utils.UTC(token.Metadata.Expires)
+		apiutils.UTC(token.Metadata.Expires)
 		return &token, nil
 	}
 	return nil, trace.BadParameter("web token resource version %v is not supported", hdr.Version)

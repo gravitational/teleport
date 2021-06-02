@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1429,7 +1430,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 		// nothing prevents an access-request from including roles already possessed by the
 		// user, so we must make sure to trim duplicate roles.
-		roles = utils.Deduplicate(roles)
+		roles = apiutils.Deduplicate(roles)
 	}
 
 	parsedRoles, err := services.FetchRoleList(roles, a.authServer, traits)
@@ -2096,7 +2097,7 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 	// Current-user exception: we always allow users to read roles
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
-	if !utils.SliceContainsStr(a.context.User.GetRoles(), name) {
+	if !apiutils.SliceContainsStr(a.context.User.GetRoles(), name) {
 		if err := a.action(defaults.Namespace, types.KindRole, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}

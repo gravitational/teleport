@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -4383,7 +4384,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 			nodes, err := userClt.ListNodes(context.Background())
 			require.NoError(t, err)
 			for _, node := range nodes {
-				ok := utils.SliceContainsStr(tt.outNodes, node.GetHostname())
+				ok := apiutils.SliceContainsStr(tt.outNodes, node.GetHostname())
 				if !ok {
 					t.Fatalf("Got nodes: %v, want: %v.", nodes, tt.outNodes)
 				}
@@ -5393,7 +5394,7 @@ func TestTraitsPropagation(t *testing.T) {
 	role.SetName("test")
 	role.SetLogins(services.Allow, []string{me.Username})
 	// Users created by CreateEx have "testing: integration" trait.
-	role.SetNodeLabels(services.Allow, map[string]utils.Strings{"env": []string{"{{external.testing}}"}})
+	role.SetNodeLabels(services.Allow, map[string]apiutils.Strings{"env": []string{"{{external.testing}}"}})
 
 	rc.AddUserWithRole(me.Username, role)
 	lc.AddUserWithRole(me.Username, role)

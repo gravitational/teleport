@@ -19,9 +19,9 @@ package ui
 import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type access struct {
@@ -111,8 +111,8 @@ func getLogins(roleSet services.RoleSet) []string {
 		allowed = append(allowed, role.GetLogins(services.Allow)...)
 	}
 
-	allowed = utils.Deduplicate(allowed)
-	denied = utils.Deduplicate(denied)
+	allowed = apiutils.Deduplicate(allowed)
+	denied = apiutils.Deduplicate(denied)
 	userLogins := []string{}
 	for _, login := range allowed {
 		loginMatch, _ := services.MatchLogin(denied, login)
