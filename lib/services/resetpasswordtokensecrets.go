@@ -17,28 +17,10 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
-
-// ResetPasswordTokenSecretsSpecV3Template is a template for V3 ResetPasswordTokenSecrets JSON schema
-const ResetPasswordTokenSecretsSpecV3Template = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "opt_key": {
-		"type": ["string"]
-	  },
-	  "qr_code": {
-		"type": ["string"]
-	  },
-	  "created": {
-		"type": ["string"]
-	  }
-	}
-  }`
 
 // UnmarshalResetPasswordTokenSecrets unmarshals the ResetPasswordTokenSecrets resource from JSON.
 func UnmarshalResetPasswordTokenSecrets(bytes []byte, opts ...MarshalOption) (ResetPasswordTokenSecrets, error) {
@@ -47,10 +29,11 @@ func UnmarshalResetPasswordTokenSecrets(bytes []byte, opts ...MarshalOption) (Re
 	}
 
 	var secrets ResetPasswordTokenSecretsV3
-	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ResetPasswordTokenSecretsSpecV3Template, DefaultDefinitions)
-	err := utils.UnmarshalWithSchema(schema, &secrets, bytes)
-	if err != nil {
+	if err := utils.FastUnmarshal(bytes, &secrets); err != nil {
 		return nil, trace.BadParameter(err.Error())
+	}
+	if err := secrets.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &secrets, nil
