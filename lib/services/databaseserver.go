@@ -17,71 +17,11 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
-
-// DatabaseServerSpecV3Schema is JSON schema for a database server spec.
-const DatabaseServerSpecV3Schema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "description": {"type": "string"},
-	  "protocol": {"type": "string"},
-	  "uri": {"type": "string"},
-	  "ca_cert": {"type": "string"},
-	  "aws": {
-		"type": "object",
-		"additionalProperties": false,
-		"properties": {
-		  "region": {"type": "string"},
-		  "redshift": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-			  "cluster_id": {"type": "string"}
-			}
-		  }
-		}
-	  },
-	  "gcp": {
-		"type": "object",
-		"additionalProperties": false,
-		"properties": {
-		  "project_id": {"type": "string"},
-		  "instance_id": {"type": "string"}
-		}
-	  },
-	  "version": {"type": "string"},
-	  "hostname": {"type": "string"},
-	  "host_id": {"type": "string"},
-	  "dynamic_labels": {
-		"type": "object",
-		"additionalProperties": false,
-		"patternProperties": {
-		  "^.*$": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["command"],
-			"properties": {
-			  "command": {"type": "array", "items": {"type": "string"}},
-			  "period": {"type": "string"},
-			  "result": {"type": "string"}
-			}
-		  }
-		}
-	  },
-	  "rotation": %v
-	}
-  }`
-
-// GetDatabaseServerSchema returns full database server JSON schema.
-func GetDatabaseServerSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(DatabaseServerSpecV3Schema, RotationSchema), DefaultDefinitions)
-}
 
 // MarshalDatabaseServer marshals the DatabaseServer resource to JSON.
 func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalOption) ([]byte, error) {
@@ -127,14 +67,8 @@ func UnmarshalDatabaseServer(data []byte, opts ...MarshalOption) (types.Database
 	switch h.Version {
 	case V3:
 		var s types.DatabaseServerV3
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &s); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetDatabaseServerSchema(), &s, data); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
+		if err := utils.FastUnmarshal(data, &s); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

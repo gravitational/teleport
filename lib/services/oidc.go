@@ -17,14 +17,14 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
 	"net/url"
 
 	"github.com/coreos/go-oidc/jose"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // ValidateOIDCConnector validates the OIDC connector and sets default values
@@ -90,71 +90,6 @@ func OIDCClaimsToTraits(claims jose.Claims) map[string][]string {
 	return traits
 }
 
-// OIDCConnectorSpecV2Schema is a JSON Schema for OIDC Connector
-var OIDCConnectorSpecV2Schema = fmt.Sprintf(`{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["issuer_url", "client_id", "client_secret", "redirect_url"],
-	"properties": {
-	  "issuer_url": {"type": "string"},
-	  "client_id": {"type": "string"},
-	  "client_secret": {"type": "string"},
-	  "redirect_url": {"type": "string"},
-	  "acr_values": {"type": "string"},
-	  "provider": {"type": "string"},
-	  "display": {"type": "string"},
-	  "prompt": {"type": "string"},
-	  "google_service_account_uri": {"type": "string"},
-	  "google_service_account": {"type": "string"},
-	  "google_admin_email": {"type": "string"},
-	  "scope": {
-		"type": "array",
-		"items": {
-		  "type": "string"
-		}
-	  },
-	  "claims_to_roles": {
-		"type": "array",
-		"items": %v
-	  }
-	}
-  }`, ClaimMappingSchema)
-
-// OIDCConnectorV2SchemaTemplate is a template JSON Schema for OIDC connector
-const OIDCConnectorV2SchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["kind", "spec", "metadata", "version"],
-	"properties": {
-	  "kind": {"type": "string"},
-	  "version": {"type": "string", "default": "v1"},
-	  "metadata": %v,
-	  "spec": %v
-	}
-  }`
-
-// ClaimMappingSchema is JSON schema for claim mapping
-var ClaimMappingSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["claim", "value" ],
-	"properties": {
-	  "claim": {"type": "string"},
-	  "value": {"type": "string"},
-	  "roles": {
-		"type": "array",
-		"items": {
-		  "type": "string"
-		}
-	  }
-	}
-  }`
-
-// GetOIDCConnectorSchema returns schema for OIDCConnector
-func GetOIDCConnectorSchema() string {
-	return fmt.Sprintf(OIDCConnectorV2SchemaTemplate, MetadataSchema, OIDCConnectorSpecV2Schema)
-}
-
 // UnmarshalOIDCConnector unmarshals the OIDCConnector resource from JSON.
 func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector, error) {
 	cfg, err := CollectOptions(opts)
@@ -169,16 +104,9 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector,
 	switch h.Version {
 	case V2:
 		var c OIDCConnectorV2
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &c); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetOIDCConnectorSchema(), &c, bytes); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
+		if err := utils.FastUnmarshal(bytes, &c); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
-
 		if err := ValidateOIDCConnector(&c); err != nil {
 			return nil, trace.Wrap(err)
 		}

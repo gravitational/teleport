@@ -18,12 +18,12 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // Provisioner governs adding new nodes to the cluster
@@ -52,20 +52,6 @@ func MustCreateProvisionToken(token string, roles types.SystemRoles, expires tim
 		panic(err)
 	}
 	return t
-}
-
-// ProvisionTokenSpecV2Schema is a JSON schema for provision token
-const ProvisionTokenSpecV2Schema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "roles": {"type": "array", "items": {"type": "string"}}
-	}
-  }`
-
-// GetProvisionTokenSchema returns provision token schema
-func GetProvisionTokenSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ProvisionTokenSpecV2Schema, DefaultDefinitions)
 }
 
 // UnmarshalProvisionToken unmarshals the ProvisionToken resource from JSON.
@@ -99,14 +85,8 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (ProvisionToken
 		return v2, nil
 	case V2:
 		var p ProvisionTokenV2
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &p); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetProvisionTokenSchema(), &p, data); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
+		if err := utils.FastUnmarshal(data, &p); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
 		if err := p.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
