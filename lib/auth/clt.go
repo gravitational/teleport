@@ -58,12 +58,6 @@ const (
 	MissingNamespaceError = "missing required parameter: namespace"
 )
 
-// ContextDialer type alias for backwards compatibility
-type ContextDialer = client.ContextDialer
-
-// ContextDialerFunc type alias for backwards compatibility
-type ContextDialerFunc = client.ContextDialerFunc
-
 // Client is the Auth API client. It works by connecting to auth servers
 // via gRPC and HTTP.
 //
@@ -133,7 +127,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 			return nil, trace.BadParameter("no addresses to dial")
 		}
 		contextDialer := client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-		dialer = ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
+		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
 				if err == nil {
@@ -222,7 +216,7 @@ type ClientConfig struct {
 	// Addrs is a list of addresses to dial
 	Addrs []utils.NetAddr
 	// Dialer is a custom dialer that is used instead of Addrs when provided
-	Dialer ContextDialer
+	Dialer client.ContextDialer
 	// DialTimeout defines how long to attempt dialing before timing out
 	DialTimeout time.Duration
 	// KeepAlivePeriod defines period between keep alives
