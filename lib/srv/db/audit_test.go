@@ -96,24 +96,39 @@ func TestAuditMySQL(t *testing.T) {
 }
 
 func requireEvent(t *testing.T, testCtx *testContext, code string) {
-	event := waitForEvent(t, testCtx, code)
+	event := waitForAnyEvent(t, testCtx)
 	require.Equal(t, code, event.GetCode())
 }
 
 func requireQueryEvent(t *testing.T, testCtx *testContext, code, query string) {
-	event := waitForEvent(t, testCtx, code)
+	event := waitForAnyEvent(t, testCtx)
 	require.Equal(t, code, event.GetCode())
 	require.Equal(t, query, event.(*events.DatabaseSessionQuery).DatabaseQuery)
 }
 
-func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditEvent {
+func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
 	select {
 	case event := <-testCtx.emitter.eventsCh:
 		return event
 	case <-time.After(time.Second):
-		t.Fatalf("didn't receive %v event after 1 second", code)
+		t.Fatalf("didn't receive any event after 1 second")
 	}
 	return nil
+}
+
+// waitForEvent waits for particular event code ignoring other events.
+func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditEvent {
+	for {
+		select {
+		case event := <-testCtx.emitter.eventsCh:
+			if event.GetCode() != code {
+				continue
+			}
+			return event
+		case <-time.After(time.Second):
+			t.Fatalf("didn't receive %v event after 1 second", code)
+		}
+	}
 }
 
 // testEmitter pushes all received audit events into a channel.
