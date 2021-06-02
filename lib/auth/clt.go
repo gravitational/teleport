@@ -499,7 +499,7 @@ func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool,
 	}
 	re := make([]services.CertAuthority, len(items))
 	for i, raw := range items {
-		ca, err := services.UnmarshalCertAuthority(raw, services.SkipValidation())
+		ca, err := services.UnmarshalCertAuthority(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -520,8 +520,7 @@ func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalCertAuthority(
-		out.Bytes(), services.SkipValidation())
+	return services.UnmarshalCertAuthority(out.Bytes())
 }
 
 // DeleteCertAuthority deletes cert authority by ID
@@ -669,7 +668,7 @@ func (c *Client) GetReverseTunnels(opts ...services.MarshalOption) ([]services.R
 	}
 	tunnels := make([]services.ReverseTunnel, len(items))
 	for i, raw := range items {
-		tunnel, err := services.UnmarshalReverseTunnel(raw, services.SkipValidation())
+		tunnel, err := services.UnmarshalReverseTunnel(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -718,7 +717,7 @@ func (c *Client) GetTunnelConnections(clusterName string, opts ...services.Marsh
 	}
 	conns := make([]services.TunnelConnection, len(items))
 	for i, raw := range items {
-		conn, err := services.UnmarshalTunnelConnection(raw, services.SkipValidation())
+		conn, err := services.UnmarshalTunnelConnection(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -739,7 +738,7 @@ func (c *Client) GetAllTunnelConnections(opts ...services.MarshalOption) ([]serv
 	}
 	conns := make([]services.TunnelConnection, len(items))
 	for i, raw := range items {
-		conn, err := services.UnmarshalTunnelConnection(raw, services.SkipValidation())
+		conn, err := services.UnmarshalTunnelConnection(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -802,7 +801,7 @@ func (c *Client) GetRemoteClusters(opts ...services.MarshalOption) ([]services.R
 	}
 	conns := make([]services.RemoteCluster, len(items))
 	for i, raw := range items {
-		conn, err := services.UnmarshalRemoteCluster(raw, services.SkipValidation())
+		conn, err := services.UnmarshalRemoteCluster(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -820,7 +819,7 @@ func (c *Client) GetRemoteCluster(clusterName string) (services.RemoteCluster, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalRemoteCluster(out.Bytes(), services.SkipValidation())
+	return services.UnmarshalRemoteCluster(out.Bytes())
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
@@ -877,7 +876,7 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, services.KindAuthServer, services.SkipValidation())
+		server, err := services.UnmarshalServer(raw, services.KindAuthServer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -922,7 +921,7 @@ func (c *Client) GetProxies() ([]services.Server, error) {
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, services.KindProxy, services.SkipValidation())
+		server, err := services.UnmarshalServer(raw, services.KindProxy)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1451,45 +1450,24 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 	return retval, nil
 }
 
-// SearchEvents returns events that fit the criteria
-func (c *Client) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {
-	q, err := url.ParseQuery(query)
+// SearchEvents allows searching for audit events with pagination support.
+func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
 	if err != nil {
-		return nil, trace.BadParameter("query")
+		return nil, "", trace.Wrap(err)
 	}
-	q.Set("from", from.Format(time.RFC3339))
-	q.Set("to", to.Format(time.RFC3339))
-	q.Set("limit", fmt.Sprintf("%v", limit))
-	response, err := c.Get(c.Endpoint("events"), q)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	retval := make([]events.EventFields, 0)
-	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return retval, nil
+
+	return events, lastKey, nil
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(from, to time.Time, limit int) ([]events.EventFields, error) {
-	query := url.Values{
-		"to":    []string{to.Format(time.RFC3339)},
-		"from":  []string{from.Format(time.RFC3339)},
-		"limit": []string{fmt.Sprintf("%v", limit)},
-	}
-
-	response, err := c.Get(c.Endpoint("events", "session"), query)
+func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, startKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
-	retval := make([]events.EventFields, 0)
-	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return retval, nil
+	return events, lastKey, nil
 }
 
 // GetNamespaces returns a list of namespaces
@@ -1514,7 +1492,7 @@ func (c *Client) GetNamespace(name string) (*services.Namespace, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalNamespace(out.Bytes(), services.SkipValidation())
+	return services.UnmarshalNamespace(out.Bytes())
 }
 
 // UpsertNamespace upserts namespace
@@ -1541,7 +1519,7 @@ func (c *Client) GetClusterConfig(opts ...services.MarshalOption) (services.Clus
 		return nil, trace.Wrap(err)
 	}
 
-	cc, err := services.UnmarshalClusterConfig(out.Bytes(), services.SkipValidation())
+	cc, err := services.UnmarshalClusterConfig(out.Bytes())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1571,7 +1549,7 @@ func (c *Client) GetClusterName(opts ...services.MarshalOption) (services.Cluste
 		return nil, trace.Wrap(err)
 	}
 
-	cn, err := services.UnmarshalClusterName(out.Bytes(), services.SkipValidation())
+	cn, err := services.UnmarshalClusterName(out.Bytes())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1613,7 +1591,7 @@ func (c *Client) GetStaticTokens() (services.StaticTokens, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	st, err := services.UnmarshalStaticTokens(out.Bytes(), services.SkipValidation())
+	st, err := services.UnmarshalStaticTokens(out.Bytes())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1755,12 +1733,7 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := c.APIClient.GetAppServers(ctx, namespace, cfg.SkipValidation)
+	resp, err := c.APIClient.GetAppServers(ctx, namespace)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1770,12 +1743,7 @@ func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...se
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := c.APIClient.GetDatabaseServers(ctx, namespace, cfg.SkipValidation)
+	resp, err := c.APIClient.GetDatabaseServers(ctx, namespace)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1800,6 +1768,11 @@ func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID
 // DELETE IN 7.0.0
 func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
 // WebService implements features used by Web UI clients
@@ -2064,4 +2037,7 @@ type ClientI interface {
 	// GetWebToken queries the existing web token described with req.
 	// Implements ReadAccessPoint.
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+
+	// ResetAuthPreference resets cluster auth preference to defaults.
+	ResetAuthPreference(ctx context.Context) error
 }

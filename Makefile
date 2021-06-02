@@ -77,10 +77,31 @@ BPF_MESSAGE := "without BPF support"
 
 # BPF cannot currently be compiled on ARMv7 due to this bug: https://github.com/iovisor/gobpf/issues/272
 # ARM64 builds are not affected.
+with_bpf := no
 ifneq ("$(ARCH)","arm")
-ifneq ("$(wildcard /usr/include/bcc/libbpf.h)","")
+ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
+with_bpf := yes
 BPF_TAG := bpf
 BPF_MESSAGE := "with BPF support"
+CLANG ?= $(shell which clang || which clang-10)
+CLANG_FORMAT ?= $(shell which clang-format || which clang-format-10)
+LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
+KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/')
+INCLUDES :=
+BPF_BUILDDIR := lib/bpf/bytecode
+
+# Get Clang's default includes on this system. We'll explicitly add these dirs
+# to the includes list when compiling with `-target bpf` because otherwise some
+# architecture-specific dirs will be "missing" on some architectures/distros -
+# headers such as asm/types.h, asm/byteorder.h, asm/socket.h, asm/sockios.h,
+# sys/cdefs.h etc. might be missing.
+#
+# Use '-idirafter': Don't interfere with include mechanics except where the
+# build would have failed anyways.
+CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
+	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
+
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -Wl,-Bdynamic"
 endif
 endif
 
@@ -120,12 +141,38 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets
+$(BUILDDIR)/teleport: ensure-webassets bpf-bytecode
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+
+#
+# BPF support (IF ENABLED)
+# Requires a recent version of clang and libbpf installed.
+#
+ifeq ("$(with_bpf)","yes")
+$(BPF_BUILDDIR):
+	mkdir -p $(BPF_BUILDDIR)
+
+# Build BPF code
+$(BPF_BUILDDIR)/%.bpf.o: bpf/%.bpf.c $(wildcard bpf/*.h) | $(BPF_BUILDDIR)
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(LLVM_STRIP) -g $@ # strip useless DWARF info
+
+.PHONY: bpf-bytecode
+bpf-bytecode: $(BPF_BUILDDIR)/command.bpf.o $(BPF_BUILDDIR)/disk.bpf.o $(BPF_BUILDDIR)/network.bpf.o $(BPF_BUILDDIR)/counter_test.bpf.o
+
+# Generate vmlinux.h based on the installed kernel
+.PHONY: update-vmlinux-h
+update-vmlinux-h:
+	bpftool btf dump file /sys/kernel/btf/vmlinux format c >bpf/vmlinux.h
+
+else
+.PHONY: bpf-bytecode
+bpf-bytecode:
+endif
 
 #
 # make full - Builds Teleport binaries with the built-in web assets and
@@ -156,6 +203,7 @@ endif
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
+	rm -rf $(BPF_BUILDDIR)
 	-go clean -cache
 	rm -rf $(GOPKGDIR)
 	rm -rf teleport
@@ -274,13 +322,24 @@ test: test-sh test-api test-go
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test-go
-test-go: ensure-webassets
+test-go: ensure-webassets bpf-bytecode
 test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
+
+#
+# Runs all Go tests except integration and chaos, called by CI/CD.
+#
+UNIT_ROOT_REGEX := ^TestRoot
+.PHONY: test-go-root
+test-go-root: ensure-webassets bpf-bytecode
+test-go-root: FLAGS ?= '-race'
+test-go-root: PACKAGES := $(shell go list ./... | grep -v integration)
+test-go-root: $(VERSRC)
+	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Runs API Go tests. These have to be run separately as the package name is different.
 #
@@ -289,7 +348,7 @@ test-api:
 test-api: FLAGS ?= '-race'
 test-api: PACKAGES := $(shell cd api && go list ./...)
 test-api: $(VERSRC)
-	GOMODCACHE=/tmp go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -310,7 +369,7 @@ integration: FLAGS ?= -v -race
 integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -321,7 +380,7 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES := $(shell go list ./... | grep integration)
 integration-root:
-	go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
 # Lint the Go code.
@@ -341,7 +400,7 @@ lint-go:
 .PHONY: lint-api
 lint-api: GO_LINT_API_FLAGS ?=
 lint-api:
-	cd api && GOMODCACHE=/tmp golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
+	cd api && golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -363,8 +422,9 @@ lint-sh:
 
 # Lints all the Helm charts found in directories under examples/chart and exits on failure
 # If there is a .lint directory inside, the chart gets linted once for each .yaml file in that directory
-# We use yamllint's 'relaxed' configuration as it's more compatible with Helm output and will only error on
+# We inherit yamllint's 'relaxed' configuration as it's more compatible with Helm output and will only error on
 # show-stopping issues. Kubernetes' YAML parser is not particularly fussy.
+# If errors are found, the file is printed with line numbers to aid in debugging.
 .PHONY: lint-helm
 lint-helm:
 	@if ! type yamllint 2>&1 >/dev/null; then \
@@ -373,16 +433,21 @@ lint-helm:
 		exit 0; \
 	fi; \
 	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
-		if [ -d $$CHART/.lint ]; then \
-			for VALUES in $$CHART/.lint/*.yaml; do \
-				echo "$$CHART: $$VALUES"; \
-				helm lint --strict $$CHART -f $$VALUES || exit 1; \
-				helm template test $$CHART -f $$VALUES | yamllint -d relaxed - || exit 1; \
+		if [ -d $${CHART}/.lint ]; then \
+			for VALUES in $${CHART}/.lint/*.yaml; do \
+				export HELM_TEMP=$$(mktemp); \
+				echo -n "Using values from '$${VALUES}': "; \
+				yamllint -c examples/chart/.lint-config.yaml $${VALUES} || { cat -en $${VALUES}; exit 1; }; \
+				helm lint --strict $${CHART} -f $${VALUES} || exit 1; \
+				helm template test $${CHART} -f $${VALUES} 1>$${HELM_TEMP} || exit 1; \
+				yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
 			done \
 		else \
-			helm lint --strict $$CHART || exit 1; \
-			helm template test $$CHART 1>/dev/null || exit 1; \
-		fi \
+			export HELM_TEMP=$$(mktemp); \
+			helm lint --strict $${CHART} || exit 1; \
+			helm template test $${CHART} 1>$${HELM_TEMP} || exit 1; \
+			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
+		fi; \
 	done
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
@@ -464,8 +529,8 @@ grpc:
 buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
-	find lib/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
-	find api/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+	find lib/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+	find api/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/events \
@@ -586,6 +651,7 @@ rpm:
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
+	cp -a ./build.assets/rpm $(BUILDDIR)/
 	cp -a ./build.assets/rpm-sign $(BUILDDIR)/
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e rpm; fi
@@ -643,6 +709,9 @@ init-submodules-e: init-webapps-submodules-e
 
 .PHONY: update-vendor
 update-vendor:
+	# update modules in api/
+	cd api && go mod tidy
+	# update modules in root directory
 	go mod tidy
 	go mod vendor
 	# delete the vendored api package. In its place

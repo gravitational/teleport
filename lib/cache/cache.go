@@ -48,6 +48,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindStaticTokens},
 		{Kind: services.KindToken},
 		{Kind: services.KindUser},
@@ -80,6 +81,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -108,6 +110,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -135,6 +138,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -160,6 +164,7 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		// Node only needs to "know" about default
@@ -180,6 +185,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
@@ -198,6 +204,7 @@ func ForApps(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindProxy},
@@ -217,6 +224,7 @@ func ForDatabases(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindProxy},
@@ -553,7 +561,14 @@ func New(config Config) (*Cache, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	wrapper := backend.NewWrapper(config.Backend)
+
+	clusterConfigCache, err := local.NewClusterConfigurationService(wrapper)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
 		wrapper:            wrapper,
@@ -563,7 +578,7 @@ func New(config Config) (*Cache, error) {
 		generation:         atomic.NewUint64(0),
 		initC:              make(chan struct{}),
 		trustCache:         local.NewCAService(wrapper),
-		clusterConfigCache: local.NewClusterConfigurationService(wrapper),
+		clusterConfigCache: clusterConfigCache,
 		provisionerCache:   local.NewProvisioningService(wrapper),
 		usersCache:         local.NewIdentityService(wrapper),
 		accessCache:        local.NewAccessService(wrapper),
@@ -947,13 +962,13 @@ func (c *Cache) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, o
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...)
+	ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if ca, err := c.Config.Trust.GetCertAuthority(id, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...); err == nil {
+		if ca, err := c.Config.Trust.GetCertAuthority(id, loadSigningKeys, opts...); err == nil {
 			return ca, nil
 		}
 	}
@@ -968,7 +983,7 @@ func (c *Cache) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.trust.GetCertAuthorities(caType, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...)
+	return rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -988,7 +1003,7 @@ func (c *Cache) GetTokens(ctx context.Context, opts ...services.MarshalOption) (
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.provisioner.GetTokens(ctx, services.AddOptions(opts, services.SkipValidation())...)
+	return rg.provisioner.GetTokens(ctx, opts...)
 }
 
 // GetToken finds and returns token by ID
@@ -1019,7 +1034,7 @@ func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (services.Clust
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.clusterConfig.GetClusterConfig(services.AddOptions(opts, services.SkipValidation())...)
+	return rg.clusterConfig.GetClusterConfig(opts...)
 }
 
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
@@ -1029,7 +1044,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.clusterConfig.GetClusterNetworkingConfig(ctx, services.AddOptions(opts, services.SkipValidation())...)
+	return rg.clusterConfig.GetClusterNetworkingConfig(ctx, opts...)
 }
 
 // GetClusterName gets the name of the cluster from the backend.
@@ -1039,7 +1054,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (services.Cluster
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.clusterConfig.GetClusterName(services.AddOptions(opts, services.SkipValidation())...)
+	return rg.clusterConfig.GetClusterName(opts...)
 }
 
 // GetRoles is a part of auth.AccessPoint implementation
@@ -1129,7 +1144,7 @@ func (c *Cache) GetReverseTunnels(opts ...services.MarshalOption) ([]services.Re
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.presence.GetReverseTunnels(services.AddOptions(opts, services.SkipValidation())...)
+	return rg.presence.GetReverseTunnels(opts...)
 }
 
 // GetProxies is a part of auth.AccessPoint implementation
@@ -1291,4 +1306,14 @@ func (c *Cache) GetAuthPreference() (services.AuthPreference, error) {
 	}
 	defer rg.Release()
 	return rg.clusterConfig.GetAuthPreference()
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetSessionRecordingConfig(ctx, opts...)
 }

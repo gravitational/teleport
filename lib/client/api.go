@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -400,14 +401,14 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 //
 // It's stored in ~/.tsh/keys/<proxy>/certs.pem by default.
 func (p *ProfileStatus) CACertPath() string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name, constants.FileNameTLSCerts)
+	return keypaths.TLSCAsPath(p.Dir, p.Name)
 }
 
 // KeyPath returns path to the private key for this profile.
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>.
 func (p *ProfileStatus) KeyPath() string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name, p.Username)
+	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
 }
 
 // DatabaseCertPath returns path to the specified database access certificate
@@ -415,10 +416,7 @@ func (p *ProfileStatus) KeyPath() string {
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) DatabaseCertPath(name string) string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name,
-		fmt.Sprintf("%v%v", p.Username, dbDirSuffix),
-		p.Cluster,
-		fmt.Sprintf("%v%v", name, constants.FileExtTLSCert))
+	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
 // AppCertPath returns path to the specified app access certificate
@@ -426,10 +424,8 @@ func (p *ProfileStatus) DatabaseCertPath(name string) string {
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) AppCertPath(name string) string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name,
-		fmt.Sprintf("%v%v", p.Username, appDirSuffix),
-		p.Cluster,
-		fmt.Sprintf("%v%v", name, constants.FileExtTLSCert))
+	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+
 }
 
 // DatabaseServices returns a list of database service names for this profile.
@@ -801,49 +797,91 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	return nil
 }
 
-// ParseProxyHost parses the proxyHost string and updates the config.
+// ParsedProxyHost holds the hostname and Web & SSH proxy addresses
+// parsed out of a WebProxyAddress string.
+type ParsedProxyHost struct {
+	Host string
+
+	// UsingDefaultWebProxyPort means that the port in WebProxyAddr was
+	// supplied by ParseProxyHost function rather than ProxyHost string
+	// itself.
+	UsingDefaultWebProxyPort bool
+	WebProxyAddr             string
+	SSHProxyAddr             string
+}
+
+// ParseProxyHost parses a ProxyHost string of the format <hostname>:<proxy_web_port>,<proxy_ssh_port>
+// and returns the parsed components.
 //
-// Format of proxyHost string:
-//   proxy_web_addr:<proxy_web_port>,<proxy_ssh_port>
-func (c *Config) ParseProxyHost(proxyHost string) error {
+// There are several "default" ports that the Web Proxy service may use, and if the port is not
+// specified in the supplied proxyHost string
+//
+// If a definitive answer is not possible (e.g.  no proxy port is specified in
+// the supplied string), ParseProxyHost() will supply default versions and flag
+// that a default value is being used in the returned `ParsedProxyHost`
+func ParseProxyHost(proxyHost string) (*ParsedProxyHost, error) {
 	host, port, err := net.SplitHostPort(proxyHost)
 	if err != nil {
 		host = proxyHost
 		port = ""
 	}
 
-	// Split on comma.
+	// set the default values of the port strings. One, both, or neither may
+	// be overridden by the port string parsing below.
+	usingDefaultWebProxyPort := true
+	webPort := strconv.Itoa(defaults.HTTPListenPort)
+	sshPort := strconv.Itoa(defaults.SSHProxyListenPort)
+
+	// Split the port string out into at most two parts, the proxy port and
+	// ssh port. Any more that 2 parts will be considered an error.
 	parts := strings.Split(port, ",")
 
 	switch {
 	// Default ports for both the SSH and Web proxy.
 	case len(parts) == 0:
-		c.WebProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.HTTPListenPort))
-		c.SSHProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.SSHProxyListenPort))
+		break
+
 	// User defined HTTP proxy port, default SSH proxy port.
 	case len(parts) == 1:
-		webPort := parts[0]
-		if webPort == "" {
-			webPort = strconv.Itoa(defaults.HTTPListenPort)
+		if text := strings.TrimSpace(parts[0]); len(text) > 0 {
+			webPort = text
+			usingDefaultWebProxyPort = false
 		}
-		c.WebProxyAddr = net.JoinHostPort(host, webPort)
-		c.SSHProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.SSHProxyListenPort))
+
 	// User defined HTTP and SSH proxy ports.
 	case len(parts) == 2:
-		webPort := parts[0]
-		if webPort == "" {
-			webPort = strconv.Itoa(defaults.HTTPListenPort)
+		if text := strings.TrimSpace(parts[0]); len(text) > 0 {
+			webPort = text
+			usingDefaultWebProxyPort = false
 		}
-		sshPort := parts[1]
-		if sshPort == "" {
-			sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
+		if text := strings.TrimSpace(parts[1]); len(text) > 0 {
+			sshPort = text
 		}
-		c.WebProxyAddr = net.JoinHostPort(host, webPort)
-		c.SSHProxyAddr = net.JoinHostPort(host, sshPort)
+
 	default:
-		return trace.BadParameter("unable to parse port: %v", port)
+		return nil, trace.BadParameter("unable to parse port: %v", port)
 	}
 
+	result := &ParsedProxyHost{
+		Host:                     host,
+		UsingDefaultWebProxyPort: usingDefaultWebProxyPort,
+		WebProxyAddr:             net.JoinHostPort(host, webPort),
+		SSHProxyAddr:             net.JoinHostPort(host, sshPort),
+	}
+	return result, nil
+}
+
+// ParseProxyHost parses the proxyHost string and updates the config.
+//
+// Format of proxyHost string:
+//   proxy_web_addr:<proxy_web_port>,<proxy_ssh_port>
+func (c *Config) ParseProxyHost(proxyHost string) error {
+	parsedAddrs, err := ParseProxyHost(proxyHost)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.WebProxyAddr = parsedAddrs.WebProxyAddr
+	c.SSHProxyAddr = parsedAddrs.SSHProxyAddr
 	return nil
 }
 
@@ -1406,7 +1444,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	serverID := session.Parties[0].ServerID
 
 	// find a server address by its ID
-	nodes, err := site.GetNodes(ctx, namespace, services.SkipValidation())
+	nodes, err := site.GetNodes(ctx, namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}

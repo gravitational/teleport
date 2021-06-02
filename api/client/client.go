@@ -699,10 +699,9 @@ func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 }
 
 // GetAppServers gets all application servers.
-func (c *Client) GetAppServers(ctx context.Context, namespace string, skipValidation bool) ([]types.Server, error) {
+func (c *Client) GetAppServers(ctx context.Context, namespace string) ([]types.Server, error) {
 	resp, err := c.grpc.GetAppServers(ctx, &proto.GetAppServersRequest{
-		Namespace:      namespace,
-		SkipValidation: skipValidation,
+		Namespace: namespace,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -834,10 +833,9 @@ func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
-func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, skipValidation bool) ([]types.DatabaseServer, error) {
+func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
 	resp, err := c.grpc.GetDatabaseServers(ctx, &proto.GetDatabaseServersRequest{
-		Namespace:      namespace,
-		SkipValidation: skipValidation,
+		Namespace: namespace,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -1293,6 +1291,60 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 	return trail.FromGRPC(err)
 }
 
+// SearchEvents allows searching for events with a full pagination support.
+func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	request := &proto.GetEventsRequest{
+		Namespace:  namespace,
+		StartDate:  fromUTC,
+		EndDate:    toUTC,
+		EventTypes: eventTypes,
+		Limit:      int32(limit),
+		StartKey:   startKey,
+	}
+
+	response, err := c.grpc.GetEvents(ctx, request)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	decodedEvents := make([]events.AuditEvent, 0, len(response.Items))
+	for _, rawEvent := range response.Items {
+		event, err := events.FromOneOf(*rawEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		decodedEvents = append(decodedEvents, event)
+	}
+
+	return decodedEvents, response.LastKey, nil
+}
+
+// SearchSessionEvents allows searching for session events with a full pagination support.
+func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	request := &proto.GetSessionEventsRequest{
+		StartDate: fromUTC,
+		EndDate:   toUTC,
+		Limit:     int32(limit),
+		StartKey:  startKey,
+	}
+
+	response, err := c.grpc.GetSessionEvents(ctx, request)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	decodedEvents := make([]events.AuditEvent, 0, len(response.Items))
+	for _, rawEvent := range response.Items {
+		event, err := events.FromOneOf(*rawEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		decodedEvents = append(decodedEvents, event)
+	}
+
+	return decodedEvents, response.LastKey, nil
+}
+
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	resp, err := c.grpc.GetClusterNetworkingConfig(ctx, &empty.Empty{}, c.callOpts...)
@@ -1315,4 +1367,34 @@ func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig types
 // DeleteClusterNetworkingConfig not implemented: can only be called locally.
 func (c *Client) DeleteClusterNetworkingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
+	resp, err := c.grpc.GetSessionRecordingConfig(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// SetSessionRecordingConfig sets session recording configuration.
+func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
+	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", recConfig)
+	}
+	_, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteSessionRecordingConfig not implemented: can only be called locally.
+func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ResetAuthPreference resets cluster auth preference to defaults.
+func (c *Client) ResetAuthPreference(ctx context.Context) error {
+	_, err := c.grpc.ResetAuthPreference(ctx, &empty.Empty{})
+	return trail.FromGRPC(err)
 }

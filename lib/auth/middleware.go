@@ -416,11 +416,11 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
 		return BuiltinRole{
-			GetClusterConfig: a.AccessPoint.GetClusterConfig,
-			Role:             teleport.RoleNop,
-			Username:         string(teleport.RoleNop),
-			ClusterName:      localClusterName.GetClusterName(),
-			Identity:         tlsca.Identity{},
+			GetSessionRecordingConfig: a.AccessPoint.GetSessionRecordingConfig,
+			Role:                      teleport.RoleNop,
+			Username:                  string(teleport.RoleNop),
+			ClusterName:               localClusterName.GetClusterName(),
+			Identity:                  tlsca.Identity{},
 		}, nil
 	}
 	clientCert := peers[0]
@@ -493,11 +493,11 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
 		return BuiltinRole{
-			GetClusterConfig: a.AccessPoint.GetClusterConfig,
-			Role:             *systemRole,
-			Username:         identity.Username,
-			ClusterName:      localClusterName.GetClusterName(),
-			Identity:         *identity,
+			GetSessionRecordingConfig: a.AccessPoint.GetSessionRecordingConfig,
+			Role:                      *systemRole,
+			Username:                  identity.Username,
+			ClusterName:               localClusterName.GetClusterName(),
+			Identity:                  *identity,
 		}, nil
 	}
 	// otherwise assume that is a local role, no need to pass the roles
@@ -556,11 +556,11 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 	pool := x509.NewCertPool()
 	var authorities []services.CertAuthority
 	if clusterName == "" {
-		hostCAs, err := client.GetCertAuthorities(services.HostCA, false, services.SkipValidation())
+		hostCAs, err := client.GetCertAuthorities(services.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userCAs, err := client.GetCertAuthorities(services.UserCA, false, services.SkipValidation())
+		userCAs, err := client.GetCertAuthorities(services.UserCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -569,13 +569,13 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 	} else {
 		hostCA, err := client.GetCertAuthority(
 			services.CertAuthID{Type: services.HostCA, DomainName: clusterName},
-			false, services.SkipValidation())
+			false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userCA, err := client.GetCertAuthority(
 			services.CertAuthID{Type: services.UserCA, DomainName: clusterName},
-			false, services.SkipValidation())
+			false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

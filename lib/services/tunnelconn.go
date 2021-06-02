@@ -17,7 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -53,25 +52,6 @@ func TunnelConnectionStatus(clock clockwork.Clock, conn TunnelConnection, offlin
 	return teleport.RemoteClusterStatusOffline
 }
 
-// TunnelConnectionSpecV2Schema is JSON schema for reverse tunnel spec
-const TunnelConnectionSpecV2Schema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["cluster_name", "proxy_name", "last_heartbeat"],
-	"properties": {
-	  "cluster_name": {"type": "string"},
-	  "proxy_name": {"type": "string"},
-	  "last_heartbeat": {"type": "string"},
-	  "type": {"type": "string"}
-	}
-  }`
-
-// GetTunnelConnectionSchema returns role schema with optionally injected
-// schema for extensions
-func GetTunnelConnectionSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, TunnelConnectionSpecV2Schema, DefaultDefinitions)
-}
-
 // UnmarshalTunnelConnection unmarshals TunnelConnection resource from JSON or YAML,
 // sets defaults and checks the schema
 func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnection, error) {
@@ -91,14 +71,8 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 	case V2:
 		var r TunnelConnectionV2
 
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &r); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetTunnelConnectionSchema(), &r, data); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
+		if err := utils.FastUnmarshal(data, &r); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
 
 		if err := r.CheckAndSetDefaults(); err != nil {

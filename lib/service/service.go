@@ -931,7 +931,7 @@ func initUploadHandler(auditConfig services.AuditConfig, dataDir string) (events
 
 // initExternalLog initializes external storage, if the storage is not
 // setup, returns (nil, nil).
-func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log logrus.FieldLogger) (events.IAuditLog, error) {
+func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log logrus.FieldLogger, backend backend.Backend) (events.IAuditLog, error) {
 	//
 	// DELETE IN: 5.0
 	// We could probably just remove AuditTableName now (its been deprecated for a while), but
@@ -983,7 +983,7 @@ func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log 
 				return nil, trace.Wrap(err)
 			}
 
-			logger, err := dynamoevents.New(ctx, cfg)
+			logger, err := dynamoevents.New(ctx, cfg, backend)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1064,7 +1064,7 @@ func (process *TeleportProcess) initAuthService() error {
 		// check if session recording has been disabled. note, we will continue
 		// logging audit events, we just won't record sessions.
 		recordSessions := true
-		if cfg.Auth.ClusterConfig.GetSessionRecording() == services.RecordOff {
+		if cfg.Auth.SessionRecordingConfig.GetMode() == services.RecordOff {
 			recordSessions = false
 
 			warningMessage := "Warning: Teleport session recording have been turned off. " +
@@ -1088,7 +1088,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initExternalLog(process.ExitContext(), auditConfig, process.log)
+		externalLog, err := initExternalLog(process.ExitContext(), auditConfig, process.log, process.backend)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1162,6 +1162,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ClusterConfiguration:    cfg.ClusterConfiguration,
 		ClusterConfig:           cfg.Auth.ClusterConfig,
 		ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
+		SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
 		ClusterName:             cfg.Auth.ClusterName,
 		AuthServiceName:         cfg.Hostname,
 		DataDir:                 cfg.DataDir,
@@ -1668,12 +1669,11 @@ func (process *TeleportProcess) initSSH() error {
 
 		// If session recording is disabled at the cluster level and the node is
 		// attempting to enabled enhanced session recording, show an error.
-		clusterConfig, err := authClient.GetClusterConfig()
+		recConfig, err := authClient.GetSessionRecordingConfig(process.ExitContext())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if clusterConfig.GetSessionRecording() == services.RecordOff &&
-			cfg.SSH.BPF.Enabled {
+		if recConfig.GetMode() == services.RecordOff && cfg.SSH.BPF.Enabled {
 			return trace.BadParameter("session recording is disabled at the cluster " +
 				"level. To enable enhanced session recording, enable session recording at " +
 				"the cluster level, then restart Teleport.")
@@ -2025,7 +2025,11 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	// Create a state machine that will process and update the internal state of
 	// Teleport based off Events. Use this state machine to return return the
 	// status from the /readyz endpoint.
-	ps := newProcessState(process)
+	ps, err := newProcessState(process)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	process.RegisterFunc("readyz.monitor", func() error {
 		// Start loop to monitor for events that are used to update Teleport state.
 		eventCh := make(chan Event, 1024)
@@ -2746,6 +2750,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		component := teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube)
+		kubeServiceType := kubeproxy.ProxyService
+		if cfg.Proxy.Kube.LegacyKubeProxy {
+			kubeServiceType = kubeproxy.LegacyProxyService
+		}
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:         defaults.Namespace,
@@ -2761,6 +2769,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ClusterOverride:   cfg.Proxy.Kube.ClusterOverride,
 				KubeconfigPath:    cfg.Proxy.Kube.KubeconfigPath,
 				Component:         component,
+				KubeServiceType:   kubeServiceType,
 			},
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
@@ -2809,6 +2818,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Authorizer:  authorizer,
 				Tunnel:      tsrv,
 				TLSConfig:   tlsConfig,
+				Emitter:     asyncEmitter,
+				Clock:       process.Clock,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3143,7 +3154,6 @@ func (process *TeleportProcess) initApps() {
 
 		log.Infof("Exited.")
 	})
-
 }
 
 func warnOnErr(err error, log logrus.FieldLogger) {

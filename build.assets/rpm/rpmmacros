@@ -1,0 +1,2 @@
+# Don't include build-id artifacts
+%_build_id_links none

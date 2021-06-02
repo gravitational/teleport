@@ -73,6 +73,11 @@ type ServerOption func(*Server)
 
 // NewServer creates and configures a new Server instance
 func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}
@@ -92,7 +97,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.DynamicAccessExt = local.NewDynamicAccessService(cfg.Backend)
 	}
 	if cfg.ClusterConfiguration == nil {
-		cfg.ClusterConfiguration = local.NewClusterConfigurationService(cfg.Backend)
+		clusterConfig, err := local.NewClusterConfigurationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.ClusterConfiguration = clusterConfig
 	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
@@ -216,6 +225,11 @@ var (
 			Help: "Number of hearbeats missed by auth server",
 		},
 	)
+
+	prometheusCollectors = []prometheus.Collector{
+		generateRequestsCount, generateThrottledRequestsCount,
+		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
+	}
 )
 
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
@@ -322,7 +336,7 @@ func (a *Server) runPeriodicOperations() {
 				}
 			}
 		case <-heartbeatCheckTicker.Next():
-			nodes, err := a.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
+			nodes, err := a.GetNodes(ctx, defaults.Namespace)
 			if err != nil {
 				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
 			}
@@ -532,6 +546,7 @@ type certRequestOption func(*certRequest)
 func certRequestMFAVerified(mfaID string) certRequestOption {
 	return func(r *certRequest) { r.mfaVerified = mfaID }
 }
+
 func certRequestClientIP(ip string) certRequestOption {
 	return func(r *certRequest) { r.clientIP = ip }
 }
@@ -1077,10 +1092,6 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (s
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err = services.ExtendWebSession(sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return sess, nil
 }
 
@@ -1717,7 +1728,7 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	if namespace == defaults.Namespace {
 		return trace.AccessDenied("can't delete default namespace")
 	}
-	nodes, err := a.Presence.GetNodes(ctx, namespace, services.SkipValidation())
+	nodes, err := a.Presence.GetNodes(ctx, namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2085,7 +2096,7 @@ func (a *Server) GetAllTunnelConnections(opts ...services.MarshalOption) (conns 
 
 // CreateAuditStream creates audit event stream
 func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
-	streamer, err := a.modeStreamer()
+	streamer, err := a.modeStreamer(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2094,7 +2105,7 @@ func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 
 // ResumeAuditStream resumes the stream that has been created
 func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
-	streamer, err := a.modeStreamer()
+	streamer, err := a.modeStreamer(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2102,15 +2113,14 @@ func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID
 }
 
 // modeStreamer creates streamer based on the event mode
-func (a *Server) modeStreamer() (events.Streamer, error) {
-	clusterConfig, err := a.GetClusterConfig()
+func (a *Server) modeStreamer(ctx context.Context) (events.Streamer, error) {
+	recConfig, err := a.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	mode := clusterConfig.GetSessionRecording()
 	// In sync mode, auth server forwards session control to the event log
 	// in addition to sending them and data events to the record storage.
-	if services.IsRecordSync(mode) {
+	if services.IsRecordSync(recConfig.GetMode()) {
 		return events.NewTeeStreamer(a.streamer, a.emitter), nil
 	}
 	// In async mode, clients submit session control events
@@ -2155,7 +2165,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("empty Login field")
 		}
 		// Find the target node and check whether MFA is required.
-		nodes, err := a.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
+		nodes, err := a.GetNodes(ctx, defaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2223,7 +2233,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
-		dbs, err := a.GetDatabaseServers(ctx, defaults.Namespace, services.SkipValidation())
+		dbs, err := a.GetDatabaseServers(ctx, defaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2565,14 +2575,4 @@ func isHTTPS(u string) error {
 	}
 
 	return nil
-}
-
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(generateRequestsCount)
-	prometheus.MustRegister(generateThrottledRequestsCount)
-	prometheus.MustRegister(generateRequestsCurrent)
-	prometheus.MustRegister(generateRequestsLatencies)
-	prometheus.MustRegister(UserLoginCount)
-	prometheus.MustRegister(heartbeatsMissedByAuth)
 }

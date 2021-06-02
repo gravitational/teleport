@@ -17,11 +17,10 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // DefaultClusterConfig is used as the default cluster configuration when
@@ -35,9 +34,7 @@ func DefaultClusterConfig() ClusterConfig {
 			Namespace: defaults.Namespace,
 		},
 		Spec: ClusterConfigSpecV3{
-			SessionRecording:    RecordAtNode,
-			ProxyChecksHostKeys: HostKeyCheckYes,
-			LocalAuth:           NewBool(true),
+			LocalAuth: NewBool(true),
 		},
 	}
 }
@@ -54,95 +51,10 @@ func AuditConfigFromObject(in interface{}) (*AuditConfig, error) {
 	return &cfg, nil
 }
 
-// IsRecordAtProxy returns true if recording is sync or async at proxy
-func IsRecordAtProxy(mode string) bool {
-	return mode == RecordAtProxy || mode == RecordAtProxySync
-}
-
-// IsRecordSync returns true if recording is sync or async for proxy or node
-func IsRecordSync(mode string) bool {
-	return mode == RecordAtProxySync || mode == RecordAtNodeSync
-}
-
 // ShouldUploadSessions returns whether audit config
 // instructs server to upload sessions
 func ShouldUploadSessions(a AuditConfig) bool {
 	return a.AuditSessionsURI != ""
-}
-
-// ClusterConfigSpecSchemaTemplate is a template for ClusterConfig schema.
-const ClusterConfigSpecSchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "session_recording": {
-		"type": "string"
-	  },
-	  "proxy_checks_host_keys": {
-		"type": "string"
-	  },
-	  "cluster_id": {
-		"type": "string"
-	  },
-	  "client_idle_timeout": {
-		"type": "string"
-	  },
-	  "session_control_timeout": {
-		"type": "string"
-	  },
-	  "disconnect_expired_cert": {
-		"anyOf": [{"type": "string"}, { "type": "boolean"}]
-	  },
-	  "keep_alive_interval": {
-		"type": "string"
-	  },
-	  "keep_alive_count_max": {
-		"type": "number"
-	  },
-	  "local_auth": {
-		"anyOf": [{"type": "string"}, { "type": "boolean"}]
-	  },
-	  "audit": {
-		"type": "object",
-		"additionalProperties": false,
-		"properties": {
-		  "type": {
-			"type": "string"
-		  },
-		  "region": {
-			"type": "string"
-		  },
-		  "audit_events_uri": {
-			"anyOf": [
-			  {"type": "string"},
-			  {"type": "array",
-			   "items": {
-				 "type": "string"
-			   }
-			  }
-			]
-		  },
-		  "audit_sessions_uri": {
-			"type": "string"
-		  },
-		  "audit_table_name": {
-			"type": "string"
-		  }
-		}
-	  }%v
-	}
-  }`
-
-// GetClusterConfigSchema returns the schema with optionally injected
-// schema for extensions.
-func GetClusterConfigSchema(extensionSchema string) string {
-	var clusterConfigSchema string
-	if clusterConfigSchema == "" {
-		clusterConfigSchema = fmt.Sprintf(ClusterConfigSpecSchemaTemplate, "")
-	} else {
-		clusterConfigSchema = fmt.Sprintf(ClusterConfigSpecSchemaTemplate, ","+extensionSchema)
-	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, clusterConfigSchema, DefaultDefinitions)
 }
 
 // UnmarshalClusterConfig unmarshals the ClusterConfig resource from JSON.
@@ -158,15 +70,8 @@ func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (ClusterConfig,
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &clusterConfig); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetClusterConfigSchema(""), &clusterConfig, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
+	if err := utils.FastUnmarshal(bytes, &clusterConfig); err != nil {
+		return nil, trace.BadParameter(err.Error())
 	}
 
 	err = clusterConfig.CheckAndSetDefaults()

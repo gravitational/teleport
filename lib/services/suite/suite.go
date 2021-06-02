@@ -295,7 +295,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, cas[0], ca)
 
-	cas, err = s.CAS.GetCertAuthorities(services.UserCA, true, services.SkipValidation())
+	cas, err = s.CAS.GetCertAuthorities(services.UserCA, true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, cas[0], ca)
 
@@ -1067,6 +1067,22 @@ func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 	c.Assert(gotAP.GetSecondFactor(), check.Equals, constants.SecondFactorOTP)
 }
 
+// SessionRecordingConfig tests session recording configuration.
+func (s *ServicesTestSuite) SessionRecordingConfig(c *check.C) {
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: services.RecordAtProxy,
+	})
+	c.Assert(err, check.IsNil)
+
+	err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), recConfig)
+	c.Assert(err, check.IsNil)
+
+	gotrecConfig, err := s.ConfigS.GetSessionRecordingConfig(context.TODO())
+	c.Assert(err, check.IsNil)
+
+	c.Assert(gotrecConfig.GetMode(), check.Equals, services.RecordAtProxy)
+}
+
 func (s *ServicesTestSuite) StaticTokens(c *check.C) {
 	// set static tokens
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
@@ -1126,7 +1142,6 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	config, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		DisconnectExpiredCert: services.NewBool(true),
 		ClusterID:             "27",
-		SessionRecording:      services.RecordAtProxy,
 		Audit: services.AuditConfig{
 			Region:           "us-west-1",
 			Type:             "dynamodb",
@@ -1145,6 +1160,14 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	err = s.ConfigS.SetClusterNetworkingConfig(context.TODO(), netConfig)
 	c.Assert(err, check.IsNil)
 
+	// DELETE IN 8.0.0
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: services.RecordAtProxy,
+	})
+	c.Assert(err, check.IsNil)
+	err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), recConfig)
+	c.Assert(err, check.IsNil)
+
 	err = s.ConfigS.SetClusterConfig(config)
 	c.Assert(err, check.IsNil)
 
@@ -1152,6 +1175,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	c.Assert(err, check.IsNil)
 	config.SetResourceID(gotConfig.GetResourceID())
 	config.SetNetworkingConfig(netConfig)
+	config.SetSessionRecordingConfig(recConfig)
 	fixtures.DeepCompare(c, config, gotConfig)
 
 	// Some parts (e.g. auth server) will not function

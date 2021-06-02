@@ -441,6 +441,10 @@ type KubeProxyConfig struct {
 
 	// KubeconfigPath is a path to kubeconfig
 	KubeconfigPath string
+
+	// LegacyKubeProxy specifies that this proxy was configured using the
+	// legacy kubernetes section.
+	LegacyKubeProxy bool
 }
 
 // AuthConfig is a configuration of the auth server
@@ -492,6 +496,9 @@ type AuthConfig struct {
 
 	// NetworkingConfig stores cluster networking configuration.
 	NetworkingConfig types.ClusterNetworkingConfig
+
+	// SessionRecordingConfig stores session recording configuration.
+	SessionRecordingConfig types.SessionRecordingConfig
 
 	// LicenseFile is a full path to the license file
 	LicenseFile string
@@ -847,6 +854,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
 	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
+	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
 	cfg.Auth.Preference = services.DefaultAuthPreference()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
@@ -898,5 +906,5 @@ func ApplyFIPSDefaults(cfg *Config) {
 
 	// Update cluster configuration to record sessions at node, this way the
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.
-	cfg.Auth.ClusterConfig.SetSessionRecording(services.RecordAtNode)
+	cfg.Auth.SessionRecordingConfig.SetMode(services.RecordAtNode)
 }
