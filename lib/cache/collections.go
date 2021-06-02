@@ -433,7 +433,7 @@ func (c *reverseTunnel) erase(ctx context.Context) error {
 }
 
 func (c *reverseTunnel) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.Presence.GetReverseTunnels(services.SkipValidation())
+	resources, err := c.Presence.GetReverseTunnels()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -804,7 +804,7 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 }
 
 func (c *certAuthority) fetchCertAuthorities(caType services.CertAuthType) (apply func(ctx context.Context) error, err error) {
-	authorities, err := c.Trust.GetCertAuthorities(caType, c.watch.LoadSecrets, services.SkipValidation())
+	authorities, err := c.Trust.GetCertAuthorities(caType, c.watch.LoadSecrets)
 	if err != nil {
 		// DELETE IN: 5.1
 		//

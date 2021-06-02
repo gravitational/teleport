@@ -1444,7 +1444,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	serverID := session.Parties[0].ServerID
 
 	// find a server address by its ID
-	nodes, err := site.GetNodes(ctx, namespace, services.SkipValidation())
+	nodes, err := site.GetNodes(ctx, namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
