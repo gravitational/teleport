@@ -35,6 +35,12 @@ enterprise: false
 podSecurityPolicy:
   enabled: true
 
+# If enabled will create a Pod Disruption Budget
+# https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
 # Labels is a map of key-value pairs about this cluster
 labels: {}
 
