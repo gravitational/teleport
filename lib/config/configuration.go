@@ -594,9 +594,9 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Errorf("https cert does not exist: %s", p.Certificate)
 		}
 
-		// Read in certificate from disk. If Teleport finds a self signed
+		// Read in certificate from disk. If Teleport finds a self-signed
 		// certificate chain, log a warning, and then accept whatever certificate
-		// was passed. If the certificate is not self signed, verify the certificate
+		// was passed. If the certificate is not self-signed, verify the certificate
 		// chain from leaf to root with the trust store on the computer so browsers
 		// don't complain.
 		certificateChainBytes, err := utils.ReadPath(p.Certificate)
