@@ -24,7 +24,7 @@ Slack integration allows you to treat Teleport access and permission requests wi
 
 This guide assumes that you have:
 
-- Teleport Enterprise Edition.
+- Teleport (=teleport.version=).
 - Admin privileges with access to [`tctl`](https://gravitational.com/teleport/docs/cli-docs/#tctl).
 - Slack Admin Privileges to create an app and install it to your workspace.
 
@@ -89,14 +89,14 @@ Teleport Plugin uses the `access-plugin` role and user to perform the approval.
 We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
 ```bash
-sudo tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=1h
+sudo tctl auth --auth-server=auth.example.com:3025 sign --format=tls --user=access-plugin --out=auth --ttl=1h
 # ...
 ```
 
-The above sequence should result in three PEM encoded files being generated: `auth.crt`, `auth.key`, and `auth.cas` (the certificate, private key, and CA certs respectively).  We'll reference these files later when [configuring the plugins](#configuring-teleport-slack).
+The above sequence should result in three generated certificate files: `auth.crt`, `auth.key`, and `auth.cas` (the certificate, private key, and CA certs respectively).  We'll reference these files later when [configuring the plugins](#configuring-teleport-slack).
 
 <Admonition type="note" title="Certificate Lifetime">
-  By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=24h` exports a 24-hour token
+  By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=2090h` exports a 1-year token.
 </Admonition>
 
 ### Create Slack app
@@ -156,14 +156,32 @@ Since Teleport plugins typically augment your Teleport cluster with third-party 
 
 We currently only provide `linux-amd64` binaries. You can optionally compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/slack).
 
-```bash
-# Checkout teleport-plugins
-git clone https://github.com/gravitational/teleport-plugins.git
-cd teleport-plugins/access/slack
-make
-```
+<Tabs>
+  <TabItem label="Download">
+    ```bash
+    curl -LO https://get.gravitational.com/teleport-access-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    tar -xzf teleport-access-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    cd teleport-access-slack
+    ./install
+    ```
 
-Run `./install` or place the executable (`teleport-slack`) in the appropriate `/usr/bin` or `/usr/local/bin` directory depending on your server operating system.
+    ```bash
+    # Output
+    Teleport Slack binaries have been copied to /usr/local/bin
+    You can run teleport-slack configure > /etc/teleport-slack.toml to bootstrap your config file
+    ```
+  </TabItem>
+  <TabItem label="From Source">
+    To install from source you need `git` and `go >= (=teleport.golang=)` installed.
+
+    ```bash
+    # Checkout teleport-plugins
+    git clone https://github.com/gravitational/teleport-plugins.git
+    cd teleport-plugins/access/slack
+    make
+    ```
+  </TabItem>
+</Tabs>
 
 <Admonition type="tip">
   View the [Slack Plugin README](https://github.com/gravitational/teleport-plugins/tree/master/access/slack).
@@ -179,19 +197,19 @@ Generate a boilerplate config by running the following command:
 teleport-slack configure > teleport-slack.toml
 ```
 
-#### Copy PEM files
+#### Copy certificates
 
-Navigate back to the certificates you generated with `tctl auth sign` before. 
+Navigate back to the certificates you generated with `tctl auth sign` before. The plugin installer creates a folder for them at: `/var/lib/teleport/plugins/slack/`. 
 
-The plugin installer creates a folder for them at: `/var/lib/teleport/plugins/slack/'. Copy or move the certificates there and point the config file to them:
+Copy or move the certificates there and point the config file to them:
 
 ```bash
 # Navigate up directories
-cd ../../../
-# Copy PEM files created by 'tctl auth sign'
-sudo cp -f auth.cas /var/lib/teleport/plugins/slack/
-sudo cp -f auth.crt /var/lib/teleport/plugins/slack/
-sudo cp -f auth.key /var/lib/teleport/plugins/slack/
+cd ../
+# Move certificate files created by 'tctl auth sign'
+sudo mv -f auth.cas /var/lib/teleport/plugins/slack/
+sudo mv -f auth.crt /var/lib/teleport/plugins/slack/
+sudo mv -f auth.key /var/lib/teleport/plugins/slack/
 ```
 
 #### Editing the config file
@@ -199,7 +217,7 @@ sudo cp -f auth.key /var/lib/teleport/plugins/slack/
 Run the following command to modify the configuration file before we deploy it:
 
 ```bash
-sudo nano teleport-plugins/access/slack/teleport-slack.toml
+sudo nano teleport-access-slack/teleport-slack.toml
 ```
 
 Teleport YAML configuration files are divided into sections:
@@ -209,13 +227,19 @@ Teleport YAML configuration files are divided into sections:
 ```
 
 1. Find the "Teleport" section and add the certificates you generated with `tctl auth sign` before.
-
 2. Find the "Slack" section and add the OAuth token, signing token, and the desired channel name.
+3. Add the desired recipients. 
 
-3. Copy `teleport-slack.toml` to the location used by the Slack Plugin:
+  For users, add the email address associated with their Slack profile. 
+  
+  For channels, add the Slack Channel ID (which can be found in the URL path; `YYYYYYY` below).
+
+  ![Find Slack Channel ID](../../../img/enterprise/plugins/slack/slack-channel-id.png)
+
+4. Copy `teleport-slack.toml` to the location used by the Slack Plugin:
 
    ```bash
-   sudo mv teleport-plugins/access/slack/teleport-slack.toml /etc
+   sudo mv teleport-access-slack/teleport-slack.toml /etc/teleport-slack.toml
    ```
 
 ## Step 4/4. Test run
@@ -230,10 +254,31 @@ If everything works fine, the log output should look like this:
 
 ```bash
 sudo teleport-slack start
-# INFO   Starting Teleport Access Slack (=teleport.plugin.version=).1-0-slack/main.go:145
-# INFO   Starting a request watcher... slack/main.go:330
-# INFO   Starting insecure HTTP server on 0.0.0.0:8081 utils/http.go:64
-# INFO   Watcher connected slack/main.go:298
+# INFO   Starting Teleport Access Slack Plugin (=teleport.plugin.version=): slack/app.go:72
+```
+
+### Create a test user
+
+Many of Teleport's default user roles lack the ability to make role requests.
+
+Create a test role called `dev` with that ability:
+
+```yaml
+kind: "role"
+version: "v3"
+metadata:
+  name: "dev"
+  namespace: "default"
+spec:
+  allow:
+    request:
+      roles: ['*']
+```
+
+Assign it to a new `test-user`:
+
+```bash
+tctl request create test-user --roles=dev
 ```
 
 ### Testing the approval workflow
@@ -243,23 +288,30 @@ You can create a test permissions request with `tctl` and check if the plugin wo
 #### Create a test permissions request on behalf of a user
 
 ```bash
-# Replace USERNAME with a Teleport local user, and TARGET_ROLE with a Teleport Role
-sudo tctl request create USERNAME --roles=TARGET_ROLE
+tctl request create test-user --roles=dev
 ```
 
 A user can also try using `--request-roles` flag.
 
 ```bash
 # Example with a user trying to request a role DBA.
-tsh login --request-roles=dba
+tsh login --request-roles=dev
 ```
+
+The Slack Plugin will display:
+
+```bash
+INFO   Successfully posted to Slack request_id:37dFhe-7780-4cff-a1ce-345c0318776f request_op:put slack_channel:AIFODUF21 slack_timestamp:1622651379.000200 slack/app.go:221
+````
 
 #### Approve or deny the request on Slack
 
-The messages should automatically get updated to reflect the action you just clicked. You can also check the request status with `tctl`:
+The messages should automatically update to reflect approvals and denials. 
+
+You can also check the request status with `tctl`:
 
 ```bash
-sudo tctl request ls
+tctl request ls
 ```
 
 ### tsh user login and request admin role
@@ -267,11 +319,13 @@ sudo tctl request ls
 You can also test the full workflow from the user's perspective using `tsh`:
 
 ```bash
-tsh login --request-roles=REQUESTED_ROLE
-# Seeking request approval... (id: 8f77d2d1-2bbf-4031-a300-58926237a807)
+tsh login --request-roles=dev
+# Seeking request approval... (id: ceffe3e2-a556-45b3-b1a3-685ba9359e68)
 ```
 
 You should now see a new request in Teleport, and a message about the request on Slack. 
+
+![Slack Channel Messages](../../../img/enterprise/plugins/slack/slack-approval-deny.png)
 
 You can approve or deny it and `tsh` should log in successfully or error out right after you click an action button on Slack.
 
