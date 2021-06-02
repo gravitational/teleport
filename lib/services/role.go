@@ -147,7 +147,7 @@ func NewAdminRole() Role {
 func NewImplicitRole() Role {
 	return &RoleV3{
 		Kind:    KindRole,
-		Version: types.V4,
+		Version: V3,
 		Metadata: Metadata{
 			Name:      teleport.DefaultImplicitRole,
 			Namespace: defaults.Namespace,
@@ -172,7 +172,7 @@ func NewImplicitRole() Role {
 func RoleForUser(u User) Role {
 	return &RoleV3{
 		Kind:    KindRole,
-		Version: types.V4,
+		Version: V3,
 		Metadata: Metadata{
 			Name:      RoleNameForUser(u.GetName()),
 			Namespace: defaults.Namespace,
