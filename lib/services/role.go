@@ -2390,3 +2390,34 @@ func MarshalRole(role Role, opts ...MarshalOption) ([]byte, error) {
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}
 }
+
+// DowngradeToV3 converts a V4 role to V3 in-place so that it will be compatible with older instances.
+// DELETE IN 8.0.0
+func DowngradeRoleToV3(r *RoleV3) error {
+	switch r.Version {
+	case types.V3: // break
+	case types.V4:
+		r.Version = V3
+
+		// V3 roles will set the default labels to wildcard allow if they are
+		// empty. To prevent this for roles which are created as V4 and
+		// downgraded, set a placeholder label
+		const labelKey = "__teleport_no_labels"
+		labelVal := uuid.New()
+		if len(r.Spec.Allow.NodeLabels) == 0 {
+			r.Spec.Allow.NodeLabels = Labels{labelKey: []string{labelVal}}
+		}
+		if len(r.Spec.Allow.AppLabels) == 0 {
+			r.Spec.Allow.AppLabels = Labels{labelKey: []string{labelVal}}
+		}
+		if len(r.Spec.Allow.KubernetesLabels) == 0 {
+			r.Spec.Allow.KubernetesLabels = Labels{labelKey: []string{labelVal}}
+		}
+		if len(r.Spec.Allow.DatabaseLabels) == 0 {
+			r.Spec.Allow.DatabaseLabels = Labels{labelKey: []string{labelVal}}
+		}
+	default:
+		return trace.BadParameter("unrecognized role version %T", r.Version)
+	}
+	return nil
+}

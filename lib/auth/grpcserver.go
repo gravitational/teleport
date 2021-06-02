@@ -1380,7 +1380,8 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 }
 
 // downgradeRole tests the client version passed through the GRPC metadata, and
-// downgrades the given role to V3 if V4 roles are not known to be supported (client version is unknown or < 6.3).
+// downgrades the given role to V3 in-place if V4 roles are not known to be
+// supported (client version is unknown or < 6.3).
 func downgradeRole(ctx context.Context, role *types.RoleV3) error {
 	var clientVersion *semver.Version
 	clientVersionString, ok := metadata.VersionFromContext(ctx)
@@ -1395,7 +1396,7 @@ func downgradeRole(ctx context.Context, role *types.RoleV3) error {
 	minSupportedVersionForV4Roles := semver.New("6.3.0-aa") // "aa" is included so that this compares before v6.3.0-alpha
 	if clientVersion == nil || clientVersion.LessThan(*minSupportedVersionForV4Roles) {
 		log.Debugf(`Client version "%s" is unknown or less than 6.3.0, converting role to v3`, clientVersionString)
-		return trace.Wrap(role.DowngradeToV3())
+		return trace.Wrap(services.DowngradeRoleToV3(role))
 	}
 	return nil
 }

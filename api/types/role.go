@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 )
 
@@ -617,37 +616,6 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		if err := r.Spec.Deny.Impersonate.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-	return nil
-}
-
-// DowngradeToV3 converts a V4 role to V3 so that it will be compatible with older instances.
-// DELETE IN 8.0.0
-func (r *RoleV3) DowngradeToV3() error {
-	switch r.Version {
-	case V3:
-	case V4:
-		r.Version = V3
-
-		// V3 roles will set the default labels to wildcard allow if they are
-		// empty. To prevent this for roles which are created as V4 and
-		// downgraded, set a placeholder label
-		const labelKey = "__teleport_no_labels"
-		labelVal := uuid.NewString()
-		if r.Spec.Allow.NodeLabels == nil || len(r.Spec.Allow.NodeLabels) == 0 {
-			r.Spec.Allow.NodeLabels = Labels{labelKey: []string{labelVal}}
-		}
-		if r.Spec.Allow.AppLabels == nil || len(r.Spec.Allow.AppLabels) == 0 {
-			r.Spec.Allow.AppLabels = Labels{labelKey: []string{labelVal}}
-		}
-		if r.Spec.Allow.KubernetesLabels == nil || len(r.Spec.Allow.KubernetesLabels) == 0 {
-			r.Spec.Allow.KubernetesLabels = Labels{labelKey: []string{labelVal}}
-		}
-		if r.Spec.Allow.DatabaseLabels == nil || len(r.Spec.Allow.DatabaseLabels) == 0 {
-			r.Spec.Allow.DatabaseLabels = Labels{labelKey: []string{labelVal}}
-		}
-	default:
-		return trace.BadParameter("unrecognized role version %T", r.Version)
 	}
 	return nil
 }
