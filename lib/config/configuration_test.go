@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
@@ -529,7 +530,7 @@ func TestApplyConfig(t *testing.T) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      "cluster-auth-preference",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{

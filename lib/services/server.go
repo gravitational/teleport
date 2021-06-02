@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -315,5 +316,5 @@ func MarshalServers(s []types.Server) ([]byte, error) {
 // NodeHasMissedKeepAlives checks if node has missed its keep alive
 func NodeHasMissedKeepAlives(s types.Server) bool {
 	serverExpiry := s.Expiry()
-	return serverExpiry.Before(time.Now().Add(defaults.ServerAnnounceTTL - (defaults.ServerKeepAliveTTL * 2)))
+	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL * 2)))
 }

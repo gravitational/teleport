@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -111,7 +112,7 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 
 	// certificate authority is not recognized, because
 	// the trust has not been established yet
-	_, err = remoteProxy.GetNodes(ctx, defaults.Namespace)
+	_, err = remoteProxy.GetNodes(ctx, apidefaults.Namespace)
 	fixtures.ExpectConnectionProblem(c, err)
 
 	// after trust is established, things are good
@@ -123,7 +124,7 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 		TestBuiltin(types.RoleProxy), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
-	_, err = remoteProxy.GetNodes(ctx, defaults.Namespace)
+	_, err = remoteProxy.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// remote auth server will get rejected even with established trust
@@ -161,7 +162,7 @@ func (s *TLSSuite) TestAcceptedUsage(c *check.C) {
 
 	// certificate authority is not recognized, because
 	// the trust has not been established yet
-	_, err = client.GetNodes(ctx, defaults.Namespace)
+	_, err = client.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// restricted clients can use restricted servers if restrictions
@@ -171,7 +172,7 @@ func (s *TLSSuite) TestAcceptedUsage(c *check.C) {
 	client, err = tlsServer.NewClient(identity)
 	c.Assert(err, check.IsNil)
 
-	_, err = client.GetNodes(ctx, defaults.Namespace)
+	_, err = client.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// restricted clients can will be rejected if usage does not match
@@ -180,7 +181,7 @@ func (s *TLSSuite) TestAcceptedUsage(c *check.C) {
 	client, err = tlsServer.NewClient(identity)
 	c.Assert(err, check.IsNil)
 
-	_, err = client.GetNodes(ctx, defaults.Namespace)
+	_, err = client.GetNodes(ctx, apidefaults.Namespace)
 	fixtures.ExpectAccessDenied(c, err)
 
 	// restricted clients can will be rejected, for now if there is any mismatch,
@@ -190,7 +191,7 @@ func (s *TLSSuite) TestAcceptedUsage(c *check.C) {
 	client, err = tlsServer.NewClient(identity)
 	c.Assert(err, check.IsNil)
 
-	_, err = client.GetNodes(ctx, defaults.Namespace)
+	_, err = client.GetNodes(ctx, apidefaults.Namespace)
 	fixtures.ExpectAccessDenied(c, err)
 }
 
@@ -289,11 +290,11 @@ func (s *TLSSuite) TestRemoteRotation(c *check.C) {
 		TestBuiltin(types.RoleProxy), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
-	_, err = newRemoteProxy.GetNodes(ctx, defaults.Namespace)
+	_, err = newRemoteProxy.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// old proxy client is still trusted
-	_, err = s.server.CloneClient(remoteProxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(remoteProxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 }
 
@@ -345,7 +346,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
-	_, err = proxy.GetNodes(ctx, defaults.Namespace)
+	_, err = proxy.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// starts rotation
@@ -372,7 +373,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(ca.GetRotation().Phase, check.Equals, types.RotationPhaseUpdateClients)
 
 	// old clients should work
-	_, err = s.server.CloneClient(proxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
@@ -392,14 +393,14 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(ca.GetRotation().Phase, check.Equals, types.RotationPhaseUpdateServers)
 
 	// old clients should work
-	_, err = s.server.CloneClient(proxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
 	newProxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	_, err = newProxy.GetNodes(ctx, defaults.Namespace)
+	_, err = newProxy.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// complete rotation - advance rotation by clock
@@ -419,11 +420,11 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	// connection instead of re-using the one from pool
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
-	_, err = s.server.CloneClient(proxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
 
 	// new clients work
-	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 }
 
@@ -439,7 +440,7 @@ func (s *TLSSuite) TestAutoFallback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
-	_, err = proxy.GetNodes(ctx, defaults.Namespace)
+	_, err = proxy.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// starts rotation
@@ -495,7 +496,7 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
-	_, err = proxy.GetNodes(ctx, defaults.Namespace)
+	_, err = proxy.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// can't jump to mid-phase
@@ -520,7 +521,7 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old clients should work
-	_, err = s.server.CloneClient(proxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// clients reconnect
@@ -533,14 +534,14 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old clients should work
-	_, err = s.server.CloneClient(proxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
 	newProxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	_, err = newProxy.GetNodes(ctx, defaults.Namespace)
+	_, err = newProxy.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// can't jump to standy
@@ -562,11 +563,11 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old clients should work
-	_, err = s.server.CloneClient(proxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// complete rotation
@@ -583,11 +584,11 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	// connection instead of re-using the one from pool
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
-	_, err = s.server.CloneClient(proxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
 
 	// new clients work
-	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 }
 
@@ -601,7 +602,7 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
-	_, err = proxy.GetNodes(ctx, defaults.Namespace)
+	_, err = proxy.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// starts rotation
@@ -629,7 +630,7 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 	newProxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	_, err = newProxy.GetNodes(ctx, defaults.Namespace)
+	_, err = newProxy.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// advance rotation:
@@ -652,7 +653,7 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 
 	// new clients work, server still accepts the creds
 	// because new clients should re-register and receive new certs
-	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// can't jump to other phases
@@ -674,11 +675,11 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// clients with new creds will no longer work
-	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
 
 	// clients with old creds will still work
-	_, err = s.server.CloneClient(proxy).GetNodes(ctx, defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 }
 
@@ -877,7 +878,7 @@ func (s *TLSSuite) TestNopUser(c *check.C) {
 	_, err = client.GetUsers(false)
 	fixtures.ExpectAccessDenied(c, err)
 
-	_, err = client.GetNodes(ctx, defaults.Namespace)
+	_, err = client.GetNodes(ctx, apidefaults.Namespace)
 	fixtures.ExpectAccessDenied(c, err)
 
 	// Endpoints that allow current user access should return access denied to
@@ -1091,12 +1092,12 @@ func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
 			Created:        date,
 			LastActive:     date,
 			Login:          "bob",
-			Namespace:      defaults.Namespace,
+			Namespace:      apidefaults.Namespace,
 		}
 		c.Assert(clt.CreateSession(sess), check.IsNil)
 
 		err = clt.UploadSessionRecording(events.SessionRecording{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			SessionID: sess.ID,
 			Recording: recording,
 		})
@@ -1182,7 +1183,7 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 			Created:        date,
 			LastActive:     date,
 			Login:          "bob",
-			Namespace:      defaults.Namespace,
+			Namespace:      apidefaults.Namespace,
 		}
 		c.Assert(clt.CreateSession(sess), check.IsNil)
 
@@ -1195,7 +1196,7 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 		}
 
 		err = clt.PostSessionSlice(events.SessionSlice{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			SessionID: string(sess.ID),
 			Chunks: []*events.SessionChunk{
 				{
@@ -1217,7 +1218,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	out, err := clt.GetSessions(defaults.Namespace)
+	out, err := clt.GetSessions(apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.DeepEquals, []session.Session{})
 
@@ -1228,11 +1229,11 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		Created:        date,
 		LastActive:     date,
 		Login:          "bob",
-		Namespace:      defaults.Namespace,
+		Namespace:      apidefaults.Namespace,
 	}
 	c.Assert(clt.CreateSession(sess), check.IsNil)
 
-	out, err = clt.GetSessions(defaults.Namespace)
+	out, err = clt.GetSessions(apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(out, check.DeepEquals, []session.Session{sess})
@@ -1248,10 +1249,10 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 
 	// emit two events: "one" and "two" for this session, and event "three"
 	// for some other session
-	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
+	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", apidefaults.Namespace), 0755)
 	c.Assert(err, check.IsNil)
 	forwarder, err := events.NewForwarder(events.ForwarderConfig{
-		Namespace:      defaults.Namespace,
+		Namespace:      apidefaults.Namespace,
 		SessionID:      sess.ID,
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
@@ -1261,7 +1262,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	err = forwarder.PostSessionSlice(events.SessionSlice{
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		SessionID: string(sess.ID),
 		Chunks: []*events.SessionChunk{
 			{
@@ -1284,7 +1285,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 
 	anotherSessionID := session.NewID()
 	forwarder, err = events.NewForwarder(events.ForwarderConfig{
-		Namespace:      defaults.Namespace,
+		Namespace:      apidefaults.Namespace,
 		SessionID:      sess.ID,
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
@@ -1293,7 +1294,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 	err = clt.PostSessionSlice(events.SessionSlice{
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		SessionID: string(anotherSessionID),
 		Chunks: []*events.SessionChunk{
 			{
@@ -1319,7 +1320,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	uploader, err := events.NewUploader(events.UploaderConfig{
 		ServerID:   "upload",
 		DataDir:    uploadDir,
-		Namespace:  defaults.Namespace,
+		Namespace:  apidefaults.Namespace,
 		Context:    context.TODO(),
 		ScanPeriod: 100 * time.Millisecond,
 		AuditLog:   clt,
@@ -1339,7 +1340,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	}
 
 	// ask for strictly session events:
-	e, err := clt.GetSessionEvents(defaults.Namespace, sess.ID, 0, true)
+	e, err := clt.GetSessionEvents(apidefaults.Namespace, sess.ID, 0, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(e), check.Equals, 2)
 	c.Assert(e[0].GetString("val"), check.Equals, "one")
@@ -1348,14 +1349,14 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	// try searching for events with no filter (empty query) - should get all 3 events:
 	to := time.Now().In(time.UTC).Add(time.Hour)
 	from := to.Add(-time.Hour * 2)
-	history, _, err := clt.SearchEvents(from, to, defaults.Namespace, nil, 0, "")
+	history, _, err := clt.SearchEvents(from, to, apidefaults.Namespace, nil, 0, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	// Extra event is the upload event
 	c.Assert(len(history), check.Equals, 5)
 
 	// try searching for only "session.end" events (real query)
-	history, _, err = clt.SearchEvents(from, to, defaults.Namespace, []string{events.SessionEndEvent}, 0, "")
+	history, _, err = clt.SearchEvents(from, to, apidefaults.Namespace, []string{events.SessionEndEvent}, 0, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	c.Assert(len(history), check.Equals, 2)
@@ -2145,7 +2146,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		parsedCert, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(defaults.MaxCertDuration), int64(diff))
+		require.Less(t, int64(apidefaults.MaxCertDuration), int64(diff))
 
 		// user should have agent forwarding (default setting)
 		require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitAgentForwarding)
@@ -2362,7 +2363,7 @@ func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 				},
 			},
 			CompatibilityMode: tt.inClientCertificateFormat,
-			TTL:               defaults.CertDuration,
+			TTL:               apidefaults.CertDuration,
 			PublicKey:         pub,
 		})
 		c.Assert(err, check.IsNil)
@@ -2843,7 +2844,7 @@ func (s *TLSSuite) TestEventsNodePresence(c *check.C) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      "node1",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.ServerSpecV2{
 			Addr: "localhost:3022",
@@ -3114,7 +3115,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 		Kind:    types.KindToken,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Name:      token.GetName(),
 		},
 	})
@@ -3143,7 +3144,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      types.MetaNameClusterName,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Labels: map[string]string{
 				"key": "val",
 			},

@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
@@ -268,7 +269,7 @@ func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 		t.Fatalf("failed to create linear backoff: %v", err)
 	}
 	for {
-		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), defaults.Namespace, []string{eventType}, 100, "")
+		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), apidefaults.Namespace, []string{eventType}, 100, "")
 		if err != nil {
 			t.Fatalf("failed to call SearchEvents: %v", err)
 		}
@@ -573,7 +574,7 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 	for {
 		select {
 		case <-time.Tick(500 * time.Millisecond):
-			servers, err := accessPoint.GetDatabaseServers(context.Background(), defaults.Namespace)
+			servers, err := accessPoint.GetDatabaseServers(context.Background(), apidefaults.Namespace)
 			if err != nil {
 				logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue

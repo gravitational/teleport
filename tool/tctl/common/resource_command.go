@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -121,7 +122,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources")
 	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").Required().SetValue(&rc.refs)
 	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&rc.format)
-	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(defaults.Namespace).StringVar(&rc.namespace)
+	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(apidefaults.Namespace).StringVar(&rc.namespace)
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
 
 	rc.getCmd.Alias(getHelp)
@@ -476,7 +477,7 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	ctx := context.TODO()
 	switch rc.ref.Kind {
 	case types.KindNode:
-		if err = client.DeleteNode(ctx, defaults.Namespace, rc.ref.Name); err != nil {
+		if err = client.DeleteNode(ctx, apidefaults.Namespace, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("node %v has been deleted\n", rc.ref.Name)

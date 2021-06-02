@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -182,7 +183,7 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	var interactive bool
 
 	// Get session events to find fields for constructed session end
-	sessionEvents, err := u.cfg.AuditLog.GetSessionEvents(defaults.Namespace, uploadData.SessionID, 0, false)
+	sessionEvents, err := u.cfg.AuditLog.GetSessionEvents(apidefaults.Namespace, uploadData.SessionID, 0, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

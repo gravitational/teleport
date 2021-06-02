@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -95,7 +96,7 @@ func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
 		return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 	}
 	requestBody := strings.TrimPrefix(request, prefix)
-	namespace := defaults.Namespace
+	namespace := apidefaults.Namespace
 	var err error
 	parts := strings.Split(requestBody, "@")
 	switch {
@@ -163,7 +164,7 @@ func (p *proxySubsysRequest) String() string {
 // SetDefaults sets default values.
 func (p *proxySubsysRequest) SetDefaults() {
 	if p.namespace == "" {
-		p.namespace = defaults.Namespace
+		p.namespace = apidefaults.Namespace
 	}
 }
 

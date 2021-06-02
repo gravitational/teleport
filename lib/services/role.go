@@ -28,10 +28,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -116,18 +116,18 @@ func NewAdminRole() types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      teleport.AdminRoleName,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
+				BPF:               apidefaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -152,7 +152,7 @@ func NewImplicitRole() types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      constants.DefaultImplicitRole,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
@@ -163,7 +163,7 @@ func NewImplicitRole() types.Role {
 				PortForwarding: types.NewBoolOption(false),
 			},
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
 			},
 		},
@@ -177,18 +177,18 @@ func RoleForUser(u types.User) types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      RoleNameForUser(u.GetName()),
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
+				BPF:               apidefaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -215,19 +215,19 @@ func NewDowngradedOSSAdminRole() types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      teleport.AdminRoleName,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Labels:    map[string]string{teleport.OSSMigratedV6: types.True},
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
+				BPF:               apidefaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -254,18 +254,18 @@ func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) 
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "github-" + uuid.New(),
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
+				BPF:               apidefaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -291,14 +291,14 @@ func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      RoleNameForCertAuthority(ca.GetClusterName()),
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
-				MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},

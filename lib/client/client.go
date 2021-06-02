@@ -35,9 +35,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
@@ -102,7 +102,7 @@ func (proxy *ProxyClient) GetSites() ([]types.Site, error) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(defaults.DefaultDialTimeout):
+	case <-time.After(apidefaults.DefaultDialTimeout):
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 	log.Debugf("Found clusters: %v", stdout.String())
@@ -997,7 +997,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	nc := &NodeClient{
 		Client:    client,
 		Proxy:     proxy,
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
 	}
 
@@ -1069,7 +1069,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	nc := &NodeClient{
 		Client:    client,
 		Proxy:     proxy,
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
 	}
 

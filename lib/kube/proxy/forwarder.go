@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -160,7 +161,7 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ServerID")
 	}
 	if f.Namespace == "" {
-		f.Namespace = defaults.Namespace
+		f.Namespace = apidefaults.Namespace
 	}
 	if f.Context == nil {
 		f.Context = context.TODO()
@@ -662,7 +663,7 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	f.log.Debugf("Using async streamer for session.")
 	dir := filepath.Join(
 		f.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, defaults.Namespace,
+		events.StreamingLogsDir, apidefaults.Namespace,
 	)
 	fileStreamer, err := filesessions.NewStreamer(dir)
 	if err != nil {

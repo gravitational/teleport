@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -166,7 +167,7 @@ func (a *Server) calculateSAMLUser(connector types.SAMLConnector, assertionInfo 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleTTL := roles.AdjustSessionTTL(defaults.MaxCertDuration)
+	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
 	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
 
 	return &p, nil
@@ -182,7 +183,7 @@ func (a *Server) createSAMLUser(p *createUserParams) (types.User, error) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      p.username,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Expires:   &expires,
 		},
 		Spec: types.UserSpecV2{

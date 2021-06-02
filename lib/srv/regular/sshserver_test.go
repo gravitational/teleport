@@ -39,10 +39,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -172,7 +172,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		"",
 		utils.NetAddr{},
 		SetUUID(s.nodeID),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetEmitter(s.nodeClient),
 		SetShell("/bin/sh"),
 		SetSessionServer(s.nodeClient),
@@ -736,7 +736,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
 		SetEmitter(s.nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(s.clock),
@@ -813,7 +813,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 			},
 		),
 		SetSessionServer(s.nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetEmitter(s.nodeClient),
@@ -905,7 +905,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
 		SetEmitter(s.nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(s.clock),
@@ -1014,7 +1014,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
 		SetEmitter(s.nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(s.clock),
@@ -1126,7 +1126,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		SetShell("/bin/sh"),
 		SetSessionServer(s.nodeClient),
 		SetEmitter(s.nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(s.clock),

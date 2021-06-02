@@ -34,6 +34,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -626,9 +627,9 @@ func New(addr utils.NetAddr,
 		Component:       component,
 		Announcer:       s.authService,
 		GetServerInfo:   s.getServerInfo,
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
-		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
-		ServerTTL:       defaults.ServerAnnounceTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		Clock:           s.clock,
 		OnHeartbeat:     s.onHeartbeat,
@@ -770,7 +771,7 @@ func (s *Server) getServerInfo() (types.Resource, error) {
 			server.SetRotation(*rotation)
 		}
 	}
-	server.SetExpiry(s.clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
+	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
 	return server, nil
 }
