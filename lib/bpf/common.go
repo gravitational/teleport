@@ -23,7 +23,6 @@ import "C"
 
 import (
 	"context"
-	"unsafe"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -143,9 +142,6 @@ func (s *NOP) CloseSession(ctx *SessionContext) error {
 
 // IsHostCompatible checks that BPF programs can run on this host.
 func IsHostCompatible() error {
-	// To find the cgroup ID of a program, bpf_get_current_cgroup_id is needed
-	// which was introduced in 4.18.
-	// https://github.com/torvalds/linux/commit/bf6fa2c893c5237b48569a13fa3c673041430b6c
 	minKernel := semver.New(teleport.EnhancedRecordingMinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
@@ -155,12 +151,8 @@ func IsHostCompatible() error {
 		return trace.BadParameter("incompatible kernel found, minimum supported kernel is %v", minKernel)
 	}
 
-	// Check that libbcc is on the system.
-	libraryName := C.CString("libbcc.so.0")
-	defer C.free(unsafe.Pointer(libraryName))
-	handle := C.dlopen(libraryName, C.RTLD_NOW)
-	if handle == nil {
-		return trace.BadParameter("libbcc.so not found")
+	if err = utils.HasBTF(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
