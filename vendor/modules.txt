@@ -20,6 +20,11 @@ cloud.google.com/go/firestore/apiv1/admin
 # cloud.google.com/go/storage v1.10.0
 ## explicit
 cloud.google.com/go/storage
+# github.com/AlecAivazis/survey/v2 v2.2.12
+## explicit
+github.com/AlecAivazis/survey/v2
+github.com/AlecAivazis/survey/v2/core
+github.com/AlecAivazis/survey/v2/terminal
 # github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78
 github.com/Azure/go-ansiterm
 github.com/Azure/go-ansiterm/winterm
@@ -259,21 +264,12 @@ github.com/gravitational/form
 # github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible
 ## explicit
 github.com/gravitational/kingpin
-# github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
-## explicit
-github.com/gravitational/license
-github.com/gravitational/license/constants
 # github.com/gravitational/oxy v0.0.0-20210316180922-c73d80d27348
 ## explicit
 github.com/gravitational/oxy/connlimit
 github.com/gravitational/oxy/forward
 github.com/gravitational/oxy/ratelimit
 github.com/gravitational/oxy/utils
-# github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
-## explicit
-github.com/gravitational/reporting
-github.com/gravitational/reporting/client
-github.com/gravitational/reporting/types
 # github.com/gravitational/roundtrip v1.0.0
 ## explicit
 github.com/gravitational/roundtrip
@@ -346,6 +342,8 @@ github.com/julienschmidt/httprouter
 # github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 ## explicit
 github.com/kardianos/osext
+# github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
+github.com/kballard/go-shellquote
 # github.com/kr/pretty v0.2.1
 github.com/kr/pretty
 # github.com/kr/pty v1.1.8
@@ -375,8 +373,11 @@ github.com/mailgun/ttlmap
 # github.com/mattermost/xml-roundtrip-validator v0.1.0
 ## explicit
 github.com/mattermost/xml-roundtrip-validator
+# github.com/mattn/go-colorable v0.1.2
+github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.12
 ## explicit
+github.com/mattn/go-isatty
 # github.com/mattn/go-runewidth v0.0.10
 ## explicit
 github.com/mattn/go-runewidth
@@ -390,6 +391,8 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 github.com/mdp/rsc/gf256
 github.com/mdp/rsc/qr
 github.com/mdp/rsc/qr/coding
+# github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
+github.com/mgutz/ansi
 # github.com/mitchellh/go-wordwrap v1.0.1
 ## explicit
 github.com/mitchellh/go-wordwrap
