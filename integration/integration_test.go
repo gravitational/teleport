@@ -5004,6 +5004,140 @@ func (s *IntSuite) TestExecEvents(c *check.C) {
 	}
 }
 
+func (s *IntSuite) TestSessionContainsAccessRequest(c *check.C) {
+	accessRequestsKey := "access_requests"
+	requestedRoleName := "requested-role"
+	userRoleName := "user-role"
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	lsPath, err := exec.LookPath("ls")
+	c.Assert(err, check.IsNil)
+
+	// Creates new teleport cluster
+	main := s.newTeleport(c, nil, true)
+	defer main.StopAll()
+
+	ctx := context.Background()
+	// Get auth server
+	authServer := main.Process.GetAuthServer()
+
+	// Create new request role
+	requestedRole, err := services.NewRole(requestedRoleName, services.RoleSpecV3{
+		Options: services.RoleOptions{},
+		Allow:   services.RoleConditions{},
+	})
+	c.Assert(err, check.IsNil)
+
+	err = authServer.UpsertRole(ctx, requestedRole)
+	c.Assert(err, check.IsNil)
+
+	// Create user role with ability to request role
+	userRole, err := services.NewRole(userRoleName, services.RoleSpecV3{
+		Options: services.RoleOptions{},
+		Allow: services.RoleConditions{
+			Request: &services.AccessRequestConditions{
+				Roles: []string{requestedRoleName},
+			},
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	err = authServer.UpsertRole(ctx, userRole)
+	c.Assert(err, check.IsNil)
+
+	user, err := services.NewUser(s.me.Username)
+	user.AddRole(userRole.GetName())
+	c.Assert(err, check.IsNil)
+
+	watcher, err := authServer.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: types.KindUser},
+		},
+	})
+	c.Assert(err, check.IsNil)
+	defer watcher.Close()
+
+	select {
+	case <-time.After(time.Second * 30):
+		c.Fatalf("Timeout waiting for event.")
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			c.Fatalf("Unexpected event type.")
+		}
+		c.Assert(event.Type, check.Equals, types.OpInit)
+	case <-watcher.Done():
+		c.Fatal(watcher.Error())
+	}
+
+	// Update user
+	err = authServer.UpsertUser(user)
+	c.Assert(err, check.IsNil)
+
+	WaitForResource(c, watcher, user.GetKind(), user.GetName())
+
+	req, err := services.NewAccessRequest(s.me.Username, requestedRole.GetMetadata().Name)
+	c.Assert(err, check.IsNil)
+
+	accessRequestID := req.GetName()
+
+	err = authServer.CreateAccessRequest(context.TODO(), req)
+	c.Assert(err, check.IsNil)
+
+	err = authServer.SetAccessRequestState(context.TODO(), types.AccessRequestUpdate{
+		RequestID: accessRequestID,
+		State:     types.RequestState_APPROVED,
+	})
+	c.Assert(err, check.IsNil)
+
+	clientConfig := ClientConfig{
+		Login:       s.me.Username,
+		Cluster:     Site,
+		Host:        Host,
+		Port:        main.GetPortSSHInt(),
+		Interactive: false,
+	}
+
+	clientReissueParams := client.ReissueParams{
+		AccessRequests: []string{accessRequestID},
+	}
+	err = runCommandWithCertReissue(main, []string{lsPath}, clientReissueParams, client.CertCacheDrop, clientConfig)
+	c.Assert(err, check.IsNil)
+
+	// Get session start event
+	sessionStart, err := findEventInLog(main, events.SessionStartEvent)
+	c.Assert(err, check.IsNil)
+	c.Assert(sessionStart.GetCode(), check.Equals, events.SessionStartCode)
+	c.Assert(sessionStart.HasField(accessRequestsKey), check.Equals, true)
+
+	val, found := sessionStart[accessRequestsKey]
+	c.Assert(found, check.Equals, true)
+
+	result := strings.Contains(fmt.Sprintf("%v", val), accessRequestID)
+	c.Assert(result, check.Equals, true)
+}
+
+func WaitForResource(c *check.C, watcher types.Watcher, kind, name string) {
+	timeout := time.After(time.Second * 15)
+	for {
+		select {
+		case <-timeout:
+			c.Fatalf("Timeout waiting for event.")
+		case event := <-watcher.Events():
+			if event.Type != types.OpPut {
+				continue
+			}
+			if event.Resource.GetKind() == kind && event.Resource.GetMetadata().Name == name {
+				return
+			}
+		case <-watcher.Done():
+			c.Fatalf("Watcher error %s.", watcher.Error())
+		}
+	}
+}
+
 // findEventInLog polls the event log looking for an event of a particular type.
 func findEventInLog(t *TeleInstance, eventName string) (events.EventFields, error) {
 	for i := 0; i < 10; i++ {
@@ -5080,6 +5214,28 @@ func eventsInLog(path string, eventName string) ([]events.EventFields, error) {
 		return nil, trace.NotFound("event not found")
 	}
 	return ret, nil
+}
+
+// runCommandWithCertReissue runs an SSH command and generates certificates for the user
+func runCommandWithCertReissue(instance *TeleInstance, cmd []string, reissueParams client.ReissueParams, cachePolicy client.CertCachePolicy, cfg ClientConfig) error {
+	tc, err := instance.NewClient(cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = tc.ReissueUserCerts(context.Background(), cachePolicy, reissueParams)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	out := &bytes.Buffer{}
+	tc.Stdout = out
+
+	err = tc.SSH(context.TODO(), cmd, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // runCommand is a shortcut for running SSH command, it creates a client
