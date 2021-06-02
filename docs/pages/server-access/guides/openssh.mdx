@@ -69,7 +69,7 @@ Teleport OpenSSH supports:
 - IPv4 `ubuntu@184.45.45.30`
 - IPv6 `root@2001:db8::2`
 
-## Set up OpenSSH Recording Proxy Mode
+## Set up OpenSSH recording proxy mode
 
 The first step is install and setup Teleport, we recommend starting with our [Getting Started Guide](../../getting-started.mdx) and [Admin Manual](../../admin-guide.mdx).
 
@@ -220,7 +220,7 @@ sudo ssh-add -L
   environment variable with `tsh`.
 </Admonition>
 
-## Use OpenSSH Client
+## Use OpenSSH client
 
 It is possible to use the OpenSSH client `ssh` to connect to nodes within a
 Teleport cluster. Teleport supports SSH subsystems and includes a `proxy` subsystem that can be used like `netcat` is with `ProxyCommand` to connect
@@ -325,7 +325,7 @@ tsh ssh --port=22 dev@database.root.example.com
   The principal/username (`dev@` in the example above) being used to connect must be listed in the Teleport user/role configuration.
 </Admonition>
 
-## OpenSSH Rate Limiting
+## OpenSSH rate limiting
 
 When using a Teleport proxy in "recording mode", be aware of OpenSSH built-in
 rate-limiting. On large numbers of proxy connections, you may encounter errors
@@ -344,7 +344,7 @@ dropped.
 To increase the concurrency level, increase the value to something like
 `MaxStartups 50:30:100`. This allows 50 concurrent connections and a max of 100.
 
-## Revoke an SSH Certificate
+## Revoke an SSH certificate
 
 To revoke the current Teleport CA and generate a new one, run `tctl auth rotate`. Unless you've highly automated your
 infrastructure, we would suggest you proceed with caution as this will invalidate the user

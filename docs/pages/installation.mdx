@@ -1,6 +1,6 @@
 ---
 title: Installing Teleport
-description: The guide for installing Teleport on servers and into Kubernetes clusters
+description: The guide for installing Teleport on servers and into Kubernetes clusters.
 h1: Installation
 ---
 
@@ -17,59 +17,59 @@ up-to-date information.
   <TabItem label="Debian/Ubuntu (DEB)">
     ```bash
     # Install our public key.
-    $ curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
+    curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
     # Add repo to APT
-    $ add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
+    add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
     # Update APT Cache
-    $ apt-get update
+    apt-get update
     # Install Teleport
-    $ apt install teleport
+    apt install teleport
     ```
   </TabItem>
 
   <TabItem label="Amazon Linux 2/RHEL/Fedora (RPM)">
     ```bash
-    $ yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    $ yum install teleport
+    yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+    yum install teleport
     ```
   </TabItem>
 
   <TabItem label="ARMv7 (32-bit)">
     ```bash
-    $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz.sha256
+    curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz.sha256
     # <checksum> <filename>
-    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-    $ shasum -a 256 teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+    shasum -a 256 teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
     # Verify that the checksums match
-    $ tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-    $ cd teleport
-    $ ./install
+    tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+    cd teleport
+    ./install
     ```
   </TabItem>
 
   <TabItem label="ARM64/ARMv8 (64-bit)">
     ```bash
-    $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz.sha256
+    curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz.sha256
     # <checksum> <filename>
-    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-    $ shasum -a 256 teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+    shasum -a 256 teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
     # Verify that the checksums match
-    $ tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-    $ cd teleport
-    $ ./install
+    tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+    cd teleport
+    ./install
     ```
   </TabItem>
 
   <TabItem label="Tarball">
     ```bash
-    $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256
+    curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256
     # <checksum> <filename>
-    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    $ shasum -a 256 teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    shasum -a 256 teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     # Verify that the checksums match
-    $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    $ cd teleport
-    $ ./install
+    tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    cd teleport
+    ./install
     ```
   </TabItem>
 </Tabs>
@@ -79,7 +79,7 @@ up-to-date information.
 Please follow our [Getting started with Teleport using Docker](quickstart-docker.mdx) or with [Teleport Enterprise using Docker](enterprise/quickstart-enterprise.mdx#run-teleport-enterprise-using-docker) for install and setup instructions.
 
 ```bash
-$ docker pull quay.io/gravitational/teleport:(=teleport.version=)
+docker pull quay.io/gravitational/teleport:(=teleport.version=)
 ```
 
 ## Helm
@@ -87,8 +87,8 @@ $ docker pull quay.io/gravitational/teleport:(=teleport.version=)
 Please follow our [Helm Chart Readme](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) for install and setup instructions.
 
 ```bash
-$ helm repo add teleport https://charts.releases.teleport.dev
-$ helm install teleport teleport/teleport
+helm repo add teleport https://charts.releases.teleport.dev
+helm install teleport teleport/teleport
 ```
 
 ## MacOS
@@ -105,7 +105,7 @@ $ helm install teleport teleport/teleport
 
   <TabItem label="Homebrew">
     ```bash
-    $ brew install teleport
+    brew install teleport
     ```
 
     <Admonition type="note">
@@ -115,14 +115,14 @@ $ helm install teleport teleport/teleport
 
   <TabItem label="Terminal">
     ```bash
-    $ curl -O https://get.gravitational.com/teleport-(=teleport.version=).pkg
-    $ sudo installer -pkg teleport-(=teleport.version=).pkg -target / # Installs on Macintosh HD
-    Password:
-    installer: Package name is teleport-(=teleport.version=)
-    installer: Upgrading at base path /
-    installer: The upgrade was successful.
-    $ which teleport
-    /usr/local/bin/teleport
+    curl -O https://get.gravitational.com/teleport-(=teleport.version=).pkg
+    sudo installer -pkg teleport-(=teleport.version=).pkg -target / # Installs on Macintosh HD
+    # Password:
+    # installer: Package name is teleport-(=teleport.version=)
+    # installer: Upgrading at base path /
+    # installer: The upgrade was successful.
+    which teleport
+    # /usr/local/bin/teleport
     ```
   </TabItem>
 </Tabs>
@@ -135,21 +135,21 @@ architecture - `teleport` and `tctl` are not supported.
 <Tabs>
   <TabItem label="Powershell">
     ```bash
-    > curl https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip.sha256
+    curl https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip.sha256
     # <checksum> <filename>
-    > curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
-    > echo %PATH% # Edit %PATH% if necessary
-    > certUtil -hashfile teleport-v(=teleport.version=)-windows-amd64-bin.zip SHA256
-    SHA256 hash of teleport-v(=teleport.version=)-windows-amd64-bin.zip:
+    curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
+    echo %PATH% # Edit %PATH% if necessary
+    certUtil -hashfile teleport-v(=teleport.version=)-windows-amd64-bin.zip SHA256
+    # SHA256 hash of teleport-v(=teleport.version=)-windows-amd64-bin.zip:
     # <checksum> <filename>
-    CertUtil: -hashfile command completed successfully.
+    # CertUtil: -hashfile command completed successfully.
     # Verify that the checksums match
     # Move `tsh` to your %PATH%
     ```
   </TabItem>
 </Tabs>
 
-## Installing from Source
+## Installing from source
 
 Gravitational Teleport is written in Go language. It requires **Golang v(=teleport.golang=)**
 or newer. Check [the repo
@@ -159,11 +159,9 @@ latest requirements.
 ### Install Go
 
 If you don't already have Golang installed you can [see installation
-instructions here](https://golang.org/doc/install). If you are new to Go there
-are a few quick set up things to note:
+instructions here](https://golang.org/doc/install). If you are new to Go there are a few quick setup things to note:
 
-- Go installs all dependencies *for all projects* in a single directory
-  determined by the `$GOPATH` variable. The default directory is
+- Go installs all dependencies *for all projects* in a single directory determined by the `$GOPATH` variable. The default directory is
   `GOPATH=$HOME/go` but you can set it to any directory you wish.
 - If you plan to use Golang for more than just this installation you may want to
   `echo "export GOPATH=$HOME/go" >> ~/.bashrc` (or your shell config).
@@ -172,19 +170,18 @@ are a few quick set up things to note:
 
 ```bash
 # get the source & build:
-$ mkdir -p $GOPATH/src/github.com/gravitational
-$ cd $GOPATH/src/github.com/gravitational
-$ git clone https://github.com/gravitational/teleport.git
-$ cd teleport
+mkdir -p $GOPATH/src/github.com/gravitational
+cd $GOPATH/src/github.com/gravitational
+git clone https://github.com/gravitational/teleport.git
+cd teleport
 # Make sure you have `zip` installed - the Makefile uses it
-$ make full
+make full
 # create the default data directory before running `teleport`
-$ sudo mkdir -p /var/lib/teleport
-$ sudo chown $USER /var/lib/teleport
+sudo mkdir -p /var/lib/teleport
+sudo chown $USER /var/lib/teleport
 ```
 
-If the build succeeds, the binaries `teleport, tsh`, and `tctl` are now in the
-directory `$GOPATH/src/github.com/gravitational/teleport/build`
+If the build succeeds, the binaries `teleport, tsh`, and `tctl` are now in the directory `$GOPATH/src/github.com/gravitational/teleport/build`
 
 {
   /* Notes on what to do if the build does not succeed, troubleshooting */
@@ -198,23 +195,21 @@ This should be used to verify the integrity of our binary.
 ![Teleport Checksum](../img/teleport-sha.png)
 
 If you download Teleport via an automated system, you can programmatically
-obtain the checksum  by adding `.sha256` to the binary. This is the method shown
+obtain the checksum by adding `.sha256` to the binary. This is the method shown
 in the installation examples.
 
 ```bash
-$ export version=v(=teleport.version=)
-$ export os=linux # 'darwin' 'linux' or 'windows'
-$ export arch=amd64 # '386' 'arm' on linux or 'amd64' for all distros
-$ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha256
+export version=v(=teleport.version=)
+export os=linux # 'darwin' 'linux' or 'windows'
+export arch=amd64 # '386' 'arm' on linux or 'amd64' for all distros
+curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha256
 # <checksum> <filename>
 ```
 
-
-## Operating System Support
+## Operating System support
 
 Teleport is officially supported on the platforms listed below. It is worth noting
-that the open source community has been successful in building and running Teleport on
-UNIX variants other than Linux \[1].
+that the open-source community has been successful in building and running Teleport on UNIX variants other than Linux \[1].
 
 | Operating System | Teleport Client | Teleport Server |
 | - | - | - |
