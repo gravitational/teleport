@@ -10,7 +10,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -38,7 +38,7 @@ func Verify(licenseKeyPair liblicense.License, license types.License) error {
 	}
 
 	// license is bound to marketplace product code
-	if license.GetAWSProductID() != "" && !utils.SliceContainsStr(meta.MarketplaceProductCodes, license.GetAWSProductID()) {
+	if license.GetAWSProductID() != "" && !apiutils.SliceContainsStr(meta.MarketplaceProductCodes, license.GetAWSProductID()) {
 		return trace.BadParameter("this teleport version should run on instances of AWS with marketplace product code %v", license.GetAWSProductID())
 	}
 
