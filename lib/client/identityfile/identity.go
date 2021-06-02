@@ -24,8 +24,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -127,7 +127,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 	// dump user identity into separate files:
 	case FormatOpenSSH:
 		keyPath := cfg.OutputPath
-		certPath := keyPath + constants.FileExtSSHCert
+		certPath := keypaths.IdentitySSHCertPath(keyPath)
 		filesWritten = append(filesWritten, keyPath, certPath)
 		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)

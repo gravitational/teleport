@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -102,7 +103,10 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	var checkpoint string
 
 	for _, name := range names {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+			arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+			return err
+		})
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 1)
 		event, ok := arr[0].(*events.UserLogin)
@@ -111,7 +115,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	}
 
 	checkpoint = ""
-	for i := range []int{0, 2} {
+	for _, i := range []int{0, 2} {
 		nameA := names[i]
 		nameB := names[i+1]
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 2, checkpoint)
@@ -142,7 +146,12 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		time.Sleep(s.QueryDelay)
 	}
 
-	history, _, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, "")
+	var history []events.AuditEvent
+
+	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, "")
+		return err
+	})
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 1)
 
@@ -174,7 +183,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	// read the session event
 	historyEvents, err := s.Log.GetSessionEvents(defaults.Namespace, sessionID, 0, false)
 	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 2)
+	c.Assert(historyEvents, check.HasLen, 2)
 	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
 	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
 

@@ -962,13 +962,13 @@ func (c *Cache) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, o
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...)
+	ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if ca, err := c.Config.Trust.GetCertAuthority(id, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...); err == nil {
+		if ca, err := c.Config.Trust.GetCertAuthority(id, loadSigningKeys, opts...); err == nil {
 			return ca, nil
 		}
 	}
@@ -983,7 +983,7 @@ func (c *Cache) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.trust.GetCertAuthorities(caType, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...)
+	return rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -1003,7 +1003,7 @@ func (c *Cache) GetTokens(ctx context.Context, opts ...services.MarshalOption) (
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.provisioner.GetTokens(ctx, services.AddOptions(opts, services.SkipValidation())...)
+	return rg.provisioner.GetTokens(ctx, opts...)
 }
 
 // GetToken finds and returns token by ID
@@ -1034,7 +1034,7 @@ func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (services.Clust
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.clusterConfig.GetClusterConfig(services.AddOptions(opts, services.SkipValidation())...)
+	return rg.clusterConfig.GetClusterConfig(opts...)
 }
 
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
@@ -1044,7 +1044,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.clusterConfig.GetClusterNetworkingConfig(ctx, services.AddOptions(opts, services.SkipValidation())...)
+	return rg.clusterConfig.GetClusterNetworkingConfig(ctx, opts...)
 }
 
 // GetClusterName gets the name of the cluster from the backend.
@@ -1054,7 +1054,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (services.Cluster
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.clusterConfig.GetClusterName(services.AddOptions(opts, services.SkipValidation())...)
+	return rg.clusterConfig.GetClusterName(opts...)
 }
 
 // GetRoles is a part of auth.AccessPoint implementation
@@ -1144,7 +1144,7 @@ func (c *Cache) GetReverseTunnels(opts ...services.MarshalOption) ([]services.Re
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.presence.GetReverseTunnels(services.AddOptions(opts, services.SkipValidation())...)
+	return rg.presence.GetReverseTunnels(opts...)
 }
 
 // GetProxies is a part of auth.AccessPoint implementation
@@ -1315,5 +1315,5 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.clusterConfig.GetSessionRecordingConfig(ctx, services.AddOptions(opts, services.SkipValidation())...)
+	return rg.clusterConfig.GetSessionRecordingConfig(ctx, opts...)
 }
