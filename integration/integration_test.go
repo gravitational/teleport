@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -304,7 +305,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				for {
 					select {
 					case <-tickCh:
-						nodesInSite, err := site.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
+						nodesInSite, err := site.GetNodes(ctx, defaults.Namespace)
 						if err != nil && !trace.IsNotFound(err) {
 							return trace.Wrap(err)
 						}
@@ -762,7 +763,7 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 			for {
 				select {
 				case <-tickCh:
-					nodesInSite, err := site.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
+					nodesInSite, err := site.GetNodes(ctx, defaults.Namespace)
 					if err != nil && !trace.IsNotFound(err) {
 						return trace.Wrap(err)
 					}
@@ -1451,13 +1452,14 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 
 	// The known_hosts file should have two certificates, the way bytes.Split
 	// works that means the output will be 3 (2 certs + 1 empty).
-	buffer, err := ioutil.ReadFile(filepath.Join(tc.KeysDir, "known_hosts"))
+	buffer, err := ioutil.ReadFile(keypaths.KnownHostsPath(tc.KeysDir))
 	require.NoError(t, err)
 	parts := bytes.Split(buffer, []byte("\n"))
 	require.Len(t, parts, 3)
 
 	// The certs.pem file should have 2 certificates.
-	buffer, err = ioutil.ReadFile(filepath.Join(tc.KeysDir, "keys", Host, "certs.pem"))
+
+	buffer, err = ioutil.ReadFile(keypaths.TLSCAsPath(tc.KeysDir, Host))
 	require.NoError(t, err)
 	roots := x509.NewCertPool()
 	ok := roots.AppendCertsFromPEM(buffer)
@@ -1765,7 +1767,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// correct nodes that identity aware GetNodes is done in TestList.
 	var nodes []services.Server
 	for i := 0; i < 10; i++ {
-		nodes, err = aux.Process.GetAuthServer().GetNodes(ctx, defaults.Namespace, services.SkipValidation())
+		nodes, err = aux.Process.GetAuthServer().GetNodes(ctx, defaults.Namespace)
 		require.NoError(t, err)
 		if len(nodes) != 2 {
 			time.Sleep(100 * time.Millisecond)
@@ -4312,7 +4314,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 		for {
 			select {
 			case <-tickCh:
-				nodesInCluster, err := clt.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
+				nodesInCluster, err := clt.GetNodes(ctx, defaults.Namespace)
 				if err != nil && !trace.IsNotFound(err) {
 					return trace.Wrap(err)
 				}

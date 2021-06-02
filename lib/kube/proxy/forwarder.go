@@ -1317,11 +1317,14 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		return conn, nil
 	}
 	ctx, cancel := context.WithCancel(s.parent.ctx)
-	tc := &trackingConn{
-		Conn:   conn,
-		clock:  s.parent.cfg.Clock,
-		ctx:    ctx,
-		cancel: cancel,
+	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
+		Conn:    conn,
+		Clock:   s.parent.cfg.Clock,
+		Context: s.parent.cfg.Context,
+		Cancel:  cancel,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	mon, err := srv.NewMonitor(srv.MonitorConfig{
@@ -1350,43 +1353,6 @@ func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
 
 func (s *clusterSession) DialWithContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	return s.monitorConn(s.teleportCluster.DialWithContext(ctx, network, addr))
-}
-
-type trackingConn struct {
-	sync.RWMutex
-	net.Conn
-	clock      clockwork.Clock
-	lastActive time.Time
-	ctx        context.Context
-	cancel     context.CancelFunc
-}
-
-// Read reads data from the connection.
-// Read can be made to time out and return an Error with Timeout() == true
-// after a fixed time limit; see SetDeadline and SetReadDeadline.
-func (t *trackingConn) Read(b []byte) (int, error) {
-	n, err := t.Conn.Read(b)
-	t.UpdateClientActivity()
-	return n, err
-}
-
-func (t *trackingConn) Close() error {
-	t.cancel()
-	return t.Conn.Close()
-}
-
-// GetClientLastActive returns time when client was last active
-func (t *trackingConn) GetClientLastActive() time.Time {
-	t.RLock()
-	defer t.RUnlock()
-	return t.lastActive
-}
-
-// UpdateClientActivity sets last recorded client activity
-func (t *trackingConn) UpdateClientActivity() {
-	t.Lock()
-	defer t.Unlock()
-	t.lastActive = t.clock.Now().UTC()
 }
 
 // TODO(awly): unit test this
