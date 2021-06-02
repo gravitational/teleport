@@ -409,7 +409,7 @@ tctl users rm joe
 
 ## Editing users
 
-Users entries can be manipulated using the generic [resource commands](#resources) via [`tctl`](cli-docs.mdx#tctl) . For example, to see the #full list of user records, an administrator can execute:
+Users entries can be manipulated using the generic [resource commands](#resources) via [`tctl`](cli-docs.mdx#tctl). For example, to see the full list of user records, an administrator can execute:
 
 ```bash
 tctl get users
@@ -432,8 +432,7 @@ Some fields in the user record are reserved for internal use. We plan on finaliz
 
 Teleport is a "clustered" system, meaning it only allows access to nodes (servers) that had been previously granted cluster membership.
 
-A cluster membership means that a node receives its own host certificate signed by the cluster's auth server. To receive a host certificate upon joining a
-cluster, a new Teleport host must present an "invite token". An invite token also defines which role a new host can assume within a cluster: `auth`, `proxy`, or `node`.
+A cluster membership means that a node receives its own host certificate signed by the cluster's auth server. To receive a host certificate upon joining a cluster, a new Teleport host must present an *invite token*. An invite token also defines which role a new host can assume within a cluster: `auth`, `proxy`, `node`, `app`, `kube`, or `db`.
 
 There are two ways to create invitation tokens:
 
@@ -477,7 +476,7 @@ If `--token` is not provided, [`tctl`](cli-docs.mdx#tctl) will generate one:
 
 ```bash
 # Generate a short-lived invitation token for a new node:
-tctl nodes add --ttl=5m --roles=node,proxy
+tctl nodes add --ttl=5m --roles=node,app
 The invite token: e94d68a8a1e5821dbd79d03a960644f0
 
 # You can also list all generated non-expired tokens:
@@ -640,8 +639,7 @@ tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
 sudo teleport start --roles=node --token=/path/to/token.file --auth-server=teleport-proxy.example.com:3080
 ```
 
-Using the ports in the default configuration, the node needs to be able to talk to ports `3080` and `3024` on the proxy. Port `3080` is used to initially fetch the credentials (SSH and TLS certificates)
-and for discovery (where is the reverse tunnel running, in this case, `3024`). Port `3024 `is used to establish a connection to the auth server through the proxy.
+Using the ports in the default configuration, the node needs to be able to talk to ports `3080` and `3024` on the proxy. Port `3080` is used to initially fetch the credentials (SSH and TLS certificates) and for discovery (where is the reverse tunnel running, in this case, `3024`). For those using ACME, port `443` is also required. Port `3024 `is used to establish a connection to the auth server through the proxy.
 
 To enable multiplexing so only one port is used, simply set the `tunnel_listen_addr` the same as the
 `web_listen_addr` respectively within the `proxy_service`.  Teleport will automatically recognize using the same port and enable multiplexing. If the log setting is set to DEBUG you will see multiplexing enabled in the server log.
@@ -1038,7 +1036,7 @@ spec:
       team: admins # Github team name within that organization
       # Allowed logins for users in this org/team
       logins:
-        - root
+        - access
       # List of Kubernetes groups this Github team is allowed to connect to
       # (see Kubernetes integration for more information)
       kubernetes_groups: ["system:masters"]
