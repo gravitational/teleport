@@ -38,38 +38,29 @@ func BenchmarkGetNodes(b *testing.B) {
 	ctx := context.Background()
 
 	type testCase struct {
-		validation, memory bool
-		nodes              int
+		memory bool
+		nodes  int
 	}
 
 	var tts []testCase
 
-	for _, validation := range []bool{true, false} {
-		for _, memory := range []bool{true, false} {
-			for _, nodes := range []int{100, 1000, 10000} {
-				tts = append(tts, testCase{
-					validation: validation,
-					memory:     memory,
-					nodes:      nodes,
-				})
-			}
+	for _, memory := range []bool{true, false} {
+		for _, nodes := range []int{100, 1000, 10000} {
+			tts = append(tts, testCase{
+				memory: memory,
+				nodes:  nodes,
+			})
 		}
 	}
 
 	for _, tt := range tts {
 		// create a descriptive name for the sub-benchmark.
-		name := fmt.Sprintf("tt(validation=%v,memory=%v,nodes=%d)", tt.validation, tt.memory, tt.nodes)
+		name := fmt.Sprintf("tt(memory=%v,nodes=%d)", tt.memory, tt.nodes)
 
 		// run the sub benchmark
 		b.Run(name, func(sb *testing.B) {
 
 			sb.StopTimer() // stop timer while running setup
-
-			// set up marshal options
-			var opts []services.MarshalOption
-			if !tt.validation {
-				opts = append(opts, services.SkipValidation())
-			}
 
 			// configure the backend instance
 			var bk backend.Backend
@@ -95,7 +86,7 @@ func BenchmarkGetNodes(b *testing.B) {
 
 			sb.StartTimer() // restart timer for benchmark operations
 
-			benchmarkGetNodes(ctx, sb, svc, tt.nodes, opts...)
+			benchmarkGetNodes(ctx, sb, svc, tt.nodes)
 
 			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})

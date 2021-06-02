@@ -23,9 +23,11 @@ import (
 	"math"
 	"net/url"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -42,10 +44,19 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
+	"go.uber.org/atomic"
 )
 
 // iso8601DateFormat is the time format used by the date attribute on events.
 const iso8601DateFormat = "2006-01-02"
+
+// The maximum amount of concurrent batch upload workers for data migration.
+// 32 was chosen here as it's a non-crazy number that allows reasonably
+// fast migration of millions of events.
+const maxMigrationWorkers = 32
+
+// The maximum size of a DynamoDB batch write.
+const DynamoBatchSize = 25
 
 // Defines the attribute schema for the DynamoDB event table and index.
 var tableSchema = []*dynamodb.AttributeDefinition{
@@ -68,6 +79,10 @@ var tableSchema = []*dynamodb.AttributeDefinition{
 		AttributeType: aws.String("S"),
 	},
 }
+
+const indexV2CreationLock = "dynamoEvents/indexV2Creation"
+const rfd24MigrationLock = "dynamoEvents/rfd24Migration"
+const rfd24MigrationLockTTL = 5 * time.Minute
 
 // Config structure represents DynamoDB confniguration as appears in `storage` section
 // of Teleport YAML
@@ -154,6 +169,14 @@ type Log struct {
 
 	// session holds the AWS client.
 	session *awssession.Session
+
+	// Backend holds the data backend used.
+	// This is used for locking.
+	backend backend.Backend
+
+	// readyForQuery is used to determine if all indexes are in place
+	// for event queries.
+	readyForQuery *atomic.Bool
 }
 
 type event struct {
@@ -206,7 +229,7 @@ const (
 
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, cfg Config) (*Log, error) {
+func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error) {
 	l := log.WithFields(log.Fields{
 		trace.Component: teleport.Component(teleport.ComponentDynamoDB),
 	})
@@ -217,8 +240,10 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 	b := &Log{
-		Entry:  l,
-		Config: cfg,
+		Entry:         l,
+		Config:        cfg,
+		backend:       backend,
+		readyForQuery: atomic.NewBool(false),
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
@@ -265,9 +290,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	// Migrate the table according to RFD 24 if it still has the old schema.
-	if err := b.migrateRFD24WithRetry(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	go b.migrateRFD24WithRetry(ctx)
 
 	// Enable continuous backups if requested.
 	if b.Config.EnableContinuousBackups {
@@ -313,25 +336,25 @@ const (
 	tableStatusOK
 )
 
-// migrateRFD24WithRetry repeatedly attempts to kick off RFD 24 migration in the event
-// of an error on a long and jittered interval.
-func (l *Log) migrateRFD24WithRetry(ctx context.Context) error {
+// migrateRFD24WithRetry tries the migration multiple times until it succeeds in the case
+// of spontaneous errors.
+func (l *Log) migrateRFD24WithRetry(ctx context.Context) {
 	for {
-		if err := l.migrateRFD24(ctx); err != nil {
-			delay := utils.HalfJitter(time.Minute)
-			log.WithError(err).Errorf("Failed RFD 24 migration, making another attempt in %f seconds", delay.Seconds())
+		err := l.migrateRFD24(ctx)
 
-			select {
-			case <-time.After(delay):
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			}
-		} else {
+		if err == nil {
 			break
 		}
-	}
 
-	return nil
+		delay := utils.HalfJitter(time.Minute)
+		log.WithError(err).Errorf("Background migration task failed, retrying in %f seconds", delay.Seconds())
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			log.WithError(ctx.Err()).Error("Background migration task cancelled")
+			return
+		}
+	}
 }
 
 // migrateRFD24 checks if any migration actions need to be performed
@@ -358,54 +381,57 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 	// for migration. We remove it at the end of the migration which
 	// means it is finished if it doesn't exist.
 	if !hasIndexV1 {
+		l.readyForQuery.Store(true)
 		return nil
 	}
 
-	hasIndexV2, err := l.indexExists(l.Tablename, indexTimeSearchV2)
+	// Creates the v2 index if it doesn't already exist.
+	err = backend.RunWhileLocked(ctx, l.backend, indexV2CreationLock, rfd24MigrationLockTTL, func(ctx context.Context) error {
+		err = l.createV2GSI(ctx)
+		l.readyForQuery.Store(true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Table does not have the new index, so we send off an API
-	// request to create it and wait until it's active.
-	if !hasIndexV2 {
-		log.Info("Creating new DynamoDB index...")
-		err = l.createV2GSI(ctx)
+	// Acquire a lock so that only one auth server attempts to perform the migration at any given time.
+	// If an auth server does in a HA-setup the other auth servers will pick up the migration automatically.
+	err = backend.RunWhileLocked(ctx, l.backend, rfd24MigrationLock, rfd24MigrationLockTTL, func(ctx context.Context) error {
+		hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
 
-	// Kick off a background task to migrate events, this task is safely
-	// interruptible without breaking data and can be resumed from the
-	// last point so no checkpointing state needs to be managed here.
-	go func() {
-		for {
-			// Migrate events to the new format so that the V2 index can use them.
-			log.Info("Starting event migration to v6.2 format")
-			err := l.migrateDateAttribute(ctx)
-			if err != nil {
-				log.WithError(err).Error("Encountered error migrating events to v6.2 format")
-			} else {
-				// Remove the old index, marking migration as complete
-				log.Info("Removing old DynamoDB index")
-				err = l.removeV1GSI()
-				if err != nil {
-					log.WithError(err).Error("Migrated all events to v6.2 format successfully but failed to remove old index.")
-				} else {
-					break
-				}
-			}
-
-			delay := utils.HalfJitter(time.Minute)
-			log.Errorf("Background migration task failed, retrying in %f seconds", delay.Seconds())
-			select {
-			case <-time.After(delay):
-			case <-ctx.Done():
-				log.WithError(ctx.Err()).Error("Background migration task cancelled")
-			}
+		if !hasIndexV1 {
+			return nil
 		}
-	}()
+
+		// Migrate events to the new format so that the V2 index can use them.
+		log.Info("Starting event migration to v6.2 format")
+		err = l.migrateDateAttribute(ctx)
+		if err != nil {
+			return trace.WrapWithMessage(err, "Encountered error migrating events to v6.2 format")
+		}
+
+		// Remove the old index, marking migration as complete
+		log.Info("Removing old DynamoDB index")
+		err = l.removeV1GSI()
+		if err != nil {
+			return trace.WrapWithMessage(err, "Migrated all events to v6.2 format successfully but failed to remove old index.")
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
@@ -699,9 +725,19 @@ func (f byTimeAndIndex) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
 }
 
+type notReadyYetError struct{}
+
+func (notReadyYetError) Error() string {
+	return "The DynamoDB event backend is not ready to accept queries yet. Please retry in a couple of seconds."
+}
+
 // searchEventsRaw is a low level function for searching for events. This is kept
 // separate from the SearchEvents function in order to allow tests to grab more metadata.
 func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]event, string, error) {
+	if !l.readyForQuery.Load() {
+		return nil, "", trace.Wrap(notReadyYetError{})
+	}
+
 	var checkpoint checkpointKey
 
 	// If a checkpoint key is provided, unmarshal it so we can work with it's parts.
@@ -890,18 +926,26 @@ func (l *Log) indexExists(tableName, indexName string) (bool, error) {
 	return false, nil
 }
 
-// createV2GSI creates the new global secondary Index and updates
+// createV2GSI creates the new global secondary index if it does not exist and updates
 // the schema to add a string key `date`.
 //
 // This does not remove the old global secondary index.
 // This must be done at a later point in time when all events have been migrated as per RFD 24.
 //
 // Invariants:
-// - The new global secondary index must not exist.
-// - This function must not be called concurrently with itself.
+// - This function may not be called concurrently across the cluster.
 // - This function must be called before the
 //   backend is considered initialized and the main Teleport process is started.
 func (l *Log) createV2GSI(ctx context.Context) error {
+	v2Exists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if v2Exists {
+		return nil
+	}
+
 	provisionedThroughput := dynamodb.ProvisionedThroughput{
 		ReadCapacityUnits:  aws.Int64(l.ReadCapacityUnits),
 		WriteCapacityUnits: aws.Int64(l.WriteCapacityUnits),
@@ -973,10 +1017,19 @@ func (l *Log) createV2GSI(ctx context.Context) error {
 // removeV1GSI removes the pre RFD 24 global secondary index from the table.
 //
 // Invariants:
-// - The pre RFD 24 global secondary index must exist.
 // - This function must not be called concurrently with itself.
 // - This may only be executed after the post RFD 24 global secondary index has been created.
 func (l *Log) removeV1GSI() error {
+	v1Exists, err := l.indexExists(l.Tablename, indexTimeSearch)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !v1Exists {
+		log.Info("v1 event index already deleted.")
+		return nil
+	}
+
 	c := dynamodb.UpdateTableInput{
 		TableName: aws.String(l.Tablename),
 		GlobalSecondaryIndexUpdates: []*dynamodb.GlobalSecondaryIndexUpdate{
@@ -1007,11 +1060,22 @@ func (l *Log) removeV1GSI() error {
 // Invariants:
 // - This function must be called after `createV2GSI` has completed successfully on the table.
 // - This function must not be called concurrently with itself.
+// - The rfd24MigrationLock must be held by the node.
 func (l *Log) migrateDateAttribute(ctx context.Context) error {
-	var total int64 = 0
 	var startKey map[string]*dynamodb.AttributeValue
+	workerCounter := atomic.NewInt32(0)
+	totalProcessed := atomic.NewInt32(0)
+	workerErrors := make(chan error, maxMigrationWorkers)
+	workerBarrier := sync.WaitGroup{}
 
 	for {
+		// Check for worker errors and escalate if found.
+		select {
+		case err := <-workerErrors:
+			return trace.Wrap(err)
+		default:
+		}
+
 		c := &dynamodb.ScanInput{
 			ExclusiveStartKey: startKey,
 			// Without consistent reads we may miss events as DynamoDB does not
@@ -1019,25 +1083,24 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 			// This makes the scan operation slightly slower but the other alternative is scanning a second time
 			// for any missed events after an appropriate grace period which is far worse.
 			ConsistentRead: aws.Bool(true),
-			// 100 seems like a good batch size that compromises
-			// between memory usage and fetch frequency.
-			// The limiting factor in terms of speed is the update ratelimit and not this.
-			Limit:     aws.Int64(100),
+			// `DynamoBatchSize*maxMigrationWorkers` is the maximum concurrent event uploads.
+			Limit:     aws.Int64(DynamoBatchSize * maxMigrationWorkers),
 			TableName: aws.String(l.Tablename),
 			// Without the `date` attribute.
 			FilterExpression: aws.String("attribute_not_exists(CreatedAtDate)"),
 		}
 
 		// Resume the scan at the end of the previous one.
-		// This processes 100 events or 1 MiB of data at maximum
+		// This processes `DynamoBatchSize*maxMigrationWorkers` events at maximum
 		// which is why we need to run this multiple times on the dataset.
 		scanOut, err := l.svc.Scan(c)
 		if err != nil {
 			return trace.Wrap(convertError(err))
 		}
 
-		// For every item processed by this scan iteration we send an update action
-		// that adds the new date attribute.
+		writeRequests := make([]*dynamodb.WriteRequest, 0, DynamoBatchSize*maxMigrationWorkers)
+
+		// For every item processed by this scan iteration we generate a write request.
 		for _, item := range scanOut.Items {
 			// Extract the UTC timestamp integer of the event.
 			timestampAttribute := item[keyCreatedAt]
@@ -1051,46 +1114,63 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 			timestamp := time.Unix(timestampRaw, 0)
 			date := timestamp.Format(iso8601DateFormat)
 
-			attributes := map[string]interface{}{
-				// Value to set the date attribute to.
-				":date": date,
-			}
-
-			attributeMap, err := dynamodbattribute.MarshalMap(attributes)
+			dateAttribute, err := dynamodbattribute.Marshal(date)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
-			// Pull out the needed composite key attributes for the main table in a key object
-			// since this saves on bandwidth and Dynamo will reject anything with
-			// attributes other than those composing the primary key.
-			key := make(map[string]*dynamodb.AttributeValue)
-			key[keySessionID] = item[keySessionID]
-			key[keyEventIndex] = item[keyEventIndex]
+			item[keyDate] = dateAttribute
 
-			c := &dynamodb.UpdateItemInput{
-				TableName:                 aws.String(l.Tablename),
-				Key:                       key,
-				ExpressionAttributeValues: attributeMap,
-				UpdateExpression:          aws.String("SET CreatedAtDate = :date"),
+			wr := &dynamodb.WriteRequest{
+				PutRequest: &dynamodb.PutRequest{
+					Item: item,
+				},
 			}
 
-			_, err = l.svc.UpdateItem(c)
-			if err != nil {
-				return trace.Wrap(convertError(err))
+			writeRequests = append(writeRequests, wr)
+		}
+
+		for len(writeRequests) > 0 {
+			var top int
+			if len(writeRequests) > DynamoBatchSize {
+				top = DynamoBatchSize
+			} else {
+				top = len(writeRequests)
 			}
 
-			if err := ctx.Err(); err != nil {
-				return trace.Wrap(err)
+			// We need to make a copy of the slice here so it doesn't get changed later due to subslicing.
+			batch := append(make([]*dynamodb.WriteRequest, 0, DynamoBatchSize), writeRequests[:top]...)
+			writeRequests = writeRequests[top:]
+
+			// Don't exceed maximum workers.
+			for workerCounter.Load() >= maxMigrationWorkers {
+				select {
+				case <-time.After(time.Millisecond * 50):
+				case <-ctx.Done():
+					return trace.Wrap(ctx.Err())
+				}
 			}
+
+			workerCounter.Add(1)
+			workerBarrier.Add(1)
+			go func() {
+				defer workerCounter.Sub(1)
+				defer workerBarrier.Done()
+				amountProcessed := len(batch)
+
+				if err := l.uploadBatch(batch); err != nil {
+					workerErrors <- trace.Wrap(err)
+					return
+				}
+
+				total := totalProcessed.Add(int32(amountProcessed))
+				log.Infof("Migrated %d total events to 6.2 format...", total)
+			}()
 		}
 
 		// Setting the startKey to the last evaluated key of the previous scan so that
 		// the next scan doesn't return processed events.
 		startKey = scanOut.LastEvaluatedKey
-
-		total += *scanOut.Count
-		log.Infof("Migrated %d total events to 6.2 format...", total)
 
 		// If the `LastEvaluatedKey` field is not set we have finished scanning
 		// the entire dataset and we can now break out of the loop.
@@ -1099,7 +1179,36 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 		}
 	}
 
+	// Wait until all upload tasks finish.
+	workerBarrier.Wait()
+
+	// Check for worker errors and escalate if found.
+	select {
+	case err := <-workerErrors:
+		return trace.Wrap(err)
+	default:
+	}
+
 	return nil
+}
+
+// uploadBatch creates or updates a batch of `DynamoBatchSize` events or less in one API call.
+func (l *Log) uploadBatch(writeRequests []*dynamodb.WriteRequest) error {
+	for {
+		c := &dynamodb.BatchWriteItemInput{
+			RequestItems: map[string][]*dynamodb.WriteRequest{l.Tablename: writeRequests},
+		}
+
+		out, err := l.svc.BatchWriteItem(c)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		writeRequests = out.UnprocessedItems[l.Tablename]
+		if len(writeRequests) == 0 {
+			return nil
+		}
+	}
 }
 
 // createTable creates a DynamoDB table with a requested name and applies
