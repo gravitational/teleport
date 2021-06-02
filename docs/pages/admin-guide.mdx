@@ -368,7 +368,7 @@ To add a new user to Teleport, you have to use the [`tctl`](cli-docs.mdx#tctl) t
 [`teleport`](cli-docs.mdx#teleport) was started with `--roles=auth` .
 
 ```bash
-tctl users add joe --logins=joe,root --roles=admin
+tctl users add joe --logins=joe,root --roles=access,editor
 ```
 
 Teleport generates an auto-expiring token (with a TTL of 1 hour) and prints the
