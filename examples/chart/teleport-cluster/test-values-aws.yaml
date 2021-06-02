@@ -1,0 +1,13 @@
+clusterName: helmeks.teleportdemo.net
+chartMode: aws
+aws:
+  region: us-east-1
+  backendTable: gus-helmeks-teleport-aws-backend
+  auditLogTable: gus-helmeks-teleport-aws-events
+  sessionRecordingBucket: gus-helmeks-teleport-aws-bucket
+highAvailability:
+  replicaCount: 2
+  certManager:
+    enabled: true
+    issuerName: letsencrypt-production
+imagePullPolicy: Always

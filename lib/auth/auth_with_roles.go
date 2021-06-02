@@ -1976,22 +1976,6 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
 }
 
-func (a *ServerWithRoles) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {
-	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.alog.SearchEvents(from, to, query, limit)
-}
-
-func (a *ServerWithRoles) SearchSessionEvents(from, to time.Time, limit int) ([]events.EventFields, error) {
-	if err := a.action(defaults.Namespace, services.KindSession, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.alog.SearchSessionEvents(from, to, limit)
-}
-
 // GetNamespaces returns a list of namespaces
 func (a *ServerWithRoles) GetNamespaces() ([]services.Namespace, error) {
 	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbList); err != nil {
@@ -2557,15 +2541,47 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 }
 
 // GenerateDatabaseCert generates a certificate used by a database service
-// to authenticate with the database instance
+// to authenticate with the database instance.
+//
+// This certificate can be requested by:
+//
+//  - Cluster administrator using "tctl auth sign --format=db" command locally
+//    on the auth server to produce a certificate for configuring a self-hosted
+//    database.
+//  - Remote user using "tctl auth sign --format=db" command with a remote
+//    proxy (e.g. Teleport Cloud), as long as they can impersonate system
+//    role Db.
+//  - Database service when initiating connection to a database instance to
+//    produce a client certificate.
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	// This certificate can be requested only by a database service when
-	// initiating connection to a database instance, or by an admin when
-	// generating certificates for a database instance.
-	if !a.hasBuiltinRole(string(teleport.RoleDatabase)) && !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
-		return nil, trace.AccessDenied("this request can only be executed by a database service or an admin")
+	// Check if this is a local cluster admin, or a datababase service, or a
+	// user that is allowed to impersonate database service.
+	if !a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleAdmin)) {
+		if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
+			log.WithError(err).Warnf("User %v tried to generate database certificate but is not allowed to impersonate %q system role.",
+				a.context.User.GetName(), types.RoleDatabase)
+			return nil, trace.AccessDenied("access denied")
+		}
 	}
 	return a.authServer.GenerateDatabaseCert(ctx, req)
+}
+
+// canImpersonateBuiltinRole checks if the current user can impersonate the
+// provided system role.
+func (a *ServerWithRoles) canImpersonateBuiltinRole(role types.SystemRole) error {
+	roleCtx, err := NewBuiltinRoleContext(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	roleSet, ok := roleCtx.Checker.(BuiltinRoleSet)
+	if !ok {
+		return trace.BadParameter("expected BuiltinRoleSet, got %T", roleCtx.Checker)
+	}
+	err = a.context.Checker.CheckImpersonate(a.context.User, roleCtx.User, roleSet.RoleSet.WithoutImplicit())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // GetAppServers gets all application servers.
@@ -2868,6 +2884,34 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
 	}
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
+}
+
+// SearchEvents allows searching audit events with pagination support.
+func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []events.AuditEvent, lastKey string, err error) {
+	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	events, lastKey, err = a.alog.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
+}
+
+// SearchSessionEvents allows searching session audit events with pagination support.
+func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []events.AuditEvent, lastKey string, err error) {
+	if err := a.action(defaults.Namespace, services.KindSession, services.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,
