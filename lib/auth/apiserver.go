@@ -436,16 +436,8 @@ func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Reques
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	skipValidation, _, err := httplib.ParseBool(r.URL.Query(), "skip_validation")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var opts []services.MarshalOption
-	if skipValidation {
-		opts = append(opts, services.SkipValidation())
-	}
 
-	servers, err := auth.GetNodes(r.Context(), namespace, opts...)
+	servers, err := auth.GetNodes(r.Context(), namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

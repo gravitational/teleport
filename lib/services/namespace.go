@@ -17,37 +17,10 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
-
-// NamespaceSpecSchema is JSON schema for NameSpace resource spec
-const NamespaceSpecSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"default": {}
-  }`
-
-// NamespaceSchemaTemplate is JSON schema for the Namespace resource
-const NamespaceSchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"default": {},
-	"required": ["kind", "spec", "metadata"],
-	"properties": {
-	  "kind": {"type": "string"},
-	  "version": {"type": "string", "default": "v1"},
-	  "metadata": %v,
-	  "spec": %v
-	}
-  }`
-
-// GetNamespaceSchema returns Namespace schema
-func GetNamespaceSchema() string {
-	return fmt.Sprintf(NamespaceSchemaTemplate, MetadataSchema, NamespaceSpecSchema)
-}
 
 // MarshalNamespace marshals the Namespace resource to JSON.
 func MarshalNamespace(resource Namespace, opts ...MarshalOption) ([]byte, error) {

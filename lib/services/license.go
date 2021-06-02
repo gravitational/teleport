@@ -17,46 +17,10 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
-
-// LicenseSpecV3Template is a template for V3 License JSON schema
-const LicenseSpecV3Template = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-		"account_id": {
-			"type": ["string"]
-		},
-		"plan_id": {
-			"type": ["string"]
-		},
-		"usage": {
-			"type": ["string", "boolean"]
-		},
-		"aws_pid": {
-			"type": ["string"]
-		},
-		"aws_account": {
-			"type": ["string"]
-		},
-		"k8s": {
-			"type": ["string", "boolean"]
-		},
-		"app": {
-			"type": ["string", "boolean"]
-		},
-		"db": {
-			"type": ["string", "boolean"]
-		},
-		"cloud": {
-			"type": ["string", "boolean"]
-		}
-  }
-}`
 
 // UnmarshalLicense unmarshals the License resource from JSON.
 func UnmarshalLicense(bytes []byte) (License, error) {
@@ -64,10 +28,8 @@ func UnmarshalLicense(bytes []byte) (License, error) {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, LicenseSpecV3Template, DefaultDefinitions)
-
 	var license LicenseV3
-	err := utils.UnmarshalWithSchema(schema, &license, bytes)
+	err := utils.FastUnmarshal(bytes, &license)
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}

@@ -85,6 +85,9 @@ func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	if c.Version == "" {
+		c.Version = V2
+	}
 	// This is to force users to migrate
 	if len(c.Spec.Roles) != 0 && len(c.Spec.RoleMap) != 0 {
 		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
