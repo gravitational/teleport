@@ -27,7 +27,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -742,10 +741,6 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	s.term.Continue()
 
 	params := s.term.GetTerminalParams()
-	accessRequestIDs, err := parseAccessRequestIDs(ctx.Identity.ActiveRequests)
-	if err != nil {
-		s.log.WithError(err).Warn("failed to parse access request IDs")
-	}
 	// Emit "new session created" event for the interactive session.
 	sessionStartEvent := &events.SessionStart{
 		Metadata: events.Metadata{
@@ -773,7 +768,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		},
 		TerminalSize:     params.Serialize(),
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
-		AccessRequests:   accessRequestIDs,
+		AccessRequests:   ctx.Identity.ActiveRequests,
 	}
 
 	// Local address only makes sense for non-tunnel nodes.
@@ -892,10 +887,6 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		}
 	}
 
-	accessRequestIDs, err := parseAccessRequestIDs(ctx.Identity.ActiveRequests)
-	if err != nil {
-		s.log.WithError(err).Warn("failed to parse access request IDs")
-	}
 	// Emit a session.start event for the exec session.
 	sessionStartEvent := &events.SessionStart{
 		Metadata: events.Metadata{
@@ -922,7 +913,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
-		AccessRequests:   accessRequestIDs,
+		AccessRequests:   ctx.Identity.ActiveRequests,
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
@@ -1427,30 +1418,4 @@ func (p *party) Close() (err error) {
 		close(p.termSizeC)
 	})
 	return err
-}
-
-// AccessRequests are the access requests associated with a session
-type AccessRequests struct {
-	IDs []string `json:"access_requests"`
-}
-
-func parseAccessRequestIDs(str string) ([]string, error) {
-	var accessRequestIDs []string
-	var ar AccessRequests
-
-	err := json.Unmarshal([]byte(str), &ar)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, v := range ar.IDs {
-		id, err := uuid.Parse(v)
-		if err != nil {
-			return nil, trace.WrapWithMessage(err, "failed to parse access request ID")
-		}
-		if fmt.Sprintf("%v", id) == "" {
-			return nil, trace.Errorf("invalid uuid: %v", id)
-		}
-		accessRequestIDs = append(accessRequestIDs, v)
-	}
-	return accessRequestIDs, nil
 }

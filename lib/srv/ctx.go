@@ -159,9 +159,8 @@ type IdentityContext struct {
 	// RouteToCluster is derived from the certificate
 	RouteToCluster string
 
-	// ActiveRequests is a string of active access request ID's. Example layout:
-	// {"access_requests":["xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx","xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]}
-	ActiveRequests string
+	// ActiveRequests is active access request IDs
+	ActiveRequests []string
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
