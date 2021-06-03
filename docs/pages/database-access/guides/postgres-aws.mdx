@@ -108,9 +108,7 @@ ssh_service:
   enabled: "no"
 ```
 
-<Admonition type="warning" title="Warning">
-  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
-</Admonition>
+(!docs/pages/includes/permission-warning.mdx!)
 
 Start the service:
 
@@ -122,7 +120,7 @@ Generate a short-lived join token for the database service and save it for
 example in `/tmp/token`:
 
 ```bash
-sudo tctl tokens add \
+tctl tokens add \
     --type=db \
     --db-name=test \
     --db-protocol=postgres \
@@ -135,7 +133,7 @@ Create the role that will allow a user to connect to any database using any
 database account:
 
 ```bash
-sudo tctl --config=/path/to/teleport.yaml create <<EOF
+tctl --config=/path/to/teleport.yaml create <<EOF
 kind: role
 version: v3
 metadata:
@@ -154,7 +152,7 @@ EOF
 Create the user assigned the `db` role we've just created:
 
 ```bash
-sudo tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
+tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
 ```
 
 ### Start the Database Service with CLI flags
@@ -163,7 +161,7 @@ For a quick try-out, Teleport database service doesn't require a configuration
 file and can be launched using a single CLI command:
 
 ```bash
-teleport db start \
+sudo teleport db start \
    --token=/tmp/token \
    --auth-server=teleport.example.com:3080 \
    --name=aurora \
