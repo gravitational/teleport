@@ -37,7 +37,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -2240,10 +2239,6 @@ func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error
 // readTeleportHome gets home directory from environment if configured.
 func readTeleportHome(cf *CLIConf, fn envGetter) {
 	if homeDir := fn(homeEnvVar); homeDir != "" {
-		cf.HomePath = tshHomeFullPath(homeDir)
+		cf.HomePath = path.Clean(homeDir)
 	}
-}
-
-func tshHomeFullPath(dir string) string {
-	return filepath.Join(path.Clean(dir), profile.ProfileDir)
 }

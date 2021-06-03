@@ -37,7 +37,7 @@ import (
 
 const (
 	// ProfileDir is the default root directory where tsh stores profiles.
-	ProfileDir = ".tsh"
+	profileDir = ".tsh"
 	// currentProfileFilename is a file which stores the name of the
 	// currently active profile.
 	currentProfileFilename = "current-profile"
@@ -217,7 +217,7 @@ func defaultProfilePath() string {
 	if u, err := user.Current(); err == nil && u.HomeDir != "" {
 		home = u.HomeDir
 	}
-	return filepath.Join(home, ProfileDir)
+	return filepath.Join(home, profileDir)
 }
 
 // FromDir reads the user profile from a given directory. If dir is empty,
