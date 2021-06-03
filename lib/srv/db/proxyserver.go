@@ -270,6 +270,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 		teleportUser: authContext.Identity.GetIdentity().Username,
 		emitter:      s.cfg.Emitter,
 		log:          s.log,
+		ctx:          s.closeCtx,
 	})
 	if err != nil {
 		clientConn.Close()
@@ -318,6 +319,7 @@ type monitorConnConfig struct {
 	teleportUser string
 	emitter      events.Emitter
 	log          logrus.FieldLogger
+	ctx          context.Context
 }
 
 // monitorConn wraps a client connection with TrackingReadConn, starts a connection monitor and
@@ -356,7 +358,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  cfg.conn,
 		Tracker:               tc,
-		Context:               ctx,
+		Context:               cfg.ctx,
 		Clock:                 cfg.clock,
 		ServerID:              cfg.serverID,
 		TeleportUser:          cfg.teleportUser,

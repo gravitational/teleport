@@ -181,7 +181,7 @@ func TestDatabaseAccessMySQLLeafCluster(t *testing.T) {
 
 // TestRootLeafIdleTimeout tests idle client connection termination by proxy and DB services in
 // trusted cluster setup.
-func TestRootLeafIdleTimeout(t *testing.T) {
+func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 	pack := setupDatabaseTest(t, withClock(clock))
 	pack.waitForLeaf(t)
@@ -192,8 +192,7 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		leafAuthServer = pack.leaf.cluster.Process.GetAuthServer()
 		leafRole       = pack.leaf.role
 
-		idleTimeout     = time.Minute
-		disconnectDelay = time.Millisecond * 300
+		idleTimeout = time.Minute
 	)
 
 	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
@@ -220,9 +219,6 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		require.NoError(t, err)
 
 		clock.Advance(idleTimeout)
-		// Add delay to make sure that server disconnected the idle client.
-		time.Sleep(disconnectDelay)
-
 		_, err = client.Execute("select 1")
 		require.NoError(t, err)
 		err = client.Close()
