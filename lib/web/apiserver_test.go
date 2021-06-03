@@ -1704,9 +1704,13 @@ func (s *WebSuite) TestConstructSSHResponseLegacy(c *C) {
 
 // TestSearchClusterEvents makes sure web API allows querying events by type.
 func (s *WebSuite) TestSearchClusterEvents(c *C) {
+	// We need a clock that uses the current time here to work around
+	// the fact that filelog doesn't support emitting past events.
+	clock := clockwork.NewRealClock()
+
 	sessionEvents := events.GenerateTestSession(events.SessionParams{
 		PrintEvents: 3,
-		Clock:       s.clock,
+		Clock:       clock,
 		ServerID:    s.proxy.ID(),
 	})
 
@@ -1718,6 +1722,9 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 	sessionPrint := sessionEvents[1]
 	sessionEnd := sessionEvents[4]
 
+	fromTime := []string{clock.Now().AddDate(0, -1, 0).UTC().Format(time.RFC3339)}
+	toTime := []string{clock.Now().AddDate(0, 1, 0).UTC().Format(time.RFC3339)}
+
 	testCases := []struct {
 		// Comment is the test case description.
 		Comment string
@@ -1728,24 +1735,37 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 	}{
 		{
 			Comment: "Empty query",
-			Query:   url.Values{},
-			Result:  sessionEvents,
+			Query: url.Values{
+				"from": fromTime,
+				"to":   toTime,
+			},
+			Result: sessionEvents,
 		},
 		{
 			Comment: "Query by session start event",
-			Query:   url.Values{"include": []string{sessionStart.GetType()}},
-			Result:  sessionEvents[:1],
+			Query: url.Values{
+				"include": []string{sessionStart.GetType()},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result: sessionEvents[:1],
 		},
 		{
 			Comment: "Query session start and session end events",
-			Query:   url.Values{"include": []string{sessionEnd.GetType() + ";" + sessionStart.GetType()}},
-			Result:  []events.AuditEvent{sessionStart, sessionEnd},
+			Query: url.Values{
+				"include": []string{sessionEnd.GetType() + ";" + sessionStart.GetType()},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result: []events.AuditEvent{sessionStart, sessionEnd},
 		},
 		{
 			Comment: "Query events with filter by type and limit",
 			Query: url.Values{
 				"include": []string{sessionPrint.GetType() + ";" + sessionEnd.GetType()},
 				"limit":   []string{"1"},
+				"from":    fromTime,
+				"to":      toTime,
 			},
 			Result: []events.AuditEvent{sessionPrint},
 		},
@@ -1767,12 +1787,7 @@ func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, f
 	c.Assert(err, IsNil)
 	var out eventsListGetResponse
 	c.Assert(json.Unmarshal(response.Bytes(), &out), IsNil)
-	for _, event := range out.Events {
-		if utils.SliceContainsStr(filter, event.GetType()) {
-			result = append(result, event)
-		}
-	}
-	return result
+	return out.Events
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
