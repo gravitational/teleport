@@ -287,6 +287,20 @@
             "type": "array",
             "default": []
         },
+        "postStart": {
+            "$id": "#/properties/postStart",
+            "type": "object",
+            "required": [
+                "command"
+            ],
+            "properties": {
+                "command": {
+                    "$id": "#properties/postStart/command",
+                    "type": "array",
+                    "default": []
+                }
+            }
+        },
         "resources": {
             "$id": "#/properties/resources",
             "type": "object",
