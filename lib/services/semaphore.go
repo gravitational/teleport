@@ -186,6 +186,34 @@ Outer:
 	}
 }
 
+// AcquireSemaphoreWithRetryConfig contains parameters for trying to acquire a
+// semaphore with a retry.
+type AcquireSemaphoreWithRetryConfig struct {
+	Service types.Semaphores
+	Request types.AcquireSemaphoreRequest
+	Retry   utils.LinearConfig
+}
+
+// AcquireSemaphoreWithRetry tries to acquire the semaphore according to the
+// retry schedule until it succeeds or context expires.
+func AcquireSemaphoreWithRetry(ctx context.Context, req AcquireSemaphoreWithRetryConfig) (*types.SemaphoreLease, error) {
+	retry, err := utils.NewLinear(req.Retry)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var lease *types.SemaphoreLease
+	err = retry.For(ctx, func() (err error) {
+		lease, err = req.Service.AcquireSemaphore(ctx, req.Request)
+		return trace.Wrap(err)
+	}, func(err error) bool {
+		return true // Retry on any error.
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return lease, nil
+}
+
 // AcquireSemaphoreLock attempts to acquire and hold a semaphore lease.  If successfully acquired,
 // background keepalive processes are started and an associated lock handle is returned.  Cancelling
 // the supplied context releases the semaphore.
