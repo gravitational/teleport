@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2340,7 +2341,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
-		if err := utils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil {
+		if err := apiutils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil {
 			fmt.Printf("\nWARNING: %v\n", err)
 			fmt.Printf("Future versions of tsh will fail when incompatible versions are detected.\n\n")
 		}

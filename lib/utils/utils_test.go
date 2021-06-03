@@ -147,31 +147,6 @@ func (s *UtilsSuite) TestMiscFunctions(c *check.C) {
 	c.Assert(RemoveFromSlice([]string{"a", "a", "b"}, "a"), check.DeepEquals, []string{"b"})
 }
 
-// TestVersions tests versions compatibility checking
-func (s *UtilsSuite) TestVersions(c *check.C) {
-	testCases := []struct {
-		info      string
-		client    string
-		minClient string
-		err       error
-	}{
-		{info: "client older than min version", client: "1.0.0", minClient: "1.1.0", err: trace.BadParameter("")},
-		{info: "client same as min version", client: "1.0.0", minClient: "1.0.0"},
-		{info: "client newer than min version", client: "1.1.0", minClient: "1.0.0"},
-		{info: "pre-releases clients are ok", client: "1.1.0-alpha.1", minClient: "1.0.0"},
-		{info: "older pre-releases are no ok", client: "1.1.0-alpha.1", minClient: "1.1.0", err: trace.BadParameter("")},
-	}
-	for i, testCase := range testCases {
-		comment := check.Commentf("test case %v %q", i, testCase.info)
-		err := CheckVersions(testCase.client, testCase.minClient)
-		if testCase.err == nil {
-			c.Assert(err, check.IsNil, comment)
-		} else {
-			c.Assert(err, check.FitsTypeOf, testCase.err, comment)
-		}
-	}
-}
-
 // TestClickableURL tests clickable URL conversions
 func (s *UtilsSuite) TestClickableURL(c *check.C) {
 	testCases := []struct {
