@@ -1539,7 +1539,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 }
 
 // PlayFile plays the recorded session from a tar file
-func (tc *TeleportClient) PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
+func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	var sessionEvents []events.EventFields
 	var stream []byte
 	protoReader := events.NewProtoReader(tarFile)
