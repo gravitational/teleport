@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -218,30 +217,6 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 	return lock, nil
 }
 
-// SemaphoreSpecSchemaTemplate is a template for Semaphore schema.
-const SemaphoreSpecSchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "leases": {
-		"type": "array",
-		"items": {
-		"type": "object",
-		"properties": {
-		  "lease_id": { "type": "string" },
-		  "expires": { "type": "string" },
-		  "holder": { "type": "string" }
-		  }
-		}
-	  }
-	}
-  }`
-
-// GetSemaphoreSchema returns the validation schema for this object
-func GetSemaphoreSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, SemaphoreSpecSchemaTemplate, DefaultDefinitions)
-}
-
 // UnmarshalSemaphore unmarshals the Semaphore resource from JSON.
 func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (Semaphore, error) {
 	var semaphore SemaphoreV3
@@ -255,15 +230,8 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (Semaphore, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &semaphore); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetSemaphoreSchema(), &semaphore, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
+	if err := utils.FastUnmarshal(bytes, &semaphore); err != nil {
+		return nil, trace.BadParameter(err.Error())
 	}
 
 	err = semaphore.CheckAndSetDefaults()

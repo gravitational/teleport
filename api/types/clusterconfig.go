@@ -208,7 +208,14 @@ func (c *ClusterConfigV3) SetLocalAuth(b bool) {
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
-	return trace.Wrap(c.Metadata.CheckAndSetDefaults())
+	err := c.Metadata.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if c.Version == "" {
+		c.Version = V3
+	}
+	return nil
 }
 
 // HasNetworkingConfig returns true if embedded networking configuration is set.

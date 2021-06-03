@@ -19,12 +19,13 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -280,7 +281,7 @@ func (s *ClusterConfigurationService) syncClusterConfigWithNetworkingConfig(clus
 		}
 		return nil
 	}
-	netConfig, err := s.GetClusterNetworkingConfig(context.TODO(), services.SkipValidation())
+	netConfig, err := s.GetClusterNetworkingConfig(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -305,7 +306,7 @@ func (s *ClusterConfigurationService) syncClusterConfigWithSessionRecordingConfi
 		}
 		return nil
 	}
-	recConfig, err := s.GetSessionRecordingConfig(context.TODO(), services.SkipValidation())
+	recConfig, err := s.GetSessionRecordingConfig(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}
