@@ -56,9 +56,9 @@ func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req serv
 }
 
 // SetAccessRequestState updates the state of an existing access request.
-func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
+func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) (types.AccessRequest, error) {
 	if err := params.Check(); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	retryPeriod := retryPeriodMs * time.Millisecond
 	retry, err := utils.NewLinear(utils.LinearConfig{
@@ -66,7 +66,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		Max:  retryPeriod,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// Setting state is attempted multiple times in the event of concurrent writes.
 	// The reason we bother to re-attempt is because state updates aren't meant
@@ -76,23 +76,23 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return trace.NotFound("cannot set state of access request %q (not found)", params.RequestID)
+				return nil, trace.NotFound("cannot set state of access request %q (not found)", params.RequestID)
 			}
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		req, err := itemToAccessRequest(*item)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if err := req.SetState(params.State); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		req.SetResolveReason(params.Reason)
 		req.SetResolveAnnotations(params.Annotations)
 		if len(params.Roles) > 0 {
 			for _, role := range params.Roles {
 				if !utils.SliceContainsStr(req.GetRoles(), role) {
-					return trace.BadParameter("role %q not in original request, overrides must be a subset of original role list", role)
+					return nil, trace.BadParameter("role %q not in original request, overrides must be a subset of original role list", role)
 				}
 			}
 			req.SetRoles(params.Roles)
@@ -105,7 +105,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		}
 		newItem, err := itemFromAccessRequest(req)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
 			if trace.IsCompareFailed(err) {
@@ -114,14 +114,14 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 					retry.Inc()
 					continue
 				case <-ctx.Done():
-					return trace.Wrap(ctx.Err())
+					return nil, trace.Wrap(ctx.Err())
 				}
 			}
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		return nil
+		return req, nil
 	}
-	return trace.CompareFailed("too many concurrent writes to access request %s, try again later", params.RequestID)
+	return nil, trace.CompareFailed("too many concurrent writes to access request %s, try again later", params.RequestID)
 }
 
 // ApplyAccessReview applies a review to a request and returns the post-application state.
