@@ -148,6 +148,9 @@ type IdentityContext struct {
 
 	// RouteToCluster is derived from the certificate
 	RouteToCluster string
+
+	// ActiveRequests is active access request IDs
+	ActiveRequests []string
 }
 
 // GetCertificate parses the SSH certificate bytes and returns a *ssh.Certificate.

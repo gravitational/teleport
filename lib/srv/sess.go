@@ -766,7 +766,8 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
-		TerminalSize: params.Serialize(),
+		TerminalSize:   params.Serialize(),
+		AccessRequests: ctx.Identity.ActiveRequests,
 	}
 
 	// Local address only makes sense for non-tunnel nodes.
@@ -903,6 +904,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
+		AccessRequests: ctx.Identity.ActiveRequests,
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {

@@ -1719,10 +1719,12 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 
 	// verify that user does not have the ability to approve their own request (not a special case, this
 	// user just wasn't created with the necessary roles for request management).
-	c.Assert(userClient.SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.NotNil)
+	_, err = userClient.SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED})
+	c.Assert(err, check.NotNil)
 
 	// attempt to apply request in APPROVED state (should succeed)
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.IsNil)
+	_, err = s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED})
+	c.Assert(err, check.IsNil)
 	userCerts, err = generateCerts(req.GetName())
 	c.Assert(err, check.IsNil)
 	// ensure that the requested role was actually applied to the cert
@@ -1737,15 +1739,18 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	c.Assert(rune(logins[0][0]), check.Not(check.Equals), '-')
 
 	// attempt to apply request in DENIED state (should fail)
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_DENIED}), check.IsNil)
+	_, err = s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_DENIED})
+	c.Assert(err, check.IsNil)
 	_, err = generateCerts(req.GetName())
 	c.Assert(err, check.NotNil)
 
 	// ensure that once in the DENIED state, a request cannot be set back to PENDING state.
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_PENDING}), check.NotNil)
+	_, err = s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_PENDING})
+	c.Assert(err, check.NotNil)
 
 	// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.NotNil)
+	_, err = s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED})
+	c.Assert(err, check.NotNil)
 }
 
 func (s *TLSSuite) TestPluginData(c *check.C) {

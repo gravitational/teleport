@@ -385,13 +385,14 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 	if req.Delegator != "" {
 		ctx = WithDelegator(ctx, req.Delegator)
 	}
-	if err := auth.ServerWithRoles.SetAccessRequestState(ctx, services.AccessRequestUpdate{
+	_, err = auth.ServerWithRoles.SetAccessRequestState(ctx, services.AccessRequestUpdate{
 		RequestID:   req.ID,
 		State:       req.State,
 		Reason:      req.Reason,
 		Annotations: req.Annotations,
 		Roles:       req.Roles,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil

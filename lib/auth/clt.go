@@ -2815,10 +2815,10 @@ func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	return nil
 }
 
-func (c *Client) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
+func (c *Client) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) (services.AccessRequest, error) {
 	clt, err := c.grpc()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	setter := proto.RequestStateSetter{
 		ID:          params.RequestID,
@@ -2832,9 +2832,20 @@ func (c *Client) SetAccessRequestState(ctx context.Context, params services.Acce
 	}
 	_, err = clt.SetAccessRequestState(ctx, &setter)
 	if err != nil {
-		return trail.FromGRPC(err)
+		return nil, trail.FromGRPC(err)
 	}
-	return nil
+	req, err := c.GetAccessRequests(ctx, services.AccessRequestFilter{ID: params.RequestID})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	switch len(req) {
+	case 1:
+		return req[0], nil
+	case 0:
+		return nil, trace.BadParameter("access request not found")
+	default:
+		return nil, trace.BadParameter("invalid access request ID")
+	}
 }
 
 // GetAccessCapabilities requests the access capabilities of a user.
