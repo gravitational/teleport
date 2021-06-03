@@ -1023,7 +1023,6 @@ func TestDeleteLastMFADevice(t *testing.T) {
 // TestRoleVersions tests that downgraded V3 roles are returned to older
 // clients, and V4 roles are returned to newer clients.
 func TestRoleVersions(t *testing.T) {
-	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
 	role := &types.RoleV3{
@@ -1050,58 +1049,84 @@ func TestRoleVersions(t *testing.T) {
 	testCases := []struct {
 		desc                string
 		clientVersion       string
-		metadataDisabled    bool
+		disableMetadata     bool
 		expectedRoleVersion string
+		assertErr           require.ErrorAssertionFunc
 	}{
 		{
 			desc:                "old",
 			clientVersion:       "6.2.1",
 			expectedRoleVersion: "v3",
+			assertErr:           require.NoError,
 		},
 		{
 			desc:                "new",
 			clientVersion:       "6.3.0",
 			expectedRoleVersion: "v4",
+			assertErr:           require.NoError,
 		},
 		{
 			desc:                "alpha",
 			clientVersion:       "6.3.0-alpha.0",
 			expectedRoleVersion: "v4",
-		},
-		{
-			desc:                "no metadata",
-			metadataDisabled:    true,
-			expectedRoleVersion: "v3",
+			assertErr:           require.NoError,
 		},
 		{
 			desc:                "greater than 10",
 			clientVersion:       "10.0.0-beta",
 			expectedRoleVersion: "v4",
+			assertErr:           require.NoError,
+		},
+		{
+			desc:          "empty version",
+			clientVersion: "",
+			assertErr:     require.Error,
+		},
+		{
+			desc:          "invalid version",
+			clientVersion: "foo",
+			assertErr:     require.Error,
+		},
+		{
+			desc:                "no version metadata",
+			disableMetadata:     true,
+			expectedRoleVersion: "v3",
+			assertErr:           require.NoError,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			// setup client metadata
-			metadata.SetVersion(tc.clientVersion)
-			metadata.DisabledIs(tc.metadataDisabled)
+			ctx := context.Background()
+			if tc.disableMetadata {
+				ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
+			} else {
+				ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+					metadata.VersionKey: tc.clientVersion,
+				})
+			}
 
 			// test GetRole
 			gotRole, err := client.GetRole(ctx, role.GetName())
-			require.NoError(t, err)
-			require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
+			tc.assertErr(t, err)
+			if err == nil {
+				require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
+			}
 
 			// test GetRoles
 			gotRoles, err := client.GetRoles(ctx)
-			require.NoError(t, err)
-			foundTestRole := false
-			for _, gotRole := range gotRoles {
-				if gotRole.GetName() == role.GetName() {
-					require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
-					foundTestRole = true
+			tc.assertErr(t, err)
+			if err == nil {
+				foundTestRole := false
+				for _, gotRole := range gotRoles {
+					if gotRole.GetName() == role.GetName() {
+						require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
+						foundTestRole = true
+					}
 				}
+				require.True(t, foundTestRole)
 			}
-			require.True(t, foundTestRole)
 		})
 	}
 }
