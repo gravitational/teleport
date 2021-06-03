@@ -69,10 +69,10 @@ func UnaryClientInterceptor(ctx context.Context, method string, req, reply inter
 	return invoker(ctx, method, req, reply, cc, opts...)
 }
 
-// VersionFromContext can be called from a GRPC server method to return the
-// client version that was added to the GRPC metadata by
+// ClientVersionFromContext can be called from a GRPC server method to return
+// the client version that was added to the GRPC metadata by
 // StreamClientInterceptor or UnaryClientInterceptor on the client.
-func VersionFromContext(ctx context.Context) (string, bool) {
+func ClientVersionFromContext(ctx context.Context) (string, bool) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return "", false

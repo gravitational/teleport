@@ -1375,7 +1375,7 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 // supported (client version is unknown or < 6.3).
 func downgradeRole(ctx context.Context, role *types.RoleV3) error {
 	var clientVersion *semver.Version
-	clientVersionString, ok := metadata.VersionFromContext(ctx)
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
 	if ok {
 		var err error
 		clientVersion, err = semver.NewVersion(clientVersionString)
