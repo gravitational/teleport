@@ -308,9 +308,9 @@ spec:
   enabled: true
   role_map:
     - remote: admin
-      # admin <-> admin works for community edition. Enterprise users
+      # admin <-> admin works for the Open Source Edition. Enterprise users
       # have great control over RBAC.
-      local: [admin]
+      local: [access]
   token: "join-token-from-root"
   tunnel_addr: root.example.com:3024
   web_proxy_addr: root.example.com:3080
@@ -322,7 +322,7 @@ nodes on "leaf"? In this case we can use a wildcard `*` in the `role_map` like t
 ```yaml
 role_map:
   - remote: "*"
-    local: [admin]
+    local: [access]
 ```
 
 ```yaml
