@@ -584,7 +584,7 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 	}
 
 	for _, auth := range authorities {
-		for _, keyPair := range auth.GetTLSKeyPairs() {
+		for _, keyPair := range auth.GetTrustedTLSKeyPairs() {
 			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 			if err != nil {
 				return nil, trace.Wrap(err)

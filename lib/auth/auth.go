@@ -470,11 +470,11 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		DomainName: domainName,
 	}, true)
 	if err != nil {
-		return nil, trace.BadParameter("failed to load host CA for '%s': %v", domainName, err)
+		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
 	// get the private key of the certificate authority
-	caPrivateKey, err := ca.FirstSigningKey()
+	caPrivateKey, err := sshPrivateKey(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -491,6 +491,21 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		Roles:               roles,
 		TTL:                 ttl,
 	})
+}
+
+func sshPrivateKey(ca types.CertAuthority) ([]byte, error) {
+	keyPairs := ca.GetActiveKeys().SSH
+	if len(keyPairs) == 0 {
+		return nil, trace.BadParameter("no SSH key pairs found in CA for %q", ca.GetClusterName())
+	}
+	// TODO(awly): update after PKCS#11 keys are supported.
+	for _, kp := range keyPairs {
+		if kp.PrivateKeyType != types.PrivateKeyType_RAW {
+			continue
+		}
+		return kp.PrivateKey, nil
+	}
+	return nil, trace.NotFound("no raw SSH private key found in CA for %q", ca.GetClusterName())
 }
 
 // certs is a pair of SSH and TLS certificates
@@ -772,7 +787,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := ca.FirstSigningKey()
+	privateKey, err := sshPrivateKey(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1413,7 +1428,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	}
 
 	// get the private key of the certificate authority
-	caPrivateKey, err := ca.FirstSigningKey()
+	caPrivateKey, err := sshPrivateKey(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1468,7 +1483,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		Cert:       hostSSHCert,
 		TLSCert:    hostTLSCert,
 		TLSCACerts: services.GetTLSCerts(ca),
-		SSHCACerts: ca.GetCheckingKeys(),
+		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
 }
 
