@@ -87,7 +87,7 @@ func unmarshalDiscoveryRequest(data []byte) (*discoveryRequest, error) {
 	}
 	var out discoveryRequest
 	for _, bytes := range raw.Proxies {
-		proxy, err := services.UnmarshalServer([]byte(bytes), services.KindProxy, services.SkipValidation())
+		proxy, err := services.UnmarshalServer([]byte(bytes), services.KindProxy)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
