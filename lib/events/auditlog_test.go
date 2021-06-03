@@ -357,7 +357,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 
 		// emit regular event:
 		event := &events.Resize{
-			Metadata:     events.Metadata{Type: "resize"},
+			Metadata:     events.Metadata{Type: "resize", Time: now},
 			TerminalSize: "10:10",
 		}
 		err = alog.EmitAuditEvent(context.TODO(), event)
