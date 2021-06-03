@@ -1,6 +1,6 @@
 # Teleport
 
-Teleport is a unified access plane for infrastructure:
+Teleport is an access plane for infrastructure:
 
 * [Clusters of Linux servers](https://goteleport.com/teleport/docs/quickstart/) via SSH or SSH-over-HTTPS in a browser
 * [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-ssh/)

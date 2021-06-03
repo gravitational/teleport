@@ -34,7 +34,7 @@ We plan on expanding our guide to eventually include using Teleport with Google 
 
 This guide will cover how to setup, configure and run Teleport on GCP.
 
-GCP Services required to run Teleport in HA:
+GCP Services required to run Teleport in High Availability:
 
 - [Compute Engine: VM Instances with Instance Groups](#compute-engine-vm-instances-with-instance-groups)
 - [Computer Engine: Health Checks](#computer-engine-health-checks)
@@ -52,14 +52,14 @@ Optional:
 - Management Tools: Cloud Deployment Manager
 - Stackdriver Logging
 
-We recommend setting up Teleport in high availability mode (HA). In HA mode Firestore
+We recommend setting up Teleport in High Availability mode. In High Availability mode Firestore
 stores the state of the system and Google Cloud Storage stores the audit logs.
 
 ![GCP Intro Image](../img/gcp/gcp-teleport.svg)
 
 ### Compute Engine: VM Instances with Instance Groups
 
-To run Teleport in a HA configuration we recommend using `n1-standard-2` instances in
+To run Teleport in a High Availability configuration we recommend using `n1-standard-2` instances in
 Production. It's best practice to separate the proxy and authentication server, using
 Instance groups for the proxy and auth server.
 
@@ -180,7 +180,7 @@ Save the following configuration file as `/etc/teleport.yaml` on the Proxy Serve
 teleport:
   auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
   # We recommend using a TCP load balancer pointed to the auth servers when
-  # setting up in HA mode.
+  # setting up in High Availability mode.
   auth_servers: [ "auth.example.com:3025" ]
   # enable ssh service and disable auth and proxy:
 ssh_service:
@@ -199,7 +199,7 @@ Save the following configuration file as `/etc/teleport.yaml` on the node:
 teleport:
   auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
   # We recommend using a TCP load balancer pointed to the auth servers when
-  # setting up in HA mode.
+  # setting up in High Availability mode.
   auth_servers: [ "auth.example.com:3025" ]
   # enable ssh service and disable auth and proxy:
 ssh_service:
