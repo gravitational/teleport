@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/defaults"
 )
 
@@ -86,7 +88,13 @@ func (c *RemoteClusterV3) SetResourceID(id int64) {
 
 // CheckAndSetDefaults checks and sets default values
 func (c *RemoteClusterV3) CheckAndSetDefaults() error {
-	return c.Metadata.CheckAndSetDefaults()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if c.Version == "" {
+		c.Version = V3
+	}
+	return nil
 }
 
 // GetLastHeartbeat returns last heartbeat of the cluster

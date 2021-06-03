@@ -37,7 +37,7 @@ func (s *IdentityService) GetAppSession(ctx context.Context, req types.GetAppSes
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
+	session, err := services.UnmarshalWebSession(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -54,7 +54,7 @@ func (s *IdentityService) GetAppSessions(ctx context.Context) ([]types.WebSessio
 
 	out := make([]types.WebSession, len(result.Items))
 	for i, item := range result.Items {
-		session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
+		session, err := services.UnmarshalWebSession(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -112,7 +112,7 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
+	session, err := services.UnmarshalWebSession(item.Value)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -132,7 +132,7 @@ func (r *webSessions) List(ctx context.Context) (out []types.WebSession, err err
 		return nil, trace.Wrap(err)
 	}
 	for _, item := range result.Items {
-		session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
+		session, err := services.UnmarshalWebSession(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -197,7 +197,7 @@ func (r *webSessions) listLegacySessions(ctx context.Context) ([]types.WebSessio
 		if suffix != sessionsPrefix {
 			continue
 		}
-		session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
+		session, err := services.UnmarshalWebSession(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -225,7 +225,7 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := services.UnmarshalWebToken(item.Value, services.SkipValidation())
+	token, err := services.UnmarshalWebToken(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -240,7 +240,7 @@ func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) 
 		return nil, trace.Wrap(err)
 	}
 	for _, item := range result.Items {
-		token, err := services.UnmarshalWebToken(item.Value, services.SkipValidation())
+		token, err := services.UnmarshalWebToken(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -298,7 +298,7 @@ func getLegacyWebSession(ctx context.Context, backend backend.Backend, user, ses
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
+	session, err := services.UnmarshalWebSession(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
