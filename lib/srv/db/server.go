@@ -411,6 +411,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 		teleportUser: sessionCtx.Identity.Username,
 		emitter:      s.cfg.AuthClient,
 		log:          s.log,
+		ctx:          s.closeContext,
 	})
 	if err != nil {
 		return trace.Wrap(err)
