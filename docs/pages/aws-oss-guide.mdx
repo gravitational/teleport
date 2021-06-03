@@ -13,7 +13,7 @@ We have split this guide into:
 - [Authenticating to EKS Using GitHub Credentials with Teleport Open Source Edition](#using-teleport-with-eks)
 - [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
 - [Teleport AWS Tips & Tricks](#teleport-aws-tips--tricks)
-- [AWS HA with Terraform](aws-terraform-guide.mdx)
+- [AWS High Availability with Terraform](aws-terraform-guide.mdx)
 
 ### Teleport on AWS FAQ
 
@@ -48,7 +48,7 @@ for the below.
 
 This guide will cover how to setup, configure and run Teleport on [AWS](https://aws.amazon.com/).
 
-### AWS Services required to run Teleport in HA
+### AWS Services required to run Teleport in High Availability
 
 - [EC2 / Autoscale](#ec2--autoscale)
 - [DynamoDB](#dynamodb)
@@ -59,14 +59,14 @@ This guide will cover how to setup, configure and run Teleport on [AWS](https://
 - [ACM](#acm)
 - [SSM](#aws-systems-manager-parameter-store)
 
-We recommend setting up Teleport in high availability mode (HA). In HA mode DynamoDB
+We recommend setting up Teleport in High Availability mode. In High Availability mode DynamoDB
 stores the state of the system and S3 will store audit logs.
 
 ![AWS Intro Image](../img/aws/aws-intro.png)
 
 ### EC2 / Autoscale
 
-To run Teleport in a HA configuration we recommend using m4.large instances. It's best practice to separate the proxy and authentication server, using autoscaling groups for both machines. We have pre-built AMIs for both Teleport OSS and Enterprise editions.
+To run Teleport in a High Availability configuration we recommend using m4.large instances. It's best practice to separate the proxy and authentication server, using autoscaling groups for both machines. We have pre-built AMIs for both Teleport OSS and Enterprise editions.
 
 ### DynamoDB
 
@@ -268,7 +268,7 @@ With AWS Certificate Manager, you can quickly request SSL/TLS certificates.
 To add new nodes to a Teleport Cluster, we recommend using a [strong static token](https://gravitational.com/teleport/docs/admin-guide/#example-configuration). SSM can be also used to store the
 enterprise licence.
 
-## Setting up a HA Teleport Cluster
+## Setting up a High Availability Teleport Cluster
 
 Teleport's config based setup offers a wide range of customization for customers.
 This guide offers a range of setup options for AWS. If you have a very large account,
@@ -278,7 +278,7 @@ more than happy to help you architect, setup and deploy Teleport into your envir
 We have these options for you.
 
 - [Deploying with CloudFormation](#deploying-with-cloudformation)
-- [Deploying with Terraform HA + Monitoring](#deploying-with-terraform)
+- [Deploying with Terraform High Availability + Monitoring](#deploying-with-terraform)
 
 ## Deploying with CloudFormation
 
@@ -650,7 +650,7 @@ correct binary.
 
 We've a few other resources for Enterprise customers such as our
 
-- [Running Teleport Enterprise in HA mode on AWS using Terraform](aws-terraform-guide.mdx)
+- [Running Teleport Enterprise in High Availability mode on AWS using Terraform](aws-terraform-guide.mdx)
 - [Teleport Enterprise Quickstart](enterprise/quickstart-enterprise.mdx)
 
 If you would like help setting up Teleport Enterprise on AWS, please mail us at [info@goteleport.com](mailto:info@goteleport.com)

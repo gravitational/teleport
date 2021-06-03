@@ -1,7 +1,7 @@
 ---
-title: Teleport HA mode on AWS
-description: How to configure Teleport in highly available (HA) mode for AWS deployments
-h1: Running Teleport Enterprise in HA mode on AWS
+title: Teleport High Availability mode on AWS
+description: How to configure Teleport in High Availability mode for AWS deployments.
+h1: Running Teleport Enterprise in High Availability mode on AWS
 ---
 
 This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
@@ -543,7 +543,7 @@ You can get detailed logs for the Teleport auth servers using the `journalctl` c
 $ journalctl -u teleport-auth.service
 ```
 
-Remember that there is more than one auth server in an HA deployment. You should use this command to get the IP addresses
+Remember that there is more than one auth server in an High Availability deployment. You should use this command to get the IP addresses
 of each auth server that you'll need to connect to:
 
 ```bash
@@ -576,7 +576,7 @@ You can get detailed logs for the Teleport proxy service using the `journalctl` 
 $ journalctl -u teleport-proxy.service
 ```
 
-Remember that there is more than one proxy instance in an HA deployment. You should use this command to get the IP addresses
+Remember that there is more than one proxy instance in an High Availability deployment. You should use this command to get the IP addresses
 of each auth instance that you'll need to connect to:
 
 ```bash
@@ -636,7 +636,7 @@ You can get detailed logs for the Teleport auth server using the `journalctl` co
 $ journalctl -u teleport-auth.service
 ```
 
-Remember that there is more than one auth instance in an HA deployment. You should use this command to get the IP addresses
+Remember that there is more than one auth instance in an High Availability deployment. You should use this command to get the IP addresses
 of each auth instance that you'd need to connect to for checking logs:
 
 ```bash
@@ -669,7 +669,7 @@ You can get detailed logs for the Teleport proxy service using the `journalctl` 
 $ journalctl -u teleport-proxy-acm.service
 ```
 
-Remember that there is more than one proxy instance in an HA deployment. You can use this command to get the IP addresses
+Remember that there is more than one proxy instance in an High Availability deployment. You can use this command to get the IP addresses
 of each proxy instance that you'd need to connect to for checking logs:
 
 ```bash

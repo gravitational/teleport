@@ -35,7 +35,7 @@ We plan on expanding our guide to eventually include using Teleport with IBM Clo
 
 This guide will cover how to setup, configure and run Teleport on IBM Cloud.
 
-IBM Services required to run Teleport in HA:
+IBM Services required to run Teleport in High Availability:
 
 - [IBM Cloud: Virtual Servers with Instance Groups](#ibm-cloud-virtual-servers-with-instance-groups)
 - [Storage: Database for etcd](#storage-database-for-etcd)
@@ -46,7 +46,7 @@ Other things needed:
 
 - [SSL Certificate](https://www.ibm.com/cloud/ssl-certificates)
 
-We recommend setting up Teleport in high availability mode (HA). In HA mode [etcd](https://etcd.io/)
+We recommend setting up Teleport in High Availability mode (HA). In High Availability mode [etcd](https://etcd.io/)
 stores the state of the system and [IBM Cloud Storage](https://www.ibm.com/cloud/storage)
 stores the audit logs.
 
@@ -62,7 +62,7 @@ We recommend Gen 2 Cloud IBM [Virtual Servers](https://www.ibm.com/cloud/virtual
 ### Storage: Database for etcd
 
 IBM offers [managed etcd](https://www.ibm.com/cloud/databases-for-etcd) instances.
-Teleport uses etcd as a scalable database to maintain high availability and provide
+Teleport uses etcd as a scalable database to maintain High Availability and provide
 graceful restarts. The service has to be turned on from within the [IBM Cloud Dashboard](https://cloud.ibm.com/catalog/services/databases-for-etcd).
 
 We recommend picking an etcd instance in the same region as your planned Teleport
