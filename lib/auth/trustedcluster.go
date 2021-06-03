@@ -502,7 +502,7 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	for _, caType := range []services.CertAuthType{services.HostCA, services.UserCA} {
 		certAuthority, err := a.GetCertAuthority(
 			services.CertAuthID{Type: caType, DomainName: domainName},
-			false, services.SkipValidation())
+			false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
