@@ -58,13 +58,12 @@ func (s *ServicesSuite) TestOptions(c *check.C) {
 	c.Assert(cfg.ID, check.Equals, int64(1))
 
 	// Add a couple of other parameters
-	out = AddOptions(in, WithResourceID(2), SkipValidation(), WithVersion(V2))
-	c.Assert(out, check.HasLen, 3)
+	out = AddOptions(in, WithResourceID(2), WithVersion(V2))
+	c.Assert(out, check.HasLen, 2)
 	c.Assert(in, check.HasLen, 0)
 	cfg, err = CollectOptions(out)
 	c.Assert(err, check.IsNil)
 	c.Assert(cfg.ID, check.Equals, int64(2))
-	c.Assert(cfg.SkipValidation, check.Equals, true)
 	c.Assert(cfg.Version, check.Equals, V2)
 }
 
