@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	// ProfileDir is the default root directory where tsh stores profiles.
+	// profileDir is the default root directory where tsh stores profiles.
 	profileDir = ".tsh"
 	// currentProfileFilename is a file which stores the name of the
 	// currently active profile.
