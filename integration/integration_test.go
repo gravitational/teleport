@@ -4988,6 +4988,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	watcher, err := authServer.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
 			{Kind: types.KindUser},
+			{Kind: types.KindAccessRequest},
 		},
 	})
 	require.NoError(t, err)
@@ -5024,6 +5025,8 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 		State:     types.RequestState_APPROVED,
 	})
 	require.NoError(t, err)
+
+	WaitForResource(t, watcher, req.GetKind(), req.GetName())
 
 	clientConfig := ClientConfig{
 		Login:       suite.me.Username,
