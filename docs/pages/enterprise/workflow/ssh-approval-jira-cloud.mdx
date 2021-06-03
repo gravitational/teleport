@@ -26,9 +26,7 @@ First, using an existing Teleport Cluster, we are going to create a new Teleport
 
 #### Create user and role for access
 
-<Admonition type="warning" title="Warning">
-  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
-</Admonition>
+(!docs/pages/includes/permission-warning.mdx!)
 
 Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a new user and role that only has API access to the `access_request` API. The below script will create a yaml resource file for a new user and role.
 
