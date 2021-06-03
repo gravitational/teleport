@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -233,9 +234,9 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
+		now := clock.Now()
 		clock.Advance(idleTimeout)
-		// Add delay to make sure that server disconnected the idle client.
-		time.Sleep(disconnectDelay)
+		waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.ClientDisconnectEvent)
 
 		_, err = client.Execute("select 1")
 		require.Error(t, err)
@@ -248,14 +249,41 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
+		now := clock.Now()
 		clock.Advance(idleTimeout)
-		// Add delay to make sure that server disconnected the idle client.
-		time.Sleep(disconnectDelay)
+		waitForAuditEventTypeWithBackoff(t, pack.leaf.cluster.Process.GetAuthServer(), now, events.ClientDisconnectEvent)
 
 		_, err = client.Execute("select 1")
 		require.Error(t, err)
 		setRoleIdleTimeout(t, leafAuthServer, leafRole, time.Hour)
 	})
+}
+
+func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []events.AuditEvent {
+	max := time.Second
+	timeout := time.After(max)
+	bf, err := utils.NewLinear(utils.LinearConfig{
+		Step: max / 10,
+		Max:  max,
+	})
+	if err != nil {
+		t.Fatalf("failed to create linear backoff: %v", err)
+	}
+	for {
+		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), defaults.Namespace, []string{eventType}, 100, "")
+		if err != nil {
+			t.Fatalf("failed to call SearchEvents: %v", err)
+		}
+		if len(events) != 0 {
+			return events
+		}
+		select {
+		case <-bf.After():
+			bf.Inc()
+		case <-timeout:
+			t.Fatalf("event type %q not found after %v", eventType, max)
+		}
+	}
 }
 
 func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role services.Role, idleTimout time.Duration) {

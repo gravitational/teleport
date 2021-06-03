@@ -487,6 +487,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		TLSConfig:   tlsConfig,
 		Emitter:     testCtx.emitter,
 		Clock:       testCtx.clock,
+		ServerID:    "proxy-server",
 	})
 	require.NoError(t, err)
 

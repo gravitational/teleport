@@ -78,6 +78,8 @@ type ProxyServerConfig struct {
 	Emitter events.Emitter
 	// Clock to override clock in tests.
 	Clock clockwork.Clock
+	// ServerID is the ID of the audit log server.
+	ServerID string
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -99,6 +101,9 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+	if c.ServerID == "" {
+		return trace.BadParameter("missing ServerID")
 	}
 	return nil
 }
@@ -260,7 +265,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 		identity:     authContext.Identity.GetIdentity(),
 		checker:      authContext.Checker,
 		clock:        s.cfg.Clock,
-		serverID:     string(teleport.RoleProxy),
+		serverID:     s.cfg.ServerID,
 		authClient:   s.cfg.AuthClient,
 		teleportUser: authContext.Identity.GetIdentity().Username,
 		emitter:      s.cfg.Emitter,
