@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -575,13 +576,31 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 	for {
 		select {
 		case <-time.Tick(500 * time.Millisecond):
-			_, err := accessPoint.GetDatabaseServers(context.Background(), defaults.Namespace)
-			if err == nil {
-				return
+			servers, err := accessPoint.GetDatabaseServers(context.Background(), defaults.Namespace)
+			if err != nil {
+				logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
+				continue
 			}
-			logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
+			if !containsDBServer(servers, p.leaf.mysqlService.Name) {
+				logrus.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
+				continue
+			}
+			if !containsDBServer(servers, p.leaf.postgresService.Name) {
+				logrus.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
+				continue
+			}
+			return
 		case <-time.After(10 * time.Second):
 			t.Fatal("Leaf cluster access point is unavailable.")
 		}
 	}
+}
+
+func containsDBServer(servers []types.DatabaseServer, name string) bool {
+	for _, server := range servers {
+		if server.GetMetadata().Name == name {
+			return true
+		}
+	}
+	return false
 }
