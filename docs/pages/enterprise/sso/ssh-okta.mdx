@@ -161,9 +161,7 @@ spec:
   *"username"* Okta claim and use that field as an allowed login for each user.  This example uses email as the username format.  The `email.local(external.trait)` function will remove the `@domain` and just have the username prefix.
 - Developers also do not have any "allow rules" i.e. they will not be able to see/replay past sessions or re-configure the Teleport cluster.
 
-<Admonition type="warning" title="Warning">
-  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
-</Admonition>
+(!docs/pages/includes/permission-warning.mdx!)
 
 Now, create both roles on the auth server:
 
