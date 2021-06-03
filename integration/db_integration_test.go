@@ -22,10 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -179,8 +181,9 @@ func TestDatabaseAccessMySQLLeafCluster(t *testing.T) {
 
 // TestRootLeafIdleTimeout tests idle client connection termination by proxy and DB services in
 // trusted cluster setup.
-func TestRootLeafIdleTimeout(t *testing.T) {
-	pack := setupDatabaseTest(t)
+func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	pack := setupDatabaseTest(t, withClock(clock))
 	pack.waitForLeaf(t)
 
 	var (
@@ -215,7 +218,7 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		pack.clock.Advance(idleTimeout)
+		clock.Advance(idleTimeout)
 		_, err = client.Execute("select 1")
 		require.NoError(t, err)
 		err = client.Close()
@@ -228,7 +231,10 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		pack.clock.Advance(idleTimeout)
+		now := clock.Now()
+		clock.Advance(idleTimeout)
+		waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.ClientDisconnectEvent)
+
 		_, err = client.Execute("select 1")
 		require.Error(t, err)
 		setRoleIdleTimeout(t, rootAuthServer, rootRole, time.Hour)
@@ -240,11 +246,41 @@ func TestRootLeafIdleTimeout(t *testing.T) {
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
 
-		pack.clock.Advance(idleTimeout)
+		now := clock.Now()
+		clock.Advance(idleTimeout)
+		waitForAuditEventTypeWithBackoff(t, pack.leaf.cluster.Process.GetAuthServer(), now, events.ClientDisconnectEvent)
+
 		_, err = client.Execute("select 1")
 		require.Error(t, err)
 		setRoleIdleTimeout(t, leafAuthServer, leafRole, time.Hour)
 	})
+}
+
+func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []events.AuditEvent {
+	max := time.Second
+	timeout := time.After(max)
+	bf, err := utils.NewLinear(utils.LinearConfig{
+		Step: max / 10,
+		Max:  max,
+	})
+	if err != nil {
+		t.Fatalf("failed to create linear backoff: %v", err)
+	}
+	for {
+		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), defaults.Namespace, []string{eventType}, 100, "")
+		if err != nil {
+			t.Fatalf("failed to call SearchEvents: %v", err)
+		}
+		if len(events) != 0 {
+			return events
+		}
+		select {
+		case <-bf.After():
+			bf.Inc()
+		case <-timeout:
+			t.Fatalf("event type %q not found after %v", eventType, max)
+		}
+	}
 }
 
 func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role services.Role, idleTimout time.Duration) {
@@ -258,7 +294,7 @@ func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role services.Rol
 type databasePack struct {
 	root  databaseClusterPack
 	leaf  databaseClusterPack
-	clock clockwork.FakeClock
+	clock clockwork.Clock
 }
 
 type databaseClusterPack struct {
@@ -275,7 +311,31 @@ type databaseClusterPack struct {
 	mysql           *mysql.TestServer
 }
 
-func setupDatabaseTest(t *testing.T) *databasePack {
+type testOptions struct {
+	clock clockwork.Clock
+}
+
+type testOptionFunc func(*testOptions)
+
+func (o testOptions) setDefaultIfNotSet() {
+	if o.clock == nil {
+		o.clock = clockwork.NewRealClock()
+	}
+}
+
+func withClock(clock clockwork.Clock) testOptionFunc {
+	return func(o *testOptions) {
+		o.clock = clock
+	}
+}
+
+func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
+	var opts testOptions
+	for _, opt := range options {
+		opt(&opts)
+	}
+	opts.setDefaultIfNotSet()
+
 	// Some global setup.
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
@@ -288,7 +348,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	require.NoError(t, err)
 
 	p := &databasePack{
-		clock: clockwork.NewFakeClockAt(time.Now()),
+		clock: opts.clock,
 		root: databaseClusterPack{
 			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
 			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
@@ -512,13 +572,31 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 	for {
 		select {
 		case <-time.Tick(500 * time.Millisecond):
-			_, err := accessPoint.GetDatabaseServers(context.Background(), defaults.Namespace)
-			if err == nil {
-				return
+			servers, err := accessPoint.GetDatabaseServers(context.Background(), defaults.Namespace)
+			if err != nil {
+				logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
+				continue
 			}
-			logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
+			if !containsDBServer(servers, p.leaf.mysqlService.Name) {
+				logrus.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
+				continue
+			}
+			if !containsDBServer(servers, p.leaf.postgresService.Name) {
+				logrus.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
+				continue
+			}
+			return
 		case <-time.After(10 * time.Second):
 			t.Fatal("Leaf cluster access point is unavailable.")
 		}
 	}
+}
+
+func containsDBServer(servers []types.DatabaseServer, name string) bool {
+	for _, server := range servers {
+		if server.GetMetadata().Name == name {
+			return true
+		}
+	}
+	return false
 }
