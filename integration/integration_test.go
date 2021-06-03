@@ -177,6 +177,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("DiscoveryRecovers", suite.bind(testDiscoveryRecovers))
 	t.Run("EnvironmentVars", suite.bind(testEnvironmentVariables))
 	t.Run("ExecEvents", suite.bind(testExecEvents))
+	t.Run("SessionStartContainsAccessRequest", suite.bind(testSessionStartContainsAccessRequest))
 	t.Run("ExternalClient", suite.bind(testExternalClient))
 	t.Run("HA", suite.bind(testHA))
 	t.Run("Interactive (Regular)", suite.bind(testInteractiveRegular))
@@ -4937,20 +4938,19 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
-func (s *IntSuite) TestSessionContainsAccessRequest(c *check.C) {
+func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestSuite) {
 	accessRequestsKey := "access_requests"
 	requestedRoleName := "requested-role"
 	userRoleName := "user-role"
-	s.setUpTest(c)
-	defer s.tearDownTest(c)
+
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
 	lsPath, err := exec.LookPath("ls")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Creates new teleport cluster
-	main := s.newTeleport(c, nil, true)
+	main := suite.newTeleport(t, nil, true)
 	defer main.StopAll()
 
 	ctx := context.Background()
@@ -4962,10 +4962,10 @@ func (s *IntSuite) TestSessionContainsAccessRequest(c *check.C) {
 		Options: services.RoleOptions{},
 		Allow:   services.RoleConditions{},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	err = authServer.UpsertRole(ctx, requestedRole)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Create user role with ability to request role
 	userRole, err := services.NewRole(userRoleName, services.RoleSpecV3{
@@ -4976,88 +4976,87 @@ func (s *IntSuite) TestSessionContainsAccessRequest(c *check.C) {
 			},
 		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	err = authServer.UpsertRole(ctx, userRole)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	user, err := services.NewUser(s.me.Username)
+	user, err := services.NewUser(suite.me.Username)
 	user.AddRole(userRole.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	watcher, err := authServer.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
 			{Kind: types.KindUser},
 		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	defer watcher.Close()
 
 	select {
 	case <-time.After(time.Second * 30):
-		c.Fatalf("Timeout waiting for event.")
+		t.Fatalf("Timeout waiting for event.")
 	case event := <-watcher.Events():
 		if event.Type != types.OpInit {
-			c.Fatalf("Unexpected event type.")
+			t.Fatalf("Unexpected event type.")
 		}
-		c.Assert(event.Type, check.Equals, types.OpInit)
+		require.Equal(t, event.Type, types.OpInit)
 	case <-watcher.Done():
-		c.Fatal(watcher.Error())
+		t.Fatal(watcher.Error())
 	}
 
 	// Update user
 	err = authServer.UpsertUser(user)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	WaitForResource(c, watcher, user.GetKind(), user.GetName())
+	WaitForResource(t, watcher, user.GetKind(), user.GetName())
 
-	req, err := services.NewAccessRequest(s.me.Username, requestedRole.GetMetadata().Name)
-	c.Assert(err, check.IsNil)
+	req, err := services.NewAccessRequest(suite.me.Username, requestedRole.GetMetadata().Name)
+	require.NoError(t, err)
 
 	accessRequestID := req.GetName()
 
 	err = authServer.CreateAccessRequest(context.TODO(), req)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	err = authServer.SetAccessRequestState(context.TODO(), types.AccessRequestUpdate{
 		RequestID: accessRequestID,
 		State:     types.RequestState_APPROVED,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	clientConfig := ClientConfig{
-		Login:       s.me.Username,
+		Login:       suite.me.Username,
 		Cluster:     Site,
 		Host:        Host,
 		Port:        main.GetPortSSHInt(),
 		Interactive: false,
 	}
-
 	clientReissueParams := client.ReissueParams{
 		AccessRequests: []string{accessRequestID},
 	}
 	err = runCommandWithCertReissue(main, []string{lsPath}, clientReissueParams, client.CertCacheDrop, clientConfig)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Get session start event
 	sessionStart, err := findEventInLog(main, events.SessionStartEvent)
-	c.Assert(err, check.IsNil)
-	c.Assert(sessionStart.GetCode(), check.Equals, events.SessionStartCode)
-	c.Assert(sessionStart.HasField(accessRequestsKey), check.Equals, true)
+	require.NoError(t, err)
+	require.Equal(t, sessionStart.GetCode(), events.SessionStartCode)
+	require.Equal(t, sessionStart.HasField(accessRequestsKey), true)
 
 	val, found := sessionStart[accessRequestsKey]
-	c.Assert(found, check.Equals, true)
+	require.Equal(t, found, true)
 
 	result := strings.Contains(fmt.Sprintf("%v", val), accessRequestID)
-	c.Assert(result, check.Equals, true)
+	require.Equal(t, result, true)
 }
 
-func WaitForResource(c *check.C, watcher types.Watcher, kind, name string) {
+func WaitForResource(t *testing.T, watcher types.Watcher, kind, name string) {
 	timeout := time.After(time.Second * 15)
 	for {
 		select {
 		case <-timeout:
-			c.Fatalf("Timeout waiting for event.")
+			t.Fatalf("Timeout waiting for event.")
 		case event := <-watcher.Events():
 			if event.Type != types.OpPut {
 				continue
@@ -5066,7 +5065,7 @@ func WaitForResource(c *check.C, watcher types.Watcher, kind, name string) {
 				return
 			}
 		case <-watcher.Done():
-			c.Fatalf("Watcher error %s.", watcher.Error())
+			t.Fatalf("Watcher error %s.", watcher.Error())
 		}
 	}
 }
