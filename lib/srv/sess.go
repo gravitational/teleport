@@ -741,7 +741,6 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	s.term.Continue()
 
 	params := s.term.GetTerminalParams()
-
 	// Emit "new session created" event for the interactive session.
 	sessionStartEvent := &events.SessionStart{
 		Metadata: events.Metadata{
@@ -769,6 +768,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		},
 		TerminalSize:     params.Serialize(),
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
+		AccessRequests:   ctx.Identity.ActiveRequests,
 	}
 
 	// Local address only makes sense for non-tunnel nodes.
@@ -913,6 +913,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
+		AccessRequests:   ctx.Identity.ActiveRequests,
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
