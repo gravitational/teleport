@@ -22,10 +22,6 @@ Let's explore how Teleport's role templates provide a way to describe these and 
 - Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
 - [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
 
-<Admonition type="warning" title="Warning">
-  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
-</Admonition>
-
 Verify that your Teleport client is connected:
 
 ```bash
@@ -217,7 +213,7 @@ spec:
   client_id: client-id
   # Client secret of Github OAuth app
   client_secret: secret-data-here
-  # cCnnector display name that will be shown on web UI login screen
+  # Connector display name that will be shown on web UI login screen
   display: Github
   # Callback URL that will be called after successful authentication
   redirect_url: https://teleport.example.com/v1/webapi/github/callback
