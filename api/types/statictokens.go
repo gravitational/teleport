@@ -134,9 +134,6 @@ func (c *StaticTokensV2) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if c.Version == "" {
-		c.Version = V2
-	}
 
 	return nil
 }

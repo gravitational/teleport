@@ -176,9 +176,6 @@ func (u *UserV2) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if u.Version == "" {
-		u.Version = V2
-	}
 
 	err = u.Check()
 	if err != nil {

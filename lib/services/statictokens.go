@@ -17,10 +17,11 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/trace"
+	"fmt"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // DefaultStaticTokens is used to get the default static tokens (empty list)
@@ -39,6 +40,47 @@ func DefaultStaticTokens() StaticTokens {
 	}
 }
 
+// StaticTokensSpecSchemaTemplate is a template for StaticTokens schema.
+const StaticTokensSpecSchemaTemplate = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"static_tokens": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"expires": {
+						"type": "string"
+					},
+					"roles": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"token": {
+						"type": "string"
+					}
+				}
+			}
+		}%v
+  	}
+}`
+
+// GetStaticTokensSchema returns the schema with optionally injected
+// schema for extensions.
+func GetStaticTokensSchema(extensionSchema string) string {
+	var staticTokensSchema string
+	if staticTokensSchema == "" {
+		staticTokensSchema = fmt.Sprintf(StaticTokensSpecSchemaTemplate, "")
+	} else {
+		staticTokensSchema = fmt.Sprintf(StaticTokensSpecSchemaTemplate, ","+extensionSchema)
+	}
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, staticTokensSchema, DefaultDefinitions)
+}
+
 // UnmarshalStaticTokens unmarshals the StaticTokens resource from JSON.
 func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (StaticTokens, error) {
 	var staticTokens StaticTokensV2
@@ -52,10 +94,19 @@ func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (StaticTokens, e
 		return nil, trace.Wrap(err)
 	}
 
-	if err := utils.FastUnmarshal(bytes, &staticTokens); err != nil {
-		return nil, trace.BadParameter(err.Error())
+	if cfg.SkipValidation {
+		if err := utils.FastUnmarshal(bytes, &staticTokens); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+	} else {
+		err = utils.UnmarshalWithSchema(GetStaticTokensSchema(""), &staticTokens, bytes)
+		if err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
 	}
-	if err := staticTokens.CheckAndSetDefaults(); err != nil {
+
+	err = staticTokens.CheckAndSetDefaults()
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 

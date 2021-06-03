@@ -39,9 +39,6 @@ func (n *Namespace) CheckAndSetDefaults() error {
 	if err := n.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if n.Version == "" {
-		n.Version = V1
-	}
 	isValid := IsValidNamespace(n.Metadata.Name)
 	if !isValid {
 		return trace.BadParameter("namespace %q is invalid", n.Metadata.Name)

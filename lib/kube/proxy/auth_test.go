@@ -152,30 +152,23 @@ current-context: foo
 		desc           string
 		kubeconfigPath string
 		kubeCluster    string
-		serviceType    KubeServiceType
+		newService     bool
 		want           map[string]*kubeCreds
 		assertErr      require.ErrorAssertionFunc
 	}{
 		{
-			desc:        "kubernetes_service, no kube creds",
-			serviceType: KubeService,
-			assertErr:   require.Error,
+			desc:       "kubernetes_service, no kube creds",
+			newService: true,
+			assertErr:  require.Error,
 		},
 		{
-			desc:        "proxy_service, no kube creds",
-			serviceType: ProxyService,
-			assertErr:   require.NoError,
-			want:        map[string]*kubeCreds{},
-		},
-		{
-			desc:        "legacy proxy_service, no kube creds",
-			serviceType: ProxyService,
-			assertErr:   require.NoError,
-			want:        map[string]*kubeCreds{},
+			desc:      "proxy_service, no kube creds",
+			assertErr: require.NoError,
+			want:      map[string]*kubeCreds{},
 		},
 		{
 			desc:           "kubernetes_service, with kube creds",
-			serviceType:    KubeService,
+			newService:     true,
 			kubeconfigPath: kubeconfigPath,
 			want: map[string]*kubeCreds{
 				"foo": {
@@ -194,14 +187,6 @@ current-context: foo
 		{
 			desc:           "proxy_service, with kube creds",
 			kubeconfigPath: kubeconfigPath,
-			serviceType:    ProxyService,
-			want:           map[string]*kubeCreds{},
-			assertErr:      require.NoError,
-		},
-		{
-			desc:           "legacy proxy_service, with kube creds",
-			kubeconfigPath: kubeconfigPath,
-			serviceType:    LegacyProxyService,
 			want: map[string]*kubeCreds{
 				teleClusterName: {
 					targetAddr:      "example.com:3026",
@@ -214,7 +199,7 @@ current-context: foo
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			got, err := getKubeCreds(ctx, testlog.FailureOnly(t), teleClusterName, "", tt.kubeconfigPath, tt.serviceType)
+			got, err := getKubeCreds(ctx, testlog.FailureOnly(t), teleClusterName, "", tt.kubeconfigPath, tt.newService)
 			tt.assertErr(t, err)
 			if err != nil {
 				return

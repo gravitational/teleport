@@ -102,7 +102,7 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	servers, err := authProvider.GetNodes(ctx, req.Namespace)
+	servers, err := authProvider.GetNodes(ctx, req.Namespace, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -17,10 +17,34 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/trace"
+	"fmt"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
+
+// ClusterNameSpecSchemaTemplate is a template for ClusterName schema.
+const ClusterNameSpecSchemaTemplate = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+	  "cluster_name": {
+		"type": "string"
+	  }%v
+	}
+  }`
+
+// GetClusterNameSchema returns the schema with optionally injected
+// schema for extensions.
+func GetClusterNameSchema(extensionSchema string) string {
+	var clusterNameSchema string
+	if clusterNameSchema == "" {
+		clusterNameSchema = fmt.Sprintf(ClusterNameSpecSchemaTemplate, "")
+	} else {
+		clusterNameSchema = fmt.Sprintf(ClusterNameSpecSchemaTemplate, ","+extensionSchema)
+	}
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, clusterNameSchema, DefaultDefinitions)
+}
 
 // UnmarshalClusterName unmarshals the ClusterName resource from JSON.
 func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (ClusterName, error) {
@@ -35,8 +59,15 @@ func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (ClusterName, err
 		return nil, trace.Wrap(err)
 	}
 
-	if err := utils.FastUnmarshal(bytes, &clusterName); err != nil {
-		return nil, trace.BadParameter(err.Error())
+	if cfg.SkipValidation {
+		if err := utils.FastUnmarshal(bytes, &clusterName); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+	} else {
+		err = utils.UnmarshalWithSchema(GetClusterNameSchema(""), &clusterName, bytes)
+		if err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
 	}
 
 	err = clusterName.CheckAndSetDefaults()

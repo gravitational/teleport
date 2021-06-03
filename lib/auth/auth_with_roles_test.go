@@ -18,11 +18,9 @@ package auth
 
 import (
 	"context"
-	"crypto/x509/pkix"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -60,71 +58,6 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 		Expires:   time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
-}
-
-// TestGenerateDatabaseCert makes sure users and services with appropriate
-// permissions can generate certificates for self-hosted databases.
-func TestGenerateDatabaseCert(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	// This user can't impersonate anyone and can't generate database certs.
-	userWithoutAccess, _, err := CreateUserAndRole(srv.Auth(), "user", []string{"role1"})
-	require.NoError(t, err)
-
-	// This user can impersonate system role Db.
-	userImpersonateDb, roleDb, err := CreateUserAndRole(srv.Auth(), "user-impersonate-db", []string{"role2"})
-	require.NoError(t, err)
-	roleDb.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
-		Users: []string{string(types.RoleDatabase)},
-		Roles: []string{string(types.RoleDatabase)},
-	})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, roleDb))
-
-	tests := []struct {
-		desc     string
-		identity TestIdentity
-		err      string
-	}{
-		{
-			desc:     "user can't sign database certs",
-			identity: TestUser(userWithoutAccess.GetName()),
-			err:      "access denied",
-		},
-		{
-			desc:     "user can impersonate Db and sign database certs",
-			identity: TestUser(userImpersonateDb.GetName()),
-		},
-		{
-			desc:     "built-in admin can sign database certs",
-			identity: TestAdmin(),
-		},
-		{
-			desc:     "database service can sign database certs",
-			identity: TestBuiltin(teleport.RoleDatabase),
-		},
-	}
-
-	// Generate CSR once for speed sake.
-	priv, _, err := srv.Auth().GenerateKeyPair("")
-	require.NoError(t, err)
-	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
-	require.NoError(t, err)
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			client, err := srv.NewClient(test.identity)
-			require.NoError(t, err)
-
-			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr})
-			if test.err != "" {
-				require.EqualError(t, err, test.err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
 }
 
 // TestSetAuthPreference tests the dynamic configuration rules described

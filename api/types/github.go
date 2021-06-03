@@ -159,12 +159,6 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if c.Version == "" {
-		c.Version = V3
-	}
-	if c.Kind == "" {
-		c.Kind = KindGithubConnector
-	}
 	return nil
 }
 

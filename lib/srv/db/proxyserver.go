@@ -24,7 +24,6 @@ import (
 	"io"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -32,11 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -44,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
 
@@ -74,10 +69,6 @@ type ProxyServerConfig struct {
 	Tunnel reversetunnel.Server
 	// TLSConfig is the proxy server TLS configuration.
 	TLSConfig *tls.Config
-	// Emitter is used to emit audit events.
-	Emitter events.Emitter
-	// Clock to override clock in tests.
-	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -96,9 +87,6 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing TLSConfig")
-	}
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -223,68 +211,49 @@ func (s *ProxyServer) mysqlProxy() *mysql.Proxy {
 // decoded from the client certificate by auth.Middleware.
 //
 // Implements common.Service.
-func (s *ProxyServer) Connect(ctx context.Context, user, database string) (net.Conn, *auth.Context, error) {
-	proxyContext, err := s.authorize(ctx, user, database)
+func (s *ProxyServer) Connect(ctx context.Context, user, database string) (net.Conn, error) {
+	authContext, err := s.authorize(ctx, user, database)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := s.getConfigForServer(ctx, proxyContext.identity, proxyContext.server)
+	tlsConfig, err := s.getConfigForServer(ctx, authContext.identity, authContext.server)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	serviceConn, err := proxyContext.cluster.Dial(reversetunnel.DialParams{
+	serviceConn, err := authContext.cluster.Dial(reversetunnel.DialParams{
 		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@db-proxy"},
 		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-		ServerID: fmt.Sprintf("%v.%v", proxyContext.server.GetHostID(), proxyContext.cluster.GetName()),
+		ServerID: fmt.Sprintf("%v.%v", authContext.server.GetHostID(), authContext.cluster.GetName()),
 		ConnType: types.DatabaseTunnel,
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// Upgrade the connection so the client identity can be passed to the
 	// remote server during TLS handshake. On the remote side, the connection
 	// received from the reverse tunnel will be handled by tls.Server.
 	serviceConn = tls.Client(serviceConn, tlsConfig)
-	return serviceConn, proxyContext.authContext, nil
+	return serviceConn, nil
 }
 
 // Proxy starts proxying all traffic received from database client between
 // this proxy and Teleport database service over reverse tunnel.
 //
 // Implements common.Service.
-func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clientConn, serviceConn net.Conn) error {
-	// Wrap a client connection into monitor that auto-terminates
-	// idle connection and connection with expired cert.
-	tc, err := monitorConn(ctx, monitorConnConfig{
-		conn:         clientConn,
-		identity:     authContext.Identity.GetIdentity(),
-		checker:      authContext.Checker,
-		clock:        s.cfg.Clock,
-		serverID:     string(teleport.RoleProxy),
-		authClient:   s.cfg.AuthClient,
-		teleportUser: authContext.Identity.GetIdentity().Username,
-		emitter:      s.cfg.Emitter,
-		log:          s.log,
-	})
-	if err != nil {
-		clientConn.Close()
-		serviceConn.Close()
-		return trace.Wrap(err)
-	}
-
+func (s *ProxyServer) Proxy(ctx context.Context, clientConn, serviceConn io.ReadWriteCloser) error {
 	errCh := make(chan error, 2)
 	go func() {
 		defer s.log.Debug("Stop proxying from client to service.")
 		defer serviceConn.Close()
-		defer tc.Close()
-		_, err := io.Copy(serviceConn, tc)
+		defer clientConn.Close()
+		_, err := io.Copy(serviceConn, clientConn)
 		errCh <- err
 	}()
 	go func() {
 		defer s.log.Debug("Stop proxying from service to client.")
 		defer serviceConn.Close()
-		defer tc.Close()
-		_, err := io.Copy(tc, serviceConn)
+		defer clientConn.Close()
+		_, err := io.Copy(clientConn, serviceConn)
 		errCh <- err
 	}()
 	var errs []error
@@ -302,70 +271,6 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 	return trace.NewAggregate(errs...)
 }
 
-// monitorConnConfig is a monitorConn configuration.
-type monitorConnConfig struct {
-	conn         net.Conn
-	checker      services.AccessChecker
-	identity     tlsca.Identity
-	clock        clockwork.Clock
-	serverID     string
-	authClient   *auth.Client
-	teleportUser string
-	emitter      events.Emitter
-	log          logrus.FieldLogger
-}
-
-// monitorConn wraps a client connection with TrackingReadConn, starts a connection monitor and
-// returns a tracking connection that will be auto-terminated in case disconnect_expired_cert or idle timeout is
-// configured, and unmodified client connection otherwise.
-func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
-	certExpires := cfg.identity.Expires
-	clusterConfig, err := cfg.authClient.GetClusterConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	netConfig, err := cfg.authClient.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert()) {
-		disconnectCertExpired = certExpires
-	}
-	idleTimeout := cfg.checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
-	if disconnectCertExpired.IsZero() && idleTimeout == 0 {
-		return cfg.conn, nil
-	}
-	ctx, cancel := context.WithCancel(ctx)
-	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
-		Conn:    cfg.conn,
-		Clock:   cfg.clock,
-		Context: ctx,
-		Cancel:  cancel,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	mon, err := srv.NewMonitor(srv.MonitorConfig{
-		DisconnectExpiredCert: disconnectCertExpired,
-		ClientIdleTimeout:     idleTimeout,
-		Conn:                  cfg.conn,
-		Tracker:               tc,
-		Context:               ctx,
-		Clock:                 cfg.clock,
-		ServerID:              cfg.serverID,
-		TeleportUser:          cfg.teleportUser,
-		Emitter:               cfg.emitter,
-		Entry:                 cfg.log,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
-	go mon.Start()
-	return tc, nil
-}
-
 // proxyContext contains parameters for a database session being proxied.
 type proxyContext struct {
 	// identity is the authorized client identity.
@@ -374,8 +279,6 @@ type proxyContext struct {
 	cluster reversetunnel.RemoteSite
 	// server is a database server that has the requested database.
 	server types.DatabaseServer
-	// authContext is a context of authenticated user.
-	authContext *auth.Context
 }
 
 func (s *ProxyServer) authorize(ctx context.Context, user, database string) (*proxyContext, error) {
@@ -392,10 +295,9 @@ func (s *ProxyServer) authorize(ctx context.Context, user, database string) (*pr
 	}
 	s.log.Debugf("Will proxy to database %q on server %s.", server.GetName(), server)
 	return &proxyContext{
-		identity:    identity,
-		cluster:     cluster,
-		server:      server,
-		authContext: authContext,
+		identity: identity,
+		cluster:  cluster,
+		server:   server,
 	}, nil
 }
 

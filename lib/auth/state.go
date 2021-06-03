@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/gravitational/teleport"
@@ -63,11 +64,8 @@ func (p *ProcessStorage) GetState(role teleport.Role) (*StateV2, error) {
 		return nil, trace.Wrap(err)
 	}
 	var res StateV2
-	if err := utils.FastUnmarshal(item.Value, &res); err != nil {
+	if err := utils.UnmarshalWithSchema(GetStateSchema(), &res, item.Value); err != nil {
 		return nil, trace.BadParameter(err.Error())
-	}
-	if err := res.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	return &res, nil
 }
@@ -122,11 +120,8 @@ func (p *ProcessStorage) ReadIdentity(name string, role teleport.Role) (*Identit
 		return nil, trace.Wrap(err)
 	}
 	var res IdentityV2
-	if err := utils.FastUnmarshal(item.Value, &res); err != nil {
+	if err := utils.UnmarshalWithSchema(GetIdentitySchema(), &res, item.Value); err != nil {
 		return nil, trace.BadParameter(err.Error())
-	}
-	if err := res.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	return ReadIdentityFromKeyPair(&PackedKeys{
 		Key:        res.Spec.Key,
@@ -245,4 +240,44 @@ type IdentitySpecV2 struct {
 	// SSHCACerts is a list of SSH certificate authorities encoded in the
 	// authorized_keys format.
 	SSHCACerts [][]byte `json:"ssh_ca_certs,omitempty"`
+}
+
+// IdentitySpecV2Schema is a schema for identity spec.
+const IdentitySpecV2Schema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["key", "ssh_cert", "tls_cert", "tls_ca_certs"],
+  "properties": {
+    "key": {"type": "string"},
+    "ssh_cert": {"type": "string"},
+    "tls_cert": {"type": "string"},
+    "tls_ca_certs": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "ssh_ca_certs": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}`
+
+// GetIdentitySchema returns JSON Schema for cert authorities.
+func GetIdentitySchema() string {
+	return fmt.Sprintf(services.V2SchemaTemplate, services.MetadataSchema, IdentitySpecV2Schema, services.DefaultDefinitions)
+}
+
+// StateSpecV2Schema is a schema for local server state.
+const StateSpecV2Schema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rotation"],
+  "properties": {
+    "rotation": %v
+  }
+}`
+
+// GetStateSchema returns JSON Schema for cert authorities.
+func GetStateSchema() string {
+	return fmt.Sprintf(services.V2SchemaTemplate, services.MetadataSchema, fmt.Sprintf(StateSpecV2Schema, services.RotationSchema), services.DefaultDefinitions)
 }

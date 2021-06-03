@@ -20,7 +20,6 @@ func archInit() {
 		PPC64.IsPOWER8 = true
 	}
 	if impl&_IMPL_POWER9 != 0 {
-		PPC64.IsPOWER8 = true
 		PPC64.IsPOWER9 = true
 	}
 

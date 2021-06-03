@@ -425,7 +425,7 @@ To add users to the Teleport cluster, you will need to connect to a Teleport aut
 1 - Use the AWS cli to get the IP of the bastion server:
 
 ```bash
-$ export BASTION_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=bastion" --query "Reservations[*].Instances[*].PublicIpAddress" --output text)
+$ export BASTION_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=bastion" --query "Reservations[*].Instances[*].PublicIpAddress" --output text)
 $ echo ${BASTION_IP}
 1.2.3.4
 ```
@@ -433,7 +433,7 @@ $ echo ${BASTION_IP}
 2 - Use the AWS cli to get the IP of an auth server:
 
 ```bash
-$ export AUTH_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=auth" --query "Reservations[0].Instances[*].PrivateIpAddress" --output text)
+$ export AUTH_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=auth" --query "Reservations[0].Instances[*].PrivateIpAddress" --output text)
 $ echo ${AUTH_IP}
 172.31.0.196
 ```

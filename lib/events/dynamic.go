@@ -124,14 +124,6 @@ func FromEventFields(fields EventFields) (AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
-	case AccessRequestReviewEvent:
-		// note: access_request.review is a custom code applied on top of the same data as the access_request.create event
-		//       and they are thus functionally identical. There exists no direct gRPC version of access_request.review.
-		var e events.AccessRequestCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
 	case AccessRequestUpdateEvent:
 		var e events.AccessRequestCreate
 		if err := utils.FastUnmarshal(data, &e); err != nil {

@@ -18,12 +18,46 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
+
+// WebSessionSpecV2Schema is JSON schema for cert authority V2
+const WebSessionSpecV2Schema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["pub", "bearer_token", "bearer_token_expires", "expires", "user"],
+	"properties": {
+	  "user": {"type": "string"},
+	  "pub": {"type": "string"},
+	  "priv": {"type": "string"},
+	  "tls_cert": {"type": "string"},
+	  "bearer_token": {"type": "string"},
+	  "bearer_token_expires": {"type": "string"},
+	  "expires": {"type": "string"},
+		"login_time": {"type": "string"}%v
+	}
+  }`
+
+// GetWebSessionSchema returns JSON Schema for web session
+func GetWebSessionSchema() string {
+	return GetWebSessionSchemaWithExtensions("")
+}
+
+// GetWebSessionSchemaWithExtensions returns JSON Schema for web session with user-supplied extensions
+func GetWebSessionSchemaWithExtensions(extension string) string {
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(WebSessionSpecV2Schema, extension), DefaultDefinitions)
+}
+
+// ExtendWebSession renews web session and is used to
+// inject additional data in extenstions when session is getting renewed
+func ExtendWebSession(ws WebSession) (WebSession, error) {
+	return ws, nil
+}
 
 // UnmarshalWebSession unmarshals the WebSession resource from JSON.
 func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (types.WebSession, error) {
@@ -40,8 +74,8 @@ func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (types.WebSession,
 	switch h.Version {
 	case V2:
 		var ws types.WebSessionV2
-		if err := utils.FastUnmarshal(bytes, &ws); err != nil {
-			return nil, trace.Wrap(err)
+		if err := utils.UnmarshalWithSchema(GetWebSessionSchema(), &ws, bytes); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
 		utils.UTC(&ws.Spec.BearerTokenExpires)
 		utils.UTC(&ws.Spec.Expires)
@@ -126,7 +160,7 @@ func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (types.WebToken, err
 	switch hdr.Version {
 	case V3:
 		var token types.WebTokenV3
-		if err := utils.FastUnmarshal(bytes, &token); err != nil {
+		if err := utils.UnmarshalWithSchema(GetWebTokenSchema(), &token, bytes); err != nil {
 			return nil, trace.BadParameter("invalid web token: %v", err.Error())
 		}
 		if err := token.CheckAndSetDefaults(); err != nil {
@@ -143,3 +177,19 @@ func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (types.WebToken, err
 	}
 	return nil, trace.BadParameter("web token resource version %v is not supported", hdr.Version)
 }
+
+// GetWebTokenSchema returns JSON schema for the web token resource
+func GetWebTokenSchema() string {
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, WebTokenSpecV3Schema, "")
+}
+
+// WebTokenSpecV3Schema is JSON schema for the web token V3
+const WebTokenSpecV3Schema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["token", "user"],
+  "properties": {
+    "user": {"type": "string"},
+    "token": {"type": "string"}
+  }
+}`

@@ -21,12 +21,12 @@ import (
 	"os"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
 
 // AppsCommand implements "tctl apps" group of commands.
@@ -63,7 +63,7 @@ func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 // ListApps prints the list of applications that have recently sent heartbeats
 // to the cluster.
 func (c *AppsCommand) ListApps(client auth.ClientI) error {
-	servers, err := client.GetAppServers(context.TODO(), defaults.Namespace)
+	servers, err := client.GetAppServers(context.TODO(), defaults.Namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -247,11 +247,10 @@ The URI should be updated to include the subdirectory:
   public_addr: "k8s.example.com"
 ```
 
-### Rewrite Redirect
+### Rewrite
 
-To support web apps that perform internal redirects, application access
-provides an option to rewrite the hostname of the `Location` header on
-redirect responses to the application's public address:
+Application access supports simple rewrites. This is helpful for applications
+that provide internal redirect headers:
 
 ```yaml
 - name: "jira"
@@ -264,35 +263,6 @@ redirect responses to the application's public address:
     - "localhost"
     - "jenkins.internal.dev"
 ```
-
-### Headers Passthrough
-
-You can configure application access to inject additional headers in the
-requests forwarded to a web application.
-
-```yaml
-- name: "dashboard"
-  uri: https://localhost:4321
-  public_addr: dashboard.example.com
-  rewrite:
-    headers:
-    # Inject a static header.
-    - "X-Custom-Header: example"
-    # Inject hedaers with internal/external user traits.
-    - "X-Internal-Trait: {{internal.logins}}"
-    - "X-External-Trait: {{external.env}}"
-    # Override Host header.
-    - "Host: dashboard.example.com"
-```
-
-Headers injected this way override any headers with the same names that may
-be sent by an application. The following headers are reserved and can't be
-rewritten: `X-Teleport-Jwt`, `Cf-Access-Token`, `X-Forwarded-*`.
-
-Rewritten header values support the same templating variables as [role templates](../../access-controls/guides/role-templates.mdx).
-In the example above, `X-Internal-Trait` header will be populated with the value
-of internal user trait `logins` and `X-External-Trait` header will get the value
-of the user's external `env` trait coming from the identity provider.
 
 ## View Applications in Teleport
 

@@ -17,10 +17,28 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/trace"
+	"fmt"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
+
+// ResetPasswordTokenSpecV3Template is a template for V3 ResetPasswordToken JSON schema
+const ResetPasswordTokenSpecV3Template = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+	  "user": {
+		"type": ["string"]
+	  },
+	  "created": {
+		"type": ["string"]
+	  },
+	  "url": {
+		"type": ["string"]
+	  }
+	}
+  }`
 
 // UnmarshalResetPasswordToken unmarshals the ResetPasswordToken resource from JSON.
 func UnmarshalResetPasswordToken(bytes []byte, opts ...MarshalOption) (ResetPasswordToken, error) {
@@ -29,11 +47,10 @@ func UnmarshalResetPasswordToken(bytes []byte, opts ...MarshalOption) (ResetPass
 	}
 
 	var token ResetPasswordTokenV3
-	if err := utils.FastUnmarshal(bytes, &token); err != nil {
+	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ResetPasswordTokenSpecV3Template, DefaultDefinitions)
+	err := utils.UnmarshalWithSchema(schema, &token, bytes)
+	if err != nil {
 		return nil, trace.BadParameter(err.Error())
-	}
-	if err := token.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	return &token, nil

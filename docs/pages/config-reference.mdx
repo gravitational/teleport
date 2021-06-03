@@ -426,10 +426,7 @@ proxy_service:
     mysql_public_addr: "mysql.teleport.example.com:3306"
 
     # Get automatic certificate from Letsencrypt.org using ACME via TLS_ALPN-01 challenge.
-    # When using ACME, the cluster name must match the 'public_addr' of Teleport and 
-    # the 'proxy_service' must be publicly accessible over port 443.
-    # Also set using the CLI command:
-    # 'teleport configure --acme --acme-email=email@example.com --cluster-name=tele.example.com -o file' 
+    # Requires the proxy_service to be publicly accessible over port 443.
     #acme:
     #  enabled: yes
     #  email: "user@example.com"

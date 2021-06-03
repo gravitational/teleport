@@ -48,7 +48,7 @@ func TestOIDCRoleMappingEmpty(t *testing.T) {
 	traits := OIDCClaimsToTraits(claims)
 	require.Len(t, traits, 4)
 
-	_, roles := TraitsToRoles(oidcConnector.GetTraitMappings(), traits)
+	roles := TraitsToRoles(oidcConnector.GetTraitMappings(), traits)
 	require.Len(t, roles, 0)
 }
 
@@ -81,7 +81,7 @@ func TestOIDCRoleMapping(t *testing.T) {
 	traits := OIDCClaimsToTraits(claims)
 	require.Len(t, traits, 4)
 
-	_, roles := TraitsToRoles(oidcConnector.GetTraitMappings(), traits)
+	roles := TraitsToRoles(oidcConnector.GetTraitMappings(), traits)
 	require.Len(t, roles, 1)
 	require.Equal(t, "user", roles[0])
 }

@@ -55,7 +55,7 @@ func (c *Client) GetRoles(ctx context.Context) ([]services.Role, error) {
 	}
 	roles := make([]services.Role, len(items))
 	for i, roleBytes := range items {
-		role, err := services.UnmarshalRole(roleBytes)
+		role, err := services.UnmarshalRole(roleBytes, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -99,7 +99,7 @@ func (c *Client) GetRole(ctx context.Context, name string) (services.Role, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, err := services.UnmarshalRole(out.Bytes())
+	role, err := services.UnmarshalRole(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -181,7 +181,7 @@ func (c *Client) GetToken(ctx context.Context, token string) (services.Provision
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalProvisionToken(out.Bytes())
+	return services.UnmarshalProvisionToken(out.Bytes(), services.SkipValidation())
 }
 
 // DeleteToken deletes a given provisioning token on the auth server (CA). It
@@ -240,7 +240,7 @@ func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bo
 	if err != nil {
 		return nil, err
 	}
-	return services.UnmarshalOIDCConnector(out.Bytes())
+	return services.UnmarshalOIDCConnector(out.Bytes(), services.SkipValidation())
 }
 
 // GetOIDCConnectors gets OIDC connectors list
@@ -264,7 +264,7 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]ser
 	}
 	connectors := make([]services.OIDCConnector, len(items))
 	for i, raw := range items {
-		connector, err := services.UnmarshalOIDCConnector(raw)
+		connector, err := services.UnmarshalOIDCConnector(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -331,7 +331,7 @@ func (c *Client) GetSAMLConnector(ctx context.Context, id string, withSecrets bo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalSAMLConnector(out.Bytes())
+	return services.UnmarshalSAMLConnector(out.Bytes(), services.SkipValidation())
 }
 
 // GetSAMLConnectors gets SAML connectors list
@@ -355,7 +355,7 @@ func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]ser
 	}
 	connectors := make([]services.SAMLConnector, len(items))
 	for i, raw := range items {
-		connector, err := services.UnmarshalSAMLConnector(raw)
+		connector, err := services.UnmarshalSAMLConnector(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -485,7 +485,7 @@ func (c *Client) GetTrustedCluster(ctx context.Context, name string) (services.T
 		return nil, trace.Wrap(err)
 	}
 
-	trustedCluster, err := services.UnmarshalTrustedCluster(out.Bytes())
+	trustedCluster, err := services.UnmarshalTrustedCluster(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -513,7 +513,7 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]services.TrustedClus
 	}
 	trustedClusters := make([]services.TrustedCluster, len(items))
 	for i, bytes := range items {
-		trustedCluster, err := services.UnmarshalTrustedCluster(bytes)
+		trustedCluster, err := services.UnmarshalTrustedCluster(bytes, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -604,7 +604,14 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{
+		"skip_validation": []string{fmt.Sprintf("%t", cfg.SkipValidation)},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -618,7 +625,7 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 		s, err := services.UnmarshalServer(
 			raw,
 			services.KindNode,
-			opts...)
+			services.AddOptions(opts, services.SkipValidation())...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

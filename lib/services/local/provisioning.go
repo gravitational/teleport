@@ -77,7 +77,8 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	return services.UnmarshalProvisionToken(item.Value, services.SkipValidation(),
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
 func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) error {
@@ -98,7 +99,8 @@ func (s *ProvisioningService) GetTokens(ctx context.Context, opts ...services.Ma
 	tokens := make([]services.ProvisionToken, len(result.Items))
 	for i, item := range result.Items {
 		t, err := services.UnmarshalProvisionToken(item.Value,
-			services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+			services.AddOptions(opts, services.SkipValidation(),
+				services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

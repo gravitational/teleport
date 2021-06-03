@@ -128,8 +128,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// Only announce when running in an actual kubernetes_service, or when
 	// running in proxy_service with local kube credentials. This means that
 	// proxy_service will pretend to also be kubernetes_service.
-	if cfg.KubeServiceType == KubeService ||
-		(cfg.KubeServiceType == LegacyProxyService && len(fwd.kubeClusters()) > 0) {
+	if cfg.NewKubeService || len(fwd.kubeClusters()) > 0 {
 		log.Debugf("Starting kubernetes_service heartbeats for %q", cfg.Component)
 		server.heartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
 			Mode:            srv.HeartbeatModeKube,
@@ -265,7 +264,7 @@ func (t *TLSServer) GetServerInfo() (services.Resource, error) {
 	// Note: we *don't* want to add suffix for kubernetes_service!
 	// This breaks reverse tunnel routing, which uses server.Name.
 	name := t.ServerID
-	if t.KubeServiceType != KubeService {
+	if !t.NewKubeService {
 		name += "-proxy_service"
 	}
 

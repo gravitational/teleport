@@ -155,9 +155,6 @@ func (r *TunnelConnectionV2) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if r.Version == "" {
-		r.Version = V2
-	}
 
 	err = r.Check()
 	if err != nil {

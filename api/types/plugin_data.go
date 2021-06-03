@@ -131,9 +131,6 @@ func (r *PluginDataV3) CheckAndSetDefaults() error {
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if r.Version == "" {
-		r.Version = V3
-	}
 	if r.SubKind == "" {
 		return trace.BadParameter("plugin data missing subkind")
 	}

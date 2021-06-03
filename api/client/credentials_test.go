@@ -146,13 +146,13 @@ func TestLoadProfile(t *testing.T) {
 	// Save profile and keys to disk.
 	require.NoError(t, p.SaveToDir(dir, true))
 	require.NoError(t, os.MkdirAll(p.KeyDir(), 0700))
-	require.NoError(t, os.MkdirAll(p.ProxyKeyDir(), 0700))
+	require.NoError(t, os.MkdirAll(p.UserKeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.SSHDir(), 0700))
-	require.NoError(t, ioutil.WriteFile(p.UserKeyPath(), keyPEM, 0600))
+	require.NoError(t, ioutil.WriteFile(p.KeyPath(), keyPEM, 0600))
 	require.NoError(t, ioutil.WriteFile(p.TLSCertPath(), tlsCert, 0600))
 	require.NoError(t, ioutil.WriteFile(p.TLSCAsPath(), tlsCACert, 0600))
 	require.NoError(t, ioutil.WriteFile(p.SSHCertPath(), sshCert, 0600))
-	require.NoError(t, ioutil.WriteFile(p.KnownHostsPath(), sshCACert, 0600))
+	require.NoError(t, ioutil.WriteFile(p.SSHCAsPath(), sshCACert, 0600))
 
 	// Load profile from disk.
 	creds := LoadProfile(dir, name)

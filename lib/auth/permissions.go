@@ -35,12 +35,7 @@ import (
 
 // NewAdminContext returns new admin auth context
 func NewAdminContext() (*Context, error) {
-	return NewBuiltinRoleContext(types.RoleAdmin)
-}
-
-// NewBuiltinRoleContext create auth context for the provided builtin role.
-func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
-	authContext, err := contextForBuiltinRole(BuiltinRole{Role: role, Username: fmt.Sprintf("%v", role)}, nil)
+	authContext, err := contextForBuiltinRole(BuiltinRole{Role: teleport.RoleAdmin, Username: fmt.Sprintf("%v", teleport.RoleAdmin)}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

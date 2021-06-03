@@ -17,6 +17,8 @@ limitations under the License.
 package services
 
 import (
+	"fmt"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -33,6 +35,21 @@ func IsRecordSync(mode string) bool {
 	return mode == RecordAtProxySync || mode == RecordAtNodeSync
 }
 
+// SessionRecordingConfigSpecSchema is JSON schema for SessionRecordingConfig spec.
+const SessionRecordingConfigSpecSchema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"mode": {"type": "string"},
+		"proxy_checks_host_keys": {"anyOf": [{"type": "string"}, { "type": "boolean"}]}
+	}
+}`
+
+// GetSessionRecordingConfigSchema returns full SessionRecordingConfig JSON schema.
+func GetSessionRecordingConfigSchema() string {
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, SessionRecordingConfigSpecSchema, DefaultDefinitions)
+}
+
 // UnmarshalSessionRecordingConfig unmarshals the SessionRecordingConfig resource from JSON.
 func UnmarshalSessionRecordingConfig(bytes []byte, opts ...MarshalOption) (types.SessionRecordingConfig, error) {
 	var recConfig types.SessionRecordingConfigV2
@@ -45,8 +62,16 @@ func UnmarshalSessionRecordingConfig(bytes []byte, opts ...MarshalOption) (types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := utils.FastUnmarshal(bytes, &recConfig); err != nil {
-		return nil, trace.BadParameter(err.Error())
+
+	if cfg.SkipValidation {
+		if err := utils.FastUnmarshal(bytes, &recConfig); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+	} else {
+		err = utils.UnmarshalWithSchema(GetSessionRecordingConfigSchema(), &recConfig, bytes)
+		if err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
 	}
 
 	err = recConfig.CheckAndSetDefaults()

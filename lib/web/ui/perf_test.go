@@ -47,29 +47,38 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 	const proxyCount = 6
 
 	type testCase struct {
-		memory bool
-		nodes  int
+		validation, memory bool
+		nodes              int
 	}
 
 	var tts []testCase
 
-	for _, memory := range []bool{true, false} {
-		for _, nodes := range []int{100, 1000, 10000} {
-			tts = append(tts, testCase{
-				memory: memory,
-				nodes:  nodes,
-			})
+	for _, validation := range []bool{true, false} {
+		for _, memory := range []bool{true, false} {
+			for _, nodes := range []int{100, 1000, 10000} {
+				tts = append(tts, testCase{
+					validation: validation,
+					memory:     memory,
+					nodes:      nodes,
+				})
+			}
 		}
 	}
 
 	for _, tt := range tts {
 		// create a descriptive name for the sub-benchmark.
-		name := fmt.Sprintf("tt(memory=%v,nodes=%d)", tt.memory, tt.nodes)
+		name := fmt.Sprintf("tt(validation=%v,memory=%v,nodes=%d)", tt.validation, tt.memory, tt.nodes)
 
 		// run the sub benchmark
 		b.Run(name, func(sb *testing.B) {
 
 			sb.StopTimer() // stop timer while running setup
+
+			// set up marshal options
+			var opts []services.MarshalOption
+			if !tt.validation {
+				opts = append(opts, services.SkipValidation())
+			}
 
 			// configure the backend instance
 			var bk backend.Backend
@@ -104,7 +113,7 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 
 			sb.StartTimer() // restart timer for benchmark operations
 
-			benchmarkGetClusterDetails(ctx, sb, site, tt.nodes)
+			benchmarkGetClusterDetails(ctx, sb, site, tt.nodes, opts...)
 
 			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})

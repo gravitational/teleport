@@ -65,10 +65,6 @@ type GRPCServer struct {
 	server *grpc.Server
 }
 
-func (g *GRPCServer) serverContext() context.Context {
-	return g.AuthServer.closeCtx
-}
-
 // GetServer returns an instance of grpc server
 func (g *GRPCServer) GetServer() (*grpc.Server, error) {
 	if g.server == nil {
@@ -839,7 +835,11 @@ func (g *GRPCServer) GetDatabaseServers(ctx context.Context, req *proto.GetDatab
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	databaseServers, err := auth.GetDatabaseServers(ctx, req.GetNamespace())
+	var opts []services.MarshalOption
+	if req.GetSkipValidation() {
+		opts = append(opts, services.SkipValidation())
+	}
+	databaseServers, err := auth.GetDatabaseServers(ctx, req.GetNamespace(), opts...)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -930,7 +930,12 @@ func (g *GRPCServer) GetAppServers(ctx context.Context, req *proto.GetAppServers
 		return nil, trail.ToGRPC(err)
 	}
 
-	appServers, err := auth.GetAppServers(ctx, req.GetNamespace())
+	var opts []services.MarshalOption
+	if req.GetSkipValidation() {
+		opts = append(opts, services.SkipValidation())
+	}
+
+	appServers, err := auth.GetAppServers(ctx, req.GetNamespace(), opts...)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -1478,7 +1483,7 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
-	if err := g.Emitter.EmitAuditEvent(g.serverContext(), &apievents.MFADeviceAdd{
+	if err := g.Emitter.EmitAuditEvent(g.Context, &apievents.MFADeviceAdd{
 		Metadata: apievents.Metadata{
 			Type:        events.MFADeviceAddEvent,
 			Code:        events.MFADeviceAddEventCode,
@@ -1763,7 +1768,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 		if err != nil {
 			return trail.ToGRPC(err)
 		}
-		if err := g.Emitter.EmitAuditEvent(g.serverContext(), &apievents.MFADeviceDelete{
+		if err := g.Emitter.EmitAuditEvent(g.Context, &apievents.MFADeviceDelete{
 			Metadata: apievents.Metadata{
 				Type:        events.MFADeviceDeleteEvent,
 				Code:        events.MFADeviceDeleteEventCode,

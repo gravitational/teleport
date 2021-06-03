@@ -336,7 +336,7 @@ func (a *Server) runPeriodicOperations() {
 				}
 			}
 		case <-heartbeatCheckTicker.Next():
-			nodes, err := a.GetNodes(ctx, defaults.Namespace)
+			nodes, err := a.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 			if err != nil {
 				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
 			}
@@ -1092,6 +1092,10 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (s
 		return nil, trace.Wrap(err)
 	}
 
+	sess, err = services.ExtendWebSession(sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return sess, nil
 }
 
@@ -1728,7 +1732,7 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	if namespace == defaults.Namespace {
 		return trace.AccessDenied("can't delete default namespace")
 	}
-	nodes, err := a.Presence.GetNodes(ctx, namespace)
+	nodes, err := a.Presence.GetNodes(ctx, namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2165,7 +2169,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("empty Login field")
 		}
 		// Find the target node and check whether MFA is required.
-		nodes, err := a.GetNodes(ctx, defaults.Namespace)
+		nodes, err := a.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2233,7 +2237,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
-		dbs, err := a.GetDatabaseServers(ctx, defaults.Namespace)
+		dbs, err := a.GetDatabaseServers(ctx, defaults.Namespace, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

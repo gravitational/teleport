@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -401,14 +400,14 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 //
 // It's stored in ~/.tsh/keys/<proxy>/certs.pem by default.
 func (p *ProfileStatus) CACertPath() string {
-	return keypaths.TLSCAsPath(p.Dir, p.Name)
+	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name, constants.FileNameTLSCerts)
 }
 
 // KeyPath returns path to the private key for this profile.
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>.
 func (p *ProfileStatus) KeyPath() string {
-	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
+	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name, p.Username)
 }
 
 // DatabaseCertPath returns path to the specified database access certificate
@@ -416,7 +415,10 @@ func (p *ProfileStatus) KeyPath() string {
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) DatabaseCertPath(name string) string {
-	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name,
+		fmt.Sprintf("%v%v", p.Username, dbDirSuffix),
+		p.Cluster,
+		fmt.Sprintf("%v%v", name, constants.FileExtTLSCert))
 }
 
 // AppCertPath returns path to the specified app access certificate
@@ -424,8 +426,10 @@ func (p *ProfileStatus) DatabaseCertPath(name string) string {
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) AppCertPath(name string) string {
-	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
-
+	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name,
+		fmt.Sprintf("%v%v", p.Username, appDirSuffix),
+		p.Cluster,
+		fmt.Sprintf("%v%v", name, constants.FileExtTLSCert))
 }
 
 // DatabaseServices returns a list of database service names for this profile.
@@ -1444,7 +1448,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	serverID := session.Parties[0].ServerID
 
 	// find a server address by its ID
-	nodes, err := site.GetNodes(ctx, namespace)
+	nodes, err := site.GetNodes(ctx, namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}

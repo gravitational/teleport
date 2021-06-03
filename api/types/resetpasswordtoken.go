@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/defaults"
 )
 
@@ -149,13 +147,7 @@ func (u *ResetPasswordTokenV3) SetSubKind(s string) {
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (u ResetPasswordTokenV3) CheckAndSetDefaults() error {
-	if err := u.Metadata.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if u.Version == "" {
-		u.Version = V3
-	}
-	return nil
+	return u.Metadata.CheckAndSetDefaults()
 }
 
 // // String represents a human readable version of the token

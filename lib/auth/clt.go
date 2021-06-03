@@ -499,7 +499,7 @@ func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool,
 	}
 	re := make([]services.CertAuthority, len(items))
 	for i, raw := range items {
-		ca, err := services.UnmarshalCertAuthority(raw)
+		ca, err := services.UnmarshalCertAuthority(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -520,7 +520,8 @@ func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalCertAuthority(out.Bytes())
+	return services.UnmarshalCertAuthority(
+		out.Bytes(), services.SkipValidation())
 }
 
 // DeleteCertAuthority deletes cert authority by ID
@@ -668,7 +669,7 @@ func (c *Client) GetReverseTunnels(opts ...services.MarshalOption) ([]services.R
 	}
 	tunnels := make([]services.ReverseTunnel, len(items))
 	for i, raw := range items {
-		tunnel, err := services.UnmarshalReverseTunnel(raw)
+		tunnel, err := services.UnmarshalReverseTunnel(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -717,7 +718,7 @@ func (c *Client) GetTunnelConnections(clusterName string, opts ...services.Marsh
 	}
 	conns := make([]services.TunnelConnection, len(items))
 	for i, raw := range items {
-		conn, err := services.UnmarshalTunnelConnection(raw)
+		conn, err := services.UnmarshalTunnelConnection(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -738,7 +739,7 @@ func (c *Client) GetAllTunnelConnections(opts ...services.MarshalOption) ([]serv
 	}
 	conns := make([]services.TunnelConnection, len(items))
 	for i, raw := range items {
-		conn, err := services.UnmarshalTunnelConnection(raw)
+		conn, err := services.UnmarshalTunnelConnection(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -801,7 +802,7 @@ func (c *Client) GetRemoteClusters(opts ...services.MarshalOption) ([]services.R
 	}
 	conns := make([]services.RemoteCluster, len(items))
 	for i, raw := range items {
-		conn, err := services.UnmarshalRemoteCluster(raw)
+		conn, err := services.UnmarshalRemoteCluster(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -819,7 +820,7 @@ func (c *Client) GetRemoteCluster(clusterName string) (services.RemoteCluster, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalRemoteCluster(out.Bytes())
+	return services.UnmarshalRemoteCluster(out.Bytes(), services.SkipValidation())
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
@@ -876,7 +877,7 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, services.KindAuthServer)
+		server, err := services.UnmarshalServer(raw, services.KindAuthServer, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -921,7 +922,7 @@ func (c *Client) GetProxies() ([]services.Server, error) {
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, services.KindProxy)
+		server, err := services.UnmarshalServer(raw, services.KindProxy, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1492,7 +1493,7 @@ func (c *Client) GetNamespace(name string) (*services.Namespace, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalNamespace(out.Bytes())
+	return services.UnmarshalNamespace(out.Bytes(), services.SkipValidation())
 }
 
 // UpsertNamespace upserts namespace
@@ -1519,7 +1520,7 @@ func (c *Client) GetClusterConfig(opts ...services.MarshalOption) (services.Clus
 		return nil, trace.Wrap(err)
 	}
 
-	cc, err := services.UnmarshalClusterConfig(out.Bytes())
+	cc, err := services.UnmarshalClusterConfig(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1549,7 +1550,7 @@ func (c *Client) GetClusterName(opts ...services.MarshalOption) (services.Cluste
 		return nil, trace.Wrap(err)
 	}
 
-	cn, err := services.UnmarshalClusterName(out.Bytes())
+	cn, err := services.UnmarshalClusterName(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1591,7 +1592,7 @@ func (c *Client) GetStaticTokens() (services.StaticTokens, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	st, err := services.UnmarshalStaticTokens(out.Bytes())
+	st, err := services.UnmarshalStaticTokens(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1733,7 +1734,12 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	resp, err := c.APIClient.GetAppServers(ctx, namespace)
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.APIClient.GetAppServers(ctx, namespace, cfg.SkipValidation)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1743,7 +1749,12 @@ func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...se
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
-	resp, err := c.APIClient.GetDatabaseServers(ctx, namespace)
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.APIClient.GetDatabaseServers(ctx, namespace, cfg.SkipValidation)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}

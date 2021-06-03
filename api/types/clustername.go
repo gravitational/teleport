@@ -134,9 +134,6 @@ func (c *ClusterNameV2) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if c.Version == "" {
-		c.Version = V2
-	}
 
 	if c.Spec.ClusterName == "" {
 		return trace.BadParameter("cluster name is required")

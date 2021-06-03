@@ -311,9 +311,6 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if s.Version == "" {
-		s.Version = V2
-	}
 	if s.Kind == "" {
 		return trace.BadParameter("server Kind is empty")
 	}

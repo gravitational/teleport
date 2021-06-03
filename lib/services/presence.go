@@ -37,7 +37,8 @@ type Presence interface {
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (Server, error)
 
-	// GetNodes returns a list of registered servers.
+	// GetNodes returns a list of registered servers. Schema validation can be
+	// skipped to improve performance.
 	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]Server, error)
 
 	// DeleteAllNodes deletes all nodes in a namespace.

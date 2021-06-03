@@ -556,11 +556,11 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 	pool := x509.NewCertPool()
 	var authorities []services.CertAuthority
 	if clusterName == "" {
-		hostCAs, err := client.GetCertAuthorities(services.HostCA, false)
+		hostCAs, err := client.GetCertAuthorities(services.HostCA, false, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userCAs, err := client.GetCertAuthorities(services.UserCA, false)
+		userCAs, err := client.GetCertAuthorities(services.UserCA, false, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -569,13 +569,13 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 	} else {
 		hostCA, err := client.GetCertAuthority(
 			services.CertAuthID{Type: services.HostCA, DomainName: clusterName},
-			false)
+			false, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userCA, err := client.GetCertAuthority(
 			services.CertAuthID{Type: services.UserCA, DomainName: clusterName},
-			false)
+			false, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

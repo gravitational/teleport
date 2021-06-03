@@ -175,11 +175,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	ctx := context.TODO()
 
 	domainName := cfg.ClusterName.GetClusterName()
-	lock, err := backend.AcquireLock(ctx, cfg.Backend, domainName, 30*time.Second)
+	err := backend.AcquireLock(ctx, cfg.Backend, domainName, 30*time.Second)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer lock.Release(ctx, cfg.Backend)
+	defer backend.ReleaseLock(ctx, cfg.Backend, domainName)
 
 	// check that user CA and host CA are present and set the certs if needed
 	asrv, err := NewServer(&cfg, opts...)

@@ -119,10 +119,9 @@ func Run(commands []CLICommand) {
 	app.Flag("config-string",
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	app.Flag("auth-server",
-		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
+		fmt.Sprintf("Address of the auth server or the proxy [%v]. Can be supplied multiple times", defaults.AuthConnectAddr().Addr)).
 		StringsVar(&ccf.AuthServerAddr)
-	app.Flag("identity",
-		"Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'").
+	app.Flag("identity", "Path to the identity file exported with 'tctl auth sign'").
 		Short('i').
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
@@ -424,7 +423,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
-		proxyAddr = ccf.AuthServerAddr[0]
+		proxyAddr = cfg.AuthServers[0].Addr
 	}
 
 	profile, _, err := client.Status("", proxyAddr)

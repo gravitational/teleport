@@ -72,10 +72,9 @@ func (s *UserSuite) TestTraits(c *check.C) {
 
 func (s *UserSuite) TestOIDCMapping(c *check.C) {
 	type input struct {
-		comment       string
-		claims        jose.Claims
-		expectedRoles []string
-		warnings      []string
+		comment string
+		claims  jose.Claims
+		roles   []string
 	}
 	testCases := []struct {
 		comment  string
@@ -86,8 +85,8 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 			comment: "no mappings",
 			inputs: []input{
 				{
-					claims:        jose.Claims{"a": "b"},
-					expectedRoles: nil,
+					claims: jose.Claims{"a": "b"},
+					roles:  nil,
 				},
 			},
 		},
@@ -99,29 +98,29 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 			},
 			inputs: []input{
 				{
-					comment:       "no match",
-					claims:        jose.Claims{"a": "b"},
-					expectedRoles: nil,
+					comment: "no match",
+					claims:  jose.Claims{"a": "b"},
+					roles:   nil,
 				},
 				{
-					comment:       "no value match",
-					claims:        jose.Claims{"role": "b"},
-					expectedRoles: nil,
+					comment: "no value match",
+					claims:  jose.Claims{"role": "b"},
+					roles:   nil,
 				},
 				{
-					comment:       "direct admin value match",
-					claims:        jose.Claims{"role": "admin"},
-					expectedRoles: []string{"admin", "bob"},
+					comment: "direct admin value match",
+					claims:  jose.Claims{"role": "admin"},
+					roles:   []string{"admin", "bob"},
 				},
 				{
-					comment:       "direct user value match",
-					claims:        jose.Claims{"role": "user"},
-					expectedRoles: []string{"user"},
+					comment: "direct user value match",
+					claims:  jose.Claims{"role": "user"},
+					roles:   []string{"user"},
 				},
 				{
-					comment:       "direct user value match with array",
-					claims:        jose.Claims{"role": []string{"user"}},
-					expectedRoles: []string{"user"},
+					comment: "direct user value match with array",
+					claims:  jose.Claims{"role": []string{"user"}},
+					roles:   []string{"user"},
 				},
 			},
 		},
@@ -132,29 +131,29 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 			},
 			inputs: []input{
 				{
-					comment:       "no match",
-					claims:        jose.Claims{"a": "b"},
-					expectedRoles: nil,
+					comment: "no match",
+					claims:  jose.Claims{"a": "b"},
+					roles:   nil,
 				},
 				{
-					comment:       "no match - subprefix",
-					claims:        jose.Claims{"role": "adminz"},
-					expectedRoles: nil,
+					comment: "no match - subprefix",
+					claims:  jose.Claims{"role": "adminz"},
+					roles:   nil,
 				},
 				{
-					comment:       "value with capture match",
-					claims:        jose.Claims{"role": "admin-hello"},
-					expectedRoles: []string{"role-hello", "bob"},
+					comment: "value with capture match",
+					claims:  jose.Claims{"role": "admin-hello"},
+					roles:   []string{"role-hello", "bob"},
 				},
 				{
-					comment:       "multiple value with capture match, deduplication",
-					claims:        jose.Claims{"role": []string{"admin-hello", "admin-ola"}},
-					expectedRoles: []string{"role-hello", "bob", "role-ola"},
+					comment: "multiple value with capture match, deduplication",
+					claims:  jose.Claims{"role": []string{"admin-hello", "admin-ola"}},
+					roles:   []string{"role-hello", "bob", "role-ola"},
 				},
 				{
-					comment:       "first matches, second does not",
-					claims:        jose.Claims{"role": []string{"hello", "admin-ola"}},
-					expectedRoles: []string{"role-ola", "bob"},
+					comment: "first matches, second does not",
+					claims:  jose.Claims{"role": []string{"hello", "admin-ola"}},
+					roles:   []string{"role-ola", "bob"},
 				},
 			},
 		},
@@ -165,9 +164,9 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 			},
 			inputs: []input{
 				{
-					comment:       "value with capture match",
-					claims:        jose.Claims{"role": "admin-hello"},
-					expectedRoles: []string{"bob"},
+					comment: "value with capture match",
+					claims:  jose.Claims{"role": "admin-hello"},
+					roles:   []string{"bob"},
 				},
 			},
 		},
@@ -178,54 +177,14 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 			},
 			inputs: []input{
 				{
-					comment:       "empty value match",
-					claims:        jose.Claims{"role": ""},
-					expectedRoles: []string{"admin"},
+					comment: "empty value match",
+					claims:  jose.Claims{"role": ""},
+					roles:   []string{"admin"},
 				},
 				{
-					comment:       "any value match",
-					claims:        jose.Claims{"role": "zz"},
-					expectedRoles: []string{"admin"},
-				},
-			},
-		},
-		{
-			comment: "Whitespace/dashes",
-			mappings: []ClaimMapping{
-				{Claim: "groups", Value: "DemoCorp - Backend Engineers", Roles: []string{"backend"}},
-				{Claim: "groups", Value: "DemoCorp - SRE Managers", Roles: []string{"approver"}},
-				{Claim: "groups", Value: "DemoCorp - SRE", Roles: []string{"approver"}},
-				{Claim: "groups", Value: "DemoCorp Infrastructure", Roles: []string{"approver", "backend"}},
-			},
-			inputs: []input{
-				{
-					comment: "Matches multiple groups",
-					claims: jose.Claims{
-						"groups": []string{"DemoCorp - Backend Engineers", "DemoCorp Infrastructure"},
-					},
-					expectedRoles: []string{"backend", "approver"},
-				},
-				{
-					comment: "Matches one group",
-					claims: jose.Claims{
-						"groups": []string{"DemoCorp - SRE"},
-					},
-					expectedRoles: []string{"approver"},
-				},
-				{
-					comment: "Matches one group with multiple roles",
-					claims: jose.Claims{
-						"groups": []string{"DemoCorp Infrastructure"},
-					},
-					expectedRoles: []string{"approver", "backend"},
-				},
-				{
-					comment: "No match only due to case-sensitivity",
-					claims: jose.Claims{
-						"groups": []string{"Democorp - SRE"},
-					},
-					expectedRoles: []string(nil),
-					warnings:      []string{`trait "Democorp - SRE" matches value "DemoCorp - SRE" case-insensitively and would have yielded "approver" role`},
+					comment: "any value match",
+					claims:  jose.Claims{"role": "zz"},
+					roles:   []string{"admin"},
 				},
 			},
 		},
@@ -239,8 +198,8 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 		}
 		for _, input := range testCase.inputs {
 			comment := check.Commentf("OIDC Test case %v %q, input %q", i, testCase.comment, input.comment)
-			_, outRoles := TraitsToRoles(conn.GetTraitMappings(), OIDCClaimsToTraits(input.claims))
-			c.Assert(outRoles, check.DeepEquals, input.expectedRoles, comment)
+			outRoles := TraitsToRoles(conn.GetTraitMappings(), OIDCClaimsToTraits(input.claims))
+			c.Assert(outRoles, check.DeepEquals, input.roles, comment)
 		}
 
 		samlConn := SAMLConnectorV2{
@@ -250,9 +209,8 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 		}
 		for _, input := range testCase.inputs {
 			comment := check.Commentf("SAML Test case %v %v, input %#v", i, testCase.comment, input)
-			warnings, outRoles := TraitsToRoles(samlConn.GetTraitMappings(), SAMLAssertionsToTraits(claimsToAttributes(input.claims)))
-			c.Assert(outRoles, check.DeepEquals, input.expectedRoles, comment)
-			c.Assert(warnings, check.DeepEquals, input.warnings, comment)
+			outRoles := TraitsToRoles(samlConn.GetTraitMappings(), SAMLAssertionsToTraits(claimsToAttributes(input.claims)))
+			c.Assert(outRoles, check.DeepEquals, input.roles, comment)
 		}
 	}
 }

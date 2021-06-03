@@ -1888,16 +1888,10 @@ func TestClusterKubesGet(t *testing.T) {
 		Kind:     services.KindKubeService,
 		Version:  services.V2,
 		Spec: services.ServerSpecV2{
-			KubernetesClusters: []*services.KubernetesCluster{
-				{
-					Name:         "test-kube-name",
-					StaticLabels: map[string]string{"test-field": "test-value"},
-				},
-				// tests for de-duplication
-				{
-					Name:         "test-kube-name",
-					StaticLabels: map[string]string{"test-field": "test-value"},
-				}},
+			KubernetesClusters: []*services.KubernetesCluster{{
+				Name:         "test-kube-name",
+				StaticLabels: map[string]string{"test-field": "test-value"},
+			}},
 		},
 	})
 	require.NoError(t, err)

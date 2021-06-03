@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -713,7 +712,7 @@ func (s *server) findLocalCluster(sconn *ssh.ServerConn) (*localSite, error) {
 }
 
 func (s *server) getTrustedCAKeysByID(id services.CertAuthID) ([]ssh.PublicKey, error) {
-	ca, err := s.localAccessPoint.GetCertAuthority(id, false)
+	ca, err := s.localAccessPoint.GetCertAuthority(id, false, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

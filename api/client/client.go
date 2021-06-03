@@ -699,9 +699,10 @@ func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 }
 
 // GetAppServers gets all application servers.
-func (c *Client) GetAppServers(ctx context.Context, namespace string) ([]types.Server, error) {
+func (c *Client) GetAppServers(ctx context.Context, namespace string, skipValidation bool) ([]types.Server, error) {
 	resp, err := c.grpc.GetAppServers(ctx, &proto.GetAppServersRequest{
-		Namespace: namespace,
+		Namespace:      namespace,
+		SkipValidation: skipValidation,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -833,9 +834,10 @@ func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
-func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
+func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, skipValidation bool) ([]types.DatabaseServer, error) {
 	resp, err := c.grpc.GetDatabaseServers(ctx, &proto.GetDatabaseServersRequest{
-		Namespace: namespace,
+		Namespace:      namespace,
+		SkipValidation: skipValidation,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)

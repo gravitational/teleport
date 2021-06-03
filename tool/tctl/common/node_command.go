@@ -25,12 +25,12 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
 
 // NodeCommand implements `tctl nodes` group of commands
@@ -170,7 +170,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 // to a cluster and prints it to stdout
 func (c *NodeCommand) ListActive(client auth.ClientI) error {
 	ctx := context.TODO()
-	nodes, err := client.GetNodes(ctx, c.namespace)
+	nodes, err := client.GetNodes(ctx, c.namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}

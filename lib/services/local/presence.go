@@ -162,6 +162,7 @@ func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) (
 	for i, item := range result.Items {
 		server, err := services.UnmarshalServer(
 			item.Value, kind,
+			services.SkipValidation(),
 			services.WithResourceID(item.ID),
 			services.WithExpires(item.Expires),
 		)
@@ -218,6 +219,7 @@ func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (
 		types.KindNode,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
+		services.SkipValidation(),
 	)
 }
 
@@ -296,7 +298,8 @@ func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAliv
 	return trace.Wrap(err)
 }
 
-// UpsertNodes is used for bulk insertion of nodes.
+// UpsertNodes is used for bulk insertion of nodes. Schema validation is
+// always skipped during bulk insertion.
 func (s *PresenceService) UpsertNodes(namespace string, servers []services.Server) error {
 	batch, ok := s.Backend.(backend.Batch)
 	if !ok {

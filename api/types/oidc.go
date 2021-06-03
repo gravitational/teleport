@@ -371,9 +371,6 @@ func (o *OIDCConnectorV2) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if o.Version == "" {
-		o.Version = V2
-	}
 
 	err = o.Check()
 	if err != nil {

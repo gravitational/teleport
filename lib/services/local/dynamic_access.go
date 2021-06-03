@@ -232,7 +232,7 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter ser
 			// same namespace.
 			continue
 		}
-		req, err := itemToAccessRequest(item)
+		req, err := itemToAccessRequest(item, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

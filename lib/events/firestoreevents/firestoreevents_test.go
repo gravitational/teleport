@@ -68,7 +68,7 @@ func (s *FirestoreeventsSuite) SetUpSuite(c *check.C) {
 	s.log = log
 	s.EventsSuite.Log = log
 	s.EventsSuite.Clock = fakeClock
-	s.EventsSuite.QueryDelay = time.Second * 5
+	s.EventsSuite.QueryDelay = time.Second
 }
 
 func emulatorRunning() bool {

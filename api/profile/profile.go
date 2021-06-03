@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
@@ -97,7 +97,7 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
+	cert, err := tls.LoadX509KeyPair(p.TLSCertPath(), p.KeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,12 +125,12 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := ioutil.ReadFile(p.UserKeyPath())
+	key, err := ioutil.ReadFile(p.KeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caCerts, err := ioutil.ReadFile(p.KnownHostsPath())
+	caCerts, err := ioutil.ReadFile(p.SSHCAsPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -289,40 +289,40 @@ func (p *Profile) saveToFile(filepath string) error {
 
 // KeyDir returns the path to the profile's directory.
 func (p *Profile) KeyDir() string {
-	return keypaths.KeyDir(p.Dir)
+	return filepath.Join(p.Dir, constants.SessionKeyDir)
 }
 
-// ProxyKeyDir returns the path to the profile's key directory.
-func (p *Profile) ProxyKeyDir() string {
-	return keypaths.ProxyKeyDir(p.Dir, p.Name())
+// UserKeyDir returns the path to the profile's key directory.
+func (p *Profile) UserKeyDir() string {
+	return filepath.Join(p.KeyDir(), p.Name())
 }
 
-// UserKeyPath returns the path to the profile's private key.
-func (p *Profile) UserKeyPath() string {
-	return keypaths.UserKeyPath(p.Dir, p.Name(), p.Username)
+// KeyPath returns the path to the profile's private key.
+func (p *Profile) KeyPath() string {
+	return filepath.Join(p.UserKeyDir(), p.Username)
 }
 
 // TLSCertPath returns the path to the profile's TLS certificate.
 func (p *Profile) TLSCertPath() string {
-	return keypaths.TLSCertPath(p.Dir, p.Name(), p.Username)
+	return filepath.Join(p.UserKeyDir(), p.Username+constants.FileExtTLSCert)
 }
 
 // TLSCAsPath returns the path to the profile's TLS certificate authorities.
 func (p *Profile) TLSCAsPath() string {
-	return keypaths.TLSCAsPath(p.Dir, p.Name())
+	return filepath.Join(p.UserKeyDir(), constants.FileNameTLSCerts)
 }
 
 // SSHDir returns the path to the profile's ssh directory.
 func (p *Profile) SSHDir() string {
-	return keypaths.SSHDir(p.Dir, p.Name(), p.Username)
+	return filepath.Join(p.UserKeyDir(), p.Username+constants.SSHDirSuffix)
 }
 
 // SSHCertPath returns the path to the profile's ssh certificate.
 func (p *Profile) SSHCertPath() string {
-	return keypaths.SSHCertPath(p.Dir, p.Name(), p.Username, p.SiteName)
+	return filepath.Join(p.SSHDir(), p.SiteName+constants.FileExtSSHCert)
 }
 
-// KnownHostsPath returns the path to the profile's ssh certificate authorities.
-func (p *Profile) KnownHostsPath() string {
-	return keypaths.KnownHostsPath(p.Dir)
+// SSHCAsPath returns the path to the profile's ssh certificate authorities.
+func (p *Profile) SSHCAsPath() string {
+	return filepath.Join(p.Dir, constants.FileNameKnownHosts)
 }

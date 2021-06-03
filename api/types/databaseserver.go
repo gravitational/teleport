@@ -296,9 +296,6 @@ func (s *DatabaseServerV3) CheckAndSetDefaults() error {
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if s.Version == "" {
-		s.Version = V3
-	}
 	if s.Kind == "" {
 		return trace.BadParameter("database server %q kind is empty", s.GetName())
 	}

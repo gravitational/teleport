@@ -31,7 +31,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
@@ -44,8 +43,6 @@ import (
 
 	"github.com/gravitational/trace"
 )
-
-const dynamoDBLargeQueryRetries int = 10
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
@@ -67,21 +64,19 @@ func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
 		c.Skip("Skipping AWS-dependent test suite.")
 	}
 
-	backend, err := memory.New(memory.Config{})
-	c.Assert(err, check.IsNil)
-
 	fakeClock := clockwork.NewFakeClock()
 	log, err := New(context.Background(), Config{
-		Region:       "eu-north-1",
+		Region:       "us-west-1",
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
-	}, backend)
+	})
 	c.Assert(err, check.IsNil)
 	s.log = log
 	s.EventsSuite.Log = log
 	s.EventsSuite.Clock = fakeClock
-	s.EventsSuite.QueryDelay = time.Second * 5
+	s.EventsSuite.QueryDelay = time.Second
+
 }
 
 func (s *DynamoeventsSuite) SetUpTest(c *check.C) {
@@ -101,8 +96,7 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 	err := s.log.deleteAllItems()
 	c.Assert(err, check.IsNil)
 
-	const eventCount int = 4000
-	for i := 0; i < eventCount; i++ {
+	for i := 0; i < 4000; i++ {
 		err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
 			events.LoginMethod:        events.LoginMethodSAML,
 			events.AuthAttemptSuccess: true,
@@ -112,21 +106,13 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 		c.Assert(err, check.IsNil)
 	}
 
-	var history []events.AuditEvent
+	time.Sleep(s.EventsSuite.QueryDelay)
 
-	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
-		time.Sleep(s.EventsSuite.QueryDelay)
-
-		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 0, "")
-		c.Assert(err, check.IsNil)
-
-		if len(history) == eventCount {
-			break
-		}
-	}
+	history, _, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 0, "")
+	c.Assert(err, check.IsNil)
 
 	// `check.HasLen` prints the entire array on failure, which pollutes the output
-	c.Assert(len(history), check.Equals, eventCount)
+	c.Assert(len(history), check.Equals, 4000)
 }
 
 // TestIndexExists tests functionality of the `Log.indexExists` function.
@@ -184,18 +170,14 @@ func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 	end := start.Add(time.Hour * time.Duration(24*11))
 	attemptWaitFor := time.Minute * 5
 	waitStart := time.Now()
-	var eventArr []event
 
 	for time.Since(waitStart) < attemptWaitFor {
-		err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-			eventArr, _, err = s.log.searchEventsRaw(start, end, defaults.Namespace, []string{"test.event"}, 1000, "")
-			return err
-		})
+		events, _, err := s.log.searchEventsRaw(start, end, defaults.Namespace, []string{"test.event"}, 1000, "")
+		sort.Sort(byTimeAndIndexRaw(events))
 		c.Assert(err, check.IsNil)
-		sort.Sort(byTimeAndIndexRaw(eventArr))
 		correct := true
 
-		for _, event := range eventArr {
+		for _, event := range events {
 			timestampUnix := event.CreatedAt
 			dateString := time.Unix(timestampUnix, 0).Format(iso8601DateFormat)
 			if dateString != event.CreatedAtDate {

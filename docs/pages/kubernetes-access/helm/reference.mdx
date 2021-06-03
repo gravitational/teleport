@@ -705,35 +705,6 @@ Kubernetes annotations which should be applied to the `Service` created by the c
   </TabItem>
 </Tabs>
 
-## `annotations.serviceAccount`
-
-| Type | Default value | Can be used in `custom` mode? |
-| - | - | - |
-| `object` | `{}` | ✅  |
-
-[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
-
-Kubernetes annotations which should be applied to the `serviceAccount` created by the chart.
-
-<Tabs>
-  <TabItem label="values.yaml">
-  ```yaml
-  annotations:
-    serviceAccount:
-      kubernetes.io/annotation: value
-  ```
-  </TabItem>
-  <TabItem label="--set">
-  ```shell
-  --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
-
 ## `extraArgs`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -1127,14 +1098,14 @@ You can specify multiple databases by adding additional list elements.
     protocol: postgres
     aws:
       region: us-east-1
-    static_labels:
+    labels:
       env: staging
   - name: mysql
     uri: mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306
     protocol: mysql
     aws:
       region: us-east-1
-    static_labels:
+    labels:
       env: staging
   ```
 
@@ -1149,12 +1120,12 @@ You can specify multiple databases by adding additional list elements.
   --set "databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432" \
   --set "databases[0].protocol=postgres" \
   --set "databases[0].aws.region=us-east-1" \
-  --set "databases[0].static_labels.env=staging" \
+  --set "databases[0].labels.env=staging" \
   --set "databases[1].name=mysql" \
   --set "databases[1].uri=mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306" \
   --set "databases[1].protocol=mysql" \
   --set "databases[1].aws.region=us-east-1" \
-  --set "databases[1].static_labels.env=staging" \
+  --set "databases[1].labels.env=staging" \
   ```
 
   <Admonition type="note">
@@ -1275,10 +1246,8 @@ These labels can then be used with Teleport's RBAC policies to define access rul
   For historical/backwards compatibility reasons, these labels will only be applied to the Kubernetes cluster being joined via the
   Teleport Kubernetes service.
 
-  To set labels for applications, add a `labels` element to the [`apps`](#apps) section.
-  To set labels for databases, add a `static_labels` element to the [`databases`](#databases) section.
-
-  For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../admin-guide.mdx#labeling-nodes-and-applications).
+  To set labels for applications or databases, add a `labels` element to either the [`apps`](#apps) or [`databases`](#databases) section
+  respectively.
 </Admonition>
 
 <Tabs>
@@ -1609,35 +1578,6 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
   <TabItem label="--set">
   ```shell
   --set annotations.pod."kubernetes\.io\/annotation"=value
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
-
-## `annotations.serviceAccount`
-
-| Type | Default value | Can be used in `custom` mode? |
-| - | - | - |
-| `object` | `{}` | ✅  |
-
-[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
-
-Kubernetes annotations which should be applied to the `ServiceAccount` created by the chart.
-
-<Tabs>
-  <TabItem label="values.yaml">
-  ```yaml
-  annotations:
-    serviceAccount:
-      kubernetes.io/annotation: value
-  ```
-  </TabItem>
-  <TabItem label="--set">
-  ```shell
-  --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend

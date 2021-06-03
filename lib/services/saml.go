@@ -21,15 +21,15 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/xml"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -213,6 +213,76 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 	return sp, nil
 }
 
+// SAMLConnectorV2SchemaTemplate is a template JSON Schema for SAMLConnector
+const SAMLConnectorV2SchemaTemplate = `{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["kind", "spec", "metadata", "version"],
+	"properties": {
+	  "kind": {"type": "string"},
+	  "version": {"type": "string", "default": "v1"},
+	  "metadata": %v,
+	  "spec": %v
+	}
+  }`
+
+// SAMLConnectorSpecV2Schema is a JSON Schema for SAML Connector
+var SAMLConnectorSpecV2Schema = fmt.Sprintf(`{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["acs"],
+	"properties": {
+	  "issuer": {"type": "string"},
+	  "sso": {"type": "string"},
+	  "cert": {"type": "string"},
+	  "provider": {"type": "string"},
+	  "display": {"type": "string"},
+	  "acs": {"type": "string"},
+	  "audience": {"type": "string"},
+	  "service_provider_issuer": {"type": "string"},
+	  "entity_descriptor": {"type": "string"},
+	  "entity_descriptor_url": {"type": "string"},
+	  "attributes_to_roles": {
+		"type": "array",
+		"items": %v
+	  },
+	  "signing_key_pair": %v,
+	  "assertion_key_pair": %v
+	}
+  }`, AttributeMappingSchema, SigningKeyPairSchema, SigningKeyPairSchema)
+
+// AttributeMappingSchema is JSON schema for claim mapping
+var AttributeMappingSchema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["name", "value" ],
+	"properties": {
+	  "name": {"type": "string"},
+	  "value": {"type": "string"},
+	  "roles": {
+		"type": "array",
+		"items": {
+		  "type": "string"
+		}
+	  }
+	}
+  }`
+
+// SigningKeyPairSchema is the JSON schema for signing key pair.
+var SigningKeyPairSchema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+	  "private_key": {"type": "string"},
+	  "cert": {"type": "string"}
+	}
+  }`
+
+// GetSAMLConnectorSchema returns schema for SAMLConnector
+func GetSAMLConnectorSchema() string {
+	return fmt.Sprintf(SAMLConnectorV2SchemaTemplate, MetadataSchema, SAMLConnectorSpecV2Schema)
+}
+
 // UnmarshalSAMLConnector unmarshals the SAMLConnector resource from JSON.
 func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector, error) {
 	cfg, err := CollectOptions(opts)
@@ -227,8 +297,14 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector,
 	switch h.Version {
 	case V2:
 		var c SAMLConnectorV2
-		if err := utils.FastUnmarshal(bytes, &c); err != nil {
-			return nil, trace.BadParameter(err.Error())
+		if cfg.SkipValidation {
+			if err := utils.FastUnmarshal(bytes, &c); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		} else {
+			if err := utils.UnmarshalWithSchema(GetSAMLConnectorSchema(), &c, bytes); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
 		}
 
 		if err := ValidateSAMLConnector(&c); err != nil {

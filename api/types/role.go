@@ -501,9 +501,6 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if r.Version == "" {
-		r.Version = V3
-	}
 
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {

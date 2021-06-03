@@ -150,12 +150,8 @@ func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionIn
 
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
-	var warnings []string
-	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
+	p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
-		if len(warnings) != 0 {
-			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
-		}
 		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
 

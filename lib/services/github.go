@@ -18,11 +18,75 @@ package services
 
 import (
 	"encoding/json"
-
-	"github.com/gravitational/trace"
+	"fmt"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
+
+// GithubConnectorV3SchemaTemplate is the JSON schema for a Github connector
+const GithubConnectorV3SchemaTemplate = `{
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["kind", "spec", "metadata", "version"],
+    "properties": {
+      "kind": {"type": "string"},
+      "version": {"type": "string", "default": "v3"},
+      "metadata": %v,
+      "spec": %v
+    }
+  }`
+
+// GithubConnectorSpecV3Schema is the JSON schema for Github connector spec
+var GithubConnectorSpecV3Schema = fmt.Sprintf(`{
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["client_id", "client_secret", "redirect_url"],
+    "properties": {
+      "client_id": {"type": "string"},
+      "client_secret": {"type": "string"},
+      "redirect_url": {"type": "string"},
+      "display": {"type": "string"},
+      "teams_to_logins": {
+        "type": "array",
+        "items": %v
+      }
+    }
+  }`, TeamMappingSchema)
+
+// TeamMappingSchema is the JSON schema for team membership mapping
+var TeamMappingSchema = `{
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["organization", "team"],
+    "properties": {
+      "organization": {"type": "string"},
+      "team": {"type": "string"},
+      "logins": {
+        "type": "array",
+        "items": {
+            "type": "string"
+        }
+      },
+      "kubernetes_groups": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "kubernetes_users": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  }`
+
+// GetGithubConnectorSchema returns schema for Github connector
+func GetGithubConnectorSchema() string {
+	return fmt.Sprintf(GithubConnectorV3SchemaTemplate, MetadataSchema, GithubConnectorSpecV3Schema)
+}
 
 // UnmarshalGithubConnector unmarshals the GithubConnector resource from JSON.
 func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
@@ -33,7 +97,7 @@ func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
 	switch h.Version {
 	case V3:
 		var c GithubConnectorV3
-		if err := utils.FastUnmarshal(bytes, &c); err != nil {
+		if err := utils.UnmarshalWithSchema(GetGithubConnectorSchema(), &c, bytes); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if err := c.CheckAndSetDefaults(); err != nil {

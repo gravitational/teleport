@@ -212,6 +212,141 @@ func GuessProxyHostAndVersion(proxies []Server) (string, string, error) {
 	return guessProxyHost, proxies[0].GetTeleportVersion(), nil
 }
 
+// ServerSpecV2Schema is JSON schema for server
+const ServerSpecV2Schema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+	  "version": {"type": "string"},
+	  "addr": {"type": "string"},
+	  "protocol": {"type": "integer"},
+	  "public_addr": {"type": "string"},
+	  "apps":  {
+		"type": ["array"],
+		"items": {
+		  "type": "object",
+		  "additionalProperties": false,
+		  "properties": {
+			"name": {"type": "string"},
+			"description": {"type": "string"},
+			"uri": {"type": "string"},
+			"public_addr": {"type": "string"},
+			"insecure_skip_verify": {"type": "boolean"},
+			"rewrite": {
+			  "type": "object",
+			  "additionalProperties": false,
+			  "properties": {
+			    "redirect": {
+			      "type": ["array", "null"],
+			      "items": {"type": "string"}
+			    },
+			    "headers": {
+			      "type": ["array", "null"],
+			      "items": {
+			        "type": "object",
+			        "additionalProperties": false,
+			        "properties": {
+			          "name": {"type": "string"},
+			          "value": {"type": "string"}
+			        }
+			      }
+			    }
+			  }
+			},
+			"labels": {
+			  "type": "object",
+			  "additionalProperties": false,
+			  "patternProperties": {
+				"^.*$":  { "type": "string" }
+			  }
+			},
+			"commands": {
+			  "type": "object",
+			  "additionalProperties": false,
+			  "patternProperties": {
+				"^.*$": {
+				  "type": "object",
+				  "additionalProperties": false,
+				  "required": ["command"],
+				  "properties": {
+					"command": {"type": "array", "items": {"type": "string"}},
+					"period": {"type": "string"},
+					"result": {"type": "string"}
+				  }
+				}
+			  }
+			}
+		  }
+		}
+	  },
+	  "hostname": {"type": "string"},
+	  "use_tunnel": {"type": "boolean"},
+	  "labels": {
+		  "type": "object",
+		  "additionalProperties": false,
+		"patternProperties": {
+		  "^.*$":  { "type": "string" }
+		}
+	  },
+	  "cmd_labels": {
+		"type": "object",
+		"additionalProperties": false,
+		"patternProperties": {
+		  "^.*$": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["command"],
+			"properties": {
+			  "command": {"type": "array", "items": {"type": "string"}},
+			  "period": {"type": "string"},
+			  "result": {"type": "string"}
+			}
+		  }
+		}
+	  },
+	  "kube_clusters": {
+		"type": "array",
+		"items": {
+		  "type": "object",
+		  "required": ["name"],
+		  "properties": {
+		  "name": {"type": "string"},
+		  "static_labels": {
+			"type": "object",
+			"additionalProperties": false,
+			"patternProperties": {
+			  "^.*$":  { "type": "string" }
+			}
+		  },
+		  "dynamic_labels": {
+			"type": "object",
+			"additionalProperties": false,
+			"patternProperties": {
+			  "^.*$": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["command"],
+				"properties": {
+				  "command": {"type": "array", "items": {"type": "string"}},
+				  "period": {"type": "string"},
+				  "result": {"type": "string"}
+				}
+			  }
+			}
+		  }
+		}
+	  }
+	},
+	"rotation": %v
+  }
+  }`
+
+// GetServerSchema returns role schema with optionally injected
+// schema for extensions
+func GetServerSchema() string {
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(ServerSpecV2Schema, RotationSchema), DefaultDefinitions)
+}
+
 // UnmarshalServer unmarshals the Server resource from JSON.
 func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, error) {
 	cfg, err := CollectOptions(opts)
@@ -232,8 +367,14 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, 
 	case V2:
 		var s ServerV2
 
-		if err := utils.FastUnmarshal(bytes, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
+		if cfg.SkipValidation {
+			if err := utils.FastUnmarshal(bytes, &s); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		} else {
+			if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, bytes); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
 		}
 		s.Kind = kind
 		if err := s.CheckAndSetDefaults(); err != nil {
