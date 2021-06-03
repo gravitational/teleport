@@ -19,9 +19,12 @@ the following services.
 | Service | Role Name | Description |
 | - | - | - |
 | [Node](architecture/nodes.mdx) | `node` | Runs a daemon on a node which allows SSH connections from authenticated clients. |
-| [Auth](architecture/authentication.mdx) | `auth` | Authenticates nodes and users who want access to Teleport Nodes or information about the cluster |
-| [Proxy](architecture/proxy.mdx) | `proxy` | The gateway that clients use to connect to the Auth or Node Services |
+| [Auth](architecture/authentication.mdx) | `auth` | Authenticates nodes and users who want access to Teleport Nodes or information about the cluster. |
+| [Proxy](architecture/proxy.mdx) | `proxy` | The gateway that clients use to connect to the Auth or Node Services. |
 | [App](./application-access/introduction.mdx) | `app` | Runs a daemon on a node which provides access to applications using an SSH reverse tunnel. |
+| [Kube](kubernetes-access/introduction.mdx) | `kube` | Runs the Teleport node as a kubernetes access server. |
+| [DB](database-access/reference.mdx) | `db` | Indicates that the Teleport node should be run as a database access server. |
+| [Trusted Cluster](trustedclusters.mdx) | `trusted_cluster` | The node will support a leaf cluster used to connect to another Teleport cluster. |
 
 ### teleport start
 
@@ -95,8 +98,12 @@ standard output:
 teleport configure
 ```
 
-**Caution**: This sample config is *not* the default config and should be used
-for reference only. {/* TODO Link to Config Doc */}
+<Admonition title="warning" type="Warning">
+  **Caution**: This sample config is *not* the default config and should be used
+for reference only. 
+
+  View [Config Reference](config-reference.mdx) for all YAML configuration options.
+</Admonition>
 
 ### teleport version
 
