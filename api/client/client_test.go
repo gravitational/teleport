@@ -127,6 +127,7 @@ func TestNew(t *testing.T) {
 			tt.assertErr(t, err)
 
 			if err == nil {
+				defer clt.Close()
 				// requests to the server should succeed.
 				_, err = clt.Ping(ctx)
 				require.NoError(t, err)
@@ -141,7 +142,7 @@ func TestNewDialBackground(t *testing.T) {
 	addr := "localhost:4025"
 
 	// Create client before the server is listening.
-	clt, err := New(ctx, Config{
+	clt := newTestClient(t, ctx, Config{
 		DialInBackground: true,
 		Addrs:            []string{addr},
 		Credentials: []Credentials{
@@ -151,10 +152,9 @@ func TestNewDialBackground(t *testing.T) {
 			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
 		},
 	})
-	require.NoError(t, err)
 
 	// requests to the server will result in a connection error.
-	_, err = clt.Ping(ctx)
+	_, err := clt.Ping(ctx)
 	require.Error(t, err)
 	require.True(t, trace.IsConnectionProblem(err))
 
@@ -173,7 +173,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 	addr := "localhost:5025"
 
 	// Create client before the server is listening.
-	clt, err := New(ctx, Config{
+	clt := newTestClient(t, ctx, Config{
 		DialInBackground: true,
 		Addrs:            []string{addr},
 		Credentials: []Credentials{
@@ -183,7 +183,6 @@ func TestWaitForConnectionReady(t *testing.T) {
 			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
 		},
 	})
-	require.NoError(t, err)
 
 	// WaitForConnectionReady should return false once the
 	// context is canceled if the server isn't open to connections.
@@ -191,11 +190,11 @@ func TestWaitForConnectionReady(t *testing.T) {
 	defer cancel()
 	require.Error(t, clt.WaitForConnectionReady(cancelCtx))
 
-	// WaitForConnectionReady should return true if the server is open to connections
+	// WaitForConnectionReady should return nil if the server is open to connections.
 	startMockServer(t, addr)
 	require.NoError(t, clt.WaitForConnectionReady(ctx))
 
-	// WaitForConnectionReady should return false if the grpc connection is closed.
+	// WaitForConnectionReady should return an error if the grpc connection is closed.
 	require.NoError(t, clt.GetConnection().Close())
 	require.Error(t, clt.WaitForConnectionReady(ctx))
 }
@@ -206,4 +205,12 @@ func startMockServer(t *testing.T, addr string) {
 	require.NoError(t, err)
 	go newMockServer().grpc.Serve(l)
 	t.Cleanup(func() { require.NoError(t, l.Close()) })
+}
+
+// netTestClient creates a new test client.
+func newTestClient(t *testing.T, ctx context.Context, config Config) *Client {
+	clt, err := New(ctx, config)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+	return clt
 }
