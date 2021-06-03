@@ -26,6 +26,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -168,6 +169,11 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				return
 			}
 
+			if err := clt.checkServerCompatibility(ctx); err != nil {
+				sendError(trace.Wrap(err))
+				return
+			}
+
 			// If cltChan is empty, send clt.
 			select {
 			case cltChan <- clt:
@@ -303,6 +309,26 @@ func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, 
 	}
 }
 
+// checkServerCompatibility is used to check if the server and client versions are compatible.
+func (c *Client) checkServerCompatibility(ctx context.Context) error {
+	if c.c.SkipVersionCheck == true {
+		return nil
+	}
+	resp, err := c.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := utils.CheckVersions(resp.ServerVersion, api.MinServerVersion); err != nil {
+		if trace.IsBadParameter(err) {
+			return trace.Wrap(err, "the client requires a server version of %v or higher. Pass SkipVersionCheck=true into the client constructor to bypass this version check.", api.MinServerVersion)
+		}
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // Config contains configuration of the client
 type Config struct {
 	// Addrs is a list of teleport auth/proxy server addresses to dial.
@@ -330,6 +356,8 @@ type Config struct {
 	// requires this field to be set. If the web proxy was provided with
 	// signed TLS certificates, this field should not be set.
 	InsecureAddressDiscovery bool
+	// Skips checking the server version against the minimum supported server version.
+	SkipVersionCheck bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.

@@ -2341,9 +2341,11 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
-		if err := apiutils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil {
-			fmt.Printf("\nWARNING: %v\n", err)
-			fmt.Printf("Future versions of tsh will fail when incompatible versions are detected.\n\n")
+		if err := apiutils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
+			fmt.Printf("\nWARNING\nDetected potentially incompatible client and server versions.\n")
+			fmt.Printf("Minimum client version supported by the server is %v but you are using %v.\n", pr.MinClientVersion, teleport.Version)
+			fmt.Printf("Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.\n", pr.MinClientVersion)
+			fmt.Printf("Future versions of tsh will fail when incompatible versions are detected\n\n")
 		}
 	}
 

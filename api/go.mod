@@ -3,6 +3,7 @@ module github.com/gravitational/teleport/api
 go 1.15
 
 require (
+	github.com/coreos/go-semver v0.3.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.4.2
 	github.com/google/go-cmp v0.5.4
