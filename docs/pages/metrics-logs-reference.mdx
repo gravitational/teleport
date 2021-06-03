@@ -4,13 +4,13 @@ description: How to set up Prometheus to monitor Teleport for SSH and Kubernetes
 h1: Metrics
 ---
 
-## Teleport Prometheus Endpoint
+## Teleport Prometheus endpoint
 
 Teleport provides HTTP endpoints for monitoring purposes. They are disabled
 by default, but you can enable them using the `--diag-addr` flag to `teleport start`:
 
 ```bash
-$ teleport start --diag-addr=127.0.0.1:3000
+sudo teleport start --diag-addr=127.0.0.1:3000
 ```
 
 Now you can see the monitoring information by visiting several endpoints:
@@ -20,7 +20,7 @@ Now you can see the monitoring information by visiting several endpoints:
   collectors.
 - `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or
   `503` otherwise.
-- `http://127.0.0.1:3000/readyz` is similar to `/healthz` , but it returns "OK"
+- `http://127.0.0.1:3000/readyz` is similar to `/healthz`, but it returns "OK"
   *only after* the node successfully joined the cluster, i.e.it draws the
   difference between "healthy" and "ready".
 - `http://127.0.0.1:3000/debug/pprof/` is Golang's standard profiler. It's only
