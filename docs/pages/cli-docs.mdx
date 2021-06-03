@@ -1036,7 +1036,7 @@ tctl auth sign --format openssh --user teleport -o teleport_id.pem
 tctl auth sign --format openssh --host grav-00
 # Invalid command, only one of --user or --host should be set
 tctl auth sign --format openssh --host grav-00 --user teleport -o grav_host
-error: --user or --host must be specified
+# error: --user or --host must be specified
 # create a certificate with a TTL of 10 years for the jenkins user
 # the jenkins.pem file can later be used with `tsh`
 tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem
