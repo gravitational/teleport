@@ -128,7 +128,6 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		var err2 error
 		cert, err2 = ioutil.ReadFile(p.OldSSHCertPath())
 		if err2 != nil {
-			log.Println(err2)
 			return nil, trace.Wrap(err)
 		}
 	}
