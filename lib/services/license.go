@@ -19,23 +19,24 @@ package services
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UnmarshalLicense unmarshals the License resource from JSON.
-func UnmarshalLicense(bytes []byte) (License, error) {
+func UnmarshalLicense(bytes []byte) (types.License, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	var license LicenseV3
+	var license types.LicenseV3
 	err := utils.FastUnmarshal(bytes, &license)
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
 
-	if license.Version != V3 {
-		return nil, trace.BadParameter("unsupported version %v, expected version %v", license.Version, V3)
+	if license.Version != types.V3 {
+		return nil, trace.BadParameter("unsupported version %v, expected version %v", license.Version, types.V3)
 	}
 
 	if err := license.CheckAndSetDefaults(); err != nil {
@@ -46,15 +47,15 @@ func UnmarshalLicense(bytes []byte) (License, error) {
 }
 
 // MarshalLicense marshals the License resource to JSON.
-func MarshalLicense(license License, opts ...MarshalOption) ([]byte, error) {
+func MarshalLicense(license types.License, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch license := license.(type) {
-	case *LicenseV3:
-		if version := license.GetVersion(); version != V3 {
+	case *types.LicenseV3:
+		if version := license.GetVersion(); version != types.V3 {
 			return nil, trace.BadParameter("mismatched license version %v and type %T", version, license)
 		}
 		if !cfg.PreserveResourceID {

@@ -171,7 +171,7 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if params.ConnType == services.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
+	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
 		return s.dialWithAgent(params)
 	}
 
@@ -299,7 +299,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	// Connections to application and database servers should never occur
 	// over a direct dial, return right away.
 	switch params.ConnType {
-	case services.AppTunnel:
+	case types.AppTunnel:
 		return nil, false, trace.ConnectionProblem(err, "failed to connect to application server")
 	case types.DatabaseTunnel:
 		return nil, false, trace.ConnectionProblem(err, "failed to connect to database server")
@@ -327,7 +327,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	return conn, false, nil
 }
 
-func (s *localSite) addConn(nodeID string, connType services.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
+func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -353,7 +353,7 @@ func (s *localSite) addConn(nodeID string, connType services.TunnelType, conn ne
 // fanOutProxies is a non-blocking call that puts the new proxies
 // list so that remote connection can notify the remote agent
 // about the list update
-func (s *localSite) fanOutProxies(proxies []services.Server) {
+func (s *localSite) fanOutProxies(proxies []types.Server) {
 	s.Lock()
 	defer s.Unlock()
 	for _, conn := range s.remoteConns {

@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -64,8 +66,8 @@ func TestCreateResetPasswordToken(t *testing.T) {
 
 	event := mockEmitter.LastEvent()
 	require.Equal(t, event.GetType(), events.ResetPasswordTokenCreateEvent)
-	require.Equal(t, event.(*events.ResetPasswordTokenCreate).Name, "joe@example.com")
-	require.Equal(t, event.(*events.ResetPasswordTokenCreate).User, teleport.UserSystem)
+	require.Equal(t, event.(*apievents.ResetPasswordTokenCreate).Name, "joe@example.com")
+	require.Equal(t, event.(*apievents.ResetPasswordTokenCreate).User, teleport.UserSystem)
 
 	// verify that user has no MFA devices
 	devs, err := srv.Auth().GetMFADevices(ctx, username)
@@ -165,9 +167,9 @@ func TestFormatAccountName(t *testing.T) {
 		{
 			description: "proxies with public address",
 			inDebugAuth: &debugAuth{
-				proxies: []services.Server{
-					&services.ServerV2{
-						Spec: services.ServerSpecV2{
+				proxies: []types.Server{
+					&types.ServerV2{
+						Spec: types.ServerSpecV2{
 							PublicAddr: "foo",
 							Version:    "bar",
 						},
@@ -180,9 +182,9 @@ func TestFormatAccountName(t *testing.T) {
 		{
 			description: "proxies with no public address",
 			inDebugAuth: &debugAuth{
-				proxies: []services.Server{
-					&services.ServerV2{
-						Spec: services.ServerSpecV2{
+				proxies: []types.Server{
+					&types.ServerV2{
+						Spec: types.ServerSpecV2{
 							Hostname: "baz",
 							Version:  "quxx",
 						},
@@ -217,12 +219,12 @@ func TestFormatAccountName(t *testing.T) {
 }
 
 type debugAuth struct {
-	proxies      []services.Server
+	proxies      []types.Server
 	proxiesError bool
 	clusterName  string
 }
 
-func (s *debugAuth) GetProxies() ([]services.Server, error) {
+func (s *debugAuth) GetProxies() ([]types.Server, error) {
 	if s.proxiesError {
 		return nil, trace.BadParameter("failed to fetch proxies")
 	}

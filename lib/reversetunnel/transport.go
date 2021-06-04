@@ -27,10 +27,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
@@ -322,7 +322,7 @@ func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bo
 		}
 
 		// Connections to applications should never occur over a direct dial, return right away.
-		if r.ConnType == services.AppTunnel {
+		if r.ConnType == types.AppTunnel {
 			return nil, false, trace.ConnectionProblem(err, "failed to connect to application")
 		}
 

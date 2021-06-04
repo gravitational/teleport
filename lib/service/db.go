@@ -33,7 +33,7 @@ func (process *TeleportProcess) initDatabases() {
 	if len(process.Config.Databases.Databases) == 0 {
 		return
 	}
-	process.registerWithAuthServer(teleport.RoleDatabase, DatabasesIdentityEvent)
+	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 

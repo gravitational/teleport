@@ -35,7 +35,7 @@ func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalO
 
 	switch databaseServer := databaseServer.(type) {
 	case *types.DatabaseServerV3:
-		if version := databaseServer.GetVersion(); version != V3 {
+		if version := databaseServer.GetVersion(); version != types.V3 {
 			return nil, trace.BadParameter("mismatched database server version %v and type %T", version, databaseServer)
 		}
 		if !cfg.PreserveResourceID {
@@ -60,12 +60,12 @@ func UnmarshalDatabaseServer(data []byte, opts ...MarshalOption) (types.Database
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var h ResourceHeader
+	var h types.ResourceHeader
 	if err := utils.FastUnmarshal(data, &h); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
-	case V3:
+	case types.V3:
 		var s types.DatabaseServerV3
 		if err := utils.FastUnmarshal(data, &s); err != nil {
 			return nil, trace.BadParameter(err.Error())

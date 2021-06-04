@@ -21,6 +21,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -38,7 +39,7 @@ func (process *TeleportProcess) initKubernetes() {
 		trace.Component: teleport.Component(teleport.ComponentKube, process.id),
 	})
 
-	process.registerWithAuthServer(teleport.RoleKube, KubeIdentityEvent)
+	process.registerWithAuthServer(types.RoleKube, KubeIdentityEvent)
 	process.RegisterCriticalFunc("kube.init", func() error {
 		eventsC := make(chan Event)
 		process.WaitForEvent(process.ExitContext(), KubeIdentityEvent, eventsC)

@@ -19,6 +19,7 @@ package services
 import (
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -57,12 +58,12 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 
 	tts := []struct {
 		desc    string
-		tm      TraitMapping
+		tm      types.TraitMapping
 		matches []string
 	}{
 		{
 			desc: "literal matching",
-			tm: TraitMapping{
+			tm: types.TraitMapping{
 				Trait: "groups",
 				Value: "populists",
 				Roles: []string{"dictator"},
@@ -71,7 +72,7 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 		},
 		{
 			desc: "basic prefix-based matching",
-			tm: TraitMapping{
+			tm: types.TraitMapping{
 				Trait: "groups",
 				Value: "devs",
 				Roles: []string{"dev-*"},
@@ -80,7 +81,7 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 		},
 		{
 			desc: "basic suffix-based matching",
-			tm: TraitMapping{
+			tm: types.TraitMapping{
 				Trait: "requirements",
 				Value: "staging-only",
 				Roles: []string{"*-staging"},
@@ -89,7 +90,7 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 		},
 		{
 			desc: "negative matching",
-			tm: TraitMapping{
+			tm: types.TraitMapping{
 				Trait: "requirements",
 				Value: "democracy",
 				Roles: []string{"{{regexp.not_match(\"dictator\")}}"},
@@ -98,7 +99,7 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 		},
 		{
 			desc: "pattern-like trait submatch substitution cannot result in non-literal matchers",
-			tm: TraitMapping{
+			tm: types.TraitMapping{
 				Trait: "sketchy-pfx",
 				Value: "pfx-*",
 				Roles: []string{"${1}-prod", "${1}-staging", "${1}"},
@@ -107,7 +108,7 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 		},
 		{
 			desc: "pattern-like trait value substitution cannot result in non-literal matchers",
-			tm: TraitMapping{
+			tm: types.TraitMapping{
 				Trait: "sketchy",
 				Value: "*",
 				Roles: []string{"dev-${1}", "admin-${1}", "${1}"},
@@ -117,7 +118,7 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 	}
 
 	for _, tt := range tts {
-		matchers, err := TraitsToRoleMatchers([]TraitMapping{tt.tm}, traits)
+		matchers, err := TraitsToRoleMatchers([]types.TraitMapping{tt.tm}, traits)
 		require.NoError(t, err, tt.desc)
 
 		// collect all roles which match at least on of the
