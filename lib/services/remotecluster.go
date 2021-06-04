@@ -17,40 +17,10 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
-
-// RemoteClusterV3SchemaTemplate is a template JSON Schema for V3 style objects
-const RemoteClusterV3SchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["kind", "metadata", "version"],
-	"properties": {
-	  "kind": {"type": "string"},
-	  "version": {"type": "string", "default": "v3"},
-	  "metadata": %v,
-	  "status": %v
-	}
-  }`
-
-// RemoteClusterV3StatusSchema is a template for remote cluster
-const RemoteClusterV3StatusSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["connection", "last_heartbeat"],
-	"properties": {
-	  "connection": {"type": "string"},
-	  "last_heartbeat": {"type": "string"}
-	}
-  }`
-
-// GetRemoteClusterSchema returns the schema for remote cluster
-func GetRemoteClusterSchema() string {
-	return fmt.Sprintf(RemoteClusterV3SchemaTemplate, MetadataSchema, RemoteClusterV3StatusSchema)
-}
 
 // UnmarshalRemoteCluster unmarshals the RemoteCluster resource from JSON.
 func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster, error) {
@@ -65,16 +35,8 @@ func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster,
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	if cfg.SkipValidation {
-		err := utils.FastUnmarshal(bytes, &cluster)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetRemoteClusterSchema(), &cluster, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
+	if err := utils.FastUnmarshal(bytes, &cluster); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	err = cluster.CheckAndSetDefaults()

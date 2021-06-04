@@ -436,16 +436,8 @@ func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Reques
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	skipValidation, _, err := httplib.ParseBool(r.URL.Query(), "skip_validation")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var opts []services.MarshalOption
-	if skipValidation {
-		opts = append(opts, services.SkipValidation())
-	}
 
-	servers, err := auth.GetNodes(r.Context(), namespace, opts...)
+	servers, err := auth.GetNodes(r.Context(), namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1819,12 +1811,9 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 			return nil, trace.BadParameter("failed to parse limit: %q", limit)
 		}
 	}
-	// remove 'to', 'from' and 'limit' fields, passing the rest of the query unmodified
-	// to whatever pluggable search is implemented by the backend
-	query.Del("to")
-	query.Del("from")
-	query.Del("limit")
-	eventsList, err := auth.SearchEvents(from, to, query.Encode(), limit)
+
+	eventTypes := query[events.EventType]
+	eventsList, _, err := auth.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1864,7 +1853,7 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, err := auth.SearchSessionEvents(from, to, limit)
+	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -19,9 +19,10 @@ package events
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -195,78 +196,136 @@ func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	return nil
 }
 
-// SearchEvents finds events. Results show up sorted by date (newest first),
-// limit is used when set to value > 0
-func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	l.Debugf("SearchEvents(%v, %v, query=%v, limit=%v)", fromUTC, toUTC, query, limit)
+func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startAfter string) ([]AuditEvent, string, error) {
+	l.Debugf("SearchEvents(%v, %v, namespace=%v, eventType=%v, limit=%v)", fromUTC, toUTC, namespace, eventTypes, limit)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
 	if limit > defaults.EventsMaxIterationLimit {
-		return nil, trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
+		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
 	}
+
 	// how many days of logs to search?
 	days := int(toUTC.Sub(fromUTC).Hours() / 24)
 	if days < 0 {
-		return nil, trace.BadParameter("invalid days")
+		return nil, "", trace.BadParameter("invalid days")
 	}
-	queryVals, err := url.ParseQuery(query)
+	filesToSearch, err := l.matchingFiles(fromUTC, toUTC)
 	if err != nil {
-		return nil, trace.BadParameter("invalid query")
+		return nil, "", trace.Wrap(err)
 	}
-	filtered, err := l.matchingFiles(fromUTC, toUTC)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var total int
-	// search within each file:
-	events := make([]EventFields, 0)
-	for i := range filtered {
-		found, err := l.findInFile(filtered[i].path, queryVals, &total, limit)
+
+	dynamicEvents := make([]EventFields, 0)
+
+	// Fetch events from each file for further filtering.
+	for _, file := range filesToSearch {
+		eventsFromFile, err := l.findInFile(file.path, eventTypes)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
-		events = append(events, found...)
-		if limit > 0 && total >= limit {
-			break
-		}
+
+		dynamicEvents = append(dynamicEvents, eventsFromFile...)
 	}
+
 	// sort all accepted files by timestamp or by event index
 	// in case if events are associated with the same session, to make
 	// sure that events are not displayed out of order in case of multiple
 	// auth servers.
-	sort.Sort(ByTimeAndIndex(events))
-	return events, nil
+	sort.Sort(ByTimeAndIndex(dynamicEvents))
+
+	events := make([]AuditEvent, 0, len(dynamicEvents))
+
+	// This is used as a flag to check if we have found the startAfter checkpoint or not.
+	foundStart := startAfter == ""
+
+	for _, dynamicEvent := range dynamicEvents {
+		// Convert the event from a dynamic representation to a typed representation.
+		event, err := FromEventFields(dynamicEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		// Skip until we've found the start checkpoint and once more
+		// since it was the last key of the previous set.
+		if !foundStart {
+			checkpoint, err := getCheckpointFromEvent(event)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			if startAfter == checkpoint {
+				foundStart = true
+			}
+
+			continue
+		}
+
+		// Skip until we've found the first event within the desired timeframe.
+		if event.GetTime().Before(fromUTC) {
+			continue
+		}
+
+		// If we've found an event after the desired timeframe, all events from here
+		// on out will also be after the desired timeframe due
+		// to the sort so we just break out here and consider the query as finished.
+		if event.GetTime().After(toUTC) {
+			break
+		}
+
+		events = append(events, event)
+
+		// Check if there is a limit and if so, check if we've hit it.
+		// In the event that we've hit the limit, we consider the query partially complete
+		// and return a checkpoint to continue it.
+		if len(events) >= limit && limit > 0 {
+			checkpoint, err := getCheckpointFromEvent(events[len(events)-1])
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return events, checkpoint, nil
+		}
+	}
+
+	// This return point is only hit if the query is finished and there are no further pages.
+	return events, "", nil
 }
 
-// SearchSessionEvents searches for session related events. Used to find completed sessions.
-func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
+func getCheckpointFromEvent(event AuditEvent) (string, error) {
+	if event.GetID() == "" {
+		data, err := utils.FastMarshal(event)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		hash := sha256.Sum256(data)
+		return hex.EncodeToString(hash[:]), nil
+	}
+
+	return event.GetID(), nil
+}
+
+func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
 	l.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	// only search for specific event types
-	query := url.Values{}
-	query[EventType] = []string{
-		SessionStartEvent,
-		SessionEndEvent,
-	}
+	eventTypes := []string{SessionStartEvent, SessionEndEvent}
 
 	// because of the limit and distributed nature of auth server event
 	// logs, some events can be fetched with session end event and without
 	// session start event. to fix this, the code below filters out the events without
 	// start event to guarantee that all events in the range will get fetched
-	events, err := l.SearchEvents(fromUTC, toUTC, query.Encode(), limit)
+	events, lastKey, err := l.SearchEvents(fromUTC, toUTC, "default", eventTypes, limit, startKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, lastKey, trace.Wrap(err)
 	}
 
 	// filter out 'session end' events that do not
 	// have a corresponding 'session start' event
 	started := make(map[string]struct{}, len(events)/2)
-	filtered := make([]EventFields, 0, len(events))
+	filtered := make([]AuditEvent, 0, len(events))
 	for i := range events {
 		event := events[i]
-		eventType := event[EventType]
-		sessionID := event.GetString(SessionEventID)
+		eventType := event.GetType()
+		sessionID := GetSessionID(event)
 		if sessionID == "" {
 			continue
 		}
@@ -281,7 +340,7 @@ func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]Ev
 		}
 	}
 
-	return filtered, nil
+	return filtered, lastKey, nil
 }
 
 // Close closes the audit log, which inluces closing all file handles and releasing
@@ -474,20 +533,12 @@ func parseFileTime(filename string) (time.Time, error) {
 
 // findInFile scans a given log file and returns events that fit the criteria
 // This simplistic implementation ONLY SEARCHES FOR EVENT TYPE(s)
-//
-// You can pass multiple types like "event=session.start&event=session.end"
-func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int) ([]EventFields, error) {
-	l.Debugf("Called findInFile(%s, %v).", fn, query)
+func (l *FileLog) findInFile(path string, eventFilter []string) ([]EventFields, error) {
+	l.Debugf("Called findInFile(%s, %v).", path, eventFilter)
 	retval := make([]EventFields, 0)
 
-	eventFilter, ok := query[EventType]
-	if !ok && len(query) > 0 {
-		return nil, nil
-	}
-	doFilter := len(eventFilter) > 0
-
 	// open the log file:
-	lf, err := os.OpenFile(fn, os.O_RDONLY, 0)
+	lf, err := os.OpenFile(path, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -495,8 +546,9 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 
 	// for each line...
 	scanner := bufio.NewScanner(lf)
+
 	for lineNo := 0; scanner.Scan(); lineNo++ {
-		accepted := false
+		accepted := len(eventFilter) == 0
 		// optimization: to avoid parsing JSON unnecessarily, lets see if we
 		// can filter out lines that don't even have the requested event type on the line
 		for i := range eventFilter {
@@ -505,14 +557,14 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 				break
 			}
 		}
-		if doFilter && !accepted {
+		if !accepted {
 			continue
 		}
 		// parse JSON on the line and compare event type field to what's
 		// in the query:
 		var ef EventFields
 		if err = json.Unmarshal(scanner.Bytes(), &ef); err != nil {
-			l.Warnf("invalid JSON in %s line %d", fn, lineNo)
+			l.Warnf("invalid JSON in %s line %d", path, lineNo)
 			continue
 		}
 		for i := range eventFilter {
@@ -521,14 +573,12 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 				break
 			}
 		}
-		if accepted || !doFilter {
+
+		if accepted {
 			retval = append(retval, ef)
-			*total++
-			if limit > 0 && *total >= limit {
-				break
-			}
 		}
 	}
+
 	return retval, nil
 }
 

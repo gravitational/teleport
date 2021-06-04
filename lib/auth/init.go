@@ -140,6 +140,9 @@ type InitConfig struct {
 	// ClusterNetworkingConfig holds cluster networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
 
+	// SessionRecordingConfig holds session recording configuration.
+	SessionRecordingConfig types.SessionRecordingConfig
+
 	// SkipPeriodicOperations turns off periodic operations
 	// used in tests that don't need periodc operations.
 	SkipPeriodicOperations bool
@@ -172,11 +175,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	ctx := context.TODO()
 
 	domainName := cfg.ClusterName.GetClusterName()
-	err := backend.AcquireLock(ctx, cfg.Backend, domainName, 30*time.Second)
+	lock, err := backend.AcquireLock(ctx, cfg.Backend, domainName, 30*time.Second)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer backend.ReleaseLock(ctx, cfg.Backend, domainName)
+	defer lock.Release(ctx, cfg.Backend)
 
 	// check that user CA and host CA are present and set the certs if needed
 	asrv, err := NewServer(&cfg, opts...)
@@ -237,6 +240,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	err = asrv.SetClusterNetworkingConfig(ctx, cfg.ClusterNetworkingConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = asrv.SetSessionRecordingConfig(ctx, cfg.SessionRecordingConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -1,0 +1,8 @@
+clusterName: test-standalone-cluster
+chartMode: standalone
+standalone:
+  volumeSize: 50Gi
+acme: true
+acmeEmail: test@email.com
+labels:
+  env: standalone

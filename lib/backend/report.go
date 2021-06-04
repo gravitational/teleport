@@ -77,6 +77,11 @@ type Reporter struct {
 
 // NewReporter returns a new Reporter.
 func NewReporter(cfg ReporterConfig) (*Reporter, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -458,23 +463,11 @@ var (
 		},
 		[]string{teleport.ComponentLabel},
 	)
-)
 
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(watchers)
-	prometheus.MustRegister(watcherQueues)
-	prometheus.MustRegister(requests)
-	prometheus.MustRegister(writeRequests)
-	prometheus.MustRegister(writeRequestsFailed)
-	prometheus.MustRegister(batchWriteRequests)
-	prometheus.MustRegister(batchWriteRequestsFailed)
-	prometheus.MustRegister(readRequests)
-	prometheus.MustRegister(readRequestsFailed)
-	prometheus.MustRegister(batchReadRequests)
-	prometheus.MustRegister(batchReadRequestsFailed)
-	prometheus.MustRegister(writeLatencies)
-	prometheus.MustRegister(batchWriteLatencies)
-	prometheus.MustRegister(batchReadLatencies)
-	prometheus.MustRegister(readLatencies)
-}
+	prometheusCollectors = []prometheus.Collector{
+		watchers, watcherQueues, requests, writeRequests,
+		writeRequestsFailed, batchWriteRequests, batchWriteRequestsFailed, readRequests,
+		readRequestsFailed, batchReadRequests, batchReadRequestsFailed, writeLatencies,
+		batchWriteLatencies, batchReadLatencies, readLatencies,
+	}
+)

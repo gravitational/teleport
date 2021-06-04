@@ -70,6 +70,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 			parser = newClusterNetworkingConfigParser()
 		case types.KindClusterAuthPreference:
 			parser = newAuthPreferenceParser()
+		case types.KindSessionRecordingConfig:
+			parser = newSessionRecordingConfigParser()
 		case services.KindClusterName:
 			parser = newClusterNameParser()
 		case services.KindNamespace:
@@ -276,7 +278,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (services.Resource, err
 		}, nil
 	case backend.OpPut:
 		ca, err := services.UnmarshalCertAuthority(event.Item.Value,
-			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires), services.SkipValidation())
+			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -374,7 +376,6 @@ func (p *clusterConfigParser) parse(event backend.Event) (services.Resource, err
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
-			services.SkipValidation(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -409,7 +410,6 @@ func (p *clusterNetworkingConfigParser) parse(event backend.Event) (services.Res
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
-			services.SkipValidation(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -444,7 +444,40 @@ func (p *authPreferenceParser) parse(event backend.Event) (services.Resource, er
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
-			services.SkipValidation(),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ap, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newSessionRecordingConfigParser() *sessionRecordingConfigParser {
+	return &sessionRecordingConfigParser{
+		baseParser: baseParser{matchPrefix: backend.Key(clusterConfigPrefix, sessionRecordingPrefix)},
+	}
+}
+
+type sessionRecordingConfigParser struct {
+	baseParser
+}
+
+func (p *sessionRecordingConfigParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		h, err := resourceHeader(event, types.KindSessionRecordingConfig, services.V2, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameSessionRecordingConfig)
+		return h, nil
+	case backend.OpPut:
+		ap, err := services.UnmarshalSessionRecordingConfig(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -884,7 +917,7 @@ func (p *databaseServerParser) parse(event backend.Event) (services.Resource, er
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
-			services.SkipValidation())
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -899,7 +932,6 @@ func parseServer(event backend.Event, kind string) (services.Resource, error) {
 			kind,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
-			services.SkipValidation(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)

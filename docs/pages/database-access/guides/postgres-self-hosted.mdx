@@ -11,9 +11,23 @@ Teleport uses mutual TLS for authentication to PostgreSQL instances. As such,
 self-hosted PostgreSQL instances must be configured with Teleport's certificate
 authority and a certificate/key pair that Teleport can validate.
 
-To create these secrets, use `tctl auth sign` command. Note that it requires a
-running Teleport cluster and [should be run](../../architecture/overview.mdx#tctl)
-on the auth server.
+To create these secrets, use `tctl auth sign` command. It can be run either
+[locally](../../architecture/overview.mdx#tctl) on the auth server, or from the
+client machine after logging in with `tsh login` (for example, when using
+[Teleport Cloud](../../cloud/introduction.mdx)).
+
+In the latter case, user must be allowed to impersonate the system role `Db` in
+order to be able to generate the database certificate, by having the following
+allow rule in their role:
+
+```yaml
+allow:
+  impersonate:
+    users: ["Db"]
+    roles: ["Db"]
+```
+
+Run the command:
 
 ```sh
 # Export Teleport's certificate authority and generate certificate/key pair
@@ -154,13 +168,12 @@ You can start Teleport database service without configuration file, using a
 CLI command:
 
 ```sh
-$ teleport start \
-   --roles=db \
+$ teleport db start \
    --token=/tmp/token \
    --auth-server=teleport.example.com:3080 \
-   --db-name=test \
-   --db-protocol=postgres \
-   --db-uri=postgres.example.com:5432 \
+   --name=test \
+   --protocol=postgres \
+   --uri=postgres.example.com:5432 \
    --labels=env=dev
 ```
 

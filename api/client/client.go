@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
@@ -100,7 +101,7 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 }
 
 // newClient constructs a new client.
-func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) (clt *Client) {
+func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client {
 	return &Client{
 		c:          cfg,
 		dialer:     dialer,
@@ -274,14 +275,16 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
 
-	dialOptions := append(
-		c.c.DialOpts,
-		grpc.WithContextDialer(c.grpcDialer()),
-		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)),
-	)
+	dialOpts := append([]grpc.DialOption{}, c.c.DialOpts...)
+	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
+	// Only set transportCredentials if tlsConfig is set. This makes it possible
+	// to explicitly provide gprc.WithInsecure in the client's dial options.
+	if c.tlsConfig != nil {
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
+	}
 
 	var err error
-	if c.conn, err = grpc.DialContext(dialContext, addr, dialOptions...); err != nil {
+	if c.conn, err = grpc.DialContext(dialContext, addr, dialOpts...); err != nil {
 		return trace.Wrap(err)
 	}
 	c.grpc = proto.NewAuthServiceClient(c.conn)
@@ -300,6 +303,27 @@ func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, 
 			return nil, trace.ConnectionProblem(err, "failed to dial: %v", err)
 		}
 		return conn, nil
+	}
+}
+
+// waitForConnectionReady waits for the client's grpc connection finish dialing, returning an errror
+// if the ctx is canceled or the client's gRPC connection enters an unexpected state. This can be used
+// alongside the DialInBackground client config option to wait until background dialing has completed.
+func (c *Client) waitForConnectionReady(ctx context.Context) error {
+	for {
+		switch state := c.conn.GetState(); state {
+		case connectivity.Ready:
+			return nil
+		case connectivity.TransientFailure, connectivity.Connecting:
+			// Wait for expected state transitions. For details about grpc.ClientConn state changes
+			// see https://github.com/grpc/grpc/blob/master/doc/connectivity-semantics-and-api.md
+			if !c.conn.WaitForStateChange(ctx, state) {
+				// ctx canceled
+				return trace.Wrap(ctx.Err())
+			}
+		case connectivity.Idle, connectivity.Shutdown:
+			return trace.Errorf("client gRPC connection entered an unexpected state: %v", state)
+		}
 	}
 }
 
@@ -699,10 +723,9 @@ func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 }
 
 // GetAppServers gets all application servers.
-func (c *Client) GetAppServers(ctx context.Context, namespace string, skipValidation bool) ([]types.Server, error) {
+func (c *Client) GetAppServers(ctx context.Context, namespace string) ([]types.Server, error) {
 	resp, err := c.grpc.GetAppServers(ctx, &proto.GetAppServersRequest{
-		Namespace:      namespace,
-		SkipValidation: skipValidation,
+		Namespace: namespace,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -834,10 +857,9 @@ func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
-func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, skipValidation bool) ([]types.DatabaseServer, error) {
+func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
 	resp, err := c.grpc.GetDatabaseServers(ctx, &proto.GetDatabaseServersRequest{
-		Namespace:      namespace,
-		SkipValidation: skipValidation,
+		Namespace: namespace,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -1293,6 +1315,60 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 	return trail.FromGRPC(err)
 }
 
+// SearchEvents allows searching for events with a full pagination support.
+func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	request := &proto.GetEventsRequest{
+		Namespace:  namespace,
+		StartDate:  fromUTC,
+		EndDate:    toUTC,
+		EventTypes: eventTypes,
+		Limit:      int32(limit),
+		StartKey:   startKey,
+	}
+
+	response, err := c.grpc.GetEvents(ctx, request)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	decodedEvents := make([]events.AuditEvent, 0, len(response.Items))
+	for _, rawEvent := range response.Items {
+		event, err := events.FromOneOf(*rawEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		decodedEvents = append(decodedEvents, event)
+	}
+
+	return decodedEvents, response.LastKey, nil
+}
+
+// SearchSessionEvents allows searching for session events with a full pagination support.
+func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	request := &proto.GetSessionEventsRequest{
+		StartDate: fromUTC,
+		EndDate:   toUTC,
+		Limit:     int32(limit),
+		StartKey:  startKey,
+	}
+
+	response, err := c.grpc.GetSessionEvents(ctx, request)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	decodedEvents := make([]events.AuditEvent, 0, len(response.Items))
+	for _, rawEvent := range response.Items {
+		event, err := events.FromOneOf(*rawEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		decodedEvents = append(decodedEvents, event)
+	}
+
+	return decodedEvents, response.LastKey, nil
+}
+
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	resp, err := c.grpc.GetClusterNetworkingConfig(ctx, &empty.Empty{}, c.callOpts...)
@@ -1315,4 +1391,34 @@ func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig types
 // DeleteClusterNetworkingConfig not implemented: can only be called locally.
 func (c *Client) DeleteClusterNetworkingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
+	resp, err := c.grpc.GetSessionRecordingConfig(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// SetSessionRecordingConfig sets session recording configuration.
+func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
+	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", recConfig)
+	}
+	_, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteSessionRecordingConfig not implemented: can only be called locally.
+func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ResetAuthPreference resets cluster auth preference to defaults.
+func (c *Client) ResetAuthPreference(ctx context.Context) error {
+	_, err := c.grpc.ResetAuthPreference(ctx, &empty.Empty{})
+	return trail.FromGRPC(err)
 }

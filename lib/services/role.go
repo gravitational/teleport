@@ -1124,6 +1124,17 @@ func (set RoleSet) HasRole(role string) bool {
 	return false
 }
 
+// WithoutImplicit returns this role set with default implicit role filtered out.
+func (set RoleSet) WithoutImplicit() (out RoleSet) {
+	for _, r := range set {
+		if r.GetName() == teleport.DefaultImplicitRole {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
 // AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 // for this role set, otherwise it returns ttl unchanged
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
@@ -2134,181 +2145,6 @@ func (s SortedRoles) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-// RoleSpecV3SchemaTemplate is JSON schema for RoleSpecV3
-const RoleSpecV3SchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "max_session_ttl": { "type": "string" },
-	  "options": {
-		"type": "object",
-		"additionalProperties": false,
-		"properties": {
-		  "forward_agent": { "type": ["boolean", "string"] },
-		  "permit_x11_forwarding": { "type": ["boolean", "string"] },
-		  "max_session_ttl": { "type": "string" },
-		  "port_forwarding": { "type": ["boolean", "string"] },
-		  "cert_format": { "type": "string" },
-		  "client_idle_timeout": { "type": "string" },
-		  "disconnect_expired_cert": { "type": ["boolean", "string"] },
-		  "enhanced_recording": {
-			"type": "array",
-			"items": { "type": "string" }
-		  },
-		  "max_connections": { "type": "number" },
-		  "max_sessions": {"type": "number"},
-		  "request_access": { "type": "string" },
-		  "request_prompt": { "type": "string" },
-		  "require_session_mfa": { "type": ["boolean", "string"] }
-		}
-	  },
-	  "allow": { "$ref": "#/definitions/role_condition" },
-	  "deny": { "$ref": "#/definitions/role_condition" }%v
-	}
-  }`
-
-// RoleSpecV3SchemaDefinitions is JSON schema for RoleSpecV3 definitions
-const RoleSpecV3SchemaDefinitions = `
-	  "definitions": {
-		"role_condition": {
-		  "namespaces": {
-			"type": "array",
-			"items": { "type": "string" }
-		  },
-		  "node_labels": {
-			"type": "object",
-			"additionalProperties": false,
-			"patternProperties": {
-			  "^[a-zA-Z/.0-9_*-]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
-			}
-		  },
-		  "cluster_labels": {
-			"type": "object",
-			"additionalProperties": false,
-			"patternProperties": {
-			  "^[a-zA-Z/.0-9_*-]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
-			}
-		  },
-		  "logins": {
-			"type": "array",
-			"items": { "type": "string" }
-		  },
-		  "kubernetes_groups": {
-			"type": "array",
-			"items": { "type": "string" }
-		  },
-		  "db_labels": {
-			"type": "object",
-			"additionalProperties": false,
-			"patternProperties": {
-			  "^[a-zA-Z/.0-9_*-]+$": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
-			}
-		  },
-		  "kubernetes_labels": {
-			"type": "object",
-			"additionalProperties": false,
-			"patternProperties": {
-			  "^[a-zA-Z/.0-9_*-]+$": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
-			}
-		  },
-		  "db_names": {
-			"type": "array",
-			"items": {"type": "string"}
-		  },
-		  "db_users": {
-			"type": "array",
-			"items": {"type": "string"}
-		  },
-		  "request": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-			  "roles": {
-				"type": "array",
-				"items": { "type": "string" }
-			  },
-			  "claims_to_roles": {
-				"type": "object",
-				"additionalProperties": false,
-				"properties": {
-				  "claim": {"type": "string"},
-				  "value": {"type": "string"},
-				  "roles": {
-					"type": "array",
-					"items": {
-					  "type": "string"
-					}
-				  }
-				}
-			  },
-			  "thresholds": {
-			    "type": "array",
-				"items": { "type": "object" }
-			  }
-			}
-		  },
-		  "impersonate": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-			  "users": {
-				"type": "array",
-				"items": { "type": "string" }
-			  },
-			  "roles": {
-				"type": "array",
-				"items": { "type": "string" }
-			  },
-			  "where": {
-			    "type": "string"
-			  }
-			}
-		  },
-		  "review_requests": {
-		    "type": "object"
-		  },
-		  "rules": {
-			"type": "array",
-			"items": {
-			  "type": "object",
-			  "additionalProperties": false,
-			  "properties": {
-				"resources": {
-				  "type": "array",
-				  "items": { "type": "string" }
-				},
-				"verbs": {
-				  "type": "array",
-				  "items": { "type": "string" }
-				},
-				"where": {
-				   "type": "string"
-				},
-				"actions": {
-				  "type": "array",
-				  "items": { "type": "string" }
-				}
-			  }
-			}
-		  }
-		}
-	  }
-	`
-
-// GetRoleSchema returns role schema for the version requested with optionally
-// injected schema for extensions.
-func GetRoleSchema(version string, extensionSchema string) string {
-	schemaDefinitions := "," + RoleSpecV3SchemaDefinitions
-	schemaTemplate := RoleSpecV3SchemaTemplate
-
-	schema := fmt.Sprintf(schemaTemplate, ``)
-	if extensionSchema != "" {
-		schema = fmt.Sprintf(schemaTemplate, ","+extensionSchema)
-	}
-
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, schema, schemaDefinitions)
-}
-
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
 	var h ResourceHeader
@@ -2325,14 +2161,8 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
 	switch h.Version {
 	case V3:
 		var role RoleV3
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &role); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetRoleSchema(V3, ""), &role, bytes); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
+		if err := utils.FastUnmarshal(bytes, &role); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
 
 		if err := ValidateRole(&role); err != nil {

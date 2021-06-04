@@ -1,6 +1,6 @@
 ---
 authors: Joel Wejdenstal (jwejdenstal@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 19 - Event Fetch API with Pagination

@@ -750,6 +750,7 @@ func setupConfig(t *testing.T) InitConfig {
 		Authority:               testauthority.New(),
 		ClusterConfig:           services.DefaultClusterConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
+		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
 		ClusterName:             clusterName,
 		StaticTokens:            services.DefaultStaticTokens(),
 		AuthPreference:          services.DefaultAuthPreference(),

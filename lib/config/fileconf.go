@@ -413,7 +413,7 @@ type Auth struct {
 
 	// ProxyChecksHostKeys is used when the proxy is in recording mode and
 	// determines if the proxy will check the host key of the client or not.
-	ProxyChecksHostKeys string `yaml:"proxy_checks_host_keys,omitempty"`
+	ProxyChecksHostKeys *types.BoolOption `yaml:"proxy_checks_host_keys,omitempty"`
 
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir

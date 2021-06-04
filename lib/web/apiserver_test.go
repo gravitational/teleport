@@ -102,7 +102,7 @@ type WebSuite struct {
 	webServer *httptest.Server
 
 	mockU2F     *mocku2f.Key
-	server      *auth.TestTLSServer
+	server      *auth.TestServer
 	proxyClient *auth.Client
 	clock       clockwork.FakeClock
 }
@@ -141,17 +141,18 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.user = u.Username
 	s.clock = clockwork.NewFakeClock()
 
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		ClusterName: "localhost",
-		Dir:         c.MkDir(),
-		Clock:       s.clock,
+	s.server, err = auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         c.MkDir(),
+			Clock:       s.clock,
+		},
 	})
 	c.Assert(err, IsNil)
-	s.server, err = authServer.NewTestTLSServer()
-	c.Assert(err, IsNil)
+
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = authServer.AuthServer.UpsertAuthServer(&services.ServerV2{
+	err = s.server.Auth().UpsertAuthServer(&services.ServerV2{
 		Kind:    services.KindAuthServer,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -159,7 +160,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 			Name:      "auth",
 		},
 		Spec: services.ServerSpecV2{
-			Addr:     s.server.Listener.Addr().String(),
+			Addr:     s.server.TLS.Listener.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
 		},
@@ -266,7 +267,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	handler, err := NewHandler(Config{
 		Proxy:                           revTunServer,
-		AuthServers:                     utils.FromAddr(s.server.Addr()),
+		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		DomainName:                      s.server.ClusterName(),
 		ProxyClient:                     s.proxyClient,
 		CipherSuites:                    utils.DefaultCipherSuites(),
@@ -307,11 +308,17 @@ func (s *WebSuite) SetUpTest(c *C) {
 }
 
 func (s *WebSuite) TearDownTest(c *C) {
-	c.Assert(s.node.Close(), IsNil)
-	c.Assert(s.server.Close(), IsNil)
+	var errors []error
+	s.proxyTunnel.Close()
+	if err := s.node.Close(); err != nil {
+		errors = append(errors, err)
+	}
+	if err := s.server.Shutdown(context.Background()); err != nil {
+		errors = append(errors, err)
+	}
 	s.webServer.Close()
 	s.proxy.Close()
-	s.proxyTunnel.Close()
+	c.Assert(errors, HasLen, 0)
 }
 
 func (r *authPack) renewSession(ctx context.Context, t *testing.T) *roundtrip.Response {
@@ -452,7 +459,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	err = s.server.Auth().CreateSAMLConnector(connector)
 	c.Assert(err, IsNil)
-	s.server.AuthServer.AuthServer.SetClock(clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)))
+	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)))
 	clt := s.clientNoRedirects()
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
@@ -965,13 +972,12 @@ func (s *WebSuite) TestTerminal(c *C) {
 }
 
 func (s *WebSuite) TestWebsocketPingLoop(c *C) {
+	ctx := context.Background()
+
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording:    services.RecordAtNode,
-		ProxyChecksHostKeys: services.HostKeyCheckYes,
-		LocalAuth:           services.NewBool(true),
+		LocalAuth: services.NewBool(true),
 	})
 	c.Assert(err, IsNil)
-
 	err = s.server.Auth().SetClusterConfig(clusterConfig)
 	c.Assert(err, IsNil)
 
@@ -980,8 +986,15 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 		KeepAliveInterval: services.NewDuration(250 * time.Millisecond),
 	})
 	c.Assert(err, IsNil)
-
 	err = s.server.Auth().SetClusterNetworkingConfig(context.TODO(), netConfig)
+	c.Assert(err, IsNil)
+
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode:                services.RecordAtNode,
+		ProxyChecksHostKeys: services.NewBoolOption(true),
+	})
+	c.Assert(err, IsNil)
+	err = s.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	c.Assert(err, IsNil)
 
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
@@ -1435,8 +1448,8 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorU2F,
 		U2F: &services.U2F{
-			AppID:  "https://" + env.server.ClusterName(),
-			Facets: []string{"https://" + env.server.ClusterName()},
+			AppID:  "https://" + env.server.TLS.ClusterName(),
+			Facets: []string{"https://" + env.server.TLS.ClusterName()},
 		},
 	})
 	require.NoError(t, err)
@@ -1710,9 +1723,13 @@ func (s *WebSuite) TestConstructSSHResponseLegacy(c *C) {
 
 // TestSearchClusterEvents makes sure web API allows querying events by type.
 func (s *WebSuite) TestSearchClusterEvents(c *C) {
+	// We need a clock that uses the current time here to work around
+	// the fact that filelog doesn't support emitting past events.
+	clock := clockwork.NewRealClock()
+
 	sessionEvents := events.GenerateTestSession(events.SessionParams{
 		PrintEvents: 3,
-		Clock:       s.clock,
+		Clock:       clock,
 		ServerID:    s.proxy.ID(),
 	})
 
@@ -1724,6 +1741,9 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 	sessionPrint := sessionEvents[1]
 	sessionEnd := sessionEvents[4]
 
+	fromTime := []string{clock.Now().AddDate(0, -1, 0).UTC().Format(time.RFC3339)}
+	toTime := []string{clock.Now().AddDate(0, 1, 0).UTC().Format(time.RFC3339)}
+
 	testCases := []struct {
 		// Comment is the test case description.
 		Comment string
@@ -1734,24 +1754,37 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 	}{
 		{
 			Comment: "Empty query",
-			Query:   url.Values{},
-			Result:  sessionEvents,
+			Query: url.Values{
+				"from": fromTime,
+				"to":   toTime,
+			},
+			Result: sessionEvents,
 		},
 		{
 			Comment: "Query by session start event",
-			Query:   url.Values{"include": []string{sessionStart.GetType()}},
-			Result:  sessionEvents[:1],
+			Query: url.Values{
+				"include": []string{sessionStart.GetType()},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result: sessionEvents[:1],
 		},
 		{
 			Comment: "Query session start and session end events",
-			Query:   url.Values{"include": []string{sessionEnd.GetType() + ";" + sessionStart.GetType()}},
-			Result:  []events.AuditEvent{sessionStart, sessionEnd},
+			Query: url.Values{
+				"include": []string{sessionEnd.GetType() + ";" + sessionStart.GetType()},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result: []events.AuditEvent{sessionStart, sessionEnd},
 		},
 		{
 			Comment: "Query events with filter by type and limit",
 			Query: url.Values{
 				"include": []string{sessionPrint.GetType() + ";" + sessionEnd.GetType()},
 				"limit":   []string{"1"},
+				"from":    fromTime,
+				"to":      toTime,
 			},
 			Result: []events.AuditEvent{sessionPrint},
 		},
@@ -1773,12 +1806,7 @@ func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, f
 	c.Assert(err, IsNil)
 	var out eventsListGetResponse
 	c.Assert(json.Unmarshal(response.Bytes(), &out), IsNil)
-	for _, event := range out.Events {
-		if utils.SliceContainsStr(filter, event.GetType()) {
-			result = append(result, event)
-		}
-	}
-	return result
+	return out.Events
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
@@ -1875,10 +1903,16 @@ func TestClusterKubesGet(t *testing.T) {
 		Kind:     services.KindKubeService,
 		Version:  services.V2,
 		Spec: services.ServerSpecV2{
-			KubernetesClusters: []*services.KubernetesCluster{{
-				Name:         "test-kube-name",
-				StaticLabels: map[string]string{"test-field": "test-value"},
-			}},
+			KubernetesClusters: []*services.KubernetesCluster{
+				{
+					Name:         "test-kube-name",
+					StaticLabels: map[string]string{"test-field": "test-value"},
+				},
+				// tests for de-duplication
+				{
+					Name:         "test-kube-name",
+					StaticLabels: map[string]string{"test-field": "test-value"},
+				}},
 		},
 	})
 	require.NoError(t, err)
@@ -2454,21 +2488,19 @@ func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
 func newWebPack(t *testing.T, numProxies int) *webPack {
 	clock := clockwork.NewFakeClock()
 
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		ClusterName: "localhost",
-		Dir:         t.TempDir(),
-		Clock:       clock,
+	server, err := auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         t.TempDir(),
+			Clock:       clock,
+		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
-
-	server, err := authServer.NewTestTLSServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, server.Close()) })
+	t.Cleanup(func() { require.NoError(t, server.Shutdown(context.Background())) })
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = authServer.AuthServer.UpsertAuthServer(&services.ServerV2{
+	err = server.Auth().UpsertAuthServer(&services.ServerV2{
 		Kind:    services.KindAuthServer,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -2476,7 +2508,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 			Name:      "auth",
 		},
 		Spec: services.ServerSpecV2{
-			Addr:     server.Listener.Addr().String(),
+			Addr:     server.TLS.Listener.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
 		},
@@ -2486,7 +2518,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	// start auth server
 	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
-		NodeName: server.ClusterName(),
+		NodeName: server.TLS.ClusterName(),
 		Roles:    teleport.Roles{teleport.RoleNode},
 	})
 	require.NoError(t, err)
@@ -2495,7 +2527,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	require.NoError(t, err)
 
 	const nodeID = "node"
-	nodeClient, err := server.NewClient(auth.TestIdentity{
+	nodeClient, err := server.TLS.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     teleport.RoleNode,
 			Username: nodeID,
@@ -2509,7 +2541,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		server.ClusterName(),
+		server.TLS.ClusterName(),
 		hostSigners,
 		nodeClient,
 		nodeDataDir,
@@ -2533,7 +2565,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	var proxies []*proxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(t, proxyID, node, server, hostSigners, clock))
+		proxies = append(proxies, createProxy(t, proxyID, node, server.TLS, hostSigners, clock))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -2658,7 +2690,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 // directly.
 type webPack struct {
 	proxies []*proxy
-	server  *auth.TestTLSServer
+	server  *auth.TestServer
 	node    *regular.Server
 	clock   clockwork.FakeClock
 }

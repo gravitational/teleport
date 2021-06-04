@@ -111,8 +111,8 @@ func (d *MockAuditLog) Reset() {
 
 // MockEmitter is emitter that stores last audit event
 type MockEmitter struct {
-	mtx       sync.RWMutex
-	lastEvent AuditEvent
+	mtx    sync.RWMutex
+	events []AuditEvent
 }
 
 // CreateAuditStream creates a stream that discards all events
@@ -129,7 +129,7 @@ func (e *MockEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, upl
 func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	e.lastEvent = event
+	e.events = append(e.events, event)
 	return nil
 }
 
@@ -137,14 +137,24 @@ func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) erro
 func (e *MockEmitter) LastEvent() AuditEvent {
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
-	return e.lastEvent
+	if len(e.events) == 0 {
+		return nil
+	}
+	return e.events[len(e.events)-1]
+}
+
+// Events returns all the emitted events
+func (e *MockEmitter) Events() []AuditEvent {
+	e.mtx.RLock()
+	defer e.mtx.RUnlock()
+	return e.events
 }
 
 // Reset resets state to zero values.
 func (e *MockEmitter) Reset() {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	e.lastEvent = nil
+	e.events = nil
 }
 
 // Status returns a channel that always blocks
