@@ -160,7 +160,7 @@ func TestNewDialBackground(t *testing.T) {
 
 	// Start the server and wait for the client connection to be ready.
 	startMockServer(t, addr)
-	require.NoError(t, clt.WaitForConnectionReady(ctx))
+	require.NoError(t, clt.waitForConnectionReady(ctx))
 
 	// requests to the server should succeed.
 	_, err = clt.Ping(ctx)
@@ -188,15 +188,15 @@ func TestWaitForConnectionReady(t *testing.T) {
 	// context is canceled if the server isn't open to connections.
 	cancelCtx, cancel := context.WithTimeout(ctx, time.Second*3)
 	defer cancel()
-	require.Error(t, clt.WaitForConnectionReady(cancelCtx))
+	require.Error(t, clt.waitForConnectionReady(cancelCtx))
 
 	// WaitForConnectionReady should return nil if the server is open to connections.
 	startMockServer(t, addr)
-	require.NoError(t, clt.WaitForConnectionReady(ctx))
+	require.NoError(t, clt.waitForConnectionReady(ctx))
 
 	// WaitForConnectionReady should return an error if the grpc connection is closed.
 	require.NoError(t, clt.GetConnection().Close())
-	require.Error(t, clt.WaitForConnectionReady(ctx))
+	require.Error(t, clt.waitForConnectionReady(ctx))
 }
 
 // startMockServer starts a new mock server. Parallel tests cannot use the same addr.

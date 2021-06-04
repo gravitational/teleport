@@ -306,6 +306,27 @@ func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, 
 	}
 }
 
+// waitForConnectionReady waits for the client's grpc connection finish dialing, returning an errror
+// if the ctx is canceled or the client's gRPC connection enters an unexpected state. This can be used
+// alongside the DialInBackground client config option to wait until background dialing has completed.
+func (c *Client) waitForConnectionReady(ctx context.Context) error {
+	for {
+		switch state := c.conn.GetState(); state {
+		case connectivity.Ready:
+			return nil
+		case connectivity.TransientFailure, connectivity.Connecting:
+			// Wait for expected state transitions. For details about grpc.ClientConn state changes
+			// see https://github.com/grpc/grpc/blob/master/doc/connectivity-semantics-and-api.md
+			if !c.conn.WaitForStateChange(ctx, state) {
+				// ctx canceled
+				return trace.Wrap(ctx.Err())
+			}
+		case connectivity.Idle, connectivity.Shutdown:
+			return trace.Errorf("client gRPC connection entered an unexpected state: %v", state)
+		}
+	}
+}
+
 // Config contains configuration of the client
 type Config struct {
 	// Addrs is a list of teleport auth/proxy server addresses to dial.
@@ -371,27 +392,6 @@ func (c *Client) Config() *tls.Config {
 // Dialer returns the ContextDialer the client connected with.
 func (c *Client) Dialer() ContextDialer {
 	return c.dialer
-}
-
-// WaitForConnectionReady waits for the client's grpc connection finish dialing, returning an errror
-// if the ctx is canceled or the client's gRPC connection enters an unexpected state. This can be used
-// alongside the DialInBackground client config option to wait until background dialing has completed.
-func (c *Client) WaitForConnectionReady(ctx context.Context) error {
-	for {
-		switch state := c.conn.GetState(); state {
-		case connectivity.Ready:
-			return nil
-		case connectivity.TransientFailure, connectivity.Connecting:
-			// Wait for expected state transitions. For details about grpc.ClientConn state changes
-			// see https://github.com/grpc/grpc/blob/master/doc/connectivity-semantics-and-api.md
-			if !c.conn.WaitForStateChange(ctx, state) {
-				// ctx canceled
-				return trace.Wrap(ctx.Err())
-			}
-		case connectivity.Idle, connectivity.Shutdown:
-			return trace.Errorf("client gRPC connection entered an unexpected state: %v", state)
-		}
-	}
 }
 
 // GetConnection returns GRPC connection.
