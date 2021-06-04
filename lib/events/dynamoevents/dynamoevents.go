@@ -770,10 +770,12 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 		}
 	}
 
+	hasLeft := false
+
 	// This is the main query loop, here we send individual queries for each date and
 	// we stop if we hit `limit` or process all dates, whichever comes first.
 dateLoop:
-	for _, date := range dates {
+	for i, date := range dates {
 		checkpoint.Date = date
 
 		attributes := map[string]interface{}{
@@ -826,6 +828,7 @@ dateLoop:
 					values = append(values, e)
 					left--
 					if left == 0 {
+						hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
 						break dateLoop
 					}
 				}
@@ -837,15 +840,10 @@ dateLoop:
 		}
 	}
 
-	// When no events are left we set the checkpoint to null
-	if len(values) == 0 {
-		checkpoint = checkpointKey{}
-	}
-
 	var lastKey []byte
 	var err error
 
-	if len(values) > 0 {
+	if hasLeft {
 		lastKey, err = json.Marshal(&checkpoint)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
