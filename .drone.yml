@@ -178,7 +178,7 @@ steps:
     path: /var/run
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -279,7 +279,7 @@ steps:
     path: /var/run
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -407,7 +407,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -501,7 +501,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -599,7 +599,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -693,7 +693,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -884,7 +884,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -978,7 +978,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1305,7 +1305,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1401,7 +1401,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1500,7 +1500,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1598,7 +1598,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1718,7 +1718,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -1840,7 +1840,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -1956,7 +1956,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -2064,7 +2064,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -2160,7 +2160,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -2280,7 +2280,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -2396,7 +2396,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -2878,7 +2878,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -2974,7 +2974,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3085,7 +3085,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3196,7 +3196,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3316,7 +3316,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3441,7 +3441,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3541,7 +3541,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -4303,6 +4303,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 4fee2a24376485b7ef2791980e1f51f83d0c891683dd4cc662d3b8e7f08236ae
+hmac: 500a3e3248826b7f7b1563d9fe6d6f04065767c60822b83080b1f574ca88edb4
 
 ...
