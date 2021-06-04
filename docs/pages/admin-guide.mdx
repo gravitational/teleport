@@ -11,6 +11,10 @@ understanding of Linux administration.
 
 Please visit our [installation page](installation.mdx) for instructions on downloading and installing Teleport.
 
+(!docs/pages/includes/permission-warning.mdx!)
+
+(!docs/pages/includes/backup-warning.mdx!)
+
 ## Definitions
 
 Before diving into configuring and running Teleport, it helps to take a look at
@@ -1983,7 +1987,7 @@ $ tctl --config fresh.yaml get all
 ```
 
 The `--bootstrap` flag has no effect, except during backend initialization (performed
-by auth server on first start), so it is safe for use in supervised/HA contexts.
+by auth server on first start), so it is safe for use in supervised/High Availability contexts.
 
 **Limitations**
 
