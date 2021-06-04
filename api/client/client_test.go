@@ -142,7 +142,7 @@ func TestNewDialBackground(t *testing.T) {
 	addr := "localhost:4025"
 
 	// Create client before the server is listening.
-	clt := newTestClient(t, ctx, Config{
+	clt, err := New(ctx, Config{
 		DialInBackground: true,
 		Addrs:            []string{addr},
 		Credentials: []Credentials{
@@ -152,9 +152,11 @@ func TestNewDialBackground(t *testing.T) {
 			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
 		},
 	})
+	require.NoError(t, err)
+	defer clt.Close()
 
 	// requests to the server will result in a connection error.
-	_, err := clt.Ping(ctx)
+	_, err = clt.Ping(ctx)
 	require.Error(t, err)
 	require.True(t, trace.IsConnectionProblem(err))
 
@@ -173,7 +175,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 	addr := "localhost:5025"
 
 	// Create client before the server is listening.
-	clt := newTestClient(t, ctx, Config{
+	clt, err := New(ctx, Config{
 		DialInBackground: true,
 		Addrs:            []string{addr},
 		Credentials: []Credentials{
@@ -183,6 +185,8 @@ func TestWaitForConnectionReady(t *testing.T) {
 			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
 		},
 	})
+	require.NoError(t, err)
+	defer clt.Close()
 
 	// WaitForConnectionReady should return false once the
 	// context is canceled if the server isn't open to connections.
@@ -205,12 +209,4 @@ func startMockServer(t *testing.T, addr string) {
 	require.NoError(t, err)
 	go newMockServer().grpc.Serve(l)
 	t.Cleanup(func() { require.NoError(t, l.Close()) })
-}
-
-// netTestClient creates a new test client.
-func newTestClient(t *testing.T, ctx context.Context, config Config) *Client {
-	clt, err := New(ctx, config)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, clt.Close()) })
-	return clt
 }
