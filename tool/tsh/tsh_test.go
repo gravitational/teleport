@@ -922,7 +922,7 @@ func TestReadTeleportHome(t *testing.T) {
 			comment:   "Environment is set",
 			inCLIConf: CLIConf{},
 			input:     "teleport-data/",
-			result:    "teleport-data/.tsh",
+			result:    "teleport-data",
 		},
 		{
 			comment:   "Environment not is set",
