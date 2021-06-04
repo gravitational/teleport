@@ -154,158 +154,211 @@ func TestBadIdentity(t *testing.T) {
 	require.IsType(t, trace.BadParameter(""), err)
 }
 
-// TestAuthPreference ensures that the act of creating an AuthServer sets
-// the AuthPreference (type and second factor) on the backend.
+type testDynamicallyConfigurableParams struct {
+	withDefaults, withConfigFile, withAnotherConfigFile func(*InitConfig) types.ResourceWithOrigin
+	setDynamic                                          func(*Server)
+	getStored                                           func(*Server) types.ResourceWithOrigin
+}
+
+func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurableParams) {
+	initAuthServer := func(t *testing.T, conf InitConfig) *Server {
+		authServer, err := Init(conf)
+		require.NoError(t, err)
+		t.Cleanup(func() { authServer.Close() })
+		return authServer
+	}
+
+	t.Run("start with config file, reinit with defaults", func(t *testing.T) {
+		t.Parallel()
+		conf := setupConfig(t)
+
+		// Simulate a server with a config-file resource.
+		configFileRes := p.withConfigFile(&conf)
+		authServer := initAuthServer(t, conf)
+
+		stored := p.getStored(authServer)
+		require.Equal(t, types.OriginConfigFile, stored.Origin())
+		require.Empty(t, resourceDiff(configFileRes, stored))
+
+		// Reinitialize with the default resource.
+		defaultRes := p.withDefaults(&conf)
+		authServer = initAuthServer(t, conf)
+
+		// Verify the stored resource is now labelled as originating from defaults.
+		stored = p.getStored(authServer)
+		require.Equal(t, types.OriginDefaults, stored.Origin())
+		require.Empty(t, resourceDiff(defaultRes, stored))
+	})
+
+	t.Run("start with dynamic, reinit with defaults", func(t *testing.T) {
+		t.Parallel()
+		conf := setupConfig(t)
+
+		// Simulate a server with dynamic configuration.
+		authServer := initAuthServer(t, conf)
+		p.setDynamic(authServer)
+
+		dynamic := p.getStored(authServer)
+		require.Equal(t, types.OriginDynamic, dynamic.Origin())
+
+		// Attempt to reinitialize with the default resource should be a no-op.
+		p.withDefaults(&conf)
+		authServer = initAuthServer(t, conf)
+
+		// Verify the stored resource remains unchanged.
+		stored := p.getStored(authServer)
+		require.Equal(t, types.OriginDynamic, stored.Origin())
+		require.Empty(t, resourceDiff(dynamic, stored))
+	})
+
+	t.Run("start with dynamic, reinit with config file", func(t *testing.T) {
+		t.Parallel()
+		conf := setupConfig(t)
+
+		// Simulate a server with dynamic configuration.
+		authServer := initAuthServer(t, conf)
+		p.setDynamic(authServer)
+
+		dynamic := p.getStored(authServer)
+		require.Equal(t, types.OriginDynamic, dynamic.Origin())
+
+		// Reinitialize with a config-file resource.
+		configFileRes := p.withConfigFile(&conf)
+		authServer = initAuthServer(t, conf)
+
+		// Verify the stored resource is updated.
+		stored := p.getStored(authServer)
+		require.Equal(t, types.OriginConfigFile, stored.Origin())
+		require.Empty(t, resourceDiff(configFileRes, stored))
+	})
+
+	t.Run("start with defaults, reinit with config file", func(t *testing.T) {
+		t.Parallel()
+		conf := setupConfig(t)
+
+		// Simulate a server with the default resource.
+		defaultRes := p.withDefaults(&conf)
+		authServer := initAuthServer(t, conf)
+
+		stored := p.getStored(authServer)
+		require.Equal(t, types.OriginDefaults, stored.Origin())
+		require.Empty(t, resourceDiff(defaultRes, stored))
+
+		// Reinitialize with a config-file resource.
+		configFileRes := p.withConfigFile(&conf)
+		authServer = initAuthServer(t, conf)
+
+		// Verify the stored resource is updated.
+		stored = p.getStored(authServer)
+		require.Equal(t, types.OriginConfigFile, stored.Origin())
+		require.Empty(t, resourceDiff(configFileRes, stored))
+	})
+
+	t.Run("start with config file, reinit with another config file", func(t *testing.T) {
+		t.Parallel()
+		conf := setupConfig(t)
+
+		// Simulate a server with a config-file resource.
+		configFileRes := p.withConfigFile(&conf)
+		authServer := initAuthServer(t, conf)
+
+		stored := p.getStored(authServer)
+		require.Equal(t, types.OriginConfigFile, stored.Origin())
+		require.Empty(t, resourceDiff(configFileRes, stored))
+
+		// Reinitialize with another config-file resource.
+		anotherConfigFileRes := p.withAnotherConfigFile(&conf)
+		authServer = initAuthServer(t, conf)
+
+		// Verify the stored resource is updated.
+		stored = p.getStored(authServer)
+		require.Equal(t, types.OriginConfigFile, stored.Origin())
+		require.Empty(t, resourceDiff(anotherConfigFileRes, stored))
+	})
+}
+
 func TestAuthPreference(t *testing.T) {
-	conf := setupConfig(t)
-	conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
-	as, err := Init(conf)
-	require.NoError(t, err)
-	defer as.Close()
+	t.Parallel()
 
-	cap, err := as.GetAuthPreference()
+	fromConfigFile, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		Type: teleport.OIDC,
+	})
 	require.NoError(t, err)
-	require.Empty(t, resourceDiff(cap, conf.AuthPreference))
-}
 
-func TestAuthPreferenceInitFromConfigFileToDefault(t *testing.T) {
-	// Simulate a server with auth preference from config file.
-	var err error
-	conf := setupConfig(t)
-	conf.AuthPreference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+	dynamically, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		SecondFactor: constants.SecondFactorOff,
 	})
 	require.NoError(t, err)
-	authServer, err := Init(conf)
-	require.NoError(t, err)
-	defer authServer.Close()
 
-	storedAuthPref, err := authServer.GetAuthPreference()
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
-
-	// Reset the auth preference to default.
-	conf.AuthPreference = types.DefaultAuthPreference()
-	authServer, err = Init(conf)
-	require.NoError(t, err)
-	defer authServer.Close()
-
-	// Verify the stored auth preference is now labelled as originating from
-	// defaults.
-	storedAuthPref, err = authServer.GetAuthPreference()
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
+	testDynamicallyConfigurable(t, testDynamicallyConfigurableParams{
+		withDefaults: func(conf *InitConfig) types.ResourceWithOrigin {
+			conf.AuthPreference = types.DefaultAuthPreference()
+			return conf.AuthPreference
+		},
+		withConfigFile: func(conf *InitConfig) types.ResourceWithOrigin {
+			conf.AuthPreference = fromConfigFile
+			return conf.AuthPreference
+		},
+		withAnotherConfigFile: func(conf *InitConfig) types.ResourceWithOrigin {
+			conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
+			return conf.AuthPreference
+		},
+		setDynamic: func(authServer *Server) {
+			err := authServer.SetAuthPreference(dynamically)
+			require.NoError(t, err)
+		},
+		getStored: func(authServer *Server) types.ResourceWithOrigin {
+			authPref, err := authServer.GetAuthPreference()
+			require.NoError(t, err)
+			return authPref
+		},
+	})
 }
 
-func TestAuthPreferenceInitFromDynamicToDefault(t *testing.T) {
-	// Simulate a server with auth preference set dynamically.
-	origAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		SecondFactor: constants.SecondFactorOff,
+func TestClusterNetworkingConfig(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fromConfigFile, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout: types.Duration(7 * time.Minute),
 	})
 	require.NoError(t, err)
-	conf := setupConfig(t)
-	authServer, err := Init(conf)
-	require.NoError(t, err)
-	defer authServer.Close()
-	err = authServer.SetAuthPreference(origAuthPref)
-	require.NoError(t, err)
 
-	storedAuthPref, err := authServer.GetAuthPreference()
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(origAuthPref, storedAuthPref))
-
-	// Attempt to reset to default should be a no-op.
-	conf.AuthPreference = types.DefaultAuthPreference()
-	authServer, err = Init(conf)
-	require.NoError(t, err)
-	defer authServer.Close()
-
-	// Verify the stored auth preference remains unchanged.
-	storedAuthPref, err = authServer.GetAuthPreference()
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(origAuthPref, storedAuthPref))
-}
-
-func TestAuthPreferenceInitFromDynamicToConfigFile(t *testing.T) {
-	// Simulate a server with auth preference set dynamically.
-	origAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		SecondFactor: constants.SecondFactorOff,
+	anotherFromConfigFile, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout: types.Duration(10 * time.Minute),
+		KeepAliveInterval: types.Duration(3 * time.Minute),
 	})
 	require.NoError(t, err)
-	conf := setupConfig(t)
-	authServer, err := Init(conf)
-	require.NoError(t, err)
-	defer authServer.Close()
-	err = authServer.SetAuthPreference(origAuthPref)
-	require.NoError(t, err)
 
-	storedAuthPref, err := authServer.GetAuthPreference()
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(origAuthPref, storedAuthPref))
-
-	// Overwriting with a config-file preference should work.
-	conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
-	authServer, err = Init(conf)
-	require.NoError(t, err)
-	defer authServer.Close()
-
-	// Verify the stored auth preference is updated.
-	storedAuthPref, err = authServer.GetAuthPreference()
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
-}
-
-func TestAuthPreferenceInitWithFirstConfigFile(t *testing.T) {
-	// Simulate a server with default auth preference.
-	conf := setupConfig(t)
-	conf.AuthPreference = types.DefaultAuthPreference()
-	authServer, err := Init(conf)
-	require.NoError(t, err)
-	defer authServer.Close()
-
-	storedAuthPref, err := authServer.GetAuthPreference()
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
-
-	// Overwriting with a config-file preference should work.
-	conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
-	require.NoError(t, err)
-	authServer, err = Init(conf)
-	require.NoError(t, err)
-	defer authServer.Close()
-
-	// Verify the stored auth preference is updated.
-	storedAuthPref, err = authServer.GetAuthPreference()
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
-}
-
-func TestAuthPreferenceInitWithSecondConfigFile(t *testing.T) {
-	// Simulate a server with auth preference from config file.
-	var err error
-	conf := setupConfig(t)
-	conf.AuthPreference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		SecondFactor: constants.SecondFactorOff,
+	dynamically, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		KeepAliveInterval: types.Duration(4 * time.Minute),
 	})
 	require.NoError(t, err)
-	authServer, err := Init(conf)
-	require.NoError(t, err)
-	defer authServer.Close()
+	dynamically.SetOrigin(types.OriginDynamic)
 
-	storedAuthPref, err := authServer.GetAuthPreference()
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
-
-	// Overwriting with a config-file preference should work.
-	conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
-	authServer, err = Init(conf)
-	require.NoError(t, err)
-	defer authServer.Close()
-
-	// Verify the stored auth preference is updated.
-	storedAuthPref, err = authServer.GetAuthPreference()
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(conf.AuthPreference, storedAuthPref))
+	testDynamicallyConfigurable(t, testDynamicallyConfigurableParams{
+		withDefaults: func(conf *InitConfig) types.ResourceWithOrigin {
+			conf.ClusterNetworkingConfig = types.DefaultClusterNetworkingConfig()
+			return conf.ClusterNetworkingConfig
+		},
+		withConfigFile: func(conf *InitConfig) types.ResourceWithOrigin {
+			conf.ClusterNetworkingConfig = fromConfigFile
+			return conf.ClusterNetworkingConfig
+		},
+		withAnotherConfigFile: func(conf *InitConfig) types.ResourceWithOrigin {
+			conf.ClusterNetworkingConfig = anotherFromConfigFile
+			return conf.ClusterNetworkingConfig
+		},
+		setDynamic: func(authServer *Server) {
+			err := authServer.SetClusterNetworkingConfig(ctx, dynamically)
+			require.NoError(t, err)
+		},
+		getStored: func(authServer *Server) types.ResourceWithOrigin {
+			authPref, err := authServer.GetClusterNetworkingConfig(ctx)
+			require.NoError(t, err)
+			return authPref
+		},
+	})
 }
 
 func TestClusterID(t *testing.T) {
