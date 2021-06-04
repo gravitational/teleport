@@ -1,6 +1,9 @@
 #
 # This Makefile is used for producing official Teleport releases
 #
+ifneq ("$(wildcard /bin/bash)","")
+SHELL := /bin/bash
+endif
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
