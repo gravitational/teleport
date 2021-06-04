@@ -480,21 +480,36 @@ func (a *appCollection) writeYAML(w io.Writer) error {
 }
 
 type authPrefCollection struct {
-	authPrefs []services.AuthPreference
+	authPref services.AuthPreference
 }
 
 func (c *authPrefCollection) resources() (r []services.Resource) {
-	for _, resource := range c.authPrefs {
-		r = append(r, resource)
-	}
-	return r
+	return []services.Resource{c.authPref}
 }
 
 func (c *authPrefCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Type", "Second Factor"})
-	for _, authPref := range c.authPrefs {
-		t.AddRow([]string{authPref.GetType(), string(authPref.GetSecondFactor())})
-	}
+	t.AddRow([]string{c.authPref.GetType(), string(c.authPref.GetSecondFactor())})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type netConfigCollection struct {
+	netConfig types.ClusterNetworkingConfig
+}
+
+func (c *netConfigCollection) resources() (r []services.Resource) {
+	return []services.Resource{c.netConfig}
+}
+
+func (c *netConfigCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Client Idle Timeout", "Keep Alive Interval", "Keep Alive Count Max", "Session Control Timeout"})
+	t.AddRow([]string{
+		c.netConfig.GetClientIdleTimeout().String(),
+		c.netConfig.GetKeepAliveInterval().String(),
+		strconv.FormatInt(c.netConfig.GetKeepAliveCountMax(), 10),
+		c.netConfig.GetSessionControlTimeout().String(),
+	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

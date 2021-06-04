@@ -2266,14 +2266,36 @@ func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts .
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
-func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
-	if err := a.action(defaults.Namespace, types.KindClusterNetworkingConfig, services.VerbCreate); err != nil {
+func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNetConfig types.ClusterNetworkingConfig) error {
+	storedNetConfig, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	for _, verb := range verbsToReplaceResourceWithOrigin(storedNetConfig) {
+		if err := a.action(defaults.Namespace, types.KindClusterNetworkingConfig, verb); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
+}
+
+// ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
+func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) error {
+	storedNetConfig, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if storedNetConfig.Origin() == types.OriginConfigFile {
+		return trace.BadParameter("config-file configuration cannot be reset")
+	}
+
 	if err := a.action(defaults.Namespace, types.KindClusterNetworkingConfig, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.SetClusterNetworkingConfig(ctx, netConfig)
+
+	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 }
 
 // DeleteClusterNetworkingConfig not implemented: can only be called locally.

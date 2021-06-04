@@ -151,7 +151,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
-	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend)}
+	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend, p.clusterConfigS.GetClusterConfig)}
 	p.presenceS = local.NewPresenceService(p.backend)
 	p.usersS = local.NewIdentityService(p.backend)
 	p.accessS = local.NewAccessService(p.backend)
