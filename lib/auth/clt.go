@@ -2042,4 +2042,7 @@ type ClientI interface {
 
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error
+
+	// ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
+	ResetClusterNetworkingConfig(ctx context.Context) error
 }

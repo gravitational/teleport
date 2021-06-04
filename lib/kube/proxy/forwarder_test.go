@@ -105,7 +105,7 @@ func TestAuthenticate(t *testing.T) {
 		DisconnectExpiredCert: true,
 	})
 	require.NoError(t, err)
-	nc, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+	nc, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout: types.NewDuration(time.Hour),
 	})
 	require.NoError(t, err)

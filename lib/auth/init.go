@@ -240,7 +240,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		log.Infof("Created reverse tunnel: %v.", tunnel)
 	}
 
-	err = asrv.SetClusterNetworkingConfig(ctx, cfg.ClusterNetworkingConfig)
+	err = initSetClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -512,11 +512,30 @@ func initSetAuthPreference(asrv *Server, newAuthPref types.AuthPreference) error
 		return trace.Wrap(err)
 	}
 	if shouldReplace {
-		err = asrv.SetAuthPreference(newAuthPref)
-		if err != nil {
+		if err := asrv.SetAuthPreference(newAuthPref); err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("Updating auth preference: %v.", newAuthPref)
+		log.Infof("Updating cluster auth preference: %v.", newAuthPref)
+	}
+	return nil
+}
+
+func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
+	storedNetConfig, err := asrv.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedNetConfig, newNetConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if shouldReplace {
+		if err := asrv.SetClusterNetworkingConfig(ctx, newNetConfig); err != nil {
+			return trace.Wrap(err)
+		}
+		log.Infof("Updating cluster networking configuration: %v.", newNetConfig)
 	}
 	return nil
 }

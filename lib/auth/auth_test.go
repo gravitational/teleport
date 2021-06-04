@@ -1114,7 +1114,7 @@ func newTestServices(t *testing.T) Services {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	clusterConfig, err := local.NewClusterConfigurationService(bk)
+	configService, err := local.NewClusterConfigurationService(bk)
 	require.NoError(t, err)
 
 	return Services{
@@ -1124,8 +1124,8 @@ func newTestServices(t *testing.T) Services {
 		Identity:             local.NewIdentityService(bk),
 		Access:               local.NewAccessService(bk),
 		DynamicAccessExt:     local.NewDynamicAccessService(bk),
-		ClusterConfiguration: clusterConfig,
-		Events:               local.NewEventsService(bk),
+		ClusterConfiguration: configService,
+		Events:               local.NewEventsService(bk, configService.GetClusterConfig),
 		IAuditLog:            events.NewDiscardAuditLog(),
 	}
 }

@@ -2462,7 +2462,20 @@ func (g *GRPCServer) SetClusterNetworkingConfig(ctx context.Context, netConfig *
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
+	netConfig.SetOrigin(types.OriginDynamic)
 	if err = auth.ServerWithRoles.SetClusterNetworkingConfig(ctx, netConfig); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
+func (g *GRPCServer) ResetClusterNetworkingConfig(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.ResetClusterNetworkingConfig(ctx); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil

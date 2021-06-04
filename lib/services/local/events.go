@@ -19,7 +19,6 @@ package local
 import (
 	"bytes"
 	"context"
-	"sort"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -34,14 +33,16 @@ import (
 // EventsService implements service to watch for events
 type EventsService struct {
 	*logrus.Entry
-	backend backend.Backend
+	backend          backend.Backend
+	getClusterConfig getClusterConfigFunc
 }
 
 // NewEventsService returns new events service instance
-func NewEventsService(b backend.Backend) *EventsService {
+func NewEventsService(b backend.Backend, getClusterConfig getClusterConfigFunc) *EventsService {
 	return &EventsService{
-		Entry:   logrus.WithFields(logrus.Fields{trace.Component: "Events"}),
-		backend: b,
+		Entry:            logrus.WithFields(logrus.Fields{trace.Component: "Events"}),
+		backend:          b,
+		getClusterConfig: getClusterConfig,
 	}
 }
 
@@ -65,7 +66,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindStaticTokens:
 			parser = newStaticTokensParser()
 		case types.KindClusterConfig:
-			parser = newClusterConfigParser()
+			parser = newClusterConfigParser(e.getClusterConfig)
 		case types.KindClusterNetworkingConfig:
 			parser = newClusterNetworkingConfigParser()
 		case types.KindClusterAuthPreference:
@@ -118,11 +119,9 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
-		prefixes = append(prefixes, parser.prefix())
+		prefixes = append(prefixes, parser.prefixes()...)
 		parsers = append(parsers, parser)
 	}
-	// sort so that longer prefixes get first
-	sort.Slice(parsers, func(i, j int) bool { return len(parsers[i].prefix()) > len(parsers[j].prefix()) })
 	w, err := e.backend.NewWatcher(ctx, backend.Watch{
 		Name:            watch.Name,
 		Prefixes:        prefixes,
@@ -157,24 +156,27 @@ func (w *watcher) Error() error {
 	return nil
 }
 
-func (w *watcher) parseEvent(e backend.Event) (*types.Event, error) {
+func (w *watcher) parseEvent(e backend.Event) ([]types.Event, []error) {
+	if e.Type == types.OpInit {
+		return []types.Event{{Type: e.Type}}, nil
+	}
+	events := []types.Event{}
+	errs := []error{}
 	for _, p := range w.parsers {
-		if e.Type == types.OpInit {
-			return &types.Event{Type: e.Type}, nil
-		}
 		if p.match(e.Item.Key) {
 			resource, err := p.parse(e)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				errs = append(errs, trace.Wrap(err))
+				continue
 			}
 			// if resource is nil, then it was well-formed but is being filtered out.
 			if resource == nil {
-				return nil, nil
+				continue
 			}
-			return &types.Event{Type: e.Type, Resource: resource}, nil
+			events = append(events, types.Event{Type: e.Type, Resource: resource})
 		}
 	}
-	return nil, trace.NotFound("no match found for %v %v", e.Type, string(e.Item.Key))
+	return events, errs
 }
 
 func (w *watcher) forwardEvents() {
@@ -183,8 +185,8 @@ func (w *watcher) forwardEvents() {
 		case <-w.backendWatcher.Done():
 			return
 		case event := <-w.backendWatcher.Events():
-			converted, err := w.parseEvent(event)
-			if err != nil {
+			converted, errs := w.parseEvent(event)
+			for _, err := range errs {
 				// not found errors are expected, for example
 				// when namespace prefix is watched, it captures
 				// node events as well, and there could be no
@@ -192,16 +194,13 @@ func (w *watcher) forwardEvents() {
 				if !trace.IsNotFound(err) {
 					w.Warning(trace.DebugReport(err))
 				}
-				continue
 			}
-			// event is being filtered out
-			if converted == nil {
-				continue
-			}
-			select {
-			case w.eventsC <- *converted:
-			case <-w.backendWatcher.Done():
-				return
+			for _, c := range converted {
+				select {
+				case w.eventsC <- c:
+				case <-w.backendWatcher.Done():
+					return
+				}
 			}
 		}
 	}
@@ -230,28 +229,37 @@ type resourceParser interface {
 	parse(event backend.Event) (types.Resource, error)
 	// match returns true if event key matches
 	match(key []byte) bool
-	// prefix returns prefix to watch
-	prefix() []byte
+	// prefixes returns prefixes to watch
+	prefixes() [][]byte
 }
 
 // baseParser is a partial implementation of resourceParser for the most common
 // resource types (stored under a static prefix).
 type baseParser struct {
-	matchPrefix []byte
+	matchPrefixes [][]byte
 }
 
-func (p baseParser) prefix() []byte {
-	return p.matchPrefix
+func newBaseParser(prefixes ...[]byte) baseParser {
+	return baseParser{matchPrefixes: prefixes}
+}
+
+func (p baseParser) prefixes() [][]byte {
+	return p.matchPrefixes
 }
 
 func (p baseParser) match(key []byte) bool {
-	return bytes.HasPrefix(key, p.matchPrefix)
+	for _, prefix := range p.matchPrefixes {
+		if bytes.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func newCertAuthorityParser(loadSecrets bool) *certAuthorityParser {
 	return &certAuthorityParser{
 		loadSecrets: loadSecrets,
-		baseParser:  baseParser{matchPrefix: backend.Key(authoritiesPrefix)},
+		baseParser:  newBaseParser(backend.Key(authoritiesPrefix)),
 	}
 }
 
@@ -293,7 +301,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 
 func newProvisionTokenParser() *provisionTokenParser {
 	return &provisionTokenParser{
-		baseParser: baseParser{matchPrefix: backend.Key(tokensPrefix)},
+		baseParser: newBaseParser(backend.Key(tokensPrefix)),
 	}
 }
 
@@ -321,7 +329,7 @@ func (p *provisionTokenParser) parse(event backend.Event) (types.Resource, error
 
 func newStaticTokensParser() *staticTokensParser {
 	return &staticTokensParser{
-		baseParser: baseParser{matchPrefix: backend.Key(clusterConfigPrefix, staticTokensPrefix)},
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, staticTokensPrefix)),
 	}
 }
 
@@ -352,19 +360,29 @@ func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) 
 	}
 }
 
-func newClusterConfigParser() *clusterConfigParser {
+func newClusterConfigParser(getClusterConfig getClusterConfigFunc) *clusterConfigParser {
+	prefixes := [][]byte{
+		backend.Key(clusterConfigPrefix, generalPrefix),
+		backend.Key(clusterConfigPrefix, networkingPrefix),
+		backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
+	}
 	return &clusterConfigParser{
-		baseParser: baseParser{matchPrefix: backend.Key(clusterConfigPrefix, generalPrefix)},
+		baseParser:       newBaseParser(prefixes...),
+		getClusterConfig: getClusterConfig,
 	}
 }
 
 type clusterConfigParser struct {
 	baseParser
+	getClusterConfig getClusterConfigFunc
 }
 
 func (p *clusterConfigParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		if !bytes.HasPrefix(event.Item.Key, backend.Key(clusterConfigPrefix, generalPrefix)) {
+			return nil, nil
+		}
 		h, err := resourceHeader(event, types.KindClusterConfig, types.V3, 0)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -372,11 +390,11 @@ func (p *clusterConfigParser) parse(event backend.Event) (types.Resource, error)
 		h.SetName(types.MetaNameClusterConfig)
 		return h, nil
 	case types.OpPut:
-		clusterConfig, err := services.UnmarshalClusterConfig(
-			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
-			services.WithExpires(event.Item.Expires),
-		)
+		// To ensure backward compatibility, do not use the ClusterConfig
+		// resource passed with the event but perform a separate get from the
+		// backend. The resource fetched in this way is populated with all the
+		// fields expected by legacy event consumers.  DELETE IN 8.0.0
+		clusterConfig, err := p.getClusterConfig()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -388,7 +406,7 @@ func (p *clusterConfigParser) parse(event backend.Event) (types.Resource, error)
 
 func newClusterNetworkingConfigParser() *clusterNetworkingConfigParser {
 	return &clusterNetworkingConfigParser{
-		baseParser: baseParser{matchPrefix: backend.Key(clusterConfigPrefix, networkingPrefix)},
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, networkingPrefix)),
 	}
 }
 
@@ -422,7 +440,7 @@ func (p *clusterNetworkingConfigParser) parse(event backend.Event) (types.Resour
 
 func newAuthPreferenceParser() *authPreferenceParser {
 	return &authPreferenceParser{
-		baseParser: baseParser{matchPrefix: backend.Key(authPrefix, preferencePrefix, generalPrefix)},
+		baseParser: newBaseParser(backend.Key(authPrefix, preferencePrefix, generalPrefix)),
 	}
 }
 
@@ -456,7 +474,7 @@ func (p *authPreferenceParser) parse(event backend.Event) (types.Resource, error
 
 func newSessionRecordingConfigParser() *sessionRecordingConfigParser {
 	return &sessionRecordingConfigParser{
-		baseParser: baseParser{matchPrefix: backend.Key(clusterConfigPrefix, sessionRecordingPrefix)},
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, sessionRecordingPrefix)),
 	}
 }
 
@@ -490,7 +508,7 @@ func (p *sessionRecordingConfigParser) parse(event backend.Event) (types.Resourc
 
 func newClusterNameParser() *clusterNameParser {
 	return &clusterNameParser{
-		baseParser: baseParser{matchPrefix: backend.Key(clusterConfigPrefix, namePrefix)},
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, namePrefix)),
 	}
 }
 
@@ -522,13 +540,13 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 }
 
 func newNamespaceParser(name string) *namespaceParser {
-	p := &namespaceParser{}
-	if name == "" {
-		p.matchPrefix = backend.Key(namespacesPrefix)
-	} else {
-		p.matchPrefix = backend.Key(namespacesPrefix, name, paramsPrefix)
+	prefix := backend.Key(namespacesPrefix)
+	if name != "" {
+		prefix = backend.Key(namespacesPrefix, name, paramsPrefix)
 	}
-	return p
+	return &namespaceParser{
+		baseParser: newBaseParser(prefix),
+	}
 }
 
 type namespaceParser struct {
@@ -538,7 +556,7 @@ type namespaceParser struct {
 func (p *namespaceParser) match(key []byte) bool {
 	// namespaces are stored under key '/namespaces/<namespace-name>/params'
 	// and this code matches similar pattern
-	return bytes.HasPrefix(key, p.matchPrefix) &&
+	return p.baseParser.match(key) &&
 		bytes.HasSuffix(key, []byte(paramsPrefix)) &&
 		bytes.Count(key, []byte{backend.Separator}) == 3
 }
@@ -563,7 +581,7 @@ func (p *namespaceParser) parse(event backend.Event) (types.Resource, error) {
 
 func newRoleParser() *roleParser {
 	return &roleParser{
-		baseParser: baseParser{matchPrefix: backend.Key(rolesPrefix)},
+		baseParser: newBaseParser(backend.Key(rolesPrefix)),
 	}
 }
 
@@ -607,8 +625,8 @@ type accessRequestParser struct {
 	matchSuffix []byte
 }
 
-func (p *accessRequestParser) prefix() []byte {
-	return p.matchPrefix
+func (p *accessRequestParser) prefixes() [][]byte {
+	return [][]byte{p.matchPrefix}
 }
 
 func (p *accessRequestParser) match(key []byte) bool {
@@ -641,7 +659,7 @@ func (p *accessRequestParser) parse(event backend.Event) (types.Resource, error)
 
 func newUserParser() *userParser {
 	return &userParser{
-		baseParser: baseParser{matchPrefix: backend.Key(webPrefix, usersPrefix)},
+		baseParser: newBaseParser(backend.Key(webPrefix, usersPrefix)),
 	}
 }
 
@@ -652,7 +670,7 @@ type userParser struct {
 func (p *userParser) match(key []byte) bool {
 	// users are stored under key '/web/users/<username>/params'
 	// and this code matches similar pattern
-	return bytes.HasPrefix(key, p.matchPrefix) &&
+	return p.baseParser.match(key) &&
 		bytes.HasSuffix(key, []byte(paramsPrefix)) &&
 		bytes.Count(key, []byte{backend.Separator}) == 4
 }
@@ -677,7 +695,7 @@ func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 
 func newNodeParser() *nodeParser {
 	return &nodeParser{
-		baseParser: baseParser{matchPrefix: backend.Key(nodesPrefix, defaults.Namespace)},
+		baseParser: newBaseParser(backend.Key(nodesPrefix, defaults.Namespace)),
 	}
 }
 
@@ -691,7 +709,7 @@ func (p *nodeParser) parse(event backend.Event) (types.Resource, error) {
 
 func newProxyParser() *proxyParser {
 	return &proxyParser{
-		baseParser: baseParser{matchPrefix: backend.Key(proxiesPrefix)},
+		baseParser: newBaseParser(backend.Key(proxiesPrefix)),
 	}
 }
 
@@ -705,7 +723,7 @@ func (p *proxyParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAuthServerParser() *authServerParser {
 	return &authServerParser{
-		baseParser: baseParser{matchPrefix: backend.Key(authServersPrefix)},
+		baseParser: newBaseParser(backend.Key(authServersPrefix)),
 	}
 }
 
@@ -719,7 +737,7 @@ func (p *authServerParser) parse(event backend.Event) (types.Resource, error) {
 
 func newTunnelConnectionParser() *tunnelConnectionParser {
 	return &tunnelConnectionParser{
-		baseParser: baseParser{matchPrefix: backend.Key(tunnelConnectionsPrefix)},
+		baseParser: newBaseParser(backend.Key(tunnelConnectionsPrefix)),
 	}
 }
 
@@ -759,7 +777,7 @@ func (p *tunnelConnectionParser) parse(event backend.Event) (types.Resource, err
 
 func newReverseTunnelParser() *reverseTunnelParser {
 	return &reverseTunnelParser{
-		baseParser: baseParser{matchPrefix: backend.Key(reverseTunnelsPrefix)},
+		baseParser: newBaseParser(backend.Key(reverseTunnelsPrefix)),
 	}
 }
 
@@ -787,7 +805,7 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 
 func newAppServerParser() *appServerParser {
 	return &appServerParser{
-		baseParser: baseParser{matchPrefix: backend.Key(appsPrefix, serversPrefix, defaults.Namespace)},
+		baseParser: newBaseParser(backend.Key(appsPrefix, serversPrefix, defaults.Namespace)),
 	}
 }
 
@@ -801,7 +819,7 @@ func (p *appServerParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAppSessionParser() *webSessionParser {
 	return &webSessionParser{
-		baseParser: baseParser{matchPrefix: backend.Key(appsPrefix, sessionsPrefix)},
+		baseParser: newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindAppSession,
@@ -812,7 +830,7 @@ func newAppSessionParser() *webSessionParser {
 
 func newWebSessionParser() *webSessionParser {
 	return &webSessionParser{
-		baseParser: baseParser{matchPrefix: backend.Key(webPrefix, sessionsPrefix)},
+		baseParser: newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindWebSession,
@@ -846,7 +864,7 @@ func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
 
 func newWebTokenParser() *webTokenParser {
 	return &webTokenParser{
-		baseParser: baseParser{matchPrefix: backend.Key(webPrefix, tokensPrefix)},
+		baseParser: newBaseParser(backend.Key(webPrefix, tokensPrefix)),
 	}
 }
 
@@ -874,7 +892,7 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 
 func newKubeServiceParser() *kubeServiceParser {
 	return &kubeServiceParser{
-		baseParser: baseParser{matchPrefix: backend.Key(kubeServicesPrefix)},
+		baseParser: newBaseParser(backend.Key(kubeServicesPrefix)),
 	}
 }
 
@@ -888,7 +906,7 @@ func (p *kubeServiceParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDatabaseServerParser() *databaseServerParser {
 	return &databaseServerParser{
-		baseParser: baseParser{matchPrefix: backend.Key(dbServersPrefix, defaults.Namespace)},
+		baseParser: newBaseParser(backend.Key(dbServersPrefix, defaults.Namespace)),
 	}
 }
 
@@ -952,8 +970,8 @@ type remoteClusterParser struct {
 	matchPrefix []byte
 }
 
-func (p *remoteClusterParser) prefix() []byte {
-	return p.matchPrefix
+func (p *remoteClusterParser) prefixes() [][]byte {
+	return [][]byte{p.matchPrefix}
 }
 
 func (p *remoteClusterParser) match(key []byte) bool {
@@ -1080,3 +1098,7 @@ func baseTwoKeys(key []byte) (string, string, error) {
 	}
 	return string(parts[len(parts)-2]), string(parts[len(parts)-1]), nil
 }
+
+// getClusterConfigFunc gets ClusterConfig to facilitate backward compatible
+// transition to standalone configuration resources.  DELETE IN 8.0.0
+type getClusterConfigFunc func(...services.MarshalOption) (types.ClusterConfig, error)

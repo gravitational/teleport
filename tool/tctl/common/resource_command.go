@@ -83,12 +83,13 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:                  rc.createUser,
-		types.KindRole:                  rc.createRole,
-		types.KindTrustedCluster:        rc.createTrustedCluster,
-		types.KindGithubConnector:       rc.createGithubConnector,
-		types.KindCertAuthority:         rc.createCertAuthority,
-		types.KindClusterAuthPreference: rc.createAuthPreference,
+		types.KindUser:                    rc.createUser,
+		types.KindRole:                    rc.createRole,
+		types.KindTrustedCluster:          rc.createTrustedCluster,
+		types.KindGithubConnector:         rc.createGithubConnector,
+		types.KindCertAuthority:           rc.createCertAuthority,
+		types.KindClusterAuthPreference:   rc.createAuthPreference,
+		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
 	}
 	rc.config = config
 
@@ -426,15 +427,8 @@ func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw service
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	exists := storedAuthPref.Origin() != types.OriginDefaults
-	if !rc.force && exists {
-		return trace.AlreadyExists("non-default cluster auth preference already exists")
-	}
-
-	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
-	if !rc.confirm && managedByStaticConfig {
-		return trace.BadParameter(managedByStaticCreateMsg)
+	if err := checkCreateResourceWithOrigin(storedAuthPref, "cluster auth preference", rc.force, rc.confirm); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := client.SetAuthPreference(newAuthPref); err != nil {
@@ -444,9 +438,36 @@ func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw service
 	return nil
 }
 
+// createClusterNetworkingConfig implements `tctl create netconfig.yaml` command.
+func (rc *ResourceCommand) createClusterNetworkingConfig(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+
+	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkCreateResourceWithOrigin(storedNetConfig, "cluster networking configuration", rc.force, rc.confirm); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.SetClusterNetworkingConfig(ctx, newNetConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster networking configuration has been updated\n")
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
-	singletonResources := []string{types.KindClusterAuthPreference}
+	singletonResources := []string{
+		types.KindClusterAuthPreference,
+		types.KindClusterNetworkingConfig,
+	}
 	if !utils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
@@ -523,6 +544,11 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("cluster auth preference has been reset to defaults\n")
+	case types.KindClusterNetworkingConfig:
+		if err = resetClusterNetworkingConfig(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("cluster networking configuration has been reset to defaults\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -535,15 +561,26 @@ func resetAuthPreference(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	managedByStatic := storedAuthPref.Origin() == types.OriginConfigFile
-	if managedByStatic {
+	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
+	if managedByStaticConfig {
 		return trace.BadParameter(managedByStaticDeleteMsg)
 	}
 
-	if err = client.ResetAuthPreference(ctx); err != nil {
+	return trace.Wrap(client.ResetAuthPreference(ctx))
+}
+
+func resetClusterNetworkingConfig(ctx context.Context, client auth.ClientI) error {
+	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
+
+	managedByStaticConfig := storedNetConfig.Origin() == types.OriginConfigFile
+	if managedByStaticConfig {
+		return trace.BadParameter(managedByStaticDeleteMsg)
+	}
+
+	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
 }
 
 // Update updates select resource fields: expiry and labels
@@ -817,14 +854,22 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		return nil, trace.NotFound("kube_service with ID %q not found", rc.ref.Name)
 	case types.KindClusterAuthPreference:
 		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("only simple `tctl get cluster_auth_preference` can be used")
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterAuthPreference)
 		}
 		authPref, err := client.GetAuthPreference()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authPrefs := []types.AuthPreference{authPref}
-		return &authPrefCollection{authPrefs: authPrefs}, nil
+		return &authPrefCollection{authPref}, nil
+	case types.KindClusterNetworkingConfig:
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterNetworkingConfig)
+		}
+		netConfig, err := client.GetClusterNetworkingConfig(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &netConfigCollection{netConfig}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -891,8 +936,16 @@ func UpsertVerb(exists bool, force bool) string {
 	}
 }
 
-const managedByStaticCreateMsg = `This resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
+func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, force, confirm bool) error {
+	if exists := (storedRes.Origin() != types.OriginDefaults); exists && !force {
+		return trace.AlreadyExists("non-default %s already exists", resDesc)
+	}
+	if managedByStatic := (storedRes.Origin() == types.OriginConfigFile); managedByStatic && !confirm {
+		return trace.BadParameter(`The %s resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
 
-If you would still like to proceed, re-run the command with both --force and --confirm flags.`
+If you would still like to proceed, re-run the command with both --force and --confirm flags.`, resDesc)
+	}
+	return nil
+}
 
 const managedByStaticDeleteMsg = `This resource is managed by static configuration. In order to reset it to defaults, remove relevant configuration from teleport.yaml and restart the servers.`
