@@ -1726,6 +1726,16 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "logins which to not match regexp get filtered out",
+			inTraits: map[string][]string{
+				"foo": {"dev-alice", "dev-bob", "prod-charlie"},
+			},
+			allow: rule{
+				inLogins:  []string{`{{regexp.replace(external.foo, "^dev-([a-zA-Z]+)$", "$1-admin")}}`},
+				outLogins: []string{"alice-admin", "bob-admin"},
+			},
+		},
+		{
 			comment: "variable in logins, none in traits",
 			inTraits: map[string][]string{
 				"foo": {"bar"},

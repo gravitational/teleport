@@ -90,6 +90,10 @@ func newRegexpReplaceTransformer(expression, replacement string) (*regexpReplace
 
 // transform applies the regexp replacement (with expansion)
 func (r regexpReplaceTransformer) transform(in string) (string, error) {
+	// filter out inputs which to not match the regexp at all
+	if !r.re.MatchString(in) {
+		return "", nil
+	}
 	return r.re.ReplaceAllString(in, r.replacement), nil
 }
 
@@ -114,7 +118,7 @@ func (p *Expression) Interpolate(traits map[string][]string) ([]string, error) {
 	if !ok {
 		return nil, trace.NotFound("variable is not found")
 	}
-	out := make([]string, len(values))
+	var out []string
 	for i := range values {
 		val := values[i]
 		var err error
@@ -124,7 +128,9 @@ func (p *Expression) Interpolate(traits map[string][]string) ([]string, error) {
 				return nil, trace.Wrap(err)
 			}
 		}
-		out[i] = p.prefix + val + p.suffix
+		if len(val) > 0 {
+			out = append(out, p.prefix+val+p.suffix)
+		}
 	}
 	return out, nil
 }

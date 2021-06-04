@@ -236,12 +236,12 @@ func TestInterpolate(t *testing.T) {
 			in: Expression{
 				variable: "foo",
 				transform: regexpReplaceTransformer{
-					re:          regexp.MustCompile("bar-(.*)"),
-					replacement: "$1",
+					re:          regexp.MustCompile("^bar-(.*)$"),
+					replacement: "$1-matched",
 				},
 			},
-			traits: map[string][]string{"foo": []string{"foo-baz"}},
-			res:    result{values: []string{"foo-baz"}},
+			traits: map[string][]string{"foo": []string{"foo-test1", "bar-test2"}},
+			res:    result{values: []string{"test2-matched"}},
 		},
 	}
 
