@@ -153,7 +153,7 @@ teleport:
   - teleport.example.com:3080
 app_service:
     enabled: yes
-    # Teleport provides a small debug app that can be used to make sure  application
+    # Teleport provides a small debug app that can be used to make sure application
     # access is working correctly. It'll output JWTs so it can be useful
     # when extending your application.
     debug_app: true
@@ -247,7 +247,7 @@ The URI should be updated to include the subdirectory:
   public_addr: "k8s.example.com"
 ```
 
-### Rewrite Redirect
+### Rewrite redirect
 
 To support web apps that perform internal redirects, application access
 provides an option to rewrite the hostname of the `Location` header on
@@ -265,7 +265,7 @@ redirect responses to the application's public address:
     - "jenkins.internal.dev"
 ```
 
-### Headers Passthrough
+### Headers passthrough
 
 You can configure application access to inject additional headers in the
 requests forwarded to a web application.
@@ -294,11 +294,11 @@ In the example above, `X-Internal-Trait` header will be populated with the value
 of internal user trait `logins` and `X-External-Trait` header will get the value
 of the user's external `env` trait coming from the identity provider.
 
-## View Applications in Teleport
+## View applications in Teleport
 
 Teleport provides a UI for quickly launching connected applications.
 
-They can be viewed by navigating to a cluster's web UI and selecting the Applications tab.
+They can be viewed by navigating to a cluster's web UI and selecting the "Applications" tab.
 The URL structure looks like this:
 
 - `https://[cluster-url:cluster-port]/web/cluster/[cluster-name]/apps`
