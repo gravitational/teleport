@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -101,6 +102,14 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	var err error
 	var checkpoint string
 
+	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 100, checkpoint)
+		return err
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(arr, check.HasLen, 4)
+	c.Assert(checkpoint, check.Equals, "")
+
 	for _, name := range names {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
 		c.Assert(err, check.IsNil)
@@ -109,8 +118,13 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 		c.Assert(ok, check.Equals, true)
 		c.Assert(name, check.Equals, event.User)
 	}
+	if checkpoint != "" {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 0)
+	}
+	c.Assert(checkpoint, check.Equals, "")
 
-	checkpoint = ""
 	for _, i := range []int{0, 2} {
 		nameA := names[i]
 		nameB := names[i+1]
@@ -124,6 +138,12 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 		c.Assert(nameA, check.Equals, eventA.User)
 		c.Assert(nameB, check.Equals, eventB.User)
 	}
+	if checkpoint != "" {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 0)
+	}
+	c.Assert(checkpoint, check.Equals, "")
 }
 
 // SessionEventsCRUD covers session events
@@ -142,7 +162,12 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		time.Sleep(s.QueryDelay)
 	}
 
-	history, _, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, "")
+	var history []events.AuditEvent
+
+	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, "")
+		return err
+	})
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 1)
 

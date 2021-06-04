@@ -536,7 +536,12 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		eventArr = append(eventArr, event)
 	}
 
-	return eventArr, fmt.Sprintf("%d", lastKey), nil
+	var lastKeyString string
+	if lastKey != 0 {
+		lastKeyString = fmt.Sprintf("%d", lastKey)
+	}
+
+	return eventArr, lastKeyString, nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to

@@ -18,6 +18,7 @@ package utils
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -70,4 +71,27 @@ func kernelVersion(reader io.Reader) (*semver.Version, error) {
 	}
 
 	return ver, nil
+}
+
+const btfFile = "/sys/kernel/btf/vmlinux"
+
+// HasBTF checks that the kernel has been compiled with BTF support and
+// that the type information can be opened. Returns nil if BTF is there
+// and accessible, otherwise an error describing the problem.
+func HasBTF() error {
+	if runtime.GOOS != teleport.LinuxOS {
+		return trace.BadParameter("requested kernel version on non-Linux host")
+	}
+
+	file, err := os.Open(btfFile)
+	if err == nil {
+		file.Close()
+		return nil
+	}
+
+	if os.IsNotExist(err) {
+		return fmt.Errorf("%v was not found. Make sure the kernel was compiled with BTF support (CONFIG_DEBUG_INFO_BTF)", btfFile)
+	}
+
+	return fmt.Errorf("failed to open %v: %v", btfFile, err)
 }
