@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import styled from 'styled-components';
 import React from 'react';
-import { Box, Flex, Text } from 'design';
-import { SelectAsync } from 'shared/components/Select';
 import { components } from 'react-select';
+import styled from 'styled-components';
+import { Box, Flex, Text } from 'design';
+import { SelectAsync, DarkStyledSelect } from 'shared/components/Select';
 
 const ValueContainer = ({ children, ...props }) => (
   <components.ValueContainer {...props}>
@@ -114,53 +114,8 @@ function filterOptions(value = '', options: Option[] = []) {
 
 type Option = { value: string; label: string };
 
-const StyledSelect = styled(Box)(
-  ({ theme }) => `
-  .react-select__control,
-  .react-select__control--is-focused {
-    border-color: #FFF;
-    height: 34px;
-    min-height: 34px;
-  }
-
-  .react-select__option {
-    padding: 4px 12px;
-  }
-  .react-select__option--is-focused,
-  .react-select__option--is-focused:active {
-    background-color: ${theme.colors.grey[50]};
-  }
-
-  .react-select__menu {
-    margin-top: 0px;
-    font-size: 14px;
-  }
-
-  react-select__menu-list {
-  }
-
-  .react-select__indicator-separator {
-    display: none;
-  }
-
-  .react-select__value-container{
-    height: 30px;
-    padding: 0 8px;
-  }
-
-  .react-select__option--is-selected {
-    background-color: inherit;
-    color: inherit;
-  }
-
-  .react-select__option--is-focused {
-    background-color: #cfd8dc;
-    color: inherit;
-  }
-
-  .react-select__single-value{
-    color: white;
-    font-size: 14px;
+const StyledSelect = styled(DarkStyledSelect)`
+  .react-select__single-value {
     transform: none;
     position: absolute;
     left: 78px;
@@ -168,65 +123,4 @@ const StyledSelect = styled(Box)(
     width: 270px;
     text-overflow: ellipsis;
   }
-
-  .react-select__dropdown-indicator{
-    padding: 4px 8px;
-    color: ${theme.colors.text.secondary};
-  }
-
-  input {
-    font-family: ${theme.font};
-    font-size: 14px;
-    height: 26px;
-  }
-
-  .react-select__input {
-    color: white;
-    height: 20px;
-    font-size: 14px;
-    font-family: ${theme.font};
-  }
-
-  .react-select__control {
-    border-radius: 4px;
-    border-color: rgba(255, 255, 255, 0.24);
-    background-color: ${theme.colors.primary.dark};
-    color: ${theme.colors.text.secondary};
-
-    &:focus, &:active {
-      background-color: ${theme.colors.primary.lighter};
-    }
-
-    &:hover {
-      border-color: rgba(255, 255, 255, 0.24);
-      background-color: ${theme.colors.primary.lighter};
-      .react-select__dropdown-indicator{
-        color: ${theme.colors.text.primary};
-      }
-    }
-  }
-
-  .react-select__control--is-focused {
-    background-color: ${theme.colors.primary.lighter};
-    border-color: transparent;
-    border-radius: 4px;
-    border-style: solid;
-    border-width: 1px;
-    box-shadow: none;
-    border-color: rgba(255, 255, 255, 0.24);
-
-    .react-select__dropdown-indicator{
-      color: ${theme.colors.text.secondary};
-    }
-  }
-
-  .react-select__menu {
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
-  }
-
-  .react-select__loading-indicator{
-    display: none;
-  }
-`
-);
+`;

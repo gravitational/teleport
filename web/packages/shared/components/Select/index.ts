@@ -15,7 +15,8 @@ limitations under the License.
 */
 
 import Select, { SelectAsync } from './Select';
+import DarkStyledSelect from './DarkStyledSelect';
 
 export * from './types';
 export default Select;
-export { SelectAsync };
+export { SelectAsync, DarkStyledSelect };
