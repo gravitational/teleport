@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -37,7 +38,7 @@ type ChangePasswordWithTokenRequest struct {
 }
 
 // ChangePasswordWithToken changes password with token
-func (s *Server) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
+func (s *Server) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
 	user, err := s.changePasswordWithToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -146,12 +147,12 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 		return trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.UserPasswordChange{
-		Metadata: events.Metadata{
+	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.UserPasswordChange{
+		Metadata: apievents.Metadata{
 			Type: events.UserPasswordChangeEvent,
 			Code: events.UserPasswordChangeCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: userID,
 		},
 	}); err != nil {
@@ -346,7 +347,7 @@ func (s *Server) getOTPType(user string) (teleport.OTPType, error) {
 	return teleport.HOTP, nil
 }
 
-func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.User, error) {
+func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.User, error) {
 	// Get cluster configuration and check if local auth is allowed.
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
@@ -398,7 +399,7 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	return user, nil
 }
 
-func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, token services.ResetPasswordToken) error {
+func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, token types.ResetPasswordToken) error {
 	username := token.GetUser()
 	cap, err := s.GetAuthPreference()
 	if err != nil {

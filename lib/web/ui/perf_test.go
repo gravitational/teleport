@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -92,9 +93,9 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 			svc := local.NewPresenceService(bk)
 
 			// seed the test nodes
-			insertServers(ctx, b, svc, services.KindNode, tt.nodes)
-			insertServers(ctx, b, svc, services.KindProxy, proxyCount)
-			insertServers(ctx, b, svc, services.KindAuthServer, authCount)
+			insertServers(ctx, b, svc, types.KindNode, tt.nodes)
+			insertServers(ctx, b, svc, types.KindProxy, proxyCount)
+			insertServers(ctx, b, svc, types.KindAuthServer, authCount)
 
 			site := &mockRemoteSite{
 				accessPoint: &mockAccessPoint{
@@ -121,15 +122,15 @@ func insertServers(ctx context.Context, t assert.TestingT, svc services.Presence
 	for i := 0; i < count; i++ {
 		name := uuid.New()
 		addr := fmt.Sprintf("%s.%s", name, clusterName)
-		server := &services.ServerV2{
+		server := &types.ServerV2{
 			Kind:    kind,
-			Version: services.V2,
-			Metadata: services.Metadata{
+			Version: types.V2,
+			Metadata: types.Metadata{
 				Name:      name,
 				Namespace: defaults.Namespace,
 				Labels:    labels,
 			},
-			Spec: services.ServerSpecV2{
+			Spec: types.ServerSpecV2{
 				Addr:       addr,
 				PublicAddr: addr,
 				Version:    teleport.Version,
@@ -137,11 +138,11 @@ func insertServers(ctx context.Context, t assert.TestingT, svc services.Presence
 		}
 		var err error
 		switch kind {
-		case services.KindNode:
+		case types.KindNode:
 			_, err = svc.UpsertNode(ctx, server)
-		case services.KindProxy:
+		case types.KindProxy:
 			err = svc.UpsertProxy(server)
-		case services.KindAuthServer:
+		case types.KindAuthServer:
 			err = svc.UpsertAuthServer(server)
 		default:
 			t.Errorf("Unexpected server kind: %s", kind)
@@ -187,14 +188,14 @@ type mockAccessPoint struct {
 	presence *local.PresenceService
 }
 
-func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	return m.presence.GetNodes(ctx, namespace, opts...)
 }
 
-func (m *mockAccessPoint) GetProxies() ([]services.Server, error) {
+func (m *mockAccessPoint) GetProxies() ([]types.Server, error) {
 	return m.presence.GetProxies()
 }
 
-func (m *mockAccessPoint) GetAuthServers() ([]services.Server, error) {
+func (m *mockAccessPoint) GetAuthServers() ([]types.Server, error) {
 	return m.presence.GetAuthServers()
 }

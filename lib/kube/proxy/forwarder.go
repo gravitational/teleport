@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -300,8 +301,8 @@ func (c *authContext) key() string {
 	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.disconnectExpiredCert.UTC().Unix())
 }
 
-func (c *authContext) eventClusterMeta() events.KubernetesClusterMetadata {
-	return events.KubernetesClusterMetadata{
+func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
+	return apievents.KubernetesClusterMetadata{
 		KubernetesCluster: c.kubeCluster,
 		KubernetesUsers:   utils.StringsSliceFromSet(c.kubeUsers),
 		KubernetesGroups:  utils.StringsSliceFromSet(c.kubeGroups),
@@ -516,7 +517,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			return targetCluster.DialTCP(reversetunnel.DialParams{
 				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
-				ConnType: services.KubeTunnel,
+				ConnType: types.KubeTunnel,
 				ServerID: serverID,
 			})
 		}
@@ -535,7 +536,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			return localCluster.DialTCP(reversetunnel.DialParams{
 				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
-				ConnType: services.KubeTunnel,
+				ConnType: types.KubeTunnel,
 				ServerID: serverID,
 			})
 		}
@@ -710,7 +711,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
 
 	var recorder events.SessionRecorder
-	var emitter events.Emitter
+	var emitter apievents.Emitter
 	sessionID := session.NewID()
 	if sess.noAuditEvents {
 		// All events should be recorded by kubernetes_service and not proxy_service
@@ -734,7 +735,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			SessionID:    sessionID,
 			ServerID:     f.cfg.ServerID,
 			Namespace:    f.cfg.Namespace,
-			RecordOutput: ctx.recordingConfig.GetMode() != services.RecordOff,
+			RecordOutput: ctx.recordingConfig.GetMode() != types.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
 			ClusterName:  f.cfg.ClusterName,
 		})
@@ -749,24 +750,24 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				H: int(resize.Height),
 			}
 			// Build the resize event.
-			resizeEvent := &events.Resize{
-				Metadata: events.Metadata{
+			resizeEvent := &apievents.Resize{
+				Metadata: apievents.Metadata{
 					Type:        events.ResizeEvent,
 					Code:        events.TerminalResizeCode,
 					ClusterName: f.cfg.ClusterName,
 				},
-				ConnectionMetadata: events.ConnectionMetadata{
+				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					Protocol:   events.EventProtocolKube,
 				},
-				ServerMetadata: events.ServerMetadata{
+				ServerMetadata: apievents.ServerMetadata{
 					ServerNamespace: f.cfg.Namespace,
 				},
-				SessionMetadata: events.SessionMetadata{
+				SessionMetadata: apievents.SessionMetadata{
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: events.UserMetadata{
+				UserMetadata: apievents.UserMetadata{
 					User:         ctx.User.GetName(),
 					Login:        ctx.User.GetName(),
 					Impersonator: ctx.Identity.GetIdentity().Impersonator,
@@ -793,28 +794,28 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			W: 100,
 			H: 100,
 		}
-		sessionStartEvent := &events.SessionStart{
-			Metadata: events.Metadata{
+		sessionStartEvent := &apievents.SessionStart{
+			Metadata: apievents.Metadata{
 				Type:        events.SessionStartEvent,
 				Code:        events.SessionStartCode,
 				ClusterName: f.cfg.ClusterName,
 			},
-			ServerMetadata: events.ServerMetadata{
+			ServerMetadata: apievents.ServerMetadata{
 				ServerID:        f.cfg.ServerID,
 				ServerNamespace: f.cfg.Namespace,
 				ServerHostname:  sess.teleportCluster.name,
 				ServerAddr:      sess.teleportCluster.targetAddr,
 			},
-			SessionMetadata: events.SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(sessionID),
 				WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 			},
-			UserMetadata: events.UserMetadata{
+			UserMetadata: apievents.UserMetadata{
 				User:         ctx.User.GetName(),
 				Login:        ctx.User.GetName(),
 				Impersonator: ctx.Identity.GetIdentity().Impersonator,
 			},
-			ConnectionMetadata: events.ConnectionMetadata{
+			ConnectionMetadata: apievents.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
 				LocalAddr:  sess.teleportCluster.targetAddr,
 				Protocol:   events.EventProtocolKube,
@@ -877,26 +878,26 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		}
 
 		if request.tty {
-			sessionDataEvent := &events.SessionData{
-				Metadata: events.Metadata{
+			sessionDataEvent := &apievents.SessionData{
+				Metadata: apievents.Metadata{
 					Type:        events.SessionDataEvent,
 					Code:        events.SessionDataCode,
 					ClusterName: f.cfg.ClusterName,
 				},
-				ServerMetadata: events.ServerMetadata{
+				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        f.cfg.ServerID,
 					ServerNamespace: f.cfg.Namespace,
 				},
-				SessionMetadata: events.SessionMetadata{
+				SessionMetadata: apievents.SessionMetadata{
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: events.UserMetadata{
+				UserMetadata: apievents.UserMetadata{
 					User:         ctx.User.GetName(),
 					Login:        ctx.User.GetName(),
 					Impersonator: ctx.Identity.GetIdentity().Impersonator,
 				},
-				ConnectionMetadata: events.ConnectionMetadata{
+				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.teleportCluster.targetAddr,
 					Protocol:   events.EventProtocolKube,
@@ -909,26 +910,26 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			if err := emitter.EmitAuditEvent(f.ctx, sessionDataEvent); err != nil {
 				f.log.WithError(err).Warn("Failed to emit session data event.")
 			}
-			sessionEndEvent := &events.SessionEnd{
-				Metadata: events.Metadata{
+			sessionEndEvent := &apievents.SessionEnd{
+				Metadata: apievents.Metadata{
 					Type:        events.SessionEndEvent,
 					Code:        events.SessionEndCode,
 					ClusterName: f.cfg.ClusterName,
 				},
-				ServerMetadata: events.ServerMetadata{
+				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        f.cfg.ServerID,
 					ServerNamespace: f.cfg.Namespace,
 				},
-				SessionMetadata: events.SessionMetadata{
+				SessionMetadata: apievents.SessionMetadata{
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: events.UserMetadata{
+				UserMetadata: apievents.UserMetadata{
 					User:         ctx.User.GetName(),
 					Login:        ctx.User.GetName(),
 					Impersonator: ctx.Identity.GetIdentity().Impersonator,
 				},
-				ConnectionMetadata: events.ConnectionMetadata{
+				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.teleportCluster.targetAddr,
 					Protocol:   events.EventProtocolKube,
@@ -948,30 +949,30 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			}
 		} else {
 			// send an exec event
-			execEvent := &events.Exec{
-				Metadata: events.Metadata{
+			execEvent := &apievents.Exec{
+				Metadata: apievents.Metadata{
 					Type:        events.ExecEvent,
 					ClusterName: f.cfg.ClusterName,
 				},
-				ServerMetadata: events.ServerMetadata{
+				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        f.cfg.ServerID,
 					ServerNamespace: f.cfg.Namespace,
 				},
-				SessionMetadata: events.SessionMetadata{
+				SessionMetadata: apievents.SessionMetadata{
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: events.UserMetadata{
+				UserMetadata: apievents.UserMetadata{
 					User:         ctx.User.GetName(),
 					Login:        ctx.User.GetName(),
 					Impersonator: ctx.Identity.GetIdentity().Impersonator,
 				},
-				ConnectionMetadata: events.ConnectionMetadata{
+				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.teleportCluster.targetAddr,
 					Protocol:   events.EventProtocolKube,
 				},
-				CommandMetadata: events.CommandMetadata{
+				CommandMetadata: apievents.CommandMetadata{
 					Command: strings.Join(request.cmd, " "),
 				},
 				KubernetesClusterMetadata: ctx.eventClusterMeta(),
@@ -1025,23 +1026,23 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		if sess.noAuditEvents {
 			return
 		}
-		portForward := &events.PortForward{
-			Metadata: events.Metadata{
+		portForward := &apievents.PortForward{
+			Metadata: apievents.Metadata{
 				Type: events.PortForwardEvent,
 				Code: events.PortForwardCode,
 			},
-			UserMetadata: events.UserMetadata{
+			UserMetadata: apievents.UserMetadata{
 				Login:        ctx.User.GetName(),
 				User:         ctx.User.GetName(),
 				Impersonator: ctx.Identity.GetIdentity().Impersonator,
 			},
-			ConnectionMetadata: events.ConnectionMetadata{
+			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  sess.teleportCluster.targetAddr,
 				RemoteAddr: req.RemoteAddr,
 				Protocol:   events.EventProtocolKube,
 			},
 			Addr: addr,
-			Status: events.Status{
+			Status: apievents.Status{
 				Success: success,
 			},
 		}
@@ -1216,22 +1217,22 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 	}
 
 	// Emit audit event.
-	event := &events.KubeRequest{
-		Metadata: events.Metadata{
+	event := &apievents.KubeRequest{
+		Metadata: apievents.Metadata{
 			Type: events.KubeRequestEvent,
 			Code: events.KubeRequestCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ctx.User.GetName(),
 			Login:        ctx.User.GetName(),
 			Impersonator: ctx.Identity.GetIdentity().Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: req.RemoteAddr,
 			LocalAddr:  sess.teleportCluster.targetAddr,
 			Protocol:   events.EventProtocolKube,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        f.cfg.ServerID,
 			ServerNamespace: f.cfg.Namespace,
 		},
@@ -1401,7 +1402,7 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 		return f.newClusterSessionLocal(ctx)
 	}
 	// Validate that the requested kube cluster is registered.
-	var endpoints []services.Server
+	var endpoints []types.Server
 outer:
 	for _, s := range kubeServices {
 		for _, k := range s.GetKubernetesClusters() {
@@ -1470,7 +1471,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 	return sess, nil
 }
 
-func (f *Forwarder) newClusterSessionDirect(ctx authContext, kubeService services.Server) (*clusterSession, error) {
+func (f *Forwarder) newClusterSessionDirect(ctx authContext, kubeService types.Server) (*clusterSession, error) {
 	f.log.WithFields(log.Fields{
 		"kubernetes_service.name": kubeService.GetName(),
 		"kubernetes_service.addr": kubeService.GetAddr(),
@@ -1682,15 +1683,15 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-func (f *Forwarder) kubeClusters() []*services.KubernetesCluster {
-	var dynLabels map[string]services.CommandLabelV2
+func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
+	var dynLabels map[string]types.CommandLabelV2
 	if f.cfg.DynamicLabels != nil {
-		dynLabels = services.LabelsToV2(f.cfg.DynamicLabels.Get())
+		dynLabels = types.LabelsToV2(f.cfg.DynamicLabels.Get())
 	}
 
-	res := make([]*services.KubernetesCluster, 0, len(f.creds))
+	res := make([]*types.KubernetesCluster, 0, len(f.creds))
 	for n := range f.creds {
-		res = append(res, &services.KubernetesCluster{
+		res = append(res, &types.KubernetesCluster{
 			Name:          n,
 			StaticLabels:  f.cfg.StaticLabels,
 			DynamicLabels: dynLabels,

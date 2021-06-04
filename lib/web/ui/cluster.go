@@ -21,6 +21,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -71,7 +72,7 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 }
 
 // NewClustersFromRemote creates a slice of Cluster's, containing data about each cluster.
-func NewClustersFromRemote(remoteClusters []services.RemoteCluster) ([]Cluster, error) {
+func NewClustersFromRemote(remoteClusters []types.RemoteCluster) ([]Cluster, error) {
 	clusters := make([]Cluster, 0, len(remoteClusters))
 	for _, rc := range remoteClusters {
 		cluster := Cluster{
