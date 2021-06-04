@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -82,7 +83,7 @@ func (l *AuditLog) EmitAuditEventLegacy(event events.Event, fields events.EventF
 }
 
 // EmitAuditEvent emits the specified event.
-func (l *AuditLog) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return trace.Wrap(l.Inner.EmitAuditEvent(ctx, event))
 }
 
@@ -116,12 +117,12 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, after int,
 	return events, trace.Wrap(err)
 }
 
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	events, lastKey, err := l.Inner.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
 	return events, lastKey, trace.Wrap(err)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	events, lastKey, err := l.Inner.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
 	return events, lastKey, trace.Wrap(err)
 }

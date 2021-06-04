@@ -8,7 +8,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 
@@ -20,24 +19,24 @@ func TestUsageReport(t *testing.T) {
 	m, err := createReporterMocks()
 	require.Nil(t, err)
 
-	m.apiGetters.MockedGetNodes = func() ([]services.Server, error) {
-		return []services.Server{&services.ServerV2{}}, nil
+	m.apiGetters.MockedGetNodes = func() ([]types.Server, error) {
+		return []types.Server{&types.ServerV2{}}, nil
 	}
 
-	m.apiGetters.MockedGetUsers = func() ([]services.User, error) {
-		return []services.User{&services.UserV2{}}, nil
+	m.apiGetters.MockedGetUsers = func() ([]types.User, error) {
+		return []types.User{&types.UserV2{}}, nil
 	}
 
-	m.apiGetters.MockedGetAppServers = func() ([]services.Server, error) {
-		return []services.Server{&services.ServerV2{
-			Spec: services.ServerSpecV2{
-				Apps: []*services.App{{}},
+	m.apiGetters.MockedGetAppServers = func() ([]types.Server, error) {
+		return []types.Server{&types.ServerV2{
+			Spec: types.ServerSpecV2{
+				Apps: []*types.App{{}},
 			},
 		}}, nil
 	}
 
-	m.apiGetters.MockedGetKubeServices = func() ([]services.Server, error) {
-		return []services.Server{&services.ServerV2{}}, nil
+	m.apiGetters.MockedGetKubeServices = func() ([]types.Server, error) {
+		return []types.Server{&types.ServerV2{}}, nil
 	}
 
 	m.apiGetters.MockedGetDatabaseServers = func() ([]types.DatabaseServer, error) {
@@ -74,19 +73,19 @@ func TestErrors(t *testing.T) {
 	m, err := createReporterMocks()
 	require.Nil(t, err)
 
-	m.apiGetters.MockedGetNodes = func() ([]services.Server, error) {
+	m.apiGetters.MockedGetNodes = func() ([]types.Server, error) {
 		return nil, trace.BadParameter("unable to return servers")
 	}
 
-	m.apiGetters.MockedGetUsers = func() ([]services.User, error) {
+	m.apiGetters.MockedGetUsers = func() ([]types.User, error) {
 		return nil, trace.BadParameter("unable to return users")
 	}
 
-	m.apiGetters.MockedGetAppServers = func() ([]services.Server, error) {
+	m.apiGetters.MockedGetAppServers = func() ([]types.Server, error) {
 		return nil, trace.BadParameter("unable to return apps")
 	}
 
-	m.apiGetters.MockedGetKubeServices = func() ([]services.Server, error) {
+	m.apiGetters.MockedGetKubeServices = func() ([]types.Server, error) {
 		return nil, trace.BadParameter("unable to return kube servers")
 	}
 

@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -56,16 +56,16 @@ func (s *IntSuite) init(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	server := &services.ServerV2{
-		Metadata: services.Metadata{
+	server := &types.ServerV2{
+		Metadata: types.Metadata{
 			Name: "server",
 		},
-		Kind:    services.KindNode,
-		Version: services.V2,
+		Kind:    types.KindNode,
+		Version: types.V2,
 	}
 	server.SetNamespace(ClusterID)
 
-	namespace := &services.Namespace{}
+	namespace := &types.Namespace{}
 	namespace.SetName(ClusterID)
 
 	presence := local.NewPresenceService(backend)

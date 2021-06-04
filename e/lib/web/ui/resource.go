@@ -1,14 +1,14 @@
 package ui
 
 import (
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
 )
 
 // NewOIDCConnectors creates resource item for each given OIDC connector.
-func NewOIDCConnectors(connectors []services.OIDCConnector) ([]ui.ResourceItem, error) {
+func NewOIDCConnectors(connectors []types.OIDCConnector) ([]ui.ResourceItem, error) {
 	items := make([]ui.ResourceItem, 0, len(connectors))
 	for _, oidc := range connectors {
 		item, err := ui.NewResourceItem(oidc)
@@ -23,7 +23,7 @@ func NewOIDCConnectors(connectors []services.OIDCConnector) ([]ui.ResourceItem, 
 }
 
 // NewSAMLConnectors creates resource item for each given SAML connector.
-func NewSAMLConnectors(connectors []services.SAMLConnector) ([]ui.ResourceItem, error) {
+func NewSAMLConnectors(connectors []types.SAMLConnector) ([]ui.ResourceItem, error) {
 	items := make([]ui.ResourceItem, 0, len(connectors))
 	for _, saml := range connectors {
 		item, err := ui.NewResourceItem(saml)

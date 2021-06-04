@@ -31,7 +31,7 @@ type MockedResourceGetter struct {
 	MockedGetAppServers      func() ([]types.Server, error)
 }
 
-func (g *MockedResourceGetter) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (g *MockedResourceGetter) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if g.MockedGetNodes != nil {
 		return g.MockedGetNodes()
 	}
@@ -47,7 +47,7 @@ func (g *MockedResourceGetter) GetDatabaseServers(ctx context.Context, namespace
 	return nil, trace.NotImplemented("GetDatabaseServers is not implemented")
 
 }
-func (g *MockedResourceGetter) GetUsers(withSecrets bool) ([]services.User, error) {
+func (g *MockedResourceGetter) GetUsers(withSecrets bool) ([]types.User, error) {
 	if g.MockedGetUsers != nil {
 		return g.MockedGetUsers()
 	}
@@ -55,7 +55,7 @@ func (g *MockedResourceGetter) GetUsers(withSecrets bool) ([]services.User, erro
 	return nil, trace.NotImplemented("GetUsers is not implemented")
 }
 
-func (g *MockedResourceGetter) GetKubeServices(context.Context) ([]services.Server, error) {
+func (g *MockedResourceGetter) GetKubeServices(context.Context) ([]types.Server, error) {
 	if g.MockedGetKubeServices != nil {
 		return g.MockedGetKubeServices()
 	}
@@ -63,7 +63,7 @@ func (g *MockedResourceGetter) GetKubeServices(context.Context) ([]services.Serv
 	return nil, trace.NotImplemented("GetKubeServices is not implemented")
 }
 
-func (g *MockedResourceGetter) GetAppServers(context.Context, string, ...services.MarshalOption) ([]services.Server, error) {
+func (g *MockedResourceGetter) GetAppServers(context.Context, string, ...services.MarshalOption) ([]types.Server, error) {
 	if g.MockedGetAppServers != nil {
 		return g.MockedGetAppServers()
 	}

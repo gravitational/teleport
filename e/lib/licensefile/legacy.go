@@ -3,9 +3,9 @@ package licensefile
 import (
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/constants"
 
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 )
 
@@ -22,9 +22,9 @@ type LegacyLicense struct {
 }
 
 // ToV3 converts LegacyLicense to V3 version
-func (l *LegacyLicense) ToV3() (services.License, error) {
+func (l *LegacyLicense) ToV3() (types.License, error) {
 	// if it's a legacy license, implement migration to the new version
-	licenseV3, err := services.NewLicense(l.ProductName, services.LicenseSpecV3{})
+	licenseV3, err := types.NewLicense(l.ProductName, types.LicenseSpecV3{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -33,7 +33,7 @@ func (l *LegacyLicense) ToV3() (services.License, error) {
 	// Pro and Business plans are the same in the way
 	// that they only turn on tracking
 	case constants.ProPlan, constants.BusinessPlan:
-		licenseV3.SetReportsUsage(services.NewBool(true))
+		licenseV3.SetReportsUsage(types.NewBool(true))
 		return licenseV3, nil
 	case constants.EnterprisePlan:
 		// old enterprise plan allows everything except kubernetes

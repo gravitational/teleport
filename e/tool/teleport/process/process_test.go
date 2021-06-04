@@ -3,6 +3,7 @@ package process
 import (
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/service"
@@ -32,7 +33,7 @@ func TestProxyWithoutLicense(t *testing.T) {
 }
 
 func TestMissingLicenseError(t *testing.T) {
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type: "local",
 	})
 	require.Nil(t, err)

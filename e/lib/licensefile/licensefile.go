@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/aws"
 	"github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -18,7 +19,7 @@ type LicenseFile struct {
 	// KeyPair is the license key pair
 	KeyPair *liblicense.License
 	// License is the instance of the license
-	License services.License
+	License types.License
 }
 
 // ReadAndActivate reads and activates a license from the file
@@ -50,7 +51,7 @@ func ReadAndActivate(filePath string) (*LicenseFile, error) {
 
 // FromPEM parses PEM and creates an instance of LicenseFile
 func FromPEM(pem []byte) (*LicenseFile, error) {
-	var license services.License
+	var license types.License
 	licenseKeyPair, err := liblicense.ParseLicensePEM(pem)
 	if err != nil {
 		return nil, trace.Wrap(err)

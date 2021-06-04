@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/reporting/types"
+	reporting "github.com/gravitational/reporting/types"
 	"github.com/jonboulle/clockwork"
 	check "gopkg.in/check.v1"
 )
@@ -45,15 +45,15 @@ func (s *EnforcerSuite) SetUpSuite(c *check.C) {
 
 	presence := local.NewPresenceService(backend)
 
-	namespace := &services.Namespace{}
+	namespace := &types.Namespace{}
 	namespace.SetName(clusterID)
 	err = presence.UpsertNamespace(*namespace)
 	c.Assert(err, check.IsNil)
 
-	server := &services.ServerV2{
-		Metadata: services.Metadata{Name: "foo"},
-		Kind:     services.KindNode,
-		Version:  services.V2,
+	server := &types.ServerV2{
+		Metadata: types.Metadata{Name: "foo"},
+		Kind:     types.KindNode,
+		Version:  types.V2,
 	}
 	server.SetNamespace(clusterID)
 	_, err = presence.UpsertNode(ctx, server)
@@ -70,16 +70,16 @@ func (s *EnforcerSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *EnforcerSuite) TestEnforcer(c *check.C) {
-	h := types.NewHeartbeat(
-		types.Notification{
-			Type:     types.NotificationUsage,
-			Severity: types.SeverityWarning,
+	h := reporting.NewHeartbeat(
+		reporting.Notification{
+			Type:     reporting.NotificationUsage,
+			Severity: reporting.SeverityWarning,
 			Text:     "Usage limit exceeded",
 			HTML:     "<div>Usage limit exceeded</div>",
 		},
-		types.Notification{
-			Type:     types.NotificationTerms,
-			Severity: types.SeverityError,
+		reporting.Notification{
+			Type:     reporting.NotificationTerms,
+			Severity: reporting.SeverityError,
 			Text:     "Terms of service violation",
 			HTML:     "<div>Terms of service violation</div>",
 		})
@@ -93,7 +93,7 @@ func (s *EnforcerSuite) TestEnforcer(c *check.C) {
 }
 
 func (s *EnforcerSuite) TestEnforcerUnreachable(c *check.C) {
-	h := types.NewHeartbeat()
+	h := reporting.NewHeartbeat()
 	h.Metadata.Created = time.Now().Add(-constants.MaxControlPlaneUnreachableDuration - time.Hour)
 
 	err := s.enforcer.SetLicenseCheckHeartbeat(*h)

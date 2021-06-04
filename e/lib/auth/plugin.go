@@ -4,11 +4,11 @@ import (
 	"context"
 	"net/http"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
 	libauth "github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 
 	"github.com/gravitational/reporting/types"
@@ -59,7 +59,7 @@ type Plugin struct {
 	// authorizer authorizes identity and returns auth context
 	authorizer libauth.Authorizer
 	// emitter is events emitter, used to submit discrete events.
-	emitter events.Emitter
+	emitter apievents.Emitter
 }
 
 // GetName returns plugin name

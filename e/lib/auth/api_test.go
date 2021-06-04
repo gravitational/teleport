@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/reporting/types"
+	reporting "github.com/gravitational/reporting/types"
 	check "gopkg.in/check.v1"
 )
 
@@ -72,13 +72,13 @@ func (s *APISuite) SetUpSuite(c *check.C) {
 }
 
 func (s *APISuite) TestHeartbeat(c *check.C) {
-	authClient, err := s.server.NewClient(auth.TestBuiltin(teleport.RoleProxy))
+	authClient, err := s.server.NewClient(auth.TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	client, err := NewProClient(authClient)
 	c.Assert(err, check.IsNil)
 
-	needed := types.NewHeartbeat()
+	needed := reporting.NewHeartbeat()
 	err = s.enforcer.SetLicenseCheckHeartbeat(*needed)
 	c.Assert(err, check.IsNil)
 

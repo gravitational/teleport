@@ -7,10 +7,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 )
 
@@ -29,11 +29,11 @@ func TestCreateNodeJoinToken(t *testing.T) {
 
 func TestGetNodeJoinScript(t *testing.T) {
 	m := &mockedNodeAPIGetter{}
-	m.mockGetProxyServers = func() ([]services.Server, error) {
-		var s services.ServerV2
+	m.mockGetProxyServers = func() ([]types.Server, error) {
+		var s types.ServerV2
 		s.SetPublicAddr("test-host:12345678")
 
-		return []services.Server{&s}, nil
+		return []types.Server{&s}, nil
 	}
 	m.mockGetClusterCACert = func() (*auth.LocalCAResponse, error) {
 		fakeBytes := []byte(fixtures.SigningCertPEM)
@@ -79,11 +79,11 @@ func TestGetNodeJoinScript(t *testing.T) {
 
 func TestGetAppJoinScript(t *testing.T) {
 	m := &mockedNodeAPIGetter{}
-	m.mockGetProxyServers = func() ([]services.Server, error) {
-		var s services.ServerV2
+	m.mockGetProxyServers = func() ([]types.Server, error) {
+		var s types.ServerV2
 		s.SetPublicAddr("test-host:12345678")
 
-		return []services.Server{&s}, nil
+		return []types.Server{&s}, nil
 	}
 	m.mockGetClusterCACert = func() (*auth.LocalCAResponse, error) {
 		fakeBytes := []byte(fixtures.SigningCertPEM)
@@ -255,7 +255,7 @@ func TestGetAppJoinScript(t *testing.T) {
 
 type mockedNodeAPIGetter struct {
 	mockGenerateToken    func(ctx context.Context, req auth.GenerateTokenRequest) (string, error)
-	mockGetProxyServers  func() ([]services.Server, error)
+	mockGetProxyServers  func() ([]types.Server, error)
 	mockGetClusterCACert func() (*auth.LocalCAResponse, error)
 }
 
@@ -267,7 +267,7 @@ func (m *mockedNodeAPIGetter) GenerateToken(ctx context.Context, req auth.Genera
 	return "", trace.NotImplemented("mockGenerateToken not implemented")
 }
 
-func (m *mockedNodeAPIGetter) GetProxies() ([]services.Server, error) {
+func (m *mockedNodeAPIGetter) GetProxies() ([]types.Server, error) {
 	if m.mockGetProxyServers != nil {
 		return m.mockGetProxyServers()
 	}

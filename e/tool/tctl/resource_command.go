@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -31,8 +32,8 @@ func (cmd *ResourceCommandE) Initialize(app *kingpin.Application, cfg *service.C
 	cmd.base.Initialize(app, cfg)
 
 	// plug our enterprise resource creators:
-	cmd.base.CreateHandlers[common.ResourceKind(services.KindOIDCConnector)] = cmd.createConnector
-	cmd.base.CreateHandlers[common.ResourceKind(services.KindSAMLConnector)] = cmd.createConnector
+	cmd.base.CreateHandlers[common.ResourceKind(types.KindOIDCConnector)] = cmd.createConnector
+	cmd.base.CreateHandlers[common.ResourceKind(types.KindSAMLConnector)] = cmd.createConnector
 }
 
 // TryRun is executed after the CLI parsing is done. The command must
@@ -51,7 +52,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 	switch raw.Kind {
 
 	// SAML
-	case services.KindSAMLConnector:
+	case types.KindSAMLConnector:
 		// Create services.SAMLConnector from raw YAML to extract the connector name.
 		conn, err := services.UnmarshalSAMLConnector(raw.Raw)
 		if err != nil {
@@ -86,7 +87,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 		}
 
 	// OpenID connect
-	case services.KindOIDCConnector:
+	case types.KindOIDCConnector:
 		conn, err := services.UnmarshalOIDCConnector(raw.Raw)
 		if err != nil {
 			return trace.Wrap(err)

@@ -11,12 +11,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/web/scripts"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
@@ -111,9 +110,9 @@ func (p *Plugin) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, 
 
 func createScriptJoinToken(ctx context.Context, m nodeAPIGetter) (*ui.NodeJoinToken, error) {
 	req := auth.GenerateTokenRequest{
-		Roles: teleport.Roles{
-			teleport.RoleNode,
-			teleport.RoleApp,
+		Roles: types.SystemRoles{
+			types.RoleNode,
+			types.RoleApp,
 		},
 		TTL: defaults.NodeJoinTokenTTL,
 	}
@@ -217,7 +216,7 @@ type nodeAPIGetter interface {
 	GetClusterCACert() (*auth.LocalCAResponse, error)
 
 	// GetProxies returns a list of registered proxies.
-	GetProxies() ([]services.Server, error)
+	GetProxies() ([]types.Server, error)
 }
 
 // appURIPattern is a regexp excluding invalid characters from application URIs.
