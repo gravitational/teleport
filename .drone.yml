@@ -185,7 +185,7 @@ steps:
     path: /var/run
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -295,7 +295,7 @@ steps:
     path: /var/run
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -345,7 +345,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:87
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -408,7 +408,6 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
-    GOCACHE: /tmpfs/go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -434,7 +433,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -446,7 +445,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:87
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -509,7 +508,6 @@ steps:
   environment:
     ARCH: "386"
     GID: "1000"
-    GOCACHE: /tmpfs/go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -535,7 +533,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -547,7 +545,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:87
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -614,7 +612,6 @@ steps:
     ARCH: amd64
     FIPS: "yes"
     GID: "1000"
-    GOCACHE: /tmpfs/go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -640,7 +637,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -652,7 +649,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:87
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -715,7 +712,6 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
-    GOCACHE: /tmpfs/go/cache
     GOPATH: /go
     OS: windows
     UID: "1000"
@@ -741,7 +737,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -850,7 +846,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:87
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -913,7 +909,6 @@ steps:
   environment:
     ARCH: arm
     GID: "1000"
-    GOCACHE: /tmpfs/go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -939,7 +934,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -951,7 +946,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:87
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -1014,7 +1009,6 @@ steps:
   environment:
     ARCH: arm64
     GID: "1000"
-    GOCACHE: /tmpfs/go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -1040,7 +1034,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1372,7 +1366,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1474,7 +1468,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1579,7 +1573,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1683,7 +1677,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1809,7 +1803,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -1937,7 +1931,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -2059,7 +2053,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -2173,7 +2167,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -2275,7 +2269,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -2401,7 +2395,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -2523,7 +2517,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3011,7 +3005,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3113,7 +3107,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3230,7 +3224,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3347,7 +3341,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3473,7 +3467,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3604,7 +3598,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3710,7 +3704,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -4160,7 +4154,7 @@ steps:
   failure: ignore
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -4470,6 +4464,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: d801d51adcb1d5f68721398cb9d5badc9f087f7f5aee5b1270c193a72043523e
+hmac: a9daef88869811253bba21094553382bf0574ee0daf59c7d2cb8df2c662a630f
 
 ...
