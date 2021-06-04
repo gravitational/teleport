@@ -433,7 +433,7 @@ func (c *reverseTunnel) erase(ctx context.Context) error {
 }
 
 func (c *reverseTunnel) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.Presence.GetReverseTunnels(services.SkipValidation())
+	resources, err := c.Presence.GetReverseTunnels()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -804,7 +804,7 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 }
 
 func (c *certAuthority) fetchCertAuthorities(caType services.CertAuthType) (apply func(ctx context.Context) error, err error) {
-	authorities, err := c.Trust.GetCertAuthorities(caType, c.watch.LoadSecrets, services.SkipValidation())
+	authorities, err := c.Trust.GetCertAuthorities(caType, c.watch.LoadSecrets)
 	if err != nil {
 		// DELETE IN: 5.1
 		//
@@ -1041,10 +1041,15 @@ func (c *clusterConfig) fetch(ctx context.Context) (apply func(ctx context.Conte
 			return nil
 		}
 		c.setTTL(clusterConfig)
+
+		// To ensure backward compatibility, ClusterConfig resources/events may
+		// feature fields that now belong to separate resources/events. Since this
+		// code is able to process the new events, ignore any such legacy fields.
+		// DELETE IN 8.0.0
+		clusterConfig.ClearLegacyFields()
+
 		if err := c.clusterConfigCache.SetClusterConfig(clusterConfig); err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
+			return trace.Wrap(err)
 		}
 		return nil
 	}, nil
@@ -1069,6 +1074,13 @@ func (c *clusterConfig) processEvent(ctx context.Context, event services.Event) 
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		c.setTTL(resource)
+
+		// To ensure backward compatibility, ClusterConfig resources/events may
+		// feature fields that now belong to separate resources/events. Since this
+		// code is able to process the new events, ignore any such legacy fields.
+		// DELETE IN 8.0.0
+		resource.ClearLegacyFields()
+
 		if err := c.clusterConfigCache.SetClusterConfig(resource); err != nil {
 			return trace.Wrap(err)
 		}

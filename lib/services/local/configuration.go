@@ -19,13 +19,14 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -226,9 +227,35 @@ func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalO
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterConfig(item.Value,
-		services.AddOptions(opts, services.WithResourceID(item.ID),
-			services.WithExpires(item.Expires))...)
+
+	clusterConfig, err := services.UnmarshalClusterConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// To ensure backward compatibility, extend the fetched ClusterConfig
+	// resource with the values that are now stored in ClusterNetworkingConfig.
+	// DELETE IN 8.0.0
+	netConfig, err := s.GetClusterNetworkingConfig(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := clusterConfig.SetNetworkingFields(netConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// To ensure backward compatibility, extend the fetched ClusterConfig
+	// resource with the values that are now stored in SessionRecordingConfig.
+	// DELETE IN 8.0.0
+	recConfig, err := s.GetSessionRecordingConfig(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := clusterConfig.SetSessionRecordingFields(recConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clusterConfig, nil
 }
 
 // DeleteClusterConfig deletes services.ClusterConfig from the backend.
@@ -245,11 +272,11 @@ func (s *ClusterConfigurationService) DeleteClusterConfig() error {
 
 // SetClusterConfig sets services.ClusterConfig on the backend.
 func (s *ClusterConfigurationService) SetClusterConfig(c services.ClusterConfig) error {
-	if err := s.syncClusterConfigWithNetworkingConfig(c); err != nil {
-		return trace.Wrap(err)
+	if c.HasNetworkingFields() {
+		return trace.BadParameter("cluster config has legacy networking fields, call SetClusterNetworkingConfig to set these fields")
 	}
-	if err := s.syncClusterConfigWithSessionRecordingConfig(c); err != nil {
-		return trace.Wrap(err)
+	if c.HasSessionRecordingFields() {
+		return trace.BadParameter("cluster config has legacy session recording fields, call SetSessionRecordingConfig to set these fields")
 	}
 
 	value, err := services.MarshalClusterConfig(c)
@@ -268,56 +295,6 @@ func (s *ClusterConfigurationService) SetClusterConfig(c services.ClusterConfig)
 		return trace.Wrap(err)
 	}
 
-	return nil
-}
-
-// syncClusterConfigWithNetworkingConfig updates the given ClusterConfig
-// with the networking values that are now stored in ClusterNetworkingConfig,
-// or vice versa.  Intended to facilitate backward compatible transition from
-// legacy ClusterConfig.  DELETE IN 8.0.0
-func (s *ClusterConfigurationService) syncClusterConfigWithNetworkingConfig(clusterConfig services.ClusterConfig) error {
-	if clusterConfig.HasNetworkingConfig() {
-		netConfig, err := clusterConfig.GetNetworkingConfig()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := s.SetClusterNetworkingConfig(context.TODO(), netConfig); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	}
-	netConfig, err := s.GetClusterNetworkingConfig(context.TODO(), services.SkipValidation())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := clusterConfig.SetNetworkingConfig(netConfig); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// syncClusterConfigWithSessionRecordingConfig updates the given ClusterConfig
-// with the session recording values that are now stored in SessionRecordingConfig,
-// or vice versa.  Intended to facilitate backward compatible transition from
-// legacy ClusterConfig.  DELETE IN 8.0.0
-func (s *ClusterConfigurationService) syncClusterConfigWithSessionRecordingConfig(clusterConfig services.ClusterConfig) error {
-	if clusterConfig.HasSessionRecordingConfig() {
-		recConfig, err := clusterConfig.GetSessionRecordingConfig()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := s.SetSessionRecordingConfig(context.TODO(), recConfig); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	}
-	recConfig, err := s.GetSessionRecordingConfig(context.TODO(), services.SkipValidation())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := clusterConfig.SetSessionRecordingConfig(recConfig); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
