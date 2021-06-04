@@ -1139,19 +1139,6 @@ func CollectOptions(opts ...Option) Options {
 
 // ClusterConfig tests cluster configuration
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
-	config, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		DisconnectExpiredCert: services.NewBool(true),
-		ClusterID:             "27",
-		Audit: services.AuditConfig{
-			Region:           "us-west-1",
-			Type:             "dynamodb",
-			AuditSessionsURI: "file:///home/log",
-			AuditTableName:   "audit_table_name",
-			AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
-		},
-	})
-	c.Assert(err, check.IsNil)
-
 	// DELETE IN 8.0.0
 	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout: services.NewDuration(17 * time.Second),
@@ -1168,14 +1155,27 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), recConfig)
 	c.Assert(err, check.IsNil)
 
+	config, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		DisconnectExpiredCert: services.NewBool(true),
+		ClusterID:             "27",
+		Audit: services.AuditConfig{
+			Region:           "us-west-1",
+			Type:             "dynamodb",
+			AuditSessionsURI: "file:///home/log",
+			AuditTableName:   "audit_table_name",
+			AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
+		},
+	})
+	c.Assert(err, check.IsNil)
+
 	err = s.ConfigS.SetClusterConfig(config)
 	c.Assert(err, check.IsNil)
 
 	gotConfig, err := s.ConfigS.GetClusterConfig()
 	c.Assert(err, check.IsNil)
 	config.SetResourceID(gotConfig.GetResourceID())
-	config.SetNetworkingConfig(netConfig)
-	config.SetSessionRecordingConfig(recConfig)
+	config.SetNetworkingFields(netConfig)
+	config.SetSessionRecordingFields(recConfig)
 	fixtures.DeepCompare(c, config, gotConfig)
 
 	// Some parts (e.g. auth server) will not function
@@ -1447,7 +1447,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind:        services.KindCertAuthority,
 				LoadSecrets: true,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				ca := NewTestCA(services.UserCA, "example.com")
 				c.Assert(s.CAS.UpsertCertAuthority(ca), check.IsNil)
 
@@ -1468,7 +1468,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind:        services.KindCertAuthority,
 				LoadSecrets: false,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				ca := NewTestCA(services.UserCA, "example.com")
 				c.Assert(s.CAS.UpsertCertAuthority(ca), check.IsNil)
 
@@ -1488,7 +1488,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindToken,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				expires := time.Now().UTC().Add(time.Hour)
 				t, err := services.NewProvisionToken("token",
 					teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, expires)
@@ -1508,7 +1508,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindNamespace,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				ns := services.Namespace{
 					Kind:    services.KindNamespace,
 					Version: services.V2,
@@ -1534,7 +1534,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindStaticTokens,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
 					StaticTokens: []services.ProvisionTokenV1{
 						{
@@ -1563,7 +1563,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindRole,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				role, err := services.NewRole("role1", services.RoleSpecV3{
 					Options: services.RoleOptions{
 						MaxSessionTTL: services.Duration(time.Hour),
@@ -1593,7 +1593,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindUser,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				user := newUser("user1", []string{"admin"})
 				err := s.Users().UpsertUser(user)
 				c.Assert(err, check.IsNil)
@@ -1610,7 +1610,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindNode,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				srv := NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
 
 				_, err := s.PresenceS.UpsertNode(ctx, srv)
@@ -1630,7 +1630,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindProxy,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				srv := NewServer(services.KindProxy, "srv1", "127.0.0.1:2022", defaults.Namespace)
 
 				err := s.PresenceS.UpsertProxy(srv)
@@ -1650,7 +1650,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindTunnelConnection,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				conn, err := services.NewTunnelConnection("conn1", services.TunnelConnectionSpecV2{
 					ClusterName:   "example.com",
 					ProxyName:     "p1",
@@ -1675,7 +1675,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindReverseTunnel,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
 				c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel), check.IsNil)
 
@@ -1693,7 +1693,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindRemoteCluster,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				rc, err := services.NewRemoteCluster("example.com")
 				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 				c.Assert(err, check.IsNil)
@@ -1719,7 +1719,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: services.KindNamespace,
 				Name: "shmest",
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				ns := services.Namespace{
 					Kind:    services.KindNamespace,
 					Version: services.V2,
@@ -1752,7 +1752,15 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindClusterConfig,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
+				// DELETE IN 8.0.0
+				err := s.ConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+				c.Assert(err, check.IsNil)
+
+				// DELETE IN 8.0.0
+				err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+				c.Assert(err, check.IsNil)
+
 				config, err := services.NewClusterConfig(services.ClusterConfigSpecV3{})
 				c.Assert(err, check.IsNil)
 
@@ -1762,9 +1770,20 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				out, err := s.ConfigS.GetClusterConfig()
 				c.Assert(err, check.IsNil)
 
+				// To ensure backward compatibility the ClusterConfig resource is not
+				// emitted in the same form as it is put into the backend, but instead
+				// the event handler performs an additional get of ClusterConfig from
+				// the backend.  Therefore, do not delete the resource immediately but
+				// wait until the event has been actually emitted.  DELETE IN 8.0.0
+				w, err := s.EventsS.NewWatcher(context.TODO(), services.Watch{
+					Kinds: []services.WatchKind{{Kind: services.KindClusterConfig}},
+				})
+				c.Assert(err, check.IsNil)
+				defer w.Close()
+				ExpectResource(c, w, time.Second, out)
+
 				err = s.ConfigS.DeleteClusterConfig()
 				c.Assert(err, check.IsNil)
-
 				return out
 			},
 		},
@@ -1773,7 +1792,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 			kind: services.WatchKind{
 				Kind: services.KindClusterName,
 			},
-			crud: func() services.Resource {
+			crud: func(context.Context) services.Resource {
 				clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 					ClusterName: "example.com",
 				})
@@ -1786,6 +1805,50 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				err = s.ConfigS.DeleteClusterName()
+				c.Assert(err, check.IsNil)
+				return out
+			},
+		},
+		{
+			name: "Cluster networking configuration",
+			kind: services.WatchKind{
+				Kind: types.KindClusterNetworkingConfig,
+			},
+			crud: func(ctx context.Context) services.Resource {
+				netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+					ClientIdleTimeout: types.Duration(5 * time.Second),
+				})
+				c.Assert(err, check.IsNil)
+
+				err = s.ConfigS.SetClusterNetworkingConfig(ctx, netConfig)
+				c.Assert(err, check.IsNil)
+
+				out, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
+				c.Assert(err, check.IsNil)
+
+				err = s.ConfigS.DeleteClusterNetworkingConfig(ctx)
+				c.Assert(err, check.IsNil)
+				return out
+			},
+		},
+		{
+			name: "Session recording configuration",
+			kind: services.WatchKind{
+				Kind: types.KindSessionRecordingConfig,
+			},
+			crud: func(ctx context.Context) services.Resource {
+				recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+					Mode: types.RecordAtProxySync,
+				})
+				c.Assert(err, check.IsNil)
+
+				err = s.ConfigS.SetSessionRecordingConfig(ctx, recConfig)
+				c.Assert(err, check.IsNil)
+
+				out, err := s.ConfigS.GetSessionRecordingConfig(ctx)
+				c.Assert(err, check.IsNil)
+
+				err = s.ConfigS.DeleteSessionRecordingConfig(ctx)
 				c.Assert(err, check.IsNil)
 				return out
 			},
@@ -1888,7 +1951,7 @@ skiploop:
 
 	for _, tc := range testCases {
 		c.Logf("test case %q", tc.name)
-		resource := tc.crud()
+		resource := tc.crud(ctx)
 
 		ExpectResource(c, w, 3*time.Second, resource)
 
@@ -1911,7 +1974,7 @@ skiploop:
 type eventTest struct {
 	name string
 	kind services.WatchKind
-	crud func() services.Resource
+	crud func(context.Context) services.Resource
 }
 
 func eventsTestKinds(tests []eventTest) []services.WatchKind {
@@ -1934,7 +1997,7 @@ waitLoop:
 			c.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
 			if event.Type != backend.OpPut {
-				log.Debugf("Skipping event %v %v", event.Type, event.Resource.GetName())
+				log.Debugf("Skipping event %+v", event)
 				continue
 			}
 			if resource.GetResourceID() > event.Resource.GetResourceID() {
