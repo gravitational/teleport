@@ -72,12 +72,11 @@ func pushPipeline(b buildType) pipeline {
 
 	pipelineName := fmt.Sprintf("push-build-%s-%s", b.os, b.arch)
 	pushEnvironment := map[string]value{
-		"UID":     value{raw: "1000"},
-		"GID":     value{raw: "1000"},
-		"GOPATH":  value{raw: "/go"},
-		"OS":      value{raw: b.os},
-		"ARCH":    value{raw: b.arch},
-		"GOCACHE": value{raw: "/tmpfs/go/cache"},
+		"UID":    value{raw: "1000"},
+		"GID":    value{raw: "1000"},
+		"GOPATH": value{raw: "/go"},
+		"OS":     value{raw: b.os},
+		"ARCH":   value{raw: b.arch},
 	}
 	if b.fips {
 		pipelineName += "-fips"
