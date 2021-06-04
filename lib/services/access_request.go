@@ -91,8 +91,6 @@ func (r *RequestIDs) IsEmpty() bool {
 type DynamicAccessCore interface {
 	// CreateAccessRequest stores a new access request.
 	CreateAccessRequest(ctx context.Context, req AccessRequest) error
-	// SetAccessRequestState updates the state of an existing access request.
-	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) error
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter AccessRequestFilter) ([]AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
@@ -107,6 +105,8 @@ type DynamicAccessCore interface {
 // dynamic access interface implemented by remote clients.
 type DynamicAccess interface {
 	DynamicAccessCore
+	// SetAccessRequestState updates the state of an existing access request.
+	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) error
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (AccessRequest, error)
 }
@@ -151,6 +151,8 @@ type DynamicAccessExt interface {
 	UpsertAccessRequest(ctx context.Context, req AccessRequest) error
 	// DeleteAllAccessRequests deletes all existent access requests.
 	DeleteAllAccessRequests(ctx context.Context) error
+	// SetAccessRequestState updates the state of an existing access request.
+	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) (types.AccessRequest, error)
 }
 
 // reviewParamsContext is a simplified view of an access review

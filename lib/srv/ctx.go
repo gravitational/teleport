@@ -158,6 +158,9 @@ type IdentityContext struct {
 
 	// RouteToCluster is derived from the certificate
 	RouteToCluster string
+
+	// ActiveRequests is active access request IDs
+	ActiveRequests []string
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
