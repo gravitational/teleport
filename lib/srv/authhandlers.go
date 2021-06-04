@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"time"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -139,7 +141,11 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 	identity.RoleSet = roleSet
 	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
-
+	accessRequestIDs, err := parseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
+	if err != nil {
+		return IdentityContext{}, trace.Wrap(err)
+	}
+	identity.ActiveRequests = accessRequestIDs
 	return identity, nil
 }
 
@@ -510,4 +516,33 @@ func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.Publi
 // isProxy returns true if it's a regular SSH proxy.
 func (h *AuthHandlers) isProxy() bool {
 	return h.c.Component == teleport.ComponentProxy
+}
+
+// AccessRequests are the access requests associated with a session
+type AccessRequests struct {
+	IDs []string `json:"access_requests"`
+}
+
+func parseAccessRequestIDs(str string) ([]string, error) {
+	var accessRequestIDs []string
+	var ar AccessRequests
+
+	if str == "" {
+		return []string{}, nil
+	}
+	err := json.Unmarshal([]byte(str), &ar)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, v := range ar.IDs {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return nil, trace.WrapWithMessage(err, "failed to parse access request ID")
+		}
+		if fmt.Sprintf("%v", id) == "" {
+			return nil, trace.Errorf("invalid uuid: %v", id)
+		}
+		accessRequestIDs = append(accessRequestIDs, v)
+	}
+	return accessRequestIDs, nil
 }

@@ -79,6 +79,8 @@ type ProxyServerConfig struct {
 	Emitter events.Emitter
 	// Clock to override clock in tests.
 	Clock clockwork.Clock
+	// ServerID is the ID of the audit log server.
+	ServerID string
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -100,6 +102,9 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+	if c.ServerID == "" {
+		return trace.BadParameter("missing ServerID")
 	}
 	return nil
 }
@@ -261,11 +266,12 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 		identity:     authContext.Identity.GetIdentity(),
 		checker:      authContext.Checker,
 		clock:        s.cfg.Clock,
-		serverID:     string(types.RoleProxy),
+		serverID:     s.cfg.ServerID,
 		authClient:   s.cfg.AuthClient,
 		teleportUser: authContext.Identity.GetIdentity().Username,
 		emitter:      s.cfg.Emitter,
 		log:          s.log,
+		ctx:          s.closeCtx,
 	})
 	if err != nil {
 		clientConn.Close()
@@ -314,6 +320,7 @@ type monitorConnConfig struct {
 	teleportUser string
 	emitter      events.Emitter
 	log          logrus.FieldLogger
+	ctx          context.Context
 }
 
 // monitorConn wraps a client connection with TrackingReadConn, starts a connection monitor and
@@ -352,7 +359,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  cfg.conn,
 		Tracker:               tc,
-		Context:               ctx,
+		Context:               cfg.ctx,
 		Clock:                 cfg.clock,
 		ServerID:              cfg.serverID,
 		TeleportUser:          cfg.teleportUser,

@@ -177,6 +177,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("DiscoveryRecovers", suite.bind(testDiscoveryRecovers))
 	t.Run("EnvironmentVars", suite.bind(testEnvironmentVariables))
 	t.Run("ExecEvents", suite.bind(testExecEvents))
+	t.Run("SessionStartContainsAccessRequest", suite.bind(testSessionStartContainsAccessRequest))
 	t.Run("ExternalClient", suite.bind(testExternalClient))
 	t.Run("HA", suite.bind(testHA))
 	t.Run("Interactive (Regular)", suite.bind(testInteractiveRegular))
@@ -4937,6 +4938,141 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
+func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestSuite) {
+	accessRequestsKey := "access_requests"
+	requestedRoleName := "requested-role"
+	userRoleName := "user-role"
+
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	lsPath, err := exec.LookPath("ls")
+	require.NoError(t, err)
+
+	// Creates new teleport cluster
+	main := suite.newTeleport(t, nil, true)
+	defer main.StopAll()
+
+	ctx := context.Background()
+	// Get auth server
+	authServer := main.Process.GetAuthServer()
+
+	// Create new request role
+	requestedRole, err := types.NewRole(requestedRoleName, types.RoleSpecV3{
+		Options: types.RoleOptions{},
+		Allow:   types.RoleConditions{},
+	})
+	require.NoError(t, err)
+
+	err = authServer.UpsertRole(ctx, requestedRole)
+	require.NoError(t, err)
+
+	// Create user role with ability to request role
+	userRole, err := types.NewRole(userRoleName, types.RoleSpecV3{
+		Options: types.RoleOptions{},
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{requestedRoleName},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = authServer.UpsertRole(ctx, userRole)
+	require.NoError(t, err)
+
+	user, err := types.NewUser(suite.me.Username)
+	user.AddRole(userRole.GetName())
+	require.NoError(t, err)
+
+	watcher, err := authServer.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: types.KindUser},
+			{Kind: types.KindAccessRequest},
+		},
+	})
+	require.NoError(t, err)
+	defer watcher.Close()
+
+	select {
+	case <-time.After(time.Second * 30):
+		t.Fatalf("Timeout waiting for event.")
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			t.Fatalf("Unexpected event type.")
+		}
+		require.Equal(t, event.Type, types.OpInit)
+	case <-watcher.Done():
+		t.Fatal(watcher.Error())
+	}
+
+	// Update user
+	err = authServer.UpsertUser(user)
+	require.NoError(t, err)
+
+	WaitForResource(t, watcher, user.GetKind(), user.GetName())
+
+	req, err := services.NewAccessRequest(suite.me.Username, requestedRole.GetMetadata().Name)
+	require.NoError(t, err)
+
+	accessRequestID := req.GetName()
+
+	err = authServer.CreateAccessRequest(context.TODO(), req)
+	require.NoError(t, err)
+
+	err = authServer.SetAccessRequestState(context.TODO(), types.AccessRequestUpdate{
+		RequestID: accessRequestID,
+		State:     types.RequestState_APPROVED,
+	})
+	require.NoError(t, err)
+
+	WaitForResource(t, watcher, req.GetKind(), req.GetName())
+
+	clientConfig := ClientConfig{
+		Login:       suite.me.Username,
+		Cluster:     Site,
+		Host:        Host,
+		Port:        main.GetPortSSHInt(),
+		Interactive: false,
+	}
+	clientReissueParams := client.ReissueParams{
+		AccessRequests: []string{accessRequestID},
+	}
+	err = runCommandWithCertReissue(main, []string{lsPath}, clientReissueParams, client.CertCacheDrop, clientConfig)
+	require.NoError(t, err)
+
+	// Get session start event
+	sessionStart, err := findEventInLog(main, events.SessionStartEvent)
+	require.NoError(t, err)
+	require.Equal(t, sessionStart.GetCode(), events.SessionStartCode)
+	require.Equal(t, sessionStart.HasField(accessRequestsKey), true)
+
+	val, found := sessionStart[accessRequestsKey]
+	require.Equal(t, found, true)
+
+	result := strings.Contains(fmt.Sprintf("%v", val), accessRequestID)
+	require.Equal(t, result, true)
+}
+
+func WaitForResource(t *testing.T, watcher types.Watcher, kind, name string) {
+	timeout := time.After(time.Second * 15)
+	for {
+		select {
+		case <-timeout:
+			t.Fatalf("Timeout waiting for event.")
+		case event := <-watcher.Events():
+			if event.Type != types.OpPut {
+				continue
+			}
+			if event.Resource.GetKind() == kind && event.Resource.GetMetadata().Name == name {
+				return
+			}
+		case <-watcher.Done():
+			t.Fatalf("Watcher error %s.", watcher.Error())
+		}
+	}
+}
+
 // findEventInLog polls the event log looking for an event of a particular type.
 func findEventInLog(t *TeleInstance, eventName string) (events.EventFields, error) {
 	for i := 0; i < 10; i++ {
@@ -5013,6 +5149,28 @@ func eventsInLog(path string, eventName string) ([]events.EventFields, error) {
 		return nil, trace.NotFound("event not found")
 	}
 	return ret, nil
+}
+
+// runCommandWithCertReissue runs an SSH command and generates certificates for the user
+func runCommandWithCertReissue(instance *TeleInstance, cmd []string, reissueParams client.ReissueParams, cachePolicy client.CertCachePolicy, cfg ClientConfig) error {
+	tc, err := instance.NewClient(cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = tc.ReissueUserCerts(context.Background(), cachePolicy, reissueParams)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	out := &bytes.Buffer{}
+	tc.Stdout = out
+
+	err = tc.SSH(context.TODO(), cmd, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // runCommand is a shortcut for running SSH command, it creates a client

@@ -1884,7 +1884,8 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 }
 
 func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
-	if err := a.DynamicAccessExt.SetAccessRequestState(ctx, params); err != nil {
+	req, err := a.DynamicAccessExt.SetAccessRequestState(ctx, params)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	event := &apievents.AccessRequestCreate{
@@ -1894,6 +1895,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
 			UpdatedBy: ClientUsername(ctx),
+			Expires:   req.GetAccessExpiry(),
 		},
 		RequestID:    params.RequestID,
 		RequestState: params.State.String(),
@@ -1913,7 +1915,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 			event.Annotations = annotations
 		}
 	}
-	err := a.emitter.EmitAuditEvent(a.closeCtx, event)
+	err = a.emitter.EmitAuditEvent(a.closeCtx, event)
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request update event.")
 	}
