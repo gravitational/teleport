@@ -982,7 +982,7 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	c.Assert(err, IsNil)
 
 	// Change cluster networking config for keep alive interval to be run faster.
-	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		KeepAliveInterval: services.NewDuration(250 * time.Millisecond),
 	})
 	c.Assert(err, IsNil)
