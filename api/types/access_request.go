@@ -267,6 +267,9 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	if r.Version == "" {
+		r.Version = V3
+	}
 	if r.GetState().IsNone() {
 		if err := r.SetState(RequestState_PENDING); err != nil {
 			return trace.Wrap(err)

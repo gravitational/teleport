@@ -135,55 +135,6 @@ func MapRoles(r RoleMap, remoteRoles []string) ([]string, error) {
 	return outRoles, nil
 }
 
-// TrustedClusterSpecSchemaTemplate is a template for trusted cluster schema
-const TrustedClusterSpecSchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "enabled": {"type": "boolean"},
-	  "roles": {
-		"type": "array",
-		"items": {
-		  "type": "string"
-		}
-	  },
-	  "role_map": %v,
-	  "token": {"type": "string"},
-	  "web_proxy_addr": {"type": "string"},
-	  "tunnel_addr": {"type": "string"}%v
-	}
-  }`
-
-// RoleMapSchema is a schema for role mappings of trusted clusters
-const RoleMapSchema = `{
-	"type": "array",
-	"items": {
-	  "type": "object",
-	  "additionalProperties": false,
-	  "properties": {
-		"local": {
-		  "type": "array",
-		  "items": {
-			 "type": "string"
-		  }
-		},
-		"remote": {"type": "string"}
-	  }
-	}
-  }`
-
-// GetTrustedClusterSchema returns the schema with optionally injected
-// schema for extensions.
-func GetTrustedClusterSchema(extensionSchema string) string {
-	var trustedClusterSchema string
-	if extensionSchema == "" {
-		trustedClusterSchema = fmt.Sprintf(TrustedClusterSpecSchemaTemplate, RoleMapSchema, "")
-	} else {
-		trustedClusterSchema = fmt.Sprintf(TrustedClusterSpecSchemaTemplate, RoleMapSchema, ","+extensionSchema)
-	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, trustedClusterSchema, DefaultDefinitions)
-}
-
 // UnmarshalTrustedCluster unmarshals the TrustedCluster resource from JSON.
 func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (TrustedCluster, error) {
 	cfg, err := CollectOptions(opts)
@@ -196,15 +147,8 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (TrustedCluste
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &trustedCluster); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err := utils.UnmarshalWithSchema(GetTrustedClusterSchema(""), &trustedCluster, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
+	if err := utils.FastUnmarshal(bytes, &trustedCluster); err != nil {
+		return nil, trace.BadParameter(err.Error())
 	}
 
 	// DELETE IN(7.0)

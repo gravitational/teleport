@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"sort"
 
 	"github.com/google/go-cmp/cmp"
@@ -92,8 +91,6 @@ func (r *RequestIDs) IsEmpty() bool {
 type DynamicAccessCore interface {
 	// CreateAccessRequest stores a new access request.
 	CreateAccessRequest(ctx context.Context, req AccessRequest) error
-	// SetAccessRequestState updates the state of an existing access request.
-	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) error
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter AccessRequestFilter) ([]AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
@@ -108,6 +105,8 @@ type DynamicAccessCore interface {
 // dynamic access interface implemented by remote clients.
 type DynamicAccess interface {
 	DynamicAccessCore
+	// SetAccessRequestState updates the state of an existing access request.
+	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) error
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (AccessRequest, error)
 }
@@ -152,6 +151,8 @@ type DynamicAccessExt interface {
 	UpsertAccessRequest(ctx context.Context, req AccessRequest) error
 	// DeleteAllAccessRequests deletes all existent access requests.
 	DeleteAllAccessRequests(ctx context.Context) error
+	// SetAccessRequestState updates the state of an existing access request.
+	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) (types.AccessRequest, error)
 }
 
 // reviewParamsContext is a simplified view of an access review
@@ -1154,35 +1155,6 @@ func ValidateAccessRequestForUser(getter UserAndRoleGetter, req AccessRequest, o
 	return trace.Wrap(v.Validate(req))
 }
 
-// AccessRequestSpecSchema is JSON schema for AccessRequestSpec
-const AccessRequestSpecSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"user": { "type": "string" },
-		"roles": {
-			"type": "array",
-			"items": { "type": "string" }
-		},
-		"state": { "type": "integer" },
-		"created": { "type": "string" },
-		"expires": { "type": "string" },
-		"request_reason": { "type": "string" },
-		"resolve_reason": { "type": "string" },
-		"resolve_annotations": { "type": "object" },
-		"system_annotations": { "type": "object" },
-		"thresholds": { "type": "array" },
-		"rtm": { "type": "object" },
-		"reviews": { "type": "array" },
-		"suggested_reviewers": { "type": "array" }
-	}
-}`
-
-// GetAccessRequestSchema gets the full AccessRequest JSON schema
-func GetAccessRequestSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, AccessRequestSpecSchema, DefaultDefinitions)
-}
-
 // UnmarshalAccessRequest unmarshals the AccessRequest resource from JSON.
 func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, error) {
 	cfg, err := CollectOptions(opts)
@@ -1190,14 +1162,8 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, 
 		return nil, trace.Wrap(err)
 	}
 	var req AccessRequestV3
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(data, &req); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := utils.UnmarshalWithSchema(GetAccessRequestSchema(), &req, data); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := utils.FastUnmarshal(data, &req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := ValidateAccessRequest(&req); err != nil {
 		return nil, trace.Wrap(err)

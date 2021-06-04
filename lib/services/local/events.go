@@ -278,7 +278,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (services.Resource, err
 		}, nil
 	case backend.OpPut:
 		ca, err := services.UnmarshalCertAuthority(event.Item.Value,
-			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires), services.SkipValidation())
+			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -376,7 +376,6 @@ func (p *clusterConfigParser) parse(event backend.Event) (services.Resource, err
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
-			services.SkipValidation(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -411,7 +410,6 @@ func (p *clusterNetworkingConfigParser) parse(event backend.Event) (services.Res
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
-			services.SkipValidation(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -446,7 +444,6 @@ func (p *authPreferenceParser) parse(event backend.Event) (services.Resource, er
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
-			services.SkipValidation(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -481,7 +478,6 @@ func (p *sessionRecordingConfigParser) parse(event backend.Event) (services.Reso
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
-			services.SkipValidation(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -921,7 +917,7 @@ func (p *databaseServerParser) parse(event backend.Event) (services.Resource, er
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
-			services.SkipValidation())
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -936,7 +932,6 @@ func parseServer(event backend.Event, kind string) (services.Resource, error) {
 			kind,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
-			services.SkipValidation(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
