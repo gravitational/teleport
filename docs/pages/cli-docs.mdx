@@ -10,6 +10,10 @@ Teleport is made up of three CLI tools.
 - [tsh](#tsh): A tool that lets end users interact with Teleport nodes. This replaces `ssh`.
 - [tctl](#tctl): An administrative tool that can configure Teleport Auth Service.
 
+(!docs/pages/includes/permission-warning.mdx!)
+
+(!docs/pages/includes/backup-warning.mdx!)
+
 ## teleport
 
 The Teleport daemon is called `teleport`. It can be configured to run one or
@@ -27,10 +31,6 @@ the following services.
 | [Trusted Cluster](trustedclusters.mdx) | `trusted_cluster` | The node will support a leaf cluster used to connect to another Teleport cluster. |
 
 ### teleport start
-
-<Admonition type="warning" title="Warning">
-  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
-</Admonition>
 
 #### Flags
 
@@ -195,7 +195,7 @@ tsh ssh [<flags>] <[user@]host> [<command>...]
 | `-t, --tty` | `file` | | Allocate TTY |
 | `--cluster` | none | | Specify the cluster to connect |
 | `-o, --option` | `local` | | OpenSSH options in the format used in the configuration file |
-| `--enable-escape-sequences` | | | Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences. |
+| `--enable-escape-sequences` | | | Enable support for SSH escape sequences. Type `~?` during an SSH session to list supported sequences. |
 | `--no-use-local-ssh-agent` | | | Do not load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). Useful when using `gpg-agent` or Yubikeys. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable to `false` (default `true`) |
 
 #### [Global Flags](#tsh-global-flags)
@@ -682,7 +682,7 @@ tctl users add [<flags>] <account> [<local-logins>]
 
 #### [Global Flags](#tctl-global-flags)
 
-These flags are available for all commands `--debug, --config` . Run
+These flags are available for all commands `--debug, --config`. Run
 `tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
 
 #### Examples
@@ -1123,10 +1123,10 @@ tctl rm [<resource-type/resource-name>]
 #### Examples
 
 ```bash
-# delete a SAML connector called "okta":
+# Delete a SAML connector called "okta":
 tctl rm saml/okta
 
-# delete a local user called "admin":
+# Delete a local user called "admin":
 tctl rm users/admin
 ```
 
@@ -1186,8 +1186,8 @@ tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
 pin   sha256:1146cdd2b887772dcc2e879232c8f60012a839f7958724ce5744005474b15b9d
 # Checks remote auth status using exported identity.
 tctl status \
-                --auth-server=192.168.99.102:3025 \
-                --identity=identity.pem
+    --auth-server=192.168.99.102:3025 \
+    --identity=identity.pem
 ```
 
 ### tctl top
