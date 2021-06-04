@@ -29,6 +29,9 @@ type enterpriseModules struct {
 
 // Features returns supported features
 func (p *enterpriseModules) Features() modules.Features {
+	if p.license == nil {
+		return modules.Features{}
+	}
 	// All features are always enabled in Teleport Cloud since it does a
 	// per-resource usage reporting. Also, for backward compatibility so
 	// we don't need to reissue licenses every time we add a new feature.
