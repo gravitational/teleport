@@ -104,7 +104,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.ClusterConfiguration = clusterConfig
 	}
 	if cfg.Events == nil {
-		cfg.Events = local.NewEventsService(cfg.Backend)
+		cfg.Events = local.NewEventsService(cfg.Backend, cfg.ClusterConfiguration.GetClusterConfig)
 	}
 	if cfg.AuditLog == nil {
 		cfg.AuditLog = events.NewDiscardAuditLog()
