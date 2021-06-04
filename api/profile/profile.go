@@ -332,7 +332,7 @@ func (p *Profile) SSHCertPath() string {
 // OldSSHCertPath returns the old (before v6.1) path to the profile's ssh certificate.
 // DELETE IN 8.0.0
 func (p *Profile) OldSSHCertPath() string {
-	return filepath.Join(keypaths.OldSSHCertPath(p.Dir, p.Name(), p.Username))
+	return keypaths.OldSSHCertPath(p.Dir, p.Name(), p.Username)
 }
 
 // KnownHostsPath returns the path to the profile's ssh certificate authorities.
