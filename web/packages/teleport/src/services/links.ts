@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+export const DOWNLOAD_BASE_URL = 'https://get.gravitational.com/';
+
 export function getLinux64(version: string, isEnterprise = true) {
   return getLink('linux64', version, isEnterprise);
 }
@@ -36,7 +38,7 @@ function getLink(type: Arch, version: string, isEnterprise: boolean) {
     infix = 'linux-386';
   }
 
-  return `https://get.gravitational.com/${prefix}-v${version}-${infix}-bin.tar.gz`;
+  return `${DOWNLOAD_BASE_URL}${prefix}-v${version}-${infix}-bin.tar.gz`;
 }
 
 type Arch = 'mac' | 'linux32' | 'linux64';
