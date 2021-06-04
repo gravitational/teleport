@@ -29,7 +29,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -790,7 +789,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 	}
 }
 
-func makeTestServers(t *testing.T, bootstrap ...services.Resource) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
+func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
 	var err error
 	// Set up a test auth server.
 	//
@@ -803,9 +802,9 @@ func makeTestServers(t *testing.T, bootstrap ...services.Resource) (auth *servic
 	cfg.AuthServers = []utils.NetAddr{randomLocalAddr}
 	cfg.Auth.Resources = bootstrap
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
-	cfg.Auth.StaticTokens, err = services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{{
-			Roles:   []teleport.Role{teleport.RoleProxy},
+	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Roles:   []types.SystemRole{types.RoleProxy},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
@@ -889,14 +888,14 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		// generate certificates for our user
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
 			pub, user.GetName(), time.Hour,
-			teleport.CertificateFormatStandard,
+			constants.CertificateFormatStandard,
 			"localhost",
 		)
 		require.NoError(t, err)
 
 		// load CA cert
-		authority, err := authServer.GetCertAuthority(services.CertAuthID{
-			Type:       services.HostCA,
+		authority, err := authServer.GetCertAuthority(types.CertAuthID{
+			Type:       types.HostCA,
 			DomainName: "localhost",
 		}, false)
 		require.NoError(t, err)
@@ -906,7 +905,7 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 			Username:    user.GetName(),
 			Cert:        sshCert,
 			TLSCert:     tlsCert,
-			HostSigners: auth.AuthoritiesToTrustedCerts([]services.CertAuthority{authority}),
+			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
 	}
 }

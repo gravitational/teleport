@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -651,7 +652,7 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 			ID:  e.Kv.ModRevision,
 		},
 	}
-	if event.Type == backend.OpDelete {
+	if event.Type == types.OpDelete {
 		return event, nil
 	}
 	// get the new expiration date if it was updated
@@ -719,12 +720,12 @@ func convertErr(err error) error {
 	return trace.ConnectionProblem(err, err.Error())
 }
 
-func fromType(eventType mvccpb.Event_EventType) backend.OpType {
+func fromType(eventType mvccpb.Event_EventType) types.OpType {
 	switch eventType {
 	case mvccpb.PUT:
-		return backend.OpPut
+		return types.OpPut
 	default:
-		return backend.OpDelete
+		return types.OpDelete
 	}
 }
 

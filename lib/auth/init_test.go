@@ -65,7 +65,7 @@ func TestReadIdentity(t *testing.T) {
 		HostID:              "id1",
 		NodeName:            "node-name",
 		ClusterName:         "example.com",
-		Roles:               teleport.Roles{teleport.RoleNode},
+		Roles:               types.SystemRoles{types.RoleNode},
 		TTL:                 0,
 	})
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestReadIdentity(t *testing.T) {
 	id, err := ReadSSHIdentityFromKeyPair(priv, cert)
 	require.NoError(t, err)
 	require.Equal(t, id.ClusterName, "example.com")
-	require.Equal(t, id.ID, IdentityID{HostUUID: "id1.example.com", Role: teleport.RoleNode})
+	require.Equal(t, id.ID, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode})
 	require.Equal(t, id.CertBytes, cert)
 	require.Equal(t, id.KeyBytes, priv)
 
@@ -87,7 +87,7 @@ func TestReadIdentity(t *testing.T) {
 		HostID:              "id1",
 		NodeName:            "node-name",
 		ClusterName:         "example.com",
-		Roles:               teleport.Roles{teleport.RoleNode},
+		Roles:               types.SystemRoles{types.RoleNode},
 		TTL:                 ttl,
 	})
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:              "id2",
 		NodeName:            "",
 		ClusterName:         "",
-		Roles:               teleport.Roles{teleport.RoleNode},
+		Roles:               types.SystemRoles{types.RoleNode},
 		TTL:                 0,
 	})
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:              "example.com",
 		NodeName:            "",
 		ClusterName:         "",
-		Roles:               teleport.Roles{teleport.RoleNode},
+		Roles:               types.SystemRoles{types.RoleNode},
 		TTL:                 0,
 	})
 	require.NoError(t, err)
@@ -145,7 +145,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:              "example.com",
 		NodeName:            "",
 		ClusterName:         "id1",
-		Roles:               teleport.Roles{teleport.Role("bad role")},
+		Roles:               types.SystemRoles{types.SystemRole("bad role")},
 		TTL:                 0,
 	})
 	require.NoError(t, err)
@@ -281,7 +281,7 @@ func TestAuthPreference(t *testing.T) {
 	t.Parallel()
 
 	fromConfigFile, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type: teleport.OIDC,
+		Type: constants.OIDC,
 	})
 	require.NoError(t, err)
 
@@ -392,7 +392,7 @@ func TestClusterName(t *testing.T) {
 	// Start the auth server with a different cluster name. The auth server
 	// should start, but with the original name.
 	newConfig := conf
-	newConfig.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
+	newConfig.ClusterName, err = types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "dev.localhost",
 	})
 	require.NoError(t, err)
@@ -408,12 +408,12 @@ func TestClusterName(t *testing.T) {
 
 func TestCASigningAlg(t *testing.T) {
 	verifyCAs := func(auth *Server, alg string) {
-		hostCAs, err := auth.GetCertAuthorities(services.HostCA, false)
+		hostCAs, err := auth.GetCertAuthorities(types.HostCA, false)
 		require.NoError(t, err)
 		for _, ca := range hostCAs {
 			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
 		}
-		userCAs, err := auth.GetCertAuthorities(services.UserCA, false)
+		userCAs, err := auth.GetCertAuthorities(types.UserCA, false)
 		require.NoError(t, err)
 		for _, ca := range userCAs {
 			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
@@ -484,7 +484,7 @@ func TestMigrateMFADevices(t *testing.T) {
 			)),
 		},
 	} {
-		u, err := services.NewUser(name)
+		u, err := types.NewUser(name)
 		require.NoError(t, err)
 		// Set a fake but valid bcrypt password hash.
 		u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: fakePasswordHash})
@@ -506,7 +506,7 @@ func TestMigrateMFADevices(t *testing.T) {
 		require.NoError(t, err)
 		return []*types.MFADevice{d}
 	}
-	wantUsers := []services.User{
+	wantUsers := []types.User{
 		newUserWithAuth(t, "no-mfa-user", &types.LocalAuthSecrets{PasswordHash: fakePasswordHash}),
 		newUserWithAuth(t, "totp-user", &types.LocalAuthSecrets{
 			PasswordHash: fakePasswordHash,
@@ -549,7 +549,7 @@ func TestMigrateMFADevices(t *testing.T) {
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
-	roles := []services.Role{
+	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole()}
@@ -660,7 +660,7 @@ func TestMigrateOSS(t *testing.T) {
 		err := as.CreateRole(services.NewAdminRole())
 		require.NoError(t, err)
 
-		foo, err := services.NewTrustedCluster("foo", services.TrustedClusterSpecV2{
+		foo, err := types.NewTrustedCluster("foo", types.TrustedClusterSpecV2{
 			Enabled:              false,
 			Token:                "qux",
 			ProxyAddress:         "quux",
@@ -678,7 +678,7 @@ func TestMigrateOSS(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, name := range []string{clusterName, foo.GetName()} {
-			for _, catype := range []services.CertAuthType{services.UserCA, services.HostCA} {
+			for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
 				causer := suite.NewTestCA(catype, name)
 				err = as.UpsertCertAuthority(causer)
 				require.NoError(t, err)
@@ -693,16 +693,16 @@ func TestMigrateOSS(t *testing.T) {
 		mapping := types.RoleMap{{Remote: teleport.AdminRoleName, Local: []string{teleport.AdminRoleName}}}
 		require.Equal(t, mapping, out.GetRoleMap())
 
-		for _, catype := range []services.CertAuthType{services.UserCA, services.HostCA} {
-			ca, err := as.GetCertAuthority(services.CertAuthID{Type: catype, DomainName: foo.GetName()}, true)
+		for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
+			ca, err := as.GetCertAuthority(types.CertAuthID{Type: catype, DomainName: foo.GetName()}, true)
 			require.NoError(t, err)
 			require.Equal(t, mapping, ca.GetRoleMap())
 			require.Equal(t, types.True, ca.GetMetadata().Labels[teleport.OSSMigratedV6])
 		}
 
 		// root cluster CA are not updated
-		for _, catype := range []services.CertAuthType{services.UserCA, services.HostCA} {
-			ca, err := as.GetCertAuthority(services.CertAuthID{Type: catype, DomainName: clusterName}, true)
+		for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
+			ca, err := as.GetCertAuthority(types.CertAuthID{Type: catype, DomainName: clusterName}, true)
 			require.NoError(t, err)
 			_, found := ca.GetMetadata().Labels[teleport.OSSMigratedV6]
 			require.False(t, found)
@@ -790,7 +790,7 @@ func setupConfig(t *testing.T) InitConfig {
 	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
 	require.NoError(t, err)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
@@ -806,13 +806,13 @@ func setupConfig(t *testing.T) InitConfig {
 		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
 		ClusterName:             clusterName,
 		StaticTokens:            services.DefaultStaticTokens(),
-		AuthPreference:          services.DefaultAuthPreference(),
+		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
 	}
 }
 
-func newUserWithAuth(t *testing.T, name string, auth *types.LocalAuthSecrets) services.User {
-	u, err := services.NewUser(name)
+func newUserWithAuth(t *testing.T, name string, auth *types.LocalAuthSecrets) types.User {
+	u, err := types.NewUser(name)
 	require.NoError(t, err)
 	u.SetLocalAuth(auth)
 	return u

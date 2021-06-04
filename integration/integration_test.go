@@ -225,28 +225,28 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 	}{
 		{
 			comment:          "normal teleport",
-			inRecordLocation: services.RecordAtNode,
+			inRecordLocation: types.RecordAtNode,
 			inForwardAgent:   false,
 		}, {
 			comment:          "recording proxy",
-			inRecordLocation: services.RecordAtProxy,
+			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   true,
 		}, {
 			comment:          "normal teleport with upload to file server",
-			inRecordLocation: services.RecordAtNode,
+			inRecordLocation: types.RecordAtNode,
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
 		}, {
-			inRecordLocation: services.RecordAtProxy,
+			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
 		}, {
 			comment:          "normal teleport, sync recording",
-			inRecordLocation: services.RecordAtNodeSync,
+			inRecordLocation: types.RecordAtNodeSync,
 			inForwardAgent:   false,
 		}, {
 			comment:          "recording proxy, sync recording",
-			inRecordLocation: services.RecordAtProxySync,
+			inRecordLocation: types.RecordAtProxySync,
 			inForwardAgent:   true,
 		},
 	}
@@ -254,9 +254,9 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
 			makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
-				clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-					Audit:     services.AuditConfig{AuditSessionsURI: tt.auditSessionsURI},
-					LocalAuth: services.NewBool(true),
+				clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
+					Audit:     types.AuditConfig{AuditSessionsURI: tt.auditSessionsURI},
+					LocalAuth: types.NewBool(true),
 				})
 				require.NoError(t, err)
 
@@ -740,7 +740,7 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 			return "", trace.Wrap(err)
 		}
 
-		ident, err := node.GetIdentity(teleport.RoleNode)
+		ident, err := node.GetIdentity(types.RoleNode)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -1026,7 +1026,7 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 
 type disconnectTestCase struct {
 	recordingMode     string
-	options           services.RoleOptions
+	options           types.RoleOptions
 	disconnectTimeout time.Duration
 	concurrentConns   int
 	sessCtlTimeout    time.Duration
@@ -1041,37 +1041,37 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 
 	testCases := []disconnectTestCase{
 		{
-			recordingMode: services.RecordAtNode,
-			options: services.RoleOptions{
-				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
+			recordingMode: types.RecordAtNode,
+			options: types.RoleOptions{
+				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: time.Second,
 		}, {
-			recordingMode: services.RecordAtProxy,
-			options: services.RoleOptions{
-				ForwardAgent:      services.NewBool(true),
-				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
+			recordingMode: types.RecordAtProxy,
+			options: types.RoleOptions{
+				ForwardAgent:      types.NewBool(true),
+				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: time.Second,
 		}, {
-			recordingMode: services.RecordAtNode,
-			options: services.RoleOptions{
-				DisconnectExpiredCert: services.NewBool(true),
-				MaxSessionTTL:         services.NewDuration(2 * time.Second),
+			recordingMode: types.RecordAtNode,
+			options: types.RoleOptions{
+				DisconnectExpiredCert: types.NewBool(true),
+				MaxSessionTTL:         types.NewDuration(2 * time.Second),
 			},
 			disconnectTimeout: 4 * time.Second,
 		}, {
-			recordingMode: services.RecordAtProxy,
-			options: services.RoleOptions{
-				ForwardAgent:          services.NewBool(true),
-				DisconnectExpiredCert: services.NewBool(true),
-				MaxSessionTTL:         services.NewDuration(2 * time.Second),
+			recordingMode: types.RecordAtProxy,
+			options: types.RoleOptions{
+				ForwardAgent:          types.NewBool(true),
+				DisconnectExpiredCert: types.NewBool(true),
+				MaxSessionTTL:         types.NewDuration(2 * time.Second),
 			},
 			disconnectTimeout: 4 * time.Second,
 		}, {
 			//"verify that concurrent connection limits are applied when recording at node",
-			recordingMode: services.RecordAtNode,
-			options: services.RoleOptions{
+			recordingMode: types.RecordAtNode,
+			options: types.RoleOptions{
 				MaxConnections: 1,
 			},
 			disconnectTimeout: 1 * time.Second,
@@ -1083,9 +1083,9 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			},
 		}, {
 			// "verify that concurrent connection limits are applied when recording at proxy",
-			recordingMode: services.RecordAtProxy,
-			options: services.RoleOptions{
-				ForwardAgent:   services.NewBool(true),
+			recordingMode: types.RecordAtProxy,
+			options: types.RoleOptions{
+				ForwardAgent:   types.NewBool(true),
 				MaxConnections: 1,
 			},
 			disconnectTimeout: 1 * time.Second,
@@ -1097,8 +1097,8 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			},
 		}, {
 			// "verify that lost connections to auth server terminate controlled conns",
-			recordingMode: services.RecordAtNode,
-			options: services.RoleOptions{
+			recordingMode: types.RecordAtNode,
+			options: types.RoleOptions{
 				MaxConnections: 1,
 			},
 			disconnectTimeout: time.Second,
@@ -1107,11 +1107,11 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			// to be started, then shut down the auth server.
 			postFunc: func(ctx context.Context, t *testing.T, teleport *TeleInstance) {
 				site := teleport.GetSiteAPI(Site)
-				var sems []services.Semaphore
+				var sems []types.Semaphore
 				var err error
 				for i := 0; i < 6; i++ {
-					sems, err = site.GetSemaphores(ctx, services.SemaphoreFilter{
-						SemaphoreKind: services.SemaphoreKindConnection,
+					sems, err = site.GetSemaphores(ctx, types.SemaphoreFilter{
+						SemaphoreKind: types.SemaphoreKindConnection,
 					})
 					if err == nil && len(sems) > 0 {
 						break
@@ -1155,22 +1155,22 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	teleport := suite.newTeleportInstance()
 
 	username := suite.me.Username
-	role, err := services.NewRole("devs", services.RoleSpecV3{
+	role, err := types.NewRole("devs", types.RoleSpecV3{
 		Options: tc.options,
-		Allow: services.RoleConditions{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
 
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		LocalAuth: services.NewBool(true),
+	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
+		LocalAuth: types.NewBool(true),
 	})
 	require.NoError(t, err)
 
 	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		SessionControlTimeout: services.Duration(tc.sessCtlTimeout),
+		SessionControlTimeout: types.Duration(tc.sessCtlTimeout),
 	})
 	require.NoError(t, err)
 
@@ -1346,7 +1346,7 @@ func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
 		// normal teleport. since all events are recorded at the node, all events
 		// end up on site-a and none on site-b.
 		{
-			services.RecordAtNode,
+			types.RecordAtNode,
 			3,
 			0,
 		},
@@ -1354,7 +1354,7 @@ func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
 		// on site-a (because it's a teleport node so it still records at the node)
 		// and 2 events end up on site-b because it's recording.
 		{
-			services.RecordAtProxy,
+			types.RecordAtProxy,
 			3,
 			2,
 		},
@@ -1694,8 +1694,8 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -1722,8 +1722,8 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -1732,9 +1732,9 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
-		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
+		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
-	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
+	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
@@ -1766,7 +1766,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// Make sure that GetNodes returns nodes in the remote site. This makes
 	// sure identity aware GetNodes works for remote clusters. Testing of the
 	// correct nodes that identity aware GetNodes is done in TestList.
-	var nodes []services.Server
+	var nodes []types.Server
 	for i := 0; i < 10; i++ {
 		nodes, err = aux.Process.GetAuthServer().GetNodes(ctx, defaults.Namespace)
 		require.NoError(t, err)
@@ -1845,28 +1845,28 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cid := services.CertAuthID{Type: services.UserCA, DomainName: tt.mainClusterName}
+			cid := types.CertAuthID{Type: types.UserCA, DomainName: tt.mainClusterName}
 			mainUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkMainUserCA(t, err)
 			if err == nil {
 				require.Len(t, mainUserCAs.GetSigningKeys(), tt.outLenMainUserCA)
 			}
 
-			cid = services.CertAuthID{Type: services.HostCA, DomainName: tt.mainClusterName}
+			cid = types.CertAuthID{Type: types.HostCA, DomainName: tt.mainClusterName}
 			mainHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkMainHostCA(t, err)
 			if err == nil {
 				require.Len(t, mainHostCAs.GetSigningKeys(), tt.outLenMainHostCA)
 			}
 
-			cid = services.CertAuthID{Type: services.UserCA, DomainName: tt.auxClusterName}
+			cid = types.CertAuthID{Type: types.UserCA, DomainName: tt.auxClusterName}
 			auxUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkAuxUserCA(t, err)
 			if err == nil {
 				require.Len(t, auxUserCAs.GetSigningKeys(), tt.outLenAuxUserCA, "Aux User CA")
 			}
 
-			cid = services.CertAuthID{Type: services.HostCA, DomainName: tt.auxClusterName}
+			cid = types.CertAuthID{Type: types.HostCA, DomainName: tt.auxClusterName}
 			auxHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkAuxHostCA(t, err)
 			if err == nil {
@@ -1883,7 +1883,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 // tryCreateTrustedCluster performs several attempts to create a trusted cluster,
 // retries on connection problems and access denied errors to let caches
 // propagate and services to start
-func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster services.TrustedCluster) {
+func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
@@ -1984,8 +1984,8 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	devsRole, err := services.NewRole(mainDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -1994,13 +1994,13 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// Otherwise, to preserve backwards-compatibility
 	// roles with no labels will grant access to clusters with no labels.
 	if test.useLabels {
-		devsRole.SetClusterLabels(services.Allow, services.Labels{"access": []string{"prod"}})
+		devsRole.SetClusterLabels(services.Allow, types.Labels{"access": []string{"prod"}})
 	}
 	require.NoError(t, err)
 
 	mainAdmins := "main-admins"
-	adminsRole, err := services.NewRole(mainAdmins, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{"superuser"},
 		},
 	})
@@ -2010,10 +2010,10 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// Ops users can only access remote clusters with label 'access': 'ops'
 	mainOps := "main-ops"
-	mainOpsRole, err := services.NewRole(mainOps, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins:        []string{username},
-			ClusterLabels: services.Labels{"access": []string{"ops"}},
+			ClusterLabels: types.Labels{"access": []string{"ops"}},
 		},
 	})
 	require.NoError(t, err)
@@ -2039,8 +2039,8 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	auxRole, err := services.NewRole(auxDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -2049,7 +2049,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, err)
 
 	trustedClusterToken := "trusted-cluster-token"
-	tokenResource, err := services.NewProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{})
+	tokenResource, err := types.NewProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
 	require.NoError(t, err)
 	if test.useLabels {
 		meta := tokenResource.GetMetadata()
@@ -2060,7 +2060,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, err)
 	// Note that the mapping omits admins role, this is to cover the scenario
 	// when root cluster and leaf clusters have different role sets
-	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
+	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
@@ -2219,8 +2219,8 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -2247,8 +2247,8 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
 	})
@@ -2257,9 +2257,9 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
-		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
+		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
-	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
+	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
@@ -2820,7 +2820,7 @@ func waitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 
 // waitForTunnelConnections waits for remote tunnels connections
 func waitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName string, expectedCount int) {
-	var conns []services.TunnelConnection
+	var conns []types.TunnelConnection
 	for i := 0; i < 30; i++ {
 		conns, err := authServer.Presence.GetTunnelConnections(clusterName)
 		require.NoError(t, err)
@@ -2858,7 +2858,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 		// soft failure).
 		{
 			desc:             "Record at Node with Agent Forwarding",
-			inRecordLocation: services.RecordAtNode,
+			inRecordLocation: types.RecordAtNode,
 			inForwardAgent:   true,
 			inCommand:        "echo hello",
 			outError:         false,
@@ -2868,7 +2868,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 		// Teleport mode of operation.
 		{
 			desc:             "Record at Node without Agent Forwarding",
-			inRecordLocation: services.RecordAtNode,
+			inRecordLocation: types.RecordAtNode,
 			inForwardAgent:   false,
 			inCommand:        "echo hello",
 			outError:         false,
@@ -2877,7 +2877,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 		// Record at the proxy, forward agent. Will work.
 		{
 			desc:             "Record at Proxy with Agent Forwarding",
-			inRecordLocation: services.RecordAtProxy,
+			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   true,
 			inCommand:        "echo hello",
 			outError:         false,
@@ -2887,7 +2887,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 		// recording proxy requires an agent.
 		{
 			desc:             "Record at Proxy without Agent Forwarding",
-			inRecordLocation: services.RecordAtProxy,
+			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   false,
 			inCommand:        "echo hello",
 			outError:         true,
@@ -2975,11 +2975,11 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 	}{
 		// Run tests when Teleport is recording sessions at the node.
 		{
-			inRecordLocation: services.RecordAtNode,
+			inRecordLocation: types.RecordAtNode,
 		},
 		// Run tests when Teleport is recording sessions at the proxy.
 		{
-			inRecordLocation: services.RecordAtProxy,
+			inRecordLocation: types.RecordAtProxy,
 		},
 	}
 
@@ -3092,7 +3092,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			// create a teleport instance with auth, proxy, and node
 			makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
 				recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
-					Mode:                services.RecordAtProxy,
+					Mode:                types.RecordAtProxy,
 					ProxyChecksHostKeys: types.NewBoolOption(tt.inHostKeyCheck),
 				})
 				require.NoError(t, err)
@@ -3141,7 +3141,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// create a teleport instance with auth, proxy, and node
 	makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
 		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
-			Mode: services.RecordOff,
+			Mode: types.RecordOff,
 		})
 		require.NoError(t, err)
 
@@ -3436,16 +3436,16 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	initialCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: suite.me.Username})
 	require.NoError(t, err)
 
-	t.Logf("Service started. Setting rotation state to %v", services.RotationPhaseUpdateClients)
+	t.Logf("Service started. Setting rotation state to %v", types.RotationPhaseUpdateClients)
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseInit,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseInit,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
-	hostCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: Site}, false)
+	hostCA, err := svc.GetAuthServer().GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
 	require.NoError(t, err)
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
@@ -3455,8 +3455,8 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	// update clients
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseUpdateClients,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseUpdateClients,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
@@ -3478,16 +3478,16 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
-	t.Logf("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
+	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseUpdateServers,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseUpdateServers,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
-	hostCA, err = svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: Site}, false)
+	hostCA, err = svc.GetAuthServer().GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
 	require.NoError(t, err)
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
@@ -3507,16 +3507,16 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
-	t.Logf("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
+	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
 
 	// complete rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseStandby,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseStandby,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
-	hostCA, err = svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: Site}, false)
+	hostCA, err = svc.GetAuthServer().GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
 	require.NoError(t, err)
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
@@ -3585,24 +3585,24 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	initialCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: s.me.Username})
 	require.NoError(t, err)
 
-	t.Logf("Service started. Setting rotation state to %q.", services.RotationPhaseInit)
+	t.Logf("Service started. Setting rotation state to %q.", types.RotationPhaseInit)
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseInit,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseInit,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
 	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 	require.NoError(t, err)
 
-	t.Logf("Setting rotation state to %q.", services.RotationPhaseUpdateClients)
+	t.Logf("Setting rotation state to %q.", types.RotationPhaseUpdateClients)
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseUpdateClients,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseUpdateClients,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
@@ -3623,12 +3623,12 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
-	t.Logf("Service reloaded. Setting rotation state to %q.", services.RotationPhaseUpdateServers)
+	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseUpdateServers,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseUpdateServers,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
@@ -3636,12 +3636,12 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	svc, err = s.waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
-	t.Logf("Service reloaded. Setting rotation state to %q.", services.RotationPhaseRollback)
+	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseRollback)
 
 	// complete rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseRollback,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseRollback,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
@@ -3707,14 +3707,14 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{suite.me.Username},
 		},
 	})
 	require.NoError(t, err)
 
-	err = SetupUser(svc, suite.me.Username, []services.Role{role})
+	err = SetupUser(svc, suite.me.Username, []types.Role{role})
 	require.NoError(t, err)
 
 	// create auxiliary cluster and setup trust
@@ -3725,8 +3725,8 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
-		Allow: services.RoleConditions{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV3{
+		Allow: types.RoleConditions{
 			Logins: []string{suite.me.Username},
 		},
 	})
@@ -3735,9 +3735,9 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-clsuter-token"
 	err = svc.GetAuthServer().UpsertToken(ctx,
-		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
+		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
-	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
+	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 	require.NoError(t, aux.Start())
@@ -3769,12 +3769,12 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
-	t.Logf("Setting rotation state to %v", services.RotationPhaseInit)
+	t.Logf("Setting rotation state to %v", types.RotationPhaseInit)
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseInit,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseInit,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
@@ -3786,8 +3786,8 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	waitForPhase := func(phase string) error {
 		var lastPhase string
 		for i := 0; i < 10; i++ {
-			ca, err := aux.Process.GetAuthServer().GetCertAuthority(services.CertAuthID{
-				Type:       services.HostCA,
+			ca, err := aux.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+				Type:       types.HostCA,
 				DomainName: clusterMain,
 			}, false)
 			require.NoError(t, err)
@@ -3800,13 +3800,13 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 		return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
 	}
 
-	err = waitForPhase(services.RotationPhaseInit)
+	err = waitForPhase(types.RotationPhaseInit)
 	require.NoError(t, err)
 
 	// update clients
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseUpdateClients,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseUpdateClients,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
@@ -3814,19 +3814,19 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	svc, err = suite.waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
-	err = waitForPhase(services.RotationPhaseUpdateClients)
+	err = waitForPhase(types.RotationPhaseUpdateClients)
 	require.NoError(t, err)
 
 	// old client should work as is
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
-	t.Logf("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
+	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseUpdateServers,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseUpdateServers,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
@@ -3834,7 +3834,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	svc, err = suite.waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
-	err = waitForPhase(services.RotationPhaseUpdateServers)
+	err = waitForPhase(types.RotationPhaseUpdateServers)
 	require.NoError(t, err)
 
 	// new credentials will work from this phase to others
@@ -3848,12 +3848,12 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
-	t.Logf("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
+	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
 
 	// complete rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseStandby,
-		Mode:        services.RotationModeManual,
+		TargetPhase: types.RotationPhaseStandby,
+		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
@@ -3863,7 +3863,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	t.Log("Service reload completed, waiting for phase.")
 
-	err = waitForPhase(services.RotationPhaseStandby)
+	err = waitForPhase(types.RotationPhaseStandby)
 	require.NoError(t, err)
 	t.Log("Phase completed.")
 
@@ -3937,19 +3937,19 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	assertSigningAlg := func(svc *service.TeleportProcess, alg string) {
-		hostCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: Site}, false)
+		hostCA, err := svc.GetAuthServer().GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
 		require.NoError(t, err)
 		require.Equal(t, alg, sshutils.GetSigningAlgName(hostCA))
 
-		userCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: Site}, false)
+		userCA, err := svc.GetAuthServer().GetCertAuthority(types.CertAuthID{Type: types.UserCA, DomainName: Site}, false)
 		require.NoError(t, err)
 		require.Equal(t, alg, sshutils.GetSigningAlgName(userCA))
 	}
 
 	rotate := func(svc *service.TeleportProcess, mode string) *service.TeleportProcess {
-		t.Logf("Rotation phase: %q.", services.RotationPhaseInit)
+		t.Logf("Rotation phase: %q.", types.RotationPhaseInit)
 		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-			TargetPhase: services.RotationPhaseInit,
+			TargetPhase: types.RotationPhaseInit,
 			Mode:        mode,
 		})
 		require.NoError(t, err)
@@ -3958,9 +3958,9 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 		err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 		require.NoError(t, err)
 
-		t.Logf("Rotation phase: %q.", services.RotationPhaseUpdateClients)
+		t.Logf("Rotation phase: %q.", types.RotationPhaseUpdateClients)
 		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-			TargetPhase: services.RotationPhaseUpdateClients,
+			TargetPhase: types.RotationPhaseUpdateClients,
 			Mode:        mode,
 		})
 		require.NoError(t, err)
@@ -3969,9 +3969,9 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 		svc, err = suite.waitForReload(serviceC, svc)
 		require.NoError(t, err)
 
-		t.Logf("Rotation phase: %q.", services.RotationPhaseUpdateServers)
+		t.Logf("Rotation phase: %q.", types.RotationPhaseUpdateServers)
 		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-			TargetPhase: services.RotationPhaseUpdateServers,
+			TargetPhase: types.RotationPhaseUpdateServers,
 			Mode:        mode,
 		})
 		require.NoError(t, err)
@@ -3980,9 +3980,9 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 		svc, err = suite.waitForReload(serviceC, svc)
 		require.NoError(t, err)
 
-		t.Logf("rotation phase: %q", services.RotationPhaseStandby)
+		t.Logf("rotation phase: %q", types.RotationPhaseStandby)
 		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-			TargetPhase: services.RotationPhaseStandby,
+			TargetPhase: types.RotationPhaseStandby,
 			Mode:        mode,
 		})
 		require.NoError(t, err)
@@ -4007,7 +4007,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 	config.CASignatureAlgorithm = &signingAlg
 	svc, cancel = restart(svc, cancel)
 	// Do a manual rotation - this should change the signing algorithm.
-	svc = rotate(svc, services.RotationModeManual)
+	svc = rotate(svc, types.RotationModeManual)
 	assertSigningAlg(svc, ssh.SigAlgoRSA)
 
 	t.Log("preserve signature algorithm with empty config value and manual rotation")
@@ -4017,7 +4017,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 
 	// Do a manual rotation - this should leave the signing algorithm
 	// unaffected because config value is not set.
-	svc = rotate(svc, services.RotationModeManual)
+	svc = rotate(svc, types.RotationModeManual)
 	assertSigningAlg(svc, ssh.SigAlgoRSA)
 
 	// shut down the service
@@ -4266,7 +4266,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	// Create and start a Teleport cluster with auth, proxy, and node.
 	makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
 		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
-			Mode: services.RecordOff,
+			Mode: types.RecordOff,
 		})
 		require.NoError(t, err)
 
@@ -4332,7 +4332,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 
 	var tests = []struct {
 		inRoleName string
-		inLabels   services.Labels
+		inLabels   types.Labels
 		inLogin    string
 		outNodes   []string
 	}{
@@ -4340,21 +4340,21 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 		{
 			inRoleName: "worker-only",
 			inLogin:    "foo",
-			inLabels:   services.Labels{"role": []string{"worker"}},
+			inLabels:   types.Labels{"role": []string{"worker"}},
 			outNodes:   []string{"server-01"},
 		},
 		// 1 - Role has label "role:database", only server-02 is returned.
 		{
 			inRoleName: "database-only",
 			inLogin:    "bar",
-			inLabels:   services.Labels{"role": []string{"database"}},
+			inLabels:   types.Labels{"role": []string{"database"}},
 			outNodes:   []string{"server-02"},
 		},
 		// 2 - Role has wildcard label, all nodes are returned server-01 and server-2.
 		{
 			inRoleName: "worker-and-database",
 			inLogin:    "baz",
-			inLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},
+			inLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 			outNodes:   []string{"server-01", "server-02"},
 		},
 	}
@@ -4362,8 +4362,8 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.inRoleName, func(t *testing.T) {
 			// Create role with logins and labels for this test.
-			role, err := services.NewRole(tt.inRoleName, services.RoleSpecV3{
-				Allow: services.RoleConditions{
+			role, err := types.NewRole(tt.inRoleName, types.RoleSpecV3{
+				Allow: types.RoleConditions{
 					Logins:     []string{tt.inLogin},
 					NodeLabels: tt.inLabels,
 				},
@@ -4371,7 +4371,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Create user, role, and generate credentials.
-			err = SetupUser(teleport.Process, tt.inLogin, []services.Role{role})
+			err = SetupUser(teleport.Process, tt.inLogin, []types.Role{role})
 			require.NoError(t, err)
 			initialCreds, err := GenerateUserCreds(UserCredsRequest{Process: teleport.Process, Username: tt.inLogin})
 			require.NoError(t, err)
@@ -4412,7 +4412,7 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 	// Create and start a Teleport cluster with auth, proxy, and node.
 	makeConfig := func() *service.Config {
 		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
-			Mode: services.RecordOff,
+			Mode: types.RecordOff,
 		})
 		require.NoError(t, err)
 
@@ -4553,7 +4553,7 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 		// For session recorded at the node, enhanced events should be found.
 		{
 			desc:               "Enabled and Recorded At Node",
-			inSessionRecording: services.RecordAtNode,
+			inSessionRecording: types.RecordAtNode,
 			inBPFEnabled:       true,
 			outFound:           true,
 		},
@@ -4561,7 +4561,7 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 		// should be found.
 		{
 			desc:               "Disabled and Recorded At Node",
-			inSessionRecording: services.RecordAtNode,
+			inSessionRecording: types.RecordAtNode,
 			inBPFEnabled:       false,
 			outFound:           false,
 		},
@@ -4569,7 +4569,7 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 		// BPF turned off simulates an OpenSSH node.
 		{
 			desc:               "Disabled and Recorded At Proxy",
-			inSessionRecording: services.RecordAtProxy,
+			inSessionRecording: types.RecordAtProxy,
 			inBPFEnabled:       false,
 			outFound:           false,
 		},
@@ -4681,7 +4681,7 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 		// For session recorded at the node, enhanced events should be found.
 		{
 			desc:               "Enabled and recorded at node",
-			inSessionRecording: services.RecordAtNode,
+			inSessionRecording: types.RecordAtNode,
 			inBPFEnabled:       true,
 			outFound:           true,
 		},
@@ -4689,7 +4689,7 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 		// should be found.
 		{
 			desc:               "Disabled and recorded at node",
-			inSessionRecording: services.RecordAtNode,
+			inSessionRecording: types.RecordAtNode,
 			inBPFEnabled:       false,
 			outFound:           false,
 		},
@@ -4697,7 +4697,7 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 		// BPF turned off simulates an OpenSSH node.
 		{
 			desc:               "Disabled and recorded at proxy",
-			inSessionRecording: services.RecordAtProxy,
+			inSessionRecording: types.RecordAtProxy,
 			inBPFEnabled:       false,
 			outFound:           false,
 		},
@@ -4787,7 +4787,7 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 	// Create and start a Teleport cluster.
 	makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
 		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
-			Mode: services.RecordAtNode,
+			Mode: types.RecordAtNode,
 		})
 		require.NoError(t, err)
 
@@ -4958,9 +4958,9 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	authServer := main.Process.GetAuthServer()
 
 	// Create new request role
-	requestedRole, err := services.NewRole(requestedRoleName, services.RoleSpecV3{
-		Options: services.RoleOptions{},
-		Allow:   services.RoleConditions{},
+	requestedRole, err := types.NewRole(requestedRoleName, types.RoleSpecV3{
+		Options: types.RoleOptions{},
+		Allow:   types.RoleConditions{},
 	})
 	require.NoError(t, err)
 
@@ -4968,10 +4968,10 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	require.NoError(t, err)
 
 	// Create user role with ability to request role
-	userRole, err := services.NewRole(userRoleName, services.RoleSpecV3{
-		Options: services.RoleOptions{},
-		Allow: services.RoleConditions{
-			Request: &services.AccessRequestConditions{
+	userRole, err := types.NewRole(userRoleName, types.RoleSpecV3{
+		Options: types.RoleOptions{},
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
 				Roles: []string{requestedRoleName},
 			},
 		},
@@ -4981,7 +4981,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	err = authServer.UpsertRole(ctx, userRole)
 	require.NoError(t, err)
 
-	user, err := services.NewUser(suite.me.Username)
+	user, err := types.NewUser(suite.me.Username)
 	user.AddRole(userRole.GetName())
 	require.NoError(t, err)
 
@@ -5422,13 +5422,13 @@ func TestTraitsPropagation(t *testing.T) {
 	})
 
 	// Update root's certificate authority on leaf to configure role mapping.
-	ca, err := lc.Process.GetAuthServer().GetCertAuthority(services.CertAuthID{
-		Type:       services.UserCA,
+	ca, err := lc.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+		Type:       types.UserCA,
 		DomainName: rc.Secrets.SiteName,
 	}, false)
 	require.NoError(t, err)
 	ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
-	ca.SetRoleMap(services.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
+	ca.SetRoleMap(types.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
 	err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
 	require.NoError(t, err)
 

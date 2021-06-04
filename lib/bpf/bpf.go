@@ -32,7 +32,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -252,7 +253,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	}
 
 	// If the command event is not being monitored, don't process it.
-	_, ok = ctx.Events[teleport.EnhancedRecordingCommand]
+	_, ok = ctx.Events[constants.EnhancedRecordingCommand]
 	if !ok {
 		return
 	}
@@ -284,23 +285,23 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		argv := args.([]string)
 
 		// Emit "command" event.
-		sessionCommandEvent := &events.SessionCommand{
-			Metadata: events.Metadata{
+		sessionCommandEvent := &apievents.SessionCommand{
+			Metadata: apievents.Metadata{
 				Type: events.SessionCommandEvent,
 				Code: events.SessionCommandCode,
 			},
-			ServerMetadata: events.ServerMetadata{
+			ServerMetadata: apievents.ServerMetadata{
 				ServerID:        ctx.ServerID,
 				ServerNamespace: ctx.Namespace,
 			},
-			SessionMetadata: events.SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: ctx.SessionID,
 			},
-			UserMetadata: events.UserMetadata{
+			UserMetadata: apievents.UserMetadata{
 				User:  ctx.User,
 				Login: ctx.Login,
 			},
-			BPFMetadata: events.BPFMetadata{
+			BPFMetadata: apievents.BPFMetadata{
 				CgroupID: event.CgroupID,
 				Program:  convertString(unsafe.Pointer(&event.Command)),
 				PID:      event.PID,
@@ -336,28 +337,28 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 	}
 
 	// If the network event is not being monitored, don't process it.
-	_, ok = ctx.Events[teleport.EnhancedRecordingDisk]
+	_, ok = ctx.Events[constants.EnhancedRecordingDisk]
 	if !ok {
 		return
 	}
 
-	sessionDiskEvent := &events.SessionDisk{
-		Metadata: events.Metadata{
+	sessionDiskEvent := &apievents.SessionDisk{
+		Metadata: apievents.Metadata{
 			Type: events.SessionDiskEvent,
 			Code: events.SessionDiskCode,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.ServerID,
 			ServerNamespace: ctx.Namespace,
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: ctx.SessionID,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:  ctx.User,
 			Login: ctx.Login,
 		},
-		BPFMetadata: events.BPFMetadata{
+		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
 			Program:  convertString(unsafe.Pointer(&event.Command)),
 			PID:      event.PID,
@@ -387,7 +388,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the network event is not being monitored, don't process it.
-	_, ok = ctx.Events[teleport.EnhancedRecordingNetwork]
+	_, ok = ctx.Events[constants.EnhancedRecordingNetwork]
 	if !ok {
 		return
 	}
@@ -402,23 +403,23 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	binary.LittleEndian.PutUint32(dst, uint32(event.DstAddr))
 	dstAddr := net.IP(dst)
 
-	sessionNetworkEvent := &events.SessionNetwork{
-		Metadata: events.Metadata{
+	sessionNetworkEvent := &apievents.SessionNetwork{
+		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
 			Code: events.SessionNetworkCode,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.ServerID,
 			ServerNamespace: ctx.Namespace,
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: ctx.SessionID,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:  ctx.User,
 			Login: ctx.Login,
 		},
-		BPFMetadata: events.BPFMetadata{
+		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
 			Program:  convertString(unsafe.Pointer(&event.Command)),
 			PID:      uint64(event.PID),
@@ -450,7 +451,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the network event is not being monitored, don't process it.
-	_, ok = ctx.Events[teleport.EnhancedRecordingNetwork]
+	_, ok = ctx.Events[constants.EnhancedRecordingNetwork]
 	if !ok {
 		return
 	}
@@ -471,23 +472,23 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	binary.LittleEndian.PutUint32(dst[12:], event.DstAddr[3])
 	dstAddr := net.IP(dst)
 
-	sessionNetworkEvent := &events.SessionNetwork{
-		Metadata: events.Metadata{
+	sessionNetworkEvent := &apievents.SessionNetwork{
+		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
 			Code: events.SessionNetworkCode,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.ServerID,
 			ServerNamespace: ctx.Namespace,
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: ctx.SessionID,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:  ctx.User,
 			Login: ctx.Login,
 		},
-		BPFMetadata: events.BPFMetadata{
+		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
 			Program:  convertString(unsafe.Pointer(&event.Command)),
 			PID:      uint64(event.PID),
