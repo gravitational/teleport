@@ -1825,10 +1825,6 @@ func (m *testModules) Features() modules.Features {
 	}
 }
 
-func (m *testModules) ValidateResource(types.Resource) error {
-	return nil
-}
-
 func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 

@@ -246,10 +246,6 @@ func (m *testModules) Features() modules.Features {
 	}
 }
 
-func (m *testModules) ValidateResource(types.Resource) error {
-	return nil
-}
-
 // TestAccessDisabled makes sure database access can be disabled via modules.
 func TestAccessDisabled(t *testing.T) {
 	defaultModules := modules.GetModules()
