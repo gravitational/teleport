@@ -2190,7 +2190,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 //    2. proxy SSH connections to nodes running with 'node' role
 //    3. take care of reverse tunnels
 func (process *TeleportProcess) initProxy() error {
-	// If no TLS key was provided for the web UI, generate a self signed cert
+	// If no TLS key was provided for the web UI, generate a self-signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
 		!process.Config.Proxy.DisableTLS &&
 		!process.Config.Proxy.DisableWebService &&
@@ -3315,7 +3315,7 @@ func validateConfig(cfg *Config) error {
 // initSelfSignedHTTPSCert generates and self-signs a TLS key+cert pair for https connection
 // to the proxy server.
 func initSelfSignedHTTPSCert(cfg *Config) (err error) {
-	cfg.Log.Warningf("No TLS Keys provided, using self signed certificate.")
+	cfg.Log.Warningf("No TLS Keys provided, using self-signed certificate.")
 
 	keyPath := filepath.Join(cfg.DataDir, defaults.SelfSignedKeyPath)
 	certPath := filepath.Join(cfg.DataDir, defaults.SelfSignedCertPath)
@@ -3333,7 +3333,7 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	if !os.IsNotExist(err) {
 		return trace.Wrap(err, "unrecognized error reading certs")
 	}
-	cfg.Log.Warningf("Generating self signed key and cert to %v %v.", keyPath, certPath)
+	cfg.Log.Warningf("Generating self-signed key and cert to %v %v.", keyPath, certPath)
 
 	creds, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
 	if err != nil {
