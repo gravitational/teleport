@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 
 	"github.com/gravitational/trace"
@@ -74,7 +75,7 @@ type MonitorConfig struct {
 	// ServerID is a session server ID
 	ServerID string
 	// Emitter is events emitter
-	Emitter events.Emitter
+	Emitter apievents.Emitter
 	// Entry is a logging entry
 	Entry log.FieldLogger
 }
@@ -141,20 +142,20 @@ func (w *Monitor) Start() {
 		select {
 		// certificate has expired, disconnect
 		case <-certTime:
-			event := &events.ClientDisconnect{
-				Metadata: events.Metadata{
+			event := &apievents.ClientDisconnect{
+				Metadata: apievents.Metadata{
 					Type: events.ClientDisconnectEvent,
 					Code: events.ClientDisconnectCode,
 				},
-				UserMetadata: events.UserMetadata{
+				UserMetadata: apievents.UserMetadata{
 					Login: w.Login,
 					User:  w.TeleportUser,
 				},
-				ConnectionMetadata: events.ConnectionMetadata{
+				ConnectionMetadata: apievents.ConnectionMetadata{
 					LocalAddr:  w.Conn.LocalAddr().String(),
 					RemoteAddr: w.Conn.RemoteAddr().String(),
 				},
-				ServerMetadata: events.ServerMetadata{
+				ServerMetadata: apievents.ServerMetadata{
 					ServerID: w.ServerID,
 				},
 				Reason: fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC()),
@@ -169,20 +170,20 @@ func (w *Monitor) Start() {
 			now := w.Clock.Now().UTC()
 			clientLastActive := w.Tracker.GetClientLastActive()
 			if now.Sub(clientLastActive) >= w.ClientIdleTimeout {
-				event := &events.ClientDisconnect{
-					Metadata: events.Metadata{
+				event := &apievents.ClientDisconnect{
+					Metadata: apievents.Metadata{
 						Type: events.ClientDisconnectEvent,
 						Code: events.ClientDisconnectCode,
 					},
-					UserMetadata: events.UserMetadata{
+					UserMetadata: apievents.UserMetadata{
 						Login: w.Login,
 						User:  w.TeleportUser,
 					},
-					ConnectionMetadata: events.ConnectionMetadata{
+					ConnectionMetadata: apievents.ConnectionMetadata{
 						LocalAddr:  w.Conn.LocalAddr().String(),
 						RemoteAddr: w.Conn.RemoteAddr().String(),
 					},
-					ServerMetadata: events.ServerMetadata{
+					ServerMetadata: apievents.ServerMetadata{
 						ServerID: w.ServerID,
 					},
 				}

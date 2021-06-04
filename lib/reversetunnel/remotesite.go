@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
@@ -55,9 +56,9 @@ type remoteSite struct {
 	srv         *server
 
 	// connInfo represents the connection to the remote cluster.
-	connInfo services.TunnelConnection
+	connInfo types.TunnelConnection
 	// lastConnInfo is the last connInfo.
-	lastConnInfo services.TunnelConnection
+	lastConnInfo types.TunnelConnection
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -83,7 +84,7 @@ type remoteSite struct {
 	// It is used to detect CA rotation status changes. If the rotation
 	// state has been changed, the tunnel will reconnect to re-create the client
 	// with new settings.
-	remoteCA services.CertAuthority
+	remoteCA types.CertAuthority
 
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
@@ -92,7 +93,7 @@ type remoteSite struct {
 
 func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 	// check if all cert authorities are initiated and if everything is OK
-	ca, err := s.srv.localAccessPoint.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: s.domainName}, false)
+	ca, err := s.srv.localAccessPoint.GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: s.domainName}, false)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -250,7 +251,7 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 		conn:             conn,
 		sconn:            sconn,
 		accessPoint:      s.localAccessPoint,
-		tunnelType:       string(services.ProxyTunnel),
+		tunnelType:       string(types.ProxyTunnel),
 		proxyName:        s.connInfo.GetProxyName(),
 		clusterName:      s.domainName,
 		offlineThreshold: s.offlineThreshold,
@@ -269,19 +270,19 @@ func (s *remoteSite) GetStatus() string {
 	return services.TunnelConnectionStatus(s.clock, connInfo, s.offlineThreshold)
 }
 
-func (s *remoteSite) copyConnInfo() services.TunnelConnection {
+func (s *remoteSite) copyConnInfo() types.TunnelConnection {
 	s.RLock()
 	defer s.RUnlock()
 	return s.connInfo.Clone()
 }
 
-func (s *remoteSite) setLastConnInfo(connInfo services.TunnelConnection) {
+func (s *remoteSite) setLastConnInfo(connInfo types.TunnelConnection) {
 	s.Lock()
 	defer s.Unlock()
 	s.lastConnInfo = connInfo.Clone()
 }
 
-func (s *remoteSite) getLastConnInfo() (services.TunnelConnection, error) {
+func (s *remoteSite) getLastConnInfo() (types.TunnelConnection, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.lastConnInfo == nil {
@@ -310,7 +311,7 @@ func (s *remoteSite) deleteConnectionRecord() {
 // fanOutProxies is a non-blocking call that puts the new proxies
 // list so that remote connection can notify the remote agent
 // about the list update
-func (s *remoteSite) fanOutProxies(proxies []services.Server) {
+func (s *remoteSite) fanOutProxies(proxies []types.Server) {
 	s.Lock()
 	defer s.Unlock()
 	for _, conn := range s.connections {
@@ -397,7 +398,7 @@ func (s *remoteSite) GetLastConnected() time.Time {
 	return connInfo.GetLastHeartbeat()
 }
 
-func (s *remoteSite) compareAndSwapCertAuthority(ca services.CertAuthority) error {
+func (s *remoteSite) compareAndSwapCertAuthority(ca types.CertAuthority) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -420,8 +421,8 @@ func (s *remoteSite) updateCertAuthorities() error {
 	// update main cluster cert authorities on the remote side
 	// remote side makes sure that only relevant fields
 	// are updated
-	hostCA, err := s.localClient.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	hostCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: s.srv.ClusterName,
 	}, false)
 	if err != nil {
@@ -432,8 +433,8 @@ func (s *remoteSite) updateCertAuthorities() error {
 		return trace.Wrap(err)
 	}
 
-	userCA, err := s.localClient.GetCertAuthority(services.CertAuthID{
-		Type:       services.UserCA,
+	userCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
+		Type:       types.UserCA,
 		DomainName: s.srv.ClusterName,
 	}, false)
 	if err != nil {
@@ -447,8 +448,8 @@ func (s *remoteSite) updateCertAuthorities() error {
 	// update remote cluster's host cert authoritiy on a local cluster
 	// local proxy is authorized to perform this operation only for
 	// host authorities of remote clusters.
-	remoteCA, err := s.remoteClient.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	remoteCA, err := s.remoteClient.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: s.domainName,
 	}, false)
 	if err != nil {
@@ -461,8 +462,8 @@ func (s *remoteSite) updateCertAuthorities() error {
 			remoteCA.GetClusterName(), s.domainName)
 	}
 
-	oldRemoteCA, err := s.localClient.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	oldRemoteCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: remoteCA.GetClusterName(),
 	}, false)
 
@@ -533,7 +534,7 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 
 	// If the proxy is in recording mode and a SSH connection is being requested,
 	// use the agent to dial and build an in-memory forwarding server.
-	if params.ConnType == services.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
+	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
 		return s.dialWithAgent(params)
 	}
 	return s.DialTCP(params)

@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -51,16 +52,16 @@ func (d *DiscardAuditLog) GetSessionChunk(namespace string, sid session.ID, offs
 func (d *DiscardAuditLog) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }
-func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]AuditEvent, string, error) {
-	return make([]AuditEvent, 0), "", nil
+func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+	return make([]apievents.AuditEvent, 0), "", nil
 }
-func (d *DiscardAuditLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
-	return make([]AuditEvent, 0), "", nil
+func (d *DiscardAuditLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+	return make([]apievents.AuditEvent, 0), "", nil
 }
 
 func (d *DiscardAuditLog) UploadSessionRecording(SessionRecording) error {
 	return nil
 }
-func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return nil
 }

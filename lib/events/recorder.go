@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 
@@ -33,7 +34,7 @@ import (
 // associated with every session. It forwards session stream to the audit log
 type SessionRecorder interface {
 	io.Writer
-	Emitter
+	apievents.Emitter
 	Close(ctx context.Context) error
 }
 
@@ -144,7 +145,7 @@ func (r *ForwardRecorder) GetAuditLog() IAuditLog {
 
 // EmitAuditEvent is not implemented
 // Events are forwarded to the auth server and is then emitted from there
-func (r *Forwarder) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (r *Forwarder) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return trace.NotImplemented("not implemented")
 }
 

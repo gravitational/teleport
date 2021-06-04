@@ -23,6 +23,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -102,15 +103,15 @@ func insertNodes(ctx context.Context, t assert.TestingT, svc services.Presence, 
 	}
 	for i := 0; i < nodeCount; i++ {
 		name, addr := fmt.Sprintf("node-%d", i), fmt.Sprintf("node%d.example.com", i)
-		node := &services.ServerV2{
-			Kind:    services.KindNode,
-			Version: services.V2,
-			Metadata: services.Metadata{
+		node := &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
 				Name:      name,
 				Namespace: defaults.Namespace,
 				Labels:    labels,
 			},
-			Spec: services.ServerSpecV2{
+			Spec: types.ServerSpecV2{
 				Addr:       addr,
 				PublicAddr: addr,
 			},
@@ -122,7 +123,7 @@ func insertNodes(ctx context.Context, t assert.TestingT, svc services.Presence, 
 
 // benchmarkGetNodes runs GetNodes b.N times.
 func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int, opts ...services.MarshalOption) {
-	var nodes []services.Server
+	var nodes []types.Server
 	var err error
 	for i := 0; i < b.N; i++ {
 		nodes, err = svc.GetNodes(ctx, defaults.Namespace, opts...)

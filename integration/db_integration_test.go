@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -256,7 +257,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 	})
 }
 
-func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []events.AuditEvent {
+func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
 	max := time.Second
 	timeout := time.After(max)
 	bf, err := utils.NewLinear(utils.LinearConfig{
@@ -283,9 +284,9 @@ func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 	}
 }
 
-func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role services.Role, idleTimout time.Duration) {
+func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role types.Role, idleTimout time.Duration) {
 	opts := role.GetOptions()
-	opts.ClientIdleTimeout = services.Duration(idleTimout)
+	opts.ClientIdleTimeout = types.Duration(idleTimout)
 	role.SetOptions(opts)
 	err := authServer.UpsertRole(context.Background(), role)
 	require.NoError(t, err)
@@ -299,8 +300,8 @@ type databasePack struct {
 
 type databaseClusterPack struct {
 	cluster         *TeleInstance
-	user            services.User
-	role            services.Role
+	user            types.User
+	role            types.Role
 	dbProcess       *service.TeleportProcess
 	dbAuthClient    *auth.Client
 	postgresService service.Database
@@ -421,13 +422,13 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p.setupUsersAndRoles(t)
 
 	// Update root's certificate authority on leaf to configure role mapping.
-	ca, err := p.leaf.cluster.Process.GetAuthServer().GetCertAuthority(services.CertAuthID{
-		Type:       services.UserCA,
+	ca, err := p.leaf.cluster.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+		Type:       types.UserCA,
 		DomainName: p.root.cluster.Secrets.SiteName,
 	}, false)
 	require.NoError(t, err)
 	ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
-	ca.SetRoleMap(services.RoleMap{
+	ca.SetRoleMap(types.RoleMap{
 		{Remote: p.root.role.GetName(), Local: []string{p.leaf.role.GetName()}},
 	})
 	err = p.leaf.cluster.Process.GetAuthServer().UpsertCertAuthority(ca)
@@ -548,16 +549,16 @@ func (p *databasePack) setupUsersAndRoles(t *testing.T) {
 	p.root.user, p.root.role, err = auth.CreateUserAndRole(p.root.cluster.Process.GetAuthServer(), "root-user", nil)
 	require.NoError(t, err)
 
-	p.root.role.SetDatabaseUsers(services.Allow, []string{services.Wildcard})
-	p.root.role.SetDatabaseNames(services.Allow, []string{services.Wildcard})
+	p.root.role.SetDatabaseUsers(services.Allow, []string{types.Wildcard})
+	p.root.role.SetDatabaseNames(services.Allow, []string{types.Wildcard})
 	err = p.root.cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.root.role)
 	require.NoError(t, err)
 
 	p.leaf.user, p.leaf.role, err = auth.CreateUserAndRole(p.root.cluster.Process.GetAuthServer(), "leaf-user", nil)
 	require.NoError(t, err)
 
-	p.leaf.role.SetDatabaseUsers(services.Allow, []string{services.Wildcard})
-	p.leaf.role.SetDatabaseNames(services.Allow, []string{services.Wildcard})
+	p.leaf.role.SetDatabaseUsers(services.Allow, []string{types.Wildcard})
+	p.leaf.role.SetDatabaseNames(services.Allow, []string{types.Wildcard})
 	err = p.leaf.cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.leaf.role)
 	require.NoError(t, err)
 }

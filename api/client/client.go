@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
@@ -101,7 +102,7 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 }
 
 // newClient constructs a new client.
-func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) (clt *Client) {
+func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client {
 	return &Client{
 		c:          cfg,
 		dialer:     dialer,
@@ -275,16 +276,19 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
 
-	dialOptions := append(
-		c.c.DialOpts,
-		grpc.WithContextDialer(c.grpcDialer()),
-		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)),
+	dialOpts := append([]grpc.DialOption{}, c.c.DialOpts...)
+	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
+	dialOpts = append(dialOpts,
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
-		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
-	)
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor))
+	// Only set transportCredentials if tlsConfig is set. This makes it possible
+	// to explicitly provide gprc.WithInsecure in the client's dial options.
+	if c.tlsConfig != nil {
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
+	}
 
 	var err error
-	if c.conn, err = grpc.DialContext(dialContext, addr, dialOptions...); err != nil {
+	if c.conn, err = grpc.DialContext(dialContext, addr, dialOpts...); err != nil {
 		return trace.Wrap(err)
 	}
 	c.grpc = proto.NewAuthServiceClient(c.conn)
@@ -303,6 +307,27 @@ func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, 
 			return nil, trace.ConnectionProblem(err, "failed to dial: %v", err)
 		}
 		return conn, nil
+	}
+}
+
+// waitForConnectionReady waits for the client's grpc connection finish dialing, returning an errror
+// if the ctx is canceled or the client's gRPC connection enters an unexpected state. This can be used
+// alongside the DialInBackground client config option to wait until background dialing has completed.
+func (c *Client) waitForConnectionReady(ctx context.Context) error {
+	for {
+		switch state := c.conn.GetState(); state {
+		case connectivity.Ready:
+			return nil
+		case connectivity.TransientFailure, connectivity.Connecting:
+			// Wait for expected state transitions. For details about grpc.ClientConn state changes
+			// see https://github.com/grpc/grpc/blob/master/doc/connectivity-semantics-and-api.md
+			if !c.conn.WaitForStateChange(ctx, state) {
+				// ctx canceled
+				return trace.Wrap(ctx.Err())
+			}
+		case connectivity.Idle, connectivity.Shutdown:
+			return trace.Errorf("client gRPC connection entered an unexpected state: %v", state)
+		}
 	}
 }
 
@@ -1364,6 +1389,12 @@ func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig types
 		return trace.BadParameter("invalid type %T", netConfig)
 	}
 	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfigV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
+func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
+	_, err := c.grpc.ResetClusterNetworkingConfig(ctx, &empty.Empty{})
 	return trail.FromGRPC(err)
 }
 

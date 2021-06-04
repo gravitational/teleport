@@ -578,9 +578,6 @@ message AuditConfig {
 
 // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
 message ClusterNetworkingConfigV2 {
-    option (gogoproto.goproto_stringer) = false;
-    option (gogoproto.stringer) = false;
-
     // Kind is a resource kind
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources

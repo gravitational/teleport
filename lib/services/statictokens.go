@@ -19,29 +19,30 @@ package services
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // DefaultStaticTokens is used to get the default static tokens (empty list)
 // when nothing is specified in file configuration.
-func DefaultStaticTokens() StaticTokens {
-	return &StaticTokensV2{
-		Kind:    KindStaticTokens,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameStaticTokens,
+func DefaultStaticTokens() types.StaticTokens {
+	return &types.StaticTokensV2{
+		Kind:    types.KindStaticTokens,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      types.MetaNameStaticTokens,
 			Namespace: defaults.Namespace,
 		},
-		Spec: StaticTokensSpecV2{
-			StaticTokens: []ProvisionTokenV1{},
+		Spec: types.StaticTokensSpecV2{
+			StaticTokens: []types.ProvisionTokenV1{},
 		},
 	}
 }
 
 // UnmarshalStaticTokens unmarshals the StaticTokens resource from JSON.
-func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (StaticTokens, error) {
-	var staticTokens StaticTokensV2
+func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (types.StaticTokens, error) {
+	var staticTokens types.StaticTokensV2
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -69,15 +70,15 @@ func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (StaticTokens, e
 }
 
 // MarshalStaticTokens marshals the StaticTokens resource to JSON.
-func MarshalStaticTokens(staticToken StaticTokens, opts ...MarshalOption) ([]byte, error) {
+func MarshalStaticTokens(staticToken types.StaticTokens, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch staticToken := staticToken.(type) {
-	case *StaticTokensV2:
-		if version := staticToken.GetVersion(); version != V2 {
+	case *types.StaticTokensV2:
+		if version := staticToken.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched static token version %v and type %T", version, staticToken)
 		}
 		if !cfg.PreserveResourceID {

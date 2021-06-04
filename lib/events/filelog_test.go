@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/jonboulle/clockwork"
@@ -44,7 +45,7 @@ func TestFileLogPagination(t *testing.T) {
 			Type: SessionJoinEvent,
 			Time: clock.Now().UTC(),
 		},
-		UserMetadata: UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: "bob",
 		},
 	})
@@ -56,7 +57,7 @@ func TestFileLogPagination(t *testing.T) {
 			Type: SessionJoinEvent,
 			Time: clock.Now().Add(time.Minute).UTC(),
 		},
-		UserMetadata: UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: "alice",
 		},
 	})
@@ -68,7 +69,7 @@ func TestFileLogPagination(t *testing.T) {
 			Type: SessionJoinEvent,
 			Time: clock.Now().Add(time.Minute * 2).UTC(),
 		},
-		UserMetadata: UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: "dave",
 		},
 	})
