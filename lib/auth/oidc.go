@@ -548,7 +548,7 @@ func claimsFromIDToken(oidcClient *oidc.Client, idToken string) (jose.Claims, er
 func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken string) (jose.Claims, error) {
 	err := isHTTPS(issuerURL)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NotFound(err.Error())
 	}
 
 	oac, err := oidcClient.OAuthClient()
@@ -780,7 +780,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 	userInfoClaims, err := claimsFromUserInfo(oidcClient, connector.GetIssuerURL(), t.AccessToken)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			log.Debugf("OIDC provider doesn't offer UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
+			log.Debugf("OIDC provider doesn't offer valid UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
 			return idTokenClaims, nil
 		}
 		log.Debugf("Unable to fetch UserInfo claims: %v.", err)
