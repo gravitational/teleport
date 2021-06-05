@@ -50,8 +50,8 @@ func TestMFADeviceManagement(t *testing.T) {
 	clock := srv.Clock().(clockwork.FakeClock)
 
 	// Enable U2F support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -545,8 +545,8 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	clock := srv.Clock()
 
 	// Enable U2F support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -870,8 +870,8 @@ func TestIsMFARequired(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Enable MFA support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -929,8 +929,8 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	clock := srv.Clock().(clockwork.FakeClock)
 
 	// Enable MFA support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -1017,4 +1017,61 @@ func TestDeleteLastMFADevice(t *testing.T) {
 		},
 		checkErr: require.Error,
 	})
+}
+
+// TestClusterNetworkingConfigOriginDynamic tests setting ClusterNetworkingConfig
+// via gRPC results in configuration with OriginDynamic being stored.
+func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create a fake user.
+	user, _, err := CreateUserAndRole(srv.Auth(), "configurer", []string{})
+	require.NoError(t, err)
+	cl, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	testCases := []struct {
+		desc      string
+		netConfig func(t *testing.T) types.ClusterNetworkingConfig
+	}{
+		{
+			desc: "setting origin: defaults",
+			netConfig: func(t *testing.T) types.ClusterNetworkingConfig {
+				c := types.DefaultClusterNetworkingConfig()
+				require.Equal(t, c.Origin(), types.OriginDefaults)
+				return c
+			},
+		},
+		{
+			desc: "setting origin: config-file",
+			netConfig: func(t *testing.T) types.ClusterNetworkingConfig {
+				c, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{})
+				require.NoError(t, err)
+				require.Equal(t, c.Origin(), types.OriginConfigFile)
+				return c
+			},
+		},
+		{
+			desc: "setting origin: dynamic",
+			netConfig: func(t *testing.T) types.ClusterNetworkingConfig {
+				c := types.DefaultClusterNetworkingConfig()
+				c.SetOrigin(types.OriginDynamic)
+				return c
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			netConfig := tc.netConfig(t)
+			err := cl.SetClusterNetworkingConfig(ctx, netConfig)
+			require.NoError(t, err)
+
+			storedNetConfig, err := srv.Auth().GetClusterNetworkingConfig(ctx)
+			require.NoError(t, err)
+			require.Equal(t, storedNetConfig.Origin(), types.OriginDynamic)
+		})
+	}
 }

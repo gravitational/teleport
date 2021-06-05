@@ -29,9 +29,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -307,7 +307,7 @@ func (t *proxySubsys) proxyToHost(
 	// network resolution (by IP or DNS)
 	//
 	var (
-		servers []services.Server
+		servers []types.Server
 		err     error
 	)
 	localCluster, _ := t.srv.authService.GetClusterName()
@@ -342,7 +342,7 @@ func (t *proxySubsys) proxyToHost(
 	hostIsUUID := uuid.Parse(t.host) != nil
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
-	var server services.Server
+	var server types.Server
 	matches := 0
 	for i := range servers {
 		// If the host parameter is a UUID and it matches the Node ID,
@@ -441,7 +441,7 @@ func (t *proxySubsys) proxyToHost(
 		Address:      t.host,
 		ServerID:     serverID,
 		Principals:   principals,
-		ConnType:     services.NodeTunnel,
+		ConnType:     types.NodeTunnel,
 	})
 	if err != nil {
 		failedConnectingToNode.Inc()

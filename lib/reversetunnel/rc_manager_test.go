@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -29,7 +30,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 
 	tests := []struct {
 		desc              string
-		reverseTunnels    []services.ReverseTunnel
+		reverseTunnels    []types.ReverseTunnel
 		reverseTunnelsErr error
 		newAgentPoolErr   error
 		wantPools         map[remoteClusterKey]*AgentPool
@@ -42,8 +43,8 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 		},
 		{
 			desc: "one reverse tunnel with one address",
-			reverseTunnels: []services.ReverseTunnel{
-				services.NewReverseTunnel("cluster-a", []string{"addr-a"}),
+			reverseTunnels: []types.ReverseTunnel{
+				types.NewReverseTunnel("cluster-a", []string{"addr-a"}),
 			},
 			wantPools: map[remoteClusterKey]*AgentPool{
 				remoteClusterKey{cluster: "cluster-a", addr: "addr-a"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-a"}},
@@ -52,8 +53,8 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 		},
 		{
 			desc: "one reverse tunnel added with multiple addresses",
-			reverseTunnels: []services.ReverseTunnel{
-				services.NewReverseTunnel("cluster-a", []string{"addr-a", "addr-b", "addr-c"}),
+			reverseTunnels: []types.ReverseTunnel{
+				types.NewReverseTunnel("cluster-a", []string{"addr-a", "addr-b", "addr-c"}),
 			},
 			wantPools: map[remoteClusterKey]*AgentPool{
 				remoteClusterKey{cluster: "cluster-a", addr: "addr-a"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-a"}},
@@ -64,8 +65,8 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 		},
 		{
 			desc: "one reverse tunnel added and one removed",
-			reverseTunnels: []services.ReverseTunnel{
-				services.NewReverseTunnel("cluster-b", []string{"addr-b"}),
+			reverseTunnels: []types.ReverseTunnel{
+				types.NewReverseTunnel("cluster-b", []string{"addr-b"}),
 			},
 			wantPools: map[remoteClusterKey]*AgentPool{
 				remoteClusterKey{cluster: "cluster-b", addr: "addr-b"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-b", ProxyAddr: "addr-b"}},
@@ -74,9 +75,9 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 		},
 		{
 			desc: "multiple reverse tunnels",
-			reverseTunnels: []services.ReverseTunnel{
-				services.NewReverseTunnel("cluster-a", []string{"addr-a", "addr-b", "addr-c"}),
-				services.NewReverseTunnel("cluster-b", []string{"addr-b"}),
+			reverseTunnels: []types.ReverseTunnel{
+				types.NewReverseTunnel("cluster-a", []string{"addr-a", "addr-b", "addr-c"}),
+				types.NewReverseTunnel("cluster-b", []string{"addr-b"}),
 			},
 			wantPools: map[remoteClusterKey]*AgentPool{
 				remoteClusterKey{cluster: "cluster-a", addr: "addr-a"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-a"}},
@@ -99,10 +100,10 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 		},
 		{
 			desc: "AgentPool creation fails, keep existing pools",
-			reverseTunnels: []services.ReverseTunnel{
-				services.NewReverseTunnel("cluster-a", []string{"addr-a", "addr-b", "addr-c"}),
-				services.NewReverseTunnel("cluster-b", []string{"addr-b"}),
-				services.NewReverseTunnel("cluster-c", []string{"addr-c1", "addr-c2"}),
+			reverseTunnels: []types.ReverseTunnel{
+				types.NewReverseTunnel("cluster-a", []string{"addr-a", "addr-b", "addr-c"}),
+				types.NewReverseTunnel("cluster-b", []string{"addr-b"}),
+				types.NewReverseTunnel("cluster-c", []string{"addr-c1", "addr-c2"}),
 			},
 			newAgentPoolErr: errors.New("nah"),
 			wantPools: map[remoteClusterKey]*AgentPool{
@@ -144,10 +145,10 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 type mockAuthClient struct {
 	auth.ClientI
 
-	reverseTunnels    []services.ReverseTunnel
+	reverseTunnels    []types.ReverseTunnel
 	reverseTunnelsErr error
 }
 
-func (c mockAuthClient) GetReverseTunnels(...services.MarshalOption) ([]services.ReverseTunnel, error) {
+func (c mockAuthClient) GetReverseTunnels(...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	return c.reverseTunnels, c.reverseTunnelsErr
 }
