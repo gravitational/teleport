@@ -35,6 +35,8 @@ roles in a Teleport cluster, an administrator can execute:
 $ tctl get roles
 ```
 
+(!docs/pages/includes/backup-warning.mdx!)
+
 By default there is always one role called `admin` which looks like this:
 
 ```yaml
@@ -171,6 +173,17 @@ The table below documents the behavior of each option if multiple roles are assi
 | `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `max_connections` | Limit on how many active SSH sessions can be started via Teleport | |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
+
+## Preset roles
+
+Teleport provides several pre-defined roles out-of-the-box:
+
+| Role | Description |
+| --- | --- |
+| `admin` | Allows complete control over cluster settings, resources, and events. |
+| `editor` | Allows editing of cluster configuration settings. |
+| `auditor`| Allows reading cluster events, audit logs, and playing back session records. | 
+| `access`| Allows access to cluster resources. |
 
 ## RBAC for Hosts
 

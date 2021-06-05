@@ -66,7 +66,7 @@ stores the state of the system and S3 will store audit logs.
 
 ### EC2 / Autoscale
 
-To run Teleport in a High Availability configuration we recommend using m4.large instances. It's best practice to separate the proxy and authentication server, using autoscaling groups for both machines. We have pre-built AMIs for both Teleport OSS and Enterprise editions.
+To run Teleport in a High Availability configuration we recommend using m4.large instances. It's best practice to separate the proxy and authentication server, using autoscaling groups for both machines. We have pre-built AMIs for both Teleport Open Source and Enterprise editions.
 
 ### DynamoDB
 
@@ -141,8 +141,9 @@ proxy and provides the TCP connections needed for Teleport proxy SSH connections
 
 ### IAM
 
-IAM is the recommended tool for creating service access. This guide will follow the
-best practice of principle of least privilege (PoLP).
+IAM is the recommended tool for creating service access. 
+
+(!docs/pages/includes/permission-warning.mdx!)
 
 #### IAM for Amazon S3
 
@@ -644,7 +645,7 @@ kube-system   kube-proxy-c5nv2           1/1     Running   0          5h28m
 
 ## Running Teleport Enterprise on AWS
 
-Most of this guide has been designed for OSS Teleport. Most of this guide also applies
+Most of this guide has been designed for Open Source Teleport. Most of this guide also applies
 to Teleport Enterprise with a few extra notes around adding a license and getting the
 correct binary.
 
