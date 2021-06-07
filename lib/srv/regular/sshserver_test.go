@@ -51,12 +51,11 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"github.com/pborman/uuid"
 )
 
