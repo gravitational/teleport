@@ -39,11 +39,11 @@ func ValidateReverseTunnel(rt types.ReverseTunnel) error {
 }
 
 // UnmarshalReverseTunnel unmarshals the ReverseTunnel resource from JSON.
-func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel, error) {
+func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (types.ReverseTunnel, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing tunnel data")
 	}
-	var h ResourceHeader
+	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -54,8 +54,8 @@ func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel,
 	}
 
 	switch h.Version {
-	case V2:
-		var r ReverseTunnelV2
+	case types.V2:
+		var r types.ReverseTunnelV2
 		if err := utils.FastUnmarshal(bytes, &r); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -74,15 +74,15 @@ func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel,
 }
 
 // MarshalReverseTunnel marshals the ReverseTunnel resource to JSON.
-func MarshalReverseTunnel(reverseTunnel ReverseTunnel, opts ...MarshalOption) ([]byte, error) {
+func MarshalReverseTunnel(reverseTunnel types.ReverseTunnel, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch reverseTunnel := reverseTunnel.(type) {
-	case *ReverseTunnelV2:
-		if version := reverseTunnel.GetVersion(); version != V2 {
+	case *types.ReverseTunnelV2:
+		if version := reverseTunnel.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched reverse tunnel version %v and type %T", version, reverseTunnel)
 		}
 		if !cfg.PreserveResourceID {

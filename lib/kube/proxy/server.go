@@ -24,11 +24,11 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -250,7 +250,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 
 // GetServerInfo returns a services.Server object for heartbeats (aka
 // presence).
-func (t *TLSServer) GetServerInfo() (services.Resource, error) {
+func (t *TLSServer) GetServerInfo() (types.Resource, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -269,14 +269,14 @@ func (t *TLSServer) GetServerInfo() (services.Resource, error) {
 		name += "-proxy_service"
 	}
 
-	srv := &services.ServerV2{
-		Kind:    services.KindKubeService,
-		Version: services.V2,
-		Metadata: services.Metadata{
+	srv := &types.ServerV2{
+		Kind:    types.KindKubeService,
+		Version: types.V2,
+		Metadata: types.Metadata{
 			Name:      name,
 			Namespace: t.Namespace,
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr:               addr,
 			Version:            teleport.Version,
 			KubernetesClusters: t.fwd.kubeClusters(),

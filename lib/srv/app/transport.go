@@ -25,6 +25,8 @@ import (
 	"path"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -45,7 +47,7 @@ type transportConfig struct {
 	insecureSkipVerify bool
 	cipherSuites       []uint16
 	jwt                string
-	rewrite            *services.Rewrite
+	rewrite            *types.Rewrite
 	w                  events.StreamWriter
 	traits             wrappers.Traits
 	log                logrus.FieldLogger
@@ -296,8 +298,8 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 
 // emitAuditEvent writes the request and response to audit stream.
 func (t *transport) emitAuditEvent(req *http.Request, resp *http.Response) error {
-	appSessionRequestEvent := &events.AppSessionRequest{
-		Metadata: events.Metadata{
+	appSessionRequestEvent := &apievents.AppSessionRequest{
+		Metadata: apievents.Metadata{
 			Type: events.AppSessionRequestEvent,
 			Code: events.AppSessionRequestCode,
 		},

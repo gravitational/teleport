@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -45,7 +46,7 @@ type MarshalConfig struct {
 // GetVersion returns explicitly provided version or sets latest as default
 func (m *MarshalConfig) GetVersion() string {
 	if m.Version == "" {
-		return V2
+		return types.V2
 	}
 	return m.Version
 }
@@ -91,7 +92,7 @@ func WithExpires(expires time.Time) MarshalOption {
 func WithVersion(v string) MarshalOption {
 	return func(c *MarshalConfig) error {
 		switch v {
-		case V1, V2, V3:
+		case types.V1, types.V2, types.V3:
 			c.Version = v
 			return nil
 		default:
@@ -115,40 +116,42 @@ func ParseShortcut(in string) (string, error) {
 		return "", trace.BadParameter("missing resource name")
 	}
 	switch strings.ToLower(in) {
-	case KindRole, "roles":
-		return KindRole, nil
-	case KindNamespace, "namespaces", "ns":
-		return KindNamespace, nil
-	case KindAuthServer, "auth_servers", "auth":
-		return KindAuthServer, nil
-	case KindProxy, "proxies":
-		return KindProxy, nil
-	case KindNode, "nodes":
-		return KindNode, nil
-	case KindOIDCConnector:
-		return KindOIDCConnector, nil
-	case KindSAMLConnector:
-		return KindSAMLConnector, nil
-	case KindGithubConnector:
-		return KindGithubConnector, nil
-	case KindConnectors, "connector":
-		return KindConnectors, nil
-	case KindUser, "users":
-		return KindUser, nil
-	case KindCertAuthority, "cert_authorities", "cas":
-		return KindCertAuthority, nil
-	case KindReverseTunnel, "reverse_tunnels", "rts":
-		return KindReverseTunnel, nil
-	case KindTrustedCluster, "tc", "cluster", "clusters":
-		return KindTrustedCluster, nil
-	case KindClusterAuthPreference, "cluster_authentication_preferences", "cap":
-		return KindClusterAuthPreference, nil
-	case KindRemoteCluster, "remote_clusters", "rc", "rcs":
-		return KindRemoteCluster, nil
-	case KindSemaphore, "semaphores", "sem", "sems":
-		return KindSemaphore, nil
-	case KindKubeService, "kube_services":
-		return KindKubeService, nil
+	case types.KindRole, "roles":
+		return types.KindRole, nil
+	case types.KindNamespace, "namespaces", "ns":
+		return types.KindNamespace, nil
+	case types.KindAuthServer, "auth_servers", "auth":
+		return types.KindAuthServer, nil
+	case types.KindProxy, "proxies":
+		return types.KindProxy, nil
+	case types.KindNode, "nodes":
+		return types.KindNode, nil
+	case types.KindOIDCConnector:
+		return types.KindOIDCConnector, nil
+	case types.KindSAMLConnector:
+		return types.KindSAMLConnector, nil
+	case types.KindGithubConnector:
+		return types.KindGithubConnector, nil
+	case types.KindConnectors, "connector":
+		return types.KindConnectors, nil
+	case types.KindUser, "users":
+		return types.KindUser, nil
+	case types.KindCertAuthority, "cert_authorities", "cas":
+		return types.KindCertAuthority, nil
+	case types.KindReverseTunnel, "reverse_tunnels", "rts":
+		return types.KindReverseTunnel, nil
+	case types.KindTrustedCluster, "tc", "cluster", "clusters":
+		return types.KindTrustedCluster, nil
+	case types.KindClusterAuthPreference, "cluster_authentication_preferences", "cap":
+		return types.KindClusterAuthPreference, nil
+	case types.KindClusterNetworkingConfig, "networking_config", "networking", "netconfig":
+		return types.KindClusterNetworkingConfig, nil
+	case types.KindRemoteCluster, "remote_clusters", "rc", "rcs":
+		return types.KindRemoteCluster, nil
+	case types.KindSemaphore, "semaphores", "sem", "sems":
+		return types.KindSemaphore, nil
+	case types.KindKubeService, "kube_services":
+		return types.KindKubeService, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -211,6 +214,9 @@ func (r *Ref) Set(v string) error {
 
 func (r *Ref) String() string {
 	if r.SubKind == "" {
+		if r.Name == "" {
+			return r.Kind
+		}
 		return fmt.Sprintf("%s/%s", r.Kind, r.Name)
 	}
 	return fmt.Sprintf("%s/%s/%s", r.Kind, r.SubKind, r.Name)
@@ -330,10 +336,10 @@ func fieldsFunc(s string, f func(rune) bool) []string {
 var marshalerMutex sync.RWMutex
 
 // ResourceMarshaler handles marshaling of a specific resource type.
-type ResourceMarshaler func(Resource, ...MarshalOption) ([]byte, error)
+type ResourceMarshaler func(types.Resource, ...MarshalOption) ([]byte, error)
 
 // ResourceUnmarshaler handles unmarshaling of a specific resource type.
-type ResourceUnmarshaler func([]byte, ...MarshalOption) (Resource, error)
+type ResourceUnmarshaler func([]byte, ...MarshalOption) (types.Resource, error)
 
 // resourceMarshalers holds a collection of marshalers organized by kind.
 var resourceMarshalers map[string]ResourceMarshaler = make(map[string]ResourceMarshaler)
@@ -387,8 +393,8 @@ func getResourceUnmarshaler(kind string) (ResourceUnmarshaler, bool) {
 }
 
 func init() {
-	RegisterResourceMarshaler(KindUser, func(r Resource, opts ...MarshalOption) ([]byte, error) {
-		rsc, ok := r.(User)
+	RegisterResourceMarshaler(types.KindUser, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(types.User)
 		if !ok {
 			return nil, trace.BadParameter("expected User, got %T", r)
 		}
@@ -398,7 +404,7 @@ func init() {
 		}
 		return raw, nil
 	})
-	RegisterResourceUnmarshaler(KindUser, func(b []byte, opts ...MarshalOption) (Resource, error) {
+	RegisterResourceUnmarshaler(types.KindUser, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
 		rsc, err := UnmarshalUser(b, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -406,8 +412,8 @@ func init() {
 		return rsc, nil
 	})
 
-	RegisterResourceMarshaler(KindCertAuthority, func(r Resource, opts ...MarshalOption) ([]byte, error) {
-		rsc, ok := r.(CertAuthority)
+	RegisterResourceMarshaler(types.KindCertAuthority, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(types.CertAuthority)
 		if !ok {
 			return nil, trace.BadParameter("expected CertAuthority, got %T", r)
 		}
@@ -417,7 +423,7 @@ func init() {
 		}
 		return raw, nil
 	})
-	RegisterResourceUnmarshaler(KindCertAuthority, func(b []byte, opts ...MarshalOption) (Resource, error) {
+	RegisterResourceUnmarshaler(types.KindCertAuthority, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
 		rsc, err := UnmarshalCertAuthority(b, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -425,8 +431,8 @@ func init() {
 		return rsc, nil
 	})
 
-	RegisterResourceMarshaler(KindTrustedCluster, func(r Resource, opts ...MarshalOption) ([]byte, error) {
-		rsc, ok := r.(TrustedCluster)
+	RegisterResourceMarshaler(types.KindTrustedCluster, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(types.TrustedCluster)
 		if !ok {
 			return nil, trace.BadParameter("expected TrustedCluster, got %T", r)
 		}
@@ -436,7 +442,7 @@ func init() {
 		}
 		return raw, nil
 	})
-	RegisterResourceUnmarshaler(KindTrustedCluster, func(b []byte, opts ...MarshalOption) (Resource, error) {
+	RegisterResourceUnmarshaler(types.KindTrustedCluster, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
 		rsc, err := UnmarshalTrustedCluster(b, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -444,8 +450,8 @@ func init() {
 		return rsc, nil
 	})
 
-	RegisterResourceMarshaler(KindGithubConnector, func(r Resource, opts ...MarshalOption) ([]byte, error) {
-		rsc, ok := r.(GithubConnector)
+	RegisterResourceMarshaler(types.KindGithubConnector, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(types.GithubConnector)
 		if !ok {
 			return nil, trace.BadParameter("expected GithubConnector, got %T", r)
 		}
@@ -455,7 +461,7 @@ func init() {
 		}
 		return raw, nil
 	})
-	RegisterResourceUnmarshaler(KindGithubConnector, func(b []byte, opts ...MarshalOption) (Resource, error) {
+	RegisterResourceUnmarshaler(types.KindGithubConnector, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
 		rsc, err := UnmarshalGithubConnector(b) // XXX: Does not support marshal options.
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -469,7 +475,7 @@ func init() {
 //
 // NOTE: This function only supports the subset of resources which may be imported/exported
 // by users (e.g. via `tctl get`).
-func MarshalResource(resource Resource, opts ...MarshalOption) ([]byte, error) {
+func MarshalResource(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
 	marshal, ok := getResourceMarshaler(resource.GetKind())
 	if !ok {
 		return nil, trace.NotImplemented("cannot dynamically marshal resources of kind %q", resource.GetKind())
@@ -494,7 +500,7 @@ func MarshalResource(resource Resource, opts ...MarshalOption) ([]byte, error) {
 //
 // NOTE: This function only supports the subset of resources which may be imported/exported
 // by users (e.g. via `tctl get`).
-func UnmarshalResource(kind string, raw []byte, opts ...MarshalOption) (Resource, error) {
+func UnmarshalResource(kind string, raw []byte, opts ...MarshalOption) (types.Resource, error) {
 	unmarshal, ok := getResourceUnmarshaler(kind)
 	if !ok {
 		return nil, trace.NotImplemented("cannot dynamically unmarshal resources of kind %q", kind)
@@ -508,14 +514,14 @@ func UnmarshalResource(kind string, raw []byte, opts ...MarshalOption) (Resource
 
 // UnknownResource is used to detect resources
 type UnknownResource struct {
-	ResourceHeader
+	types.ResourceHeader
 	// Raw is raw representation of the resource
 	Raw []byte
 }
 
 // UnmarshalJSON unmarshals header and captures raw state
 func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
-	var h ResourceHeader
+	var h types.ResourceHeader
 	if err := json.Unmarshal(raw, &h); err != nil {
 		return trace.Wrap(err)
 	}
