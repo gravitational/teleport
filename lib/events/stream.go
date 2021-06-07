@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -122,7 +123,7 @@ type ProtoStreamer struct {
 
 // CreateAuditStreamForUpload creates audit stream for existing upload,
 // this function is useful in tests
-func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid session.ID, upload StreamUpload) (Stream, error) {
+func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid session.ID, upload StreamUpload) (apievents.Stream, error) {
 	return NewProtoStream(ProtoStreamConfig{
 		Upload:            upload,
 		BufferPool:        s.bufferPool,
@@ -134,7 +135,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 }
 
 // CreateAuditStream creates audit stream and upload
-func (s *ProtoStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (Stream, error) {
+func (s *ProtoStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	upload, err := s.cfg.Uploader.CreateUpload(ctx, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -143,7 +144,7 @@ func (s *ProtoStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (
 }
 
 // ResumeAuditStream resumes the stream that has not been completed yet
-func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error) {
+func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	// Note, that if the session ID does not match the upload ID,
 	// the request will fail
 	upload := StreamUpload{SessionID: sid, ID: uploadID}
@@ -267,7 +268,7 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 
 		// Buffered channel gives consumers
 		// a chance to get an early status update.
-		statusCh: make(chan StreamStatus, 1),
+		statusCh: make(chan apievents.StreamStatus, 1),
 	}
 
 	writer := &sliceWriter{
@@ -324,7 +325,7 @@ type ProtoStream struct {
 	uploadsDone context.CancelFunc
 
 	// statusCh sends updates on the stream status
-	statusCh chan StreamStatus
+	statusCh chan apievents.StreamStatus
 }
 
 const (
@@ -338,7 +339,7 @@ const (
 
 type protoEvent struct {
 	index int64
-	oneof *OneOf
+	oneof *apievents.OneOf
 }
 
 func (s *ProtoStream) setCompleteResult(err error) {
@@ -360,8 +361,8 @@ func (s *ProtoStream) Done() <-chan struct{} {
 }
 
 // EmitAuditEvent emits a single audit event to the stream
-func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
-	oneof, err := ToOneOf(event)
+func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	oneof, err := apievents.ToOneOf(event)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -405,7 +406,7 @@ func (s *ProtoStream) Complete(ctx context.Context) error {
 
 // Status returns channel receiving updates about stream status
 // last event index that was uploaded and upload ID
-func (s *ProtoStream) Status() <-chan StreamStatus {
+func (s *ProtoStream) Status() <-chan apievents.StreamStatus {
 	return s.statusCh
 }
 
@@ -452,7 +453,7 @@ func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64
 }
 
 func (w *sliceWriter) trySendStreamStatusUpdate(lastEventIndex int64) {
-	status := StreamStatus{
+	status := apievents.StreamStatus{
 		UploadID:       w.proto.cfg.Upload.ID,
 		LastEventIndex: lastEventIndex,
 		LastUploadTime: w.proto.cfg.Clock.Now().UTC(),
@@ -834,7 +835,7 @@ func NewProtoReader(r io.Reader) *ProtoReader {
 // audit events one by one
 type AuditReader interface {
 	// Read reads audit events
-	Read(context.Context) (AuditEvent, error)
+	Read(context.Context) (apievents.AuditEvent, error)
 }
 
 const (
@@ -924,7 +925,7 @@ func (r *ProtoReader) GetStats() ProtoReaderStats {
 }
 
 // Read returns next event or io.EOF in case of the end of the parts
-func (r *ProtoReader) Read(ctx context.Context) (AuditEvent, error) {
+func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 	// periodic checks of context after fixed amount of iterations
 	// is an extra precaution to avoid
 	// accidental endless loop due to logic error crashing the system
@@ -1023,12 +1024,12 @@ func (r *ProtoReader) Read(ctx context.Context) (AuditEvent, error) {
 			if err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
-			oneof := OneOf{}
+			oneof := apievents.OneOf{}
 			err = oneof.Unmarshal(r.messageBytes[:messageSize])
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			event, err := FromOneOf(oneof)
+			event, err := apievents.FromOneOf(oneof)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1049,8 +1050,8 @@ func (r *ProtoReader) Read(ctx context.Context) (AuditEvent, error) {
 }
 
 // ReadAll reads all events until EOF
-func (r *ProtoReader) ReadAll(ctx context.Context) ([]AuditEvent, error) {
-	var events []AuditEvent
+func (r *ProtoReader) ReadAll(ctx context.Context) ([]apievents.AuditEvent, error) {
+	var events []apievents.AuditEvent
 	for {
 		event, err := r.Read(ctx)
 		if err != nil {

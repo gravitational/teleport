@@ -19,12 +19,10 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -58,20 +56,23 @@ const (
 )
 
 // GetState reads rotation state from disk.
-func (p *ProcessStorage) GetState(role teleport.Role) (*StateV2, error) {
+func (p *ProcessStorage) GetState(role types.SystemRole) (*StateV2, error) {
 	item, err := p.Get(context.TODO(), backend.Key(statesPrefix, strings.ToLower(role.String()), stateName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var res StateV2
-	if err := utils.UnmarshalWithSchema(GetStateSchema(), &res, item.Value); err != nil {
+	if err := utils.FastUnmarshal(item.Value, &res); err != nil {
 		return nil, trace.BadParameter(err.Error())
+	}
+	if err := res.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &res, nil
 }
 
 // CreateState creates process state if it does not exist yet.
-func (p *ProcessStorage) CreateState(role teleport.Role, state StateV2) error {
+func (p *ProcessStorage) CreateState(role types.SystemRole, state StateV2) error {
 	if err := state.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -91,7 +92,7 @@ func (p *ProcessStorage) CreateState(role teleport.Role, state StateV2) error {
 }
 
 // WriteState writes local cluster state to the backend.
-func (p *ProcessStorage) WriteState(role teleport.Role, state StateV2) error {
+func (p *ProcessStorage) WriteState(role types.SystemRole, state StateV2) error {
 	if err := state.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -111,7 +112,7 @@ func (p *ProcessStorage) WriteState(role teleport.Role, state StateV2) error {
 }
 
 // ReadIdentity reads identity using identity name and role.
-func (p *ProcessStorage) ReadIdentity(name string, role teleport.Role) (*Identity, error) {
+func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*Identity, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
@@ -120,8 +121,11 @@ func (p *ProcessStorage) ReadIdentity(name string, role teleport.Role) (*Identit
 		return nil, trace.Wrap(err)
 	}
 	var res IdentityV2
-	if err := utils.UnmarshalWithSchema(GetIdentitySchema(), &res, item.Value); err != nil {
+	if err := utils.FastUnmarshal(item.Value, &res); err != nil {
 		return nil, trace.BadParameter(err.Error())
+	}
+	if err := res.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return ReadIdentityFromKeyPair(&PackedKeys{
 		Key:        res.Spec.Key,
@@ -135,10 +139,10 @@ func (p *ProcessStorage) ReadIdentity(name string, role teleport.Role) (*Identit
 // WriteIdentity writes identity to the backend.
 func (p *ProcessStorage) WriteIdentity(name string, id Identity) error {
 	res := IdentityV2{
-		ResourceHeader: services.ResourceHeader{
-			Kind:    services.KindIdentity,
-			Version: services.V2,
-			Metadata: services.Metadata{
+		ResourceHeader: types.ResourceHeader{
+			Kind:    types.KindIdentity,
+			Version: types.V2,
+			Metadata: types.Metadata{
 				Name: name,
 			},
 		},
@@ -168,15 +172,15 @@ func (p *ProcessStorage) WriteIdentity(name string, id Identity) error {
 // StateV2 is a local process state.
 type StateV2 struct {
 	// ResourceHeader is a common resource header.
-	services.ResourceHeader
+	types.ResourceHeader
 	// Spec is a process spec.
 	Spec StateSpecV2 `json:"spec"`
 }
 
 // CheckAndSetDefaults checks and sets defaults values.
 func (s *StateV2) CheckAndSetDefaults() error {
-	s.Kind = services.KindState
-	s.Version = services.V2
+	s.Kind = types.KindState
+	s.Version = types.V2
 	// for state resource name does not matter
 	if s.Metadata.Name == "" {
 		s.Metadata.Name = stateName
@@ -190,21 +194,21 @@ func (s *StateV2) CheckAndSetDefaults() error {
 // StateSpecV2 is a state spec.
 type StateSpecV2 struct {
 	// Rotation holds local process rotation state.
-	Rotation services.Rotation `json:"rotation"`
+	Rotation types.Rotation `json:"rotation"`
 }
 
 // IdentityV2 specifies local host identity.
 type IdentityV2 struct {
 	// ResourceHeader is a common resource header.
-	services.ResourceHeader
+	types.ResourceHeader
 	// Spec is the identity spec.
 	Spec IdentitySpecV2 `json:"spec"`
 }
 
 // CheckAndSetDefaults checks and sets defaults values.
 func (s *IdentityV2) CheckAndSetDefaults() error {
-	s.Kind = services.KindIdentity
-	s.Version = services.V2
+	s.Kind = types.KindIdentity
+	s.Version = types.V2
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -240,44 +244,4 @@ type IdentitySpecV2 struct {
 	// SSHCACerts is a list of SSH certificate authorities encoded in the
 	// authorized_keys format.
 	SSHCACerts [][]byte `json:"ssh_ca_certs,omitempty"`
-}
-
-// IdentitySpecV2Schema is a schema for identity spec.
-const IdentitySpecV2Schema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["key", "ssh_cert", "tls_cert", "tls_ca_certs"],
-  "properties": {
-    "key": {"type": "string"},
-    "ssh_cert": {"type": "string"},
-    "tls_cert": {"type": "string"},
-    "tls_ca_certs": {
-      "type": "array",
-      "items": {"type": "string"}
-    },
-    "ssh_ca_certs": {
-      "type": "array",
-      "items": {"type": "string"}
-    }
-  }
-}`
-
-// GetIdentitySchema returns JSON Schema for cert authorities.
-func GetIdentitySchema() string {
-	return fmt.Sprintf(services.V2SchemaTemplate, services.MetadataSchema, IdentitySpecV2Schema, services.DefaultDefinitions)
-}
-
-// StateSpecV2Schema is a schema for local server state.
-const StateSpecV2Schema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["rotation"],
-  "properties": {
-    "rotation": %v
-  }
-}`
-
-// GetStateSchema returns JSON Schema for cert authorities.
-func GetStateSchema() string {
-	return fmt.Sprintf(services.V2SchemaTemplate, services.MetadataSchema, fmt.Sprintf(StateSpecV2Schema, services.RotationSchema), services.DefaultDefinitions)
 }

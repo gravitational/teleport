@@ -81,6 +81,9 @@ message Event {
         // SessionRecordingConfigV2 is a resource for session recording configuration.
         types.SessionRecordingConfigV2 SessionRecordingConfig = 21
             [ (gogoproto.jsontag) = "session_recording_config,omitempty" ];
+        // AuthPreference is cluster auth preference.
+        types.AuthPreferenceV2 AuthPreference = 22
+            [ (gogoproto.jsontag) = "auth_preference,omitempty" ];
     }
 }
 
@@ -375,8 +378,8 @@ message FlushAndCloseStream {}
 message GetAppServersRequest {
     // Namespace is the namespace for application.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
-    // SkipValidation is used to skip JSON schema validation.
-    bool SkipValidation = 2 [ (gogoproto.jsontag) = "skip_validation" ];
+    // DEPRECATED: SkipValidation is used to skip JSON schema validation.
+    bool SkipValidation = 2 [ deprecated = true, (gogoproto.jsontag) = "skip_validation" ];
 }
 
 // GetAppServersResponse contains all requested application servers.
@@ -511,8 +514,8 @@ message DeleteAllKubeServicesRequest {}
 message GetDatabaseServersRequest {
     // Namespace is the database server namespace.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
-    // SkipValidation allows to turn off JSON schema validation.
-    bool SkipValidation = 2 [ (gogoproto.jsontag) = "skip_validation" ];
+    // DEPRECATED: SkipValidation allows to turn off JSON schema validation.
+    bool SkipValidation = 2 [ deprecated = true, (gogoproto.jsontag) = "skip_validation" ];
 }
 
 // GetDatabaseServersResponse contains all registered database servers.
@@ -1100,6 +1103,8 @@ service AuthService {
     rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
     // SetClusterNetworkingConfig sets cluster networking configuration.
     rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty);
+    // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
+    rpc ResetClusterNetworkingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // GetSessionRecordingConfig gets session recording configuration.
     rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2);

@@ -113,10 +113,10 @@ type Config struct {
 
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start
-	ReverseTunnels []services.ReverseTunnel
+	ReverseTunnels []types.ReverseTunnel
 
 	// OIDCConnectors is a list of trusted OpenID Connect identity providers
-	OIDCConnectors []services.OIDCConnector
+	OIDCConnectors []types.OIDCConnector
 
 	// PidFile is a full path of the PID file for teleport daemon
 	PIDFile string
@@ -128,7 +128,7 @@ type Config struct {
 	Presence services.Presence
 
 	// Events is events service
-	Events services.Events
+	Events types.Events
 
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
@@ -319,7 +319,7 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	//DisableTLS is enabled if we don't want self signed certs
+	//DisableTLS is enabled if we don't want self-signed certs
 	DisableTLS bool
 
 	// DisableWebInterface allows to turn off serving the Web UI interface
@@ -460,24 +460,24 @@ type AuthConfig struct {
 
 	// Authorities is a set of trusted certificate authorities
 	// that will be added by this auth server on the first start
-	Authorities []services.CertAuthority
+	Authorities []types.CertAuthority
 
 	// Resources is a set of previously backed up resources
 	// used to bootstrap backend state on the first start.
-	Resources []services.Resource
+	Resources []types.Resource
 
 	// Roles is a set of roles to pre-provision for this cluster
-	Roles []services.Role
+	Roles []types.Role
 
 	// ClusterName is a name that identifies this authority and all
 	// host nodes in the cluster that will share this authority domain name
 	// as a base name, e.g. if authority domain name is example.com,
 	// all nodes in the cluster will have UUIDs in the form: <uuid>.example.com
-	ClusterName services.ClusterName
+	ClusterName types.ClusterName
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
-	StaticTokens services.StaticTokens
+	StaticTokens types.StaticTokens
 
 	// StorageConfig contains configuration settings for the storage backend.
 	StorageConfig backend.Config
@@ -489,10 +489,10 @@ type AuthConfig struct {
 
 	// Preference defines the authentication preference (type and second factor) for
 	// the auth server.
-	Preference services.AuthPreference
+	Preference types.AuthPreference
 
 	// ClusterConfig stores cluster level configuration.
-	ClusterConfig services.ClusterConfig
+	ClusterConfig types.ClusterConfig
 
 	// NetworkingConfig stores cluster networking configuration.
 	NetworkingConfig types.ClusterNetworkingConfig
@@ -855,7 +855,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
-	cfg.Auth.Preference = services.DefaultAuthPreference()
+	cfg.Auth.Preference = types.DefaultAuthPreference()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 
@@ -902,9 +902,9 @@ func ApplyFIPSDefaults(cfg *Config) {
 	// Only SSO based authentication is supported in FIPS mode. The SSO
 	// provider is where any FedRAMP/FIPS 140-2 compliance (like password
 	// complexity) should be enforced.
-	cfg.Auth.ClusterConfig.SetLocalAuth(false)
+	cfg.Auth.Preference.SetAllowLocalAuth(false)
 
 	// Update cluster configuration to record sessions at node, this way the
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.
-	cfg.Auth.SessionRecordingConfig.SetMode(services.RecordAtNode)
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }

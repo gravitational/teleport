@@ -23,7 +23,8 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -41,9 +42,9 @@ type transportConfig struct {
 	accessPoint  auth.AccessPoint
 	cipherSuites []uint16
 	identity     *tlsca.Identity
-	server       services.Server
-	app          *services.App
-	ws           services.WebSession
+	server       types.Server
+	app          *types.App
+	ws           types.WebSession
 	clusterName  string
 }
 
@@ -136,7 +137,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	// actually performed using the transport created for this session but these
 	// are needed for the forwarder.
 	r.URL.Scheme = "https"
-	r.URL.Host = teleport.APIDomain
+	r.URL.Host = constants.APIDomain
 
 	// Don't trust any "X-Forward-*" headers the client sends, instead set own and then
 	// forward request.
@@ -187,7 +188,7 @@ func dialFunc(c *transportConfig) func(ctx context.Context, network string, addr
 			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
 			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
 			ServerID: fmt.Sprintf("%v.%v", c.server.GetName(), c.identity.RouteToApp.ClusterName),
-			ConnType: services.AppTunnel,
+			ConnType: types.AppTunnel,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -204,8 +205,8 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	// Configure the pool of certificates that will be used to verify the
 	// identity of the server. This allows the client to verify the identity of
 	// the server it is connecting to.
-	ca, err := c.accessPoint.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	ca, err := c.accessPoint.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: c.identity.RouteToApp.ClusterName,
 	}, false)
 	if err != nil {

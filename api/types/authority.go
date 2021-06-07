@@ -361,6 +361,9 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if ca.Version == "" {
+		ca.Version = V2
+	}
 
 	if err = ca.ID().Check(); err != nil {
 		return trace.Wrap(err)

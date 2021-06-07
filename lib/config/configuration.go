@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
@@ -153,14 +154,14 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 }
 
 // ReadResources loads a set of resources from a file.
-func ReadResources(filePath string) ([]services.Resource, error) {
+func ReadResources(filePath string) ([]types.Resource, error) {
 	reader, err := utils.OpenFile(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer reader.Close()
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
-	var resources []services.Resource
+	var resources []types.Resource
 	for {
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
@@ -483,21 +484,17 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	// read in and set authentication preferences
 	if fc.Auth.Authentication != nil {
-		authPreference, err := fc.Auth.Authentication.Parse()
+		cfg.Auth.Preference, err = fc.Auth.Authentication.Parse()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.Preference = authPreference
+	}
+	if fc.Auth.DisconnectExpiredCert != nil {
+		cfg.Auth.Preference.SetOrigin(types.OriginConfigFile)
+		cfg.Auth.Preference.SetDisconnectExpiredCert(fc.Auth.DisconnectExpiredCert.Value)
 	}
 
-	var localAuth services.Bool
-	if fc.Auth.Authentication == nil || fc.Auth.Authentication.LocalAuth == nil {
-		localAuth = services.NewBool(true)
-	} else {
-		localAuth = *fc.Auth.Authentication.LocalAuth
-	}
-
-	if !localAuth.Value() && fc.Auth.Authentication.SecondFactor != "" {
+	if !cfg.Auth.Preference.GetAllowLocalAuth() && cfg.Auth.Preference.GetSecondFactor() != constants.SecondFactorOff {
 		warningMessage := "Second factor settings will have no affect because local " +
 			"authentication is disabled. Update file configuration and remove " +
 			"\"second_factor\" field to get rid of this error message."
@@ -511,17 +508,15 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	auditConfig.Type = fc.Storage.Type
 
 	// Set cluster-wide configuration from file configuration.
-	cfg.Auth.ClusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
-		Audit:                 *auditConfig,
-		DisconnectExpiredCert: fc.Auth.DisconnectExpiredCert,
-		LocalAuth:             localAuth,
+	cfg.Auth.ClusterConfig, err = types.NewClusterConfig(types.ClusterConfigSpecV3{
+		Audit: *auditConfig,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Set cluster networking configuration from file configuration.
-	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
 		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
@@ -608,9 +603,9 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Errorf("https cert does not exist: %s", p.Certificate)
 		}
 
-		// Read in certificate from disk. If Teleport finds a self signed
+		// Read in certificate from disk. If Teleport finds a self-signed
 		// certificate chain, log a warning, and then accept whatever certificate
-		// was passed. If the certificate is not self signed, verify the certificate
+		// was passed. If the certificate is not self-signed, verify the certificate
 		// chain from leaf to root with the trust store on the computer so browsers
 		// don't complain.
 		certificateChainBytes, err := utils.ReadPath(p.Certificate)
@@ -766,8 +761,8 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.Commands != nil {
 		cfg.SSH.CmdLabels = make(services.CommandLabels)
 		for _, cmdLabel := range fc.SSH.Commands {
-			cfg.SSH.CmdLabels[cmdLabel.Name] = &services.CommandLabelV2{
-				Period:  services.NewDuration(cmdLabel.Period),
+			cfg.SSH.CmdLabels[cmdLabel.Name] = &types.CommandLabelV2{
+				Period:  types.NewDuration(cmdLabel.Period),
 				Command: cmdLabel.Command,
 				Result:  "",
 			}
@@ -853,8 +848,8 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Kube.DynamicLabels != nil {
 		cfg.Kube.DynamicLabels = make(services.CommandLabels)
 		for _, cmdLabel := range fc.Kube.DynamicLabels {
-			cfg.Kube.DynamicLabels[cmdLabel.Name] = &services.CommandLabelV2{
-				Period:  services.NewDuration(cmdLabel.Period),
+			cfg.Kube.DynamicLabels[cmdLabel.Name] = &types.CommandLabelV2{
+				Period:  types.NewDuration(cmdLabel.Period),
 				Command: cmdLabel.Command,
 				Result:  "",
 			}
@@ -880,8 +875,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 		dynamicLabels := make(services.CommandLabels)
 		if database.DynamicLabels != nil {
 			for _, v := range database.DynamicLabels {
-				dynamicLabels[v.Name] = &services.CommandLabelV2{
-					Period:  services.NewDuration(v.Period),
+				dynamicLabels[v.Name] = &types.CommandLabelV2{
+					Period:  types.NewDuration(v.Period),
 					Command: v.Command,
 					Result:  "",
 				}
@@ -942,8 +937,8 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		dynamicLabels := make(services.CommandLabels)
 		if application.DynamicLabels != nil {
 			for _, v := range application.DynamicLabels {
-				dynamicLabels[v.Name] = &services.CommandLabelV2{
-					Period:  services.NewDuration(v.Period),
+				dynamicLabels[v.Name] = &types.CommandLabelV2{
+					Period:  types.NewDuration(v.Period),
 					Command: v.Command,
 				}
 			}
@@ -981,8 +976,8 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 }
 
 // parseAuthorizedKeys parses keys in the authorized_keys format and
-// returns a services.CertAuthority.
-func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAuthority, services.Role, error) {
+// returns a types.CertAuthority.
+func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
 	pubkey, comment, _, _, err := ssh.ParseAuthorizedKey(bytes)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -999,12 +994,12 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 
 	// create a new certificate authority
 	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         services.UserCA,
+		Type:         types.UserCA,
 		ClusterName:  clusterName,
 		SigningKeys:  nil,
 		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubkey)},
 		Roles:        nil,
-		SigningAlg:   services.CertAuthoritySpecV2_UNKNOWN,
+		SigningAlg:   types.CertAuthoritySpecV2_UNKNOWN,
 	})
 
 	// transform old allowed logins into roles
@@ -1016,8 +1011,8 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 }
 
 // parseKnownHosts parses keys in known_hosts format and returns a
-// services.CertAuthority.
-func parseKnownHosts(bytes []byte, allowedLogins []string) (services.CertAuthority, services.Role, error) {
+// types.CertAuthority.
+func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
 	marker, options, pubKey, comment, _, err := ssh.ParseKnownHosts(bytes)
 	if marker != "cert-authority" {
 		return nil, nil, trace.BadParameter("invalid file format. expected '@cert-authority` marker")
@@ -1029,8 +1024,8 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (services.CertAuthori
 	if err != nil {
 		return nil, nil, trace.BadParameter("invalid key comment: '%s'", comment)
 	}
-	authType := services.CertAuthType(teleportOpts.Get("type"))
-	if authType != services.HostCA && authType != services.UserCA {
+	authType := types.CertAuthType(teleportOpts.Get("type"))
+	if authType != types.HostCA && authType != types.UserCA {
 		return nil, nil, trace.BadParameter("unsupported CA type: '%s'", authType)
 	}
 	if len(options) == 0 {
@@ -1068,8 +1063,8 @@ func certificateAuthorityFormat(bytes []byte) (string, error) {
 }
 
 // parseCAKey parses bytes either in known_hosts or authorized_keys format
-// and returns a services.CertAuthority.
-func parseCAKey(bytes []byte, allowedLogins []string) (services.CertAuthority, services.Role, error) {
+// and returns a types.CertAuthority.
+func parseCAKey(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
 	caFormat, err := certificateAuthorityFormat(bytes)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1110,15 +1105,15 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 		}
 		defer f.Close()
 		// read the keyfile for this cluster and get trusted CA keys:
-		var authorities []services.CertAuthority
-		var roles []services.Role
+		var authorities []types.CertAuthority
+		var roles []types.Role
 		scanner := bufio.NewScanner(f)
 		for line := 0; scanner.Scan(); {
 			ca, role, err := parseCAKey(scanner.Bytes(), allowedLogins)
 			if err != nil {
 				return trace.BadParameter("%s:L%d. %v", tc.KeyFile, line, err)
 			}
-			if ca.GetType() == services.UserCA && len(allowedLogins) == 0 && len(tc.TunnelAddr) > 0 {
+			if ca.GetType() == types.UserCA && len(allowedLogins) == 0 && len(tc.TunnelAddr) > 0 {
 				return trace.BadParameter("trusted cluster '%s' needs allow_logins parameter",
 					ca.GetClusterName())
 			}
@@ -1146,7 +1141,7 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 			tunnelAddresses = append(tunnelAddresses, addr.FullAddress())
 		}
 		if len(tunnelAddresses) > 0 {
-			conf.ReverseTunnels = append(conf.ReverseTunnels, services.NewReverseTunnel(clusterName, tunnelAddresses))
+			conf.ReverseTunnels = append(conf.ReverseTunnels, types.NewReverseTunnel(clusterName, tunnelAddresses))
 		}
 	}
 	return nil
@@ -1307,7 +1302,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			// Only SSO based authentication is supported. The SSO provider is where
 			// any FedRAMP/FIPS 140-2 compliance (like password complexity) should be
 			// enforced.
-			if cfg.Auth.ClusterConfig.GetLocalAuth() {
+			if cfg.Auth.Preference.GetAllowLocalAuth() {
 				return trace.BadParameter("non-FIPS compliant authentication setting: \"local_auth\" must be false")
 			}
 
@@ -1483,7 +1478,7 @@ func parseLabelsApply(spec string, sshConf *service.SSHConfig) error {
 // time_duration is in "1h2m1s" form.
 //
 // Example of a valid spec: "[1h:/bin/uname -m]"
-func isCmdLabelSpec(spec string) (services.CommandLabel, error) {
+func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 	// command spec? (surrounded by brackets?)
 	if len(spec) > 5 && spec[0] == '[' && spec[len(spec)-1] == ']' {
 		invalidSpecError := trace.BadParameter(
@@ -1503,8 +1498,8 @@ func isCmdLabelSpec(spec string) (services.CommandLabel, error) {
 			return nil, trace.Wrap(invalidSpecError)
 		}
 		var openQuote bool = false
-		return &services.CommandLabelV2{
-			Period: services.NewDuration(period),
+		return &types.CommandLabelV2{
+			Period: types.NewDuration(period),
 			Command: strings.FieldsFunc(cmdSpec, func(c rune) bool {
 				if c == '"' {
 					openQuote = !openQuote

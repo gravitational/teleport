@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 
 	radix "github.com/armon/go-radix"
 	"github.com/gravitational/trace"
@@ -232,7 +233,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	}
 	c.Debugf("Add %v.", w)
 	select {
-	case w.eventsC <- Event{Type: OpInit}:
+	case w.eventsC <- Event{Type: types.OpInit}:
 	case <-c.ctx.Done():
 		return nil, trace.BadParameter("buffer is closed")
 	default:

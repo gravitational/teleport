@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -73,7 +75,7 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 			HostID:              "00000000-0000-0000-0000-000000000000",
 			NodeName:            "auth.example.com",
 			ClusterName:         "example.com",
-			Roles:               teleport.Roles{teleport.RoleAdmin},
+			Roles:               types.SystemRoles{types.RoleAdmin},
 			TTL:                 time.Hour,
 		})
 	c.Assert(err, check.IsNil)
@@ -103,7 +105,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 		TTL:                   time.Hour,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
-		CertificateFormat:     teleport.CertificateFormatStandard,
+		CertificateFormat:     constants.CertificateFormatStandard,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -121,7 +123,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 		TTL:                   -20,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
-		CertificateFormat:     teleport.CertificateFormatStandard,
+		CertificateFormat:     constants.CertificateFormatStandard,
 	})
 	c.Assert(err, check.IsNil)
 	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(defaults.MinCertDuration))
@@ -136,7 +138,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 		TTL:                   0,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
-		CertificateFormat:     teleport.CertificateFormatStandard,
+		CertificateFormat:     constants.CertificateFormatStandard,
 	})
 	c.Assert(err, check.IsNil)
 	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(defaults.MinCertDuration))
@@ -151,7 +153,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 		TTL:                   time.Hour,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
-		CertificateFormat:     teleport.CertificateFormatStandard,
+		CertificateFormat:     constants.CertificateFormatStandard,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -167,7 +169,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 		TTL:                   time.Hour,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
-		CertificateFormat:     teleport.CertificateFormatStandard,
+		CertificateFormat:     constants.CertificateFormatStandard,
 		Roles:                 inRoles,
 	})
 	c.Assert(err, check.IsNil)
