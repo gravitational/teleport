@@ -130,11 +130,10 @@ func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
 }
 
 func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *testing.T, auth *auth.Server, timeout time.Duration) {
-	clusterConfig, err := auth.GetClusterConfig()
+	authPref, err := auth.GetAuthPreference()
 	require.NoError(t, err)
-	clusterConfig.SetDisconnectExpiredCert(true)
-	clusterConfig.ClearLegacyFields()
-	err = auth.SetClusterConfig(clusterConfig)
+	authPref.SetDisconnectExpiredCert(true)
+	err = auth.SetAuthPreference(authPref)
 	require.NoError(t, err)
 
 	netConfig, err := auth.GetClusterNetworkingConfig(ctx)

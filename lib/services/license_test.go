@@ -34,19 +34,19 @@ func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 	type testCase struct {
 		description string
 		input       string
-		expected    License
+		expected    types.License
 		err         error
 	}
 	testCases := []testCase{
 		{
 			description: "simple case",
 			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "Teleport Commercial"}, "spec": {"account_id": "accountID", "usage": true, "k8s": true, "app": true, "db": true, "aws_account": "123", "aws_pid": "4"}}`,
-			expected: MustNew("Teleport Commercial", LicenseSpecV3{
-				ReportsUsage:              NewBool(true),
-				SupportsKubernetes:        NewBool(true),
+			expected: MustNew("Teleport Commercial", types.LicenseSpecV3{
+				ReportsUsage:              types.NewBool(true),
+				SupportsKubernetes:        types.NewBool(true),
 				SupportsApplicationAccess: types.NewBoolP(true),
-				SupportsDatabaseAccess:    NewBool(true),
-				Cloud:                     NewBool(false),
+				SupportsDatabaseAccess:    types.NewBool(true),
+				Cloud:                     types.NewBool(false),
 				AWSAccountID:              "123",
 				AWSProductID:              "4",
 				AccountID:                 "accountID",
@@ -55,12 +55,12 @@ func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 		{
 			description: "simple case with string booleans",
 			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"account_id": "accountID", "usage": "yes", "k8s": "yes", "app": "yes", "db": "yes", "aws_account": "123", "aws_pid": "4"}}`,
-			expected: MustNew("license", LicenseSpecV3{
-				ReportsUsage:              NewBool(true),
-				SupportsKubernetes:        NewBool(true),
+			expected: MustNew("license", types.LicenseSpecV3{
+				ReportsUsage:              types.NewBool(true),
+				SupportsKubernetes:        types.NewBool(true),
 				SupportsApplicationAccess: types.NewBoolP(true),
-				SupportsDatabaseAccess:    NewBool(true),
-				Cloud:                     NewBool(false),
+				SupportsDatabaseAccess:    types.NewBool(true),
+				Cloud:                     types.NewBool(false),
 				AWSAccountID:              "123",
 				AWSProductID:              "4",
 				AccountID:                 "accountID",
@@ -69,11 +69,11 @@ func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 		{
 			description: "with cloud flag",
 			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"cloud": "yes", "account_id": "accountID", "usage": "yes", "k8s": "yes", "aws_account": "123", "aws_pid": "4"}}`,
-			expected: MustNew("license", LicenseSpecV3{
-				ReportsUsage:           NewBool(true),
-				SupportsKubernetes:     NewBool(true),
-				SupportsDatabaseAccess: NewBool(false),
-				Cloud:                  NewBool(true),
+			expected: MustNew("license", types.LicenseSpecV3{
+				ReportsUsage:           types.NewBool(true),
+				SupportsKubernetes:     types.NewBool(true),
+				SupportsDatabaseAccess: types.NewBool(false),
+				Cloud:                  types.NewBool(true),
 				AWSAccountID:           "123",
 				AWSProductID:           "4",
 				AccountID:              "accountID",
@@ -109,8 +109,8 @@ func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 
 // MustNew is like New, but panics in case of error,
 // used in tests
-func MustNew(name string, spec LicenseSpecV3) License {
-	out, err := NewLicense(name, spec)
+func MustNew(name string, spec types.LicenseSpecV3) types.License {
+	out, err := types.NewLicense(name, spec)
 	if err != nil {
 		panic(err)
 	}

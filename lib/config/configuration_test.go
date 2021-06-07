@@ -28,7 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -164,7 +163,7 @@ auth_service:
   disconnect_expired_cert: %v
 `, tc.s))))
 		require.NoError(t, err, msg)
-		require.Equal(t, tc.b, conf.Auth.DisconnectExpiredCert.Value(), msg)
+		require.Equal(t, tc.b, conf.Auth.DisconnectExpiredCert.Value, msg)
 	}
 }
 
@@ -239,8 +238,8 @@ func TestConfigReading(t *testing.T) {
 				ListenAddress:  "tcp://auth",
 			},
 			LicenseFile:           "lic.pem",
-			DisconnectExpiredCert: services.Bool(true),
-			ClientIdleTimeout:     services.Duration(17 * time.Second),
+			DisconnectExpiredCert: types.NewBoolOption(true),
+			ClientIdleTimeout:     types.Duration(17 * time.Second),
 		},
 		SSH: SSH{
 			Service: Service{
@@ -358,8 +357,8 @@ func TestLabelParsing(t *testing.T) {
 		"more": "much better",
 	}, conf.Labels)
 	require.Equal(t, services.CommandLabels{
-		"arch": &services.CommandLabelV2{
-			Period:  services.NewDuration(time.Minute*5 + time.Second*2),
+		"arch": &types.CommandLabelV2{
+			Period:  types.NewDuration(time.Minute*5 + time.Second*2),
 			Command: []string{"/bin/uname", "-m", `"p1 p2"`},
 		},
 	}, conf.CmdLabels)
@@ -381,10 +380,10 @@ func TestTrustedClusters(t *testing.T) {
 	authorities := conf.Auth.Authorities
 	require.Len(t, authorities, 2)
 	require.Equal(t, "cluster-a", authorities[0].GetClusterName())
-	require.Equal(t, services.HostCA, authorities[0].GetType())
+	require.Equal(t, types.HostCA, authorities[0].GetType())
 	require.Len(t, authorities[0].GetCheckingKeys(), 1)
 	require.Equal(t, "cluster-a", authorities[1].GetClusterName())
-	require.Equal(t, services.UserCA, authorities[1].GetType())
+	require.Equal(t, types.UserCA, authorities[1].GetType())
 	require.Len(t, authorities[1].GetCheckingKeys(), 1)
 	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetCheckingKeys()[0])
 	require.NoError(t, err)
@@ -498,20 +497,20 @@ func TestApplyConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "join-token", cfg.Token)
-	require.Equal(t, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{
+	require.Equal(t, types.ProvisionTokensFromV1([]types.ProvisionTokenV1{
 		{
 			Token:   "xxx",
-			Roles:   teleport.Roles([]teleport.Role{"Proxy", "Node"}),
+			Roles:   types.SystemRoles([]types.SystemRole{"Proxy", "Node"}),
 			Expires: time.Unix(0, 0).UTC(),
 		},
 		{
 			Token:   "yyy",
-			Roles:   teleport.Roles([]teleport.Role{"Auth"}),
+			Roles:   types.SystemRoles([]types.SystemRole{"Auth"}),
 			Expires: time.Unix(0, 0).UTC(),
 		},
 	}), cfg.Auth.StaticTokens.GetStaticTokens())
 	require.Equal(t, "magadan", cfg.Auth.ClusterName.GetClusterName())
-	require.True(t, cfg.Auth.ClusterConfig.GetLocalAuth())
+	require.True(t, cfg.Auth.Preference.GetAllowLocalAuth())
 	require.Equal(t, "10.10.10.1", cfg.AdvertiseIP)
 
 	require.True(t, cfg.Proxy.Enabled)
@@ -534,7 +533,7 @@ func TestApplyConfig(t *testing.T) {
 			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{
-			Type:         teleport.Local,
+			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOTP,
 			U2F: &types.U2F{
 				AppID:  "app-id",
@@ -563,6 +562,8 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 `,
 				},
 			},
+			AllowLocalAuth:        types.NewBoolOption(true),
+			DisconnectExpiredCert: types.NewBoolOption(false),
 		},
 	}))
 }
@@ -701,25 +702,25 @@ func TestBackendDefaults(t *testing.T) {
 func TestParseKey(t *testing.T) {
 	tests := []struct {
 		inCABytes      []byte
-		outType        services.CertAuthType
+		outType        types.CertAuthType
 		outClusterName string
 	}{
 		// 0 - host ca in known_hosts format
 		{
 			[]byte(`@cert-authority *.foo ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCz+PzY6z2Xa1cMeiJqOH5BRpwY+PlS3Q6C4e3Yj8xjLW1zD3Cehm71zjsYmrpuFTmdylbcKB6CcM6Ft4YbKLG3PTLSKvCPTgfSBk8RCYX02PtOV5ixwa7xl5Gfhc1GRIheXgFO9IT+W9w9ube9r002AGpkMnRRtWAWiZHMGeJoaUoCsjDLDbWsQHj06pr7fD98c7PVcVzCKPTQpadXEP6sF8w417DvypHY1bYsvhRqHw9Njx6T3b9BM3bJ4QXgy18XuO5fCpLjKLsngLwSbqe/1IP4Q0zlUaNOTph3WnjeKJZO9yQeVX1cWDwY4Iz5lSHhsJnQD99hBDdw2RklHU0j type=host`),
-			services.HostCA,
+			types.HostCA,
 			"foo",
 		},
 		// 1 - user ca in known_hosts format (legacy)
 		{
 			[]byte(`@cert-authority *.bar ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCfhrvzbHAHrukeDhLSzoXtpctiumao1MQElwhOeuzFRYwrGV/1L2gsx4OJk4ztXKOCpon1FB+dy2aJN0WIr/9qXg37D6K/XJhgDaSfW8cjpl72Lw8kknDpmgSSA3cTvzFNmXfw4DNT/klRwEw6MMrDmfT9QvaV2d35lSoMMeTZ1ilFeJqXdUkY+bgijLBQU5MUjZUfQfS3jpSxVD0DD9D1VbAE1nGSNyFqf34JxJmqJ3R5hfZqNfb9CWouv+uFF99tzOr7tnKM/sQMPGmJ5G+zjTaErNSSLiIU1iCwVKUpNFcGiR1lpOEET+neJVnEeqEqKv2ookkXaIdKjk1UKZEn type=user`),
-			services.UserCA,
+			types.UserCA,
 			"bar",
 		},
 		// 2 - user ca in authorized_keys format
 		{
 			[]byte(`cert-authority ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCiIxyz0ctsyQbKLpWVYNF+ZIOrF150Wma2GqkrOWZaOzu5NSnt9Hmp7DaIa2Gn8fh8+8vjP02qp3i43SDOlLyYSn05nJjEXaz7QGysgeppN8ayojl5dkOhA00ROpCl5HhS9cmga7fy1Uwy4jhxenNpfQ5ap0COQi3UrXPepaq8z+I4XQK//qFWnkgyD1VXCnRKXXiajOf3dShYJqLCgwYiViuFmzi2p3lysoYS5eRwTCKiyyBtlkUtpTAse455yGf3QCpe+UOBiJ/4AElxacDndtMkjjctHSPCiztnph1xej64vSy8C2nGsnPIK7RfiOzSEdd5hwva+wPLgNTcKXZz type=user&clustername=baz`),
-			services.UserCA,
+			types.UserCA,
 			"baz",
 		},
 	}
@@ -821,7 +822,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			ListenAddress:  "auth:3025",
 		},
 		Authorities: []Authority{{
-			Type:             services.HostCA,
+			Type:             types.HostCA,
 			DomainName:       "example.com",
 			CheckingKeys:     []string{"checking key 1"},
 			CheckingKeyFiles: []string{"/ca.checking.key"},
@@ -845,8 +846,8 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 		PublicAddr: utils.Strings{
 			"auth.default.svc.cluster.local:3080",
 		},
-		ClientIdleTimeout:     services.Duration(17 * time.Second),
-		DisconnectExpiredCert: true,
+		ClientIdleTimeout:     types.Duration(17 * time.Second),
+		DisconnectExpiredCert: types.NewBoolOption(true),
 	}, cmp.AllowUnexported(Service{})))
 
 	policy, err := conf.CachePolicy.Parse()
@@ -908,8 +909,8 @@ func makeConfigFixture() string {
 	conf.Auth.EnabledFlag = "Yeah"
 	conf.Auth.ListenAddress = "tcp://auth"
 	conf.Auth.LicenseFile = "lic.pem"
-	conf.Auth.ClientIdleTimeout = services.NewDuration(17 * time.Second)
-	conf.Auth.DisconnectExpiredCert = services.NewBool(true)
+	conf.Auth.ClientIdleTimeout = types.NewDuration(17 * time.Second)
+	conf.Auth.DisconnectExpiredCert = types.NewBoolOption(true)
 
 	// ssh service:
 	conf.SSH.EnabledFlag = "true"

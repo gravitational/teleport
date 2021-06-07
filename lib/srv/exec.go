@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -360,28 +361,28 @@ func (e *remoteExec) PID() int {
 
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
-	serverMeta := events.ServerMetadata{
+	serverMeta := apievents.ServerMetadata{
 		ServerID:        ctx.srv.HostUUID(),
 		ServerNamespace: ctx.srv.GetNamespace(),
 	}
 
-	sessionMeta := events.SessionMetadata{
+	sessionMeta := apievents.SessionMetadata{
 		SessionID: string(ctx.SessionID()),
 		WithMFA:   ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 	}
 
-	userMeta := events.UserMetadata{
+	userMeta := apievents.UserMetadata{
 		User:         ctx.Identity.TeleportUser,
 		Login:        ctx.Identity.Login,
 		Impersonator: ctx.Identity.Impersonator,
 	}
 
-	connectionMeta := events.ConnectionMetadata{
+	connectionMeta := apievents.ConnectionMetadata{
 		RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		LocalAddr:  ctx.ServerConn.LocalAddr().String(),
 	}
 
-	commandMeta := events.CommandMetadata{
+	commandMeta := apievents.CommandMetadata{
 		Command: cmd,
 		// Due to scp being inherently vulnerable to command injection, always
 		// make sure the full command and exit code is recorded for accountability.
@@ -405,8 +406,8 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 
 	// Update appropriate fields based off if the request was SCP or not.
 	if isSCP {
-		scpEvent := &events.SCP{
-			Metadata: events.Metadata{
+		scpEvent := &apievents.SCP{
+			Metadata: apievents.Metadata{
 				Type:        events.SCPEvent,
 				ClusterName: ctx.ClusterName,
 			},
@@ -437,8 +438,8 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 			log.WithError(err).Warn("Failed to emit scp event.")
 		}
 	} else {
-		execEvent := &events.Exec{
-			Metadata: events.Metadata{
+		execEvent := &apievents.Exec{
+			Metadata: apievents.Metadata{
 				Type: events.ExecEvent,
 			},
 			ServerMetadata:     serverMeta,

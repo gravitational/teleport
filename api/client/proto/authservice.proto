@@ -81,6 +81,9 @@ message Event {
         // SessionRecordingConfigV2 is a resource for session recording configuration.
         types.SessionRecordingConfigV2 SessionRecordingConfig = 21
             [ (gogoproto.jsontag) = "session_recording_config,omitempty" ];
+        // AuthPreference is cluster auth preference.
+        types.AuthPreferenceV2 AuthPreference = 22
+            [ (gogoproto.jsontag) = "auth_preference,omitempty" ];
     }
 }
 

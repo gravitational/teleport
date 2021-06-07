@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
@@ -86,7 +87,7 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 					PresenceService: presenceService,
 					EventsService:   eventsService,
 				},
-				ProxiesC: make(chan []services.Server, 10),
+				ProxiesC: make(chan []types.Server, 10),
 			})
 		},
 	}

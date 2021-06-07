@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -148,12 +149,12 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		session := &events.SessionUpload{
-			Metadata: Metadata{
+			Metadata: apievents.Metadata{
 				Type:  SessionUploadEvent,
 				Code:  SessionUploadCode,
 				Index: SessionUploadIndex,
 			},
-			SessionMetadata: SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(uploadData.SessionID),
 			},
 			SessionURL: uploadData.URL,
