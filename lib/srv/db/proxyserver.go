@@ -28,11 +28,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -78,6 +79,8 @@ type ProxyServerConfig struct {
 	Emitter events.Emitter
 	// Clock to override clock in tests.
 	Clock clockwork.Clock
+	// ServerID is the ID of the audit log server.
+	ServerID string
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -99,6 +102,9 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+	if c.ServerID == "" {
+		return trace.BadParameter("missing ServerID")
 	}
 	return nil
 }
@@ -132,7 +138,7 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 		// The connection is expected to come through via multiplexer.
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) || trace.IsConnectionProblem(err) {
+			if strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -164,7 +170,7 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 		// Accept the connection from a MySQL client.
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+			if strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -260,11 +266,12 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 		identity:     authContext.Identity.GetIdentity(),
 		checker:      authContext.Checker,
 		clock:        s.cfg.Clock,
-		serverID:     string(teleport.RoleProxy),
+		serverID:     s.cfg.ServerID,
 		authClient:   s.cfg.AuthClient,
 		teleportUser: authContext.Identity.GetIdentity().Username,
 		emitter:      s.cfg.Emitter,
 		log:          s.log,
+		ctx:          s.closeCtx,
 	})
 	if err != nil {
 		clientConn.Close()
@@ -313,6 +320,7 @@ type monitorConnConfig struct {
 	teleportUser string
 	emitter      events.Emitter
 	log          logrus.FieldLogger
+	ctx          context.Context
 }
 
 // monitorConn wraps a client connection with TrackingReadConn, starts a connection monitor and
@@ -320,7 +328,7 @@ type monitorConnConfig struct {
 // configured, and unmodified client connection otherwise.
 func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	certExpires := cfg.identity.Expires
-	clusterConfig, err := cfg.authClient.GetClusterConfig()
+	authPref, err := cfg.authClient.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -329,7 +337,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert()) {
+	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
 		disconnectCertExpired = certExpires
 	}
 	idleTimeout := cfg.checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
@@ -351,7 +359,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  cfg.conn,
 		Tracker:               tc,
-		Context:               ctx,
+		Context:               cfg.ctx,
 		Clock:                 cfg.clock,
 		ServerID:              cfg.serverID,
 		TeleportUser:          cfg.teleportUser,

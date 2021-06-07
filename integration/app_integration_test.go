@@ -198,7 +198,7 @@ func TestAppAccessForwardModes(t *testing.T) {
 
 	// Update root and leaf clusters to record sessions at the proxy.
 	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
-		Mode: services.RecordAtProxy,
+		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)
 	err = pack.rootCluster.Process.GetAuthServer().SetSessionRecordingConfig(ctx, recConfig)
@@ -539,7 +539,7 @@ type pack struct {
 
 	tc *client.TeleportClient
 
-	user services.User
+	user types.User
 
 	webCookie string
 	webToken  string
@@ -869,7 +869,7 @@ func (p *pack) initUser(t *testing.T, opts appTestOptions) {
 	p.username = uuid.New()
 	p.password = uuid.New()
 
-	user, err := services.NewUser(p.username)
+	user, err := types.NewUser(p.username)
 	require.NoError(t, err)
 
 	role := services.RoleForUser(user)
@@ -1015,8 +1015,8 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 // initCertPool initializes root cluster CA pool.
 func (p *pack) initCertPool(t *testing.T) {
 	authClient := p.rootCluster.GetSiteAPI(p.rootCluster.Secrets.SiteName)
-	ca, err := authClient.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	ca, err := authClient.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: p.rootCluster.Secrets.SiteName,
 	}, false)
 	require.NoError(t, err)

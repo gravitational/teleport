@@ -24,10 +24,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
-	jwt_pkg "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	session_pkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -49,7 +49,7 @@ type session struct {
 }
 
 // newSession creates a new session.
-func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *services.App) (*session, error) {
+func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *types.App) (*session, error) {
 	// Create the stream writer that will write this chunk to the audit log.
 	streamWriter, err := s.newStreamWriter(identity)
 	if err != nil {
@@ -57,7 +57,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	}
 
 	// Request a JWT token that will be attached to all requests.
-	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, jwt_pkg.GenerateAppTokenRequest{
+	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
 		Roles:    identity.Groups,
 		URI:      app.URI,
@@ -132,7 +132,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		SessionID:    session_pkg.ID(chunkID),
 		Namespace:    defaults.Namespace,
 		ServerID:     s.c.Server.GetName(),
-		RecordOutput: recConfig.GetMode() != services.RecordOff,
+		RecordOutput: recConfig.GetMode() != types.RecordOff,
 		Component:    teleport.ComponentApp,
 		ClusterName:  clusterName.GetClusterName(),
 	})
@@ -141,21 +141,21 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 	}
 
 	// Emit an event to the Audit Log that a new session chunk has been created.
-	appSessionChunkEvent := &events.AppSessionChunk{
-		Metadata: events.Metadata{
+	appSessionChunkEvent := &apievents.AppSessionChunk{
+		Metadata: apievents.Metadata{
 			Type:        events.AppSessionChunkEvent,
 			Code:        events.AppSessionChunkCode,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        s.c.Server.GetName(),
 			ServerNamespace: defaults.Namespace,
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: identity.RouteToApp.SessionID,
 			WithMFA:   identity.MFAVerified,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         identity.Username,
 			Impersonator: identity.Impersonator,
 		},
