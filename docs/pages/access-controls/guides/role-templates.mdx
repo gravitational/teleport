@@ -37,7 +37,7 @@ CA pin   sha256:e63c7c44be468d37a5b0276b70e9d10b17f24f4be19d6b579810fc94eaa31783
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-## Local ysers
+## Local users
 
 Imagine you have two users, Alice and Bob. We would like to set the following
 access policies:
@@ -113,7 +113,7 @@ traits `logins` and `kubernetes_groups`.
 Use `tctl` to create a role template:
 
 ```bash
-tctl create -f ~/scripts/access-controls/devs.yaml
+tctl create -f devs.yaml
 ```
 
 The last step is to update Alice's and Bob's users with traits. Here is an example
