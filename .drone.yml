@@ -3764,6 +3764,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /tmpfs/go/cache
       GOPATH: /go
       OS: linux
       ARCH: amd64
@@ -3788,6 +3789,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /tmpfs/go/cache
       GOPATH: /go
       OS: linux
       ARCH: amd64
@@ -3817,10 +3819,15 @@ services:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
 
 volumes:
   - name: dockersock
     temp: {}
+  - name: tmpfs
+    temp:
+      medium: memory
 
 ---
 kind: pipeline
@@ -4464,6 +4471,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: a9daef88869811253bba21094553382bf0574ee0daf59c7d2cb8df2c662a630f
+hmac: 3be2be1cfd0174bcdf300e1da80d67903f6b76f7b9ef37095b2e183e10ad126b
 
 ...
