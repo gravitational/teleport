@@ -63,6 +63,16 @@ type AuthPreference interface {
 	// require an MFA check.
 	GetRequireSessionMFA() bool
 
+	// GetDisconnectExpiredCert returns disconnect expired certificate setting
+	GetDisconnectExpiredCert() bool
+	// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
+	SetDisconnectExpiredCert(bool)
+
+	// GetAllowLocalAuth gets if local authentication is allowed.
+	GetAllowLocalAuth() bool
+	// SetAllowLocalAuth sets if local authentication is allowed.
+	SetAllowLocalAuth(bool)
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -102,21 +112,10 @@ func newAuthPreferenceWithLabels(spec AuthPreferenceSpecV2, labels map[string]st
 
 // DefaultAuthPreference returns the default authentication preferences.
 func DefaultAuthPreference() AuthPreference {
-	return &AuthPreferenceV2{
-		Kind:    KindClusterAuthPreference,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameClusterAuthPreference,
-			Namespace: defaults.Namespace,
-			Labels: map[string]string{
-				OriginLabel: OriginDefaults,
-			},
-		},
-		Spec: AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOTP,
-		},
-	}
+	authPref, _ := newAuthPreferenceWithLabels(AuthPreferenceSpecV2{}, map[string]string{
+		OriginLabel: OriginDefaults,
+	})
+	return authPref
 }
 
 // GetVersion returns resource version.
@@ -242,6 +241,26 @@ func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
 	return c.Spec.RequireSessionMFA
 }
 
+// GetDisconnectExpiredCert returns disconnect expired certificate setting
+func (c *AuthPreferenceV2) GetDisconnectExpiredCert() bool {
+	return c.Spec.DisconnectExpiredCert.Value
+}
+
+// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
+func (c *AuthPreferenceV2) SetDisconnectExpiredCert(b bool) {
+	c.Spec.DisconnectExpiredCert = NewBoolOption(b)
+}
+
+// GetAllowLocalAuth gets if local authentication is allowed.
+func (c *AuthPreferenceV2) GetAllowLocalAuth() bool {
+	return c.Spec.AllowLocalAuth.Value
+}
+
+// SetAllowLocalAuth gets if local authentication is allowed.
+func (c *AuthPreferenceV2) SetAllowLocalAuth(b bool) {
+	c.Spec.AllowLocalAuth = NewBoolOption(b)
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -264,6 +283,12 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 	if c.Spec.SecondFactor == "" {
 		c.Spec.SecondFactor = constants.SecondFactorOTP
+	}
+	if c.Spec.AllowLocalAuth == nil {
+		c.Spec.AllowLocalAuth = NewBoolOption(true)
+	}
+	if c.Spec.DisconnectExpiredCert == nil {
+		c.Spec.DisconnectExpiredCert = NewBoolOption(false)
 	}
 
 	// make sure type makes sense

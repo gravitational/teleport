@@ -795,21 +795,14 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// get auth type & second factor type
 	authType := constants.Local
 	secondFactor := constants.SecondFactorOff
+	localAuth := true
 	cap, err := h.cfg.ProxyClient.GetAuthPreference()
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
 	} else {
 		authType = cap.GetType()
 		secondFactor = cap.GetSecondFactor()
-	}
-
-	// determine if local auth is allowed
-	localAuth := true
-	clsCfg, err := h.cfg.ProxyClient.GetClusterConfig()
-	if err != nil {
-		h.log.WithError(err).Error("Cannot retrieve ClusterConfig.")
-	} else {
-		localAuth = clsCfg.GetLocalAuth()
+		localAuth = cap.GetAllowLocalAuth()
 	}
 
 	// disable joining sessions if proxy session recording is enabled

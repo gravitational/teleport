@@ -902,7 +902,7 @@ func ApplyFIPSDefaults(cfg *Config) {
 	// Only SSO based authentication is supported in FIPS mode. The SSO
 	// provider is where any FedRAMP/FIPS 140-2 compliance (like password
 	// complexity) should be enforced.
-	cfg.Auth.ClusterConfig.SetLocalAuth(false)
+	cfg.Auth.Preference.SetAllowLocalAuth(false)
 
 	// Update cluster configuration to record sessions at node, this way the
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.

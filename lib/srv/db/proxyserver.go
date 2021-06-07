@@ -328,7 +328,7 @@ type monitorConnConfig struct {
 // configured, and unmodified client connection otherwise.
 func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	certExpires := cfg.identity.Expires
-	clusterConfig, err := cfg.authClient.GetClusterConfig()
+	authPref, err := cfg.authClient.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -337,7 +337,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert()) {
+	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
 		disconnectCertExpired = certExpires
 	}
 	idleTimeout := cfg.checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())

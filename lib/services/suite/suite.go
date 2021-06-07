@@ -1051,8 +1051,9 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *check.C) {
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:         "local",
-		SecondFactor: "otp",
+		Type:                  "local",
+		SecondFactor:          "otp",
+		DisconnectExpiredCert: types.NewBoolOption(true),
 	})
 	c.Assert(err, check.IsNil)
 
@@ -1064,6 +1065,7 @@ func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 
 	c.Assert(gotAP.GetType(), check.Equals, "local")
 	c.Assert(gotAP.GetSecondFactor(), check.Equals, constants.SecondFactorOTP)
+	c.Assert(gotAP.GetDisconnectExpiredCert(), check.Equals, true)
 }
 
 // SessionRecordingConfig tests session recording configuration.
@@ -1154,9 +1156,16 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), recConfig)
 	c.Assert(err, check.IsNil)
 
+	// DELETE IN 8.0.0
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		DisconnectExpiredCert: types.NewBoolOption(true),
+	})
+	c.Assert(err, check.IsNil)
+	err = s.ConfigS.SetAuthPreference(authPref)
+	c.Assert(err, check.IsNil)
+
 	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-		DisconnectExpiredCert: types.NewBool(true),
-		ClusterID:             "27",
+		ClusterID: "27",
 		Audit: types.AuditConfig{
 			Region:           "us-west-1",
 			Type:             "dynamodb",
@@ -1175,6 +1184,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	config.SetResourceID(gotConfig.GetResourceID())
 	config.SetNetworkingFields(netConfig)
 	config.SetSessionRecordingFields(recConfig)
+	config.SetAuthFields(authPref)
 	fixtures.DeepCompare(c, config, gotConfig)
 
 	// Some parts (e.g. auth server) will not function
@@ -1758,6 +1768,10 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 
 				// DELETE IN 8.0.0
 				err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+				c.Assert(err, check.IsNil)
+
+				// DELETE IN 8.0.0
+				err = s.ConfigS.SetAuthPreference(types.DefaultAuthPreference())
 				c.Assert(err, check.IsNil)
 
 				config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
