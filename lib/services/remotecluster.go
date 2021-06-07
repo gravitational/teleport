@@ -17,64 +17,27 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// RemoteClusterV3SchemaTemplate is a template JSON Schema for V3 style objects
-const RemoteClusterV3SchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["kind", "metadata", "version"],
-	"properties": {
-	  "kind": {"type": "string"},
-	  "version": {"type": "string", "default": "v3"},
-	  "metadata": %v,
-	  "status": %v
-	}
-  }`
-
-// RemoteClusterV3StatusSchema is a template for remote cluster
-const RemoteClusterV3StatusSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["connection", "last_heartbeat"],
-	"properties": {
-	  "connection": {"type": "string"},
-	  "last_heartbeat": {"type": "string"}
-	}
-  }`
-
-// GetRemoteClusterSchema returns the schema for remote cluster
-func GetRemoteClusterSchema() string {
-	return fmt.Sprintf(RemoteClusterV3SchemaTemplate, MetadataSchema, RemoteClusterV3StatusSchema)
-}
-
 // UnmarshalRemoteCluster unmarshals the RemoteCluster resource from JSON.
-func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster, error) {
+func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (types.RemoteCluster, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var cluster RemoteClusterV3
+	var cluster types.RemoteClusterV3
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	if cfg.SkipValidation {
-		err := utils.FastUnmarshal(bytes, &cluster)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetRemoteClusterSchema(), &cluster, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
+	if err := utils.FastUnmarshal(bytes, &cluster); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	err = cluster.CheckAndSetDefaults()
@@ -93,15 +56,15 @@ func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster,
 }
 
 // MarshalRemoteCluster marshals the RemoteCluster resource to JSON.
-func MarshalRemoteCluster(remoteCluster RemoteCluster, opts ...MarshalOption) ([]byte, error) {
+func MarshalRemoteCluster(remoteCluster types.RemoteCluster, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch remoteCluster := remoteCluster.(type) {
-	case *RemoteClusterV3:
-		if version := remoteCluster.GetVersion(); version != V3 {
+	case *types.RemoteClusterV3:
+		if version := remoteCluster.GetVersion(); version != types.V3 {
 			return nil, trace.BadParameter("mismatched remote cluster version %v and type %T", version, remoteCluster)
 		}
 		if !cfg.PreserveResourceID {

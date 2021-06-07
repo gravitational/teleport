@@ -285,6 +285,9 @@ func (c *SemaphoreV3) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if c.Version == "" {
+		c.Version = V3
+	}
 	// While theoretically there are scenarios with non-expiring semaphores
 	// however the flow don't need them right now, and they add a lot of edge
 	// cases, so the code does not support them.

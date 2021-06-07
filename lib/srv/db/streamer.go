@@ -60,7 +60,7 @@ func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWr
 		SessionID:    session.ID(sessionCtx.ID),
 		Namespace:    defaults.Namespace,
 		ServerID:     sessionCtx.Server.GetHostID(),
-		RecordOutput: recConfig.GetMode() != services.RecordOff,
+		RecordOutput: recConfig.GetMode() != types.RecordOff,
 		Component:    teleport.ComponentDatabase,
 		ClusterName:  clusterName.GetClusterName(),
 	})
