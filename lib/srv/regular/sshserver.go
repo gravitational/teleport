@@ -1194,6 +1194,7 @@ Loop:
 func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
+	log.Debugf("Creating new server context")
 	ctx, scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
 	if err != nil {
 		log.Errorf("Unable to create connection context: %v.", err)
@@ -1205,6 +1206,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	scx.ChannelType = teleport.ChanSession
 	defer scx.Close()
 
+	log.Debugf("Launching activity tracker")
 	ch = scx.TrackActivity(ch)
 
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
@@ -1217,6 +1219,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the
 	// closeContext which signals the server to shutdown.
+	log.Debugf("Launching keep-alive loop")
 	go srv.StartKeepAliveLoop(srv.KeepAliveParams{
 		Conns: []srv.RequestSender{
 			scx.ServerConn,
@@ -1230,6 +1233,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	for {
 		// update scx with the session ID:
 		if !s.proxyMode {
+			log.Debugf("==== Create or join")
 			err := scx.CreateOrJoinSession(s.reg)
 			if err != nil {
 				errorMessage := fmt.Sprintf("unable to update context: %v", err)

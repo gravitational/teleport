@@ -3,7 +3,7 @@ module github.com/gravitational/teleport
 go 1.16
 
 require (
-	cloud.google.com/go v0.60.0
+	cloud.google.com/go v0.65.0
 	cloud.google.com/go/firestore v1.2.0
 	cloud.google.com/go/storage v1.10.0
 	github.com/HdrHistogram/hdrhistogram-go v1.0.1
@@ -34,6 +34,7 @@ require (
 	github.com/google/btree v1.0.0
 	github.com/google/go-cmp v0.5.4
 	github.com/google/gops v0.3.14
+	github.com/google/tink/go v1.6.0
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
@@ -97,15 +98,15 @@ require (
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/mod v0.4.1 // indirect
 	golang.org/x/net v0.0.0-20210222171744-9060382bd457
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 	golang.org/x/sys v0.0.0-20210514084401-e8d321eab015
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 	golang.org/x/text v0.3.5
 	golang.org/x/tools v0.1.0 // indirect
-	google.golang.org/api v0.29.0
+	google.golang.org/api v0.32.0
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20210223151946-22b48be4551b
-	google.golang.org/grpc v1.29.1
+	google.golang.org/grpc v1.31.1
 	google.golang.org/protobuf v1.25.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/ini.v1 v1.62.0
@@ -125,4 +126,6 @@ replace (
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
 	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
+	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43 => golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+	google.golang.org/grpc v1.31.1 => google.golang.org/grpc v1.29.1
 )

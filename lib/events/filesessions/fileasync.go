@@ -472,7 +472,7 @@ func (u *Uploader) upload(up *upload) error {
 				return trace.Wrap(err)
 			}
 			u.log.WithError(err).Warningf(
-				"Upload for sesion %v, upload ID %v is not found starting a new upload from scratch.",
+				"Upload for session %v, upload ID %v is not found starting a new upload from scratch.",
 				up.sessionID, status.UploadID)
 			status = nil
 			stream, err = u.cfg.Streamer.CreateAuditStream(u.ctx, up.sessionID)
@@ -494,7 +494,8 @@ func (u *Uploader) upload(up *upload) error {
 	// if it was successful get the first status update
 	// sent by the server after create.
 	select {
-	case <-stream.Status():
+	case e := <-stream.Status():
+		u.log.Debugf("CreateAuditStream() successful: %s", e.String())
 	case <-time.After(defaults.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
 	case <-u.ctx.Done():
@@ -508,7 +509,7 @@ func (u *Uploader) upload(up *upload) error {
 	for {
 		event, err := up.reader.Read(ctx)
 		if err != nil {
-			if err == io.EOF {
+			if trace.IsEOF(err) {
 				break
 			}
 			return sessionError{err: trace.Wrap(err)}

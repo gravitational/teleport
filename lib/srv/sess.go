@@ -471,6 +471,7 @@ func (s *SessionRegistry) broadcastResult(sid rsession.ID, r ExecResult) error {
 	if !found {
 		return trace.NotFound("session %v not found", sid)
 	}
+	s.log.Debug("444444444444444444444444444444444444444444444444")
 	sess.broadcastResult(r)
 	return nil
 }
@@ -660,6 +661,7 @@ func (s *session) isLingering() bool {
 // startInteractive starts a new interactive process (or a shell) in the
 // current session.
 func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
+	s.log.Debugf("START INTER START INTER START INTER START INTER")
 	var err error
 
 	// create a new "party" (connected client)
@@ -705,10 +707,13 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		}
 	}
 
+	s.log.Debug("==== Running terminal...")
 	if err := s.term.Run(); err != nil {
 		ctx.Errorf("Unable to run shell command: %v.", err)
 		return trace.ConvertSystemError(err)
 	}
+
+	s.log.Debug("==== Adding party...")
 	if err := s.addParty(p); err != nil {
 		return trace.Wrap(err)
 	}
@@ -726,6 +731,8 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		User:      ctx.Identity.TeleportUser,
 		Events:    ctx.Identity.RoleSet.EnhancedRecordingSet(),
 	}
+
+	s.log.Debug("==== Opening session...")
 	cgroupID, err := ctx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
 		ctx.Errorf("Failed to open enhanced recording (interactive) session: %v: %v.", s.id, err)
@@ -738,6 +745,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	}
 
 	// Process has been placed in a cgroup, continue execution.
+	s.log.Debug("==== Continuing terminal execution ")
 	s.term.Continue()
 
 	params := s.term.GetTerminalParams()
@@ -791,6 +799,9 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// connection to members of the "party" (other people in the session).
 	s.term.AddParty(1)
 	go func() {
+		s.log.Debug("==== Entering IO Pump")
+		defer s.log.Debug("==== Exiting IO Pump")
+
 		defer s.term.AddParty(-1)
 
 		_, err := io.Copy(s.writer, s.term.PTY())
@@ -808,6 +819,9 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// once it is received wait for the io.Copy above to finish, then broadcast
 	// the "exit-status" to the client.
 	go func() {
+		s.log.Debug("==== Entering CMD wait")
+		defer s.log.Debug("==== Exiting CMD wait")
+
 		result, err := s.term.Wait()
 		if err != nil {
 			ctx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
@@ -858,6 +872,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 }
 
 func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
+	s.log.Debugf("START EXEC START EXEC START EXEC START EXEC ")
 	var err error
 
 	// Nodes discard events in cases when proxies are already recording them.
@@ -931,6 +946,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 	if result != nil {
+		ctx.Debug("1111111111111111111111111111111111111111111111111")
 		ctx.Debugf("Exec request (%v) result: %v.", ctx.ExecRequest, result)
 		ctx.SendExecResult(*result)
 	}
@@ -966,6 +982,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	go func() {
 		result = ctx.ExecRequest.Wait()
 		if result != nil {
+			ctx.Debug("222222222222222222222222222222222222222222222222222222")
 			ctx.SendExecResult(*result)
 		}
 
@@ -1074,6 +1091,7 @@ func sessionsStreamingUploadDir(ctx *ServerContext) string {
 }
 
 func (s *session) broadcastResult(r ExecResult) {
+	s.log.Debug("3333333333333333333333333333333333333333333333333333333333333333")
 	for _, p := range s.parties {
 		p.ctx.SendExecResult(r)
 	}

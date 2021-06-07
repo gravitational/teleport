@@ -21,11 +21,16 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
@@ -36,6 +41,12 @@ import (
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
+
+	"github.com/google/tink/go/aead"
+	"github.com/google/tink/go/core/registry"
+	"github.com/google/tink/go/keyset"
+	"github.com/google/tink/go/proto/tink_go_proto"
+	"github.com/google/tink/go/tink"
 )
 
 const (
@@ -62,12 +73,17 @@ const (
 	// ProtoStreamV1 is a version of the binary protocol
 	ProtoStreamV1 = 1
 
-	// ProtoStreamV1PartHeaderSize is the size of the part of the protocol stream
+	// ProtoStreamV1 is a version of the binary protocol with encryption and extra
+	//flags
+	ProtoStreamV2 = 2
+
+	// ProtoStreamV2PartHeaderSize is the size of the part of the protocol stream
 	// on disk format, it consists of
 	// * 8 bytes for the format version
+	// * 8 bytes for flags
 	// * 8 bytes for meaningful size of the part
 	// * 8 bytes for optional padding size at the end of the slice
-	ProtoStreamV1PartHeaderSize = Int64Size * 3
+	ProtoStreamV2PartHeaderSize = Int64Size * 4
 
 	// ProtoStreamV1RecordHeaderSize is the size of the header
 	// of the record header, it consists of the record length
@@ -443,7 +459,7 @@ type sliceWriter struct {
 	completedParts []StreamPart
 	// emptyHeader is used to write empty header
 	// to preserve some bytes
-	emptyHeader [ProtoStreamV1PartHeaderSize]byte
+	emptyHeader [ProtoStreamV2PartHeaderSize]byte
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -580,15 +596,82 @@ func (b *bufferCloser) Close() error {
 	return nil
 }
 
+// ----------------------------------------------------------------------------
+// Client-side encryption hacks
+// ----------------------------------------------------------------------------
+
+var cryptoCfg *CryptoCfg
+
+type StaticKMS struct {
+	keys *tink_go_proto.Keyset
+}
+
+const (
+	teleportKeyScheme = "static://"
+)
+
+// Supported true if this client does support keyURI
+func (kms *StaticKMS) Supported(keyURI string) bool {
+	return strings.HasPrefix(keyURI, teleportKeyScheme)
+}
+
+// GetAEAD  gets an AEAD backend by keyURI.
+func (kms *StaticKMS) GetAEAD(keyURI string) (tink.AEAD, error) {
+	keyID, err := strconv.ParseInt(strings.TrimPrefix(keyURI, teleportKeyScheme), 16, 32)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, k := range kms.keys.Key {
+		if k.KeyId == uint32(keyID) {
+			primitive, err := registry.PrimitiveFromKeyData(k.KeyData)
+			if err != nil {
+				return nil, err
+			}
+
+			if p, ok := primitive.(tink.AEAD); ok {
+				return p, nil
+			}
+
+			return nil, errors.New("invalid primitive")
+		}
+	}
+
+	return nil, errors.New("AEAD not found")
+}
+
+func init() {
+	f, err := os.Open("/home/trent/work/debug/keyset.json")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	masterKeyset, err := keyset.NewJSONReader(f).Read()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	registry.RegisterKMSClient(&StaticKMS{keys: masterKeyset})
+
+	cryptoCfg = &CryptoCfg{
+		KeyURI: fmt.Sprintf("%s%08x", teleportKeyScheme, masterKeyset.PrimaryKeyId),
+	}
+}
+
+// ----------------------------------------------------------------------------
+//
+// ----------------------------------------------------------------------------
+
 func (w *sliceWriter) newSlice() *slice {
 	buffer := w.proto.cfg.BufferPool.Get()
 	buffer.Reset()
 	// reserve bytes for version header
 	buffer.Write(w.emptyHeader[:])
 	return &slice{
-		proto:  w.proto,
-		buffer: buffer,
-		writer: newGzipWriter(&bufferCloser{Buffer: buffer}),
+		proto:     w.proto,
+		buffer:    buffer,
+		writer:    newGzipWriter(&bufferCloser{Buffer: buffer}),
+		cryptoCfg: cryptoCfg,
 	}
 }
 
@@ -745,36 +828,88 @@ func (a *activeUpload) getPart() (*StreamPart, error) {
 	return a.part, nil
 }
 
+type CryptoCfg struct {
+	KeyURI string
+}
+
 // slice contains serialized protobuf messages
 type slice struct {
 	proto          *ProtoStream
 	writer         *gzipWriter
 	buffer         *bytes.Buffer
+	cryptoCfg      *CryptoCfg
 	isLast         bool
 	lastEventIndex int64
 }
 
+type partFlag uint64
+
+const (
+	partFlagEncrypted partFlag = 1 << iota
+	partFlagNone      partFlag = 0
+)
+
 // reader returns a reader for the bytes written,
 // no writes should be done after this method is called
 func (s *slice) reader() (io.ReadSeeker, error) {
+	// We're sealing the block
 	if err := s.writer.Close(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	wroteBytes := int64(s.buffer.Len())
-	var paddingBytes int64
+
+	header := partHeader{version: ProtoStreamV2}
+	frame := s.buffer
+
+	if s.cryptoCfg != nil {
+		header.flags |= partFlagEncrypted
+
+		dekTemplate := aead.AES256GCMKeyTemplate()
+		kh, err := keyset.NewHandle(aead.KMSEnvelopeAEADKeyTemplate(s.cryptoCfg.KeyURI, dekTemplate))
+		if err != nil {
+			return nil, err
+		}
+
+		enc, err := aead.New(kh)
+		if err != nil {
+			return nil, err
+		}
+
+		keyURIBytes := []byte(s.cryptoCfg.KeyURI)
+		lenKeyURI := len(keyURIBytes)
+		payload := frame.Bytes()[ProtoStreamV2PartHeaderSize:]
+
+		ct, err := enc.Encrypt(payload, []byte{})
+		if err != nil {
+			return nil, err
+		}
+
+		encryptedFrame := &bytes.Buffer{}
+		encryptedFrame.Write(make([]byte, ProtoStreamV2PartHeaderSize))   // empty frame header
+		binary.Write(encryptedFrame, binary.BigEndian, uint32(lenKeyURI)) // len keyURI
+		encryptedFrame.Write(keyURIBytes)                                 // key URI
+		encryptedFrame.Write(ct)                                          // cyphertext
+
+		frame = encryptedFrame
+	}
+
+	header.size = uint64(frame.Len()) - ProtoStreamV2PartHeaderSize
+
 	// non last slices should be at least min upload bytes (as limited by S3 API spec)
-	if !s.isLast && wroteBytes < s.proto.cfg.MinUploadBytes {
-		paddingBytes = s.proto.cfg.MinUploadBytes - wroteBytes
-		if _, err := s.buffer.ReadFrom(utils.NewRepeatReader(byte(0), int(paddingBytes))); err != nil {
+	if !s.isLast && header.size < uint64(s.proto.cfg.MinUploadBytes) {
+		header.padding = uint64(s.proto.cfg.MinUploadBytes) - header.size
+		if _, err := frame.ReadFrom(utils.NewRepeatReader(byte(0), int(header.padding))); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	data := s.buffer.Bytes()
+
+	data := frame.Bytes()
+
 	// when the slice was created, the first bytes were reserved
 	// for the protocol version number and size of the slice in bytes
-	binary.BigEndian.PutUint64(data[0:], ProtoStreamV1)
-	binary.BigEndian.PutUint64(data[Int64Size:], uint64(wroteBytes-ProtoStreamV1PartHeaderSize))
-	binary.BigEndian.PutUint64(data[Int64Size*2:], uint64(paddingBytes))
+	err := header.Put(data[0:ProtoStreamV2PartHeaderSize])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return bytes.NewReader(data), nil
 }
 
@@ -923,6 +1058,107 @@ func (r *ProtoReader) GetStats() ProtoReaderStats {
 	return r.stats
 }
 
+func decryptPart(r io.Reader) (io.Reader, error) {
+	var lenKeyURI uint32
+	err := binary.Read(r, binary.BigEndian, &lenKeyURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyURIBytes := make([]byte, lenKeyURI)
+	_, err = io.ReadFull(r, keyURIBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyURI := string(keyURIBytes)
+	if !utf8.ValidString(keyURI) {
+		return nil, trace.BadParameter("Invalid UTF-8 String")
+	}
+
+	ct, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+
+	dekTemplate := aead.AES256GCMKeyTemplate()
+	kh, err := keyset.NewHandle(aead.KMSEnvelopeAEADKeyTemplate(keyURI, dekTemplate))
+	if err != nil {
+		return nil, err
+	}
+
+	enc, err := aead.New(kh)
+	if err != nil {
+		return nil, err
+	}
+
+	pt, err := enc.Decrypt(ct, []byte{})
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes.NewBuffer(pt), err
+}
+
+type partHeader struct {
+	version uint64
+	flags   partFlag
+	size    uint64
+	padding uint64
+}
+
+func (h *partHeader) Put(b []byte) error {
+	if len(b) < ProtoStreamV2PartHeaderSize {
+		return trace.BadParameter("Buffer too small")
+	}
+
+	dst := 0
+
+	binary.BigEndian.PutUint64(b[dst:], ProtoStreamV2)
+	dst += Int64Size
+
+	binary.BigEndian.PutUint64(b[dst:], uint64(h.flags))
+	dst += Int64Size
+
+	binary.BigEndian.PutUint64(b[dst:], h.size)
+	dst += Int64Size
+
+	binary.BigEndian.PutUint64(b[dst:], h.padding)
+
+	return nil
+}
+
+func readHeader(r io.Reader) (*partHeader, error) {
+	version := uint64(0)
+	flags := uint64(partFlagNone)
+	size := uint64(0)
+	padding := uint64(0)
+
+	err := binary.Read(r, binary.BigEndian, &version)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if version >= ProtoStreamV2 {
+		err = binary.Read(r, binary.BigEndian, &flags)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	err = binary.Read(r, binary.BigEndian, &size)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = binary.Read(r, binary.BigEndian, &padding)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &partHeader{version, partFlag(flags), size, padding}, nil
+}
+
 // Read returns next event or io.EOF in case of the end of the parts
 func (r *ProtoReader) Read(ctx context.Context) (AuditEvent, error) {
 	// periodic checks of context after fixed amount of iterations
@@ -948,34 +1184,26 @@ func (r *ProtoReader) Read(ctx context.Context) (AuditEvent, error) {
 		case protoReaderStateError:
 			return nil, r.error
 		case protoReaderStateInit:
-			// read the part header that consists of the protocol version
-			// and the part size (for the V1 version of the protocol)
-			_, err := io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
-				// reached the end of the stream
-				if err == io.EOF {
-					r.state = protoReaderStateEOF
-					return nil, err
+			part, err := readHeader(r.reader)
+			if trace.IsEOF(err) {
+				r.state = protoReaderStateEOF
+				return nil, err
+			} else if err != nil {
+				return nil, r.setError(trace.ConvertSystemError(err))
+			}
+
+			encrypted := (part.flags & partFlagEncrypted) != 0
+
+			payload := io.LimitReader(r.reader, int64(part.size))
+			if encrypted {
+				payload, err = decryptPart(payload)
+				if err != nil {
+					return nil, r.setError(trace.Wrap(err))
 				}
-				return nil, r.setError(trace.ConvertSystemError(err))
 			}
-			protocolVersion := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
-			if protocolVersion != ProtoStreamV1 {
-				return nil, trace.BadParameter("unsupported protocol version %v", protocolVersion)
-			}
-			// read size of this gzipped part as encoded by V1 protocol version
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
-				return nil, r.setError(trace.ConvertSystemError(err))
-			}
-			partSize := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
-			// read padding size (could be 0)
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
-				return nil, r.setError(trace.ConvertSystemError(err))
-			}
-			r.padding = int64(binary.BigEndian.Uint64(r.sizeBytes[:Int64Size]))
-			gzipReader, err := newGzipReader(ioutil.NopCloser(io.LimitReader(r.reader, int64(partSize))))
+
+			r.padding = int64(part.padding)
+			gzipReader, err := newGzipReader(ioutil.NopCloser(payload))
 			if err != nil {
 				return nil, r.setError(trace.Wrap(err))
 			}

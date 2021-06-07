@@ -22,6 +22,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -56,7 +57,7 @@ func DetectFormat(r io.ReadSeeker) (*Header, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	protocolVersion := binary.BigEndian.Uint64(version)
-	if protocolVersion == ProtoStreamV1 {
+	if protocolVersion == ProtoStreamV1 || protocolVersion == ProtoStreamV2 {
 		return &Header{
 			Proto:        true,
 			ProtoVersion: int64(protocolVersion),
@@ -247,7 +248,8 @@ func (w *PlaybackWriter) Write(ctx context.Context) error {
 	for {
 		event, err := w.reader.Read(ctx)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
+				//if err == io.EOF {
 				return nil
 			}
 			return trace.Wrap(err)

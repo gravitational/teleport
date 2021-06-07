@@ -1,0 +1,27 @@
+package(default_visibility = ["//:__subpackages__"])  # keep
+
+licenses(["notice"])  # keep
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["primitiveset.go"],
+    importpath = "github.com/google/tink/go/core/primitiveset",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core/cryptofmt:go_default_library",
+        "//proto:tink_go_proto",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = ["primitiveset_test.go"],
+    embed = [":go_default_library"],
+    deps = [
+        "//core/cryptofmt:go_default_library",
+        "//testutil:go_default_library",
+        "//proto:tink_go_proto",
+    ],
+)

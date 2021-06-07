@@ -1,0 +1,77 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+package(default_visibility = ["//:__subpackages__"])  # keep
+
+licenses(["notice"])  # keep
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "aead.go",
+        "aead_factory.go",
+        "aead_key_templates.go",
+        "aes_ctr_hmac_aead_key_manager.go",
+        "aes_gcm_key_manager.go",
+        "chacha20poly1305_key_manager.go",
+        "kms_envelope_aead.go",
+        "kms_envelope_aead_key_manager.go",
+        "xchacha20poly1305_key_manager.go",
+    ],
+    importpath = "github.com/google/tink/go/aead",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//aead/subtle:go_default_library",
+        "//core/cryptofmt:go_default_library",
+        "//core/primitiveset:go_default_library",
+        "//core/registry:go_default_library",
+        "//keyset:go_default_library",
+        "//mac/subtle:go_default_library",
+        "//proto:aes_ctr_go_proto",
+        "//proto:aes_ctr_hmac_aead_go_proto",
+        "//proto:aes_gcm_go_proto",
+        "//proto:chacha20_poly1305_go_proto",
+        "//proto:common_go_proto",
+        "//proto:hmac_go_proto",
+        "//proto:kms_envelope_go_proto",
+        "//proto:tink_go_proto",
+        "//proto:xchacha20_poly1305_go_proto",
+        "//subtle/random:go_default_library",
+        "//tink:go_default_library",
+        "@com_github_golang_protobuf//proto:go_default_library",
+        "@org_golang_x_crypto//chacha20poly1305:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "aead_factory_test.go",
+        "aead_key_templates_test.go",
+        "aead_test.go",
+        "aes_ctr_hmac_aead_key_manager_test.go",
+        "aes_gcm_key_manager_test.go",
+        "chacha20poly1305_key_manager_test.go",
+        "kms_envelope_aead_test.go",
+        "xchacha20poly1305_key_manager_test.go",
+    ],
+    embed = [":go_default_library"],
+    deps = [
+        "//aead/subtle:go_default_library",
+        "//core/cryptofmt:go_default_library",
+        "//core/registry:go_default_library",
+        "//keyset:go_default_library",
+        "//proto:aes_ctr_hmac_aead_go_proto",
+        "//proto:aes_gcm_go_proto",
+        "//proto:chacha20_poly1305_go_proto",
+        "//proto:tink_go_proto",
+        "//proto:xchacha20_poly1305_go_proto",
+        "//signature:go_default_library",
+        "//subtle/random:go_default_library",
+        "//testing/fakekms:go_default_library",
+        "//testkeyset:go_default_library",
+        "//testutil:go_default_library",
+        "//tink:go_default_library",
+        "@com_github_golang_protobuf//proto:go_default_library",
+        "@org_golang_x_crypto//chacha20poly1305:go_default_library",
+    ],
+)

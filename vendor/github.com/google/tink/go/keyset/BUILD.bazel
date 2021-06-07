@@ -1,0 +1,56 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+package(default_visibility = ["//:__subpackages__"])
+
+licenses(["notice"])
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "binary_io.go",
+        "handle.go",
+        "json_io.go",
+        "keyset.go",
+        "manager.go",
+        "mem_io.go",
+        "reader.go",
+        "validation.go",
+        "writer.go",
+    ],
+    importpath = "github.com/google/tink/go/keyset",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//core/primitiveset:go_default_library",
+        "//core/registry:go_default_library",
+        "//internal:go_default_library",
+        "//proto:tink_go_proto",
+        "//subtle/random:go_default_library",
+        "//tink:go_default_library",
+        "@com_github_golang_protobuf//jsonpb:go_default_library",
+        "@com_github_golang_protobuf//proto:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "binary_io_test.go",
+        "handle_test.go",
+        "json_io_test.go",
+        "manager_test.go",
+        "validation_test.go",
+    ],
+    deps = [
+        "//aead/subtle:go_default_library",
+        "//keyset:go_default_library",
+        "//mac:go_default_library",
+        "//proto:common_go_proto",
+        "//proto:tink_go_proto",
+        "//subtle/random:go_default_library",
+        "//testkeyset:go_default_library",
+        "//testutil:go_default_library",
+        "@com_github_golang_protobuf//proto:go_default_library",
+    ],
+)

@@ -1,4 +1,4 @@
-# cloud.google.com/go v0.60.0
+# cloud.google.com/go v0.65.0
 ## explicit
 cloud.google.com/go
 cloud.google.com/go/compute/metadata
@@ -205,6 +205,7 @@ github.com/golang/groupcache/lru
 # github.com/golang/protobuf v1.4.3
 ## explicit
 github.com/golang/protobuf/internal/gengogrpc
+github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/protoc-gen-go
 github.com/golang/protobuf/ptypes
@@ -232,6 +233,29 @@ github.com/google/gofuzz
 github.com/google/gops/agent
 github.com/google/gops/internal
 github.com/google/gops/signal
+# github.com/google/tink/go v1.6.0
+## explicit
+github.com/google/tink/go/aead
+github.com/google/tink/go/aead/subtle
+github.com/google/tink/go/core/cryptofmt
+github.com/google/tink/go/core/primitiveset
+github.com/google/tink/go/core/registry
+github.com/google/tink/go/internal
+github.com/google/tink/go/keyset
+github.com/google/tink/go/mac/subtle
+github.com/google/tink/go/prf/subtle
+github.com/google/tink/go/proto/aes_ctr_go_proto
+github.com/google/tink/go/proto/aes_ctr_hmac_aead_go_proto
+github.com/google/tink/go/proto/aes_gcm_go_proto
+github.com/google/tink/go/proto/chacha20_poly1305_go_proto
+github.com/google/tink/go/proto/common_go_proto
+github.com/google/tink/go/proto/hmac_go_proto
+github.com/google/tink/go/proto/kms_envelope_go_proto
+github.com/google/tink/go/proto/tink_go_proto
+github.com/google/tink/go/proto/xchacha20_poly1305_go_proto
+github.com/google/tink/go/subtle
+github.com/google/tink/go/subtle/random
+github.com/google/tink/go/tink
 # github.com/google/uuid v1.2.0
 ## explicit
 github.com/google/uuid
@@ -559,9 +583,11 @@ golang.org/x/crypto/acme/autocert
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/chacha20
+golang.org/x/crypto/chacha20poly1305
 golang.org/x/crypto/curve25519
 golang.org/x/crypto/ed25519
 golang.org/x/crypto/ed25519/internal/edwards25519
+golang.org/x/crypto/hkdf
 golang.org/x/crypto/internal/subtle
 golang.org/x/crypto/nacl/secretbox
 golang.org/x/crypto/pbkdf2
@@ -592,7 +618,7 @@ golang.org/x/net/internal/timeseries
 golang.org/x/net/proxy
 golang.org/x/net/trace
 golang.org/x/net/websocket
-# golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+# golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43 => golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 ## explicit
 golang.org/x/oauth2
 golang.org/x/oauth2/google
@@ -664,12 +690,13 @@ golang.org/x/tools/internal/typesinternal
 # golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
-# google.golang.org/api v0.29.0
+# google.golang.org/api v0.32.0
 ## explicit
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
 google.golang.org/api/internal
 google.golang.org/api/internal/gensupport
+google.golang.org/api/internal/impersonate
 google.golang.org/api/internal/third_party/uritemplates
 google.golang.org/api/iterator
 google.golang.org/api/option
@@ -706,7 +733,7 @@ google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/status
 google.golang.org/genproto/googleapis/type/expr
 google.golang.org/genproto/googleapis/type/latlng
-# google.golang.org/grpc v1.29.1
+# google.golang.org/grpc v1.31.1 => google.golang.org/grpc v1.29.1
 ## explicit
 google.golang.org/grpc
 google.golang.org/grpc/attributes
