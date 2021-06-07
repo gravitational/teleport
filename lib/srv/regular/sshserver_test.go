@@ -174,7 +174,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	require.NoError(t, auth.CreateUploaderDir(nodeDir))
 	require.NoError(t, sshSrv.Start())
-	t.Cleanup(func() { sshSrv.Close() })
+	t.Cleanup(func() { require.NoError(t, sshSrv.Close()) })
 
 	require.NoError(t, sshSrv.heartbeat.ForceSend(time.Second))
 
