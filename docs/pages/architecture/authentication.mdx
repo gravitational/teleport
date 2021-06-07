@@ -223,9 +223,9 @@ storage.
   title="Deployment Considerations"
 >
   If multiple Teleport auth servers are used
-  to service the same cluster (HA mode) a network file system must be used for
+  to service the same cluster (High Availability mode) a network file system must be used for
   `/var/lib/teleport/log` to allow them to combine all audit events into the
-  same audit log. [Learn how to deploy Teleport in HA Mode.](../admin-guide.mdx#high-availability)
+  same audit log. [Learn how to deploy Teleport in High Availability Mode.](../admin-guide.mdx#high-availability)
 </Admonition>
 
 ## Storage Back-Ends
@@ -235,7 +235,7 @@ back-ends as shown in the table below:
 
 | Data Type | Supported Back-ends | Notes |
 | - | - | - |
-| Cluster state | `dir`, `etcd`, `dynamodb`,`firestore` | Multi-server (HA) configuration is only supported using `etcd`, `dynamodb`, and `firestore` back-ends. |
+| Cluster state | `dir`, `etcd`, `dynamodb`,`firestore` | Multi-server (High Availability) configuration is only supported using `etcd`, `dynamodb`, and `firestore` back-ends. |
 | Audit Log Events | `dir`, `dynamodb`, `firestore` | If `dynamodb` is used for the audit log events, `s3` back-end **must** be used for the recorded sessions. |
 | Recorded Sessions | `dir`, `s3` | `s3` is mandatory if `dynamodb` is used for the audit log. For Google Cloud storage use `audit_sessions_uri: 'gs://` |
 
@@ -259,9 +259,8 @@ it allows them to run Teleport clusters completely devoid of local state.
   type="tip"
   title="NOTE"
 >
-  For high availability in production, a Teleport cluster can be
-  serviced by multiple auth servers running in sync. Check [HA
-  configuration](../admin-guide.mdx#high-availability) in the Admin Guide.
+  For High Availability in production, a Teleport cluster can be
+  serviced by multiple auth servers running in sync. Check [High Availability configuration](../admin-guide.mdx#high-availability) in the Admin Guide.
 </Admonition>
 
 ## More Concepts
