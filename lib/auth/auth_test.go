@@ -80,7 +80,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	ctx := context.Background()
 	var err error
 	s.dataDir = c.MkDir()
-	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: s.dataDir})
+	s.bk, err = lite.NewWithConfig(ctx, lite.Config{Path: s.dataDir})
 	c.Assert(err, IsNil)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
@@ -117,10 +117,10 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	err = s.a.SetAuthPreference(ctx, authPreference)
 	c.Assert(err, IsNil)
 
-	err = s.a.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+	err = s.a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	c.Assert(err, IsNil)
 
-	err = s.a.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+	err = s.a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 	c.Assert(err, IsNil)
 
 	err = s.a.SetClusterConfig(services.DefaultClusterConfig())
@@ -137,6 +137,7 @@ func (s *AuthSuite) TearDownTest(c *C) {
 }
 
 func (s *AuthSuite) TestSessions(c *C) {
+	ctx := context.Background()
 	c.Assert(s.a.UpsertCertAuthority(
 		suite.NewTestCA(types.UserCA, "me.localhost")), IsNil)
 
@@ -165,18 +166,18 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
-	out, err := s.a.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, IsNil)
 	ws.SetPriv(nil)
 	fixtures.DeepCompare(c, ws, out)
 
-	err = s.a.WebSessions().Delete(context.TODO(), types.DeleteWebSessionRequest{
+	err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      user,
 		SessionID: ws.GetName(),
 	})
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+	_, err = s.a.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      user,
 		SessionID: ws.GetName(),
 	})

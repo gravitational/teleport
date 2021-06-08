@@ -629,7 +629,7 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	return re, nil
 }
 
-// GetSessionRecordingConfig gets cluster auth preference.
+// GetAuthPreference gets cluster auth preference.
 func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	if resp, err := c.APIClient.GetAuthPreference(ctx); err != nil {
 		if !trace.IsNotImplemented(err) {
@@ -651,7 +651,7 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	return cap, nil
 }
 
-// SetSessionRecordingConfig sets cluster auth preference.
+// SetAuthPreference sets cluster auth preference.
 func (c *Client) SetAuthPreference(ctx context.Context, cap types.AuthPreference) error {
 	if err := c.APIClient.SetAuthPreference(ctx, cap); err != nil {
 		if !trace.IsNotImplemented(err) {

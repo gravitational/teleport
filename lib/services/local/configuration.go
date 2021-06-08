@@ -168,7 +168,7 @@ func (s *ClusterConfigurationService) DeleteStaticTokens() error {
 // GetAuthPreference fetches the cluster authentication preferences
 // from the backend and return them.
 func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	item, err := s.Get(context.TODO(), backend.Key(authPrefix, preferencePrefix, generalPrefix))
+	item, err := s.Get(ctx, backend.Key(authPrefix, preferencePrefix, generalPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("authentication preference not found")
@@ -198,7 +198,7 @@ func (s *ClusterConfigurationService) SetAuthPreference(ctx context.Context, pre
 		ID:    preferences.GetResourceID(),
 	}
 
-	_, err = s.Put(context.TODO(), item)
+	_, err = s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}

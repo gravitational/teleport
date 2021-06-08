@@ -1433,7 +1433,7 @@ func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// GetSessionRecordingConfig gets cluster auth preference.
+// GetAuthPreference gets cluster auth preference.
 func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	resp, err := c.grpc.GetAuthPreference(ctx, &empty.Empty{}, c.callOpts...)
 	if err != nil {
@@ -1442,7 +1442,7 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	return resp, nil
 }
 
-// SetSessionRecordingConfig sets cluster auth preference.
+// SetAuthPreference sets cluster auth preference.
 func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPreference) error {
 	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
 	if !ok {
