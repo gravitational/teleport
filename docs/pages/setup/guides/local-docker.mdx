@@ -6,14 +6,10 @@ h1: Run Teleport using Docker
 
 We provide pre-built Docker images for every version of Teleport. 
 
-These images are hosted on quay.io.
-
-- All tags under `quay.io/gravitational/teleport` [are Teleport Open Source images](https://quay.io/repository/gravitational/teleport?tag=latest\&tab=tags).
-
-We currently only offer Docker images for `x86_64` architectures.
+These images are hosted on quay.io. All tags under `quay.io/gravitational/teleport` [are Teleport Open Source images](https://quay.io/repository/gravitational/teleport?tag=latest\&tab=tags).
 
 <Admonition type="note">
-  You will need a recent version of [Docker](https://hub.docker.com/search?q=\&type=edition\&offering=community) installed to follow this section of the quick start guide.
+  You will need a recent version of [Docker](https://hub.docker.com/search?q=\&type=edition\&offering=community) installed to follow this section of the quick start guide. We currently only offer Docker images for `x86_64` architectures.
 </Admonition>
 
 <Admonition type="tip">
@@ -51,12 +47,21 @@ curl -Lso teleport-quickstart.yml https://raw.githubusercontent.com/gravitationa
 docker-compose -f teleport-quickstart.yml up
 ```
 
-- The `docker-compose` quickstart will automatically create a config file for you at `./docker/teleport/config/teleport.yaml`
-- This config is mounted into the container under `/etc/teleport/teleport.yaml`
-- It will also start `teleport` using this config file, with Teleport's data directory set to `./docker/teleport/data` and mounted under `/var/lib/teleport`
-- By default, `docker-compose` will output Teleport's logs to the console for you to observe.
-  - If you would rather run the Teleport container in the background, use `docker-compose -f teleport-quickstart.yml up -d`
-  - You can stop the Teleport container using `docker-compose -f teleport-quickstart.yml down`
+The `docker-compose` quickstart will automatically create a config file for you at `./docker/teleport/config/teleport.yaml`.
+
+This config is mounted into the container under `/etc/teleport/teleport.yaml`. It will also start `teleport` using this config file, with Teleport's data directory set to `./docker/teleport/data` and mounted under `/var/lib/teleport`.
+
+By default, `docker-compose` will output Teleport's logs to the console for you to observe. If you would rather run the Teleport container in the background, use:
+
+```bash
+docker-compose -f teleport-quickstart.yml up -d
+``` 
+
+You can stop the Teleport container using 
+
+```bash
+docker-compose -f teleport-quickstart.yml down
+```
 
 ## Quickstart using docker run
 
@@ -86,7 +91,7 @@ docker run --hostname localhost --name teleport \
 To create a user inside your Teleport container, use `docker exec`.
 
 This example command will create a Teleport user called `testuser` which is allowed to log in as either OS user `root` or `ubuntu`. Feel free to change these to suit your needs -
-[there are more instructions above in Step 3](../../getting-started.mdx#step-34-log-in-using-tsh) if you'd like additional details):
+[there are more instructions above in **Step 3**](../../getting-started.mdx#step-34-log-in-using-tsh) if you'd like additional details):
 
 ```bash
 docker exec teleport tctl users add testuser root,ubuntu
