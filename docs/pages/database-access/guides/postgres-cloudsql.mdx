@@ -17,7 +17,7 @@ database flag under "Customize your instance / Flags" section:
 ![Enable IAM Authentication](../../../img/database-access/guides/cloudsql/iam-new-instance@2x.png)
 
 To check whether IAM authentication is enabled for an existing Cloud SQL instance,
-look for the flag on the Configuration panel on the instance's Overview page:
+look for the flag on the "Configuration" panel on the instance's "Overview" page:
 
 ![Check IAM Authentication](../../../img/database-access/guides/cloudsql/iam-existing-instance@2x.png)
 
@@ -145,7 +145,7 @@ $ teleport configure --cluster-name=teleport.example.com --acme --acme-email=ali
 
 Start the service:
 
-```sh
+```bash
 $ sudo teleport start
 ```
 
@@ -164,7 +164,7 @@ $ tctl tokens add \
 
 Create local Teleport user with the built-in `access` role:
 
-```sh
+```bash
 $ tctl users add --roles=access alice
 ```
 
