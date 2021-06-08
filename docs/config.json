@@ -16,6 +16,19 @@
       ]
     },
     {
+      "icon": "wrench",
+      "title": "Setup",
+      "entries": [
+        {
+          "title": "Guides",
+          "slug": "/setup/guides/",
+          "entries": [
+            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" }
+          ]
+        }
+      ]
+    },
+    {
       "icon": "window",
       "title": "Application Access",
       "entries": [
@@ -32,6 +45,22 @@
         },
         { "title": "Access Controls", "slug": "/application-access/controls/" },
         { "title": "Reference", "slug": "/application-access/reference/" }
+      ]
+    },
+    {
+      "icon": "server",
+      "title": "Server Access",
+      "entries": [
+        { "title": "Introduction", "slug": "/server-access/introduction/" },
+        { "title": "Getting Started", "slug": "/server-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/server-access/guides/",
+          "entries": [
+            { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
+            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" }
+          ]
+        }
       ]
     },
     {
@@ -131,8 +160,7 @@
       "entries": [
         { "title": "AWS", "slug": "/aws-oss-guide/" },
         { "title": "GCP", "slug": "/gcp-guide/" },
-        { "title": "IBM", "slug": "/ibm-cloud-guide/" },
-        { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" }
+        { "title": "IBM", "slug": "/ibm-cloud-guide/" }
       ]
     },
     {
@@ -182,8 +210,7 @@
         {
           "title": "BPF Session Recording",
           "slug": "/features/enhanced-session-recording/"
-        },
-        { "title": "Using Teleport with PAM", "slug": "/features/ssh-pam/" }
+        }
       ]
     },
     {
@@ -210,15 +237,18 @@
     "helm": {
       "version": "3.4.2"
     },
+    "terraform": {
+      "version": "0.12.0"
+    },
     "kubernetes": {
       "major_version": "1",
       "minor_version": "17"
     },
     "teleport": {
-      "version": "6.1.0",
+      "version": "6.2.1",
       "golang": "1.16",
       "plugin": {
-        "version": "6.1.0"
+        "version": "6.2.1"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "quay.io/gravitational/teleport:7",
@@ -269,6 +299,21 @@
     {
       "source": "/kubernetes-ssh/",
       "destination": "/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/features/ssh-pam/",
+      "destination": "/server-access/guides/ssh-pam/",
+      "permanent": true
+    },
+    {
+      "source": "/openssh-teleport/",
+      "destination": "/server-access/guides/openssh/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-gsuite/",
+      "destination": "/enterprise/sso/ssh-google-workspace/",
       "permanent": true
     }
   ]

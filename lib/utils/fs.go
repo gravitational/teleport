@@ -22,6 +22,7 @@ import (
 	"runtime"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 )
 
@@ -157,11 +158,11 @@ func StatDir(path string) (os.FileInfo, error) {
 // getHomeDir returns the home directory based off the OS.
 func getHomeDir() string {
 	switch runtime.GOOS {
-	case teleport.LinuxOS:
+	case constants.LinuxOS:
 		return os.Getenv(teleport.EnvHome)
-	case teleport.DarwinOS:
+	case constants.DarwinOS:
 		return os.Getenv(teleport.EnvHome)
-	case teleport.WindowsOS:
+	case constants.WindowsOS:
 		return os.Getenv(teleport.EnvUserProfile)
 	}
 	return ""

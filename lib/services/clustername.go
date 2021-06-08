@@ -17,38 +17,15 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ClusterNameSpecSchemaTemplate is a template for ClusterName schema.
-const ClusterNameSpecSchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "cluster_name": {
-		"type": "string"
-	  }%v
-	}
-  }`
-
-// GetClusterNameSchema returns the schema with optionally injected
-// schema for extensions.
-func GetClusterNameSchema(extensionSchema string) string {
-	var clusterNameSchema string
-	if clusterNameSchema == "" {
-		clusterNameSchema = fmt.Sprintf(ClusterNameSpecSchemaTemplate, "")
-	} else {
-		clusterNameSchema = fmt.Sprintf(ClusterNameSpecSchemaTemplate, ","+extensionSchema)
-	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, clusterNameSchema, DefaultDefinitions)
-}
-
 // UnmarshalClusterName unmarshals the ClusterName resource from JSON.
-func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (ClusterName, error) {
-	var clusterName ClusterNameV2
+func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (types.ClusterName, error) {
+	var clusterName types.ClusterNameV2
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -59,15 +36,8 @@ func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (ClusterName, err
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &clusterName); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetClusterNameSchema(""), &clusterName, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
+	if err := utils.FastUnmarshal(bytes, &clusterName); err != nil {
+		return nil, trace.BadParameter(err.Error())
 	}
 
 	err = clusterName.CheckAndSetDefaults()
@@ -86,15 +56,15 @@ func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (ClusterName, err
 }
 
 // MarshalClusterName marshals the ClusterName resource to JSON.
-func MarshalClusterName(clusterName ClusterName, opts ...MarshalOption) ([]byte, error) {
+func MarshalClusterName(clusterName types.ClusterName, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch clusterName := clusterName.(type) {
-	case *ClusterNameV2:
-		if version := clusterName.GetVersion(); version != V2 {
+	case *types.ClusterNameV2:
+		if version := clusterName.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched cluster name version %v and type %T", version, clusterName)
 		}
 		if !cfg.PreserveResourceID {
