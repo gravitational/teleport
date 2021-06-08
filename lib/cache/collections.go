@@ -20,8 +20,8 @@ import (
 	"context"
 	"strings"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
 )
@@ -624,7 +624,7 @@ type node struct {
 
 // erase erases all data in the collection
 func (c *node) erase(ctx context.Context) error {
-	if err := c.presenceCache.DeleteAllNodes(ctx, defaults.Namespace); err != nil {
+	if err := c.presenceCache.DeleteAllNodes(ctx, apidefaults.Namespace); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -633,7 +633,7 @@ func (c *node) erase(ctx context.Context) error {
 }
 
 func (c *node) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.Presence.GetNodes(ctx, defaults.Namespace)
+	resources, err := c.Presence.GetNodes(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1307,7 +1307,7 @@ type databaseServer struct {
 }
 
 func (s *databaseServer) erase(ctx context.Context) error {
-	err := s.presenceCache.DeleteAllDatabaseServers(ctx, defaults.Namespace)
+	err := s.presenceCache.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -1315,7 +1315,7 @@ func (s *databaseServer) erase(ctx context.Context) error {
 }
 
 func (s *databaseServer) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := s.Presence.GetDatabaseServers(ctx, defaults.Namespace)
+	resources, err := s.Presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1374,7 +1374,7 @@ type appServer struct {
 
 // erase erases all data in the collection
 func (a *appServer) erase(ctx context.Context) error {
-	if err := a.presenceCache.DeleteAllAppServers(ctx, defaults.Namespace); err != nil {
+	if err := a.presenceCache.DeleteAllAppServers(ctx, apidefaults.Namespace); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -1383,7 +1383,7 @@ func (a *appServer) erase(ctx context.Context) error {
 }
 
 func (a *appServer) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := a.Presence.GetAppServers(ctx, defaults.Namespace)
+	resources, err := a.Presence.GetAppServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

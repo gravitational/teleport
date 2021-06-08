@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -296,7 +297,7 @@ func TestMakeClient(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, localUser, tc.Config.HostLogin)
-	require.Equal(t, defaults.CertDuration, tc.Config.KeyTTL)
+	require.Equal(t, apidefaults.CertDuration, tc.Config.KeyTTL)
 
 	// specific configuration
 	conf.MinsToLive = 5

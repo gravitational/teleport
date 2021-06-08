@@ -22,7 +22,7 @@ import (
 	"sort"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 
 	"k8s.io/client-go/kubernetes"
@@ -180,7 +180,7 @@ func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClus
 		return "", trace.Wrap(err)
 	}
 	if kubeClusterName != "" {
-		if !utils.SliceContainsStr(kubeClusterNames, kubeClusterName) {
+		if !apiutils.SliceContainsStr(kubeClusterNames, kubeClusterName) {
 			return "", trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube ls'", kubeClusterName)
 		}
 		return kubeClusterName, nil
@@ -191,7 +191,7 @@ func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClus
 	if len(kubeClusterNames) == 0 {
 		return "", trace.NotFound("no kubernetes clusters registered")
 	}
-	if utils.SliceContainsStr(kubeClusterNames, teleportClusterName) {
+	if apiutils.SliceContainsStr(kubeClusterNames, teleportClusterName) {
 		return teleportClusterName, nil
 	}
 	return kubeClusterNames[0], nil

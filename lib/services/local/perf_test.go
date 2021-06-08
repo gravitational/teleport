@@ -23,11 +23,11 @@ import (
 	"os"
 	"testing"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/stretchr/testify/assert"
@@ -108,7 +108,7 @@ func insertNodes(ctx context.Context, t assert.TestingT, svc services.Presence, 
 			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      name,
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 				Labels:    labels,
 			},
 			Spec: types.ServerSpecV2{
@@ -126,7 +126,7 @@ func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence,
 	var nodes []types.Server
 	var err error
 	for i := 0; i < b.N; i++ {
-		nodes, err = svc.GetNodes(ctx, defaults.Namespace, opts...)
+		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace, opts...)
 		assert.NoError(b, err)
 	}
 	// do *something* with the loop result.  probably unnecessary since the loop

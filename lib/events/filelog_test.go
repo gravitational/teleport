@@ -21,9 +21,8 @@ import (
 	"testing"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -45,7 +44,7 @@ func TestFileLogPagination(t *testing.T) {
 			Type: SessionJoinEvent,
 			Time: clock.Now().UTC(),
 		},
-		UserMetadata: apievents.UserMetadata{
+		UserMetadata: events.UserMetadata{
 			User: "bob",
 		},
 	})
@@ -57,7 +56,7 @@ func TestFileLogPagination(t *testing.T) {
 			Type: SessionJoinEvent,
 			Time: clock.Now().Add(time.Minute).UTC(),
 		},
-		UserMetadata: apievents.UserMetadata{
+		UserMetadata: events.UserMetadata{
 			User: "alice",
 		},
 	})
@@ -69,7 +68,7 @@ func TestFileLogPagination(t *testing.T) {
 			Type: SessionJoinEvent,
 			Time: clock.Now().Add(time.Minute * 2).UTC(),
 		},
-		UserMetadata: apievents.UserMetadata{
+		UserMetadata: events.UserMetadata{
 			User: "dave",
 		},
 	})
@@ -77,12 +76,12 @@ func TestFileLogPagination(t *testing.T) {
 
 	from := clock.Now().Add(-time.Hour).UTC()
 	to := clock.Now().Add(time.Hour).UTC()
-	eventArr, checkpoint, err := log.SearchEvents(from, to, defaults.Namespace, nil, 2, "")
+	eventArr, checkpoint, err := log.SearchEvents(from, to, apidefaults.Namespace, nil, 2, "")
 	require.Nil(t, err)
 	require.Len(t, eventArr, 2)
 	require.NotEqual(t, checkpoint, "")
 
-	eventArr, checkpoint, err = log.SearchEvents(from, to, defaults.Namespace, nil, 2, checkpoint)
+	eventArr, checkpoint, err = log.SearchEvents(from, to, apidefaults.Namespace, nil, 2, checkpoint)
 	require.Nil(t, err)
 	require.Len(t, eventArr, 1)
 	require.Equal(t, checkpoint, "")

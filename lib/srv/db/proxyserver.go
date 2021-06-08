@@ -29,11 +29,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -418,7 +418,7 @@ func (s *ProxyServer) pickDatabaseServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	servers, err := accessPoint.GetDatabaseServers(ctx, defaults.Namespace)
+	servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

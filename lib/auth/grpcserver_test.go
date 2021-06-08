@@ -1019,11 +1019,9 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	})
 }
 
-// TestClusterNetworkingConfigOriginDynamic tests setting ClusterNetworkingConfig
-// via gRPC results in configuration with OriginDynamic being stored.
-func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
+// testOriginDynamicStored tests setting a ResourceWithOrigin via the server
+// API always results in the resource being stored with OriginDynamic.
+func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
 	srv := newTestTLSServer(t)
 
 	// Create a fake user.
@@ -1032,46 +1030,64 @@ func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
 	cl, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	testCases := []struct {
-		desc      string
-		netConfig func(t *testing.T) types.ClusterNetworkingConfig
-	}{
-		{
-			desc: "setting origin: defaults",
-			netConfig: func(t *testing.T) types.ClusterNetworkingConfig {
-				c := types.DefaultClusterNetworkingConfig()
-				require.Equal(t, c.Origin(), types.OriginDefaults)
-				return c
-			},
-		},
-		{
-			desc: "setting origin: config-file",
-			netConfig: func(t *testing.T) types.ClusterNetworkingConfig {
-				c, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{})
-				require.NoError(t, err)
-				require.Equal(t, c.Origin(), types.OriginConfigFile)
-				return c
-			},
-		},
-		{
-			desc: "setting origin: dynamic",
-			netConfig: func(t *testing.T) types.ClusterNetworkingConfig {
-				c := types.DefaultClusterNetworkingConfig()
-				c.SetOrigin(types.OriginDynamic)
-				return c
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			netConfig := tc.netConfig(t)
-			err := cl.SetClusterNetworkingConfig(ctx, netConfig)
+	for _, origin := range types.OriginValues {
+		t.Run(fmt.Sprintf("setting with origin %q", origin), func(t *testing.T) {
+			err := setWithOrigin(cl, origin)
 			require.NoError(t, err)
 
-			storedNetConfig, err := srv.Auth().GetClusterNetworkingConfig(ctx)
+			stored, err := getStored(srv.Auth())
 			require.NoError(t, err)
-			require.Equal(t, storedNetConfig.Origin(), types.OriginDynamic)
+			require.Equal(t, stored.Origin(), types.OriginDynamic)
 		})
 	}
+}
+
+func TestAuthPreferenceOriginDynamic(t *testing.T) {
+	t.Parallel()
+
+	setWithOrigin := func(cl *Client, origin string) error {
+		authPref := types.DefaultAuthPreference()
+		authPref.SetOrigin(origin)
+		return cl.SetAuthPreference(authPref)
+	}
+
+	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+		return asrv.GetAuthPreference()
+	}
+
+	testOriginDynamicStored(t, setWithOrigin, getStored)
+}
+
+func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	setWithOrigin := func(cl *Client, origin string) error {
+		netConfig := types.DefaultClusterNetworkingConfig()
+		netConfig.SetOrigin(origin)
+		return cl.SetClusterNetworkingConfig(ctx, netConfig)
+	}
+
+	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+		return asrv.GetClusterNetworkingConfig(ctx)
+	}
+
+	testOriginDynamicStored(t, setWithOrigin, getStored)
+}
+
+func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	setWithOrigin := func(cl *Client, origin string) error {
+		recConfig := types.DefaultSessionRecordingConfig()
+		recConfig.SetOrigin(origin)
+		return cl.SetSessionRecordingConfig(ctx, recConfig)
+	}
+
+	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+		return asrv.GetSessionRecordingConfig(ctx)
+	}
+
+	testOriginDynamicStored(t, setWithOrigin, getStored)
 }

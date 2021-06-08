@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -172,7 +173,7 @@ func ForNode(cfg Config) Config {
 		// Node only needs to "know" about default
 		// namespace events to avoid matching too much
 		// data about other namespaces or node events
-		{Kind: types.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 	}
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
@@ -190,7 +191,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindKubeService},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
@@ -212,7 +213,7 @@ func ForApps(cfg Config) Config {
 		{Kind: types.KindProxy},
 		// Applications only need to "know" about default namespace events to avoid
 		// matching too much data about other namespaces or events.
-		{Kind: types.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 	}
 	cfg.QueueSize = defaults.AppsQueueSize
 	return cfg
@@ -232,7 +233,7 @@ func ForDatabases(cfg Config) Config {
 		{Kind: types.KindProxy},
 		// Databases only need to "know" about default namespace events to
 		// avoid matching too much data about other namespaces or events.
-		{Kind: types.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 	}
 	cfg.QueueSize = defaults.DatabasesQueueSize
 	return cfg
