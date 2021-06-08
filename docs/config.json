@@ -23,7 +23,8 @@
           "title": "Guides",
           "slug": "/setup/guides/",
           "entries": [
-            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" }
+            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
+            { "title": "Use Docker Locally", "slug": "/setup/guides/local-docker/" }
           ]
         }
       ]
@@ -314,6 +315,11 @@
     {
       "source": "/enterprise/sso/ssh-gsuite/",
       "destination": "/enterprise/sso/ssh-google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/quickstart-docker/",
+      "destination": "/setup/guides/local-docker/",
       "permanent": true
     }
   ]
