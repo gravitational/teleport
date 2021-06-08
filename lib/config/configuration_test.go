@@ -29,7 +29,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -42,10 +44,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
 )
 
 type testConfigFiles struct {
@@ -163,7 +164,7 @@ auth_service:
   disconnect_expired_cert: %v
 `, tc.s))))
 		require.NoError(t, err, msg)
-		require.Equal(t, tc.b, conf.Auth.DisconnectExpiredCert.Value(), msg)
+		require.Equal(t, tc.b, conf.Auth.DisconnectExpiredCert.Value, msg)
 	}
 }
 
@@ -238,7 +239,7 @@ func TestConfigReading(t *testing.T) {
 				ListenAddress:  "tcp://auth",
 			},
 			LicenseFile:           "lic.pem",
-			DisconnectExpiredCert: types.Bool(true),
+			DisconnectExpiredCert: types.NewBoolOption(true),
 			ClientIdleTimeout:     types.Duration(17 * time.Second),
 		},
 		SSH: SSH{
@@ -273,7 +274,7 @@ func TestConfigReading(t *testing.T) {
 				ListenAddress: "tcp://kube",
 			},
 			KubeClusterName: "kube-cluster",
-			PublicAddr:      utils.Strings([]string{"kube-host:1234"}),
+			PublicAddr:      apiutils.Strings([]string{"kube-host:1234"}),
 		},
 		Apps: Apps{
 			Service: Service{
@@ -490,7 +491,7 @@ func TestApplyConfig(t *testing.T) {
 	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(SmallConfigString, tokenPath)))
 	require.NoError(t, err)
 	require.NotNil(t, conf)
-	require.Equal(t, utils.Strings{"web3:443"}, conf.Proxy.PublicAddr)
+	require.Equal(t, apiutils.Strings{"web3:443"}, conf.Proxy.PublicAddr)
 
 	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
@@ -510,7 +511,7 @@ func TestApplyConfig(t *testing.T) {
 		},
 	}), cfg.Auth.StaticTokens.GetStaticTokens())
 	require.Equal(t, "magadan", cfg.Auth.ClusterName.GetClusterName())
-	require.True(t, cfg.Auth.ClusterConfig.GetLocalAuth())
+	require.True(t, cfg.Auth.Preference.GetAllowLocalAuth())
 	require.Equal(t, "10.10.10.1", cfg.AdvertiseIP)
 
 	require.True(t, cfg.Proxy.Enabled)
@@ -529,7 +530,7 @@ func TestApplyConfig(t *testing.T) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      "cluster-auth-preference",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{
@@ -562,6 +563,8 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 `,
 				},
 			},
+			AllowLocalAuth:        types.NewBoolOption(true),
+			DisconnectExpiredCert: types.NewBoolOption(false),
 		},
 	}))
 }
@@ -807,7 +810,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			{Name: "hostname", Command: []string{"/bin/hostname"}, Period: 10 * time.Millisecond},
 			{Name: "date", Command: []string{"/bin/date"}, Period: 20 * time.Millisecond},
 		},
-		PublicAddr: utils.Strings{"luna3:22"},
+		PublicAddr: apiutils.Strings{"luna3:22"},
 	}, cmp.AllowUnexported(Service{})))
 
 	require.True(t, conf.Auth.Configured())
@@ -841,11 +844,11 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			"proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			"auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
-		PublicAddr: utils.Strings{
+		PublicAddr: apiutils.Strings{
 			"auth.default.svc.cluster.local:3080",
 		},
 		ClientIdleTimeout:     types.Duration(17 * time.Second),
-		DisconnectExpiredCert: true,
+		DisconnectExpiredCert: types.NewBoolOption(true),
 	}, cmp.AllowUnexported(Service{})))
 
 	policy, err := conf.CachePolicy.Parse()
@@ -908,7 +911,7 @@ func makeConfigFixture() string {
 	conf.Auth.ListenAddress = "tcp://auth"
 	conf.Auth.LicenseFile = "lic.pem"
 	conf.Auth.ClientIdleTimeout = types.NewDuration(17 * time.Second)
-	conf.Auth.DisconnectExpiredCert = types.NewBool(true)
+	conf.Auth.DisconnectExpiredCert = types.NewBoolOption(true)
 
 	// ssh service:
 	conf.SSH.EnabledFlag = "true"
@@ -938,7 +941,7 @@ func makeConfigFixture() string {
 			ListenAddress: "tcp://kube",
 		},
 		KubeClusterName: "kube-cluster",
-		PublicAddr:      utils.Strings([]string{"kube-host:1234"}),
+		PublicAddr:      apiutils.Strings([]string{"kube-host:1234"}),
 	}
 
 	// Application service.
@@ -1141,7 +1144,7 @@ func TestProxyKube(t *testing.T) {
 			cfg: Proxy{Kube: KubeProxy{
 				Service:        Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
 				KubeconfigFile: "/tmp/kubeconfig",
-				PublicAddr:     utils.Strings([]string{"kube.example.com:443"}),
+				PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
 			}},
 			want: service.KubeProxyConfig{
 				Enabled:         true,
@@ -1178,7 +1181,7 @@ func TestProxyKube(t *testing.T) {
 				Kube: KubeProxy{
 					Service:        Service{EnabledFlag: "no", ListenAddress: "0.0.0.0:8080"},
 					KubeconfigFile: "/tmp/kubeconfig",
-					PublicAddr:     utils.Strings([]string{"kube.example.com:443"}),
+					PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
 				},
 			},
 			want: service.KubeProxyConfig{

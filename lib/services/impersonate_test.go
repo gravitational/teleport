@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"testing"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -31,18 +31,18 @@ func TestCheckImpersonate(t *testing.T) {
 	noLabelsRole := &types.RoleV3{
 		Metadata: types.Metadata{
 			Name:      "no-labels",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 			},
 		},
 	}
 	wildcardRole := &types.RoleV3{
 		Metadata: types.Metadata{
 			Name:      "wildcard",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
@@ -56,7 +56,7 @@ func TestCheckImpersonate(t *testing.T) {
 	wildcardDenyRole := &types.RoleV3{
 		Metadata: types.Metadata{
 			Name:      "wildcard-deny-user",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Deny: types.RoleConditions{
@@ -78,7 +78,7 @@ func TestCheckImpersonate(t *testing.T) {
 			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      name,
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 				Labels:    props.labels,
 			},
 			Spec: types.UserSpecV2{
@@ -156,7 +156,7 @@ func TestCheckImpersonate(t *testing.T) {
 				&types.RoleV3{
 					Metadata: types.Metadata{
 						Name:      "limited",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Allow: types.RoleConditions{
@@ -199,7 +199,7 @@ func TestCheckImpersonate(t *testing.T) {
 				&types.RoleV3{
 					Metadata: types.Metadata{
 						Name:      "team-impersonator",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Allow: types.RoleConditions{
@@ -222,7 +222,7 @@ func TestCheckImpersonate(t *testing.T) {
 						&types.RoleV3{
 							Metadata: types.Metadata{
 								Name:      "dev",
-								Namespace: defaults.Namespace,
+								Namespace: apidefaults.Namespace,
 								Labels: map[string]string{
 									"team": "dev",
 								},
@@ -242,7 +242,7 @@ func TestCheckImpersonate(t *testing.T) {
 						&types.RoleV3{
 							Metadata: types.Metadata{
 								Name:      "dev",
-								Namespace: defaults.Namespace,
+								Namespace: apidefaults.Namespace,
 								Labels: map[string]string{
 									"team": "dev",
 								},

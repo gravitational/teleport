@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -795,21 +796,14 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// get auth type & second factor type
 	authType := constants.Local
 	secondFactor := constants.SecondFactorOff
+	localAuth := true
 	cap, err := h.cfg.ProxyClient.GetAuthPreference()
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
 	} else {
 		authType = cap.GetType()
 		secondFactor = cap.GetSecondFactor()
-	}
-
-	// determine if local auth is allowed
-	localAuth := true
-	clsCfg, err := h.cfg.ProxyClient.GetClusterConfig()
-	if err != nil {
-		h.log.WithError(err).Error("Cannot retrieve ClusterConfig.")
-	} else {
-		localAuth = clsCfg.GetLocalAuth()
+		localAuth = cap.GetAllowLocalAuth()
 	}
 
 	// disable joining sessions if proxy session recording is enabled
@@ -1975,7 +1969,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		eventTypes = strings.Split(include, ";")
 	}
 
-	rawEvents, _, err := clt.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, "")
+	rawEvents, _, err := clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

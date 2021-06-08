@@ -25,13 +25,14 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
@@ -74,7 +75,7 @@ func TestConnAndSessLimits(t *testing.T) {
 				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      fmt.Sprintf("role-%d", i),
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 				},
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
@@ -182,24 +183,24 @@ func TestRoleParse(t *testing.T) {
 				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "defrole",
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 				},
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
 						CertificateFormat: constants.CertificateFormatStandard,
-						MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 						PortForwarding:    types.NewBoolOption(true),
-						BPF:               defaults.EnhancedEvents(),
+						BPF:               apidefaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
 						AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 						KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 						DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-						Namespaces:       []string{defaults.Namespace},
+						Namespaces:       []string{apidefaults.Namespace},
 					},
 					Deny: types.RoleConditions{
-						Namespaces: []string{defaults.Namespace},
+						Namespaces: []string{apidefaults.Namespace},
 					},
 				},
 			},
@@ -276,7 +277,7 @@ func TestRoleParse(t *testing.T) {
 				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "name1",
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 					Labels:    map[string]string{"a-b": "c"},
 				},
 				Spec: types.RoleSpecV3{
@@ -286,7 +287,7 @@ func TestRoleParse(t *testing.T) {
 						PortForwarding:        types.NewBoolOption(true),
 						ClientIdleTimeout:     types.NewDuration(17 * time.Minute),
 						DisconnectExpiredCert: types.NewBool(true),
-						BPF:                   defaults.EnhancedEvents(),
+						BPF:                   apidefaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -308,7 +309,7 @@ func TestRoleParse(t *testing.T) {
 						},
 					},
 					Deny: types.RoleConditions{
-						Namespaces: []string{defaults.Namespace},
+						Namespaces: []string{apidefaults.Namespace},
 						Logins:     []string{"c"},
 					},
 				},
@@ -358,7 +359,7 @@ func TestRoleParse(t *testing.T) {
 				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "name1",
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 				},
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
@@ -368,7 +369,7 @@ func TestRoleParse(t *testing.T) {
 						PortForwarding:        types.NewBoolOption(true),
 						ClientIdleTimeout:     types.NewDuration(0),
 						DisconnectExpiredCert: types.NewBool(false),
-						BPF:                   defaults.EnhancedEvents(),
+						BPF:                   apidefaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -388,7 +389,7 @@ func TestRoleParse(t *testing.T) {
 						},
 					},
 					Deny: types.RoleConditions{
-						Namespaces: []string{defaults.Namespace},
+						Namespaces: []string{apidefaults.Namespace},
 						Logins:     []string{"c"},
 					},
 				},
@@ -427,7 +428,7 @@ func TestRoleParse(t *testing.T) {
 				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "name1",
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 				},
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
@@ -437,7 +438,7 @@ func TestRoleParse(t *testing.T) {
 						PortForwarding:        types.NewBoolOption(true),
 						ClientIdleTimeout:     types.NewDuration(0),
 						DisconnectExpiredCert: types.NewBool(false),
-						BPF:                   defaults.EnhancedEvents(),
+						BPF:                   apidefaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{
@@ -463,7 +464,7 @@ func TestRoleParse(t *testing.T) {
 						Namespaces: []string{"default"},
 					},
 					Deny: types.RoleConditions{
-						Namespaces: []string{defaults.Namespace},
+						Namespaces: []string{apidefaults.Namespace},
 						Logins:     []string{"c"},
 					},
 				},
@@ -563,7 +564,7 @@ func TestValidateRole(t *testing.T) {
 		err := ValidateRole(&types.RoleV3{
 			Metadata: types.Metadata{
 				Name:      "name1",
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 			},
 			Version: types.V3,
 			Spec:    tc.spec,
@@ -609,7 +610,7 @@ func TestCheckAccessToServer(t *testing.T) {
 	serverWorker := &types.ServerV2{
 		Metadata: types.Metadata{
 			Name:      "b",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Labels:    map[string]string{"role": "worker", "status": "follower"},
 		},
 	}
@@ -632,7 +633,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		r := types.RoleV3{
 			Metadata: types.Metadata{
 				Name:      "name",
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 			},
 			Spec: types.RoleSpecV3{
 				Options: types.RoleOptions{
@@ -667,7 +668,7 @@ func TestCheckAccessToServer(t *testing.T) {
 			roles: []types.RoleV3{
 				newRole(func(r *types.RoleV3) {
 					r.Spec.Allow.Logins = []string{"admin"}
-					r.Spec.Allow.Namespaces = []string{defaults.Namespace}
+					r.Spec.Allow.Namespaces = []string{apidefaults.Namespace}
 				}),
 			},
 			checks: []check{
@@ -916,7 +917,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
@@ -942,7 +943,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
@@ -951,7 +952,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
 							ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-							Namespaces:    []string{defaults.Namespace},
+							Namespaces:    []string{apidefaults.Namespace},
 						},
 					},
 				},
@@ -968,14 +969,14 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
 							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
-							Namespaces: []string{defaults.Namespace},
+							Namespaces: []string{apidefaults.Namespace},
 						},
 					},
 				},
@@ -992,7 +993,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
@@ -1000,21 +1001,21 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						},
 						Allow: types.RoleConditions{
 							ClusterLabels: types.Labels{"role": []string{"worker"}},
-							Namespaces:    []string{defaults.Namespace},
+							Namespaces:    []string{apidefaults.Namespace},
 						},
 					},
 				},
 				{
 					Metadata: types.Metadata{
 						Name:      "name2",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
 							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
-							Namespaces: []string{defaults.Namespace},
+							Namespaces: []string{apidefaults.Namespace},
 						},
 					},
 				},
@@ -1031,7 +1032,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
@@ -1040,7 +1041,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
 							ClusterLabels: types.Labels{"role": []string{}},
-							Namespaces:    []string{defaults.Namespace},
+							Namespaces:    []string{apidefaults.Namespace},
 						},
 					},
 				},
@@ -1057,7 +1058,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
@@ -1066,14 +1067,14 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
 							ClusterLabels: types.Labels{"role": []string{"worker"}},
-							Namespaces:    []string{defaults.Namespace},
+							Namespaces:    []string{apidefaults.Namespace},
 						},
 					},
 				},
 				{
 					Metadata: types.Metadata{
 						Name:      "name2",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
@@ -1099,7 +1100,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
@@ -1108,7 +1109,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
 							ClusterLabels: types.Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}},
-							Namespaces:    []string{defaults.Namespace},
+							Namespaces:    []string{apidefaults.Namespace},
 						},
 					},
 				},
@@ -1177,11 +1178,11 @@ func TestCheckRuleAccess(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Allow: types.RoleConditions{
-							Namespaces: []string{defaults.Namespace},
+							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
 								types.NewRule(types.KindSSHSession, []string{types.VerbRead}),
 							},
@@ -1190,8 +1191,8 @@ func TestCheckRuleAccess(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{rule: types.KindSSHSession, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: true},
-				{rule: types.KindSSHSession, verb: types.VerbList, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindSSHSession, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSSHSession, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -1200,7 +1201,7 @@ func TestCheckRuleAccess(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Allow: types.RoleConditions{
@@ -1214,11 +1215,11 @@ func TestCheckRuleAccess(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name2",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Allow: types.RoleConditions{
-							Namespaces: []string{defaults.Namespace},
+							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
 								types.NewRule(types.KindSSHSession, []string{types.VerbCreate, types.VerbRead}),
 							},
@@ -1227,10 +1228,10 @@ func TestCheckRuleAccess(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{rule: types.KindSSHSession, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: true},
-				{rule: types.KindSSHSession, verb: types.VerbCreate, namespace: defaults.Namespace, hasAccess: true},
+				{rule: types.KindSSHSession, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSSHSession, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: true},
 				{rule: types.KindSSHSession, verb: types.VerbCreate, namespace: "system", hasAccess: false},
-				{rule: types.KindRole, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindRole, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -1239,17 +1240,17 @@ func TestCheckRuleAccess(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Deny: types.RoleConditions{
-							Namespaces: []string{defaults.Namespace},
+							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
 								types.NewRule(types.KindSSHSession, []string{types.VerbCreate}),
 							},
 						},
 						Allow: types.RoleConditions{
-							Namespaces: []string{defaults.Namespace},
+							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
 								types.NewRule(types.KindSSHSession, []string{types.VerbCreate}),
 							},
@@ -1258,7 +1259,7 @@ func TestCheckRuleAccess(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{rule: types.KindSSHSession, verb: types.VerbCreate, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindSSHSession, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -1267,11 +1268,11 @@ func TestCheckRuleAccess(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Allow: types.RoleConditions{
-							Namespaces: []string{defaults.Namespace},
+							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
 								{
 									Resources: []string{types.KindSession},
@@ -1287,8 +1288,8 @@ func TestCheckRuleAccess(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{rule: types.KindSession, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: false},
-				{rule: types.KindSession, verb: types.VerbList, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindSession, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSession, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: false},
 				{
 					context: testContext{
 						buffer: &bytes.Buffer{},
@@ -1307,7 +1308,7 @@ func TestCheckRuleAccess(t *testing.T) {
 					},
 					rule:      types.KindSession,
 					verb:      types.VerbRead,
-					namespace: defaults.Namespace,
+					namespace: apidefaults.Namespace,
 					hasAccess: true,
 				},
 				{
@@ -1325,7 +1326,7 @@ func TestCheckRuleAccess(t *testing.T) {
 					},
 					rule:      types.KindSession,
 					verb:      types.VerbRead,
-					namespace: defaults.Namespace,
+					namespace: apidefaults.Namespace,
 					hasAccess: false,
 				},
 			},
@@ -1336,11 +1337,11 @@ func TestCheckRuleAccess(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Allow: types.RoleConditions{
-							Namespaces: []string{defaults.Namespace},
+							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
 								{
 									Resources: []string{types.KindRole},
@@ -1356,8 +1357,8 @@ func TestCheckRuleAccess(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{rule: types.KindRole, verb: types.VerbRead, namespace: defaults.Namespace, hasAccess: false},
-				{rule: types.KindRole, verb: types.VerbList, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindRole, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindRole, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: false},
 				{
 					context: testContext{
 						buffer: &bytes.Buffer{},
@@ -1371,7 +1372,7 @@ func TestCheckRuleAccess(t *testing.T) {
 					},
 					rule:      types.KindRole,
 					verb:      types.VerbRead,
-					namespace: defaults.Namespace,
+					namespace: apidefaults.Namespace,
 					hasAccess: true,
 				},
 			},
@@ -1382,11 +1383,11 @@ func TestCheckRuleAccess(t *testing.T) {
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 					Spec: types.RoleSpecV3{
 						Allow: types.RoleConditions{
-							Namespaces: []string{defaults.Namespace},
+							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
 								{
 									Resources: []string{types.Wildcard},
@@ -1419,7 +1420,7 @@ func TestCheckRuleAccess(t *testing.T) {
 					},
 					rule:        types.KindRole,
 					verb:        types.VerbRead,
-					namespace:   defaults.Namespace,
+					namespace:   apidefaults.Namespace,
 					hasAccess:   true,
 					matchBuffer: "more specific rule",
 				},
@@ -1904,7 +1905,7 @@ func TestApplyTraits(t *testing.T) {
 			Version: types.V3,
 			Metadata: types.Metadata{
 				Name:      "name1",
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 			},
 			Spec: types.RoleSpecV3{
 				Allow: types.RoleConditions{
@@ -2120,7 +2121,7 @@ func TestBoolOptions(t *testing.T) {
 			Version: types.V3,
 			Metadata: types.Metadata{
 				Name:      "role-name",
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 			},
 			Spec: types.RoleSpecV3{
 				Options: tt.inOptions,
@@ -2156,11 +2157,11 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	}
 	require.NoError(t, roleDevStage.CheckAndSetDefaults())
 	roleDevProd := &types.RoleV3{
-		Metadata: types.Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
 		Version:  types.V3,
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseNames:  []string{"test"},
 				DatabaseUsers:  []string{"dev"},
@@ -2169,14 +2170,14 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	}
 	require.NoError(t, roleDevProd.CheckAndSetDefaults())
 	roleDevProdWithMFA := &types.RoleV3{
-		Metadata: types.Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
 		Version:  types.V3,
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				RequireSessionMFA: true,
 			},
 			Allow: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseNames:  []string{"test"},
 				DatabaseUsers:  []string{"dev"},
@@ -2187,16 +2188,16 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	// Database labels are not set in allow/deny rules on purpose to test
 	// that they're set during check and set defaults below.
 	roleDeny := &types.RoleV3{
-		Metadata: types.Metadata{Name: "deny", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "deny", Namespace: apidefaults.Namespace}, 
 		Version:  types.V3,
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
+				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseNames: []string{types.Wildcard},
 				DatabaseUsers: []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
+				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseNames: []string{"postgres"},
 				DatabaseUsers: []string{"postgres"},
 			},
@@ -2317,10 +2318,10 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 		},
 	}
 	roleDevProd := &types.RoleV3{
-		Metadata: types.Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseUsers:  []string{"dev"},
 			},
@@ -2373,36 +2374,36 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 
 func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 	roleEmpty := &types.RoleV3{
-		Metadata: types.Metadata{Name: "roleA", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{MaxSessionTTL: types.Duration(time.Hour)},
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 			},
 		},
 	}
 	roleA := &types.RoleV3{
-		Metadata: types.Metadata{Name: "roleA", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{MaxSessionTTL: types.Duration(2 * time.Hour)},
 			Allow: types.RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
+				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseNames: []string{"postgres", "main"},
 				DatabaseUsers: []string{"postgres", "alice"},
 			},
 		},
 	}
 	roleB := &types.RoleV3{
-		Metadata: types.Metadata{Name: "roleB", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{MaxSessionTTL: types.Duration(time.Hour)},
 			Allow: types.RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
+				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseNames: []string{"metrics"},
 				DatabaseUsers: []string{"bob"},
 			},
 			Deny: types.RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
+				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseNames: []string{"postgres"},
 				DatabaseUsers: []string{"postgres"},
 			},
@@ -2481,32 +2482,32 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		map[string]string{"env": "prod"},
 		types.DatabaseServerSpecV3{})
 	roleAdmin := &types.RoleV3{
-		Metadata: types.Metadata{Name: "admin", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "admin", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
 	}
 	roleDev := &types.RoleV3{
-		Metadata: types.Metadata{Name: "dev", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 			},
 			Deny: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"arch": []string{"amd64"}},
 			},
 		},
 	}
 	roleIntern := &types.RoleV3{
-		Metadata: types.Metadata{Name: "intern", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "intern", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 			},
 		},
 	}
@@ -2588,7 +2589,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	wildcardRole := &types.RoleV3{
 		Metadata: types.Metadata{
 			Name:      "wildcard-labels",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
@@ -2600,14 +2601,14 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	matchingLabelsRole := &types.RoleV3{
 		Metadata: types.Metadata{
 			Name:      "matching-labels",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 				KubernetesLabels: types.Labels{
-					"foo": utils.Strings{"bar"},
-					"baz": utils.Strings{"qux"},
+					"foo": apiutils.Strings{"bar"},
+					"baz": apiutils.Strings{"qux"},
 				},
 			},
 		},
@@ -2615,17 +2616,17 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	matchingLabelsRoleWithMFA := &types.RoleV3{
 		Metadata: types.Metadata{
 			Name:      "matching-labels",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				RequireSessionMFA: true,
 			},
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 				KubernetesLabels: types.Labels{
-					"foo": utils.Strings{"bar"},
-					"baz": utils.Strings{"qux"},
+					"foo": apiutils.Strings{"bar"},
+					"baz": apiutils.Strings{"qux"},
 				},
 			},
 		},
@@ -2633,25 +2634,25 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	noLabelsRole := &types.RoleV3{
 		Metadata: types.Metadata{
 			Name:      "no-labels",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 			},
 		},
 	}
 	mismatchingLabelsRole := &types.RoleV3{
 		Metadata: types.Metadata{
 			Name:      "mismatching-labels",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 				KubernetesLabels: types.Labels{
-					"qux": utils.Strings{"baz"},
-					"bar": utils.Strings{"foo"},
+					"qux": apiutils.Strings{"baz"},
+					"bar": apiutils.Strings{"foo"},
 				},
 			},
 		},
@@ -2746,7 +2747,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			for _, r := range tc.roles {
 				set = append(set, r)
 			}
-			err := set.CheckAccessToKubernetes(defaults.Namespace, tc.cluster, tc.mfaParams)
+			err := set.CheckAccessToKubernetes(apidefaults.Namespace, tc.cluster, tc.mfaParams)
 			if tc.hasAccess {
 				require.NoError(t, err)
 			} else {
@@ -2789,7 +2790,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      hostname,
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 			},
 			Spec: types.ServerSpecV2{
 				Addr:     "127.0.0.1:3022",
@@ -2808,7 +2809,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 			Version: types.V3,
 			Metadata: types.Metadata{
 				Name:      strconv.Itoa(i),
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 			},
 			Spec: types.RoleSpecV3{
 				Allow: types.RoleConditions{

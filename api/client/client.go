@@ -1422,6 +1422,12 @@ func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.
 	return trail.FromGRPC(err)
 }
 
+// ResetSessionRecordingConfig resets session recording configuration to defaults.
+func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
+	_, err := c.grpc.ResetSessionRecordingConfig(ctx, &empty.Empty{})
+	return trail.FromGRPC(err)
+}
+
 // DeleteSessionRecordingConfig not implemented: can only be called locally.
 func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)

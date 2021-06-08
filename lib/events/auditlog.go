@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
@@ -241,7 +242,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
 	al := &AuditLog{
-		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, defaults.Namespace),
+		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, apidefaults.Namespace),
 		AuditLogConfig: cfg,
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentAuditLog,
@@ -258,7 +259,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	// create a directory for session logs:
-	sessionDir := filepath.Join(cfg.DataDir, cfg.ServerID, SessionLogsDir, defaults.Namespace)
+	sessionDir := filepath.Join(cfg.DataDir, cfg.ServerID, SessionLogsDir, apidefaults.Namespace)
 	if err := os.MkdirAll(sessionDir, *cfg.DirMask); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -325,7 +326,7 @@ func (l *SessionRecording) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter session ID")
 	}
 	if l.Namespace == "" {
-		l.Namespace = defaults.Namespace
+		l.Namespace = apidefaults.Namespace
 	}
 	return nil
 }
@@ -1176,7 +1177,7 @@ func (l *LegacyHandler) IsUnpacked(ctx context.Context, sessionID session.ID) (b
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	_, err = readSessionIndex(l.cfg.Dir, authServers, defaults.Namespace, sessionID)
+	_, err = readSessionIndex(l.cfg.Dir, authServers, apidefaults.Namespace, sessionID)
 	if err == nil {
 		return true, nil
 	}

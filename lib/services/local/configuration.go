@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -181,6 +182,11 @@ func (s *ClusterConfigurationService) GetAuthPreference() (types.AuthPreference,
 // SetAuthPreference sets the cluster authentication preferences
 // on the backend.
 func (s *ClusterConfigurationService) SetAuthPreference(preferences types.AuthPreference) error {
+	// Perform the modules-provided checks.
+	if err := modules.ValidateResource(preferences); err != nil {
+		return trace.Wrap(err)
+	}
+
 	value, err := services.MarshalAuthPreference(preferences)
 	if err != nil {
 		return trace.Wrap(err)
@@ -249,6 +255,17 @@ func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalO
 		return nil, trace.Wrap(err)
 	}
 
+	// To ensure backward compatibility, extend the fetched ClusterConfig
+	// resource with the values that are now stored in AuthPreference.
+	// DELETE IN 8.0.0
+	authPref, err := s.GetAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := clusterConfig.SetAuthFields(authPref); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return clusterConfig, nil
 }
 
@@ -271,6 +288,9 @@ func (s *ClusterConfigurationService) SetClusterConfig(c types.ClusterConfig) er
 	}
 	if c.HasSessionRecordingFields() {
 		return trace.BadParameter("cluster config has legacy session recording fields, call SetSessionRecordingConfig to set these fields")
+	}
+	if c.HasAuthFields() {
+		return trace.BadParameter("cluster config has legacy auth fields, call SetAuthPreference to set these fields")
 	}
 
 	value, err := services.MarshalClusterConfig(c)
@@ -307,6 +327,11 @@ func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Con
 // SetClusterNetworkingConfig sets the cluster networking config
 // on the backend.
 func (s *ClusterConfigurationService) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
+	// Perform the modules-provided checks.
+	if err := modules.ValidateResource(netConfig); err != nil {
+		return trace.Wrap(err)
+	}
+
 	value, err := services.MarshalClusterNetworkingConfig(netConfig)
 	if err != nil {
 		return trace.Wrap(err)
@@ -351,6 +376,11 @@ func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Cont
 
 // SetSessionRecordingConfig sets session recording config on the backend.
 func (s *ClusterConfigurationService) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
+	// Perform the modules-provided checks.
+	if err := modules.ValidateResource(recConfig); err != nil {
+		return trace.Wrap(err)
+	}
+
 	value, err := services.MarshalSessionRecordingConfig(recConfig)
 	if err != nil {
 		return trace.Wrap(err)

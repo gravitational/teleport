@@ -873,6 +873,11 @@ func (b BoolOption) MarshalTo(data []byte) (int, error) {
 	return b.protoType().MarshalTo(data)
 }
 
+// MarshalToSizedBuffer marshals value to the slice
+func (b BoolOption) MarshalToSizedBuffer(data []byte) (int, error) {
+	return b.protoType().MarshalToSizedBuffer(data)
+}
+
 // Marshal marshals value into protobuf representation
 func (b BoolOption) Marshal() ([]byte, error) {
 	return proto.Marshal(b.protoType())

@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -110,7 +111,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      config.ClusterName,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.CertAuthoritySpecV2{
 			Type:         config.Type,
@@ -173,7 +174,7 @@ func newUser(name string, roles []string) types.User {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      name,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.UserSpecV2{
 			Roles: roles,
@@ -230,7 +231,7 @@ func (s *ServicesTestSuite) UsersExpiry(c *check.C) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      "foo",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Expires:   &expiresAt,
 		},
 		Spec: types.UserSpecV2{},
@@ -343,11 +344,11 @@ func NewServer(kind, name, addr, namespace string) *types.ServerV2 {
 func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	ctx := context.Background()
 	// SSH service.
-	out, err := s.PresenceS.GetNodes(ctx, defaults.Namespace)
+	out, err := s.PresenceS.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	srv := NewServer(types.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
+	srv := NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	c.Assert(err, check.IsNil)
 
@@ -374,7 +375,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", defaults.Namespace)
+	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
 	c.Assert(s.PresenceS.UpsertProxy(proxy), check.IsNil)
 
 	out, err = s.PresenceS.GetProxies()
@@ -395,7 +396,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", defaults.Namespace)
+	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
 	c.Assert(s.PresenceS.UpsertAuthServer(auth), check.IsNil)
 
 	out, err = s.PresenceS.GetAuthServers()
@@ -409,9 +410,9 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	kube1 := NewServer(types.KindKubeService, "kube1", "10.0.0.1:3026", defaults.Namespace)
+	kube1 := NewServer(types.KindKubeService, "kube1", "10.0.0.1:3026", apidefaults.Namespace)
 	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube1), check.IsNil)
-	kube2 := NewServer(types.KindKubeService, "kube2", "10.0.0.2:3026", defaults.Namespace)
+	kube2 := NewServer(types.KindKubeService, "kube2", "10.0.0.2:3026", apidefaults.Namespace)
 	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube2), check.IsNil)
 
 	out, err = s.PresenceS.GetKubeServices(ctx)
@@ -440,7 +441,7 @@ func NewAppServer(name string, internalAddr string, publicAddr string) *types.Se
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      uuid.New(),
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.ServerSpecV2{
 			Apps: []*types.App{
@@ -462,7 +463,7 @@ func (s *ServicesTestSuite) AppServerCRUD(c *check.C) {
 	server := NewAppServer("foo", "http://127.0.0.1:8080", "foo.example.com")
 
 	// Expect not to be returned any applications and trace.NotFound.
-	out, err := s.PresenceS.GetAppServers(ctx, defaults.Namespace)
+	out, err := s.PresenceS.GetAppServers(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
@@ -493,7 +494,7 @@ func newReverseTunnel(clusterName string, dialAddrs []string) *types.ReverseTunn
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      clusterName,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.ReverseTunnelSpecV2{
 			ClusterName: clusterName,
@@ -676,14 +677,14 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "role1",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				MaxSessionTTL:     types.Duration(time.Hour),
 				PortForwarding:    types.NewBoolOption(true),
 				CertificateFormat: constants.CertificateFormatStandard,
-				BPF:               defaults.EnhancedEvents(),
+				BPF:               apidefaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
 				Logins:           []string{"root", "bob"},
@@ -691,13 +692,13 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				Rules: []types.Rule{
 					types.NewRule(types.KindRole, services.RO()),
 				},
 			},
 			Deny: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 			},
 		},
 	}
@@ -733,8 +734,8 @@ func (s *ServicesTestSuite) NamespacesCRUD(c *check.C) {
 		Kind:    types.KindNamespace,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      defaults.Namespace,
-			Namespace: defaults.Namespace,
+			Name:      apidefaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 	}
 	err = s.PresenceS.UpsertNamespace(ns)
@@ -828,7 +829,7 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      "saml1",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.SAMLConnectorSpecV2{
 			Issuer:                   "http://example.com",
@@ -953,7 +954,7 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(c *check.C) {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "github",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.GithubConnectorSpecV3{
 			ClientID:     "aaa",
@@ -1051,8 +1052,9 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *check.C) {
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:         "local",
-		SecondFactor: "otp",
+		Type:                  "local",
+		SecondFactor:          "otp",
+		DisconnectExpiredCert: types.NewBoolOption(true),
 	})
 	c.Assert(err, check.IsNil)
 
@@ -1064,11 +1066,12 @@ func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 
 	c.Assert(gotAP.GetType(), check.Equals, "local")
 	c.Assert(gotAP.GetSecondFactor(), check.Equals, constants.SecondFactorOTP)
+	c.Assert(gotAP.GetDisconnectExpiredCert(), check.Equals, true)
 }
 
 // SessionRecordingConfig tests session recording configuration.
 func (s *ServicesTestSuite) SessionRecordingConfig(c *check.C) {
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	c.Assert(err, check.IsNil)
@@ -1147,16 +1150,23 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	c.Assert(err, check.IsNil)
 
 	// DELETE IN 8.0.0
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	c.Assert(err, check.IsNil)
 	err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), recConfig)
 	c.Assert(err, check.IsNil)
 
+	// DELETE IN 8.0.0
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		DisconnectExpiredCert: types.NewBoolOption(true),
+	})
+	c.Assert(err, check.IsNil)
+	err = s.ConfigS.SetAuthPreference(authPref)
+	c.Assert(err, check.IsNil)
+
 	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-		DisconnectExpiredCert: types.NewBool(true),
-		ClusterID:             "27",
+		ClusterID: "27",
 		Audit: types.AuditConfig{
 			Region:           "us-west-1",
 			Type:             "dynamodb",
@@ -1175,6 +1185,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	config.SetResourceID(gotConfig.GetResourceID())
 	config.SetNetworkingFields(netConfig)
 	config.SetSessionRecordingFields(recConfig)
+	config.SetAuthFields(authPref)
 	fixtures.DeepCompare(c, config, gotConfig)
 
 	// Some parts (e.g. auth server) will not function
@@ -1513,7 +1524,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 					Version: types.V2,
 					Metadata: types.Metadata{
 						Name:      "testnamespace",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 				}
 				err := s.PresenceS.UpsertNamespace(ns)
@@ -1610,7 +1621,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: types.KindNode,
 			},
 			crud: func(context.Context) types.Resource {
-				srv := NewServer(types.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
+				srv := NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 
 				_, err := s.PresenceS.UpsertNode(ctx, srv)
 				c.Assert(err, check.IsNil)
@@ -1630,7 +1641,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: types.KindProxy,
 			},
 			crud: func(context.Context) types.Resource {
-				srv := NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", defaults.Namespace)
+				srv := NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 
 				err := s.PresenceS.UpsertProxy(srv)
 				c.Assert(err, check.IsNil)
@@ -1724,7 +1735,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 					Version: types.V2,
 					Metadata: types.Metadata{
 						Name:      "shmest",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
 				}
 				err := s.PresenceS.UpsertNamespace(ns)
@@ -1758,6 +1769,10 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 
 				// DELETE IN 8.0.0
 				err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+				c.Assert(err, check.IsNil)
+
+				// DELETE IN 8.0.0
+				err = s.ConfigS.SetAuthPreference(types.DefaultAuthPreference())
 				c.Assert(err, check.IsNil)
 
 				config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
@@ -1836,7 +1851,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				Kind: types.KindSessionRecordingConfig,
 			},
 			crud: func(ctx context.Context) types.Resource {
-				recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode: types.RecordAtProxySync,
 				})
 				c.Assert(err, check.IsNil)
@@ -1870,7 +1885,7 @@ func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
 		c.Fatalf("Timeout waiting for ProxyWatcher reset")
 	}
 
-	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", defaults.Namespace)
+	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
 	c.Assert(s.PresenceS.UpsertProxy(proxy), check.IsNil)
 
 	// the first event is always the current list of proxies
@@ -1887,7 +1902,7 @@ func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
 	}
 
 	// add a second proxy
-	proxy2 := NewServer(types.KindProxy, "proxy2", "127.0.0.1:2023", defaults.Namespace)
+	proxy2 := NewServer(types.KindProxy, "proxy2", "127.0.0.1:2023", apidefaults.Namespace)
 	c.Assert(s.PresenceS.UpsertProxy(proxy2), check.IsNil)
 
 	// watcher should detect the proxy list change

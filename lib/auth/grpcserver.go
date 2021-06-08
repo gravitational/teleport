@@ -407,6 +407,10 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_SessionRecordingConfig{
 			SessionRecordingConfig: r,
 		}
+	case *types.AuthPreferenceV2:
+		out.Resource = &proto.Event_AuthPreference{
+			AuthPreference: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -2537,7 +2541,20 @@ func (g *GRPCServer) SetSessionRecordingConfig(ctx context.Context, recConfig *t
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
+	recConfig.SetOrigin(types.OriginDynamic)
 	if err = auth.ServerWithRoles.SetSessionRecordingConfig(ctx, recConfig); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// ResetSessionRecordingConfig resets session recording configuration to defaults.
+func (g *GRPCServer) ResetSessionRecordingConfig(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.ResetSessionRecordingConfig(ctx); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil

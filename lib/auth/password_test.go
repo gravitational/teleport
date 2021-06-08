@@ -73,20 +73,6 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	err = s.a.SetClusterName(clusterName)
 	c.Assert(err, IsNil)
 
-	err = s.a.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
-	c.Assert(err, IsNil)
-
-	err = s.a.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
-	c.Assert(err, IsNil)
-
-	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-		LocalAuth: types.NewBool(true),
-	})
-	c.Assert(err, IsNil)
-
-	err = s.a.SetClusterConfig(clusterConfig)
-	c.Assert(err, IsNil)
-
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{},

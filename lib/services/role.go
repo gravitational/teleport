@@ -28,9 +28,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/defaults"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -115,18 +116,18 @@ func NewAdminRole() types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      teleport.AdminRoleName,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
+				BPF:               apidefaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -151,7 +152,7 @@ func NewImplicitRole() types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      constants.DefaultImplicitRole,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
@@ -162,7 +163,7 @@ func NewImplicitRole() types.Role {
 				PortForwarding: types.NewBoolOption(false),
 			},
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
 			},
 		},
@@ -176,18 +177,18 @@ func RoleForUser(u types.User) types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      RoleNameForUser(u.GetName()),
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
+				BPF:               apidefaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -198,7 +199,9 @@ func RoleForUser(u types.User) types.Role {
 					types.NewRule(types.KindSession, RO()),
 					types.NewRule(types.KindTrustedCluster, RW()),
 					types.NewRule(types.KindEvent, RO()),
+					types.NewRule(types.KindClusterAuthPreference, RW()),
 					types.NewRule(types.KindClusterNetworkingConfig, RW()),
+					types.NewRule(types.KindSessionRecordingConfig, RW()),
 				},
 			},
 		},
@@ -214,19 +217,19 @@ func NewDowngradedOSSAdminRole() types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      teleport.AdminRoleName,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Labels:    map[string]string{teleport.OSSMigratedV6: types.True},
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
+				BPF:               apidefaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -253,18 +256,18 @@ func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) 
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "github-" + uuid.New(),
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
+				BPF:               apidefaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -290,14 +293,14 @@ func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      RoleNameForCertAuthority(ca.GetClusterName()),
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
-				MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -420,7 +423,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			}
 		}
 
-		r.SetLogins(condition, utils.Deduplicate(outLogins))
+		r.SetLogins(condition, apiutils.Deduplicate(outLogins))
 
 		// apply templates to kubernetes groups
 		inKubeGroups := r.GetKubeGroups(condition)
@@ -435,7 +438,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			}
 			outKubeGroups = append(outKubeGroups, variableValues...)
 		}
-		r.SetKubeGroups(condition, utils.Deduplicate(outKubeGroups))
+		r.SetKubeGroups(condition, apiutils.Deduplicate(outKubeGroups))
 
 		// apply templates to kubernetes users
 		inKubeUsers := r.GetKubeUsers(condition)
@@ -450,7 +453,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			}
 			outKubeUsers = append(outKubeUsers, variableValues...)
 		}
-		r.SetKubeUsers(condition, utils.Deduplicate(outKubeUsers))
+		r.SetKubeUsers(condition, apiutils.Deduplicate(outKubeUsers))
 
 		// apply templates to database names
 		inDbNames := r.GetDatabaseNames(condition)
@@ -465,7 +468,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			}
 			outDbNames = append(outDbNames, variableValues...)
 		}
-		r.SetDatabaseNames(condition, utils.Deduplicate(outDbNames))
+		r.SetDatabaseNames(condition, apiutils.Deduplicate(outDbNames))
 
 		// apply templates to database users
 		inDbUsers := r.GetDatabaseUsers(condition)
@@ -480,7 +483,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			}
 			outDbUsers = append(outDbUsers, variableValues...)
 		}
-		r.SetDatabaseUsers(condition, utils.Deduplicate(outDbUsers))
+		r.SetDatabaseUsers(condition, apiutils.Deduplicate(outDbUsers))
 
 		// apply templates to node labels
 		inLabels := r.GetNodeLabels(condition)
@@ -535,8 +538,8 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			}
 			outCond.Roles = append(outCond.Roles, variableValues...)
 		}
-		outCond.Users = utils.Deduplicate(outCond.Users)
-		outCond.Roles = utils.Deduplicate(outCond.Roles)
+		outCond.Users = apiutils.Deduplicate(outCond.Users)
+		outCond.Roles = apiutils.Deduplicate(outCond.Roles)
 		outCond.Where = inCond.Where
 		r.SetImpersonateConditions(condition, outCond)
 	}
@@ -578,7 +581,7 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 			}
 			values = append(values, valVars...)
 		}
-		outLabels[keyVars[0]] = utils.Deduplicate(values)
+		outLabels[keyVars[0]] = apiutils.Deduplicate(values)
 	}
 	return outLabels
 }
@@ -621,7 +624,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 func ruleScore(r *types.Rule) int {
 	score := 0
 	// wildcard rules are less specific
-	if utils.SliceContainsStr(r.Resources, types.Wildcard) {
+	if apiutils.SliceContainsStr(r.Resources, types.Wildcard) {
 		score -= 4
 	} else if len(r.Resources) == 1 {
 		// rules that match specific resource are more specific than
@@ -629,7 +632,7 @@ func ruleScore(r *types.Rule) int {
 		score += 2
 	}
 	// rules that have wildcard verbs are less specific
-	if utils.SliceContainsStr(r.Verbs, types.Wildcard) {
+	if apiutils.SliceContainsStr(r.Verbs, types.Wildcard) {
 		score -= 2
 	}
 	// rules that supply 'where' or 'actions' are more specific
@@ -1090,7 +1093,7 @@ func MatchLabels(selector types.Labels, target map[string]string) (bool, string,
 			return false, fmt.Sprintf("no key match: '%v'", key), nil
 		}
 
-		if !utils.SliceContainsStr(selectorValues, types.Wildcard) {
+		if !apiutils.SliceContainsStr(selectorValues, types.Wildcard) {
 			result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
 			if err != nil {
 				return false, "", trace.Wrap(err)
@@ -1317,7 +1320,7 @@ func (set RoleSet) GetLoginsForTTL(ttl time.Duration) (logins []string, matchedT
 			logins = append(logins, role.GetLogins(Allow)...)
 		}
 	}
-	return utils.Deduplicate(logins), matchedTTL
+	return apiutils.Deduplicate(logins), matchedTTL
 }
 
 // CheckAccessToRemoteCluster checks if a role has access to remote cluster. Deny rules are

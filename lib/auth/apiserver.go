@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -66,10 +67,10 @@ type APIConfig struct {
 // CheckAndSetDefaults checks and sets default values
 func (a *APIConfig) CheckAndSetDefaults() error {
 	if a.KeepAlivePeriod == 0 {
-		a.KeepAlivePeriod = defaults.ServerKeepAliveTTL
+		a.KeepAlivePeriod = apidefaults.ServerKeepAliveTTL
 	}
 	if a.KeepAliveCount == 0 {
-		a.KeepAliveCount = defaults.KeepAliveCountMax
+		a.KeepAliveCount = apidefaults.KeepAliveCountMax
 	}
 	return nil
 }
@@ -1813,7 +1814,7 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 	}
 
 	eventTypes := query[events.EventType]
-	eventsList, _, err := auth.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, "")
+	eventsList, _, err := auth.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
