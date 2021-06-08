@@ -12,7 +12,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 )
 
@@ -25,7 +24,7 @@ type cloudWithRoles struct {
 func (ac *cloudWithRoles) ListBillingCycles(ctx context.Context, req *v1.EmptyRequest) (*v1.ListBillingCyclesResponse, error) {
 	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbList)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return ac.plugin.cloudClient.ListBillingCycles(ctx, req)
@@ -35,12 +34,12 @@ func (ac *cloudWithRoles) ListBillingCycles(ctx context.Context, req *v1.EmptyRe
 func (ac *cloudWithRoles) RemoveCard(ctx context.Context, req *v1.RemoveCardRequest) (*v1.EmptyResponse, error) {
 	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbDelete)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	res, err := ac.plugin.cloudClient.RemoveCard(ctx, req)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	event := &apievents.BillingCardDelete{
@@ -67,12 +66,12 @@ func (ac *cloudWithRoles) RemoveCard(ctx context.Context, req *v1.RemoveCardRequ
 func (ac *cloudWithRoles) UpdateCard(ctx context.Context, req *v1.UpdateCardRequest) (*v1.EmptyResponse, error) {
 	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbUpdate)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	res, err := ac.plugin.cloudClient.UpdateCard(ctx, req)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	event := &apievents.BillingCardCreate{
@@ -99,12 +98,12 @@ func (ac *cloudWithRoles) UpdateCard(ctx context.Context, req *v1.UpdateCardRequ
 func (ac *cloudWithRoles) UpdateAccount(ctx context.Context, req *v1.UpdateAccountRequest) (*v1.EmptyResponse, error) {
 	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbUpdate)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	res, err := ac.plugin.cloudClient.UpdateAccount(ctx, req)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	event := &apievents.BillingInformationUpdate{
@@ -131,12 +130,12 @@ func (ac *cloudWithRoles) UpdateAccount(ctx context.Context, req *v1.UpdateAccou
 func (ac *cloudWithRoles) AddCard(ctx context.Context, req *v1.AddCardRequest) (*v1.EmptyResponse, error) {
 	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbCreate)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	res, err := ac.plugin.cloudClient.AddCard(ctx, req)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	event := &apievents.BillingCardCreate{
@@ -163,7 +162,7 @@ func (ac *cloudWithRoles) AddCard(ctx context.Context, req *v1.AddCardRequest) (
 func (ac *cloudWithRoles) GetBillingInformation(ctx context.Context, req *v1.EmptyRequest) (*v1.GetBillingInformationResponse, error) {
 	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbRead)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return ac.plugin.cloudClient.GetBillingInformation(ctx, req)
@@ -178,7 +177,7 @@ func (ac *cloudWithRoles) SubmitUsageReports(ctx context.Context, req *v1.Submit
 func (ac *cloudWithRoles) ListInvoices(ctx context.Context, req *v1.EmptyRequest) (*v1.ListInvoicesResponse, error) {
 	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbList)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return ac.plugin.cloudClient.ListInvoices(ctx, req)
