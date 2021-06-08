@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // App describes an application
@@ -40,7 +40,7 @@ type App struct {
 }
 
 // MakeApps creates server application objects
-func MakeApps(localClusterName string, localProxyDNSName string, appClusterName string, appServers []services.Server) []App {
+func MakeApps(localClusterName string, localProxyDNSName string, appClusterName string, appServers []types.Server) []App {
 	result := []App{}
 	for _, server := range appServers {
 		teleApps := server.GetApps()
@@ -78,7 +78,7 @@ func MakeApps(localClusterName string, localProxyDNSName string, appClusterName 
 // In all other cases, i.e. if the public address is not set or the application
 // is running in a remote cluster, the FQDN is formatted as
 // <appName>.<localProxyDNSName>
-func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClusterName string, app *services.App) string {
+func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClusterName string, app *types.App) string {
 	isLocalCluster := localClusterName == appClusterName
 	if isLocalCluster && app.PublicAddr != "" {
 		return app.PublicAddr

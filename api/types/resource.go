@@ -241,8 +241,10 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	}
 
 	// Check the origin value.
-	if !utils.SliceContainsStr(append(OriginValues, ""), m.Origin()) {
-		return trace.BadParameter("invalid origin value %q, must be one of %v", m.Origin(), OriginValues)
+	if m.Origin() != "" {
+		if !utils.SliceContainsStr(OriginValues, m.Origin()) {
+			return trace.BadParameter("invalid origin value %q, must be one of %v", m.Origin(), OriginValues)
+		}
 	}
 
 	return nil

@@ -17,8 +17,7 @@ limitations under the License.
 package ui
 
 import (
-	"github.com/gravitational/teleport/lib/services"
-
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -34,7 +33,7 @@ type User struct {
 }
 
 // NewUser creates UI user object
-func NewUser(teleUser services.User) (*User, error) {
+func NewUser(teleUser types.User) (*User, error) {
 	if teleUser == nil {
 		return nil, trace.BadParameter("missing teleUser")
 	}

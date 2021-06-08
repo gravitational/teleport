@@ -79,6 +79,9 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if p.Version == "" {
+		p.Version = V2
+	}
 	if len(p.Spec.Roles) == 0 {
 		return trace.BadParameter("provisioning token is missing roles")
 	}

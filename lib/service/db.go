@@ -33,7 +33,7 @@ func (process *TeleportProcess) initDatabases() {
 	if len(process.Config.Databases.Databases) == 0 {
 		return
 	}
-	process.registerWithAuthServer(teleport.RoleDatabase, DatabasesIdentityEvent)
+	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
@@ -141,6 +141,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
+		Clock:       process.Clock,
 		DataDir:     process.Config.DataDir,
 		AuthClient:  conn.Client,
 		AccessPoint: accessPoint,

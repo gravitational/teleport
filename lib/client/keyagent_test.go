@@ -31,7 +31,8 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -114,13 +115,13 @@ func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 
 	// check that the key has been written to disk
 	expectedFiles := []string{
-		s.username,                            // private key
-		s.username + constants.FileExtPub,     // public key
-		s.username + constants.FileExtTLSCert, // Teleport TLS certificate
-		filepath.Join(s.username+constants.SSHDirSuffix, s.key.ClusterName+constants.FileExtSSHCert), // SSH certificate
+		keypaths.UserKeyPath(s.keyDir, s.hostname, s.username),                    // private key
+		keypaths.SSHCAsPath(s.keyDir, s.hostname, s.username),                     // public key
+		keypaths.TLSCertPath(s.keyDir, s.hostname, s.username),                    // Teleport TLS certificate
+		keypaths.SSHCertPath(s.keyDir, s.hostname, s.username, s.key.ClusterName), // SSH certificate
 	}
 	for _, file := range expectedFiles {
-		_, err := os.Stat(filepath.Join(s.keyDir, "keys", s.hostname, file))
+		_, err := os.Stat(file)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -250,7 +251,7 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	// Generate a host certificate for node with role "node".
 	_, hostPub, err := keygen.GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
-	roles, err := teleport.ParseRoles("node")
+	roles, err := types.ParseTeleportRoles("node")
 	c.Assert(err, check.IsNil)
 	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPriv,

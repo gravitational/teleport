@@ -14,7 +14,7 @@ AWS_REGION ?= us-west-2
 # This must be a _released_ version of Teleport, i.e. one which has binaries
 # available for download on https://gravitational.com/teleport/download
 # Unreleased versions will fail to build.
-TELEPORT_VERSION ?= 6.1.3
+TELEPORT_VERSION ?= 6.2.0
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -71,7 +71,7 @@ oss-ci-build:
 .PHONY: change-amis-to-public-oss
 change-amis-to-public-oss:
 	@echo "Making OSS AMIs public"
-	bash files/make-amis-public.sh oss
+	bash files/make-amis-public.sh oss $(DESTINATION_REGIONS)
 
 # Build local 'debug' AMI
 .PHONY: ent
@@ -99,12 +99,12 @@ ent-ci-build:
 .PHONY: change-amis-to-public-ent
 change-amis-to-public-ent:
 	@echo "Making Enterprise AMIs public"
-	bash files/make-amis-public.sh ent
+	bash files/make-amis-public.sh ent $(DESTINATION_REGIONS)
 
 .PHONY: change-amis-to-public-ent-fips
 change-amis-to-public-ent-fips:
 	@echo "Making FIPS Enterprise AMIs public"
-	bash files/make-amis-public.sh ent-fips
+	bash files/make-amis-public.sh ent-fips $(DESTINATION_REGIONS)
 
 
 # Other helpers

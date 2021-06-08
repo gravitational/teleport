@@ -75,7 +75,7 @@ type buildType struct {
 func dockerService(v ...volumeRef) service {
 	return service{
 		Name:    "Start Docker",
-		Image:   "docker:dind",
+		Image:   "docker:20.10.6-dind",
 		Volumes: append(v, volumeRefDocker),
 	}
 }
