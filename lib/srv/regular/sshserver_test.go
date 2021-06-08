@@ -54,9 +54,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"github.com/pborman/uuid"
 )
 
 // teleportTestUser is additional user used for tests
