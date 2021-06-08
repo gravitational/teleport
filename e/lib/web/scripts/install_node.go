@@ -24,8 +24,10 @@ exit 1
 
 // InstallNodeBashScript is the script that will run on user's machine
 // to install teleport and join a teleport cluster.
+// Any changes to this script should also be made to e/assets/node-join/install.sh
 var InstallNodeBashScript = template.Must(template.New("nodejoin").Parse(`
 #!/bin/bash
+# Any changes made to this script must also be made to e/lib/web/scripts/install_node.go
 set -euo pipefail
 SCRIPT_NAME="teleport-installer"
 
@@ -40,7 +42,7 @@ LOG_FILENAME="${TMPDIR:-/tmp}/${SCRIPT_NAME}.log"
 MACOS_STDERR_LOG="/var/log/teleport-stderr.log"
 MACOS_STDOUT_LOG="/var/log/teleport-stdout.log"
 SYSTEMD_UNIT_PATH="/lib/systemd/system/teleport.service"
-TARGET_PORT_DEFAULT=3080
+TARGET_PORT_DEFAULT=443
 TELEPORT_ARCHIVE_PATH="teleport"
 TELEPORT_BINARY_DIR="/usr/local/bin"
 TELEPORT_BINARY_LIST="teleport tctl tsh"
@@ -105,6 +107,14 @@ construct_go_template() {
     echo "${OUTPUT}"
 }
 
+# check whether we are root, exit if not
+assert_running_as_root() {
+    if ! [ "$(id -u)" = 0 ]; then
+        echo "This script must be run as root." 1>&2
+        exit 1
+    fi
+}
+
 # function to check whether variables are either blank or set to the default go template value
 # (because they haven't been set by the go script generator or a command line argument)
 # returns 1 if the variable is set to a default/zero value
@@ -139,6 +149,9 @@ read_nonblank_input() {
     done
     printf -v "${VARIABLE_TO_ASSIGN}" '%s' "${INPUT}"
 }
+
+# error if we're not root
+assert_running_as_root
 
 # set/read values interactively if not provided
 # users will be prompted to enter their own value if all the following are true:
@@ -366,7 +379,7 @@ download() {
             log_important "Checksum of the downloaded file did not validate correctly"
             log_important "Expected: ${SHA_EXPECTED}"
             log_important "Got: ${SHA_ACTUAL}"
-            log_important "Try rerunning this script from the start. If the issue persists, contact Teleport Support."
+            log_important "Try rerunning this script from the start. If the issue persists, contact Teleport support."
             exit 1
         fi
     else
@@ -500,7 +513,7 @@ print_welcome_message() {
         elif is_macos_host; then
             log_important "Check Teleport logs in '${MACOS_STDERR_LOG}' and '${MACOS_STDOUT_LOG}'"
         fi
-        log_important "Contact Teleport Support for further assistance."
+        log_important "Contact Teleport support for further assistance."
     fi
     log_only ""
 }
@@ -562,7 +575,7 @@ else
         else
             log_important "Couldn't open a connection to the Teleport server (${TARGET_HOSTNAME}:${TARGET_PORT}) via ${CONNECTIVITY_TEST_METHOD}"
             log_important "This issue will need to be fixed before the script can continue."
-            log_important "If you think this is an error, add 'export TELEPORT_IGNORE_CONNECTIVITY_CHECK=false && ' before the curl command which runs the script."
+            log_important "If you think this is an error, add 'export TELEPORT_IGNORE_CONNECTIVITY_CHECK=true && ' before the curl command which runs the script."
             exit 1
         fi
     else
@@ -578,10 +591,8 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
     if [[ ${ARCH} == "armv7l" ]]; then
         TELEPORT_ARCH="arm"
-        TELEPORT_FORMAT="tarball"
     elif [[ ${ARCH} == "aarch64" ]]; then
-        TELEPORT_ARCH="aarch64"
-        log_important "Error: detected ${ARCH} but Teleport doesn't build binaries for this architecture yet, exiting"
+        TELEPORT_ARCH="arm64"
     elif [[ ${ARCH} == "x86_64" ]]; then
         TELEPORT_ARCH="amd64"
     elif [[ ${ARCH} == "i686" ]]; then
@@ -640,6 +651,7 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
     if [[ ${ARCH} == "aarch64" ]]; then
         TELEPORT_ARCH="aarch64"
         log_important "Error: detected ${ARCH} but Teleport doesn't build binaries for this architecture yet, exiting"
+        exit 1
     elif [[ ${ARCH} == "x86_64" ]]; then
         TELEPORT_ARCH="amd64"
     else
@@ -698,7 +710,7 @@ fi
 # check for existing data directory
 if teleport_datadir_exists; then
     if [[ ${IGNORE_CHECKS} != "true" ]]; then
-        log_header "Warning: Found existing Teleport data under ${TELEPORT_DATA_DIR}."
+        log_header "Warning: Found existing Teleport data directory (${TELEPORT_DATA_DIR})."
         log_cleanup_message
         exit 1
     else
@@ -719,6 +731,13 @@ fi
 
 # handle centos6 installations
 if [[ ${TELEPORT_FORMAT} == "rpm-centos6" ]]; then
+    # Error if arch != amd64, as we don't have CentOS 6 packages for any other arch
+    if [[ ${TELEPORT_ARCH} != "amd64" ]]; then
+        log_important "Your distro appears to be CentOS/RHEL 6 and your arch is ${ARCH}."
+        log_important "Teleport only produces amd64 binaries for CentOS 6, so this script cannot install Teleport on this host."
+        log_important "Contact Teleport support for further assistance."
+        exit 1
+    fi
     # override the format to 'tarball' (as that's how centos6 binaries are packaged)
     # also override DISTRO_TYPE to centos6 as that's used for the URL check below
     log "Overriding format for centos6 installation to use tarball"
@@ -735,7 +754,7 @@ if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
         URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
     fi
     # check that needed tools are installed
-    check_exists_fatal tar
+    check_exists_fatal curl tar
     # download tarball
     log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
     DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
@@ -752,9 +771,15 @@ elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
         DEB_ARCH="amd64"
     elif [[ ${TELEPORT_ARCH} == "386" ]]; then
         DEB_ARCH="i386"
+    elif [[ ${TELEPORT_ARCH} == "arm" ]]; then
+        DEB_ARCH="arm"
+    elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
+        DEB_ARCH="arm64"
     fi
     URL="https://get.gravitational.com/teleport_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
     check_deb_not_already_installed
+    # check that needed tools are installed
+    check_exists_fatal curl dpkg
     # download deb and register cleanup operation
     log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
     DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
@@ -768,6 +793,10 @@ elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
         RPM_ARCH="x86_64"
     elif [[ ${TELEPORT_ARCH} == "386" ]]; then
         RPM_ARCH="i386"
+    elif [[ ${TELEPORT_ARCH} == "arm" ]]; then
+        RPM_ARCH="arm"
+    elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
+        RPM_ARCH="arm64"
     fi
     URL="https://get.gravitational.com/teleport-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
     check_rpm_not_already_installed
@@ -782,6 +811,8 @@ elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
         PACKAGE_MANAGER_COMMAND=""
         log "Cannot find 'yum' or 'dnf' package manager commands, will try installing the rpm manually instead"
     fi
+    # check that needed tools are installed
+    check_exists_fatal curl
     log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
     DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
     download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
@@ -805,7 +836,7 @@ fi
 if ! check_teleport_binary; then
     log_important "The Teleport binary could not be found at ${TELEPORT_BINARY_DIR} as expected."
     log_important "This usually means that there was an error during installation."
-    log_important "Check this log for obvious signs of error and contact Teleport Support"
+    log_important "Check this log for obvious signs of error and contact Teleport support"
     log_important "for further assistance."
     exit 1
 fi
