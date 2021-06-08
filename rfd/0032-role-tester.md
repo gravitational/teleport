@@ -23,15 +23,63 @@ Role configurations can be complex and Teleport currently does not provide good 
 This document will only be focusing on determining access to SSH nodes. The proposed role tester can be easily extended to determine access to database, application, kubernetes etc. By providing separate queries for different access types, we can also answer more specific queries (e.g. which databases does this user have access to? Which roles allow access to database production as user postgres?).
 
 ## Architecture
-```
-                |‾‾‾‾‾‾‾‾‾‾‾‾‾|        |‾‾‾‾‾‾‾‾‾‾‾‾‾‾|
-teleport <----> | role tester | <----> | deductive db |
-                |_____________|        |______________|
-```
-
 For simple use cases and better UX, a provided tctl command can be used to query for access-related questions. For advanced use-cases, a provided admin tool lets users execute Datalog queries directly using a command or in a REPL-like shell.
 
-The role tester layer will use a Rust/Go library (TBD) to run queries on the deductive Datalog database. The results are then returned via CLI to the user.
+There are a few options for how we can architecture this role tester:
+- Real-time deductive database (Datomic)
+- Extend existing Go Datalog libraries to use negation and build role tester directly into Teleport
+- Write own Go Datalog library and build role tester directly into Teleport
+- Use Rust library (Crepe) and connect to Teleport via Rust grpc client, and would act as a standalone program
+- Use Rust library (Crepe) and call Rust from Go to integrate directly with tctl
+
+### Using Rust
+
+**Pros:**
+- Using high quality datalog library (crepe)
+  - In-memory, so is probably faster than the database option
+- Introducing Rust into codebase opens doors for us to start using more Rust
+- POC already built using rust library
+
+**Cons:**
+- Integration with tctl is a bit more involved
+  - Will have to look into calling Rust from Go
+
+### Deductive database
+```
+                |‾‾‾‾‾‾‾‾‾‾‾‾‾|        |‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾|
+teleport <----> | role tester | <----> | realtime deductive db |
+                |_____________|        |_______________________|
+```
+**Pros:**
+- Simple integration with REST API (if available)
+- Supports many features
+
+**Cons:**
+- Client API is in Clojure
+- Overkill for our use case
+  - We don't need persistence since we already have all the data in Teleport
+- Non-free for Datomic
+- Extra database node running for our clients
+
+### Extend existing Go Datalog libraries
+
+**Pros:**
+- Integration with tctl is simple
+- Faster to implement than building own library (depending on quality)
+- In-memory, so could be faster than database depending on implementation
+
+**Cons:**
+- If library quality is bad, could slow down development considerably
+- Not many good Go datalog libraries with the appropriate licenses
+
+### Build our own Datalog library
+
+**Pros:**
+- Integration with tctl is simple
+- In-memory, so could be faster than database depending on implementation
+
+**Cons:**
+- Hard to gauge how difficult implementation is
 
 ## Details
 
