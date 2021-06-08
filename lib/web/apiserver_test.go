@@ -983,7 +983,7 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	err = s.server.Auth().SetClusterNetworkingConfig(context.TODO(), netConfig)
 	c.Assert(err, IsNil)
 
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode:                types.RecordAtNode,
 		ProxyChecksHostKeys: types.NewBoolOption(true),
 	})

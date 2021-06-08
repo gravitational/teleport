@@ -197,7 +197,7 @@ func TestAppAccessForwardModes(t *testing.T) {
 	pack := setup(t)
 
 	// Update root and leaf clusters to record sessions at the proxy.
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)

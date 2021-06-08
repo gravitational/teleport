@@ -2393,7 +2393,7 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	fixtures.ExpectAccessDenied(c, err)
 
 	// update cluster config to record at the proxy
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	c.Assert(err, check.IsNil)
