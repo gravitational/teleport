@@ -842,6 +842,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 
 // TestClusterConfig tests cluster configuration
 func (s *CacheSuite) TestClusterConfig(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
@@ -857,7 +858,7 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	}
 
 	// DELETE IN 8.0.0
-	err = p.clusterConfigS.SetAuthPreference(types.DefaultAuthPreference())
+	err = p.clusterConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
 	c.Assert(err, check.IsNil)
 
 	select {

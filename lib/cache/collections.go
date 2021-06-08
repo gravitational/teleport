@@ -1707,7 +1707,7 @@ func (c *authPreference) erase(ctx context.Context) error {
 
 func (c *authPreference) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
 	var noConfig bool
-	resource, err := c.ClusterConfig.GetAuthPreference()
+	resource, err := c.ClusterConfig.GetAuthPreference(ctx)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -1725,7 +1725,7 @@ func (c *authPreference) fetch(ctx context.Context) (apply func(ctx context.Cont
 		}
 
 		c.setTTL(resource)
-		if err := c.clusterConfigCache.SetAuthPreference(resource); err != nil {
+		if err := c.clusterConfigCache.SetAuthPreference(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -1748,7 +1748,7 @@ func (c *authPreference) processEvent(ctx context.Context, event types.Event) er
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		c.setTTL(resource)
-		if err := c.clusterConfigCache.SetAuthPreference(resource); err != nil {
+		if err := c.clusterConfigCache.SetAuthPreference(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

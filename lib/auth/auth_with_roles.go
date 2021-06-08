@@ -2214,17 +2214,17 @@ func (a *ServerWithRoles) SetStaticTokens(s types.StaticTokens) error {
 }
 
 // GetAuthPreference gets cluster auth preference.
-func (a *ServerWithRoles) GetAuthPreference() (types.AuthPreference, error) {
+func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuthPreference, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetAuthPreference()
+	return a.authServer.GetAuthPreference(ctx)
 }
 
 // SetAuthPreference sets cluster auth preference.
-func (a *ServerWithRoles) SetAuthPreference(newAuthPref types.AuthPreference) error {
-	storedAuthPref, err := a.authServer.GetAuthPreference()
+func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref types.AuthPreference) error {
+	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2235,12 +2235,12 @@ func (a *ServerWithRoles) SetAuthPreference(newAuthPref types.AuthPreference) er
 		}
 	}
 
-	return a.authServer.SetAuthPreference(newAuthPref)
+	return a.authServer.SetAuthPreference(ctx, newAuthPref)
 }
 
 // ResetAuthPreference resets cluster auth preference to defaults.
 func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
-	storedAuthPref, err := a.authServer.GetAuthPreference()
+	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2252,7 +2252,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetAuthPreference(types.DefaultAuthPreference())
+	return a.authServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
 }
 
 // DeleteAuthPreference not implemented: can only be called locally.
@@ -2904,7 +2904,7 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 		return trace.Wrap(err)
 	}
 
-	ap, err := a.authServer.GetAuthPreference()
+	ap, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -251,7 +251,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = initSetAuthPreference(asrv, cfg.AuthPreference)
+	err = initSetAuthPreference(ctx, asrv, cfg.AuthPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -501,8 +501,8 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	return asrv, nil
 }
 
-func initSetAuthPreference(asrv *Server, newAuthPref types.AuthPreference) error {
-	storedAuthPref, err := asrv.GetAuthPreference()
+func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
+	storedAuthPref, err := asrv.GetAuthPreference(ctx)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -513,7 +513,7 @@ func initSetAuthPreference(asrv *Server, newAuthPref types.AuthPreference) error
 		return trace.Wrap(err)
 	}
 	if shouldReplace {
-		if err := asrv.SetAuthPreference(newAuthPref); err != nil {
+		if err := asrv.SetAuthPreference(ctx, newAuthPref); err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Updating cluster auth preference: %v.", newAuthPref)

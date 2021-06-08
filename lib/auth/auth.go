@@ -995,7 +995,7 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
 	// before trying to register a user, see U2F is actually setup on the backend
-	cap, err := a.GetAuthPreference()
+	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2150,7 +2150,7 @@ func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts 
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-	pref, err := a.GetAuthPreference()
+	pref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2286,7 +2286,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 // registered by the user.
 func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u2f.AuthenticationStorage) (*proto.MFAAuthenticateChallenge, error) {
 	// Check what kind of MFA is enabled.
-	apref, err := a.GetAuthPreference()
+	apref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

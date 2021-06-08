@@ -1330,7 +1330,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 		StartKey:   startKey,
 	}
 
-	response, err := c.grpc.GetEvents(ctx, request)
+	response, err := c.grpc.GetEvents(ctx, request, c.callOpts...)
 	if err != nil {
 		return nil, "", trail.FromGRPC(err)
 	}
@@ -1356,7 +1356,7 @@ func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toU
 		StartKey:  startKey,
 	}
 
-	response, err := c.grpc.GetSessionEvents(ctx, request)
+	response, err := c.grpc.GetSessionEvents(ctx, request, c.callOpts...)
 	if err != nil {
 		return nil, "", trail.FromGRPC(err)
 	}
@@ -1394,7 +1394,7 @@ func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig types
 
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
 func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
-	_, err := c.grpc.ResetClusterNetworkingConfig(ctx, &empty.Empty{})
+	_, err := c.grpc.ResetClusterNetworkingConfig(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -1424,7 +1424,7 @@ func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.
 
 // ResetSessionRecordingConfig resets session recording configuration to defaults.
 func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
-	_, err := c.grpc.ResetSessionRecordingConfig(ctx, &empty.Empty{})
+	_, err := c.grpc.ResetSessionRecordingConfig(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -1433,8 +1433,32 @@ func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetSessionRecordingConfig gets cluster auth preference.
+func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	resp, err := c.grpc.GetAuthPreference(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// SetSessionRecordingConfig sets cluster auth preference.
+func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPreference) error {
+	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", authPref)
+	}
+	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // ResetAuthPreference resets cluster auth preference to defaults.
 func (c *Client) ResetAuthPreference(ctx context.Context) error {
-	_, err := c.grpc.ResetAuthPreference(ctx, &empty.Empty{})
+	_, err := c.grpc.ResetAuthPreference(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
+}
+
+// DeleteAuthPreference not implemented: can only be called locally.
+func (c *Client) DeleteAuthPreference(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
 }

@@ -1113,6 +1113,10 @@ service AuthService {
     // ResetSessionRecordingConfig resets session recording configuration to defaults.
     rpc ResetSessionRecordingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 
+    // GetAuthPreference gets cluster auth preference.
+    rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2);
+    // SetAuthPreference sets cluster auth preference.
+    rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty);
     // ResetAuthPreference resets cluster auth preference to defaults.
     rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty);
 

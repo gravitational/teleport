@@ -1051,6 +1051,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *check.C) {
 
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(c *check.C) {
+	ctx := context.Background()
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:                  "local",
 		SecondFactor:          "otp",
@@ -1058,10 +1059,10 @@ func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	err = s.ConfigS.SetAuthPreference(ap)
+	err = s.ConfigS.SetAuthPreference(ctx, ap)
 	c.Assert(err, check.IsNil)
 
-	gotAP, err := s.ConfigS.GetAuthPreference()
+	gotAP, err := s.ConfigS.GetAuthPreference(ctx)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(gotAP.GetType(), check.Equals, "local")
@@ -1141,6 +1142,8 @@ func CollectOptions(opts ...Option) Options {
 
 // ClusterConfig tests cluster configuration
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
+	ctx := context.Background()
+
 	// DELETE IN 8.0.0
 	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout: types.NewDuration(17 * time.Second),
@@ -1162,7 +1165,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 		DisconnectExpiredCert: types.NewBoolOption(true),
 	})
 	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetAuthPreference(authPref)
+	err = s.ConfigS.SetAuthPreference(ctx, authPref)
 	c.Assert(err, check.IsNil)
 
 	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
@@ -1756,6 +1759,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 
 // EventsClusterConfig tests cluster config resource events
 func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
+	ctx := context.Background()
 	testCases := []eventTest{
 		{
 			name: "Cluster config",
@@ -1772,7 +1776,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				// DELETE IN 8.0.0
-				err = s.ConfigS.SetAuthPreference(types.DefaultAuthPreference())
+				err = s.ConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
 				c.Assert(err, check.IsNil)
 
 				config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})

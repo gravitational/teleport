@@ -328,7 +328,7 @@ type monitorConnConfig struct {
 // configured, and unmodified client connection otherwise.
 func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	certExpires := cfg.identity.Expires
-	authPref, err := cfg.authClient.GetAuthPreference()
+	authPref, err := cfg.authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

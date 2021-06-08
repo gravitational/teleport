@@ -54,7 +54,7 @@ type Auth interface {
 	// GetTLSConfig builds the client TLS configuration for the session.
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
-	GetAuthPreference() (types.AuthPreference, error)
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 }
 
 // AuthConfig is the database access authenticator configuration.
@@ -274,8 +274,8 @@ func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *
 }
 
 // GetAuthPreference returns the cluster authentication config.
-func (a *dbAuth) GetAuthPreference() (types.AuthPreference, error) {
-	return a.cfg.AuthClient.GetAuthPreference()
+func (a *dbAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	return a.cfg.AuthClient.GetAuthPreference(ctx)
 }
 
 // getVerifyCloudSQLCertificate returns a function that performs verification

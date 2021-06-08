@@ -1302,13 +1302,13 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 }
 
 // GetAuthPreference gets the cluster authentication config.
-func (c *Cache) GetAuthPreference() (types.AuthPreference, error) {
+func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.clusterConfig.GetAuthPreference()
+	return rg.clusterConfig.GetAuthPreference(ctx)
 }
 
 // GetSessionRecordingConfig gets session recording configuration.

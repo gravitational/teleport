@@ -120,7 +120,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		return nil, trace.Wrap(err)
 	}
 
-	authPreference, err := s.GetAuthPreference()
+	authPreference, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -209,7 +209,8 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 // if authentication is successful. In case the existing session ID is used to authenticate,
 // returns the existing session instead of creating a new one
 func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
-	authPref, err := s.GetAuthPreference()
+	ctx := context.TODO()
+	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -340,7 +341,8 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
 func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
-	authPref, err := s.GetAuthPreference()
+	ctx := context.TODO()
+	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
