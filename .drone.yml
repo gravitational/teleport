@@ -3742,6 +3742,7 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+      GOCACHE: /go/cache
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -4466,6 +4467,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 389361e60e108674174282155496087df9faec886bb0a174cacc150412cf0f42
+hmac: 3fce8ad586a155c767b29693a6df6358a96f33d4274c09ec9f254654f8563d37
 
 ...
