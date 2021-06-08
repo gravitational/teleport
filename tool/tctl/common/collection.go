@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -398,7 +399,7 @@ func formatLastHeartbeat(t time.Time) string {
 	if t.IsZero() {
 		return "not available"
 	}
-	return utils.HumanTimeFormat(t)
+	return apiutils.HumanTimeFormat(t)
 }
 
 func writeJSON(c ResourceCollection, w io.Writer) error {
@@ -510,6 +511,21 @@ func (c *netConfigCollection) writeText(w io.Writer) error {
 		strconv.FormatInt(c.netConfig.GetKeepAliveCountMax(), 10),
 		c.netConfig.GetSessionControlTimeout().String(),
 	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type recConfigCollection struct {
+	recConfig types.SessionRecordingConfig
+}
+
+func (c *recConfigCollection) resources() (r []types.Resource) {
+	return []types.Resource{c.recConfig}
+}
+
+func (c *recConfigCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Mode", "Proxy Checks Host Keys"})
+	t.AddRow([]string{c.recConfig.GetMode(), strconv.FormatBool(c.recConfig.GetProxyChecksHostKeys())})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

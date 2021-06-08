@@ -27,11 +27,11 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 
@@ -184,7 +184,7 @@ func (r *ResourceSuite) TestGithubConnectorResource(c *check.C) {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "github",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.GithubConnectorSpecV3{
 			ClientID:     "aaa",
@@ -250,7 +250,7 @@ func newUserTestCase(c *check.C, name string, roles []string, withSecrets bool, 
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      name,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Expires:   &expires,
 		},
 		Spec: types.UserSpecV2{

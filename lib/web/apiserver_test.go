@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -157,7 +158,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Kind:    types.KindAuthServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Name:      "auth",
 		},
 		Spec: types.ServerSpecV2{
@@ -199,7 +200,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(nodeID),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetSessionServer(nodeClient),
 		regular.SetEmitter(nodeClient),
@@ -256,7 +257,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetProxyMode(revTunServer),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 	)
@@ -443,11 +444,11 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	role, err := types.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV3{
 		Options: types.RoleOptions{
-			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
+			MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 		},
 		Allow: types.RoleConditions{
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			Namespaces: []string{defaults.Namespace},
+			Namespaces: []string{apidefaults.Namespace},
 			Rules: []types.Rule{
 				types.NewRule(types.Wildcard, services.RW()),
 			},
@@ -933,7 +934,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	c.Assert(err, IsNil)
 	data, err := json.Marshal(events.EventFields{
 		events.EventType:      events.ResizeEvent,
-		events.EventNamespace: defaults.Namespace,
+		events.EventNamespace: apidefaults.Namespace,
 		events.SessionEventID: sid.String(),
 		events.TerminalSize:   params.Serialize(),
 	})
@@ -983,7 +984,7 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	err = s.server.Auth().SetClusterNetworkingConfig(context.TODO(), netConfig)
 	c.Assert(err, IsNil)
 
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode:                types.RecordAtNode,
 		ProxyChecksHostKeys: types.NewBoolOption(true),
 	})
@@ -1098,7 +1099,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 		ClusterName:    "",
 		ServerID:       string(session.NewID()),
 		ID:             session.NewID(),
-		Namespace:      defaults.Namespace,
+		Namespace:      apidefaults.Namespace,
 		Login:          "foo",
 		Created:        time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 		LastActive:     time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
@@ -1819,7 +1820,7 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.LastConnected, NotNil)
 	c.Assert(cluster.AuthVersion, Equals, teleport.Version)
 
-	nodes, err := s.proxyClient.GetNodes(ctx, defaults.Namespace)
+	nodes, err := s.proxyClient.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
@@ -1940,7 +1941,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 		Kind:    types.KindAppServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Name:      uuid.New(),
 		},
 		Spec: types.ServerSpecV2{
@@ -1977,7 +1978,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		Kind:    types.KindAppServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Name:      uuid.New(),
 		},
 		Spec: types.ServerSpecV2{
@@ -2498,7 +2499,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		Kind:    types.KindAuthServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Name:      "auth",
 		},
 		Spec: types.ServerSpecV2{
@@ -2542,7 +2543,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(nodeID),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetSessionServer(nodeClient),
 		regular.SetEmitter(nodeClient),
@@ -2627,7 +2628,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 		regular.SetProxyMode(revTunServer),
 		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
 	)

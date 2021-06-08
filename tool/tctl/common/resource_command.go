@@ -24,7 +24,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -90,6 +92,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindCertAuthority:           rc.createCertAuthority,
 		types.KindClusterAuthPreference:   rc.createAuthPreference,
 		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
+		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
 	}
 	rc.config = config
 
@@ -120,7 +123,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources")
 	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").Required().SetValue(&rc.refs)
 	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&rc.format)
-	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(defaults.Namespace).StringVar(&rc.namespace)
+	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(apidefaults.Namespace).StringVar(&rc.namespace)
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
 
 	rc.getCmd.Alias(getHelp)
@@ -462,20 +465,45 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(client auth.ClientI, ra
 	return nil
 }
 
+// createSessionRecordingConfig implements `tctl create recconfig.yaml` command.
+func (rc *ResourceCommand) createSessionRecordingConfig(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+
+	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkCreateResourceWithOrigin(storedRecConfig, "session recording configuration", rc.force, rc.confirm); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.SetSessionRecordingConfig(ctx, newRecConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("session recording configuration has been updated\n")
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	singletonResources := []string{
 		types.KindClusterAuthPreference,
 		types.KindClusterNetworkingConfig,
+		types.KindSessionRecordingConfig,
 	}
-	if !utils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
+	if !apiutils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
 	ctx := context.TODO()
 	switch rc.ref.Kind {
 	case types.KindNode:
-		if err = client.DeleteNode(ctx, defaults.Namespace, rc.ref.Name); err != nil {
+		if err = client.DeleteNode(ctx, apidefaults.Namespace, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("node %v has been deleted\n", rc.ref.Name)
@@ -549,6 +577,11 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("cluster networking configuration has been reset to defaults\n")
+	case types.KindSessionRecordingConfig:
+		if err = resetSessionRecordingConfig(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("session recording configuration has been reset to defaults\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -581,6 +614,20 @@ func resetClusterNetworkingConfig(ctx context.Context, client auth.ClientI) erro
 	}
 
 	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
+}
+
+func resetSessionRecordingConfig(ctx context.Context, client auth.ClientI) error {
+	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	managedByStaticConfig := storedRecConfig.Origin() == types.OriginConfigFile
+	if managedByStaticConfig {
+		return trace.BadParameter(managedByStaticDeleteMsg)
+	}
+
+	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
 }
 
 // Update updates select resource fields: expiry and labels
@@ -870,6 +917,15 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.Wrap(err)
 		}
 		return &netConfigCollection{netConfig}, nil
+	case types.KindSessionRecordingConfig:
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindSessionRecordingConfig)
+		}
+		recConfig, err := client.GetSessionRecordingConfig(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &recConfigCollection{recConfig}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

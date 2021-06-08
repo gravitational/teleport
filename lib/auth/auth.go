@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -317,7 +318,7 @@ func (a *Server) runPeriodicOperations() {
 	ticker := time.NewTicker(period)
 	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
-		Duration: defaults.ServerKeepAliveTTL * 2,
+		Duration: apidefaults.ServerKeepAliveTTL * 2,
 		Jitter:   utils.NewSeventhJitter(),
 	})
 	missedKeepAliveCount := 0
@@ -337,7 +338,7 @@ func (a *Server) runPeriodicOperations() {
 				}
 			}
 		case <-heartbeatCheckTicker.Next():
-			nodes, err := a.GetNodes(ctx, defaults.Namespace)
+			nodes, err := a.GetNodes(ctx, apidefaults.Namespace)
 			if err != nil {
 				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
 			}
@@ -876,7 +877,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	status := user.GetStatus()
 	if status.IsLocked && status.LockExpires.After(a.clock.Now().UTC()) {
 		return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
-			user.GetName(), defaults.MaxLoginAttempts, utils.HumanTimeFormat(status.LockExpires))
+			user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 	}
 	fnErr := authenticateFn()
 	if fnErr == nil {
@@ -910,7 +911,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	}
 	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
 	message := fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
-		username, defaults.MaxLoginAttempts, utils.HumanTimeFormat(status.LockExpires))
+		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 	log.Debug(message)
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	err = a.Identity.UpsertUser(user)
@@ -1043,7 +1044,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 		}
 
 		roles = append(roles, newRoles...)
-		roles = utils.Deduplicate(roles)
+		roles = apiutils.Deduplicate(roles)
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(requestExpiry) {
@@ -1068,7 +1069,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 			return nil, trace.Wrap(err)
 		}
 
-		sessionTTL := roleSet.AdjustSessionTTL(defaults.CertDuration)
+		sessionTTL := roleSet.AdjustSessionTTL(apidefaults.CertDuration)
 
 		// Set default roles and expiration.
 		expiresAt = prevSession.GetLoginTime().UTC().Add(sessionTTL)
@@ -1317,7 +1318,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// If the request contains 0.0.0.0, this implies an advertise IP was not
 	// specified on the node. Try and guess what the address by replacing 0.0.0.0
 	// with the RemoteAddr as known to the Auth Server.
-	if utils.SliceContainsStr(req.AdditionalPrincipals, defaults.AnyAddress) {
+	if apiutils.SliceContainsStr(req.AdditionalPrincipals, defaults.AnyAddress) {
 		remoteHost, err := utils.Host(req.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1672,7 +1673,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	}
 	sessionTTL := req.SessionTTL
 	if sessionTTL == 0 {
-		sessionTTL = checker.AdjustSessionTTL(defaults.CertDuration)
+		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
@@ -1726,7 +1727,7 @@ func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 
 func (a *Server) DeleteNamespace(namespace string) error {
 	ctx := context.TODO()
-	if namespace == defaults.Namespace {
+	if namespace == apidefaults.Namespace {
 		return trace.AccessDenied("can't delete default namespace")
 	}
 	nodes, err := a.Presence.GetNodes(ctx, namespace)
@@ -2168,7 +2169,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("empty Login field")
 		}
 		// Find the target node and check whether MFA is required.
-		nodes, err := a.GetNodes(ctx, defaults.Namespace)
+		nodes, err := a.GetNodes(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2229,14 +2230,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if cluster == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
-		noMFAAccessErr = checker.CheckAccessToKubernetes(defaults.Namespace, cluster, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
+		noMFAAccessErr = checker.CheckAccessToKubernetes(apidefaults.Namespace, cluster, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
-		dbs, err := a.GetDatabaseServers(ctx, defaults.Namespace)
+		dbs, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

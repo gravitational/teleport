@@ -39,10 +39,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -146,7 +146,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	nodeDir := t.TempDir()
 	serverOptions := []ServerOption{
 		SetUUID(nodeID),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
 		SetShell("/bin/sh"),
 		SetSessionServer(nodeClient),
@@ -810,7 +810,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
@@ -887,7 +887,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 			},
 		),
 		SetSessionServer(nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetEmitter(nodeClient),
@@ -988,7 +988,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
@@ -1105,7 +1105,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
@@ -1234,7 +1234,7 @@ func TestLimiter(t *testing.T) {
 		SetShell("/bin/sh"),
 		SetSessionServer(nodeClient),
 		SetEmitter(nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
@@ -1323,7 +1323,7 @@ func TestGlobalRequestRecordingProxy(t *testing.T) {
 	f := newFixture(t)
 
 	// set cluster config to record at the node
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtNode,
 	})
 	require.NoError(t, err)
@@ -1340,7 +1340,7 @@ func TestGlobalRequestRecordingProxy(t *testing.T) {
 	require.False(t, response)
 
 	// set cluster config to record at the proxy
-	recConfig, err = types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)
@@ -1565,7 +1565,7 @@ func TestX11ProxySupport(t *testing.T) {
 	defer cancel()
 
 	// set cluster config to record at the proxy
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)

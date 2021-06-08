@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -34,7 +35,7 @@ func TraitsToRoles(ms types.TraitMappingSet, traits map[string][]string) (warnin
 	warnings = traitsToRoles(ms, traits, func(role string, expanded bool) {
 		roles = append(roles, role)
 	})
-	return warnings, utils.Deduplicate(roles)
+	return warnings, apiutils.Deduplicate(roles)
 }
 
 // TraitsToRoleMatchers maps the supplied traits to a list of role matchers. Prefer calling
