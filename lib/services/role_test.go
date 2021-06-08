@@ -2188,7 +2188,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	// Database labels are not set in allow/deny rules on purpose to test
 	// that they're set during check and set defaults below.
 	roleDeny := &types.RoleV3{
-		Metadata: types.Metadata{Name: "deny", Namespace: apidefaults.Namespace}, 
+		Metadata: types.Metadata{Name: "deny", Namespace: apidefaults.Namespace},
 		Version:  types.V3,
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
