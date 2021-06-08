@@ -511,7 +511,7 @@ message ClusterConfigV3 {
 
 // ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
 message ClusterConfigSpecV3 {
-    reserved 1, 3, 5, 7, 8, 10;
+    reserved 1, 3, 5, 6, 7, 8, 9, 10;
 
     // ClusterID is the unique cluster ID that is set once during the first auth
     // server startup.
@@ -520,20 +520,16 @@ message ClusterConfigSpecV3 {
     // Audit is a section with audit config
     AuditConfig Audit = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "audit" ];
 
-    // DisconnectExpiredCert provides disconnect expired certificate setting -
-    // if true, connections with expired client certificates will get disconnected
-    bool DisconnectExpiredCert = 6
-        [ (gogoproto.jsontag) = "disconnect_expired_cert", (gogoproto.casttype) = "Bool" ];
-
-    // LocalAuth is true if local authentication is enabled.
-    bool LocalAuth = 9 [ (gogoproto.jsontag) = "local_auth", (gogoproto.casttype) = "Bool" ];
-
     // DELETE IN 8.0.0
     ClusterNetworkingConfigSpecV2 NetworkingConfig = 11
         [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
 
     // DELETE IN 8.0.0
     LegacySessionRecordingConfigSpec SessionRecordingConfig = 12
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+
+    // DELETE IN 8.0.0
+    LegacyClusterConfigAuthFields AuthFields = 13
         [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
 }
 
@@ -578,9 +574,6 @@ message AuditConfig {
 
 // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
 message ClusterNetworkingConfigV2 {
-    option (gogoproto.goproto_stringer) = false;
-    option (gogoproto.stringer) = false;
-
     // Kind is a resource kind
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
@@ -696,6 +689,30 @@ message AuthPreferenceSpecV2 {
     // RequireSessionMFA causes all sessions in this cluster to require MFA
     // checks.
     bool RequireSessionMFA = 5 [ (gogoproto.jsontag) = "require_session_mfa,omitempty" ];
+
+    // DisconnectExpiredCert provides disconnect expired certificate setting -
+    // if true, connections with expired client certificates will get disconnected
+    BoolValue DisconnectExpiredCert = 6 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "disconnect_expired_cert,omitempty",
+        (gogoproto.casttype) = "BoolOption"
+    ];
+
+    // AllowLocalAuth is true if local authentication is enabled.
+    BoolValue AllowLocalAuth = 7 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "allow_local_auth,omitempty",
+        (gogoproto.customtype) = "BoolOption"
+    ];
+}
+
+// LegacyClusterConfigAuthFields facilitates a backward compatible transition
+// for the auth related fields moved from ClusterConfig into ClusterAuthPreference.
+// DELETE IN 8.0.0
+message LegacyClusterConfigAuthFields {
+    bool DisconnectExpiredCert = 1
+        [ (gogoproto.jsontag) = "disconnect_expired_cert", (gogoproto.casttype) = "Bool" ];
+    bool AllowLocalAuth = 2 [ (gogoproto.jsontag) = "local_auth", (gogoproto.casttype) = "Bool" ];
 }
 
 // U2F defines settings for U2F device.

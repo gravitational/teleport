@@ -151,6 +151,9 @@ message SessionStart {
 
     // SessionRecording is the type of session recording.
     string SessionRecording = 10 [ (gogoproto.jsontag) = "session_recording,omitempty" ];
+
+    // AccessRequests are the IDs of access requests created by the user
+    repeated string AccessRequests = 11 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
 }
 
 // SessionJoin emitted when another user joins a session

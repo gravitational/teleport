@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
@@ -60,7 +61,7 @@ func TestAuditWriter(t *testing.T) {
 			t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 		}
 
-		var outEvents []AuditEvent
+		var outEvents []apievents.AuditEvent
 		uploads, err := test.uploader.ListUploads(test.ctx)
 		require.NoError(t, err)
 		parts, err := test.uploader.GetParts(uploads[0].ID)
@@ -85,14 +86,14 @@ func TestAuditWriter(t *testing.T) {
 		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event AuditEvent) error {
+				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 					if event.GetIndex() > 1 && terminateConnection.CAS(1, 0) == true {
 						log.Debugf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
 					}
 					return nil
 				},
-				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (Stream, error) {
+				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.CreateAuditStream(ctx, sid)
 					require.NoError(t, err)
 					if streamCreated.Inc() == 1 {
@@ -106,7 +107,7 @@ func TestAuditWriter(t *testing.T) {
 					}
 					return stream, nil
 				},
-				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (Stream, error) {
+				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 					require.NoError(t, err)
 					streamResumed.Inc()
@@ -148,20 +149,20 @@ func TestAuditWriter(t *testing.T) {
 		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event AuditEvent) error {
+				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 					if event.GetIndex() > 600 && terminateConnection.CAS(1, 0) == true {
 						log.Debugf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
 					}
 					return nil
 				},
-				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (Stream, error) {
+				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.CreateAuditStream(ctx, sid)
 					require.NoError(t, err)
 					streamCreated.Inc()
 					return stream, nil
 				},
-				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (Stream, error) {
+				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 					require.NoError(t, err)
 					streamResumed.Inc()
@@ -207,7 +208,7 @@ func TestAuditWriter(t *testing.T) {
 		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event AuditEvent) error {
+				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 					if event.GetIndex() >= int64(submitEvents-1) && terminateConnection.CAS(1, 0) == true {
 						log.Debugf("Locking connection at event %v", event.GetIndex())
 						<-hangCtx.Done()
@@ -215,13 +216,13 @@ func TestAuditWriter(t *testing.T) {
 					}
 					return nil
 				},
-				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (Stream, error) {
+				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.CreateAuditStream(ctx, sid)
 					require.NoError(t, err)
 					streamCreated.Inc()
 					return stream, nil
 				},
-				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (Stream, error) {
+				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 					require.NoError(t, err)
 					streamResumed.Inc()
@@ -259,11 +260,11 @@ func TestAuditWriter(t *testing.T) {
 	})
 
 	t.Run("SetsEventDefaults", func(t *testing.T) {
-		var emittedEvents []AuditEvent
+		var emittedEvents []apievents.AuditEvent
 		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event AuditEvent) error {
+				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 					emittedEvents = append(emittedEvents, event)
 					return nil
 				},
@@ -338,7 +339,7 @@ func newAuditWriterTest(t *testing.T, newStreamer newStreamerFn) *auditWriterTes
 	}
 }
 
-func (a *auditWriterTest) collectEvents(t *testing.T) []AuditEvent {
+func (a *auditWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	start := time.Now()
 	var uploadID string
 	select {

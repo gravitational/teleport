@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -437,7 +438,7 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 }
 
 // EmitAuditEvent emits audit event
-func (l *Log) EmitAuditEvent(ctx context.Context, in events.AuditEvent) error {
+func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
 	data, err := utils.FastMarshal(in)
 	if err != nil {
 		return trace.Wrap(err)
@@ -681,13 +682,13 @@ type checkpointKey struct {
 //
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	rawEvents, lastKey, err := l.searchEventsRaw(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	eventArr := make([]events.AuditEvent, 0, len(rawEvents))
+	eventArr := make([]apievents.AuditEvent, 0, len(rawEvents))
 	for _, rawEvent := range rawEvents {
 		var fields events.EventFields
 		if err := utils.FastUnmarshal([]byte(rawEvent.Fields), &fields); err != nil {
@@ -706,7 +707,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 
 // ByTimeAndIndex sorts events by time
 // and if there are several session events with the same session by event index.
-type byTimeAndIndex []events.AuditEvent
+type byTimeAndIndex []apievents.AuditEvent
 
 func (f byTimeAndIndex) Len() int {
 	return len(f)
@@ -770,10 +771,12 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 		}
 	}
 
+	hasLeft := false
+
 	// This is the main query loop, here we send individual queries for each date and
 	// we stop if we hit `limit` or process all dates, whichever comes first.
 dateLoop:
-	for _, date := range dates {
+	for i, date := range dates {
 		checkpoint.Date = date
 
 		attributes := map[string]interface{}{
@@ -826,6 +829,7 @@ dateLoop:
 					values = append(values, e)
 					left--
 					if left == 0 {
+						hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
 						break dateLoop
 					}
 				}
@@ -837,15 +841,10 @@ dateLoop:
 		}
 	}
 
-	// When no events are left we set the checkpoint to null
-	if len(values) == 0 {
-		checkpoint = checkpointKey{}
-	}
-
 	var lastKey []byte
 	var err error
 
-	if len(values) > 0 {
+	if hasLeft {
 		lastKey, err = json.Marshal(&checkpoint)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -857,7 +856,7 @@ dateLoop:
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	// only search for specific event types
 	query := []string{
 		events.SessionStartEvent,
@@ -1204,7 +1203,7 @@ func (l *Log) uploadBatch(writeRequests []*dynamodb.WriteRequest) error {
 			return trace.Wrap(err)
 		}
 
-		writeRequests := out.UnprocessedItems[l.Tablename]
+		writeRequests = out.UnprocessedItems[l.Tablename]
 		if len(writeRequests) == 0 {
 			return nil
 		}

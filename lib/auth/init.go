@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -70,14 +71,14 @@ type InitConfig struct {
 
 	// ClusterName stores the FQDN of the signing CA (its certificate will have this
 	// name embedded). It is usually set to the GUID of the host the Auth service runs on
-	ClusterName services.ClusterName
+	ClusterName types.ClusterName
 
 	// Authorities is a list of pre-configured authorities to supply on first start
-	Authorities []services.CertAuthority
+	Authorities []types.CertAuthority
 
 	// Resources is a list of previously backed-up resources used to
 	// bootstrap backend on first start.
-	Resources []services.Resource
+	Resources []types.Resource
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
 	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
@@ -89,11 +90,11 @@ type InitConfig struct {
 
 	// ReverseTunnels is a list of reverse tunnels statically supplied
 	// in configuration, so auth server will init the tunnels on the first start
-	ReverseTunnels []services.ReverseTunnel
+	ReverseTunnels []types.ReverseTunnel
 
 	// OIDCConnectors is a list of trusted OpenID Connect identity providers
 	// in configuration, so auth server will init the tunnels on the first start
-	OIDCConnectors []services.OIDCConnector
+	OIDCConnectors []types.OIDCConnector
 
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
@@ -114,28 +115,28 @@ type InitConfig struct {
 	DynamicAccessExt services.DynamicAccessExt
 
 	// Events is an event service
-	Events services.Events
+	Events types.Events
 
 	// ClusterConfiguration is a services that holds cluster wide configuration.
 	ClusterConfiguration services.ClusterConfiguration
 
 	// Roles is a set of roles to create
-	Roles []services.Role
+	Roles []types.Role
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	//StaticTokens []services.ProvisionToken
-	StaticTokens services.StaticTokens
+	StaticTokens types.StaticTokens
 
 	// AuthPreference defines the authentication type (local, oidc) and second
 	// factor (off, otp, u2f) passed in from a configuration file.
-	AuthPreference services.AuthPreference
+	AuthPreference types.AuthPreference
 
 	// AuditLog is used for emitting events to audit log.
 	AuditLog events.IAuditLog
 
 	// ClusterConfig holds cluster level configuration.
-	ClusterConfig services.ClusterConfig
+	ClusterConfig types.ClusterConfig
 
 	// ClusterNetworkingConfig holds cluster networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
@@ -156,7 +157,7 @@ type InitConfig struct {
 	CASigningAlg *string
 
 	// Emitter is events emitter, used to submit discrete events
-	Emitter events.Emitter
+	Emitter apievents.Emitter
 
 	// Streamer is events sessionstreamer, used to create continuous
 	// session related streams
@@ -239,12 +240,17 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		log.Infof("Created reverse tunnel: %v.", tunnel)
 	}
 
-	err = asrv.SetClusterNetworkingConfig(ctx, cfg.ClusterNetworkingConfig)
+	err = initSetClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = asrv.SetSessionRecordingConfig(ctx, cfg.SessionRecordingConfig)
+	err = initSetSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = initSetAuthPreference(asrv, cfg.AuthPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -301,13 +307,8 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
 
-	err = initSetAuthPreference(asrv, cfg.AuthPreference)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// always create the default namespace
-	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
+	err = asrv.UpsertNamespace(types.NewNamespace(defaults.Namespace))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -324,7 +325,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// generate a user certificate authority if it doesn't exist
-	userCA, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: services.UserCA}, true)
+	userCA, err := asrv.GetCertAuthority(types.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: types.UserCA}, true)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -348,20 +349,20 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			sigAlg = *cfg.CASigningAlg
 		}
 
-		userCA := &services.CertAuthorityV2{
-			Kind:    services.KindCertAuthority,
-			Version: services.V2,
-			Metadata: services.Metadata{
+		userCA := &types.CertAuthorityV2{
+			Kind:    types.KindCertAuthority,
+			Version: types.V2,
+			Metadata: types.Metadata{
 				Name:      cfg.ClusterName.GetClusterName(),
 				Namespace: defaults.Namespace,
 			},
-			Spec: services.CertAuthoritySpecV2{
+			Spec: types.CertAuthoritySpecV2{
 				ClusterName:  cfg.ClusterName.GetClusterName(),
-				Type:         services.UserCA,
+				Type:         types.UserCA,
 				SigningKeys:  [][]byte{priv},
 				SigningAlg:   sshutils.ParseSigningAlg(sigAlg),
 				CheckingKeys: [][]byte{pub},
-				TLSKeyPairs:  []services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
+				TLSKeyPairs:  []types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
 			},
 		}
 
@@ -377,14 +378,14 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
+		userCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
 		if err := asrv.Trust.UpsertCertAuthority(userCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	// generate a host certificate authority if it doesn't exist
-	hostCA, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: services.HostCA}, true)
+	hostCA, err := asrv.GetCertAuthority(types.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: types.HostCA}, true)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -408,20 +409,20 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			sigAlg = *cfg.CASigningAlg
 		}
 
-		hostCA = &services.CertAuthorityV2{
-			Kind:    services.KindCertAuthority,
-			Version: services.V2,
-			Metadata: services.Metadata{
+		hostCA = &types.CertAuthorityV2{
+			Kind:    types.KindCertAuthority,
+			Version: types.V2,
+			Metadata: types.Metadata{
 				Name:      cfg.ClusterName.GetClusterName(),
 				Namespace: defaults.Namespace,
 			},
-			Spec: services.CertAuthoritySpecV2{
+			Spec: types.CertAuthoritySpecV2{
 				ClusterName:  cfg.ClusterName.GetClusterName(),
-				Type:         services.HostCA,
+				Type:         types.HostCA,
 				SigningKeys:  [][]byte{priv},
 				SigningAlg:   sshutils.ParseSigningAlg(sigAlg),
 				CheckingKeys: [][]byte{pub},
-				TLSKeyPairs:  []services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
+				TLSKeyPairs:  []types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
 			},
 		}
 		if err := asrv.Trust.UpsertCertAuthority(hostCA); err != nil {
@@ -444,16 +445,16 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		hostCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
+		hostCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
 		if err := asrv.Trust.UpsertCertAuthority(hostCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	// If a JWT signer does not exist for this cluster, create one.
-	jwtSigner, err := asrv.GetCertAuthority(services.CertAuthID{
+	jwtSigner, err := asrv.GetCertAuthority(types.CertAuthID{
 		DomainName: cfg.ClusterName.GetClusterName(),
-		Type:       services.JWTSigner,
+		Type:       types.JWTSigner,
 	}, true)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -499,7 +500,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	return asrv, nil
 }
 
-func initSetAuthPreference(asrv *Server, newAuthPref services.AuthPreference) error {
+func initSetAuthPreference(asrv *Server, newAuthPref types.AuthPreference) error {
 	storedAuthPref, err := asrv.GetAuthPreference()
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -511,11 +512,50 @@ func initSetAuthPreference(asrv *Server, newAuthPref services.AuthPreference) er
 		return trace.Wrap(err)
 	}
 	if shouldReplace {
-		err = asrv.SetAuthPreference(newAuthPref)
-		if err != nil {
+		if err := asrv.SetAuthPreference(newAuthPref); err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("Updating auth preference: %v.", newAuthPref)
+		log.Infof("Updating cluster auth preference: %v.", newAuthPref)
+	}
+	return nil
+}
+
+func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
+	storedNetConfig, err := asrv.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedNetConfig, newNetConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if shouldReplace {
+		if err := asrv.SetClusterNetworkingConfig(ctx, newNetConfig); err != nil {
+			return trace.Wrap(err)
+		}
+		log.Infof("Updating cluster networking configuration: %v.", newNetConfig)
+	}
+	return nil
+}
+
+func initSetSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
+	storedRecConfig, err := asrv.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedRecConfig, newRecConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if shouldReplace {
+		if err := asrv.SetSessionRecordingConfig(ctx, newRecConfig); err != nil {
+			return trace.Wrap(err)
+		}
+		log.Infof("Updating session recording configuration: %v.", newRecConfig)
 	}
 	return nil
 }
@@ -576,7 +616,7 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 
 // createPresets creates preset resources - roles
 func createPresets(ctx context.Context, asrv *Server) error {
-	roles := []services.Role{
+	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole()}
@@ -669,8 +709,8 @@ func migrateOSSTrustedClusters(ctx context.Context, role types.Role, asrv *Serve
 		if _, err := asrv.Presence.UpsertTrustedCluster(ctx, tc); err != nil {
 			return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
 		}
-		for _, catype := range []services.CertAuthType{services.UserCA, services.HostCA} {
-			ca, err := asrv.GetCertAuthority(services.CertAuthID{Type: catype, DomainName: tc.GetName()}, true)
+		for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
+			ca, err := asrv.GetCertAuthority(types.CertAuthID{Type: catype, DomainName: tc.GetName()}, true)
 			if err != nil {
 				return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
 			}
@@ -776,9 +816,9 @@ func migrateOSSGithubConns(ctx context.Context, role types.Role, asrv *Server) (
 func isFirstStart(authServer *Server, cfg InitConfig) (bool, error) {
 	// check if the CA exists?
 	_, err := authServer.GetCertAuthority(
-		services.CertAuthID{
+		types.CertAuthID{
 			DomainName: cfg.ClusterName.GetClusterName(),
-			Type:       services.HostCA,
+			Type:       types.HostCA,
 		}, false)
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -791,10 +831,10 @@ func isFirstStart(authServer *Server, cfg InitConfig) (bool, error) {
 }
 
 // checkResourceConsistency checks far basic conflicting state issues.
-func checkResourceConsistency(clusterName string, resources ...services.Resource) error {
+func checkResourceConsistency(clusterName string, resources ...types.Resource) error {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
-		case services.CertAuthority:
+		case types.CertAuthority:
 			// check that signing CAs have expected cluster name and that
 			// all CAs for this cluster do having signing keys.
 			seemsLocal := r.GetClusterName() == clusterName
@@ -814,7 +854,7 @@ func checkResourceConsistency(clusterName string, resources ...services.Resource
 			if !seemsLocal && hasKeys {
 				return trace.BadParameter("unexpected cluster name %q for signing ca (expected %q)", r.GetClusterName(), clusterName)
 			}
-		case services.TrustedCluster:
+		case types.TrustedCluster:
 			if r.GetName() == clusterName {
 				return trace.BadParameter("trusted cluster has same name as local cluster (%q)", clusterName)
 			}
@@ -830,7 +870,7 @@ func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames [
 	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               id.HostUUID,
 		NodeName:             id.NodeName,
-		Roles:                teleport.Roles{id.Role},
+		Roles:                types.SystemRoles{id.Role},
 		AdditionalPrincipals: additionalPrincipals,
 		DNSNames:             dnsNames,
 	})
@@ -897,7 +937,7 @@ func TLSCertInfo(cert *tls.Certificate) string {
 }
 
 // CertAuthorityInfo returns debugging information about certificate authority
-func CertAuthorityInfo(ca services.CertAuthority) string {
+func CertAuthorityInfo(ca types.CertAuthority) string {
 	var out []string
 	for _, keyPair := range ca.GetTLSKeyPairs() {
 		cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
@@ -1003,7 +1043,7 @@ func (i *Identity) hostKeyCallback(hostname string, remote net.Addr, key ssh.Pub
 
 // IdentityID is a combination of role, host UUID, and node name.
 type IdentityID struct {
-	Role     teleport.Role
+	Role     types.SystemRole
 	HostUUID string
 	NodeName string
 }
@@ -1081,7 +1121,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 		return nil, trace.BadParameter("misssing cluster name")
 	}
 	identity := &Identity{
-		ID:              IdentityID{HostUUID: id.Username, Role: teleport.Role(id.Groups[0])},
+		ID:              IdentityID{HostUUID: id.Username, Role: types.SystemRole(id.Groups[0])},
 		ClusterName:     clusterName,
 		KeyBytes:        keyBytes,
 		TLSCertBytes:    certBytes,
@@ -1141,7 +1181,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if roleString == "" {
 		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionRole)
 	}
-	roles, err := teleport.ParseRoles(roleString)
+	roles, err := types.ParseTeleportRoles(roleString)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1190,7 +1230,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	certAuthorities, err := asrv.GetCertAuthorities(services.HostCA, false)
+	certAuthorities, err := asrv.GetCertAuthorities(types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1219,7 +1259,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		remoteCluster, err := services.NewRemoteCluster(certAuthority.GetName())
+		remoteCluster, err := types.NewRemoteCluster(certAuthority.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}

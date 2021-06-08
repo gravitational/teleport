@@ -21,7 +21,7 @@ import (
 	"encoding/hex"
 	"sort"
 
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -146,7 +146,7 @@ func EncodeClusterName(clusterName string) string {
 // It's a subset of services.Presence.
 type KubeServicesPresence interface {
 	// GetKubeServices returns a list of registered kubernetes services.
-	GetKubeServices(context.Context) ([]services.Server, error)
+	GetKubeServices(context.Context) ([]types.Server, error)
 }
 
 // KubeClusterNames returns a sorted list of unique kubernetes clusters

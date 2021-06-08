@@ -50,8 +50,8 @@ func TestMFADeviceManagement(t *testing.T) {
 	clock := srv.Clock().(clockwork.FakeClock)
 
 	// Enable U2F support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -545,8 +545,8 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	clock := srv.Clock()
 
 	// Enable U2F support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -870,8 +870,8 @@ func TestIsMFARequired(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Enable MFA support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -929,8 +929,8 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	clock := srv.Clock().(clockwork.FakeClock)
 
 	// Enable MFA support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -1017,4 +1017,77 @@ func TestDeleteLastMFADevice(t *testing.T) {
 		},
 		checkErr: require.Error,
 	})
+}
+
+// testOriginDynamicStored tests setting a ResourceWithOrigin via the server
+// API always results in the resource being stored with OriginDynamic.
+func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
+	srv := newTestTLSServer(t)
+
+	// Create a fake user.
+	user, _, err := CreateUserAndRole(srv.Auth(), "configurer", []string{})
+	require.NoError(t, err)
+	cl, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, origin := range types.OriginValues {
+		t.Run(fmt.Sprintf("setting with origin %q", origin), func(t *testing.T) {
+			err := setWithOrigin(cl, origin)
+			require.NoError(t, err)
+
+			stored, err := getStored(srv.Auth())
+			require.NoError(t, err)
+			require.Equal(t, stored.Origin(), types.OriginDynamic)
+		})
+	}
+}
+
+func TestAuthPreferenceOriginDynamic(t *testing.T) {
+	t.Parallel()
+
+	setWithOrigin := func(cl *Client, origin string) error {
+		authPref := types.DefaultAuthPreference()
+		authPref.SetOrigin(origin)
+		return cl.SetAuthPreference(authPref)
+	}
+
+	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+		return asrv.GetAuthPreference()
+	}
+
+	testOriginDynamicStored(t, setWithOrigin, getStored)
+}
+
+func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	setWithOrigin := func(cl *Client, origin string) error {
+		netConfig := types.DefaultClusterNetworkingConfig()
+		netConfig.SetOrigin(origin)
+		return cl.SetClusterNetworkingConfig(ctx, netConfig)
+	}
+
+	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+		return asrv.GetClusterNetworkingConfig(ctx)
+	}
+
+	testOriginDynamicStored(t, setWithOrigin, getStored)
+}
+
+func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	setWithOrigin := func(cl *Client, origin string) error {
+		recConfig := types.DefaultSessionRecordingConfig()
+		recConfig.SetOrigin(origin)
+		return cl.SetSessionRecordingConfig(ctx, recConfig)
+	}
+
+	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+		return asrv.GetSessionRecordingConfig(ctx)
+	}
+
+	testOriginDynamicStored(t, setWithOrigin, getStored)
 }

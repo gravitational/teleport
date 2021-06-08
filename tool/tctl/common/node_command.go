@@ -25,12 +25,12 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // NodeCommand implements `tctl nodes` group of commands
@@ -113,7 +113,7 @@ Please note:
 // to a cluster
 func (c *NodeCommand) Invite(client auth.ClientI) error {
 	// parse --roles flag
-	roles, err := teleport.ParseRoles(c.roles)
+	roles, err := types.ParseTeleportRoles(c.roles)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,7 +139,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 
 	// output format swtich:
 	if c.format == "text" {
-		if roles.Include(teleport.RoleTrustedCluster) || roles.Include(teleport.LegacyClusterTokenType) {
+		if roles.Include(types.RoleTrustedCluster) || roles.Include(types.LegacyClusterTokenType) {
 			fmt.Printf(trustedClusterMessage, token, int(c.ttl.Minutes()))
 		} else {
 			fmt.Printf(nodeMessage,
@@ -170,7 +170,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 // to a cluster and prints it to stdout
 func (c *NodeCommand) ListActive(client auth.ClientI) error {
 	ctx := context.TODO()
-	nodes, err := client.GetNodes(ctx, c.namespace, services.SkipValidation())
+	nodes, err := client.GetNodes(ctx, c.namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}

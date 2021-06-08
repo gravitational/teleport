@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +31,7 @@ func TestFanoutWatcherClose(t *testing.T) {
 	eventsCh := make(chan FanoutEvent, 1)
 	f := NewFanout(eventsCh)
 	w, err := f.NewWatcher(context.TODO(),
-		Watch{Name: "test", Kinds: []WatchKind{{Name: "test"}}})
+		types.Watch{Name: "test", Kinds: []types.WatchKind{{Name: "test"}}})
 	assert.NoError(t, err)
 	assert.Equal(t, f.Len(), 1)
 

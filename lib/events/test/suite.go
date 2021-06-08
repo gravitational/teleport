@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -98,36 +99,52 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	}
 
 	toTime := baseTime.Add(time.Hour)
-	var arr []events.AuditEvent
+	var arr []apievents.AuditEvent
 	var err error
 	var checkpoint string
 
+	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 100, checkpoint)
+		return err
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(arr, check.HasLen, 4)
+	c.Assert(checkpoint, check.Equals, "")
+
 	for _, name := range names {
-		err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-			arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
-			return err
-		})
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 1)
-		event, ok := arr[0].(*events.UserLogin)
+		event, ok := arr[0].(*apievents.UserLogin)
 		c.Assert(ok, check.Equals, true)
 		c.Assert(name, check.Equals, event.User)
 	}
+	if checkpoint != "" {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 0)
+	}
+	c.Assert(checkpoint, check.Equals, "")
 
-	checkpoint = ""
 	for _, i := range []int{0, 2} {
 		nameA := names[i]
 		nameB := names[i+1]
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 2, checkpoint)
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 2)
-		eventA, okA := arr[0].(*events.UserLogin)
-		eventB, okB := arr[1].(*events.UserLogin)
+		eventA, okA := arr[0].(*apievents.UserLogin)
+		eventB, okB := arr[1].(*apievents.UserLogin)
 		c.Assert(okA, check.Equals, true)
 		c.Assert(okB, check.Equals, true)
 		c.Assert(nameA, check.Equals, eventA.User)
 		c.Assert(nameB, check.Equals, eventB.User)
 	}
+	if checkpoint != "" {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 0)
+	}
+	c.Assert(checkpoint, check.Equals, "")
 }
 
 // SessionEventsCRUD covers session events
@@ -146,7 +163,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		time.Sleep(s.QueryDelay)
 	}
 
-	var history []events.AuditEvent
+	var history []apievents.AuditEvent
 
 	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, "")
@@ -162,14 +179,14 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		SessionID: string(sessionID),
 		Chunks: []*events.SessionChunk{
 			// start the seession
-			&events.SessionChunk{
+			{
 				Time:       s.Clock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  events.SessionStartEvent,
 				Data:       marshal(events.EventFields{events.EventLogin: "bob"}),
 			},
 			// emitting session end event should close the session
-			&events.SessionChunk{
+			{
 				Time:       s.Clock.Now().Add(time.Hour).UTC().UnixNano(),
 				EventIndex: 4,
 				EventType:  events.SessionEndEvent,
