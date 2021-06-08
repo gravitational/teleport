@@ -76,6 +76,16 @@ func (s *ClusterConfigurationSuite) TestClusterNetworkingConfig(c *check.C) {
 	suite.ClusterNetworkingConfig(c)
 }
 
+func (s *ClusterConfigurationSuite) TestSessionRecordingConfig(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
+
+	suite := &suite.ServicesTestSuite{
+		ConfigS: clusterConfig,
+	}
+	suite.SessionRecordingConfig(c)
+}
+
 func (s *ClusterConfigurationSuite) TestStaticTokens(c *check.C) {
 	clusterConfig, err := NewClusterConfigurationService(s.bk)
 	c.Assert(err, check.IsNil)
@@ -88,13 +98,13 @@ func (s *ClusterConfigurationSuite) TestStaticTokens(c *check.C) {
 
 func (s *ClusterConfigurationSuite) TestSessionRecording(c *check.C) {
 	// don't allow invalid session recording values
-	_, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	_, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: "foo",
 	})
 	c.Assert(err, check.NotNil)
 
 	// default is to record at the node
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{})
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{})
 	c.Assert(err, check.IsNil)
 	c.Assert(recConfig.GetMode(), check.Equals, types.RecordAtNode)
 

@@ -2325,6 +2325,23 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, recConf
 	return a.authServer.SetSessionRecordingConfig(ctx, recConfig)
 }
 
+// ResetSessionRecordingConfig resets session recording configuration to defaults.
+func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error {
+	storedRecConfig, err := a.authServer.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if storedRecConfig.Origin() == types.OriginConfigFile {
+		return trace.BadParameter("config-file configuration cannot be reset")
+	}
+
+	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+}
+
 // DeleteSessionRecordingConfig not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteSessionRecordingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)

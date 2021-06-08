@@ -528,7 +528,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// Set session recording configuration from file configuration.
-	cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode:                fc.Auth.SessionRecording,
 		ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
 	})

@@ -2040,4 +2040,7 @@ type ClientI interface {
 
 	// ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
 	ResetClusterNetworkingConfig(ctx context.Context) error
+
+	// ResetSessionRecordingConfig resets session recording configuration to defaults.
+	ResetSessionRecordingConfig(ctx context.Context) error
 }
