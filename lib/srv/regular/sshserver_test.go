@@ -1323,7 +1323,7 @@ func TestGlobalRequestRecordingProxy(t *testing.T) {
 	f := newFixture(t)
 
 	// set cluster config to record at the node
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtNode,
 	})
 	require.NoError(t, err)
@@ -1340,7 +1340,7 @@ func TestGlobalRequestRecordingProxy(t *testing.T) {
 	require.False(t, response)
 
 	// set cluster config to record at the proxy
-	recConfig, err = types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)
@@ -1565,7 +1565,7 @@ func TestX11ProxySupport(t *testing.T) {
 	defer cancel()
 
 	// set cluster config to record at the proxy
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)
