@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState } from 'react';
-import { Indicator, Box } from 'design';
+import React from 'react';
+import { Indicator, Box, Flex, Text, Link } from 'design';
 import { Danger } from 'design/Alert';
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -23,6 +23,8 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import InputSearch from 'teleport/components/InputSearch';
+import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import DatabaseList from './DatabaseList';
 import useDatabases, { State } from './useDatabases';
 import ButtonAdd from './ButtonAdd';
@@ -39,7 +41,6 @@ export function Databases(props: State) {
     databases,
     attempt,
     isLeafCluster,
-    isEnterprise,
     canCreate,
     showAddDialog,
     hideAddDialog,
@@ -48,9 +49,12 @@ export function Databases(props: State) {
     version,
     clusterId,
     authType,
+    searchValue,
+    setSearchValue,
   } = props;
 
-  const [searchValue, setSearchValue] = useState<string>('');
+  const isEmpty = attempt.status === 'success' && databases.length === 0;
+  const hasDatabases = attempt.status === 'success' && databases.length > 0;
 
   return (
     <FeatureBox>
@@ -58,7 +62,6 @@ export function Databases(props: State) {
         <FeatureHeaderTitle>Databases</FeatureHeaderTitle>
         <ButtonAdd
           isLeafCluster={isLeafCluster}
-          isEnterprise={isEnterprise}
           canCreate={canCreate}
           onClick={showAddDialog}
         />
@@ -69,14 +72,37 @@ export function Databases(props: State) {
         </Box>
       )}
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-      {attempt.status === 'success' && (
-        <DatabaseList
-          databases={databases}
-          user={user}
+      {hasDatabases && (
+        <>
+          <Flex
+            mb={4}
+            alignItems="center"
+            flex="0 0 auto"
+            justifyContent="space-between"
+          >
+            <InputSearch
+              mr="3"
+              value={searchValue}
+              onChange={e => {
+                setSearchValue(e);
+              }}
+            />
+          </Flex>
+          <DatabaseList
+            databases={databases}
+            user={user}
+            clusterId={clusterId}
+            authType={authType}
+            searchValue={searchValue}
+          />
+        </>
+      )}
+      {isEmpty && (
+        <Empty
           clusterId={clusterId}
-          authType={authType}
-          searchValue={searchValue}
-          setSearchValue={setSearchValue}
+          canCreate={canCreate && !isLeafCluster}
+          onClick={showAddDialog}
+          emptyStateInfo={emptyStateInfo}
         />
       )}
       {isAddDialogVisible && (
@@ -90,3 +116,27 @@ export function Databases(props: State) {
     </FeatureBox>
   );
 }
+
+const emptyStateInfo: EmptyStateInfo = {
+  title: 'ADD YOUR FIRST DATABASE',
+  description: (
+    <Text>
+      Consolidate access to databases running behind NAT, prevent data
+      exfiltration, meet compliance requirements, and have complete visibility
+      into access and behavior. Follow{' '}
+      <Link
+        target="_blank"
+        href="https://goteleport.com/docs/database-access/guides/"
+      >
+        the documentation
+      </Link>{' '}
+      to get started.
+    </Text>
+  ),
+  videoLink: 'https://www.youtube.com/watch?v=PCYyTecSzCY',
+  buttonText: 'ADD DATABASE',
+  readOnly: {
+    title: 'No Databases Found',
+    message: 'There are no databases for the "',
+  },
+};

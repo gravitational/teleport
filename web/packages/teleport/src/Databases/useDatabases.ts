@@ -31,6 +31,7 @@ export default function useDatabases(ctx: Ctx) {
 
   const [databases, setDatabases] = useState<Database[]>([]);
   const [isAddDialogVisible, setIsAddDialogVisible] = useState(false);
+  const [searchValue, setSearchValue] = useState<string>('');
 
   useEffect(() => {
     run(() => ctx.databaseService.fetchDatabases(clusterId).then(setDatabases));
@@ -67,6 +68,8 @@ export default function useDatabases(ctx: Ctx) {
     version,
     clusterId,
     authType,
+    searchValue,
+    setSearchValue,
   };
 }
 

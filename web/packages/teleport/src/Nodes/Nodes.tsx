@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box, Flex } from 'design';
+import { Indicator, Box, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
 import {
   FeatureBox,
@@ -24,6 +24,7 @@ import {
 } from 'teleport/components/Layout';
 import QuickLaunch from 'teleport/components/QuickLaunch';
 import InputSearch from 'teleport/components/InputSearch';
+import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import NodeList from 'teleport/components/NodeList';
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -41,8 +42,6 @@ export default function Container() {
 export function Nodes(props: State) {
   const {
     nodes,
-    searchValue,
-    setSearchValue,
     getNodeLoginOptions,
     startSshSession,
     attempt,
@@ -51,7 +50,9 @@ export function Nodes(props: State) {
     hideAddNode,
     isLeafCluster,
     isAddNodeVisible,
-    isEnterprise,
+    clusterId,
+    searchValue,
+    setSearchValue,
   } = props;
 
   function onLoginSelect(e: React.MouseEvent, login: string, serverId: string) {
@@ -63,41 +64,68 @@ export function Nodes(props: State) {
     startSshSession(login, serverId);
   }
 
+  const isEmpty = attempt.status === 'success' && nodes.length === 0;
+  const hasNodes = attempt.status === 'success' && nodes.length > 0;
+
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Servers</FeatureHeaderTitle>
         <ButtonAdd
           isLeafCluster={isLeafCluster}
-          isEnterprise={isEnterprise}
           canCreate={canCreate}
           onClick={showAddNode}
         />
       </FeatureHeader>
-      <Flex
-        mb={4}
-        alignItems="center"
-        flex="0 0 auto"
-        justifyContent="space-between"
-      >
-        <InputSearch mr="3" onChange={setSearchValue} />
-        <QuickLaunch width="280px" onPress={onSshEnter} />
-      </Flex>
       {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'success' && (
-        <NodeList
-          nodes={nodes}
-          searchValue={searchValue}
-          onLoginMenuOpen={getNodeLoginOptions}
-          onLoginSelect={onLoginSelect}
+      {hasNodes && (
+        <>
+          <Flex
+            mb={4}
+            alignItems="center"
+            flex="0 0 auto"
+            justifyContent="space-between"
+          >
+            <InputSearch mr="3" onChange={setSearchValue} />
+            <QuickLaunch width="280px" onPress={onSshEnter} />
+          </Flex>
+          <NodeList
+            nodes={nodes}
+            searchValue={searchValue}
+            onLoginMenuOpen={getNodeLoginOptions}
+            onLoginSelect={onLoginSelect}
+          />
+        </>
+      )}
+      {isEmpty && (
+        <Empty
+          clusterId={clusterId}
+          canCreate={canCreate && !isLeafCluster}
+          onClick={showAddNode}
+          emptyStateInfo={emptyStateInfo}
         />
       )}
       {isAddNodeVisible && <AddNode onClose={hideAddNode} />}
     </FeatureBox>
   );
 }
+
+const emptyStateInfo: EmptyStateInfo = {
+  title: 'ADD YOUR FIRST SERVER',
+  description: (
+    <Text>
+      Instant SSH access for engineers with native security and compliance.
+    </Text>
+  ),
+  buttonText: 'ADD SERVER',
+  videoLink: 'https://www.youtube.com/watch?v=tUXYtwP-Kvw',
+  readOnly: {
+    title: 'No Servers Found',
+    message: 'There are no servers for the "',
+  },
+};

@@ -17,34 +17,40 @@ limitations under the License.
 import React from 'react';
 import { AuthType } from 'teleport/services/user';
 import { Kubes } from './Kubes';
+import { State } from './useKubes';
 import { kubes } from './fixtures';
 
 export default {
   title: 'Teleport/Kubes',
 };
 
-export const Loaded = () => {
-  return <Kubes {...props} attempt={{ status: 'success' }} />;
-};
+export const Loaded = () => <Kubes {...props} />;
 
-export const Loading = () => {
-  return <Kubes {...props} attempt={{ status: 'processing' }} />;
-};
+export const Empty = () => <Kubes {...props} kubes={[]} />;
 
-export const Failed = () => {
-  return (
-    <Kubes
-      {...props}
-      attempt={{ status: 'failed', statusText: 'server error' }}
-    />
-  );
-};
+export const EmptyReadOnly = () => (
+  <Kubes {...props} kubes={[]} canCreate={false} />
+);
 
-const props = {
+export const Loading = () => (
+  <Kubes {...props} attempt={{ status: 'processing' }} />
+);
+
+export const Failed = () => (
+  <Kubes
+    {...props}
+    attempt={{ status: 'failed', statusText: 'server error' }}
+  />
+);
+
+const props: State = {
+  attempt: { status: 'success' },
   kubes: kubes,
   username: 'sam',
-  showButton: true,
   authType: 'local' as AuthType,
+  clusterId: 'im-a-cluster',
+  isLeafCluster: false,
+  canCreate: true,
   searchValue: '',
   setSearchValue: () => null,
 };

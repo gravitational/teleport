@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { render } from 'design/utils/testing';
-import { Loaded, Failed } from './Kubes.story';
+import { Loaded, Failed, Empty, EmptyReadOnly } from './Kubes.story';
 
 test('loaded', () => {
   const { container } = render(<Loaded />);
@@ -26,4 +26,14 @@ test('loaded', () => {
 test('failed', () => {
   const { container } = render(<Failed />);
   expect(container.firstChild).toMatchSnapshot();
+});
+
+test('empty state', () => {
+  const { container } = render(<Empty />);
+  expect(container).toMatchSnapshot();
+});
+
+test('readonly empty state', () => {
+  const { container } = render(<EmptyReadOnly />);
+  expect(container).toMatchSnapshot();
 });

@@ -17,54 +17,33 @@ limitations under the License.
 import React from 'react';
 import { ButtonPrimary } from 'design';
 
-const docUrl = 'https://goteleport.com/teleport/docs/';
-
 export default function ButtonAdd(props: Props) {
-  const { isEnterprise, isLeafCluster, ...rest } = props;
+  const { canCreate, isLeafCluster, onClick } = props;
+  const disabled = isLeafCluster || !canCreate;
 
-  if (!isEnterprise) {
-    return (
-      <ButtonPrimary
-        {...rest}
-        width="240px"
-        onClick={() => null}
-        as="a"
-        target="_blank"
-        href={docUrl}
-        rel="noreferrer"
-      >
-        View documentation
-      </ButtonPrimary>
-    );
+  let title = '';
+  if (!canCreate) {
+    title = 'You do not have access to add an application';
   }
 
-  if (props.canCreate) {
-    const title = isLeafCluster
-      ? 'Adding an application to a leaf cluster is not supported'
-      : 'Add an application to the root cluster';
-
-    return (
-      <ButtonPrimary
-        title={title}
-        disabled={isLeafCluster}
-        width="240px"
-        {...rest}
-      >
-        Add Application
-      </ButtonPrimary>
-    );
+  if (isLeafCluster) {
+    title = 'Adding an application to a leaf cluster is not supported';
   }
 
-  return null;
+  return (
+    <ButtonPrimary
+      title={title}
+      disabled={disabled}
+      width="240px"
+      onClick={onClick}
+    >
+      Add Application
+    </ButtonPrimary>
+  );
 }
 
 type Props = {
   isLeafCluster: boolean;
-  isEnterprise: boolean;
   canCreate: boolean;
   onClick?: () => void;
-  mb?: string;
-  mx?: string;
-  width?: string;
-  kind?: string;
 };

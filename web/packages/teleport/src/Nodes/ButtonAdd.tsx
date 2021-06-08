@@ -17,55 +17,33 @@ limitations under the License.
 import React from 'react';
 import { ButtonPrimary } from 'design';
 
-const docUrl =
-  'https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster';
-
 export default function ButtonAdd(props: Props) {
-  const { isEnterprise, canCreate, isLeafCluster, ...rest } = props;
+  const { canCreate, isLeafCluster, onClick } = props;
+  const disabled = isLeafCluster || !canCreate;
 
-  if (!isEnterprise) {
-    return (
-      <ButtonPrimary
-        {...rest}
-        width="240px"
-        onClick={() => null}
-        as="a"
-        target="_blank"
-        href={docUrl}
-        rel="noreferrer"
-      >
-        View documentation
-      </ButtonPrimary>
-    );
+  let title = '';
+  if (!canCreate) {
+    title = 'You do not have access to add a server';
   }
 
-  if (canCreate) {
-    const title = isLeafCluster
-      ? 'Adding a server to a leaf cluster is not supported'
-      : 'Add a server to the root cluster';
-
-    return (
-      <ButtonPrimary
-        title={title}
-        disabled={isLeafCluster}
-        width="240px"
-        {...props}
-      >
-        Add Server
-      </ButtonPrimary>
-    );
+  if (isLeafCluster) {
+    title = 'Adding a server to a leaf cluster is not supported';
   }
 
-  return null;
+  return (
+    <ButtonPrimary
+      title={title}
+      disabled={disabled}
+      width="240px"
+      onClick={onClick}
+    >
+      Add Server
+    </ButtonPrimary>
+  );
 }
 
 type Props = {
   isLeafCluster: boolean;
-  isEnterprise: boolean;
   canCreate: boolean;
   onClick?: () => void;
-  mb?: string;
-  mx?: string;
-  width?: string;
-  kind?: string;
 };

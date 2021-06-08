@@ -44,6 +44,7 @@ export function AddNode({
   setAutomatic,
   version,
   attempt,
+  isEnterprise,
   isAuthTypeLocal,
 }: Props & State) {
   return (
@@ -60,18 +61,22 @@ export function AddNode({
       <Flex flex="1" flexDirection="column">
         <Flex alignItems="center" justifyContent="space-between" mb="4">
           <DialogTitle mr="auto">Add Server</DialogTitle>
-          <TabIcon
-            Icon={Icons.Wand}
-            title="Automatically"
-            active={automatic}
-            onClick={() => setAutomatic(true)}
-          />
-          <TabIcon
-            Icon={Icons.Cog}
-            title="Manually"
-            active={!automatic}
-            onClick={() => setAutomatic(false)}
-          />
+          {isEnterprise && (
+            <>
+              <TabIcon
+                Icon={Icons.Wand}
+                title="Automatically"
+                active={automatic}
+                onClick={() => setAutomatic(true)}
+              />
+              <TabIcon
+                Icon={Icons.Cog}
+                title="Manually"
+                active={!automatic}
+                onClick={() => setAutomatic(false)}
+              />
+            </>
+          )}
         </Flex>
         <DialogContent minHeight="100px">
           {automatic && (

@@ -16,7 +16,6 @@
 
 import React from 'react';
 import { Text, Box, Link } from 'design';
-import cfg from 'teleport/config';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import * as links from 'teleport/services/links';
 

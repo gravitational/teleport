@@ -23,13 +23,10 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 export default function useKubes(ctx: TeleportContext) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const { username, authType } = ctx.storeUser.state;
-  const isEnterprise = ctx.isEnterprise;
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const { run, attempt } = useAttempt('processing');
   const [kubes, setKubes] = useState([] as Kube[]);
   const [searchValue, setSearchValue] = useState('');
-
-  const showButton = !isEnterprise || (!isLeafCluster && canCreate);
 
   useEffect(() => {
     run(() => ctx.kubeService.fetchKubernetes(clusterId).then(setKubes));
@@ -40,7 +37,9 @@ export default function useKubes(ctx: TeleportContext) {
     attempt,
     username,
     authType,
-    showButton,
+    isLeafCluster,
+    clusterId,
+    canCreate,
     searchValue,
     setSearchValue,
   };

@@ -36,6 +36,7 @@ export function AddApp({
   expires,
   onClose,
   createToken,
+  isEnterprise,
   version,
   attempt,
   automatic,
@@ -56,18 +57,22 @@ export function AddApp({
       <Flex flex="1" flexDirection="column">
         <Flex alignItems="center" justifyContent="space-between" mb="4">
           <DialogTitle mr="auto">Add Application</DialogTitle>
-          <TabIcon
-            Icon={Icons.Wand}
-            title="Automatically"
-            active={automatic}
-            onClick={() => setAutomatic(true)}
-          />
-          <TabIcon
-            Icon={Icons.Cog}
-            title="Manually"
-            active={!automatic}
-            onClick={() => setAutomatic(false)}
-          />
+          {isEnterprise && (
+            <>
+              <TabIcon
+                Icon={Icons.Wand}
+                title="Automatically"
+                active={automatic}
+                onClick={() => setAutomatic(true)}
+              />
+              <TabIcon
+                Icon={Icons.Cog}
+                title="Manually"
+                active={!automatic}
+                onClick={() => setAutomatic(false)}
+              />
+            </>
+          )}
         </Flex>
         {automatic && (
           <Automatically

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box, Indicator, ButtonPrimary, Flex } from 'design';
+import { Box, Indicator, ButtonPrimary, Flex, Text, Link } from 'design';
 import { Danger } from 'design/Alert';
 import KubeList from 'teleport/Kubes/KubeList';
 import {
@@ -25,6 +25,7 @@ import {
 } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import InputSearch from 'teleport/components/InputSearch';
+import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import useKubes, { State } from './useKubes';
 
 export default function Container() {
@@ -33,7 +34,7 @@ export default function Container() {
   return <Kubes {...state} />;
 }
 
-const DOC_URL = 'https://goteleport.com/docs/kubernetes-access';
+const DOC_URL = 'https://goteleport.com/docs/kubernetes-access/guides';
 
 export function Kubes(props: State) {
   const {
@@ -41,44 +42,77 @@ export function Kubes(props: State) {
     attempt,
     username,
     authType,
-    showButton,
+    isLeafCluster,
+    clusterId,
+    canCreate,
     searchValue,
     setSearchValue,
   } = props;
+
+  const isEmpty = attempt.status === 'success' && kubes.length === 0;
+  const hasKubes = attempt.status === 'success' && kubes.length > 0;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Kubernetes</FeatureHeaderTitle>
-        {showButton && (
-          <ButtonPrimary
-            as="a"
-            width="240px"
-            target="_blank"
-            href={DOC_URL}
-            rel="noreferrer"
-          >
-            View documentation
-          </ButtonPrimary>
-        )}
+        <ButtonPrimary
+          as="a"
+          width="240px"
+          target="_blank"
+          href={DOC_URL}
+          rel="noreferrer"
+        >
+          View documentation
+        </ButtonPrimary>
       </FeatureHeader>
-      <Flex flex="0 0 auto" mb={4}>
-        <InputSearch mr="3" onChange={e => setSearchValue(e)} />
-      </Flex>
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'success' && (
-        <KubeList
-          kubes={kubes}
-          username={username}
-          authType={authType}
-          searchValue={searchValue}
+      {hasKubes && (
+        <>
+          <Flex flex="0 0 auto" mb={4}>
+            <InputSearch mr="3" onChange={setSearchValue} />
+          </Flex>
+          <KubeList
+            kubes={kubes}
+            username={username}
+            authType={authType}
+            searchValue={searchValue}
+            setSearchValue={setSearchValue}
+          />
+        </>
+      )}
+      {isEmpty && (
+        <Empty
+          clusterId={clusterId}
+          canCreate={canCreate && !isLeafCluster}
+          onClick={() => window.open(DOC_URL)}
+          emptyStateInfo={emptyStateInfo}
         />
       )}
     </FeatureBox>
   );
 }
+
+const emptyStateInfo: EmptyStateInfo = {
+  title: 'ADD YOUR FIRST KUBERNETES CLUSTER',
+  description: (
+    <Text>
+      Fast, secure access to Kubernetes clusters. Follow{' '}
+      <Link target="_blank" href={DOC_URL}>
+        the documentation
+      </Link>{' '}
+      to connect your first cluster.
+    </Text>
+  ),
+  videoLink: 'https://www.youtube.com/watch?v=2diX_UAmJ1c',
+  buttonText: 'VIEW DOCUMENTATION',
+  readOnly: {
+    title: 'No Kubernetes Clusters Found',
+    message: 'There are no kubernetes clusters for the "',
+  },
+};

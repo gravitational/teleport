@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { sortBy } from 'lodash';
-import { Flex, ButtonBorder } from 'design';
+import { ButtonBorder } from 'design';
 import {
   Column,
   SortHeaderCell,
@@ -29,19 +29,17 @@ import {
 import Table from 'design/DataTable/Paged';
 import isMatch from 'design/utils/match';
 import { AuthType } from 'teleport/services/user';
-import InputSearch from 'teleport/components/InputSearch';
 import { Database, DbProtocol } from 'teleport/services/databases';
 import ConnectDialog from 'teleport/Databases/ConnectDialog';
 
 function DatabaseList(props: Props) {
   const {
     databases = [],
-    pageSize = 20,
+    pageSize = 100,
     user,
     clusterId,
     authType,
     searchValue,
-    setSearchValue,
   } = props;
 
   const [sortDir, setSortDir] = useState<Record<string, string>>({
@@ -78,20 +76,6 @@ function DatabaseList(props: Props) {
 
   return (
     <>
-      <Flex
-        mb={4}
-        alignItems="center"
-        flex="0 0 auto"
-        justifyContent="space-between"
-      >
-        <InputSearch
-          mr="3"
-          value={searchValue}
-          onChange={e => {
-            setSearchValue(e);
-          }}
-        />
-      </Flex>
       <StyledTable pageSize={pageSize} data={data}>
         <Column
           columnKey="name"
@@ -195,7 +179,6 @@ type Props = {
   clusterId: string;
   authType: AuthType;
   searchValue: string;
-  setSearchValue: React.Dispatch<React.SetStateAction<string>>;
 };
 
 export default DatabaseList;

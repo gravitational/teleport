@@ -24,7 +24,8 @@ export default function useAddApp(ctx: TeleportContext) {
   const user = ctx.storeUser.state.username;
   const version = ctx.storeUser.state.cluster.authVersion;
   const isAuthTypeLocal = !ctx.storeUser.isSso();
-  const [automatic, setAutomatic] = useState(true);
+  const isEnterprise = ctx.isEnterprise;
+  const [automatic, setAutomatic] = useState(isEnterprise);
   const [cmd, setCmd] = useState('');
   const [expires, setExpires] = useState('');
 
@@ -48,6 +49,7 @@ export default function useAddApp(ctx: TeleportContext) {
     automatic,
     setAutomatic,
     isAuthTypeLocal,
+    isEnterprise,
   };
 }
 

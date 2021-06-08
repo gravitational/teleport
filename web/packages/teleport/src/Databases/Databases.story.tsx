@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 import React from 'react';
-import { State } from './useDatabases';
 import { Databases } from './Databases';
+import { State } from './useDatabases';
 import { databases } from './fixtures';
 
 export default {
@@ -24,6 +24,12 @@ export default {
 };
 
 export const Loaded = () => <Databases {...props} />;
+
+export const Empty = () => <Databases {...props} databases={[]} />;
+
+export const EmptyReadOnly = () => (
+  <Databases {...props} databases={[]} canCreate={false} />
+);
 
 export const Loading = () => (
   <Databases {...props} attempt={{ status: 'processing' }} />
@@ -40,13 +46,15 @@ const props: State = {
   attempt: { status: 'success' },
   databases,
   clusterId: 'im-a-cluster',
-  isEnterprise: false,
   isLeafCluster: false,
-  canCreate: false,
+  isEnterprise: false,
+  canCreate: true,
   isAddDialogVisible: false,
   hideAddDialog: () => null,
   showAddDialog: () => null,
-  user: 'yassine',
+  user: 'sam',
   version: '6.1.3',
   authType: 'local',
+  searchValue: '',
+  setSearchValue: () => null,
 };

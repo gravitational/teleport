@@ -20,21 +20,21 @@ import ButtonAdd from './ButtonAdd';
 
 test('can create', () => {
   const { container } = render(
-    <ButtonAdd isEnterprise={true} isLeafCluster={false} canCreate={true} />
+    <ButtonAdd isLeafCluster={false} canCreate={true} />
   );
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('read only', () => {
   const { container } = render(
-    <ButtonAdd isEnterprise={true} isLeafCluster={false} canCreate={false} />
+    <ButtonAdd isLeafCluster={false} canCreate={false} />
   );
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('leaf cluster', () => {
   const { container } = render(
-    <ButtonAdd isEnterprise={true} isLeafCluster={true} canCreate={true} />
+    <ButtonAdd isLeafCluster={true} canCreate={true} />
   );
   expect(container.firstChild).toMatchSnapshot();
 });

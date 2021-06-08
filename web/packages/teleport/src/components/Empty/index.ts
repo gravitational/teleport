@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Copyright 2021 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,5 +14,7 @@
  * limitations under the License.
  */
 
-import Empty from './Empty';
+import Empty, { EmptyStateInfo as _EmptyStateInfo } from './Empty';
+
 export default Empty;
+export type EmptyStateInfo = _EmptyStateInfo;

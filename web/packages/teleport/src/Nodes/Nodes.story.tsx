@@ -16,52 +16,43 @@ limitations under the License.
 
 import React from 'react';
 import { Nodes } from './Nodes';
+import { State } from './useNodes';
 import { nodes } from './fixtures';
-
-type PropTypes = Parameters<typeof Nodes>[0];
 
 export default {
   title: 'Teleport/Nodes',
 };
 
-export function Loaded() {
-  return render({ status: 'success' });
-}
+export const Loaded = () => <Nodes {...props} />;
 
-export function Loading() {
-  return render({ status: 'processing' });
-}
+export const Empty = () => <Nodes {...props} nodes={[]} />;
 
-export function Failed() {
-  return render({ status: 'failed', statusText: 'server error' });
-}
+export const EmptyReadOnly = () => (
+  <Nodes {...props} nodes={[]} canCreate={false} />
+);
 
-export function Empty() {
-  return render({ status: 'success' }, []);
-}
+export const Loading = () => (
+  <Nodes {...props} attempt={{ status: 'processing' }} />
+);
 
-function render(
-  attemptOptions: Partial<PropTypes['attempt']>,
-  nodeList = nodes
-) {
-  const props = {
-    isLeafCluster: false,
-    isEnterprise: true,
-    canCreate: true,
-    searchValue: '',
-    setSearchValue: () => null,
-    attempt: {
-      status: '' as any,
-      statusText: '',
-      ...attemptOptions,
-    },
-    nodes: nodeList,
-    getNodeLoginOptions: () => [{ login: 'root', url: 'fd' }],
-    startSshSession: () => null,
-    isAddNodeVisible: false,
-    hideAddNode: () => null,
-    showAddNode: () => null,
-  };
+export const Failed = () => (
+  <Nodes
+    {...props}
+    attempt={{ status: 'failed', statusText: 'some error message' }}
+  />
+);
 
-  return <Nodes {...props} />;
-}
+const props: State = {
+  nodes,
+  isLeafCluster: false,
+  canCreate: true,
+  attempt: { status: 'success' },
+  getNodeLoginOptions: () => [{ login: 'root', url: 'fd' }],
+  startSshSession: () => null,
+  isAddNodeVisible: false,
+  hideAddNode: () => null,
+  showAddNode: () => null,
+  clusterId: 'im-a-cluster',
+  searchValue: '',
+  setSearchValue: () => null,
+};

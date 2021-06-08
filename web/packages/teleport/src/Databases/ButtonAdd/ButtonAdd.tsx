@@ -17,49 +17,33 @@ limitations under the License.
 import React from 'react';
 import { ButtonPrimary } from 'design';
 
-const DOC_URL = 'https://goteleport.com/docs/database-access';
-
 export default function ButtonAdd(props: Props) {
-  const { isEnterprise, canCreate, isLeafCluster, onClick } = props;
+  const { canCreate, isLeafCluster, onClick } = props;
+  const disabled = isLeafCluster || !canCreate;
 
-  if (!isEnterprise) {
-    return (
-      <ButtonPrimary
-        width="240px"
-        onClick={() => null}
-        as="a"
-        target="_blank"
-        href={DOC_URL}
-        rel="noreferrer"
-      >
-        View Documentation
-      </ButtonPrimary>
-    );
+  let title = '';
+  if (!canCreate) {
+    title = 'You do not have access to add a database';
   }
 
-  if (canCreate) {
-    const title = isLeafCluster
-      ? 'Adding a database to a leaf cluster is not supported'
-      : 'Add a database to the root cluster';
-
-    return (
-      <ButtonPrimary
-        title={title}
-        disabled={isLeafCluster}
-        width="240px"
-        onClick={onClick}
-      >
-        Add Database
-      </ButtonPrimary>
-    );
+  if (isLeafCluster) {
+    title = 'Adding a database to a leaf cluster is not supported';
   }
 
-  return null;
+  return (
+    <ButtonPrimary
+      title={title}
+      disabled={disabled}
+      width="240px"
+      onClick={onClick}
+    >
+      Add Database
+    </ButtonPrimary>
+  );
 }
 
 type Props = {
   isLeafCluster: boolean;
-  isEnterprise: boolean;
   canCreate: boolean;
   onClick?: () => void;
 };

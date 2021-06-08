@@ -36,7 +36,7 @@ function NodeList(props: Props) {
     searchValue,
     onLoginMenuOpen,
     onLoginSelect,
-    pageSize = 20,
+    pageSize = 100,
   } = props;
   const [sortDir, setSortDir] = React.useState<Record<string, string>>({
     hostname: SortTypes.DESC,

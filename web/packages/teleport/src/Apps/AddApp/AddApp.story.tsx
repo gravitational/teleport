@@ -47,6 +47,7 @@ export const ManuallySSO = () => (
 );
 
 const props = {
+  isEnterprise: false,
   isAuthTypeLocal: true,
   user: 'sam',
   automatic: true,

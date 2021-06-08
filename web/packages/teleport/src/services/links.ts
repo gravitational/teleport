@@ -16,21 +16,19 @@
 
 export const DOWNLOAD_BASE_URL = 'https://get.gravitational.com/';
 
-export function getLinux64(version: string, isEnterprise = true) {
-  return getLink('linux64', version, isEnterprise);
+export function getLinux64(version: string) {
+  return getLink('linux64', version);
 }
 
-export function getLinux32(version: string, isEnterprise = true) {
-  return getLink('linux32', version, isEnterprise);
+export function getLinux32(version: string) {
+  return getLink('linux32', version);
 }
 
-export function getMacOS(version: string, isEnterprise = true) {
-  return getLink('mac', version, isEnterprise);
+export function getMacOS(version: string) {
+  return getLink('mac', version);
 }
 
-function getLink(type: Arch, version: string, isEnterprise: boolean) {
-  const prefix = isEnterprise ? 'teleport-ent' : 'teleport';
-
+function getLink(type: Arch, version: string) {
   let infix = 'linux-amd64';
   if (type === 'mac') {
     infix = 'darwin-amd64';
@@ -38,7 +36,7 @@ function getLink(type: Arch, version: string, isEnterprise: boolean) {
     infix = 'linux-386';
   }
 
-  return `${DOWNLOAD_BASE_URL}${prefix}-v${version}-${infix}-bin.tar.gz`;
+  return `${DOWNLOAD_BASE_URL}teleport-v${version}-${infix}-bin.tar.gz`;
 }
 
 type Arch = 'mac' | 'linux32' | 'linux64';

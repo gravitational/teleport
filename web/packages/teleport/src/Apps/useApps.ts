@@ -17,11 +17,10 @@
 import { useState, useEffect } from 'react';
 import { App } from 'teleport/services/apps';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import useTeleport from 'teleport/useTeleport';
+import Ctx from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-export default function useApps() {
-  const ctx = useTeleport();
+export default function useApps(ctx: Ctx) {
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const [isAddAppVisible, setAppAddVisible] = useState(false);
   const { clusterId, isLeafCluster } = useStickyClusterId();
