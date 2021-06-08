@@ -173,8 +173,8 @@ func (c *SessionContext) newRemoteClient(cluster reversetunnel.RemoteSite) (auth
 }
 
 // clusterDialer returns DialContext function using cluster's dial function
-func clusterDialer(remoteCluster reversetunnel.RemoteSite) auth.ContextDialer {
-	return auth.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
+func clusterDialer(remoteCluster reversetunnel.RemoteSite) apiclient.ContextDialer {
+	return apiclient.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
 		return remoteCluster.DialAuthServer()
 	})
 }

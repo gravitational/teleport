@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -301,7 +302,7 @@ func buildKeyLabel(key []byte, sensitivePrefixes []string) string {
 		return string(bytes.Join(parts, []byte{Separator}))
 	}
 
-	if utils.SliceContainsStr(sensitivePrefixes, string(parts[1])) {
+	if apiutils.SliceContainsStr(sensitivePrefixes, string(parts[1])) {
 		hiddenBefore := int(math.Floor(0.75 * float64(len(parts[2]))))
 		asterisks := bytes.Repeat([]byte("*"), hiddenBefore)
 		parts[2] = append(asterisks, parts[2][hiddenBefore:]...)

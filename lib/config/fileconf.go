@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -175,7 +176,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		p.ACME.Email = flags.ACMEEmail
 		// ACME uses TLS-ALPN-01 challenge that requires port 443
 		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
-		p.PublicAddr = utils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
+		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
 		p.WebAddr = fmt.Sprintf(":%d", teleport.StandardHTTPSPort)
 	}
 
@@ -210,21 +211,21 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	sc.SetDefaults()
 
 	for _, c := range conf.Ciphers {
-		if !utils.SliceContainsStr(sc.Ciphers, c) {
+		if !apiutils.SliceContainsStr(sc.Ciphers, c) {
 			return trace.BadParameter("cipher algorithm %q is not supported; supported algorithms: %q", c, sc.Ciphers)
 		}
 	}
 	for _, k := range conf.KEXAlgorithms {
-		if !utils.SliceContainsStr(sc.KeyExchanges, k) {
+		if !apiutils.SliceContainsStr(sc.KeyExchanges, k) {
 			return trace.BadParameter("KEX algorithm %q is not supported; supported algorithms: %q", k, sc.KeyExchanges)
 		}
 	}
 	for _, m := range conf.MACAlgorithms {
-		if !utils.SliceContainsStr(sc.MACs, m) {
+		if !apiutils.SliceContainsStr(sc.MACs, m) {
 			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
 	}
-	if conf.CASignatureAlgorithm != nil && !utils.SliceContainsStr(validCASigAlgos, *conf.CASignatureAlgorithm) {
+	if conf.CASignatureAlgorithm != nil && !apiutils.SliceContainsStr(validCASigAlgos, *conf.CASignatureAlgorithm) {
 		return trace.BadParameter("CA signature algorithm %q is not supported; supported algorithms: %q", *conf.CASignatureAlgorithm, validCASigAlgos)
 	}
 
@@ -318,7 +319,7 @@ func (c *CachePolicy) Enabled() bool {
 	if c.EnabledFlag == "" {
 		return true
 	}
-	enabled, _ := utils.ParseBool(c.EnabledFlag)
+	enabled, _ := apiutils.ParseBool(c.EnabledFlag)
 	return enabled
 }
 
@@ -366,7 +367,7 @@ func (s *Service) Enabled() bool {
 	if !s.Configured() {
 		return s.defaultEnabled
 	}
-	v, err := utils.ParseBool(s.EnabledFlag)
+	v, err := apiutils.ParseBool(s.EnabledFlag)
 	if err != nil {
 		return false
 	}
@@ -441,7 +442,7 @@ type Auth struct {
 
 	// PublicAddr sets SSH host principals and TLS DNS names to auth
 	// server certificates
-	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 
 	// ClientIdleTimeout sets global cluster default setting for client idle timeouts
 	ClientIdleTimeout types.Duration `yaml:"client_idle_timeout,omitempty"`
@@ -613,7 +614,7 @@ type SSH struct {
 	PermitUserEnvironment bool              `yaml:"permit_user_env,omitempty"`
 	PAM                   *PAM              `yaml:"pam,omitempty"`
 	// PublicAddr sets SSH host principals for SSH service
-	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 
 	// BPF is used to configure BPF-based auditing for this node.
 	BPF *BPF `yaml:"enhanced_recording,omitempty"`
@@ -649,7 +650,7 @@ func (p *PAM) Parse() *pam.Config {
 	if serviceName == "" {
 		serviceName = defaults.ServiceName
 	}
-	enabled, _ := utils.ParseBool(p.Enabled)
+	enabled, _ := apiutils.ParseBool(p.Enabled)
 	return &pam.Config{
 		Enabled:     enabled,
 		ServiceName: serviceName,
@@ -678,7 +679,7 @@ type BPF struct {
 
 // Parse will parse the enhanced session recording configuration.
 func (b *BPF) Parse() *bpf.Config {
-	enabled, _ := utils.ParseBool(b.Enabled)
+	enabled, _ := apiutils.ParseBool(b.Enabled)
 	return &bpf.Config{
 		Enabled:           enabled,
 		CommandBufferSize: b.CommandBufferSize,
@@ -817,22 +818,22 @@ type Proxy struct {
 	// local Kubernetes cluster.
 	KubeAddr string `yaml:"kube_listen_addr,omitempty"`
 	// KubePublicAddr is a public address of the kubernetes endpoint.
-	KubePublicAddr utils.Strings `yaml:"kube_public_addr,omitempty"`
+	KubePublicAddr apiutils.Strings `yaml:"kube_public_addr,omitempty"`
 
 	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
 	// The hosts in PublicAddr are included in the list of host principals
 	// on the SSH certificate.
-	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 
 	// SSHPublicAddr sets the hostport the proxy advertises for the SSH endpoint.
 	// The hosts in PublicAddr are included in the list of host principals
 	// on the SSH certificate.
-	SSHPublicAddr utils.Strings `yaml:"ssh_public_addr,omitempty"`
+	SSHPublicAddr apiutils.Strings `yaml:"ssh_public_addr,omitempty"`
 
 	// TunnelPublicAddr sets the hostport the proxy advertises for the tunnel
 	// endpoint. The hosts in PublicAddr are included in the list of host
 	// principals on the SSH certificate.
-	TunnelPublicAddr utils.Strings `yaml:"tunnel_public_addr,omitempty"`
+	TunnelPublicAddr apiutils.Strings `yaml:"tunnel_public_addr,omitempty"`
 
 	// KeyPairs is a list of x509 key pairs the proxy will load.
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
@@ -844,10 +845,10 @@ type Proxy struct {
 	MySQLAddr string `yaml:"mysql_listen_addr,omitempty"`
 	// MySQLPublicAddr is the hostport the proxy advertises for MySQL
 	// client connections.
-	MySQLPublicAddr utils.Strings `yaml:"mysql_public_addr,omitempty"`
+	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
 	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
 	// client connections.
-	PostgresPublicAddr utils.Strings `yaml:"postgres_public_addr,omitempty"`
+	PostgresPublicAddr apiutils.Strings `yaml:"postgres_public_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
@@ -869,7 +870,7 @@ func (a ACME) Parse() (*service.ACME, error) {
 	}
 
 	var err error
-	out.Enabled, err = utils.ParseBool(a.EnabledFlag)
+	out.Enabled, err = apiutils.ParseBool(a.EnabledFlag)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -898,7 +899,7 @@ type KubeProxy struct {
 	// Service is a generic service configuration section
 	Service `yaml:",inline"`
 	// PublicAddr is a publicly advertised address of the kubernetes proxy
-	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// KubeconfigFile is an optional path to kubeconfig file,
 	// if specified, teleport will use API server address and
 	// trusted certificate authority information from it
@@ -913,7 +914,7 @@ type Kube struct {
 	// Service is a generic service configuration section
 	Service `yaml:",inline"`
 	// PublicAddr is a publicly advertised address of the kubernetes service
-	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// KubeconfigFile is an optional path to kubeconfig file,
 	// if specified, teleport will use API server address and
 	// trusted certificate authority information from it

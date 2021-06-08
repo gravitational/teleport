@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -57,12 +58,6 @@ const (
 	// MissingNamespaceError is a _very_ common error this file generatets
 	MissingNamespaceError = "missing required parameter: namespace"
 )
-
-// ContextDialer type alias for backwards compatibility
-type ContextDialer = client.ContextDialer
-
-// ContextDialerFunc type alias for backwards compatibility
-type ContextDialerFunc = client.ContextDialerFunc
 
 // Client is the Auth API client. It works by connecting to auth servers
 // via gRPC and HTTP.
@@ -133,7 +128,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 			return nil, trace.BadParameter("no addresses to dial")
 		}
 		contextDialer := client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-		dialer = ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
+		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
 				if err == nil {
@@ -158,7 +153,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		// custom DialContext overrides this DNS name to the real address.
 		// In addition this dialer tries multiple addresses if provided
 		DialContext:           dialer.DialContext,
-		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
+		ResponseHeaderTimeout: apidefaults.DefaultDialTimeout,
 		TLSClientConfig:       tls,
 
 		// Increase the size of the connection pool. This substantially improves the
@@ -222,7 +217,7 @@ type ClientConfig struct {
 	// Addrs is a list of addresses to dial
 	Addrs []utils.NetAddr
 	// Dialer is a custom dialer that is used instead of Addrs when provided
-	Dialer ContextDialer
+	Dialer client.ContextDialer
 	// DialTimeout defines how long to attempt dialing before timing out
 	DialTimeout time.Duration
 	// KeepAlivePeriod defines period between keep alives

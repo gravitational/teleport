@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
@@ -124,7 +125,7 @@ func (cfg *AuditWriterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("audit writer config: missing parameter ClusterName")
 	}
 	if cfg.Namespace == "" {
-		cfg.Namespace = defaults.Namespace
+		cfg.Namespace = apidefaults.Namespace
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()

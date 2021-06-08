@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -1032,7 +1033,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		log.Infof("no host login given. defaulting to %s", c.HostLogin)
 	}
 	if c.KeyTTL == 0 {
-		c.KeyTTL = defaults.CertDuration
+		c.KeyTTL = apidefaults.CertDuration
 	}
 	c.Namespace = types.ProcessNamespace(c.Namespace)
 

@@ -26,14 +26,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -126,11 +125,11 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	uploadDir := c.MkDir()
-	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
+	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", apidefaults.Namespace), 0755)
 	c.Assert(err, check.IsNil)
 	sessionID := string(session.NewID())
 	forwarder, err := NewForwarder(ForwarderConfig{
-		Namespace:      defaults.Namespace,
+		Namespace:      apidefaults.Namespace,
 		SessionID:      session.ID(sessionID),
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
@@ -143,7 +142,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 	// start the session and emit data stream to it
 	firstMessage := []byte("hello")
 	err = forwarder.PostSessionSlice(SessionSlice{
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		SessionID: sessionID,
 		Chunks: []*SessionChunk{
 			// start the session
@@ -180,7 +179,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 	// does not matter which audit server is accessed the results should be the same
 	for _, a := range []*AuditLog{alog, alog2} {
 		// read the session bytes
-		history, err := a.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, true)
+		history, err := a.GetSessionEvents(apidefaults.Namespace, session.ID(sessionID), 0, true)
 		c.Assert(err, check.IsNil)
 		c.Assert(history, check.HasLen, 3)
 
@@ -189,12 +188,12 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 		c.Assert(history[1][SessionEventTimestamp], check.Equals, float64(0))
 
 		// fetch all bytes
-		buff, err := a.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 0, 5000)
+		buff, err := a.GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, 5000)
 		c.Assert(err, check.IsNil)
 		c.Assert(string(buff), check.Equals, string(firstMessage))
 
 		// with offset
-		buff, err = a.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 2, 5000)
+		buff, err = a.GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 2, 5000)
 		c.Assert(err, check.IsNil)
 		c.Assert(string(buff), check.Equals, string(firstMessage[2:]))
 	}
@@ -207,7 +206,7 @@ func upload(c *check.C, uploadDir string, clock clockwork.Clock, auditLog IAudit
 		ServerID:   "upload",
 		DataDir:    uploadDir,
 		Clock:      clock,
-		Namespace:  defaults.Namespace,
+		Namespace:  apidefaults.Namespace,
 		Context:    context.TODO(),
 		ScanPeriod: 100 * time.Millisecond,
 		AuditLog:   auditLog,
@@ -247,10 +246,10 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	sessionID := string(session.NewID())
 
 	uploadDir := c.MkDir()
-	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
+	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", apidefaults.Namespace), 0755)
 	c.Assert(err, check.IsNil)
 	forwarder, err := NewForwarder(ForwarderConfig{
-		Namespace:      defaults.Namespace,
+		Namespace:      apidefaults.Namespace,
 		SessionID:      session.ID(sessionID),
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
@@ -263,7 +262,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	// start the session and emit data stream to it
 	firstMessage := []byte("hello")
 	err = forwarder.PostSessionSlice(SessionSlice{
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		SessionID: sessionID,
 		Chunks: []*SessionChunk{
 			// start the session
@@ -298,7 +297,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	upload(c, uploadDir, fakeClock, alog)
 
 	// get all events from the audit log, should have two session event and one upload event
-	found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), defaults.Namespace, nil, 0, "")
+	found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), apidefaults.Namespace, nil, 0, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.HasLen, 3)
 	eventA, okA := found[0].(*apievents.SessionStart)
@@ -309,12 +308,12 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	c.Assert(eventB.Login, check.Equals, username)
 
 	// inspect the session log for "200", should have two events
-	history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, true)
+	history, err := alog.GetSessionEvents(apidefaults.Namespace, session.ID(sessionID), 0, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 2)
 
 	// try getting the session stream, should get an error
-	_, err = alog.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 0, 5000)
+	_, err = alog.GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, 5000)
 	c.Assert(err, check.NotNil)
 }
 
@@ -383,7 +382,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		c.Assert(err, check.IsNil)
 		c.Assert(string(bytes), check.Equals, string(contents))
 
-		found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), defaults.Namespace, nil, 0, "")
+		found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), apidefaults.Namespace, nil, 0, "")
 		c.Assert(err, check.IsNil)
 		c.Assert(found, check.HasLen, 1)
 	}
@@ -443,7 +442,7 @@ func (a *AuditTestSuite) TestLegacyHandler(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(authServers, check.HasLen, 1)
 
-	targetDir := filepath.Join(a.dataDir, authServers[0], SessionLogsDir, defaults.Namespace)
+	targetDir := filepath.Join(a.dataDir, authServers[0], SessionLogsDir, apidefaults.Namespace)
 
 	_, err = tarball.Seek(0, 0)
 	c.Assert(err, check.IsNil)
@@ -491,12 +490,12 @@ func (a *AuditTestSuite) TestExternalLog(c *check.C) {
 // server case
 func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock, alog IAuditLog) (session.ID, func() error) {
 	uploadDir := c.MkDir()
-	err := os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
+	err := os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", apidefaults.Namespace), 0755)
 	c.Assert(err, check.IsNil)
 
 	sessionID := session.NewID()
 	forwarder, err := NewForwarder(ForwarderConfig{
-		Namespace:      defaults.Namespace,
+		Namespace:      apidefaults.Namespace,
 		SessionID:      sessionID,
 		ServerID:       "upload",
 		DataDir:        uploadDir,
@@ -508,7 +507,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 	// start the session and emit data stream to it and wrap it up
 	firstMessage := []byte("hello")
 	err = forwarder.PostSessionSlice(SessionSlice{
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		SessionID: string(sessionID),
 		Chunks: []*SessionChunk{
 			// start the seession
@@ -543,7 +542,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 	upload(c, uploadDir, fakeClock, alog)
 
 	compare := func() error {
-		history, err := alog.GetSessionEvents(defaults.Namespace, sessionID, 0, true)
+		history, err := alog.GetSessionEvents(apidefaults.Namespace, sessionID, 0, true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -560,7 +559,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 		}
 
 		// fetch all bytes
-		buff, err := alog.GetSessionChunk(defaults.Namespace, sessionID, 0, 5000)
+		buff, err := alog.GetSessionChunk(apidefaults.Namespace, sessionID, 0, 5000)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -569,7 +568,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 		}
 
 		// with offset
-		buff, err = alog.GetSessionChunk(defaults.Namespace, sessionID, 2, 5000)
+		buff, err = alog.GetSessionChunk(apidefaults.Namespace, sessionID, 2, 5000)
 		if err != nil {
 			return trace.Wrap(err)
 		}
