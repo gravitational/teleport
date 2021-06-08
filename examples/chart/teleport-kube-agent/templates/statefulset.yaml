@@ -1,8 +1,12 @@
+#
+# Warning to maintainers, any changes to this file that are not specific to the StatefulSet need to also be duplicated
+# in the deployment.yaml file.
+#
 {{- if .Values.storage.enabled }}
 {{- if .Values.teleportVersionOverride }}
   {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
 {{- else }}
-  {{- $_ := set . "teleportVersion" .Chart.AppVersion }}
+  {{- $_ := set . "teleportVersion" .Chart.Version }}
 {{- end }}
 apiVersion: apps/v1
 kind: StatefulSet
