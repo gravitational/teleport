@@ -6,7 +6,7 @@ data "template_file" "node_user_data" {
     region                   = var.region
     cluster_name             = var.cluster_name
     email                    = var.email
-    domain_name              = var.route53_domain
+    domain_name              = format("%s.%s", var.route53_domain, var.route53_zone)
     dynamo_table_name        = aws_dynamodb_table.teleport.name
     dynamo_events_table_name = aws_dynamodb_table.teleport_events.name
     locks_table_name         = aws_dynamodb_table.teleport_locks.name
