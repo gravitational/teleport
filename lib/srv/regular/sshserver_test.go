@@ -81,15 +81,18 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+type sshInfo struct {
+	srv            *Server
+	srvAddress     string
+	srvPort        string
+	srvHostPort    string
+	clt            *ssh.Client
+	cltConfig      *ssh.ClientConfig
+	assertCltClose require.ErrorAssertionFunc
+}
+
 type sshTestFixture struct {
-	ssh struct {
-		srv         *Server
-		srvAddress  string
-		srvPort     string
-		srvHostPort string
-		clt         *ssh.Client
-		cltConfig   *ssh.ClientConfig
-	}
+	ssh     sshInfo
 	up      *upack
 	signer  ssh.Signer
 	user    string
@@ -123,7 +126,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	certs, err := testServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: testServer.ClusterName(),
-		Roles:    types.SystemRoles{teleport.RoleNode},
+		Roles:    types.SystemRoles{types.RoleNode},
 	})
 	require.NoError(t, err)
 
@@ -203,24 +206,16 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 
 	client, err := ssh.Dial("tcp", sshSrv.Addr(), cltConfig)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
-	require.NoError(t, agent.ForwardToAgent(client, keyring))
 
-	return &sshTestFixture{
-		ssh: struct {
-			srv         *Server
-			srvAddress  string
-			srvPort     string
-			srvHostPort string
-			clt         *ssh.Client
-			cltConfig   *ssh.ClientConfig
-		}{
-			srv:         sshSrv,
-			srvAddress:  sshSrvAddress,
-			srvPort:     sshSrvPort,
-			srvHostPort: sshSrvHostPort,
-			clt:         client,
-			cltConfig:   cltConfig,
+	f := &sshTestFixture{
+		ssh: sshInfo{
+			srv:            sshSrv,
+			srvAddress:     sshSrvAddress,
+			srvPort:        sshSrvPort,
+			srvHostPort:    sshSrvHostPort,
+			clt:            client,
+			cltConfig:      cltConfig,
+			assertCltClose: require.NoError,
 		},
 		up:      up,
 		signer:  signer,
@@ -228,6 +223,11 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		clock:   clock,
 		testSrv: testServer,
 	}
+
+	t.Cleanup(func() { f.ssh.assertCltClose(t, client.Close()) })
+	require.NoError(t, agent.ForwardToAgent(client, keyring))
+
+	return f
 }
 
 func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
@@ -247,7 +247,7 @@ func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string
 	nodeID := uuid.New()
 	nodeClient, err := testSvr.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleNode,
+			Role:     types.RoleNode,
 			Username: nodeID,
 		},
 	})
@@ -261,6 +261,7 @@ const hostID = "00000000-0000-0000-0000-000000000000"
 // channel to the target address. The "direct-tcpip" channel is what port
 // forwarding is built upon.
 func TestDirectTCPIP(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 
 	// Startup a test server that will reply with "hello, world\n"
@@ -296,6 +297,7 @@ func TestDirectTCPIP(t *testing.T) {
 }
 
 func TestAdvertiseAddr(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 
 	// No advertiseAddr was set in fixture, should default to srvAddress.
@@ -326,6 +328,8 @@ func TestAdvertiseAddr(t *testing.T) {
 // TestAgentForwardPermission makes sure if RBAC rules don't allow agent
 // forwarding, we don't start an agent even if requested.
 func TestAgentForwardPermission(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t)
 	ctx := context.Background()
 
@@ -335,7 +339,7 @@ func TestAgentForwardPermission(t *testing.T) {
 	require.NoError(t, err)
 
 	roleOptions := role.GetOptions()
-	roleOptions.ForwardAgent = services.NewBool(false)
+	roleOptions.ForwardAgent = types.NewBool(false)
 	role.SetOptions(roleOptions)
 	require.NoError(t, f.testSrv.Auth().UpsertRole(ctx, role))
 
@@ -356,6 +360,8 @@ func TestAgentForwardPermission(t *testing.T) {
 // TestMaxSesssions makes sure that MaxSessions RBAC rules prevent
 // too many concurrent sessions.
 func TestMaxSessions(t *testing.T) {
+	t.Parallel()
+
 	const maxSessions int64 = 2
 	f := newFixture(t)
 	ctx := context.Background()
@@ -390,6 +396,7 @@ func TestMaxSessions(t *testing.T) {
 // TestOpenExecSessionSetsSession tests that OpenExecSession()
 // sets ServerContext session.
 func TestOpenExecSessionSetsSession(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 
 	se, err := f.ssh.clt.NewSession()
@@ -405,6 +412,7 @@ func TestOpenExecSessionSetsSession(t *testing.T) {
 
 // TestAgentForward tests agent forwarding via unix sockets
 func TestAgentForward(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 
 	ctx := context.Background()
@@ -412,7 +420,7 @@ func TestAgentForward(t *testing.T) {
 	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
 	require.NoError(t, err)
 	roleOptions := role.GetOptions()
-	roleOptions.ForwardAgent = services.NewBool(true)
+	roleOptions.ForwardAgent = types.NewBool(true)
 	role.SetOptions(roleOptions)
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
@@ -480,8 +488,11 @@ func TestAgentForward(t *testing.T) {
 	_, err = net.Dial("unix", socketPath)
 	require.NoError(t, err)
 
-	// make sure the socket is gone after we closed the connection.
+	// make sure the socket is gone after we closed the connection. Note that
+	// we now expect the client close to fail during the test cleanup, so we
+	// change the assertion accordingly
 	require.NoError(t, f.ssh.clt.Close())
+	f.ssh.assertCltClose = require.Error
 
 	// clt must be nullified to prevent double-close during test cleanup
 	f.ssh.clt = nil
@@ -496,6 +507,7 @@ func TestAgentForward(t *testing.T) {
 }
 
 func TestAllowedUsers(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
@@ -526,6 +538,7 @@ func TestAllowedUsers(t *testing.T) {
 }
 
 func TestAllowedLabels(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 
 	var tests = []struct {
@@ -583,6 +596,7 @@ func TestAllowedLabels(t *testing.T) {
 // TestKeyAlgorithms makes sure Teleport does not accept invalid user
 // certificates. The main check is the certificate algorithms.
 func TestKeyAlgorithms(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 
 	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
@@ -599,6 +613,7 @@ func TestKeyAlgorithms(t *testing.T) {
 }
 
 func TestInvalidSessionID(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 
 	session, err := f.ssh.clt.NewSession()
@@ -612,6 +627,7 @@ func TestInvalidSessionID(t *testing.T) {
 }
 
 func TestSessionHijack(t *testing.T) {
+	t.Parallel()
 	_, err := user.Lookup(teleportTestUser)
 	if err != nil {
 		t.Skip(fmt.Sprintf("user %v is not found, skipping test", teleportTestUser))
@@ -741,6 +757,8 @@ func mustListen(t *testing.T) (net.Listener, utils.NetAddr) {
 }
 
 func TestProxyReverseTunnel(t *testing.T) {
+	t.Parallel()
+
 	log.Infof("[TEST START] TestProxyReverseTunnel")
 	f := newFixture(t)
 
@@ -750,7 +768,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 	proxyKeys, err := f.testSrv.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: f.testSrv.ClusterName(),
-		Roles:    teleport.Roles{teleport.RoleProxy},
+		Roles:    types.SystemRoles{types.RoleProxy},
 	})
 	require.NoError(t, err)
 	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
@@ -821,7 +839,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 	// Create a reverse tunnel and remote cluster simulating what the trusted
 	// cluster exchange does.
 	err = f.testSrv.Auth().UpsertReverseTunnel(
-		services.NewReverseTunnel(f.testSrv.ClusterName(), []string{reverseTunnelAddress.String()}))
+		types.NewReverseTunnel(f.testSrv.ClusterName(), []string{reverseTunnelAddress.String()}))
 	require.NoError(t, err)
 	remoteCluster, err := types.NewRemoteCluster("localhost")
 	require.NoError(t, err)
@@ -928,6 +946,8 @@ func TestProxyReverseTunnel(t *testing.T) {
 }
 
 func TestProxyRoundRobin(t *testing.T) {
+	t.Parallel()
+
 	log.Infof("[TEST START] TestProxyRoundRobin")
 	f := newFixture(t)
 
@@ -1045,6 +1065,8 @@ func TestProxyRoundRobin(t *testing.T) {
 // TestProxyDirectAccess tests direct access via proxy bypassing
 // reverse tunnel
 func TestProxyDirectAccess(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t)
 
 	listener, _ := mustListen(t)
@@ -1110,6 +1132,8 @@ func TestProxyDirectAccess(t *testing.T) {
 
 // TestPTY requests PTY for an interactive session
 func TestPTY(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t)
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
@@ -1124,6 +1148,8 @@ func TestPTY(t *testing.T) {
 
 // TestEnv requests setting environment variables. (We are currently ignoring these requests)
 func TestEnv(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t)
 
 	se, err := f.ssh.clt.NewSession()
@@ -1135,6 +1161,7 @@ func TestEnv(t *testing.T) {
 
 // // TestNoAuth tries to log in with no auth methods and should be rejected
 func TestNoAuth(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 	_, err := ssh.Dial("tcp", f.ssh.srv.Addr(), &ssh.ClientConfig{})
 	require.Error(t, err)
@@ -1142,6 +1169,7 @@ func TestNoAuth(t *testing.T) {
 
 // TestPasswordAuth tries to log in with empty pass and should be rejected
 func TestPasswordAuth(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 	config := &ssh.ClientConfig{
 		Auth:            []ssh.AuthMethod{ssh.Password("")},
@@ -1152,6 +1180,7 @@ func TestPasswordAuth(t *testing.T) {
 }
 
 func TestClientDisconnect(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 	config := &ssh.ClientConfig{
 		User:            f.user,
@@ -1169,6 +1198,7 @@ func TestClientDisconnect(t *testing.T) {
 }
 
 func TestLimiter(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 
 	limiter, err := limiter.NewLimiter(
@@ -1278,6 +1308,7 @@ func TestLimiter(t *testing.T) {
 // interoperability by sending a keepalive@openssh.com global request to the
 // server and expecting a response in return.
 func TestServerAliveInterval(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 	ok, _, err := f.ssh.clt.SendRequest(teleport.KeepAliveReqType, true, nil)
 	require.NoError(t, err)
@@ -1287,6 +1318,7 @@ func TestServerAliveInterval(t *testing.T) {
 // TestGlobalRequestRecordingProxy simulates sending a global out-of-band
 // recording-proxy@teleport.com request.
 func TestGlobalRequestRecordingProxy(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	f := newFixture(t)
 
@@ -1526,6 +1558,7 @@ func requireNoErrors(t *testing.T, errsCh <-chan []error) {
 // TestX11ProxySupport verifies that recording proxies correctly forward
 // X11 request/channels.
 func TestX11ProxySupport(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
