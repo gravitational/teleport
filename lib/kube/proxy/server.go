@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -118,7 +119,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		TLSServerConfig: cfg,
 		Server: &http.Server{
 			Handler:           limiter,
-			ReadHeaderTimeout: defaults.DefaultDialTimeout * 2,
+			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
 		},
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient
@@ -137,9 +138,9 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			Component:       cfg.Component,
 			Announcer:       cfg.AuthClient,
 			GetServerInfo:   server.GetServerInfo,
-			KeepAlivePeriod: defaults.ServerKeepAliveTTL,
-			AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
-			ServerTTL:       defaults.ServerAnnounceTTL,
+			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+			ServerTTL:       apidefaults.ServerAnnounceTTL,
 			CheckPeriod:     defaults.HeartbeatCheckPeriod,
 			Clock:           cfg.Clock,
 			OnHeartbeat:     cfg.OnHeartbeat,
@@ -282,6 +283,6 @@ func (t *TLSServer) GetServerInfo() (types.Resource, error) {
 			KubernetesClusters: t.fwd.kubeClusters(),
 		},
 	}
-	srv.SetExpiry(t.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
+	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	return srv, nil
 }

@@ -18,10 +18,10 @@ package ui
 
 import (
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type access struct {
@@ -111,8 +111,8 @@ func getLogins(roleSet services.RoleSet) []string {
 		allowed = append(allowed, role.GetLogins(services.Allow)...)
 	}
 
-	allowed = utils.Deduplicate(allowed)
-	denied = utils.Deduplicate(denied)
+	allowed = apiutils.Deduplicate(allowed)
+	denied = apiutils.Deduplicate(denied)
 	userLogins := []string{}
 	for _, login := range allowed {
 		loginMatch, _ := services.MatchLogin(denied, login)
@@ -128,7 +128,7 @@ func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, ver
 	for _, verb := range verbs {
 		// Since this check occurs often and it does not imply the caller is trying
 		// to access any resource, silence any logging done on the proxy.
-		err := roleSet.CheckAccessToRule(ctx, defaults.Namespace, kind, verb, true)
+		err := roleSet.CheckAccessToRule(ctx, apidefaults.Namespace, kind, verb, true)
 		if err != nil {
 			return false
 		}

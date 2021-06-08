@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -627,7 +628,7 @@ func (d *Database) Check() error {
 	if errs := validation.IsDNS1035Label(d.Name); len(errs) > 0 {
 		return trace.BadParameter("invalid database %q name: %v", d.Name, errs)
 	}
-	if !utils.SliceContainsStr(defaults.DatabaseProtocols, d.Protocol) {
+	if !apiutils.SliceContainsStr(defaults.DatabaseProtocols, d.Protocol) {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
 			d.Name, d.Protocol, defaults.DatabaseProtocols)
 	}

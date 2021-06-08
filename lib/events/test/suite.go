@@ -26,8 +26,8 @@ import (
 	"testing"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
@@ -104,7 +104,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	var checkpoint string
 
 	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 100, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 100, checkpoint)
 		return err
 	})
 	c.Assert(err, check.IsNil)
@@ -112,7 +112,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	c.Assert(checkpoint, check.Equals, "")
 
 	for _, name := range names {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, checkpoint)
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 1)
 		event, ok := arr[0].(*apievents.UserLogin)
@@ -120,7 +120,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 		c.Assert(name, check.Equals, event.User)
 	}
 	if checkpoint != "" {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, checkpoint)
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 0)
 	}
@@ -129,7 +129,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	for _, i := range []int{0, 2} {
 		nameA := names[i]
 		nameB := names[i+1]
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 2, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 2, checkpoint)
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 2)
 		eventA, okA := arr[0].(*apievents.UserLogin)
@@ -140,7 +140,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 		c.Assert(nameB, check.Equals, eventB.User)
 	}
 	if checkpoint != "" {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, checkpoint)
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 0)
 	}
@@ -166,7 +166,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	var history []apievents.AuditEvent
 
 	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, "")
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 100, "")
 		return err
 	})
 	c.Assert(err, check.IsNil)
@@ -175,7 +175,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
 	err = s.Log.PostSessionSlice(events.SessionSlice{
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		SessionID: string(sessionID),
 		Chunks: []*events.SessionChunk{
 			// start the seession
@@ -198,7 +198,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// read the session event
-	historyEvents, err := s.Log.GetSessionEvents(defaults.Namespace, sessionID, 0, false)
+	historyEvents, err := s.Log.GetSessionEvents(apidefaults.Namespace, sessionID, 0, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(historyEvents, check.HasLen, 2)
 	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
