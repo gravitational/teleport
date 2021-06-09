@@ -46,7 +46,7 @@ The documentation layout and structure is presently:
     - [ ] Changelog
 - [ ] Setup Section
     - [ ] Guides
-        - [ ] Terraform
+        - [ ] Terraform Provider
         - [ ] Local Docker
 - [ ] Application Access Section
     - [ ] Introduction
@@ -246,6 +246,7 @@ The documentation layout and structure is presently:
         - Teleport repository README is injected here.
 - [ ] Setup Section
     - [ ] Guides
+        - w/ Tile landing
         - [ ] Terraform Provider
             - [ ] Follow along with our video guide
             - [ ] Prerequisites
