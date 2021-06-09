@@ -23,7 +23,16 @@
           "title": "Guides",
           "slug": "/setup/guides/",
           "entries": [
-            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" }
+            { 
+              "title": "Terraform Provider", 
+              "slug": "/setup/guides/terraform-provider/",
+              "entries": [
+                {
+                  "title": "Terraform Provider Reference",
+                  "slug": "/setup/guides/terraform-provider/reference/"
+                }
+              ]
+            }
           ]
         }
       ]
