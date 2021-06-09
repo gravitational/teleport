@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -42,7 +43,7 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      "node1",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Labels:    map[string]string{"a": "b"},
 		},
 		Spec: types.ServerSpecV2{
@@ -166,7 +167,7 @@ func TestUnmarshalServerKubernetes(t *testing.T) {
 				Kind:    types.KindKubeService,
 				Metadata: types.Metadata{
 					Name:      "foo",
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 				},
 			},
 		},
@@ -187,7 +188,7 @@ func TestUnmarshalServerKubernetes(t *testing.T) {
 				Kind:    types.KindKubeService,
 				Metadata: types.Metadata{
 					Name:      "foo",
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 				},
 				Spec: types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{

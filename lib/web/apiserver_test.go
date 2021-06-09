@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -157,7 +158,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Kind:    types.KindAuthServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Name:      "auth",
 		},
 		Spec: types.ServerSpecV2{
@@ -199,7 +200,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(nodeID),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetSessionServer(nodeClient),
 		regular.SetEmitter(nodeClient),
@@ -256,7 +257,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetProxyMode(revTunServer),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 	)
@@ -443,11 +444,11 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	role, err := types.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV3{
 		Options: types.RoleOptions{
-			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
+			MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 		},
 		Allow: types.RoleConditions{
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			Namespaces: []string{defaults.Namespace},
+			Namespaces: []string{apidefaults.Namespace},
 			Rules: []types.Rule{
 				types.NewRule(types.Wildcard, services.RW()),
 			},
@@ -933,7 +934,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	c.Assert(err, IsNil)
 	data, err := json.Marshal(events.EventFields{
 		events.EventType:      events.ResizeEvent,
-		events.EventNamespace: defaults.Namespace,
+		events.EventNamespace: apidefaults.Namespace,
 		events.SessionEventID: sid.String(),
 		events.TerminalSize:   params.Serialize(),
 	})
@@ -1098,7 +1099,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 		ClusterName:    "",
 		ServerID:       string(session.NewID()),
 		ID:             session.NewID(),
-		Namespace:      defaults.Namespace,
+		Namespace:      apidefaults.Namespace,
 		Login:          "foo",
 		Created:        time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 		LastActive:     time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
@@ -1745,6 +1746,10 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		Query url.Values
 		// Result is the expected returned list of events.
 		Result []apievents.AuditEvent
+		// TestStartKey is a flag to test start key value.
+		TestStartKey bool
+		// StartKeyValue is the value of start key to expect.
+		StartKeyValue string
 	}{
 		{
 			Comment: "Empty query",
@@ -1766,7 +1771,7 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		{
 			Comment: "Query session start and session end events",
 			Query: url.Values{
-				"include": []string{sessionEnd.GetType() + ";" + sessionStart.GetType()},
+				"include": []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
 				"from":    fromTime,
 				"to":      toTime,
 			},
@@ -1775,32 +1780,63 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		{
 			Comment: "Query events with filter by type and limit",
 			Query: url.Values{
-				"include": []string{sessionPrint.GetType() + ";" + sessionEnd.GetType()},
+				"include": []string{sessionPrint.GetType() + "," + sessionEnd.GetType()},
 				"limit":   []string{"1"},
 				"from":    fromTime,
 				"to":      toTime,
 			},
 			Result: []apievents.AuditEvent{sessionPrint},
 		},
+		{
+			Comment: "Query session start and session end events with limit and test returned start key",
+			Query: url.Values{
+				"include": []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"limit":   []string{"1"},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result:        []apievents.AuditEvent{sessionStart},
+			TestStartKey:  true,
+			StartKeyValue: sessionStart.GetID(),
+		},
+		{
+			Comment: "Query session start and session end events with limit and given start key",
+			Query: url.Values{
+				"include":  []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"startKey": []string{sessionStart.GetID()},
+				"from":     fromTime,
+				"to":       toTime,
+			},
+			Result:        []apievents.AuditEvent{sessionEnd},
+			TestStartKey:  true,
+			StartKeyValue: "",
+		},
 	}
 
 	pack := s.authPack(c, "foo")
+	// var sessionStartKey string
 	for _, tc := range testCases {
 		result := s.searchEvents(c, pack.clt, tc.Query, []string{sessionStart.GetType(), sessionPrint.GetType(), sessionEnd.GetType()})
-		c.Assert(result, HasLen, len(tc.Result), Commentf(tc.Comment))
-		for i, resultEvent := range result {
+		c.Assert(result.Events, HasLen, len(tc.Result), Commentf(tc.Comment))
+		for i, resultEvent := range result.Events {
 			c.Assert(resultEvent.GetType(), Equals, tc.Result[i].GetType(), Commentf(tc.Comment))
 			c.Assert(resultEvent.GetID(), Equals, tc.Result[i].GetID(), Commentf(tc.Comment))
+		}
+
+		// Session prints do not have ID's, only sessionStart and sessionEnd.
+		// When retrieving events for sessionStart and sessionEnd, sessionStart is returned first.
+		if tc.TestStartKey {
+			c.Assert(result.StartKey, Equals, tc.StartKeyValue, Commentf(tc.Comment))
 		}
 	}
 }
 
-func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) (result []events.EventFields) {
+func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) eventsListGetResponse {
 	response, err := clt.Get(context.Background(), clt.Endpoint("webapi", "sites", s.server.ClusterName(), "events", "search"), query)
 	c.Assert(err, IsNil)
 	var out eventsListGetResponse
 	c.Assert(json.Unmarshal(response.Bytes(), &out), IsNil)
-	return out.Events
+	return out
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
@@ -1819,7 +1855,7 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.LastConnected, NotNil)
 	c.Assert(cluster.AuthVersion, Equals, teleport.Version)
 
-	nodes, err := s.proxyClient.GetNodes(ctx, defaults.Namespace)
+	nodes, err := s.proxyClient.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
@@ -1940,7 +1976,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 		Kind:    types.KindAppServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Name:      uuid.New(),
 		},
 		Spec: types.ServerSpecV2{
@@ -1977,7 +2013,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		Kind:    types.KindAppServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Name:      uuid.New(),
 		},
 		Spec: types.ServerSpecV2{
@@ -2498,7 +2534,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		Kind:    types.KindAuthServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Name:      "auth",
 		},
 		Spec: types.ServerSpecV2{
@@ -2542,7 +2578,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(nodeID),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetSessionServer(nodeClient),
 		regular.SetEmitter(nodeClient),
@@ -2627,7 +2663,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 		regular.SetProxyMode(revTunServer),
 		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
 	)

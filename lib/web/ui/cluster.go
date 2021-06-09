@@ -21,8 +21,8 @@ import (
 	"sort"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
@@ -92,7 +92,7 @@ func GetClusterDetails(ctx context.Context, site reversetunnel.RemoteSite, opts 
 		return nil, trace.Wrap(err)
 	}
 
-	nodes, err := clt.GetNodes(ctx, defaults.Namespace, opts...)
+	nodes, err := clt.GetNodes(ctx, apidefaults.Namespace, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

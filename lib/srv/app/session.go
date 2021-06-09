@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -130,7 +131,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		Streamer:     streamer,
 		Clock:        s.c.Clock,
 		SessionID:    session_pkg.ID(chunkID),
-		Namespace:    defaults.Namespace,
+		Namespace:    apidefaults.Namespace,
 		ServerID:     s.c.Server.GetName(),
 		RecordOutput: recConfig.GetMode() != types.RecordOff,
 		Component:    teleport.ComponentApp,
@@ -149,7 +150,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        s.c.Server.GetName(),
-			ServerNamespace: defaults.Namespace,
+			ServerNamespace: apidefaults.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: identity.RouteToApp.SessionID,
@@ -181,7 +182,7 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig ty
 	s.log.Debugf("Using async streamer for session %v.", sessionID)
 	uploadDir := filepath.Join(
 		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, defaults.Namespace,
+		events.StreamingLogsDir, apidefaults.Namespace,
 	)
 	fileStreamer, err := filesessions.NewStreamer(uploadDir)
 	if err != nil {

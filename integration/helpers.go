@@ -40,6 +40,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -70,9 +71,9 @@ const (
 // SetTestTimeouts affects global timeouts inside Teleport, making connections
 // work faster but consuming more CPU (useful for integration testing)
 func SetTestTimeouts(t time.Duration) {
-	defaults.KeepAliveInterval = t
+	apidefaults.KeepAliveInterval = t
 	defaults.ResyncInterval = t
-	defaults.ServerKeepAliveTTL = t
+	apidefaults.ServerKeepAliveTTL = t
 	defaults.SessionRefreshPeriod = t
 	defaults.HeartbeatCheckPeriod = t
 	defaults.CachePollPeriod = t

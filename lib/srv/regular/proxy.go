@@ -29,7 +29,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv"
@@ -94,7 +96,7 @@ func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
 		return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 	}
 	requestBody := strings.TrimPrefix(request, prefix)
-	namespace := defaults.Namespace
+	namespace := apidefaults.Namespace
 	var err error
 	parts := strings.Split(requestBody, "@")
 	switch {
@@ -162,7 +164,7 @@ func (p *proxySubsysRequest) String() string {
 // SetDefaults sets default values.
 func (p *proxySubsysRequest) SetDefaults() {
 	if p.namespace == "" {
-		p.namespace = defaults.Namespace
+		p.namespace = apidefaults.Namespace
 	}
 }
 
@@ -366,7 +368,7 @@ func (t *proxySubsys) proxyToHost(
 			t.log.Errorf("Failed to parse address %q: %v.", servers[i].GetAddr(), err)
 			continue
 		}
-		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
+		if t.host == ip || t.host == servers[i].GetHostname() || apiutils.SliceContainsStr(ips, ip) {
 			if !specifiedPort || t.port == port {
 				server = servers[i]
 				matches++

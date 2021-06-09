@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -532,7 +533,7 @@ func (u *Uploader) upload(up *upload) error {
 	// before the files are closed to avoid async writes
 	// the timeout is a defensive measure to avoid blocking
 	// indefinitely in case of unforeseen error (e.g. write taking too long)
-	wctx, wcancel := context.WithTimeout(ctx, defaults.DefaultDialTimeout)
+	wctx, wcancel := context.WithTimeout(ctx, apidefaults.DefaultDialTimeout)
 	defer wcancel()
 
 	<-wctx.Done()
