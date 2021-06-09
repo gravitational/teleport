@@ -23,7 +23,7 @@ type Services interface {
 	UsersService
 	Provisioner
 	Trust
-	Events
+	types.Events
 	ClusterConfiguration
 	Access
 	DynamicAccessCore

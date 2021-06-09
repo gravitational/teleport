@@ -21,7 +21,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -148,12 +151,12 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		session := &events.SessionUpload{
-			Metadata: Metadata{
+			Metadata: apievents.Metadata{
 				Type:  SessionUploadEvent,
 				Code:  SessionUploadCode,
 				Index: SessionUploadIndex,
 			},
-			SessionMetadata: SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(uploadData.SessionID),
 			},
 			SessionURL: uploadData.URL,
@@ -180,7 +183,7 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	var interactive bool
 
 	// Get session events to find fields for constructed session end
-	sessionEvents, err := u.cfg.AuditLog.GetSessionEvents(defaults.Namespace, uploadData.SessionID, 0, false)
+	sessionEvents, err := u.cfg.AuditLog.GetSessionEvents(apidefaults.Namespace, uploadData.SessionID, 0, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -262,5 +265,5 @@ func getParticipants(sessionEvents []EventFields) []string {
 
 		}
 	}
-	return utils.Deduplicate(participants)
+	return apiutils.Deduplicate(participants)
 }

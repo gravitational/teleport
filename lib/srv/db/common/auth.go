@@ -24,9 +24,9 @@ import (
 	"fmt"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -54,7 +54,7 @@ type Auth interface {
 	// GetTLSConfig builds the client TLS configuration for the session.
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
-	GetAuthPreference() (services.AuthPreference, error)
+	GetAuthPreference() (types.AuthPreference, error)
 }
 
 // AuthConfig is the database access authenticator configuration.
@@ -274,7 +274,7 @@ func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *
 }
 
 // GetAuthPreference returns the cluster authentication config.
-func (a *dbAuth) GetAuthPreference() (services.AuthPreference, error) {
+func (a *dbAuth) GetAuthPreference() (types.AuthPreference, error) {
 	return a.cfg.AuthClient.GetAuthPreference()
 }
 

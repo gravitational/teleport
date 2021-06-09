@@ -27,27 +27,27 @@ import (
 // in the backend.
 type ClusterConfiguration interface {
 	// SetClusterName gets services.ClusterName from the backend.
-	GetClusterName(opts ...MarshalOption) (ClusterName, error)
+	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 	// SetClusterName sets services.ClusterName on the backend.
-	SetClusterName(ClusterName) error
+	SetClusterName(types.ClusterName) error
 	// UpsertClusterName upserts cluster name
-	UpsertClusterName(ClusterName) error
+	UpsertClusterName(types.ClusterName) error
 
 	// DeleteClusterName deletes cluster name resource
 	DeleteClusterName() error
 
 	// GetStaticTokens gets services.StaticTokens from the backend.
-	GetStaticTokens() (StaticTokens, error)
+	GetStaticTokens() (types.StaticTokens, error)
 	// SetStaticTokens sets services.StaticTokens on the backend.
-	SetStaticTokens(StaticTokens) error
+	SetStaticTokens(types.StaticTokens) error
 	// DeleteStaticTokens deletes static tokens resource
 	DeleteStaticTokens() error
 
-	// GetAuthPreference gets services.AuthPreference from the backend.
-	GetAuthPreference() (AuthPreference, error)
-	// SetAuthPreference sets services.AuthPreference from the backend.
-	SetAuthPreference(AuthPreference) error
-	// DeleteAuthPreference deletes services.AuthPreference from the backend.
+	// GetAuthPreference gets types.AuthPreference from the backend.
+	GetAuthPreference() (types.AuthPreference, error)
+	// SetAuthPreference sets types.AuthPreference from the backend.
+	SetAuthPreference(types.AuthPreference) error
+	// DeleteAuthPreference deletes types.AuthPreference from the backend.
 	DeleteAuthPreference(ctx context.Context) error
 
 	// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
@@ -58,9 +58,9 @@ type ClusterConfiguration interface {
 	DeleteSessionRecordingConfig(ctx context.Context) error
 
 	// GetClusterConfig gets services.ClusterConfig from the backend.
-	GetClusterConfig(opts ...MarshalOption) (ClusterConfig, error)
+	GetClusterConfig(opts ...MarshalOption) (types.ClusterConfig, error)
 	// SetClusterConfig sets services.ClusterConfig on the backend.
-	SetClusterConfig(ClusterConfig) error
+	SetClusterConfig(types.ClusterConfig) error
 	// DeleteClusterConfig deletes cluster config resource
 	DeleteClusterConfig() error
 

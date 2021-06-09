@@ -21,8 +21,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
@@ -37,11 +37,11 @@ type session struct {
 	// fwd can rewrite and forward requests to the target application.
 	fwd *forward.Forwarder
 	// ws represents the services.WebSession this requests belongs to.
-	ws services.WebSession
+	ws types.WebSession
 }
 
 // newSession creates a new session.
-func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*session, error) {
+func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session, error) {
 	// Extract the identity of the user.
 	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
 	if err != nil {

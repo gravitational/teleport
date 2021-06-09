@@ -34,6 +34,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -316,7 +319,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 // RotationGetter returns rotation state
-type RotationGetter func(role teleport.Role) (*services.Rotation, error)
+type RotationGetter func(role types.SystemRole) (*types.Rotation, error)
 
 // SetUtmpPath is a functional server option to override the user accounting database and log path.
 func SetUtmpPath(utmpPath, wtmpPath string) ServerOption {
@@ -385,7 +388,7 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels)
 		// so a little defensive cloning is harmless.
 		labelsClone := make(map[string]string, len(staticLabels))
 		for name, label := range staticLabels {
-			if !services.IsValidLabelKey(name) {
+			if !types.IsValidLabelKey(name) {
 				return trace.BadParameter("invalid label key: %q", name)
 			}
 			labelsClone[name] = label
@@ -624,9 +627,9 @@ func New(addr utils.NetAddr,
 		Component:       component,
 		Announcer:       s.authService,
 		GetServerInfo:   s.getServerInfo,
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
-		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
-		ServerTTL:       defaults.ServerAnnounceTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		Clock:           s.clock,
 		OnHeartbeat:     s.onHeartbeat,
@@ -640,7 +643,7 @@ func New(addr utils.NetAddr,
 }
 
 func (s *Server) getNamespace() string {
-	return services.ProcessNamespace(s.namespace)
+	return types.ProcessNamespace(s.namespace)
 }
 
 func (s *Server) tunnelWithRoles(ctx *srv.ServerContext) reversetunnel.Tunnel {
@@ -714,39 +717,39 @@ func (s *Server) AdvertiseAddr() string {
 	return net.JoinHostPort(ahost, aport)
 }
 
-func (s *Server) getRole() teleport.Role {
+func (s *Server) getRole() types.SystemRole {
 	if s.proxyMode {
-		return teleport.RoleProxy
+		return types.RoleProxy
 	}
-	return teleport.RoleNode
+	return types.RoleNode
 }
 
 // getDynamicLabels returns all dynamic labels. If no dynamic labels are
 // defined, return an empty set.
-func (s *Server) getDynamicLabels() map[string]services.CommandLabelV2 {
+func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 	if s.dynamicLabels == nil {
-		return make(map[string]services.CommandLabelV2)
+		return make(map[string]types.CommandLabelV2)
 	}
-	return services.LabelsToV2(s.dynamicLabels.Get())
+	return types.LabelsToV2(s.dynamicLabels.Get())
 }
 
 // GetInfo returns a services.Server that represents this server.
-func (s *Server) GetInfo() services.Server {
+func (s *Server) GetInfo() types.Server {
 	// Only set the address for non-tunnel nodes.
 	var addr string
 	if !s.useTunnel {
 		addr = s.AdvertiseAddr()
 	}
 
-	return &services.ServerV2{
-		Kind:    services.KindNode,
-		Version: services.V2,
-		Metadata: services.Metadata{
+	return &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.getNamespace(),
 			Labels:    s.labels,
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			CmdLabels: s.getDynamicLabels(),
 			Addr:      addr,
 			Hostname:  s.hostname,
@@ -756,7 +759,7 @@ func (s *Server) GetInfo() services.Server {
 	}
 }
 
-func (s *Server) getServerInfo() (services.Resource, error) {
+func (s *Server) getServerInfo() (types.Resource, error) {
 	server := s.GetInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
@@ -768,7 +771,7 @@ func (s *Server) getServerInfo() (services.Resource, error) {
 			server.SetRotation(*rotation)
 		}
 	}
-	server.SetExpiry(s.clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
+	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
 	return server, nil
 }
@@ -886,8 +889,8 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	lock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: s.authService,
 		Expiry:  netConfig.GetSessionControlTimeout(),
-		Params: services.AcquireSemaphoreRequest{
-			SemaphoreKind: services.SemaphoreKindConnection,
+		Params: types.AcquireSemaphoreRequest{
+			SemaphoreKind: types.SemaphoreKindConnection,
 			SemaphoreName: identityContext.TeleportUser,
 			MaxLeases:     maxConnections,
 			Holder:        s.uuid,
@@ -897,22 +900,22 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
 			// user has exceeded their max concurrent ssh connections.
 			userSessionLimitHitCount.Inc()
-			if err := s.EmitAuditEvent(s.ctx, &events.SessionReject{
-				Metadata: events.Metadata{
+			if err := s.EmitAuditEvent(s.ctx, &apievents.SessionReject{
+				Metadata: apievents.Metadata{
 					Type: events.SessionRejectedEvent,
 					Code: events.SessionRejectedCode,
 				},
-				UserMetadata: events.UserMetadata{
+				UserMetadata: apievents.UserMetadata{
 					Login:        identityContext.Login,
 					User:         identityContext.TeleportUser,
 					Impersonator: identityContext.Impersonator,
 				},
-				ConnectionMetadata: events.ConnectionMetadata{
+				ConnectionMetadata: apievents.ConnectionMetadata{
 					Protocol:   events.EventProtocolSSH,
 					LocalAddr:  ccx.ServerConn.LocalAddr().String(),
 					RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
 				},
-				ServerMetadata: events.ServerMetadata{
+				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        s.uuid,
 					ServerNamespace: s.GetNamespace(),
 				},
@@ -997,22 +1000,22 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			d, ok := ccx.IncrSessions(max)
 			if !ok {
 				// user has exceeded their max concurrent ssh sessions.
-				if err := s.EmitAuditEvent(s.ctx, &events.SessionReject{
-					Metadata: events.Metadata{
+				if err := s.EmitAuditEvent(s.ctx, &apievents.SessionReject{
+					Metadata: apievents.Metadata{
 						Type: events.SessionRejectedEvent,
 						Code: events.SessionRejectedCode,
 					},
-					UserMetadata: events.UserMetadata{
+					UserMetadata: apievents.UserMetadata{
 						Login:        identityContext.Login,
 						User:         identityContext.TeleportUser,
 						Impersonator: identityContext.Impersonator,
 					},
-					ConnectionMetadata: events.ConnectionMetadata{
+					ConnectionMetadata: apievents.ConnectionMetadata{
 						Protocol:   events.EventProtocolSSH,
 						LocalAddr:  ccx.ServerConn.LocalAddr().String(),
 						RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
 					},
-					ServerMetadata: events.ServerMetadata{
+					ServerMetadata: apievents.ServerMetadata{
 						ServerID:        s.uuid,
 						ServerNamespace: s.GetNamespace(),
 					},
@@ -1165,22 +1168,22 @@ Loop:
 	}
 
 	// Emit a port forwarding event.
-	if err := s.EmitAuditEvent(s.ctx, &events.PortForward{
-		Metadata: events.Metadata{
+	if err := s.EmitAuditEvent(s.ctx, &apievents.PortForward{
+		Metadata: apievents.Metadata{
 			Type: events.PortForwardEvent,
 			Code: events.PortForwardCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			Login:        scx.Identity.Login,
 			User:         scx.Identity.TeleportUser,
 			Impersonator: scx.Identity.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  scx.ServerConn.LocalAddr().String(),
 			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
 		},
 		Addr: scx.DstAddr,
-		Status: events.Status{
+		Status: apievents.Status{
 			Success: true,
 		},
 	}); err != nil {
@@ -1593,7 +1596,11 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	log.Error(err)
-	message := trace.UserMessage(err)
+	// Terminate the error with a newline when writing to remote channel's
+	// stderr so the output does not mix with the rest of the output if the remote
+	// side is not doing additional formatting for extended data.
+	// See github.com/gravitational/teleport/issues/4542
+	message := utils.FormatErrorWithNewline(err)
 	writeStderr(ch, message)
 	if req.WantReply {
 		if err := req.Reply(false, []byte(message)); err != nil {
@@ -1617,7 +1624,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 }
 
 func writeStderr(ch ssh.Channel, msg string) {
-	if _, err := fmt.Fprint(ch.Stderr(), msg); err != nil {
+	if _, err := io.WriteString(ch.Stderr(), msg); err != nil {
 		log.Warnf("Failed writing to ssh.Channel.Stderr(): %v", err)
 	}
 }

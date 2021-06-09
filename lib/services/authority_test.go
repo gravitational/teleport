@@ -60,18 +60,18 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 	})
 
 	t.Run("ca1 with 1 cert", func(t *testing.T) {
-		pool, err := CertPoolFromCertAuthorities([]CertAuthority{ca1})
+		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1})
 		require.NoError(t, err)
 		require.Len(t, pool.Subjects(), 1)
 	})
 	t.Run("ca2 with 2 certs", func(t *testing.T) {
-		pool, err := CertPoolFromCertAuthorities([]CertAuthority{ca2})
+		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca2})
 		require.NoError(t, err)
 		require.Len(t, pool.Subjects(), 2)
 	})
 
 	t.Run("ca1 + ca2 with 3 certs total", func(t *testing.T) {
-		pool, err := CertPoolFromCertAuthorities([]CertAuthority{ca1, ca2})
+		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1, ca2})
 		require.NoError(t, err)
 		require.Len(t, pool.Subjects(), 3)
 	})
