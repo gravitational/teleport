@@ -2215,13 +2215,18 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 }
 
-// DowngradeToV3 converts a V4 role to V3 in-place so that it will be compatible with older instances.
+// DowngradeToV3 converts a V4 role to V3 so that it will be compatible with
+// older instances. Makes a shallow copy if the conversion is necessary. The
+// passed in role will not be mutated.
 // DELETE IN 8.0.0
-func DowngradeRoleToV3(r *types.RoleV3) error {
+func DowngradeRoleToV3(r *types.RoleV3) (*types.RoleV3, error) {
 	switch r.Version {
-	case types.V3: // break
+	case types.V3:
+		return r, nil
 	case types.V4:
-		r.Version = types.V3
+		downgraded := types.RoleV3{}
+		downgraded = *r
+		downgraded.Version = types.V3
 
 		// V3 roles will set the default labels to wildcard allow if they are
 		// empty. To prevent this for roles which are created as V4 and
@@ -2229,19 +2234,19 @@ func DowngradeRoleToV3(r *types.RoleV3) error {
 		const labelKey = "__teleport_no_labels"
 		labelVal := uuid.New()
 		if len(r.Spec.Allow.NodeLabels) == 0 {
-			r.Spec.Allow.NodeLabels = types.Labels{labelKey: []string{labelVal}}
+			downgraded.Spec.Allow.NodeLabels = types.Labels{labelKey: []string{labelVal}}
 		}
 		if len(r.Spec.Allow.AppLabels) == 0 {
-			r.Spec.Allow.AppLabels = types.Labels{labelKey: []string{labelVal}}
+			downgraded.Spec.Allow.AppLabels = types.Labels{labelKey: []string{labelVal}}
 		}
 		if len(r.Spec.Allow.KubernetesLabels) == 0 {
-			r.Spec.Allow.KubernetesLabels = types.Labels{labelKey: []string{labelVal}}
+			downgraded.Spec.Allow.KubernetesLabels = types.Labels{labelKey: []string{labelVal}}
 		}
 		if len(r.Spec.Allow.DatabaseLabels) == 0 {
-			r.Spec.Allow.DatabaseLabels = types.Labels{labelKey: []string{labelVal}}
+			downgraded.Spec.Allow.DatabaseLabels = types.Labels{labelKey: []string{labelVal}}
 		}
+		return &downgraded, nil
 	default:
-		return trace.BadParameter("unrecognized role version %T", r.Version)
+		return nil, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
-	return nil
 }
