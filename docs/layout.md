@@ -45,6 +45,7 @@ The documentation layout and structure is presently:
     - [ ] Local Docker
     - [ ] Configuration (ported from admin manual)
         - [ ] Admin manual subsections split
+        - [ ] Ports, DNS, PEM, SSH
     - [ ] Terraform (moved from infrastructure guides)
     - [ ] Helm Guides (moved from Kubernetes)
         - [x] AWS EKS Cluster
