@@ -283,7 +283,7 @@ func TestInactivityTimeout(t *testing.T) {
 	const timeoutMessage = "You snooze, you loose."
 
 	// Given
-	//  * a running auth server configured with a 10s inactivity timeout,
+	//  * a running auth server configured with a 5s inactivity timeout,
 	//  * a running SSH server configured with a given disconnection message
 	//  * a client connected to the SSH server,
 	//  * an SSH session running over the client connection
