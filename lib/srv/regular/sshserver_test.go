@@ -293,6 +293,10 @@ func TestInactivityTimeout(t *testing.T) {
 	}
 	f := newCustomFixture(t, mutateCfg, SetIdleTimeoutMessage(timeoutMessage))
 
+	// If all goes well, the client will be closed by the time cleanup happens,
+	// so change the assertion on closing the client to expect it to fail
+	f.ssh.assertCltClose = require.Error
+
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
 	defer se.Close()
