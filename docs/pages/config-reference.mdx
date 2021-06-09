@@ -360,6 +360,10 @@ ssh_service:
         # "false" by default
         use_pam_auth: true
 
+    # Enables/disables TCP forwarding. Values are 'yes' or 'all' to enable, 
+    # 'no' to disable. Default is 'yes'
+    allow_tcp_forwarding: yes
+
 # This section configures the 'proxy service'
 proxy_service:
     # Turns 'proxy' role on. Default is 'yes'
