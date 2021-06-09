@@ -1,6 +1,9 @@
 #
 # This Makefile is used for producing official Teleport releases
 #
+ifneq ("$(wildcard /bin/bash)","")
+SHELL := /bin/bash
+endif
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
@@ -47,6 +50,10 @@ ifeq ("$(DRONE)","true")
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
+# if running in CI and the GOCACHE environment variable is not set, set it to a sensible default
+ifeq ("$(GOCACHE)",)
+GOCACHE := $(shell go env GOCACHE)
+endif
 # pass external gocache path through to docker containers
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif

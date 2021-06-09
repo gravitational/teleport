@@ -185,7 +185,7 @@ steps:
     path: /var/run
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -295,7 +295,7 @@ steps:
     path: /var/run
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -433,7 +433,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -533,7 +533,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -637,7 +637,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -737,7 +737,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -934,7 +934,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1034,7 +1034,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1366,7 +1366,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1468,7 +1468,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1573,7 +1573,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1677,7 +1677,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -1803,7 +1803,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -1931,7 +1931,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -2053,7 +2053,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -2167,7 +2167,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -2269,7 +2269,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -2395,7 +2395,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -2517,7 +2517,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3005,7 +3005,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3107,7 +3107,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3224,7 +3224,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3341,7 +3341,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3467,7 +3467,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3598,7 +3598,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3704,7 +3704,7 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -3742,6 +3742,7 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+      GOCACHE: /go/cache
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -3755,7 +3756,7 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
-      - mkdir -p /go/cache /go/artifacts
+      - mkdir -p /go/artifacts ${GOCACHE}
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -3764,6 +3765,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: amd64
@@ -3788,6 +3790,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: amd64
@@ -4154,7 +4157,7 @@ steps:
   failure: ignore
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:20.10.6-dind
   volumes:
   - name: dockersock
     path: /var/run
@@ -4464,6 +4467,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ae844369b8846f38478b32871bda42cb5f03cafac483e753ccbd3c644ec1b165
+hmac: 3fce8ad586a155c767b29693a6df6358a96f33d4274c09ec9f254654f8563d37
 
 ...

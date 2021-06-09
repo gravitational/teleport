@@ -17,6 +17,9 @@ DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
 # These are standard autotools variables, don't change them please
+ifneq ("$(wildcard /bin/bash)","")
+SHELL := /bin/bash
+endif
 BUILDDIR ?= build
 ASSETS_BUILDDIR ?= lib/web/build
 BINDIR ?= /usr/local/bin

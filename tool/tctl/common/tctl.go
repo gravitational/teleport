@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
@@ -397,7 +398,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientCo
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: teleport.RoleAdmin, HostUUID: cfg.HostUUID})
+		identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
 		if err != nil {
 			// The "admin" identity is not present? This means the tctl is running
 			// NOT on the auth server

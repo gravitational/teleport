@@ -23,12 +23,12 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -66,7 +66,7 @@ type Config struct {
 	// Authorizer is used to authorize requests coming from proxy.
 	Authorizer auth.Authorizer
 	// GetRotation returns the certificate rotation state.
-	GetRotation func(role teleport.Role) (*services.Rotation, error)
+	GetRotation func(role types.SystemRole) (*types.Rotation, error)
 	// Servers contains a list of database servers this service proxies.
 	Servers types.DatabaseServers
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
@@ -257,10 +257,10 @@ func (s *Server) initHeartbeat(ctx context.Context, server types.DatabaseServer)
 		Mode:            srv.HeartbeatModeDB,
 		Announcer:       s.cfg.AccessPoint,
 		GetServerInfo:   s.getServerInfoFunc(server),
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
-		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		ServerTTL:       defaults.ServerAnnounceTTL,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
 		OnHeartbeat:     s.cfg.OnHeartbeat,
 	})
 	if err != nil {
@@ -270,8 +270,8 @@ func (s *Server) initHeartbeat(ctx context.Context, server types.DatabaseServer)
 	return nil
 }
 
-func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services.Resource, error) {
-	return func() (services.Resource, error) {
+func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (types.Resource, error) {
+	return func() (types.Resource, error) {
 		// Make sure to return a new object, because it gets cached by
 		// heartbeat and will always compare as equal otherwise.
 		s.mu.RLock()
@@ -283,7 +283,7 @@ func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services
 			server.SetDynamicLabels(labels.Get())
 		}
 		// Update CA rotation state.
-		rotation, err := s.cfg.GetRotation(teleport.RoleDatabase)
+		rotation, err := s.cfg.GetRotation(types.RoleDatabase)
 		if err != nil && !trace.IsNotFound(err) {
 			s.log.WithError(err).Warn("Failed to get rotation state.")
 		} else {
@@ -292,7 +292,7 @@ func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services
 			}
 		}
 		// Update TTL.
-		server.SetExpiry(s.cfg.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
+		server.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 		return server, nil
 	}
 }
@@ -411,6 +411,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 		teleportUser: sessionCtx.Identity.Username,
 		emitter:      s.cfg.AuthClient,
 		log:          s.log,
+		ctx:          s.closeContext,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -28,8 +29,8 @@ import (
 
 // LatestTunnelConnection returns latest tunnel connection from the list
 // of tunnel connections, if no connections found, returns NotFound error
-func LatestTunnelConnection(conns []TunnelConnection) (TunnelConnection, error) {
-	var lastConn TunnelConnection
+func LatestTunnelConnection(conns []types.TunnelConnection) (types.TunnelConnection, error) {
+	var lastConn types.TunnelConnection
 	for i := range conns {
 		conn := conns[i]
 		if lastConn == nil || conn.GetLastHeartbeat().After(lastConn.GetLastHeartbeat()) {
@@ -44,7 +45,7 @@ func LatestTunnelConnection(conns []TunnelConnection) (TunnelConnection, error) 
 
 // TunnelConnectionStatus returns tunnel connection status based on the last
 // heartbeat time recorded for a connection
-func TunnelConnectionStatus(clock clockwork.Clock, conn TunnelConnection, offlineThreshold time.Duration) string {
+func TunnelConnectionStatus(clock clockwork.Clock, conn types.TunnelConnection, offlineThreshold time.Duration) string {
 	diff := clock.Now().Sub(conn.GetLastHeartbeat())
 	if diff < offlineThreshold {
 		return teleport.RemoteClusterStatusOnline
@@ -54,7 +55,7 @@ func TunnelConnectionStatus(clock clockwork.Clock, conn TunnelConnection, offlin
 
 // UnmarshalTunnelConnection unmarshals TunnelConnection resource from JSON or YAML,
 // sets defaults and checks the schema
-func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnection, error) {
+func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (types.TunnelConnection, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing tunnel connection data")
 	}
@@ -62,14 +63,14 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var h ResourceHeader
+	var h types.ResourceHeader
 	err = utils.FastUnmarshal(data, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
-	case V2:
-		var r TunnelConnectionV2
+	case types.V2:
+		var r types.TunnelConnectionV2
 
 		if err := utils.FastUnmarshal(data, &r); err != nil {
 			return nil, trace.BadParameter(err.Error())
@@ -90,15 +91,15 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 }
 
 // MarshalTunnelConnection marshals the TunnelConnection resource to JSON.
-func MarshalTunnelConnection(tunnelConnection TunnelConnection, opts ...MarshalOption) ([]byte, error) {
+func MarshalTunnelConnection(tunnelConnection types.TunnelConnection, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch tunnelConnection := tunnelConnection.(type) {
-	case *TunnelConnectionV2:
-		if version := tunnelConnection.GetVersion(); version != V2 {
+	case *types.TunnelConnectionV2:
+		if version := tunnelConnection.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched tunnel connection version %v and type %T", version, tunnelConnection)
 		}
 		if !cfg.PreserveResourceID {
