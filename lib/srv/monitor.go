@@ -20,14 +20,16 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 // ActivityTracker is a connection activity tracker,
@@ -73,7 +75,7 @@ type MonitorConfig struct {
 	// ServerID is a session server ID
 	ServerID string
 	// Emitter is events emitter
-	Emitter events.Emitter
+	Emitter apievents.Emitter
 	// Entry is a logging entry
 	Entry log.FieldLogger
 }
@@ -114,11 +116,11 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 	}, nil
 }
 
-// Monitor moniotiors connection activity
+// Monitor monitors connection activity
 // and disconnects connections with expired certificates
 // or with periods of inactivity
 type Monitor struct {
-	// MonitorConfig is a connection monitori configuration
+	// MonitorConfig is a connection monitor configuration
 	MonitorConfig
 }
 
@@ -126,36 +128,34 @@ type Monitor struct {
 func (w *Monitor) Start() {
 	var certTime <-chan time.Time
 	if !w.DisconnectExpiredCert.IsZero() {
-		t := time.NewTimer(w.DisconnectExpiredCert.Sub(w.Clock.Now().UTC()))
+		t := w.Clock.NewTicker(w.DisconnectExpiredCert.Sub(w.Clock.Now().UTC()))
 		defer t.Stop()
-		certTime = t.C
+		certTime = t.Chan()
 	}
 
-	var idleTimer *time.Timer
 	var idleTime <-chan time.Time
 	if w.ClientIdleTimeout != 0 {
-		idleTimer = time.NewTimer(w.ClientIdleTimeout)
-		idleTime = idleTimer.C
+		idleTime = w.Clock.After(w.ClientIdleTimeout)
 	}
 
 	for {
 		select {
 		// certificate has expired, disconnect
 		case <-certTime:
-			event := &events.ClientDisconnect{
-				Metadata: events.Metadata{
+			event := &apievents.ClientDisconnect{
+				Metadata: apievents.Metadata{
 					Type: events.ClientDisconnectEvent,
 					Code: events.ClientDisconnectCode,
 				},
-				UserMetadata: events.UserMetadata{
+				UserMetadata: apievents.UserMetadata{
 					Login: w.Login,
 					User:  w.TeleportUser,
 				},
-				ConnectionMetadata: events.ConnectionMetadata{
+				ConnectionMetadata: apievents.ConnectionMetadata{
 					LocalAddr:  w.Conn.LocalAddr().String(),
 					RemoteAddr: w.Conn.RemoteAddr().String(),
 				},
-				ServerMetadata: events.ServerMetadata{
+				ServerMetadata: apievents.ServerMetadata{
 					ServerID: w.ServerID,
 				},
 				Reason: fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC()),
@@ -170,20 +170,20 @@ func (w *Monitor) Start() {
 			now := w.Clock.Now().UTC()
 			clientLastActive := w.Tracker.GetClientLastActive()
 			if now.Sub(clientLastActive) >= w.ClientIdleTimeout {
-				event := &events.ClientDisconnect{
-					Metadata: events.Metadata{
+				event := &apievents.ClientDisconnect{
+					Metadata: apievents.Metadata{
 						Type: events.ClientDisconnectEvent,
 						Code: events.ClientDisconnectCode,
 					},
-					UserMetadata: events.UserMetadata{
+					UserMetadata: apievents.UserMetadata{
 						Login: w.Login,
 						User:  w.TeleportUser,
 					},
-					ConnectionMetadata: events.ConnectionMetadata{
+					ConnectionMetadata: apievents.ConnectionMetadata{
 						LocalAddr:  w.Conn.LocalAddr().String(),
 						RemoteAddr: w.Conn.RemoteAddr().String(),
 					},
-					ServerMetadata: events.ServerMetadata{
+					ServerMetadata: apievents.ServerMetadata{
 						ServerID: w.ServerID,
 					},
 				}
@@ -194,15 +194,15 @@ func (w *Monitor) Start() {
 						now.Sub(clientLastActive), w.ClientIdleTimeout)
 				}
 				w.Entry.Debugf("Disconnecting client: %v", event.Reason)
+				w.Conn.Close()
+
 				if err := w.Emitter.EmitAuditEvent(w.Context, event); err != nil {
 					w.Entry.WithError(err).Warn("Failed to emit audit event.")
 				}
-				w.Conn.Close()
 				return
 			}
 			w.Entry.Debugf("Next check in %v", w.ClientIdleTimeout-now.Sub(clientLastActive))
-			idleTimer = time.NewTimer(w.ClientIdleTimeout - now.Sub(clientLastActive))
-			idleTime = idleTimer.C
+			idleTime = w.Clock.After(w.ClientIdleTimeout - now.Sub(clientLastActive))
 		case <-w.Context.Done():
 			w.Entry.Debugf("Releasing associated resources - context has been closed.")
 			return
@@ -232,4 +232,82 @@ func (ch trackingChannel) Write(buf []byte) (int, error) {
 	n, err := ch.Channel.Write(buf)
 	ch.t.UpdateClientActivity()
 	return n, err
+}
+
+// TrackingReadConnConfig is a TrackingReadConn configuration.
+type TrackingReadConnConfig struct {
+	// Conn is a client connection.
+	Conn net.Conn
+	// Clock is a clock, realtime or fixed in tests.
+	Clock clockwork.Clock
+	// Context is an external context to cancel the operation.
+	Context context.Context
+	// Cancel is called whenever client context is closed.
+	Cancel context.CancelFunc
+}
+
+// CheckAndSetDefaults checks and sets defaults.
+func (c *TrackingReadConnConfig) CheckAndSetDefaults() error {
+	if c.Conn == nil {
+		return trace.BadParameter("missing parameter Conn")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+	if c.Context == nil {
+		return trace.BadParameter("missing parameter Context")
+	}
+	if c.Cancel == nil {
+		return trace.BadParameter("missing parameter Cancel")
+	}
+	return nil
+}
+
+// NewTrackingReadConn returns a new tracking read connection.
+func NewTrackingReadConn(cfg TrackingReadConnConfig) (*TrackingReadConn, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &TrackingReadConn{
+		cfg:        cfg,
+		mtx:        sync.RWMutex{},
+		Conn:       cfg.Conn,
+		lastActive: time.Time{},
+	}, nil
+}
+
+// TrackingReadConn allows to wrap net.Conn and keeps track of the latest conn read activity.
+type TrackingReadConn struct {
+	cfg TrackingReadConnConfig
+	mtx sync.RWMutex
+	net.Conn
+	lastActive time.Time
+}
+
+// Read reads data from the connection.
+// Read can be made to time out and return an Error with Timeout() == true
+// after a fixed time limit; see SetDeadline and SetReadDeadline.
+func (t *TrackingReadConn) Read(b []byte) (int, error) {
+	n, err := t.Conn.Read(b)
+	t.UpdateClientActivity()
+	return n, trace.Wrap(err)
+}
+
+func (t *TrackingReadConn) Close() error {
+	t.cfg.Cancel()
+	return t.Conn.Close()
+}
+
+// GetClientLastActive returns time when client was last active
+func (t *TrackingReadConn) GetClientLastActive() time.Time {
+	t.mtx.RLock()
+	defer t.mtx.RUnlock()
+	return t.lastActive
+}
+
+// UpdateClientActivity sets last recorded client activity
+func (t *TrackingReadConn) UpdateClientActivity() {
+	t.mtx.Lock()
+	defer t.mtx.Unlock()
+	t.lastActive = t.cfg.Clock.Now().UTC()
 }

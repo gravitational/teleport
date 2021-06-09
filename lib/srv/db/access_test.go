@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -287,6 +288,8 @@ type testContext struct {
 	postgres map[string]testPostgres
 	// mysql is a collection of MySQL databases the test uses.
 	mysql map[string]testMySQL
+	// clock to override clock in tests.
+	clock clockwork.FakeClock
 }
 
 // testPostgres represents a single proxied Postgres database.
@@ -399,6 +402,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		hostID:      uuid.New(),
 		postgres:    make(map[string]testPostgres),
 		mysql:       make(map[string]testMySQL),
+		clock:       clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
@@ -435,7 +439,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Auth client/authorizer for database service.
-	testCtx.authClient, err = testCtx.tlsServer.NewClient(auth.TestServerID(teleport.RoleDatabase, testCtx.hostID))
+	testCtx.authClient, err = testCtx.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, testCtx.hostID))
 	require.NoError(t, err)
 	dbAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, testCtx.authClient, testCtx.authClient, testCtx.authClient)
 	require.NoError(t, err)
@@ -443,13 +447,13 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Auth client/authorizer for database proxy.
-	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleProxy))
+	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient, proxyAuthClient, proxyAuthClient)
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.
-	serverIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.hostID, teleport.RoleDatabase)
+	serverIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.hostID, types.RoleDatabase)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -472,6 +476,9 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		},
 	}
 
+	// Create test audit events emitter.
+	testCtx.emitter = newTestEmitter()
+
 	// Create database proxy server.
 	testCtx.proxyServer, err = NewProxyServer(ctx, ProxyServerConfig{
 		AuthClient:  proxyAuthClient,
@@ -479,11 +486,11 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Authorizer:  proxyAuthorizer,
 		Tunnel:      tunnel,
 		TLSConfig:   tlsConfig,
+		Emitter:     testCtx.emitter,
+		Clock:       testCtx.clock,
+		ServerID:    "proxy-server",
 	})
 	require.NoError(t, err)
-
-	// Create test audit events emitter.
-	testCtx.emitter = newTestEmitter()
 
 	// Unauthenticated GCP IAM client so we don't try to initialize a real one.
 	gcpIAM, err := gcpcredentials.NewIamCredentialsClient(ctx,
@@ -501,7 +508,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Authorizer:    dbAuthorizer,
 		Servers:       databaseServers,
 		TLSConfig:     tlsConfig,
-		GetRotation:   func(teleport.Role) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		GetRotation:   func(types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		NewAuth: func(ac common.AuthConfig) (common.Auth, error) {
 			// Use test auth implementation that only fakes cloud auth tokens
 			// generation.
@@ -537,7 +544,7 @@ func withSelfHostedPostgres(name string) withDatabaseOption {
 				Protocol:      defaults.ProtocolPostgres,
 				URI:           net.JoinHostPort("localhost", postgresServer.Port()),
 				Version:       teleport.Version,
-				Hostname:      teleport.APIDomain,
+				Hostname:      constants.APIDomain,
 				HostID:        testCtx.hostID,
 				DynamicLabels: dynamicLabels,
 			})
@@ -566,7 +573,7 @@ func withRDSPostgres(name, authToken string) withDatabaseOption {
 				Protocol:      defaults.ProtocolPostgres,
 				URI:           net.JoinHostPort("localhost", postgresServer.Port()),
 				Version:       teleport.Version,
-				Hostname:      teleport.APIDomain,
+				Hostname:      constants.APIDomain,
 				HostID:        testCtx.hostID,
 				DynamicLabels: dynamicLabels,
 				AWS: types.AWS{
@@ -600,7 +607,7 @@ func withRedshiftPostgres(name, authToken string) withDatabaseOption {
 				Protocol:      defaults.ProtocolPostgres,
 				URI:           net.JoinHostPort("localhost", postgresServer.Port()),
 				Version:       teleport.Version,
-				Hostname:      teleport.APIDomain,
+				Hostname:      constants.APIDomain,
 				HostID:        testCtx.hostID,
 				DynamicLabels: dynamicLabels,
 				AWS: types.AWS{
@@ -638,7 +645,7 @@ func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
 				Protocol:      defaults.ProtocolPostgres,
 				URI:           net.JoinHostPort("localhost", postgresServer.Port()),
 				Version:       teleport.Version,
-				Hostname:      teleport.APIDomain,
+				Hostname:      constants.APIDomain,
 				HostID:        testCtx.hostID,
 				DynamicLabels: dynamicLabels,
 				GCP: types.GCPCloudSQL{
@@ -672,7 +679,7 @@ func withSelfHostedMySQL(name string) withDatabaseOption {
 				Protocol:      defaults.ProtocolMySQL,
 				URI:           net.JoinHostPort("localhost", mysqlServer.Port()),
 				Version:       teleport.Version,
-				Hostname:      teleport.APIDomain,
+				Hostname:      constants.APIDomain,
 				HostID:        testCtx.hostID,
 				DynamicLabels: dynamicLabels,
 			})
@@ -702,7 +709,7 @@ func withRDSMySQL(name, authUser, authToken string) withDatabaseOption {
 				Protocol:      defaults.ProtocolMySQL,
 				URI:           net.JoinHostPort("localhost", mysqlServer.Port()),
 				Version:       teleport.Version,
-				Hostname:      teleport.APIDomain,
+				Hostname:      constants.APIDomain,
 				HostID:        testCtx.hostID,
 				DynamicLabels: dynamicLabels,
 				AWS: types.AWS{

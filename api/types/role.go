@@ -501,6 +501,9 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if r.Version == "" {
+		r.Version = V3
+	}
 
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
@@ -860,6 +863,11 @@ func (b *BoolOption) protoType() *BoolValue {
 // MarshalTo marshals value to the slice
 func (b BoolOption) MarshalTo(data []byte) (int, error) {
 	return b.protoType().MarshalTo(data)
+}
+
+// MarshalToSizedBuffer marshals value to the slice
+func (b BoolOption) MarshalToSizedBuffer(data []byte) (int, error) {
+	return b.protoType().MarshalToSizedBuffer(data)
 }
 
 // Marshal marshals value into protobuf representation

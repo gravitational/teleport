@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	check "gopkg.in/check.v1"
@@ -103,7 +104,7 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, OpInit)
+		c.Assert(e.Type, check.Equals, types.OpInit)
 	case <-time.After(100 * time.Millisecond):
 		c.Fatalf("Timeout waiting for event.")
 	}
@@ -143,7 +144,7 @@ func (s *BufferSuite) TestWatcherClose(c *check.C) {
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, OpInit)
+		c.Assert(e.Type, check.Equals, types.OpInit)
 	case <-time.After(100 * time.Millisecond):
 		c.Fatalf("Timeout waiting for event.")
 	}
@@ -200,7 +201,7 @@ func (s *BufferSuite) TestWatcherMulti(c *check.C) {
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, OpInit)
+		c.Assert(e.Type, check.Equals, types.OpInit)
 	case <-time.After(100 * time.Millisecond):
 		c.Fatalf("Timeout waiting for event.")
 	}
@@ -231,7 +232,7 @@ func (s *BufferSuite) TestWatcherReset(c *check.C) {
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, OpInit)
+		c.Assert(e.Type, check.Equals, types.OpInit)
 	case <-time.After(100 * time.Millisecond):
 		c.Fatalf("Timeout waiting for event.")
 	}
@@ -252,7 +253,7 @@ func (s *BufferSuite) TestWatcherReset(c *check.C) {
 
 	select {
 	case e := <-w2.Events():
-		c.Assert(e.Type, check.Equals, OpInit)
+		c.Assert(e.Type, check.Equals, types.OpInit)
 	case <-time.After(100 * time.Millisecond):
 		c.Fatalf("Timeout waiting for event.")
 	}

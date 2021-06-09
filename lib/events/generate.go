@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 )
@@ -56,10 +57,10 @@ func (p *SessionParams) SetDefaults() {
 
 // GenerateTestSession generates test session events starting with session start
 // event, adds printEvents events and returns the result.
-func GenerateTestSession(params SessionParams) []AuditEvent {
+func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 	params.SetDefaults()
-	sessionStart := SessionStart{
-		Metadata: Metadata{
+	sessionStart := apievents.SessionStart{
+		Metadata: apievents.Metadata{
 			Index:       0,
 			Type:        SessionStartEvent,
 			ID:          "36cee9e9-9a80-4c32-9163-3d9241cdac7a",
@@ -67,7 +68,7 @@ func GenerateTestSession(params SessionParams) []AuditEvent {
 			Time:        params.Clock.Now().UTC(),
 			ClusterName: params.ClusterName,
 		},
-		ServerMetadata: ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID: params.ServerID,
 			ServerLabels: map[string]string{
 				"kernel": "5.3.0-42-generic",
@@ -77,36 +78,36 @@ func GenerateTestSession(params SessionParams) []AuditEvent {
 			ServerHostname:  "planet",
 			ServerNamespace: "default",
 		},
-		SessionMetadata: SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: params.SessionID,
 		},
-		UserMetadata: UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:  "bob@example.com",
 			Login: "bob",
 		},
-		ConnectionMetadata: ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  "127.0.0.1:3022",
 			RemoteAddr: "[::1]:37718",
 		},
 		TerminalSize: "80:25",
 	}
 
-	sessionEnd := SessionEnd{
-		Metadata: Metadata{
+	sessionEnd := apievents.SessionEnd{
+		Metadata: apievents.Metadata{
 			Index: 20,
 			Type:  SessionEndEvent,
 			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
 			Code:  SessionEndCode,
 			Time:  params.Clock.Now().UTC().Add(time.Hour + time.Second + 7*time.Millisecond),
 		},
-		ServerMetadata: ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        params.ServerID,
 			ServerNamespace: "default",
 		},
-		SessionMetadata: SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: params.SessionID,
 		},
-		UserMetadata: UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: "alice@example.com",
 		},
 		EnhancedRecording: true,
@@ -116,11 +117,11 @@ func GenerateTestSession(params SessionParams) []AuditEvent {
 		EndTime:           params.Clock.Now().UTC().Add(3*time.Hour + time.Second + 7*time.Millisecond),
 	}
 
-	events := []AuditEvent{&sessionStart}
+	events := []apievents.AuditEvent{&sessionStart}
 	i := int64(0)
 	for i = 0; i < params.PrintEvents; i++ {
-		event := &SessionPrint{
-			Metadata: Metadata{
+		event := &apievents.SessionPrint{
+			Metadata: apievents.Metadata{
 				Index: i + 1,
 				Type:  SessionPrintEvent,
 				Time:  params.Clock.Now().UTC().Add(time.Minute + time.Duration(i)*time.Millisecond),

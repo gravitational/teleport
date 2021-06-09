@@ -87,7 +87,7 @@ func testingKey(s string) string { return strings.ReplaceAll(s, "TESTING KEY", "
 // TLSConfig is TLS configuration for running local TLS tests
 type TLSConfig struct {
 	// CertPool is a trusted certificate authority pool
-	// that consists of self signed cert
+	// that consists of self-signed cert
 	CertPool *x509.CertPool
 	// Certificate is a client x509 client cert
 	Certificate *x509.Certificate
@@ -106,7 +106,7 @@ func (t *TLSConfig) NewClient() *http.Client {
 	}
 }
 
-// LocalTLSConfig returns local TLS config with self signed certificate
+// LocalTLSConfig returns local TLS config with self-signed certificate
 func LocalTLSConfig() (*TLSConfig, error) {
 	cert, err := tls.X509KeyPair(LocalhostCert, LocalhostKey)
 	if err != nil {

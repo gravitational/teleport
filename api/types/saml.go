@@ -337,6 +337,9 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	if err := o.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	if o.Version == "" {
+		o.Version = V2
+	}
 	if o.Metadata.Name == constants.Local {
 		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", constants.Local)
 	}

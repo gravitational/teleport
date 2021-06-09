@@ -26,9 +26,9 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -43,7 +43,7 @@ type connKey struct {
 	// uuid is the host UUID of the process.
 	uuid string
 	// connType is the type of tunnel, for example: node or application.
-	connType services.TunnelType
+	connType types.TunnelType
 }
 
 // remoteConn holds a connection to a remote host, either node or proxy.
@@ -56,7 +56,7 @@ type remoteConn struct {
 	discoveryCh ssh.Channel
 
 	// newProxiesC is a list used to nofity about new proxies
-	newProxiesC chan []services.Server
+	newProxiesC chan []types.Server
 
 	// invalid indicates the connection is invalid and connections can no longer
 	// be made on it.
@@ -117,7 +117,7 @@ func newRemoteConn(cfg *connConfig) *remoteConn {
 		}),
 		connConfig:  cfg,
 		clock:       clockwork.NewRealClock(),
-		newProxiesC: make(chan []services.Server, 100),
+		newProxiesC: make(chan []types.Server, 100),
 	}
 
 	c.closeContext, c.closeCancel = context.WithCancel(context.Background())
@@ -214,7 +214,7 @@ func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
 // updateProxies is a non-blocking call that puts the new proxies
 // list so that remote connection can notify the remote agent
 // about the list update
-func (c *remoteConn) updateProxies(proxies []services.Server) {
+func (c *remoteConn) updateProxies(proxies []types.Server) {
 	select {
 	case c.newProxiesC <- proxies:
 	default:
