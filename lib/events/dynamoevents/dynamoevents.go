@@ -20,6 +20,7 @@ package dynamoevents
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/url"
 	"sort"
@@ -732,6 +733,20 @@ func (notReadyYetError) Error() string {
 	return "The DynamoDB event backend is not ready to accept queries yet. Please retry in a couple of seconds."
 }
 
+func eventFilterList(amount int) string {
+	list := "("
+
+	if amount != 0 {
+		list += ":eventType0"
+	}
+
+	for i := 1; i < amount; i++ {
+		list += fmt.Sprintf(", :eventType%d", i)
+	}
+
+	return list + ")"
+}
+
 // searchEventsRaw is a low level function for searching for events. This is kept
 // separate from the SearchEvents function in order to allow tests to grab more metadata.
 func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]event, string, error) {
@@ -758,7 +773,12 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 	} else {
 		left = math.MaxInt64
 	}
-	doFilter := len(eventTypes) > 0
+
+	var typeFilter *string
+	if len(eventTypes) != 0 {
+		typeList := eventFilterList(len(eventTypes))
+		typeFilter = aws.String(fmt.Sprintf("EventType IN %s", typeList))
+	}
 
 	// Resume scanning at the correct date. We need to do this because we send individual queries per date
 	// and you can't resume a query with the wrong iterator checkpoint.
@@ -785,6 +805,10 @@ dateLoop:
 			":end":   toUTC.Unix(),
 		}
 
+		for i := range eventTypes {
+			attributes[fmt.Sprintf(":eventType%d", i)] = eventTypes[i]
+		}
+
 		attributeValues, err := dynamodbattribute.MarshalMap(attributes)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -798,6 +822,7 @@ dateLoop:
 				IndexName:                 aws.String(indexTimeSearchV2),
 				ExclusiveStartKey:         checkpoint.Iterator,
 				Limit:                     aws.Int64(left),
+				FilterExpression:          typeFilter,
 			}
 
 			start := time.Now()
@@ -818,20 +843,11 @@ dateLoop:
 				if err := json.Unmarshal(data, &fields); err != nil {
 					return nil, "", trace.BadParameter("failed to unmarshal event %v", err)
 				}
-				accepted := false
-				for i := range eventTypes {
-					if e.EventType == eventTypes[i] {
-						accepted = true
-						break
-					}
-				}
-				if accepted || !doFilter {
-					values = append(values, e)
-					left--
-					if left == 0 {
-						hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
-						break dateLoop
-					}
+				values = append(values, e)
+				left--
+				if left == 0 {
+					hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
+					break dateLoop
 				}
 			}
 
