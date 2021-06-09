@@ -26,11 +26,10 @@ import (
 	"testing"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/trace"
@@ -97,8 +96,8 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			// Given a running teleport instance with port forwarding
 			// permissions set per the test case
 
-			recCfg, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
-				Mode: services.RecordOff,
+			recCfg, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: types.RecordOff,
 			})
 			require.NoError(t, err)
 
@@ -156,7 +155,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 
 			timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			_, err = waitForSessionToBeEstablished(timeout, defaults.Namespace, site)
+			_, err = waitForSessionToBeEstablished(timeout, apidefaults.Namespace, site)
 			require.NoError(t, err)
 
 			// When everything is *finally* set up, and I attempt to use the
