@@ -348,7 +348,9 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// wait until we've found the session in the audit log
 			getSession := func(site auth.ClientI) (*session.Session, error) {
-				sessions, err := waitForSessionToBeEstablished(defaults.Namespace, site, 10*time.Second)
+				timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				sessions, err := waitForSessionToBeEstablished(timeout, defaults.Namespace, site)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -902,11 +904,14 @@ func verifySessionJoin(t *testing.T, username string, teleport *TeleInstance) {
 	// PersonB: wait for a session to become available, then join:
 	sessionB := make(chan error)
 	joinSession := func() {
-		sessions, err := waitForSessionToBeEstablished(defaults.Namespace, site, 10*time.Second)
+		sessionTimeoutCtx, sessionTimeoutCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer sessionTimeoutCancel()
+		sessions, err := waitForSessionToBeEstablished(sessionTimeoutCtx, defaults.Namespace, site)
 		if err != nil {
 			sessionB <- trace.Wrap(err)
 			return
 		}
+
 		sessionID := string(sessions[0].ID)
 		cl, err := teleport.NewClient(ClientConfig{Login: username, Cluster: Site, Host: Host})
 		if err != nil {
@@ -1132,7 +1137,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 				defer cancel()
 
-				ss, err := waitForSessionToBeEstablishedWithContext(timeoutCtx, defaults.Namespace, site)
+				ss, err := waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
 				require.NoError(t, err)
 				require.Len(t, ss, 1)
 				require.Nil(t, teleport.StopAuth(false))
@@ -3183,7 +3188,9 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	}()
 
 	// wait until there's a session in there:
-	sessions, err = waitForSessionToBeEstablished(defaults.Namespace, site, 2*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	sessions, err = waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
 	require.NoError(t, err)
 	session := &sessions[0]
 
@@ -4160,7 +4167,9 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 	// joinSession will join the existing session on a server.
 	joinSession := func() {
 		// Find the existing session in the backend.
-		sessions, err := waitForSessionToBeEstablished(defaults.Namespace, site, 10*time.Second)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		sessions, err := waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
 		require.NoError(t, err)
 		sessionID := string(sessions[0].ID)
 
@@ -5212,7 +5221,7 @@ func waitFor(c chan interface{}, timeout time.Duration) error {
 	case <-c:
 		return nil
 	case <-tick:
-		return fmt.Errorf("timeout waiting for event")
+		return trace.LimitExceeded("timeout waiting for event")
 	}
 }
 
@@ -5223,7 +5232,7 @@ func waitForError(c chan error, timeout time.Duration) error {
 	case err := <-c:
 		return err
 	case <-tick:
-		return fmt.Errorf("timeout waiting for event")
+		return trace.LimitExceeded("timeout waiting for event")
 	}
 }
 

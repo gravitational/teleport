@@ -49,7 +49,8 @@ func extractPort(svr *httptest.Server) (int, error) {
 	return n, nil
 }
 
-func waitForSessionToBeEstablishedWithContext(ctx context.Context, namespace string, site auth.ClientI) ([]session.Session, error) {
+func waitForSessionToBeEstablished(ctx context.Context, namespace string, site auth.ClientI) ([]session.Session, error) {
+
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -68,12 +69,6 @@ func waitForSessionToBeEstablishedWithContext(ctx context.Context, namespace str
 			}
 		}
 	}
-}
-
-func waitForSessionToBeEstablished(namespace string, site auth.ClientI, timeout time.Duration) ([]session.Session, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	return waitForSessionToBeEstablishedWithContext(ctx, namespace, site)
 }
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
@@ -159,7 +154,9 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			go cl.SSH(sshSessionCtx, []string{}, false)
 			defer sshSessionCancel()
 
-			_, err = waitForSessionToBeEstablished(defaults.Namespace, site, 5*time.Second)
+			timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_, err = waitForSessionToBeEstablished(timeout, defaults.Namespace, site)
 			require.NoError(t, err)
 
 			// When everything is *finally* set up, and I attempt to use the
