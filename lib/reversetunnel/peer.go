@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -61,7 +62,7 @@ func (p *clusterPeers) pickPeer() (*clusterPeer, error) {
 	return currentPeer, nil
 }
 
-func (p *clusterPeers) updatePeer(conn services.TunnelConnection) bool {
+func (p *clusterPeers) updatePeer(conn types.TunnelConnection) bool {
 	peer, ok := p.peers[conn.GetName()]
 	if !ok {
 		return false
@@ -74,7 +75,7 @@ func (p *clusterPeers) addPeer(peer *clusterPeer) {
 	p.peers[peer.getConnInfo().GetName()] = peer
 }
 
-func (p *clusterPeers) removePeer(connInfo services.TunnelConnection) {
+func (p *clusterPeers) removePeer(connInfo types.TunnelConnection) {
 	delete(p.peers, connInfo.GetName())
 }
 
@@ -137,7 +138,7 @@ func (p *clusterPeers) DialTCP(params DialParams) (conn net.Conn, err error) {
 func (p *clusterPeers) IsClosed() bool { return false }
 
 // newClusterPeer returns new cluster peer
-func newClusterPeer(srv *server, connInfo services.TunnelConnection, offlineThreshold time.Duration) (*clusterPeer, error) {
+func newClusterPeer(srv *server, connInfo types.TunnelConnection, offlineThreshold time.Duration) (*clusterPeer, error) {
 	clusterPeer := &clusterPeer{
 		srv:      srv,
 		connInfo: connInfo,
@@ -160,7 +161,7 @@ type clusterPeer struct {
 	log *log.Entry
 
 	mu       sync.Mutex
-	connInfo services.TunnelConnection
+	connInfo types.TunnelConnection
 	srv      *server
 
 	// clock is used to control time in tests.
@@ -171,13 +172,13 @@ type clusterPeer struct {
 	offlineThreshold time.Duration
 }
 
-func (s *clusterPeer) getConnInfo() services.TunnelConnection {
+func (s *clusterPeer) getConnInfo() types.TunnelConnection {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.connInfo
 }
 
-func (s *clusterPeer) setConnInfo(ci services.TunnelConnection) {
+func (s *clusterPeer) setConnInfo(ci types.TunnelConnection) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.connInfo = ci

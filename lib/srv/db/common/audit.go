@@ -19,8 +19,8 @@ package common
 import (
 	"context"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 
 	"github.com/gravitational/trace"
@@ -80,7 +80,7 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        session.Server.GetHostID(),
-			ServerNamespace: defaults.Namespace,
+			ServerNamespace: apidefaults.Namespace,
 		},
 		UserMetadata: events.UserMetadata{
 			User:         session.Identity.Username,

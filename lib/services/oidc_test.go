@@ -22,6 +22,7 @@ import (
 	"github.com/coreos/go-oidc/jose"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +30,7 @@ import (
 // Verify that an OIDC connector with no mappings produces no roles.
 func TestOIDCRoleMappingEmpty(t *testing.T) {
 	// create a connector
-	oidcConnector := NewOIDCConnector("example", OIDCConnectorSpecV2{
+	oidcConnector := types.NewOIDCConnector("example", types.OIDCConnectorSpecV2{
 		IssuerURL:    "https://www.exmaple.com",
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
@@ -55,14 +56,14 @@ func TestOIDCRoleMappingEmpty(t *testing.T) {
 // TestOIDCRoleMapping verifies basic mapping from OIDC claims to roles.
 func TestOIDCRoleMapping(t *testing.T) {
 	// create a connector
-	oidcConnector := NewOIDCConnector("example", OIDCConnectorSpecV2{
+	oidcConnector := types.NewOIDCConnector("example", types.OIDCConnectorSpecV2{
 		IssuerURL:    "https://www.exmaple.com",
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
 		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
 		Display:      "sign in with example.com",
 		Scope:        []string{"foo", "bar"},
-		ClaimsToRoles: []ClaimMapping{
+		ClaimsToRoles: []types.ClaimMapping{
 			{
 				Claim: "roles",
 				Value: "teleport-user",

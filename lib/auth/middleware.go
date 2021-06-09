@@ -25,12 +25,13 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -143,7 +144,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		cfg: cfg,
 		httpServer: &http.Server{
 			Handler:           limiter,
-			ReadHeaderTimeout: defaults.DefaultDialTimeout,
+			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		},
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
@@ -241,7 +242,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	switch info.ServerName {
 	case "":
 		// Client does not use SNI, will validate against all known CAs.
-	case teleport.APIDomain:
+	case constants.APIDomain:
 		// REMOVE IN 4.4: all 4.3+ clients must specify the correct cluster name.
 		//
 		// Instead, this case should either default to current cluster CAs or
@@ -417,8 +418,8 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	if len(peers) == 0 {
 		return BuiltinRole{
 			GetSessionRecordingConfig: a.AccessPoint.GetSessionRecordingConfig,
-			Role:                      teleport.RoleNop,
-			Username:                  string(teleport.RoleNop),
+			Role:                      types.RoleNop,
+			Username:                  string(types.RoleNop),
 			ClusterName:               localClusterName.GetClusterName(),
 			Identity:                  tlsca.Identity{},
 		}, nil
@@ -508,9 +509,9 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	}, nil
 }
 
-func findSystemRole(roles []string) *teleport.Role {
+func findSystemRole(roles []string) *types.SystemRole {
 	for _, role := range roles {
-		systemRole := teleport.Role(role)
+		systemRole := types.SystemRole(role)
 		err := systemRole.Check()
 		if err == nil {
 			return &systemRole
@@ -554,13 +555,13 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 // ClientCertPool returns trusted x509 cerificate authority pool
 func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
-	var authorities []services.CertAuthority
+	var authorities []types.CertAuthority
 	if clusterName == "" {
-		hostCAs, err := client.GetCertAuthorities(services.HostCA, false)
+		hostCAs, err := client.GetCertAuthorities(types.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userCAs, err := client.GetCertAuthorities(services.UserCA, false)
+		userCAs, err := client.GetCertAuthorities(types.UserCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -568,13 +569,13 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 		authorities = append(authorities, userCAs...)
 	} else {
 		hostCA, err := client.GetCertAuthority(
-			services.CertAuthID{Type: services.HostCA, DomainName: clusterName},
+			types.CertAuthID{Type: types.HostCA, DomainName: clusterName},
 			false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userCA, err := client.GetCertAuthority(
-			services.CertAuthID{Type: services.UserCA, DomainName: clusterName},
+			types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
 			false)
 		if err != nil {
 			return nil, trace.Wrap(err)

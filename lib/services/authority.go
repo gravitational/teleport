@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -41,22 +40,22 @@ import (
 
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
 // This differs from normal equality only in that resource IDs are ignored.
-func CertAuthoritiesEquivalent(lhs, rhs CertAuthority) bool {
+func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"))
 }
 
-// NewJWTAuthority creates and returns a services.CertAuthority with a new
+// NewJWTAuthority creates and returns a types.CertAuthority with a new
 // key pair.
-func NewJWTAuthority(clusterName string) (CertAuthority, error) {
+func NewJWTAuthority(clusterName string) (types.CertAuthority, error) {
 	var err error
-	var keyPair JWTKeyPair
+	var keyPair types.JWTKeyPair
 	if keyPair.PublicKey, keyPair.PrivateKey, err = jwt.GenerateKeyPair(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.JWTSigner,
 		ClusterName: clusterName,
-		JWTKeyPairs: []JWTKeyPair{keyPair},
+		JWTKeyPairs: []types.JWTKeyPair{keyPair},
 	}), nil
 }
 
@@ -64,13 +63,13 @@ func NewJWTAuthority(clusterName string) (CertAuthority, error) {
 // Replaced by types.NewCertAuthority.
 // DELETE in 7.0.0
 func NewCertAuthority(
-	caType CertAuthType,
+	caType types.CertAuthType,
 	clusterName string,
 	signingKeys [][]byte,
 	checkingKeys [][]byte,
 	roles []string,
-	signingAlg CertAuthoritySpecV2_SigningAlgType,
-) CertAuthority {
+	signingAlg types.CertAuthoritySpecV2_SigningAlgType,
+) types.CertAuthority {
 	return types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:         caType,
 		ClusterName:  clusterName,
@@ -82,12 +81,12 @@ func NewCertAuthority(
 }
 
 // ValidateCertAuthority validates the CertAuthority
-func ValidateCertAuthority(ca CertAuthority) (err error) {
+func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 	if err = ca.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	switch ca.GetType() {
-	case UserCA, HostCA:
+	case types.UserCA, types.HostCA:
 		err = checkUserOrHostCA(ca)
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
@@ -97,7 +96,7 @@ func ValidateCertAuthority(ca CertAuthority) (err error) {
 	return trace.Wrap(err)
 }
 
-func checkUserOrHostCA(ca CertAuthority) error {
+func checkUserOrHostCA(ca types.CertAuthority) error {
 	if len(ca.GetCheckingKeys()) == 0 {
 		return trace.BadParameter("certificate authority missing SSH public keys")
 	}
@@ -118,7 +117,7 @@ func checkUserOrHostCA(ca CertAuthority) error {
 	return trace.Wrap(err)
 }
 
-func checkJWTKeys(ca CertAuthority) error {
+func checkJWTKeys(ca types.CertAuthority) error {
 	// Check that some JWT keys have been set on the CA.
 	if len(ca.GetJWTKeyPairs()) == 0 {
 		return trace.BadParameter("missing JWT CA")
@@ -154,7 +153,7 @@ func checkJWTKeys(ca CertAuthority) error {
 }
 
 // GetJWTSigner returns the active JWT key used to sign tokens.
-func GetJWTSigner(ca CertAuthority, clock clockwork.Clock) (*jwt.Key, error) {
+func GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, error) {
 	if len(ca.GetJWTKeyPairs()) == 0 {
 		return nil, trace.BadParameter("no JWT keypairs found")
 	}
@@ -175,7 +174,7 @@ func GetJWTSigner(ca CertAuthority, clock clockwork.Clock) (*jwt.Key, error) {
 }
 
 // GetTLSCerts returns TLS certificates from CA
-func GetTLSCerts(ca CertAuthority) [][]byte {
+func GetTLSCerts(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTLSKeyPairs()
 	out := make([][]byte, len(pairs))
 	for i, pair := range pairs {
@@ -201,7 +200,7 @@ type HostCertParams struct {
 	// ClusterName is the name of the cluster within which a node lives
 	ClusterName string
 	// Roles identifies the roles of a Teleport instance
-	Roles teleport.Roles
+	Roles types.SystemRoles
 	// TTL defines how long a certificate is valid for
 	TTL time.Duration
 }
@@ -298,7 +297,7 @@ func (c *UserCertParams) CheckAndSetDefaults() error {
 
 // CertPoolFromCertAuthorities returns certificate pools from TLS certificates
 // set up in the certificate authorities list
-func CertPoolFromCertAuthorities(cas []CertAuthority) (*x509.CertPool, error) {
+func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, error) {
 	certPool := x509.NewCertPool()
 	for _, ca := range cas {
 		keyPairs := ca.GetTLSKeyPairs()
@@ -318,7 +317,7 @@ func CertPoolFromCertAuthorities(cas []CertAuthority) (*x509.CertPool, error) {
 
 // CertPool returns certificate pools from TLS certificates
 // set up in the certificate authority
-func CertPool(ca CertAuthority) (*x509.CertPool, error) {
+func CertPool(ca types.CertAuthority) (*x509.CertPool, error) {
 	keyPairs := ca.GetTLSKeyPairs()
 	if len(keyPairs) == 0 {
 		return nil, trace.BadParameter("certificate authority has no TLS certificates")
@@ -336,7 +335,7 @@ func CertPool(ca CertAuthority) (*x509.CertPool, error) {
 
 // MarshalCertRoles marshal roles list to OpenSSH
 func MarshalCertRoles(roles []string) (string, error) {
-	out, err := json.Marshal(CertRoles{Version: V1, Roles: roles})
+	out, err := json.Marshal(types.CertRoles{Version: types.V1, Roles: roles})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -345,7 +344,7 @@ func MarshalCertRoles(roles []string) (string, error) {
 
 // UnmarshalCertRoles marshals roles list to OpenSSH format
 func UnmarshalCertRoles(data string) ([]string, error) {
-	var certRoles CertRoles
+	var certRoles types.CertRoles
 	if err := utils.FastUnmarshal([]byte(data), &certRoles); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
@@ -353,19 +352,19 @@ func UnmarshalCertRoles(data string) ([]string, error) {
 }
 
 // UnmarshalCertAuthority unmarshals the CertAuthority resource to JSON.
-func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority, error) {
+func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuthority, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var h ResourceHeader
+	var h types.ResourceHeader
 	err = utils.FastUnmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
-	case V2:
-		var ca CertAuthorityV2
+	case types.V2:
+		var ca types.CertAuthorityV2
 		if err := utils.FastUnmarshal(bytes, &ca); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -382,15 +381,15 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority,
 }
 
 // MarshalCertAuthority marshals the CertAuthority resource to JSON.
-func MarshalCertAuthority(certAuthority CertAuthority, opts ...MarshalOption) ([]byte, error) {
+func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch certAuthority := certAuthority.(type) {
-	case *CertAuthorityV2:
-		if version := certAuthority.GetVersion(); version != V2 {
+	case *types.CertAuthorityV2:
+		if version := certAuthority.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched certificate authority version %v and type %T", version, certAuthority)
 		}
 		if !cfg.PreserveResourceID {
