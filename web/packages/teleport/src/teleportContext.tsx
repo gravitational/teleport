@@ -17,7 +17,7 @@ limitations under the License.
 import { StoreNav, StoreUserContext } from './stores';
 import cfg from 'teleport/config';
 import * as types from './types';
-import auditService from './services/audit';
+import AuditService from './services/audit';
 import nodeService from './services/nodes';
 import clusterService from './services/clusters';
 import sshService from './services/ssh';
@@ -36,7 +36,7 @@ class TeleportContext implements types.Context {
   features: types.Feature[] = [];
 
   // services
-  auditService = auditService;
+  auditService = new AuditService();
   nodeService = nodeService;
   clusterService = clusterService;
   sshService = sshService;

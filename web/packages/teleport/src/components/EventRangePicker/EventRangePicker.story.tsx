@@ -38,8 +38,7 @@ const options = [
 ];
 
 const props = {
-  disabled: false,
-  value: options[0],
-  options,
-  onChange: () => {},
+  range: options[0],
+  ranges: options,
+  onChangeRange: () => {},
 };

@@ -61,7 +61,7 @@ function useMainStory() {
     // mock services
     ctx.isEnterprise = false;
     ctx.auditService.fetchEvents = () =>
-      Promise.resolve({ overflow: false, events });
+      Promise.resolve({ events, startKey: '' });
     ctx.clusterService.fetchClusters = () => Promise.resolve(clusters);
     ctx.nodeService.fetchNodes = () => Promise.resolve(nodes);
     ctx.sshService.fetchSessions = () => Promise.resolve(sessions);

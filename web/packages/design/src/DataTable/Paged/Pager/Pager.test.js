@@ -16,7 +16,7 @@
 
 import React from 'react';
 import Pager from './Pager';
-import { render } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 
 describe('design/DataTable Pager', () => {
   test.each`
@@ -44,8 +44,43 @@ describe('design/DataTable Pager', () => {
       );
 
       const buttons = container.querySelectorAll('button');
+
+      // Test fetch more button isn't rendered, which will be a 3rd button.
+      expect(buttons).toHaveLength(2);
+
       expect(buttons[0].disabled).toBe(expPrevNextBtns[0]);
       expect(buttons[1].disabled).toBe(expPrevNextBtns[1]);
     }
   );
+});
+
+test('fetch more button render', () => {
+  const { rerender } = render(
+    <Pager
+      startFrom={0}
+      endAt={10}
+      totalRows={10}
+      onPrev={() => null}
+      onNext={() => null}
+      onFetch={() => null}
+      fetchStatus=""
+    />
+  );
+
+  expect(screen.queryByText('Fetch More')).not.toBeDisabled();
+
+  // Test for disabling button.
+  rerender(
+    <Pager
+      startFrom={0}
+      endAt={10}
+      totalRows={10}
+      onPrev={() => null}
+      onNext={() => null}
+      onFetch={() => null}
+      fetchStatus="loading"
+    />
+  );
+
+  expect(screen.queryByText('Fetch More')).toBeDisabled();
 });

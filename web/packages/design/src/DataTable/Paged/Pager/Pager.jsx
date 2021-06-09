@@ -21,17 +21,34 @@ import { Text, Flex } from 'design';
 import PropTypes from 'prop-types';
 
 export default function Pager(props) {
-  const { startFrom = 0, endAt = 0, totalRows = 0, onPrev, onNext } = props;
+  const {
+    startFrom = 0,
+    endAt = 0,
+    totalRows = 0,
+    onPrev,
+    onNext,
+    onFetch,
+    fetchStatus = 'disabled',
+  } = props;
   const isPrevDisabled = totalRows === 0 || startFrom === 0;
   const isNextDisabled = totalRows === 0 || endAt === totalRows;
   const initialStartFrom = totalRows > 0 ? startFrom + 1 : 0;
+  const isFetchDisabled = fetchStatus !== 'disabled';
+  const isFetching = fetchStatus === 'loading';
 
   return (
     <>
-      <Text typography="body2" color="primary.contrastText">
-        SHOWING <strong>{initialStartFrom}</strong> - <strong>{endAt}</strong>{' '}
-        of <strong>{totalRows}</strong>
-      </Text>
+      <Flex alignItems="center">
+        <Text typography="body2" color="primary.contrastText">
+          SHOWING <strong>{initialStartFrom}</strong> - <strong>{endAt}</strong>{' '}
+          of <strong>{totalRows}</strong>
+        </Text>
+        {isFetchDisabled && (
+          <StyledButtonLink onClick={onFetch} disabled={isFetching}>
+            Fetch More
+          </StyledButtonLink>
+        )}
+      </Flex>
       <StyledButtons>
         <button
           onClick={onPrev}
@@ -68,9 +85,10 @@ export const StyledButtons = styled(Flex)`
     transition: all 0.3s;
     text-align: center;
 
-    &:hover, &:focus {
+    &:hover,
+    &:focus {
       background: ${props => props.theme.colors.primary.main};
-      
+
       ${Icon} {
         opacity: 1;
       }
@@ -81,5 +99,28 @@ export const StyledButtons = styled(Flex)`
       font-size: 20px;
       transition: all 0.3s;
     }
+  }
+`;
+
+const StyledButtonLink = styled.button`
+  color: ${props => props.theme.colors.link};
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  padding: 8px;
+  outline: none;
+  border: none;
+  font-weight: bold;
+  line-height: 0;
+  font-size: 12px;
+
+  &:hover,
+  &:focus {
+    cursor: pointer;
+  }
+
+  &:disabled {
+    color: ${props => props.theme.colors.action.disabled};
+    cursor: wait;
   }
 `;

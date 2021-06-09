@@ -15,70 +15,83 @@ limitations under the License.
 */
 
 import moment from 'moment';
-import { Event, CodeEnum, RawEvent, Formatters } from './types';
+import { Event, RawEvent, Formatters, eventCodes } from './types';
 
 export const formatters: Formatters = {
-  [CodeEnum.ACCESS_REQUEST_CREATED]: {
+  [eventCodes.ACCESS_REQUEST_CREATED]: {
+    type: 'access_request.create',
     desc: 'Access Request Created',
     format: ({ id, state }) =>
       `Access request [${id}] has been created and is ${state}`,
   },
-  [CodeEnum.ACCESS_REQUEST_UPDATED]: {
+  [eventCodes.ACCESS_REQUEST_UPDATED]: {
+    type: 'access_request.update',
     desc: 'Access Request Updated',
     format: ({ id, state }) =>
       `Access request [${id}] has been updated to ${state}`,
   },
-  [CodeEnum.ACCESS_REQUEST_REVIEWED]: {
+  [eventCodes.ACCESS_REQUEST_REVIEWED]: {
+    type: 'access_request.review',
     desc: 'Access Request Reviewed',
     format: ({ id, reviewer }) =>
       `User [${reviewer}] reviewed access request [${id}]`,
   },
-  [CodeEnum.SESSION_COMMAND]: {
+  [eventCodes.SESSION_COMMAND]: {
+    type: 'session.command',
     desc: 'Session Command',
     format: ({ program, sid }) =>
       `Program [${program}] has been executed within a session [${sid}]`,
   },
-  [CodeEnum.SESSION_DISK]: {
+  [eventCodes.SESSION_DISK]: {
+    type: 'session.disk',
     desc: 'Session File Access',
     format: ({ path, sid, program }) =>
       `Program [${program}] accessed a file [${path}] within a session [${sid}]`,
   },
-  [CodeEnum.SESSION_NETWORK]: {
+  [eventCodes.SESSION_NETWORK]: {
+    type: 'session.network',
     desc: 'Session Network Connection',
     format: ({ sid, program, src_addr, dst_addr, dst_port }) =>
       `Program [${program}] opened a connection [${src_addr} <-> ${dst_addr}:${dst_port}] within a session [${sid}]`,
   },
-  [CodeEnum.SESSION_DATA]: {
+  [eventCodes.SESSION_DATA]: {
+    type: 'session.data',
     desc: 'Session Data',
     format: ({ sid }) =>
       `Usage report has been updated for session [${sid || ''}]`,
   },
 
-  [CodeEnum.USER_PASSWORD_CHANGED]: {
+  [eventCodes.USER_PASSWORD_CHANGED]: {
+    type: 'user.password_change',
     desc: 'User Password Updated',
     format: ({ user }) => `User [${user}] has changed a password`,
   },
 
-  [CodeEnum.USER_UPDATED]: {
+  [eventCodes.USER_UPDATED]: {
+    type: 'user.update',
     desc: 'User Updated',
     format: ({ name }) => `User [${name}] has been updated`,
   },
-  [CodeEnum.RESET_PASSWORD_TOKEN_CREATED]: {
+  [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: {
+    type: 'reset_password_token.create',
     desc: 'Reset Password Token Created',
     format: ({ name, user }) =>
       `User [${user}] created a password reset token for user [${name}]`,
   },
-  [CodeEnum.AUTH_ATTEMPT_FAILURE]: {
+  [eventCodes.AUTH_ATTEMPT_FAILURE]: {
+    type: 'auth',
     desc: 'Auth Attempt Failed',
     format: ({ user, error }) => `User [${user}] failed auth attempt: ${error}`,
   },
 
-  [CodeEnum.CLIENT_DISCONNECT]: {
+  [eventCodes.CLIENT_DISCONNECT]: {
+    type: 'client.disconnect',
     desc: 'Client Disconnected',
     format: ({ user, reason }) =>
       `User [${user}] has been disconnected: ${reason}`,
   },
-  [CodeEnum.EXEC]: {
+  [eventCodes.EXEC]: {
+    type: 'exec',
     desc: 'Command Execution',
     format: event => {
       const { proto, kubernetes_cluster, user = '' } = event;
@@ -92,75 +105,90 @@ export const formatters: Formatters = {
       return `User [${user}] executed a command on node ${event['addr.local']}`;
     },
   },
-  [CodeEnum.EXEC_FAILURE]: {
+  [eventCodes.EXEC_FAILURE]: {
+    type: 'exec',
     desc: 'Command Execution Failed',
     format: ({ user, exitError, ...rest }) =>
       `User [${user}] command execution on node ${rest['addr.local']} failed [${exitError}]`,
   },
-  [CodeEnum.GITHUB_CONNECTOR_CREATED]: {
+  [eventCodes.GITHUB_CONNECTOR_CREATED]: {
+    type: 'github.created',
     desc: 'GITHUB Auth Connector Created',
     format: ({ user, name }) =>
       `User [${user}] created Github connector [${name}] has been created`,
   },
-  [CodeEnum.GITHUB_CONNECTOR_DELETED]: {
+  [eventCodes.GITHUB_CONNECTOR_DELETED]: {
+    type: 'github.deleted',
     desc: 'GITHUB Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted Github connector [${name}]`,
   },
-  [CodeEnum.OIDC_CONNECTOR_CREATED]: {
+  [eventCodes.OIDC_CONNECTOR_CREATED]: {
+    type: 'oidc.created',
     desc: 'OIDC Auth Connector Created',
     format: ({ user, name }) =>
       `User [${user}] created OIDC connector [${name}]`,
   },
-  [CodeEnum.OIDC_CONNECTOR_DELETED]: {
+  [eventCodes.OIDC_CONNECTOR_DELETED]: {
+    type: 'oidc.deleted',
     desc: 'OIDC Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted OIDC connector [${name}]`,
   },
-  [CodeEnum.PORTFORWARD]: {
+  [eventCodes.PORTFORWARD]: {
+    type: 'port',
     desc: 'Port Forwarding Started',
     format: ({ user }) => `User [${user}] started port forwarding`,
   },
-  [CodeEnum.PORTFORWARD_FAILURE]: {
+  [eventCodes.PORTFORWARD_FAILURE]: {
+    type: 'port',
     desc: 'Port Forwarding Failed',
     format: ({ user, error }) =>
       `User [${user}] port forwarding request failed: ${error}`,
   },
-  [CodeEnum.SAML_CONNECTOR_CREATED]: {
+  [eventCodes.SAML_CONNECTOR_CREATED]: {
+    type: 'saml.created',
     desc: 'SAML Connector Created',
     format: ({ user, name }) =>
       `User [${user}] created SAML connector [${name}]`,
   },
-  [CodeEnum.SAML_CONNECTOR_DELETED]: {
+  [eventCodes.SAML_CONNECTOR_DELETED]: {
+    type: 'saml.deleted',
     desc: 'SAML Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted SAML connector [${name}]`,
   },
-  [CodeEnum.SCP_DOWNLOAD]: {
+  [eventCodes.SCP_DOWNLOAD]: {
+    type: 'scp',
     desc: 'SCP Download',
     format: ({ user, path, ...rest }) =>
       `User [${user}] downloaded a file [${path}] from node [${rest['addr.local']}]`,
   },
-  [CodeEnum.SCP_DOWNLOAD_FAILURE]: {
+  [eventCodes.SCP_DOWNLOAD_FAILURE]: {
+    type: 'scp',
     desc: 'SCP Download Failed',
     format: ({ exitError, ...rest }) =>
       `File download from node [${rest['addr.local']}] failed [${exitError}]`,
   },
-  [CodeEnum.SCP_UPLOAD]: {
+  [eventCodes.SCP_UPLOAD]: {
+    type: 'scp',
     desc: 'SCP Upload',
     format: ({ user, path, ...rest }) =>
       `User [${user}] uploaded a file [${path}] to node [${rest['addr.local']}]`,
   },
-  [CodeEnum.SCP_UPLOAD_FAILURE]: {
+  [eventCodes.SCP_UPLOAD_FAILURE]: {
+    type: 'scp',
     desc: 'SCP Upload Failed',
     format: ({ exitError, ...rest }) =>
       `File upload to node [${rest['addr.local']}] failed [${exitError}]`,
   },
-  [CodeEnum.SESSION_JOIN]: {
+  [eventCodes.SESSION_JOIN]: {
+    type: 'session.join',
     desc: 'User Joined',
     format: ({ user, sid }) => `User [${user}] has joined the session [${sid}]`,
   },
-  [CodeEnum.SESSION_END]: {
+  [eventCodes.SESSION_END]: {
+    type: 'session.end',
     desc: 'Session Ended',
     format: event => {
       const user = event.user || '';
@@ -187,113 +215,138 @@ export const formatters: Formatters = {
       return `User [${user}] has ended interactive session [${event.sid}] on node [${node}] `;
     },
   },
-  [CodeEnum.SESSION_REJECT]: {
+  [eventCodes.SESSION_REJECT]: {
+    type: 'session.rejected',
     desc: 'Session Rejected',
     format: ({ user, login, server_id, reason }) =>
       `User [${user}] was denied access to [${login}@${server_id}] because [${reason}]`,
   },
-  [CodeEnum.SESSION_LEAVE]: {
+  [eventCodes.SESSION_LEAVE]: {
+    type: 'session.leave',
     desc: 'User Disconnected',
     format: ({ user, sid }) => `User [${user}] has left the session [${sid}]`,
   },
-  [CodeEnum.SESSION_START]: {
+  [eventCodes.SESSION_START]: {
+    type: 'session.start',
     desc: 'Session Started',
     format: ({ user, sid }) => `User [${user}] has started a session [${sid}]`,
   },
-  [CodeEnum.SESSION_UPLOAD]: {
+  [eventCodes.SESSION_UPLOAD]: {
+    type: 'session.upload',
     desc: 'Session Uploaded',
     format: () => `Recorded session has been uploaded`,
   },
-  [CodeEnum.APP_SESSION_START]: {
+  [eventCodes.APP_SESSION_START]: {
+    type: 'app.session.start',
     desc: 'App Session Started',
     format: ({ user, sid }) =>
       `User [${user}] has started an app session [${sid}]`,
   },
-  [CodeEnum.APP_SESSION_CHUNK]: {
+  [eventCodes.APP_SESSION_CHUNK]: {
+    type: 'app.session.chunk',
     desc: 'App Session Data',
     format: ({ sid }) => `New app session data created [${sid}]`,
   },
-  [CodeEnum.SUBSYSTEM]: {
+  [eventCodes.SUBSYSTEM]: {
+    type: 'subsystem',
     desc: 'Subsystem Requested',
     format: ({ user, name }) => `User [${user}] requested subsystem [${name}]`,
   },
-  [CodeEnum.SUBSYSTEM_FAILURE]: {
+  [eventCodes.SUBSYSTEM_FAILURE]: {
+    type: 'subsystem',
     desc: 'Subsystem Request Failed',
     format: ({ user, name, exitError }) =>
       `User [${user}] subsystem [${name}] request failed [${exitError}]`,
   },
-  [CodeEnum.TERMINAL_RESIZE]: {
+  [eventCodes.TERMINAL_RESIZE]: {
+    type: 'resize',
     desc: 'Terminal Resize',
     format: ({ user, sid }) =>
       `User [${user}] resized the session [${sid}] terminal`,
   },
-  [CodeEnum.USER_CREATED]: {
+  [eventCodes.USER_CREATED]: {
+    type: 'user.create',
     desc: 'User Created',
     format: ({ name }) => `User [${name}] has been created`,
   },
-  [CodeEnum.USER_DELETED]: {
+  [eventCodes.USER_DELETED]: {
+    type: 'user.delete',
     desc: 'User Deleted',
     format: ({ name }) => `User [${name}] has been deleted`,
   },
-  [CodeEnum.USER_LOCAL_LOGIN]: {
+  [eventCodes.USER_LOCAL_LOGIN]: {
+    type: 'user.login',
     desc: 'Local Login',
     format: ({ user }) => `Local user [${user}] successfully logged in`,
   },
-  [CodeEnum.USER_LOCAL_LOGINFAILURE]: {
+  [eventCodes.USER_LOCAL_LOGINFAILURE]: {
+    type: 'user.login',
     desc: 'Local Login Failed',
     format: ({ user, error }) => `Local user [${user}] login failed [${error}]`,
   },
-  [CodeEnum.USER_SSO_LOGIN]: {
+  [eventCodes.USER_SSO_LOGIN]: {
+    type: 'user.login',
     desc: 'SSO Login',
     format: ({ user }) => `SSO user [${user}] successfully logged in`,
   },
-  [CodeEnum.USER_SSO_LOGINFAILURE]: {
+  [eventCodes.USER_SSO_LOGINFAILURE]: {
+    type: 'user.login',
     desc: 'SSO Login Failed',
     format: ({ error }) => `SSO user login failed [${error}]`,
   },
-  [CodeEnum.ROLE_CREATED]: {
+  [eventCodes.ROLE_CREATED]: {
+    type: 'role.created',
     desc: 'User Role Created',
     format: ({ user, name }) => `User [${user}] created a role [${name}]`,
   },
-  [CodeEnum.ROLE_DELETED]: {
+  [eventCodes.ROLE_DELETED]: {
+    type: 'role.deleted',
     desc: 'User Role Deleted',
     format: ({ user, name }) => `User [${user}] deleted a role [${name}]`,
   },
-  [CodeEnum.TRUSTED_CLUSTER_TOKEN_CREATED]: {
+  [eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED]: {
+    type: 'trusted_cluster_token.create',
     desc: 'Trusted Cluster Token Created',
     format: ({ user }) => `User [${user}] has created a trusted cluster token`,
   },
-  [CodeEnum.TRUSTED_CLUSTER_CREATED]: {
+  [eventCodes.TRUSTED_CLUSTER_CREATED]: {
+    type: 'trusted_cluster.create',
     desc: 'Trusted Cluster Created',
     format: ({ user, name }) =>
       `User [${user}] has created a trusted relationship with cluster [${name}]`,
   },
-  [CodeEnum.TRUSTED_CLUSTER_DELETED]: {
+  [eventCodes.TRUSTED_CLUSTER_DELETED]: {
+    type: 'trusted_cluster.delete',
     desc: 'Trusted Cluster Deleted',
     format: ({ user, name }) =>
       `User [${user}] has deleted a trusted relationship with cluster [${name}]`,
   },
-  [CodeEnum.KUBE_REQUEST]: {
+  [eventCodes.KUBE_REQUEST]: {
+    type: 'kube.request',
     desc: 'Kubernetes Request',
     format: ({ user, kubernetes_cluster }) =>
       `User [${user}] made a request to kubernetes cluster [${kubernetes_cluster}]`,
   },
-  [CodeEnum.DATABASE_SESSION_STARTED]: {
+  [eventCodes.DATABASE_SESSION_STARTED]: {
+    type: 'db.session.start',
     desc: 'Database Session Started',
     format: ({ user, db_service, db_name, db_user }) =>
       `User [${user}] has connected to database [${db_name}] as [${db_user}] on [${db_service}]`,
   },
-  [CodeEnum.DATABASE_SESSION_STARTED_FAILURE]: {
+  [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: {
+    type: 'db.session.start',
     desc: 'Database Session Denied',
     format: ({ user, db_service, db_name, db_user }) =>
       `User [${user}] was denied access to database [${db_name}] as [${db_user}] on [${db_service}]`,
   },
-  [CodeEnum.DATABASE_SESSION_ENDED]: {
+  [eventCodes.DATABASE_SESSION_ENDED]: {
+    type: 'db.session.end',
     desc: 'Database Session Ended',
     format: ({ user, db_service, db_name }) =>
       `User [${user}] has disconnected from database [${db_name}] on [${db_service}]`,
   },
-  [CodeEnum.DATABASE_SESSION_QUERY]: {
+  [eventCodes.DATABASE_SESSION_QUERY]: {
+    type: 'db.session.query',
     desc: 'Database Query',
     format: ({ user, db_service, db_name, db_query }) =>
       `User [${user}] has executed query [${truncateStr(
@@ -301,29 +354,35 @@ export const formatters: Formatters = {
         80
       )}] in database [${db_name}] on [${db_service}]`,
   },
-  [CodeEnum.MFA_DEVICE_ADD]: {
+  [eventCodes.MFA_DEVICE_ADD]: {
+    type: 'mfa.add',
     desc: 'MFA Device Added',
     format: ({ user, mfa_device_name, mfa_device_type }) =>
       `User [${user}] added ${mfa_device_type} device [${mfa_device_name}]`,
   },
-  [CodeEnum.MFA_DEVICE_DELETE]: {
+  [eventCodes.MFA_DEVICE_DELETE]: {
+    type: 'mfa.delete',
     desc: 'MFA Device Deleted',
     format: ({ user, mfa_device_name, mfa_device_type }) =>
       `User [${user}] deleted ${mfa_device_type} device [${mfa_device_name}]`,
   },
-  [CodeEnum.BILLING_CARD_CREATE]: {
+  [eventCodes.BILLING_CARD_CREATE]: {
+    type: 'billing.create_card',
     desc: 'Credit Card Added',
     format: ({ user }) => `User [${user}] has added a credit card`,
   },
-  [CodeEnum.BILLING_CARD_DELETE]: {
+  [eventCodes.BILLING_CARD_DELETE]: {
+    type: 'billing.delete_card',
     desc: 'Credit Card Deleted',
     format: ({ user }) => `User [${user}] has deleted a credit card`,
   },
-  [CodeEnum.BILLING_CARD_UPDATE]: {
+  [eventCodes.BILLING_CARD_UPDATE]: {
+    type: 'billing.update_card',
     desc: 'Credit Card Updated',
     format: ({ user }) => `User [${user}] has updated a credit card`,
   },
-  [CodeEnum.BILLING_ACCOUNT_UPDATE]: {
+  [eventCodes.BILLING_INFORMATION_UPDATE]: {
+    type: 'billing.update_info',
     desc: 'Billing Information Updated',
     format: ({ user }) => `User [${user}] has updated the billing information`,
   },

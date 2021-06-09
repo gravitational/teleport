@@ -85,7 +85,7 @@ export default function ClusterSelector({
           maxMenuHeight={400}
           isSearchable
           isSimpleValue={false}
-          clearable={false}
+          isClearable={false}
           defaultOptions
           cacheOptions
         />

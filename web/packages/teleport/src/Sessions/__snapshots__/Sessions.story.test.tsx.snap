@@ -5,7 +5,7 @@ exports[`loaded 1`] = `
   box-sizing: border-box;
 }
 
-.c12 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -34,34 +34,34 @@ exports[`loaded 1`] = `
   height: 24px;
 }
 
-.c12:active {
+.c13:active {
   opacity: 0.56;
 }
 
-.c12:hover,
-.c12:focus {
+.c13:hover,
+.c13:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c12:active {
+.c13:active {
   opacity: 0.24;
 }
 
-.c12:disabled {
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c8 {
+.c9 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c11 {
+.c12 {
   display: inline-block;
   transition: color .3s;
   margin-right: 16px;
@@ -71,7 +71,7 @@ exports[`loaded 1`] = `
   font-size: 14px;
 }
 
-.c13 {
+.c14 {
   display: inline-block;
   transition: color .3s;
   margin-left: 8px;
@@ -80,7 +80,7 @@ exports[`loaded 1`] = `
   font-size: 14px;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -88,6 +88,12 @@ exports[`loaded 1`] = `
   line-height: 16px;
   margin: 0px;
   color: #FFFFFF;
+}
+
+.c5 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
 }
 
 .c1 {
@@ -130,7 +136,7 @@ exports[`loaded 1`] = `
   padding-bottom: 24px;
 }
 
-.c9 {
+.c10 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -140,35 +146,35 @@ exports[`loaded 1`] = `
   width: 100%;
 }
 
-.c9 > thead > tr > th,
-.c9 > tbody > tr > th,
-.c9 > tfoot > tr > th,
-.c9 > thead > tr > td,
-.c9 > tbody > tr > td,
-.c9 > tfoot > tr > td {
+.c10 > thead > tr > th,
+.c10 > tbody > tr > th,
+.c10 > tfoot > tr > th,
+.c10 > thead > tr > td,
+.c10 > tbody > tr > td,
+.c10 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c9 > thead > tr > th:first-child,
-.c9 > tbody > tr > th:first-child,
-.c9 > tfoot > tr > th:first-child,
-.c9 > thead > tr > td:first-child,
-.c9 > tbody > tr > td:first-child,
-.c9 > tfoot > tr > td:first-child {
+.c10 > thead > tr > th:first-child,
+.c10 > tbody > tr > th:first-child,
+.c10 > tfoot > tr > th:first-child,
+.c10 > thead > tr > td:first-child,
+.c10 > tbody > tr > td:first-child,
+.c10 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c9 > thead > tr > th:last-child,
-.c9 > tbody > tr > th:last-child,
-.c9 > tfoot > tr > th:last-child,
-.c9 > thead > tr > td:last-child,
-.c9 > tbody > tr > td:last-child,
-.c9 > tfoot > tr > td:last-child {
+.c10 > thead > tr > th:last-child,
+.c10 > tbody > tr > th:last-child,
+.c10 > tfoot > tr > th:last-child,
+.c10 > thead > tr > td:last-child,
+.c10 > tbody > tr > td:last-child,
+.c10 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c9 > thead > tr > th {
+.c10 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -182,39 +188,39 @@ exports[`loaded 1`] = `
   white-space: nowrap;
 }
 
-.c9 > thead > tr > th .c7 {
+.c10 > thead > tr > th .c8 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c9 > tbody > tr > td {
+.c10 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c9 tbody tr {
+.c10 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c9 tbody tr:hover {
+.c10 tbody tr:hover {
   background-color: rgb(37,49,98);
 }
 
-.c9 tbody > tr:last-child td:first-child {
+.c10 tbody > tr:last-child td:first-child {
   border-bottom-left-radius: 8px;
 }
 
-.c9 tbody > tr:last-child td:last-child {
+.c10 tbody > tr:last-child td:last-child {
   border-bottom-right-radius: 8px;
 }
 
-.c6 {
+.c7 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c6 button {
+.c7 button {
   background: none;
   border: none;
   border-radius: 200px;
@@ -226,17 +232,17 @@ exports[`loaded 1`] = `
   text-align: center;
 }
 
-.c6 button:hover,
-.c6 button:focus {
+.c7 button:hover,
+.c7 button:focus {
   background: #1C254D;
 }
 
-.c6 button:hover .c7,
-.c6 button:focus .c7 {
+.c7 button:hover .c8,
+.c7 button:focus .c8 {
   opacity: 1;
 }
 
-.c6 button .c7 {
+.c7 button .c8 {
   opacity: 0.4;
   font-size: 20px;
   transition: all 0.3s;
@@ -254,17 +260,17 @@ exports[`loaded 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c10 {
+.c11 {
   display: flex;
   align-items: center;
   min-width: 130px;
 }
 
 <div
-  class="sc-fzqBZW c0"
+  class="c0"
 >
   <div
-    class="sc-fzqBZW c1"
+    class="c1"
   >
     <div
       class="c2"
@@ -281,31 +287,35 @@ exports[`loaded 1`] = `
       >
         <div
           class="c5"
-          color="primary.contrastText"
         >
-          SHOWING 
-          <strong>
-            1
-          </strong>
-           - 
-          <strong>
-            1
-          </strong>
-           
-          of 
-          <strong>
-            1
-          </strong>
+          <div
+            class="c6"
+            color="primary.contrastText"
+          >
+            SHOWING 
+            <strong>
+              1
+            </strong>
+             - 
+            <strong>
+              1
+            </strong>
+             
+            of 
+            <strong>
+              1
+            </strong>
+          </div>
         </div>
         <div
-          class="sc-fzqBZW c6"
+          class="c7"
         >
           <button
             disabled=""
             title="Previous Page"
           >
             <span
-              class="c7 c8 icon icon-arrow-left-circle "
+              class="c8 c9 icon icon-arrow-left-circle "
               color="light"
               font-size="3"
             />
@@ -315,7 +325,7 @@ exports[`loaded 1`] = `
             title="Next Page"
           >
             <span
-              class="c7 c8 icon icon-arrow-right-circle "
+              class="c8 c9 icon icon-arrow-right-circle "
               color="light"
               font-size="3"
             />
@@ -323,7 +333,7 @@ exports[`loaded 1`] = `
         </div>
       </nav>
       <table
-        class="c9"
+        class="c10"
       >
         <thead>
           <tr>
@@ -349,10 +359,10 @@ exports[`loaded 1`] = `
           <tr>
             <td>
               <div
-                class="c10"
+                class="c11"
               >
                 <a
-                  class="c7 c11 icon icon-terminal "
+                  class="c8 c12 icon icon-terminal "
                   color="light"
                   font-size="2"
                   href="/web/cluster/one/console/session/sid0"
@@ -380,13 +390,13 @@ exports[`loaded 1`] = `
               align="right"
             >
               <button
-                class="c12"
+                class="c13"
                 height="24px"
                 kind="border"
               >
                 OPTIONS
                 <span
-                  class="c7 c13 icon icon-caret-down "
+                  class="c8 c14 icon icon-caret-down "
                   color="text.secondary"
                   font-size="2"
                 />

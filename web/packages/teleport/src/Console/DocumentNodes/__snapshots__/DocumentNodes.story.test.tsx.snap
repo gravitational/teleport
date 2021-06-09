@@ -7,7 +7,7 @@ exports[`render DocumentNodes 1`] = `
   width: 336px;
 }
 
-.c22 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -36,40 +36,40 @@ exports[`render DocumentNodes 1`] = `
   height: 24px;
 }
 
-.c22:active {
+.c23:active {
   opacity: 0.56;
 }
 
-.c22:hover,
-.c22:focus {
+.c23:hover,
+.c23:focus {
   background: #092F52;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c22:active {
+.c23:active {
   opacity: 0.24;
 }
 
-.c22:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c17 {
+.c18 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c20 {
+.c21 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c23 {
+.c24 {
   display: inline-block;
   transition: color .3s;
   margin-left: 8px;
@@ -78,7 +78,7 @@ exports[`render DocumentNodes 1`] = `
   font-size: 14px;
 }
 
-.c21 {
+.c22 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -105,7 +105,7 @@ exports[`render DocumentNodes 1`] = `
   margin-bottom: 4px;
 }
 
-.c14 {
+.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -145,7 +145,13 @@ exports[`render DocumentNodes 1`] = `
   justify-content: space-between;
 }
 
-.c18 {
+.c14 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c19 {
   background: #03203C;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -155,35 +161,35 @@ exports[`render DocumentNodes 1`] = `
   width: 100%;
 }
 
-.c18 > thead > tr > th,
-.c18 > tbody > tr > th,
-.c18 > tfoot > tr > th,
-.c18 > thead > tr > td,
-.c18 > tbody > tr > td,
-.c18 > tfoot > tr > td {
+.c19 > thead > tr > th,
+.c19 > tbody > tr > th,
+.c19 > tfoot > tr > th,
+.c19 > thead > tr > td,
+.c19 > tbody > tr > td,
+.c19 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c18 > thead > tr > th:first-child,
-.c18 > tbody > tr > th:first-child,
-.c18 > tfoot > tr > th:first-child,
-.c18 > thead > tr > td:first-child,
-.c18 > tbody > tr > td:first-child,
-.c18 > tfoot > tr > td:first-child {
+.c19 > thead > tr > th:first-child,
+.c19 > tbody > tr > th:first-child,
+.c19 > tfoot > tr > th:first-child,
+.c19 > thead > tr > td:first-child,
+.c19 > tbody > tr > td:first-child,
+.c19 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c18 > thead > tr > th:last-child,
-.c18 > tbody > tr > th:last-child,
-.c18 > tfoot > tr > th:last-child,
-.c18 > thead > tr > td:last-child,
-.c18 > tbody > tr > td:last-child,
-.c18 > tfoot > tr > td:last-child {
+.c19 > thead > tr > th:last-child,
+.c19 > tbody > tr > th:last-child,
+.c19 > tfoot > tr > th:last-child,
+.c19 > thead > tr > td:last-child,
+.c19 > tbody > tr > td:last-child,
+.c19 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c18 > thead > tr > th {
+.c19 > thead > tr > th {
   background: #01172C;
   color: #FFFFFF;
   cursor: pointer;
@@ -197,39 +203,39 @@ exports[`render DocumentNodes 1`] = `
   white-space: nowrap;
 }
 
-.c18 > thead > tr > th .c16 {
+.c19 > thead > tr > th .c17 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c18 > tbody > tr > td {
+.c19 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c18 tbody tr {
+.c19 tbody tr {
   border-bottom: 1px solid #010B1C;
 }
 
-.c18 tbody tr:hover {
+.c19 tbody tr:hover {
   background-color: rgb(7,40,70);
 }
 
-.c18 tbody > tr:last-child td:first-child {
+.c19 tbody > tr:last-child td:first-child {
   border-bottom-left-radius: 8px;
 }
 
-.c18 tbody > tr:last-child td:last-child {
+.c19 tbody > tr:last-child td:last-child {
   border-bottom-right-radius: 8px;
 }
 
-.c15 {
+.c16 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c15 button {
+.c16 button {
   background: none;
   border: none;
   border-radius: 200px;
@@ -241,17 +247,17 @@ exports[`render DocumentNodes 1`] = `
   text-align: center;
 }
 
-.c15 button:hover,
-.c15 button:focus {
+.c16 button:hover,
+.c16 button:focus {
   background: #010B1C;
 }
 
-.c15 button:hover .c16,
-.c15 button:focus .c16 {
+.c16 button:hover .c17,
+.c16 button:focus .c17 {
   opacity: 1;
 }
 
-.c15 button .c16 {
+.c16 button .c17 {
   opacity: 0.4;
   font-size: 20px;
   transition: all 0.3s;
@@ -269,7 +275,7 @@ exports[`render DocumentNodes 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c19 > tbody > tr > td {
+.c20 > tbody > tr > td {
   vertical-align: baseline;
 }
 
@@ -661,7 +667,7 @@ exports[`render DocumentNodes 1`] = `
              Clusters 
           </label>
           <div
-            class="sc-fzoxKX c6"
+            class="sc-fzoKki c6"
           >
             <div
               class="c7"
@@ -768,31 +774,35 @@ exports[`render DocumentNodes 1`] = `
           >
             <div
               class="c14"
-              color="primary.contrastText"
             >
-              SHOWING 
-              <strong>
-                1
-              </strong>
-               - 
-              <strong>
-                5
-              </strong>
-               
-              of 
-              <strong>
-                5
-              </strong>
+              <div
+                class="c15"
+                color="primary.contrastText"
+              >
+                SHOWING 
+                <strong>
+                  1
+                </strong>
+                 - 
+                <strong>
+                  5
+                </strong>
+                 
+                of 
+                <strong>
+                  5
+                </strong>
+              </div>
             </div>
             <div
-              class="c15"
+              class="c16"
             >
               <button
                 disabled=""
                 title="Previous Page"
               >
                 <span
-                  class="c16 c17 icon icon-arrow-left-circle "
+                  class="c17 c18 icon icon-arrow-left-circle "
                   color="light"
                   font-size="3"
                 />
@@ -802,7 +812,7 @@ exports[`render DocumentNodes 1`] = `
                 title="Next Page"
               >
                 <span
-                  class="c16 c17 icon icon-arrow-right-circle "
+                  class="c17 c18 icon icon-arrow-right-circle "
                   color="light"
                   font-size="3"
                 />
@@ -810,7 +820,7 @@ exports[`render DocumentNodes 1`] = `
             </div>
           </nav>
           <table
-            class="c18 c19"
+            class="c19 c20"
           >
             <thead>
               <tr>
@@ -818,7 +828,7 @@ exports[`render DocumentNodes 1`] = `
                   <a>
                     Hostname
                     <span
-                      class="c16 c20 icon icon-chevron-down "
+                      class="c17 c21 icon icon-chevron-down "
                       color="light"
                     />
                   </a>
@@ -827,7 +837,7 @@ exports[`render DocumentNodes 1`] = `
                   <a>
                     Address
                     <span
-                      class="c16 c20 icon icon-chevrons-expand-vertical "
+                      class="c17 c21 icon icon-chevrons-expand-vertical "
                       color="light"
                     />
                   </a>
@@ -853,13 +863,13 @@ exports[`render DocumentNodes 1`] = `
                 </td>
                 <td>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -869,13 +879,13 @@ exports[`render DocumentNodes 1`] = `
                   align="right"
                 >
                   <button
-                    class="c22"
+                    class="c23"
                     height="24px"
                     kind="border"
                   >
                     CONNECT
                     <span
-                      class="c16 c23 icon icon-caret-down "
+                      class="c17 c24 icon icon-caret-down "
                       color="text.secondary"
                       font-size="2"
                     />
@@ -891,13 +901,13 @@ exports[`render DocumentNodes 1`] = `
                 </td>
                 <td>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -907,13 +917,13 @@ exports[`render DocumentNodes 1`] = `
                   align="right"
                 >
                   <button
-                    class="c22"
+                    class="c23"
                     height="24px"
                     kind="border"
                   >
                     CONNECT
                     <span
-                      class="c16 c23 icon icon-caret-down "
+                      class="c17 c24 icon icon-caret-down "
                       color="text.secondary"
                       font-size="2"
                     />
@@ -929,13 +939,13 @@ exports[`render DocumentNodes 1`] = `
                 </td>
                 <td>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -945,13 +955,13 @@ exports[`render DocumentNodes 1`] = `
                   align="right"
                 >
                   <button
-                    class="c22"
+                    class="c23"
                     height="24px"
                     kind="border"
                   >
                     CONNECT
                     <span
-                      class="c16 c23 icon icon-caret-down "
+                      class="c17 c24 icon icon-caret-down "
                       color="text.secondary"
                       font-size="2"
                     />
@@ -972,13 +982,13 @@ exports[`render DocumentNodes 1`] = `
                 </td>
                 <td>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -988,13 +998,13 @@ exports[`render DocumentNodes 1`] = `
                   align="right"
                 >
                   <button
-                    class="c22"
+                    class="c23"
                     height="24px"
                     kind="border"
                   >
                     CONNECT
                     <span
-                      class="c16 c23 icon icon-caret-down "
+                      class="c17 c24 icon icon-caret-down "
                       color="text.secondary"
                       font-size="2"
                     />
@@ -1010,37 +1020,37 @@ exports[`render DocumentNodes 1`] = `
                 </td>
                 <td>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
                   </div>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     lortavma: one
                   </div>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     lenisret: 4.15.0-51-generic
                   </div>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     lofdevod: one
                   </div>
                   <div
-                    class="c21"
+                    class="c22"
                     kind="secondary"
                   >
                     llhurlaz: 4.15.0-51-generic
@@ -1050,13 +1060,13 @@ exports[`render DocumentNodes 1`] = `
                   align="right"
                 >
                   <button
-                    class="c22"
+                    class="c23"
                     height="24px"
                     kind="border"
                   >
                     CONNECT
                     <span
-                      class="c16 c23 icon icon-caret-down "
+                      class="c17 c24 icon icon-caret-down "
                       color="text.secondary"
                       font-size="2"
                     />

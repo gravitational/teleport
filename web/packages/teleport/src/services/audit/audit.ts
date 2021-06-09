@@ -14,50 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import moment from 'moment';
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import makeEvent from './makeEvent';
+import { EventQuery, EventResponse } from './types';
 
-export const EVENT_MAX_LIMIT = 9999;
+class AuditService {
+  maxFetchLimit = 5000;
 
-const service = {
-  maxLimit: EVENT_MAX_LIMIT,
+  fetchEvents(clusterId: string, params: EventQuery): Promise<EventResponse> {
+    const start = params.from.toISOString();
+    const end = params.to.toISOString();
 
-  fetchLatest(clusterId: string) {
-    const start = moment(new Date())
-      .startOf('day')
-      .toDate();
-    const end = moment(new Date())
-      .endOf('day')
-      .toDate();
-
-    return service.fetchEvents(clusterId, { start, end });
-  },
-
-  fetchEvents(clusterId: string, params: { end: Date; start: Date }) {
-    const start = params.start.toISOString();
-    const end = params.end.toISOString();
     const url = cfg.getClusterEventsUrl(clusterId, {
       start,
       end,
-      limit: EVENT_MAX_LIMIT + 1,
+      limit: params.limit ? params.limit : this.maxFetchLimit,
+      startKey: params.startKey ? params.startKey : undefined,
     });
-    return api
-      .get(url)
-      .then(json => {
-        const events: any[] = json.events || [];
-        return events.map(makeEvent);
-      })
-      .then(events => {
-        const overflow = events.length > EVENT_MAX_LIMIT;
-        events = events.splice(0, EVENT_MAX_LIMIT - 1);
-        return {
-          overflow,
-          events,
-        };
-      });
-  },
-};
 
-export default service;
+    return api.get(url).then(json => {
+      const events = json.events || [];
+
+      return { events: events.map(makeEvent), startKey: json.startKey };
+    });
+  }
+}
+
+export default AuditService;

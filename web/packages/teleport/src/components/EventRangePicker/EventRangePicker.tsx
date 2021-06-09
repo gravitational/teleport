@@ -14,39 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import moment from 'moment';
+import React, { useState } from 'react';
+import { components } from 'react-select';
 import 'react-day-picker/lib/style.css';
-import { ButtonOutlined } from 'design';
-import { CarrotDown } from 'design/Icon';
-import Menu, { MenuItem } from 'design/Menu';
+import { Text } from 'design';
 import Dialog from 'design/DialogConfirmation';
 import { displayDate } from 'shared/services/loc';
 import CustomRange from './Custom';
+import Select, { Option, DarkStyledSelect } from 'shared/components/Select';
+import { State, EventRange } from 'teleport/useAuditEvents';
 
-export default function DataRange(props) {
-  const { ml, value, onChange, disabled, options } = props;
-  const { from, to, name, isCustom } = value;
+export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
+  const [isPickerOpen, openDayPicker] = useState(false);
+  const [rangeOptions] = useState(() =>
+    ranges.map(range => ({ value: range, label: range.name }))
+  );
 
-  // state
-  const [isPickerOpen, openDayPicker] = React.useState(false);
-  const [isMenuOpen, openMenu] = React.useState(false);
-  const anchorEl = React.useRef();
-
-  function onCloseMenu() {
-    openMenu(false);
-  }
-
-  function onOpenMenu() {
-    openMenu(true);
-  }
-
-  function onMenuClick(option) {
-    openMenu(false);
-    if (option.isCustom) {
+  function handleOnChange(option: Option<EventRange>) {
+    if (option.value.isCustom) {
       openDayPicker(true);
     } else {
-      onChange(option);
+      onChangeRange(option.value);
     }
   }
 
@@ -54,35 +42,22 @@ export default function DataRange(props) {
     openDayPicker(false);
   }
 
-  function onSetRange(from, to) {
-    onChange({ isCustom: true, from, to });
+  function onSetCustomRange(from: Date, to: Date) {
+    onChangeRange({ isCustom: true, from, to });
     onClosePicker();
   }
 
-  const btnText = isCustom ? `${displayDate(from)} - ${displayDate(to)}` : name;
-
   return (
     <>
-      <ButtonOutlined
-        size="small"
-        width="auto"
-        disabled={disabled}
-        ml={ml}
-        setRef={anchorEl}
-        onClick={onOpenMenu}
-        style={{ minWidth: '100px' }}
-      >
-        {btnText}
-        <CarrotDown ml={2} mr={-2} fontSize="2" color="text.primary" />
-      </ButtonOutlined>
-      <Menu
-        anchorEl={anchorEl.current}
-        open={isMenuOpen}
-        onClose={onCloseMenu}
-        menuListCss={() => ({ width: '200px' })}
-      >
-        {renderOptions(options, onMenuClick)}
-      </Menu>
+      <DarkStyledSelect ml={ml} width="210px">
+        <Select
+          isSearchable={false}
+          components={{ ValueContainer }}
+          options={rangeOptions}
+          onChange={handleOnChange}
+          value={{ value: range, label: range.name }}
+        />
+      </DarkStyledSelect>
       <Dialog
         dialogCss={() => ({ padding: '0' })}
         disableEscapeKeyDown={false}
@@ -90,9 +65,9 @@ export default function DataRange(props) {
         open={isPickerOpen}
       >
         <CustomRange
-          from={from}
-          to={to}
-          onChange={onSetRange}
+          from={range.from}
+          to={range.to}
+          onChange={onSetCustomRange}
           onClosePicker={onClosePicker}
         />
       </Dialog>
@@ -100,40 +75,28 @@ export default function DataRange(props) {
   );
 }
 
-function renderOptions(options, onClick) {
-  return options.map(o => (
-    <MenuItem key={o.name} onClick={() => onClick(o)}>
-      {o.name}
-    </MenuItem>
-  ));
-}
+const ValueContainer = ({ children, ...props }) => {
+  const { isCustom, from, to } = props.getValue()[0].value;
 
-export function getRangeOptions() {
-  return [
-    {
-      name: 'Today',
-      from: moment(new Date())
-        .startOf('day')
-        .toDate(),
-      to: moment(new Date())
-        .endOf('day')
-        .toDate(),
-    },
-    {
-      name: '7 days',
-      from: moment()
-        .subtract(6, 'day')
-        .startOf('day')
-        .toDate(),
-      to: moment(new Date())
-        .endOf('day')
-        .toDate(),
-    },
-    {
-      name: 'Custom Range...',
-      isCustom: true,
-      from: new Date(),
-      to: new Date(),
-    },
-  ];
-}
+  if (isCustom) {
+    return (
+      <components.ValueContainer {...props}>
+        <Text color="text.primary">
+          {`${displayDate(from)} - ${displayDate(to)}`}
+        </Text>
+        {children}
+      </components.ValueContainer>
+    );
+  }
+
+  return (
+    <components.ValueContainer {...props}>{children}</components.ValueContainer>
+  );
+};
+
+type Props = {
+  ml?: string | number;
+  range: State['range'];
+  onChangeRange: State['setRange'];
+  ranges: State['rangeOptions'];
+};

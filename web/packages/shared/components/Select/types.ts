@@ -16,7 +16,7 @@ limitations under the License.
 
 export type Props = {
   hasError?: boolean;
-  clearable?: boolean;
+  isClearable?: boolean;
   isSimpleValue?: boolean;
   isSearchable?: boolean;
   isDisabled?: boolean;

@@ -62,7 +62,6 @@ function SelectDefault({ value, onChange, options }) {
           value={selected}
           onChange={(opt: any) => setSelected(opt)}
           options={options}
-          clearable={true}
           placeholder="Click to select a role"
         />
       </Box>
@@ -72,7 +71,6 @@ function SelectDefault({ value, onChange, options }) {
           value={selected}
           onChange={(opt: any) => setSelected(opt)}
           options={options}
-          clearable={true}
           placeholder="Click to select a role"
         />
       </Box>

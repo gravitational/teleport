@@ -29,18 +29,19 @@ import useTeleport from 'teleport/useTeleport';
 import useAuditEvents from 'teleport/useAuditEvents';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+const MAX_EVENT_FETCH = 9999;
+
 export default function Container() {
   const teleCtx = useTeleport();
   const { clusterId } = useStickyClusterId();
-  const state = useAuditEvents(teleCtx, clusterId);
+  const state = useAuditEvents(teleCtx, clusterId, MAX_EVENT_FETCH);
   return <Recordings {...state} />;
 }
 
 export function Recordings(props: ReturnType<typeof useAuditEvents>) {
   const {
-    overflow,
+    fetchStartKey,
     attempt,
-    maxLimit,
     range,
     rangeOptions,
     setRange,
@@ -50,35 +51,38 @@ export function Recordings(props: ReturnType<typeof useAuditEvents>) {
     setSearchValue,
   } = props;
 
-  const { isSuccess, isFailed, message, isProcessing } = attempt;
-
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
-        <FeatureHeaderTitle mr="8"> Session Recordings</FeatureHeaderTitle>
+        <FeatureHeaderTitle mr="8">Session Recordings</FeatureHeaderTitle>
         <RangePicker
           ml="auto"
-          value={range}
-          options={rangeOptions}
-          onChange={setRange}
+          range={range}
+          ranges={rangeOptions}
+          onChangeRange={setRange}
         />
       </FeatureHeader>
-      <Flex mb={4} alignItems="center" flex="0 0 auto" justifyContent="flex-start">
-        <InputSearch  mr="3" onChange={setSearchValue} />
+      <Flex
+        mb={4}
+        alignItems="center"
+        flex="0 0 auto"
+        justifyContent="flex-start"
+      >
+        <InputSearch mr="3" onChange={setSearchValue} />
       </Flex>
-      {overflow && (
+      {fetchStartKey && (
         <Danger>
-          Number of events retrieved for specified date range has exceeded the
-          maximum limit of {maxLimit} events
+          number of events retrieved for specified date range has exceeded the
+          maximum limit of {MAX_EVENT_FETCH} events
         </Danger>
       )}
-      {isFailed && <Danger> {message} </Danger>}
-      {isProcessing && (
+      {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
+      {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {isSuccess && (
+      {attempt.status === 'success' && (
         <RecordList
           searchValue={searchValue}
           events={events}

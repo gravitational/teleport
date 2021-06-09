@@ -70,10 +70,7 @@ export default function RecordList(props: Props) {
     setSort({ [columnKey]: sortDir });
   }
 
-  const tableProps = {
-    pageSize,
-    data,
-  };
+  const tableProps = { pageSize, data };
 
   return (
     <PagedTable {...tableProps}>

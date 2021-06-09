@@ -81,7 +81,7 @@ const cfg = {
     appFqdnPath: '/v1/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
     applicationsPath: '/v1/webapi/sites/:clusterId/apps',
     clustersPath: '/v1/webapi/sites',
-    clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?`,
+    clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
     scp:
       '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
     renewTokenPath: '/v1/webapi/sessions/renew',
@@ -98,9 +98,6 @@ const cfg = {
     nodesPath: '/v1/webapi/sites/:clusterId/nodes',
     databasesPath: `/v1/webapi/sites/:clusterId/databases`,
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
-    sessionEventsPath: '/v1/webapi/sites/:siteId/sessions/:sid/events',
-    siteEventSessionFilterPath: `/v1/webapi/sites/:siteId/sessions`,
-    siteEventsFilterPath: `/v1/webapi/sites/:siteId/events?event=session.start&event=session.end&from=:start&to=:end`,
     ttyWsAddr:
       'wss://:fqdm/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
     terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
@@ -344,6 +341,8 @@ export interface UrlClusterEventsParams {
   start: string;
   end: string;
   limit?: number;
+  include?: string;
+  startKey?: string;
 }
 
 export interface UrlLauncherParams {

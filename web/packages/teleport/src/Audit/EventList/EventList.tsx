@@ -20,13 +20,14 @@ import isMatch from 'design/utils/match';
 import * as Table from 'design/DataTable';
 import PagedTable from 'design/DataTable/Paged';
 import { Event } from 'teleport/services/audit';
+import { State } from 'teleport/useAuditEvents';
 import { ActionCell, TimeCell, DescCell } from './EventListCells';
 import TypeCell from './EventTypeCell';
 import EventDialog from '../EventDialog';
 import { displayDateTime } from 'shared/services/loc';
 
 export default function EventList(props: Props) {
-  const { clusterId, events = [], search = '' } = props;
+  const { clusterId, events = [], search = '', fetchMore, fetchStatus } = props;
   const [state, setState] = React.useState<EventListState>(() => {
     return {
       searchableProps: ['codeDesc', 'message', 'user', 'time'],
@@ -75,7 +76,7 @@ export default function EventList(props: Props) {
     const columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
     const sortDir = colSortDirs[columnKey];
     const sorted = sortBy(filtered, columnKey);
-    if (sortDir === Table.SortTypes.ASC) {
+    if (sortDir === Table.SortTypes.DESC) {
       return sorted.reverse();
     }
 
@@ -83,7 +84,7 @@ export default function EventList(props: Props) {
   }, [state, events, search]);
 
   // paginate
-  const tableProps = { pageSize: 50, data };
+  const tableProps = { pageSize: 50, data, fetchMore, fetchStatus };
   const { detailsToShow, colSortDirs } = state;
   return (
     <React.Fragment>
@@ -136,7 +137,9 @@ type EventListState = {
 };
 
 type Props = {
-  clusterId: string;
-  search: string;
-  events: Event[];
+  clusterId: State['clusterId'];
+  search: State['searchValue'];
+  events: State['events'];
+  fetchMore: State['fetchMore'];
+  fetchStatus: State['fetchStatus'];
 };

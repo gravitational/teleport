@@ -96,7 +96,7 @@ export default function ClusterSelector({
           menuPosition="fixed"
           isSearchable
           isSimpleValue={false}
-          clearable={false}
+          isClearable={false}
           defaultOptions
           cacheOptions
         />

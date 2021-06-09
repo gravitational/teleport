@@ -23,8 +23,16 @@ import usePages from './usePages';
 import PropTypes from 'prop-types';
 
 export default function TablePaged(props) {
-  const { pageSize, data, pagerPosition, ...rest } = props;
+  const {
+    pageSize,
+    data,
+    pagerPosition,
+    fetchMore,
+    fetchStatus,
+    ...rest
+  } = props;
   const pagedState = usePages({ pageSize, data });
+  const pagerProps = { ...pagedState, onFetch: fetchMore, fetchStatus };
   const tableProps = {
     ...rest,
     data: pagedState.data,
@@ -42,13 +50,13 @@ export default function TablePaged(props) {
     <div>
       {showTopPager && (
         <StyledPanel borderTopRightRadius="3" borderTopLeftRadius="3">
-          <Pager {...pagedState} />
+          <Pager {...pagerProps} />
         </StyledPanel>
       )}
       <Table {...tableProps} />
       {showBottomPager && (
         <StyledPanel borderBottomRightRadius="3" borderBottomLeftRadius="3">
-          <Pager {...pagedState} />
+          <Pager {...pagerProps} />
         </StyledPanel>
       )}
     </div>
@@ -57,6 +65,7 @@ export default function TablePaged(props) {
 
 TablePaged.propTypes = {
   pagerPosition: PropTypes.oneOf(['top', 'bottom']),
+  fetchStatus: PropTypes.oneOf(['disabled', 'loading', '']),
 };
 
 export const StyledPanel = styled.nav`

@@ -29,8 +29,8 @@ export const Loaded = () => {
   const ctx = new Context();
   ctx.auditService.fetchEvents = () =>
     Promise.resolve({
-      overflow: false,
       events: events.map(makeEvent),
+      startKey: '',
     });
 
   return render(ctx);
@@ -40,8 +40,8 @@ export const Overflow = () => {
   const ctx = new Context();
   ctx.auditService.fetchEvents = () =>
     Promise.resolve({
-      overflow: true,
       events: [],
+      startKey: 'cause-overflow',
     });
 
   return render(ctx);

@@ -14,6 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import RangePicker, { getRangeOptions } from './EventRangePicker';
+import RangePicker from './EventRangePicker';
+
 export default RangePicker;
-export { getRangeOptions };

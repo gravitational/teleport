@@ -26,7 +26,7 @@ export default function FieldSelect({
   onChange,
   placeholder,
   maxMenuHeight,
-  clearable,
+  isClearable,
   isMulti,
   menuPosition,
   rule = defaultRule,
@@ -47,7 +47,7 @@ export default function FieldSelect({
         hasError={hasError}
         isSimpleValue={isSimpleValue}
         isSearchable={isSearchable}
-        clearable={clearable}
+        isClearable={isClearable}
         value={value}
         onChange={onChange}
         options={options}

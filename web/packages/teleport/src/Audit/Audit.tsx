@@ -38,19 +38,17 @@ export default function Container() {
 
 export function Audit(props: ReturnType<typeof useAuditEvents>) {
   const {
-    overflow,
     attempt,
-    maxLimit,
     range,
-    rangeOptions,
     setRange,
+    rangeOptions,
     events,
     searchValue,
     clusterId,
     setSearchValue,
+    fetchMore,
+    fetchStatus,
   } = props;
-
-  const { isSuccess, isFailed, message, isProcessing } = attempt;
 
   return (
     <FeatureBox>
@@ -58,9 +56,9 @@ export function Audit(props: ReturnType<typeof useAuditEvents>) {
         <FeatureHeaderTitle mr="8">Audit Log</FeatureHeaderTitle>
         <RangePicker
           ml="auto"
-          value={range}
-          options={rangeOptions}
-          onChange={setRange}
+          range={range}
+          ranges={rangeOptions}
+          onChangeRange={setRange}
         />
       </FeatureHeader>
       <Flex
@@ -71,20 +69,20 @@ export function Audit(props: ReturnType<typeof useAuditEvents>) {
       >
         <InputSearch mr="3" onChange={setSearchValue} />
       </Flex>
-      {overflow && (
-        <Danger>
-          number of events retrieved for specified date range has exceeded the
-          maximum limit of {maxLimit} events
-        </Danger>
-      )}
-      {isFailed && <Danger> {message} </Danger>}
-      {isProcessing && (
+      {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
+      {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {isSuccess && (
-        <EventList search={searchValue} events={events} clusterId={clusterId} />
+      {attempt.status === 'success' && (
+        <EventList
+          search={searchValue}
+          events={events}
+          clusterId={clusterId}
+          fetchMore={fetchMore}
+          fetchStatus={fetchStatus}
+        />
       )}
     </FeatureBox>
   );

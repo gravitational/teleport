@@ -18,72 +18,76 @@ import React from 'react';
 import styled from 'styled-components';
 import { Cell } from 'design/DataTable';
 import Icon, * as Icons from 'design/Icon/Icon';
-import { CodeEnum } from 'teleport/services/audit/types';
-import { Event } from 'teleport/services/audit';
+import { eventCodes, Event, EventCode } from 'teleport/services/audit';
 import cfg from 'teleport/config';
 
-const EventIconMap = {
-  [CodeEnum.AUTH_ATTEMPT_FAILURE]: Icons.Info,
-  [CodeEnum.EXEC_FAILURE]: Icons.Cli,
-  [CodeEnum.EXEC]: Icons.Cli,
-  [CodeEnum.TRUSTED_CLUSTER_TOKEN_CREATED]: Icons.Info,
-  [CodeEnum.TRUSTED_CLUSTER_CREATED]: Icons.Info,
-  [CodeEnum.TRUSTED_CLUSTER_DELETED]: Icons.Info,
-  [CodeEnum.GITHUB_CONNECTOR_CREATED]: Icons.Info,
-  [CodeEnum.GITHUB_CONNECTOR_DELETED]: Icons.Info,
-  [CodeEnum.OIDC_CONNECTOR_CREATED]: Icons.Info,
-  [CodeEnum.OIDC_CONNECTOR_DELETED]: Icons.Info,
-  [CodeEnum.SAML_CONNECTOR_CREATED]: Icons.Info,
-  [CodeEnum.SAML_CONNECTOR_CREATED]: Icons.Info,
-  [CodeEnum.SAML_CONNECTOR_DELETED]: Icons.Info,
-  [CodeEnum.ROLE_CREATED]: Icons.Info,
-  [CodeEnum.ROLE_DELETED]: Icons.Info,
-  [CodeEnum.SCP_DOWNLOAD_FAILURE]: Icons.Download,
-  [CodeEnum.SCP_DOWNLOAD_FAILURE]: Icons.Upload,
-  [CodeEnum.SCP_DOWNLOAD]: Icons.Download,
-  [CodeEnum.SCP_UPLOAD]: Icons.Upload,
-  [CodeEnum.APP_SESSION_CHUNK]: Icons.Info,
-  [CodeEnum.APP_SESSION_START]: Icons.Info,
-  [CodeEnum.SESSION_END]: Icons.Cli,
-  [CodeEnum.SESSION_JOIN]: Icons.Cli,
-  [CodeEnum.SESSION_LEAVE]: Icons.Cli,
-  [CodeEnum.SESSION_START]: Icons.Cli,
-  [CodeEnum.SESSION_UPLOAD]: Icons.Cli,
-  [CodeEnum.SESSION_REJECT]: Icons.Cli,
-  [CodeEnum.TERMINAL_RESIZE]: Icons.Cli,
-  [CodeEnum.SESSION_DATA]: Icons.Cli,
-  [CodeEnum.SESSION_NETWORK]: Icons.Cli,
-  [CodeEnum.SESSION_DISK]: Icons.Cli,
-  [CodeEnum.SESSION_COMMAND]: Icons.Cli,
-  [CodeEnum.USER_CREATED]: Icons.Info,
-  [CodeEnum.USER_UPDATED]: Icons.Info,
-  [CodeEnum.USER_DELETED]: Icons.Info,
-  [CodeEnum.RESET_PASSWORD_TOKEN_CREATED]: Icons.Info,
-  [CodeEnum.USER_PASSWORD_CHANGED]: Icons.Info,
-  [CodeEnum.ACCESS_REQUEST_CREATED]: Icons.Info,
-  [CodeEnum.ACCESS_REQUEST_UPDATED]: Icons.Info,
-  [CodeEnum.ACCESS_REQUEST_REVIEWED]: Icons.Info,
-  [CodeEnum.USER_LOCAL_LOGIN]: Icons.Info,
-  [CodeEnum.USER_LOCAL_LOGINFAILURE]: Icons.Info,
-  [CodeEnum.USER_SSO_LOGIN]: Icons.Info,
-  [CodeEnum.USER_SSO_LOGINFAILURE]: Icons.Info,
-  [CodeEnum.KUBE_REQUEST]: Icons.Kubernetes,
-  [CodeEnum.DATABASE_SESSION_STARTED]: Icons.Database,
-  [CodeEnum.DATABASE_SESSION_STARTED_FAILURE]: Icons.Database,
-  [CodeEnum.DATABASE_SESSION_ENDED]: Icons.Database,
-  [CodeEnum.DATABASE_SESSION_QUERY]: Icons.Database,
-  [CodeEnum.MFA_DEVICE_ADD]: Icons.Info,
-  [CodeEnum.MFA_DEVICE_DELETE]: Icons.Info,
-  [CodeEnum.BILLING_CARD_CREATE]: Icons.CreditCardAlt2,
-  [CodeEnum.BILLING_CARD_DELETE]: Icons.CreditCardAlt2,
-  [CodeEnum.BILLING_CARD_UPDATE]: Icons.CreditCardAlt2,
-  [CodeEnum.BILLING_ACCOUNT_UPDATE]: Icons.CreditCardAlt2,
+const EventIconMap: Record<EventCode, React.FC> = {
+  [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
+  [eventCodes.EXEC_FAILURE]: Icons.Cli,
+  [eventCodes.EXEC]: Icons.Cli,
+  [eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED]: Icons.Info,
+  [eventCodes.TRUSTED_CLUSTER_CREATED]: Icons.Info,
+  [eventCodes.TRUSTED_CLUSTER_DELETED]: Icons.Info,
+  [eventCodes.GITHUB_CONNECTOR_CREATED]: Icons.Info,
+  [eventCodes.GITHUB_CONNECTOR_DELETED]: Icons.Info,
+  [eventCodes.OIDC_CONNECTOR_CREATED]: Icons.Info,
+  [eventCodes.OIDC_CONNECTOR_DELETED]: Icons.Info,
+  [eventCodes.SAML_CONNECTOR_CREATED]: Icons.Info,
+  [eventCodes.SAML_CONNECTOR_CREATED]: Icons.Info,
+  [eventCodes.SAML_CONNECTOR_DELETED]: Icons.Info,
+  [eventCodes.ROLE_CREATED]: Icons.Info,
+  [eventCodes.ROLE_DELETED]: Icons.Info,
+  [eventCodes.SCP_DOWNLOAD_FAILURE]: Icons.Download,
+  [eventCodes.SCP_DOWNLOAD]: Icons.Download,
+  [eventCodes.SCP_UPLOAD_FAILURE]: Icons.Upload,
+  [eventCodes.SCP_UPLOAD]: Icons.Upload,
+  [eventCodes.APP_SESSION_CHUNK]: Icons.Info,
+  [eventCodes.APP_SESSION_START]: Icons.Info,
+  [eventCodes.SESSION_END]: Icons.Cli,
+  [eventCodes.SESSION_JOIN]: Icons.Cli,
+  [eventCodes.SESSION_LEAVE]: Icons.Cli,
+  [eventCodes.SESSION_START]: Icons.Cli,
+  [eventCodes.SESSION_UPLOAD]: Icons.Cli,
+  [eventCodes.SESSION_REJECT]: Icons.Cli,
+  [eventCodes.TERMINAL_RESIZE]: Icons.Cli,
+  [eventCodes.SESSION_DATA]: Icons.Cli,
+  [eventCodes.SESSION_NETWORK]: Icons.Cli,
+  [eventCodes.SESSION_DISK]: Icons.Cli,
+  [eventCodes.SESSION_COMMAND]: Icons.Cli,
+  [eventCodes.USER_CREATED]: Icons.Info,
+  [eventCodes.USER_UPDATED]: Icons.Info,
+  [eventCodes.USER_DELETED]: Icons.Info,
+  [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: Icons.Info,
+  [eventCodes.USER_PASSWORD_CHANGED]: Icons.Info,
+  [eventCodes.ACCESS_REQUEST_CREATED]: Icons.Info,
+  [eventCodes.ACCESS_REQUEST_UPDATED]: Icons.Info,
+  [eventCodes.ACCESS_REQUEST_REVIEWED]: Icons.Info,
+  [eventCodes.USER_LOCAL_LOGIN]: Icons.Info,
+  [eventCodes.USER_LOCAL_LOGINFAILURE]: Icons.Info,
+  [eventCodes.USER_SSO_LOGIN]: Icons.Info,
+  [eventCodes.USER_SSO_LOGINFAILURE]: Icons.Info,
+  [eventCodes.KUBE_REQUEST]: Icons.Kubernetes,
+  [eventCodes.DATABASE_SESSION_STARTED]: Icons.Database,
+  [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: Icons.Database,
+  [eventCodes.DATABASE_SESSION_ENDED]: Icons.Database,
+  [eventCodes.DATABASE_SESSION_QUERY]: Icons.Database,
+  [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
+  [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
+  [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCardAlt2,
+  [eventCodes.BILLING_CARD_DELETE]: Icons.CreditCardAlt2,
+  [eventCodes.BILLING_CARD_UPDATE]: Icons.CreditCardAlt2,
+  [eventCodes.BILLING_INFORMATION_UPDATE]: Icons.CreditCardAlt2,
+  [eventCodes.CLIENT_DISCONNECT]: Icons.Info,
+  [eventCodes.PORTFORWARD]: Icons.Info,
+  [eventCodes.PORTFORWARD_FAILURE]: Icons.Info,
+  [eventCodes.SUBSYSTEM]: Icons.Info,
+  [eventCodes.SUBSYSTEM_FAILURE]: Icons.Info,
 };
 
 export default function TypeCell(props) {
   const { rowIndex, data, clusterId } = props;
   const event: Event = data[rowIndex];
-  let IconType = EventIconMap[event.code] || Icons.List;
+  const IconType = EventIconMap[event.code] || Icons.List;
 
   const iconProps = {
     p: '1',
@@ -93,7 +97,7 @@ export default function TypeCell(props) {
 
   // use button for interactive ssh sessions
   if (
-    event.code === CodeEnum.SESSION_END &&
+    event.code === eventCodes.SESSION_END &&
     event.raw.interactive &&
     event.raw.session_recording !== 'off'
   ) {

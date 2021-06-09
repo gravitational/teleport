@@ -28,21 +28,15 @@ export default {
 export const Loaded = () => {
   const ctx = new Context();
   ctx.auditService.fetchEvents = () =>
-    Promise.resolve({
-      overflow: false,
-      events,
-    });
+    Promise.resolve({ events, startKey: '' });
 
   return render(ctx);
 };
 
-export const Overflow = () => {
+export const LoadedFetchMore = () => {
   const ctx = new Context();
   ctx.auditService.fetchEvents = () =>
-    Promise.resolve({
-      overflow: true,
-      events: [],
-    });
+    Promise.resolve({ events, startKey: 'any-text' });
 
   return render(ctx);
 };

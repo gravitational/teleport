@@ -15,48 +15,80 @@ limitations under the License.
 */
 
 import moment from 'moment';
-import React, { useEffect, useState, useMemo } from 'react';
-import { useAttempt } from 'shared/hooks';
+import { useEffect, useState, useMemo } from 'react';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
+import { Event } from 'teleport/services/audit';
 
-export default function useEvents(ctx: Ctx, clusterId: string) {
+export default function useAuditEvents(
+  ctx: Ctx,
+  clusterId: string,
+  limit?: number
+) {
   const rangeOptions = useMemo(() => getRangeOptions(), []);
-  const [searchValue, setSearchValue] = React.useState('');
-  const [range, setRange] = useState(rangeOptions[0]);
-  const [attempt, attemptActions] = useAttempt({ isProcessing: true });
-  const [results, setResults] = useState({
+  const [searchValue, setSearchValue] = useState('');
+  const [range, setRange] = useState<EventRange>(rangeOptions[0]);
+  const { attempt, setAttempt, run } = useAttempt('processing');
+  const [results, setResults] = useState<EventResult>({
     events: [],
-    overflow: false,
+    fetchStartKey: '',
+    fetchStatus: '',
   });
 
-  function onFetch({ from, to }: Range) {
-    attemptActions.do(() => {
-      return ctx.auditService
-        .fetchEvents(clusterId, { start: from, end: to })
-        .then(setResults);
+  useEffect(() => {
+    fetch();
+  }, [clusterId, range]);
+
+  // fetchMore gets events from last position from
+  // last fetch, indicated by startKey. The response is
+  // appended to existing events list.
+  function fetchMore() {
+    setResults({
+      ...results,
+      fetchStatus: 'loading',
     });
+    ctx.auditService
+      .fetchEvents(clusterId, { ...range, startKey: results.fetchStartKey })
+      .then(res =>
+        setResults({
+          events: [...results.events, ...res.events],
+          fetchStartKey: res.startKey,
+          fetchStatus: res.startKey ? '' : 'disabled',
+        })
+      )
+      .catch((err: Error) => {
+        setAttempt({ status: 'failed', statusText: err.message });
+      });
   }
 
-  useEffect(() => {
-    onFetch(range);
-  }, [clusterId, range]);
+  // fetch gets events from beginning of range and
+  // replaces existing events list.
+  function fetch() {
+    run(() =>
+      ctx.auditService.fetchEvents(clusterId, { ...range, limit }).then(res =>
+        setResults({
+          events: res.events,
+          fetchStartKey: res.startKey,
+          fetchStatus: res.startKey ? '' : 'disabled',
+        })
+      )
+    );
+  }
 
   return {
     ...results,
-    attempt,
+    fetchMore,
     clusterId,
-    attemptActions,
-    onFetch,
-    maxLimit: ctx.auditService.maxLimit,
+    attempt,
     range,
-    rangeOptions,
     setRange,
+    rangeOptions,
     searchValue,
     setSearchValue,
   };
 }
 
-export function getRangeOptions() {
+function getRangeOptions(): EventRange[] {
   return [
     {
       name: 'Today',
@@ -86,4 +118,17 @@ export function getRangeOptions() {
   ];
 }
 
-type Range = { from: Date; to: Date };
+type EventResult = {
+  events: Event[];
+  fetchStatus: 'loading' | 'disabled' | '';
+  fetchStartKey: string;
+};
+
+export type EventRange = {
+  from: Date;
+  to: Date;
+  isCustom?: boolean;
+  name?: string;
+};
+
+export type State = ReturnType<typeof useAuditEvents>;

@@ -102,7 +102,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
               isSearchable
               isMulti
               isSimpleValue
-              clearable={false}
+              isClearable={false}
               value={selectedRoles}
               onChange={values => onChangeRoles(values as Option[])}
               options={selectOptions}
