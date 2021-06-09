@@ -169,13 +169,6 @@ func (ca *CertAuthorityV2) Expiry() time.Time {
 	return ca.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (ca *CertAuthorityV2) SetTTL(clock Clock, ttl time.Duration) {
-	ca.Metadata.SetTTL(clock, ttl)
-}
-
 // GetResourceID returns resource ID
 func (ca *CertAuthorityV2) GetResourceID() int64 {
 	return ca.Metadata.ID
