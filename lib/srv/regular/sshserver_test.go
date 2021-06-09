@@ -285,7 +285,7 @@ func TestInactivityTimeout(t *testing.T) {
 	// Given
 	//  * a running auth server configured with a 10s inactivity timeout,
 	//  * a running SSH server configured with a given disconnection message
-	//  * an client client connected to the SSH server,
+	//  * a client connected to the SSH server,
 	//  * an SSH session running over the client connection
 	mutateCfg := func(cfg *auth.TestServerConfig) {
 		cfg.Auth.ClusterNetworkingConfig = types.DefaultClusterNetworkingConfig()
