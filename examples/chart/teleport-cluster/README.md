@@ -4,8 +4,8 @@ This chart sets up a single node Teleport cluster.
 It uses a persistent volume claim for storage.
 Great for getting started with Teleport.
 
-It can also deploy HA Teleport clusters on EKS, GKE and other Kubernetes clusters.
-See our [guides](https://goteleport.com/docs/kubernetes-access/helm/guides) for details.
+It can also deploy HA Teleport clusters on EKS, GKE, and other Kubernetes clusters.
+See our [Helm guides](https://goteleport.com/docs/kubernetes-access/helm/guides) for details.
 
 ## Getting Started
 
@@ -33,7 +33,7 @@ helm uninstall teleport-cluster
 To use The enterprise version, set `--set=enterprise=true` value and create a
 secret `license` in the chart namespace.
 
-Check https://goteleport.com/teleport/docs for more details.
+Check [our documentation](https://goteleport.com/teleport/docs) for more details.
 
 | Name                      | Description                                                                 | Default                                                | Required |
 |---------------------------|-----------------------------------------------------------------------------|--------------------------------------------------------|----------|
@@ -49,5 +49,5 @@ Check https://goteleport.com/teleport/docs for more details.
 
 ## Guides
 
-See https://goteleport.com/docs/kubernetes-access/helm/guides/ for guides on setting up HA Teleport clusters
-in EKS or GKE, plus a more comprehensive chart reference.
+See our [Helm guides](https://goteleport.com/docs/kubernetes-access/helm/guides) for information on setting up
+high availability Teleport clusters in EKS or GKE, plus a more comprehensive chart reference.
