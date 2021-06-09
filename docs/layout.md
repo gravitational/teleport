@@ -44,6 +44,10 @@ The documentation layout and structure is presently:
     - [ ] Production Guide
     - [ ] FAQ
     - [ ] Changelog
+- [ ] Setup Section
+    - [ ] Guides
+        - [ ] Terraform
+        - [ ] Local Docker
 - [ ] Application Access Section
     - [ ] Introduction
     - [ ] Getting Started
@@ -240,6 +244,21 @@ The documentation layout and structure is presently:
         - Section-specific FAQ
     - [ ] Changelog
         - Teleport repository README is injected here.
+- [ ] Setup Section
+    - [ ] Guides
+        - [ ] Terraform Provider
+            - [ ] Follow along with our video guide
+            - [ ] Prerequisites
+            - [ ] Step 1/4. Install terraform provider
+            - [ ] Step 2/4. Create a terraform user
+            - [ ] Step 3/4. Create Terraform configuration
+            - [ ] Step 4/4. Apply the configuration
+            - [ ] Next steps
+        - [ ] Local Docker
+            - [ ] Pick your image
+            - [ ] Quickstart using docker-compose
+            - [ ] Quickstart using docker run
+            - [ ] Creating a Teleport user when using Docker quickstart
 - [ ] Application Access Section
     - [ ] Introduction
         - [ ] Application Access
