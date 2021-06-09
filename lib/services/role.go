@@ -2224,7 +2224,7 @@ func DowngradeRoleToV3(r *types.RoleV3) (*types.RoleV3, error) {
 	case types.V3:
 		return r, nil
 	case types.V4:
-		downgraded := types.RoleV3{}
+		var downgraded types.RoleV3
 		downgraded = *r
 		downgraded.Version = types.V3
 
