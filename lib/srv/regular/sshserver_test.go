@@ -526,7 +526,7 @@ func TestAgentForward(t *testing.T) {
 
 	// wait for the output
 	var output []byte
-	for i := 0; i < 100 && len(output) == 0; i++ {
+	for i := 0; i < 400 && len(output) == 0; i++ {
 		time.Sleep(10 * time.Millisecond)
 		output, _ = ioutil.ReadFile(tmpFile.Name())
 	}
