@@ -33,7 +33,7 @@ exports[`failed state 1`] = `
 `;
 
 exports[`loaded state 1`] = `
-.c13 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -62,27 +62,27 @@ exports[`loaded state 1`] = `
   margin-left: 16px;
 }
 
-.c13:active {
+.c14:active {
   opacity: 0.56;
 }
 
-.c13:hover,
-.c13:focus {
+.c14:hover,
+.c14:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c13:active {
+.c14:active {
   opacity: 0.24;
 }
 
-.c13:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c16 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -109,38 +109,38 @@ exports[`loaded state 1`] = `
   width: 80px;
 }
 
-.c16:active {
+.c17:active {
   opacity: 0.56;
 }
 
-.c16:hover,
-.c16:focus {
+.c17:hover,
+.c17:focus {
   background: #651FFF;
 }
 
-.c16:active {
+.c17:active {
   background: #354AA4;
 }
 
-.c16:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c6 {
+.c7 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c9 {
+.c10 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c12 {
+.c13 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -157,7 +157,7 @@ exports[`loaded state 1`] = `
   margin-right: 4px;
 }
 
-.c10 {
+.c11 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -178,7 +178,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -199,7 +199,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c15 {
+.c16 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -220,7 +220,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c3 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -230,7 +230,7 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
-.c11 {
+.c12 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -247,7 +247,13 @@ exports[`loaded state 1`] = `
   align-items: center;
 }
 
-.c7 {
+.c3 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -257,35 +263,35 @@ exports[`loaded state 1`] = `
   width: 100%;
 }
 
-.c7 > thead > tr > th,
-.c7 > tbody > tr > th,
-.c7 > tfoot > tr > th,
-.c7 > thead > tr > td,
-.c7 > tbody > tr > td,
-.c7 > tfoot > tr > td {
+.c8 > thead > tr > th,
+.c8 > tbody > tr > th,
+.c8 > tfoot > tr > th,
+.c8 > thead > tr > td,
+.c8 > tbody > tr > td,
+.c8 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c7 > thead > tr > th:first-child,
-.c7 > tbody > tr > th:first-child,
-.c7 > tfoot > tr > th:first-child,
-.c7 > thead > tr > td:first-child,
-.c7 > tbody > tr > td:first-child,
-.c7 > tfoot > tr > td:first-child {
+.c8 > thead > tr > th:first-child,
+.c8 > tbody > tr > th:first-child,
+.c8 > tfoot > tr > th:first-child,
+.c8 > thead > tr > td:first-child,
+.c8 > tbody > tr > td:first-child,
+.c8 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c7 > thead > tr > th:last-child,
-.c7 > tbody > tr > th:last-child,
-.c7 > tfoot > tr > th:last-child,
-.c7 > thead > tr > td:last-child,
-.c7 > tbody > tr > td:last-child,
-.c7 > tfoot > tr > td:last-child {
+.c8 > thead > tr > th:last-child,
+.c8 > tbody > tr > th:last-child,
+.c8 > tfoot > tr > th:last-child,
+.c8 > thead > tr > td:last-child,
+.c8 > tbody > tr > td:last-child,
+.c8 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c7 > thead > tr > th {
+.c8 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -299,39 +305,39 @@ exports[`loaded state 1`] = `
   white-space: nowrap;
 }
 
-.c7 > thead > tr > th .c5 {
+.c8 > thead > tr > th .c6 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c7 > tbody > tr > td {
+.c8 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c7 tbody tr {
+.c8 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c7 tbody tr:hover {
+.c8 tbody tr:hover {
   background-color: rgb(37,49,98);
 }
 
-.c7 tbody > tr:last-child td:first-child {
+.c8 tbody > tr:last-child td:first-child {
   border-bottom-left-radius: 8px;
 }
 
-.c7 tbody > tr:last-child td:last-child {
+.c8 tbody > tr:last-child td:last-child {
   border-bottom-right-radius: 8px;
 }
 
-.c4 {
+.c5 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c4 button {
+.c5 button {
   background: none;
   border: none;
   border-radius: 200px;
@@ -343,17 +349,17 @@ exports[`loaded state 1`] = `
   text-align: center;
 }
 
-.c4 button:hover,
-.c4 button:focus {
+.c5 button:hover,
+.c5 button:focus {
   background: #1C254D;
 }
 
-.c4 button:hover .c5,
-.c4 button:focus .c5 {
+.c5 button:hover .c6,
+.c5 button:focus .c6 {
   opacity: 1;
 }
 
-.c4 button .c5 {
+.c5 button .c6 {
   opacity: 0.4;
   font-size: 20px;
   transition: all 0.3s;
@@ -402,7 +408,7 @@ exports[`loaded state 1`] = `
   font-size: 12px;
 }
 
-.c8 tbody > tr > td {
+.c9 tbody > tr > td {
   vertical-align: baseline;
 }
 
@@ -422,32 +428,36 @@ exports[`loaded state 1`] = `
       class="c2"
     >
       <div
-        class="c3"
-        color="primary.contrastText"
+        class="sc-AxirZ c3"
       >
-        SHOWING 
-        <strong>
-          1
-        </strong>
-         - 
-        <strong>
-          4
-        </strong>
-         
-        of 
-        <strong>
-          4
-        </strong>
+        <div
+          class="c4"
+          color="primary.contrastText"
+        >
+          SHOWING 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            4
+          </strong>
+           
+          of 
+          <strong>
+            4
+          </strong>
+        </div>
       </div>
       <div
-        class="sc-AxirZ c4"
+        class="sc-AxirZ c5"
       >
         <button
           disabled=""
           title="Previous Page"
         >
           <span
-            class="c5 c6 icon icon-arrow-left-circle "
+            class="c6 c7 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
@@ -457,7 +467,7 @@ exports[`loaded state 1`] = `
           title="Next Page"
         >
           <span
-            class="c5 c6 icon icon-arrow-right-circle "
+            class="c6 c7 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />
@@ -465,7 +475,7 @@ exports[`loaded state 1`] = `
       </div>
     </nav>
     <table
-      class="c7 c8"
+      class="c8 c9"
     >
       <thead>
         <tr>
@@ -473,7 +483,7 @@ exports[`loaded state 1`] = `
             <a>
               Status
               <span
-                class="c5 c9 icon icon-chevrons-expand-vertical "
+                class="c6 c10 icon icon-chevrons-expand-vertical "
                 color="light"
               />
             </a>
@@ -482,7 +492,7 @@ exports[`loaded state 1`] = `
             <a>
               User
               <span
-                class="c5 c9 icon icon-chevrons-expand-vertical "
+                class="c6 c10 icon icon-chevrons-expand-vertical "
                 color="light"
               />
             </a>
@@ -491,7 +501,7 @@ exports[`loaded state 1`] = `
             <a>
               Roles
               <span
-                class="c5 c9 icon icon-chevrons-expand-vertical "
+                class="c6 c10 icon icon-chevrons-expand-vertical "
                 color="light"
               />
             </a>
@@ -500,7 +510,7 @@ exports[`loaded state 1`] = `
             <a>
               Request Reason
               <span
-                class="c5 c9 icon icon-chevrons-expand-vertical "
+                class="c6 c10 icon icon-chevrons-expand-vertical "
                 color="light"
               />
             </a>
@@ -509,7 +519,7 @@ exports[`loaded state 1`] = `
             <a>
               Created
               <span
-                class="c5 c9 icon icon-chevron-down "
+                class="c6 c10 icon icon-chevron-down "
                 color="light"
               />
             </a>
@@ -523,7 +533,7 @@ exports[`loaded state 1`] = `
             style="display: flex; align-items: center;"
           >
             <span
-              class="c10"
+              class="c11"
               color="light"
               font-size="0"
               font-weight="bold"
@@ -532,7 +542,7 @@ exports[`loaded state 1`] = `
               width="10px"
             />
             <div
-              class="c11"
+              class="c12"
             >
               PENDING
             </div>
@@ -545,7 +555,7 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c12"
+              class="c13"
               kind="secondary"
             >
               admin
@@ -564,7 +574,7 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <a
-              class="c13"
+              class="c14"
               href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
               kind="border"
               ml="3"
@@ -579,7 +589,7 @@ exports[`loaded state 1`] = `
             style="display: flex; align-items: center;"
           >
             <span
-              class="c14"
+              class="c15"
               color="light"
               font-size="0"
               font-weight="bold"
@@ -588,7 +598,7 @@ exports[`loaded state 1`] = `
               width="10px"
             />
             <div
-              class="c11"
+              class="c12"
             >
               DENIED
             </div>
@@ -601,13 +611,13 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c12"
+              class="c13"
               kind="secondary"
             >
               admin
             </div>
             <div
-              class="c12"
+              class="c13"
               kind="secondary"
             >
               ruhh
@@ -626,7 +636,7 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <a
-              class="c13"
+              class="c14"
               href="/web/requests/3ce23da9-6b85-5fce-9bf3-5fb826120cb2"
               kind="border"
               ml="3"
@@ -641,7 +651,7 @@ exports[`loaded state 1`] = `
             style="display: flex; align-items: center;"
           >
             <span
-              class="c15"
+              class="c16"
               color="light"
               font-size="0"
               font-weight="bold"
@@ -650,7 +660,7 @@ exports[`loaded state 1`] = `
               width="10px"
             />
             <div
-              class="c11"
+              class="c12"
             >
               APPROVED
             </div>
@@ -663,19 +673,19 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c12"
+              class="c13"
               kind="secondary"
             >
               admin
             </div>
             <div
-              class="c12"
+              class="c13"
               kind="secondary"
             >
               kaco
             </div>
             <div
-              class="c12"
+              class="c13"
               kind="secondary"
             >
               ziuzzow
@@ -692,7 +702,7 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <button
-              class="c16"
+              class="c17"
               disabled=""
               kind="primary"
               width="80px"
@@ -700,7 +710,7 @@ exports[`loaded state 1`] = `
               assumed
             </button>
             <a
-              class="c13"
+              class="c14"
               href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
               kind="border"
               ml="3"
@@ -715,7 +725,7 @@ exports[`loaded state 1`] = `
             style="display: flex; align-items: center;"
           >
             <span
-              class="c15"
+              class="c16"
               color="light"
               font-size="0"
               font-weight="bold"
@@ -724,7 +734,7 @@ exports[`loaded state 1`] = `
               width="10px"
             />
             <div
-              class="c11"
+              class="c12"
             >
               APPROVED
             </div>
@@ -737,19 +747,19 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c12"
+              class="c13"
               kind="secondary"
             >
               admin
             </div>
             <div
-              class="c12"
+              class="c13"
               kind="secondary"
             >
               kaco
             </div>
             <div
-              class="c12"
+              class="c13"
               kind="secondary"
             >
               ziuzzow
@@ -766,14 +776,14 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <button
-              class="c16"
+              class="c17"
               kind="primary"
               width="80px"
             >
               assume
             </button>
             <a
-              class="c13"
+              class="c14"
               href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
               kind="border"
               ml="3"
