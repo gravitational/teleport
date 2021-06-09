@@ -4,13 +4,26 @@ description: How to record your SSH and Kubernetes sessions into the audit log.
 h1: Enhanced Session Recording
 ---
 
-Teleport [SSH and Kubernetes session recording](../architecture/nodes.mdx#session-recording)
-feature captures what is echoed to a terminal.
+Teleport enhances your session auditing and logging with powerful features including:
 
-This has inherent advantages, for example, because no input is captured, Teleport
-session recordings typically do not contain passwords that were entered into a terminal.
+1. Video session recording and playback
+2. Enhanced audit log session recording 
 
-The disadvantage is that session recordings can be bypassed using several techniques:
+This document describes the latter feature: Teleport [SSH and Kubernetes enhanced session recording](../architecture/nodes.mdx#session-recording) captures what is `echoed` in a terminal into your text-based audit logging.
+
+## Advantages
+
+Enhanced session recording has many advantages. 
+
+For example, because no input is captured, Teleport session recordings typically do not contain passwords that were entered into a terminal. Logs created through enhanced session recording can typically be shared without fear of revealing passwords or user inputs.
+
+By contrast, Teleport video session recording will record and replay each keystroke for greater visibility. 
+
+The choice of these two session logging features provides flexibility in terms of what logs are shared and the appropriate level of visibility that's need when analyzing logging sources.
+
+## Known limitations
+
+One known limitation is that enhanced session recordings can be bypassed using several techniques:
 
 - **Obfuscation**. For example, even though the command
   `echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
@@ -18,10 +31,17 @@ The disadvantage is that session recordings can be bypassed using several techni
 - **Shell scripts**. For example, if a user uploads and executes a script, the commands run within the script are not captured, simply the output.
 - **Terminal controls**. Terminals support a wide variety of controls including the ability for users to disable terminal echo. This is frequently used when requesting credentials. Disabling terminal echo allows commands to be run without being captured.
 
-Furthermore, due to their unstructured nature, session recordings are difficult to
-ingest and perform monitoring/alerting on.
+<Admonition type="tip" title="Tip">
+  Carefully restricting who has access to what logs helps to mitigate the first concern.
+</Admonition>
 
-# Requirements
+Another known limitation: due to their unstructured nature, session recordings are sometimes difficult to ingest and perform monitoring/alerting on.
+
+<Admonition type="tip" title="Tip">
+  This concern can be mitigated by routing, transforming, or extracting logging data in a uniform and desirable format. For example, Teleport [Events](../admin-guide.mdx#events) can be defined to route and log specific kinds of logging messages.
+</Admonition>
+
+## Requirements
 
 ## Step 1/5. Check / Patch kernel
 
