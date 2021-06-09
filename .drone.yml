@@ -3579,6 +3579,7 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+      GOCACHE: /go/cache
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -3592,7 +3593,7 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
-      - mkdir -p /go/cache /go/artifacts
+      - mkdir -p /go/artifacts ${GOCACHE}
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -3601,6 +3602,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: amd64
@@ -3625,6 +3627,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: amd64
@@ -4300,6 +4303,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 81e81a6ee7ef982ff05c6b1008572da8b23fab12647dec2500d769bf78d16e33
+hmac: 4fee2a24376485b7ef2791980e1f51f83d0c891683dd4cc662d3b8e7f08236ae
 
 ...
