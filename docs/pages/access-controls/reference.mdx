@@ -172,6 +172,20 @@ The table below documents the behavior of each option if multiple roles are assi
 | `max_connections` | Limit on how many active SSH sessions can be started via Teleport | |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
 
+### Role Versions
+
+There are currently two supported role versions: `v3` and `v4`. `v4` roles are
+completely backwards-compatible with `v3`, the only difference lies in the
+default allow labels which will be applied to the role if they are not
+explicitly set.
+
+Label              | `v3` Default   | `v4` Default
+------------------ | -------------- | ---------------
+`NodeLabels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
+`AppLabels`        | `[{"*": "*"}]` | `[]`
+`KubernetesLabels` | `[{"*": "*"}]` | `[]`
+`DatabaseLabels`   | `[{"*": "*"}]` | `[]`
+
 ## RBAC for Hosts
 
 A Teleport role can also define which hosts (nodes) a user can have access to.
