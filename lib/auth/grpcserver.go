@@ -433,7 +433,7 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCerts
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return certs, trace.Wrap(err)
+	return certs, nil
 }
 
 func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*types.UserV2, error) {
