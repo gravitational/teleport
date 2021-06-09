@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.2.3
+
+This release of Teleport contains multiple improvements.
+
+* Improvements to speed up DynamoDB events migration. We now encourage all DynamoDB users to upgrade to Teleport 6.2. [#7073](https://github.com/gravitational/teleport/pull/7073) [#7097](https://github.com/gravitational/teleport/pull/7097)
+
 ## 6.2.1
 
 This release of Teleport contains an improvement and several bug fixes.

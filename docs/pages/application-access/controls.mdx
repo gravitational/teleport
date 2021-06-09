@@ -1,11 +1,11 @@
 ---
-title: Application Access Access Controls
-description: Role-based access control (RBAC) for Teleport Application Access
+title: Application Access Role-Based Access Control
+description: Role-Based Access Control (RBAC) for Teleport Application Access.
 ---
 
-# Application Access Role-Based Access Control
+This article describes Access Control concepts particularly relevant to Teleport Application Access.
 
-## Assigning Labels to Applications
+## Assigning labels to applications
 
 Teleport Application Access uses labels to control access to the proxied
 web applications.
@@ -29,7 +29,7 @@ apps:
     period: 1m0s
 ```
 
-## Configuring Application Labels in Roles
+## Configuring application labels in roles
 
 Teleport administrators can configure roles to allow or deny users' access to
 applications with specific labels using `app_labels` property.
@@ -51,7 +51,7 @@ spec:
       env: "prod"
 ```
 
-## Integrating with Identity Providers
+## Integrating with identity providers
 
 You can configure roles to populate app labels dynamically based on the user's
 claims and attributes received from identity providers. This is done by using
@@ -67,7 +67,7 @@ allow:
     group: "{{external.group}}"
 ```
 
-## Next Steps
+## Next steps
 
 - View access controls [Getting Started](../access-controls/getting-started.mdx)
   and other available [guides](../access-controls/guides.mdx).
