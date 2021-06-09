@@ -83,7 +83,7 @@ $ tctl create -f access.yaml
 Teleport Plugin use the `access-plugin` role and user to perform the approval. Export credientials using [`tctl auth sign`](https://goteleport.com/docs/cli-docs/#tctl-auth-sign).
 
 <Tabs>
-<TabItem label="Teleport Cloud">
+<TabItem label="Cloud">
   If you are using Teleport Cloud or want to have the plugin only connect through the proxy ports you must use a identity file.  When you `tctl auth sign` through Teleport Cloud or remotely you must have [impersonation](https://goteleport.com/docs/access-controls/guides/impersonation/) rights on your user's role.
 
   ```bash  
@@ -205,7 +205,7 @@ In the Teleport section, use the certificate(s) you've generated with `tctl auth
 In Slack section, use the OAuth token, signing token, setup the desired channel name. The listen URL is the URL the plugin will listen for Slack callbacks.
 
 <Tabs>
-<TabItem label="Teleport Cloud">
+<TabItem label="Cloud">
   ```toml
   (!examples/resources/plugins/teleport-slack-proxyconnection.toml!)
   ```
