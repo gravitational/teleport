@@ -20,7 +20,7 @@ It also describes all article subsections and video content in one quick view to
 ### Products Supported
 
 Our current Product and Reference Documentation topics are divided into thirteen (13) sections supporting the four (4) main products:
-å
+
 1. Teleport Application Access
 2. Teleport Server Access
 3. Teleport Database Access
