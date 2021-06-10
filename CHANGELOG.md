@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.2.2 
+
+This release of Teleport contains access request improvements. 
+
+* Added the ability to correlate an access request with a session. [#7189](https://github.com/gravitational/teleport/pull/7189)
+* Fixed expiry time on an access request event to show actual expiry time. [#7189](https://github.com/gravitational/teleport/pull/7189)
+
 ## 5.2.1
 
 This release of Teleport contains multiple security fixes.
