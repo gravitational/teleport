@@ -108,6 +108,8 @@ You can now [follow this guide from **Step 4** onwards](../../getting-started.md
 
 Finish signing up and creating your user using the generated link created previously.
 
+[Download and install](https://goteleport.com/teleport/download) a copy of Teleport locally. Doing so will install the `tsh` tool so you can interact with Docker containers.
+
 Open a second terminal and issue the command:
 
 ```bash
@@ -163,4 +165,31 @@ This will bring up the Linux command prompt where you can issue Bash commands, t
 
 ```bash
 root@localhost:~# 
+```
+
+<Admonition type="tip" title="Tip">
+  To recreate `testuser`:
+
+  ```bash
+  # Remove the current testuser, password, add token, and OTP
+  docker exec teleport tctl users rm testuser 
+
+  # Recreate testuser    
+  docker exec teleport tctl users add testuser root,ubuntu   
+  ```
+</Admonition>
+
+## Cleanup
+
+To cleanup your Docker Teleport resources:
+
+```bash
+# Cleanup any dangling volumes and containers
+docker system prune --volumes
+
+# Find the quay.io/gravitational/teleport Teleport IMAGE ID
+docker images --all
+
+# Remove the Teleport Docker image
+docker rmi -f IMAGE_ID
 ```
