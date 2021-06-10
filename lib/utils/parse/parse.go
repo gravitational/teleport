@@ -69,6 +69,34 @@ func (emailLocalTransformer) transform(in string) (string, error) {
 	return parts[0], nil
 }
 
+// regexpReplaceTransformer replaces all matches of re with replacement
+type regexpReplaceTransformer struct {
+	re          *regexp.Regexp
+	replacement string
+}
+
+// newRegexpReplaceTransformer attempts to create a regexpReplaceTransformer or
+// fails with error if the expression does not compile
+func newRegexpReplaceTransformer(expression, replacement string) (*regexpReplaceTransformer, error) {
+	re, err := regexp.Compile(expression)
+	if err != nil {
+		return nil, trace.BadParameter("failed parsing regexp %q: %v", expression, err)
+	}
+	return &regexpReplaceTransformer{
+		re:          re,
+		replacement: replacement,
+	}, nil
+}
+
+// transform applies the regexp replacement (with expansion)
+func (r regexpReplaceTransformer) transform(in string) (string, error) {
+	// filter out inputs which do not match the regexp at all
+	if !r.re.MatchString(in) {
+		return "", nil
+	}
+	return r.re.ReplaceAllString(in, r.replacement), nil
+}
+
 // Namespace returns a variable namespace, e.g. external or internal
 func (p *Expression) Namespace() string {
 	return p.namespace
@@ -90,7 +118,7 @@ func (p *Expression) Interpolate(traits map[string][]string) ([]string, error) {
 	if !ok {
 		return nil, trace.NotFound("variable is not found")
 	}
-	out := make([]string, len(values))
+	var out []string
 	for i := range values {
 		val := values[i]
 		var err error
@@ -100,7 +128,9 @@ func (p *Expression) Interpolate(traits map[string][]string) ([]string, error) {
 				return nil, trace.Wrap(err)
 			}
 		}
-		out[i] = p.prefix + val + p.suffix
+		if len(val) > 0 {
+			out = append(out, p.prefix+val+p.suffix)
+		}
 	}
 	return out, nil
 }
@@ -310,12 +340,32 @@ const (
 	RegexpMatchFnName = "match"
 	// RegexpNotMatchFnName is a name for regexp.not_match function.
 	RegexpNotMatchFnName = "not_match"
+	// RegexpReplaceFnName is a name for regexp.replace function.
+	RegexpReplaceFnName = "replace"
 )
 
 // transformer is an optional value transformer function that can take in
 // string and replace it with another value
 type transformer interface {
 	transform(in string) (string, error)
+}
+
+// getBasicString checks that arg is a properly quoted basic string and returns
+// it. If arg is not a properly quoted basic string, the second return value
+// will be false.
+func getBasicString(arg ast.Expr) (string, bool) {
+	basicLit, ok := arg.(*ast.BasicLit)
+	if !ok {
+		return "", false
+	}
+	if basicLit.Kind != token.STRING {
+		return "", false
+	}
+	str, err := strconv.Unquote(basicLit.Value)
+	if err != nil {
+		return "", false
+	}
+	return str, true
 }
 
 // maxASTDepth is the maximum depth of the AST that func walk will traverse.
@@ -374,24 +424,40 @@ func walk(node ast.Node, depth int) (*walkResult, error) {
 					if len(n.Args) != 1 {
 						return nil, trace.BadParameter("expected 1 argument for %v.%v got %v", namespace, fn, len(n.Args))
 					}
-					re, ok := n.Args[0].(*ast.BasicLit)
+					re, ok := getBasicString(n.Args[0])
 					if !ok {
-						return nil, trace.BadParameter("argument to %v.%v must be a string literal", namespace, fn)
+						return nil, trace.BadParameter("argument to %v.%v must be a properly quoted string literal", namespace, fn)
 					}
-					if re.Kind != token.STRING {
-						return nil, trace.BadParameter("argument to %v.%v must be a string literal", namespace, fn)
-					}
-					val, err := strconv.Unquote(re.Value)
-					if err != nil {
-						return nil, trace.BadParameter("regexp %q is not a properly quoted string: %v", re.Value, err)
-					}
-					result.match, err = newRegexpMatcher(val, false)
+					var err error
+					result.match, err = newRegexpMatcher(re, false)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
 					// If this is not_match, wrap the regexpMatcher to invert it.
 					if fn == RegexpNotMatchFnName {
 						result.match = notMatcher{result.match}
+					}
+					return &result, nil
+				case RegexpReplaceFnName:
+					if len(n.Args) != 3 {
+						return nil, trace.BadParameter("expected 3 arguments for %v.%v got %v", namespace, fn, len(n.Args))
+					}
+					ret, err := walk(n.Args[0], depth+1)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					result.parts = ret.parts
+					expression, ok := getBasicString(n.Args[1])
+					if !ok {
+						return nil, trace.BadParameter("second argument to %v.%v must be a properly quoted string literal", namespace, fn)
+					}
+					replacement, ok := getBasicString(n.Args[2])
+					if !ok {
+						return nil, trace.BadParameter("third argument to %v.%v must be a properly quoted string literal", namespace, fn)
+					}
+					result.transform, err = newRegexpReplaceTransformer(expression, replacement)
+					if err != nil {
+						return nil, trace.Wrap(err)
 					}
 					return &result, nil
 				default:
