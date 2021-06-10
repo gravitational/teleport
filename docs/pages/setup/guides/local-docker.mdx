@@ -12,10 +12,6 @@ These images are hosted on quay.io. All tags under `quay.io/gravitational/telepo
   You will need a recent version of [Docker](https://hub.docker.com/search?q=\&type=edition\&offering=community) installed to follow this section of the quick start guide. We currently only offer Docker images for `x86_64` architectures.
 </Admonition>
 
-<Admonition type="tip">
-  This setup will not let you 'SSH into' the Docker container that is running Teleport without additional configuration.
-</Admonition>
-
 ## Pick your image
 
 This table gives an idea of how our image naming scheme works. We offer images that
@@ -106,4 +102,65 @@ https://localhost:3080/web/invite/4f2718a52ce107568b191f222ba069f7
 NOTE: Make sure localhost:3080 points at a Teleport proxy which users can access.
 ```
 
-You can now [follow this guide from **Step 4** onwards](../../getting-started.mdx#step-44-have-fun-with-teleport) to create your user and log into Teleport.
+You can now [follow this guide from **Step 4** onwards](../../getting-started.mdx#step-44-have-fun-with-teleport) to create your user and log into Teleport or continue below.
+
+## tsh into your Teleport container
+
+Finish signing up and creating your user using the generated link created previously.
+
+Open a second terminal and issue the command:
+
+```bash
+tsh login --proxy=localhost:3080 --insecure --user=testuser
+```
+
+<Admonition type="note" title="Note">
+  The `--insecure` flag is not recommended in production but can be used to bypass certain TLS and port requirements when testing locally.
+</Admonition>
+
+You will be prompted to enter the password and One-Time Passcode you created for your user `testuser`:
+
+```bash
+Enter password for Teleport user testuser:
+Enter your OTP token:
+9999999
+```
+
+After successfully authenticating you should see the following in your terminal:
+
+```
+WARNING: You are using insecure connection to SSH proxy https://localhost:3080
+> Profile URL:        https://localhost:3080
+  Logged in as:       testuser
+  Cluster:            localhost
+  Roles:              admin
+  Logins:             root, ubuntu
+  Kubernetes:         disabled
+  Valid until:        2021-06-10 07:15:42 -0500 CDT [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+Running the next command will display all Teleport Nodes you're connected to:
+
+```bash
+tsh ls
+```
+
+```
+# Output
+Node Name Address        Labels                          
+--------- -------------- ------------------------------- 
+localhost 127.0.0.1:3022 env=example, hostname=localhost 
+```
+
+To SSH into the local Node `localhost` (running in your Docker container) issue the following `tsh` command:
+
+```bash
+tsh ssh root@localhost       
+```
+
+This will bring up the Linux command prompt where you can issue Bash commands, traverse the directory tree, and explore the container contents:
+
+```bash
+root@localhost:~# 
+```
