@@ -156,3 +156,8 @@ const (
 	// stored in a profile (./tsh/keys/profilename/username.pub).
 	FileExtPub = ".pub"
 )
+
+const (
+	// TODO(Joerger): change this to generated value
+	Version = "7.0.0-dev"
+)
