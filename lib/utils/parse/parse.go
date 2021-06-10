@@ -90,7 +90,7 @@ func newRegexpReplaceTransformer(expression, replacement string) (*regexpReplace
 
 // transform applies the regexp replacement (with expansion)
 func (r regexpReplaceTransformer) transform(in string) (string, error) {
-	// filter out inputs which to not match the regexp at all
+	// filter out inputs which do not match the regexp at all
 	if !r.re.MatchString(in) {
 		return "", nil
 	}
