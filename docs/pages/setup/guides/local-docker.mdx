@@ -184,8 +184,11 @@ root@localhost:~#
 To cleanup your Docker Teleport resources:
 
 ```bash
-# Cleanup any dangling volumes and containers
-docker system prune --volumes
+# Cleanup any unused images and containers
+docker system prune
+
+# Cleanup any unused images, volumes, and containers
+# docker system prune --volumes
 
 # Find the quay.io/gravitational/teleport Teleport IMAGE ID
 docker images --all
