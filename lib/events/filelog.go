@@ -239,9 +239,16 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	// This is used as a flag to check if we have found the startAfter checkpoint or not.
 	foundStart := startAfter == ""
 
+	totalSize := 0
+
 	for _, dynamicEvent := range dynamicEvents {
 		// Convert the event from a dynamic representation to a typed representation.
 		event, err := FromEventFields(dynamicEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		size, err := estimateEventSize(dynamicEvent)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -273,11 +280,12 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 		}
 
 		events = append(events, event)
+		totalSize += size
 
 		// Check if there is a limit and if so, check if we've hit it.
 		// In the event that we've hit the limit, we consider the query partially complete
 		// and return a checkpoint to continue it.
-		if len(events) >= limit && limit > 0 {
+		if (len(events) >= limit && limit > 0) || totalSize >= MaxEventBytesInResponse {
 			checkpoint, err := getCheckpointFromEvent(events[len(events)-1])
 			if err != nil {
 				return nil, "", trace.Wrap(err)

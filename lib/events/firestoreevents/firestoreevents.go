@@ -469,6 +469,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	var values []events.EventFields
 	var parsedStartKey int64
 	var err error
+	totalSize := 0
 
 	if startKey != "" {
 		parsedStartKey, err = strconv.ParseInt(startKey, 10, 64)
@@ -522,7 +523,8 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		if accepted || !doFilter {
 			lastKey = docSnap.Data()["createdAt"].(int64)
 			values = append(values, fields)
-			if limit > 0 && len(values) >= limit {
+			totalSize += len(data)
+			if (limit > 0 && len(values) >= limit) || totalSize >= events.MaxEventBytesInResponse {
 				break
 			}
 		}

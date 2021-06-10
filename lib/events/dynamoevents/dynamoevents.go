@@ -749,6 +749,7 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 	}
 
 	var values []event
+	totalSize := 0
 	dates := daysBetween(fromUTC, toUTC)
 	query := "CreatedAtDate = :date AND CreatedAt BETWEEN :start and :end"
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
@@ -826,9 +827,11 @@ dateLoop:
 					}
 				}
 				if accepted || !doFilter {
+					totalSize += len(data)
 					values = append(values, e)
 					left--
-					if left == 0 {
+
+					if left == 0 || totalSize >= events.MaxEventBytesInResponse {
 						hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
 						break dateLoop
 					}
