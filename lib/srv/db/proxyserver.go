@@ -28,11 +28,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -137,7 +138,7 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 		// The connection is expected to come through via multiplexer.
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) || trace.IsConnectionProblem(err) {
+			if strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -169,7 +170,7 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 		// Accept the connection from a MySQL client.
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+			if strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -327,7 +328,7 @@ type monitorConnConfig struct {
 // configured, and unmodified client connection otherwise.
 func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	certExpires := cfg.identity.Expires
-	clusterConfig, err := cfg.authClient.GetClusterConfig()
+	authPref, err := cfg.authClient.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -336,7 +337,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert()) {
+	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
 		disconnectCertExpired = certExpires
 	}
 	idleTimeout := cfg.checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
@@ -417,7 +418,7 @@ func (s *ProxyServer) pickDatabaseServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	servers, err := accessPoint.GetDatabaseServers(ctx, defaults.Namespace)
+	servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

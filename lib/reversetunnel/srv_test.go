@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -43,12 +43,12 @@ func TestServerKeyAuth(t *testing.T) {
 		log: testlog.FailureOnly(t),
 		localAccessPoint: mockAccessPoint{
 			ca: types.NewCertAuthority(types.CertAuthoritySpecV2{
-				Type:         services.HostCA,
+				Type:         types.HostCA,
 				ClusterName:  "cluster-name",
 				SigningKeys:  [][]byte{priv},
 				CheckingKeys: [][]byte{pub},
 				Roles:        nil,
-				SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_256,
+				SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_256,
 			}),
 		},
 	}
@@ -69,7 +69,7 @@ func TestServerKeyAuth(t *testing.T) {
 					HostID:              "host-id",
 					NodeName:            con.User(),
 					ClusterName:         "host-cluster-name",
-					Roles:               teleport.Roles{teleport.RoleNode},
+					Roles:               types.SystemRoles{types.RoleNode},
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
@@ -79,7 +79,7 @@ func TestServerKeyAuth(t *testing.T) {
 			wantExtensions: map[string]string{
 				extHost:      con.User(),
 				extCertType:  extCertTypeHost,
-				extCertRole:  string(teleport.RoleNode),
+				extCertRole:  string(types.RoleNode),
 				extAuthority: "host-cluster-name",
 			},
 			wantErr: require.NoError,
@@ -95,7 +95,7 @@ func TestServerKeyAuth(t *testing.T) {
 					AllowedLogins:       []string{con.User()},
 					Roles:               []string{"dev", "admin"},
 					RouteToCluster:      "user-cluster-name",
-					CertificateFormat:   teleport.CertificateFormatStandard,
+					CertificateFormat:   constants.CertificateFormatStandard,
 					TTL:                 time.Minute,
 				})
 				require.NoError(t, err)
@@ -142,9 +142,9 @@ func (mockSSHConnMetadata) RemoteAddr() net.Addr { return &net.TCPAddr{} }
 
 type mockAccessPoint struct {
 	auth.AccessPoint
-	ca services.CertAuthority
+	ca types.CertAuthority
 }
 
-func (ap mockAccessPoint) GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
+func (ap mockAccessPoint) GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	return ap.ca, nil
 }

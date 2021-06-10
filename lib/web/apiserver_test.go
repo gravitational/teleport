@@ -46,7 +46,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -152,14 +154,14 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = s.server.Auth().UpsertAuthServer(&services.ServerV2{
-		Kind:    services.KindAuthServer,
-		Version: services.V2,
-		Metadata: services.Metadata{
-			Namespace: defaults.Namespace,
+	err = s.server.Auth().UpsertAuthServer(&types.ServerV2{
+		Kind:    types.KindAuthServer,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Namespace: apidefaults.Namespace,
 			Name:      "auth",
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr:     s.server.TLS.Listener.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
@@ -171,7 +173,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: s.server.ClusterName(),
-		Roles:    teleport.Roles{teleport.RoleNode},
+		Roles:    types.SystemRoles{types.RoleNode},
 	})
 	c.Assert(err, IsNil)
 
@@ -181,7 +183,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	nodeID := "node"
 	nodeClient, err := s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleNode,
+			Role:     types.RoleNode,
 			Username: nodeID,
 		},
 	})
@@ -198,7 +200,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(nodeID),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetSessionServer(nodeClient),
 		regular.SetEmitter(nodeClient),
@@ -217,7 +219,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	proxyID := "proxy"
 	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleProxy,
+			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
 	})
@@ -255,7 +257,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetProxyMode(revTunServer),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 	)
@@ -349,8 +351,8 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
@@ -398,19 +400,19 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 
 func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpSecret string) {
 	ctx := context.Background()
-	teleUser, err := services.NewUser(user)
+	teleUser, err := types.NewUser(user)
 	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
 	role.SetLogins(services.Allow, []string{login})
 	options := role.GetOptions()
-	options.ForwardAgent = services.NewBool(true)
+	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
 	err = s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
 
-	teleUser.SetCreatedBy(services.CreatedBy{
-		User: services.UserRef{Name: "some-auth-user"},
+	teleUser.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{Name: "some-auth-user"},
 	})
 	err = s.server.Auth().CreateUser(ctx, teleUser)
 	c.Assert(err, IsNil)
@@ -440,15 +442,15 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
-	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{
-		Options: services.RoleOptions{
-			MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
+	role, err := types.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV3{
+		Options: types.RoleOptions{
+			MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 		},
-		Allow: services.RoleConditions{
-			NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
-			Namespaces: []string{defaults.Namespace},
-			Rules: []services.Rule{
-				services.NewRule(services.Wildcard, services.RW()),
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Namespaces: []string{apidefaults.Namespace},
+			Rules: []types.Rule{
+				types.NewRule(types.Wildcard, services.RW()),
 			},
 		},
 	})
@@ -713,14 +715,14 @@ func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
 }
 
 func (s *WebSuite) TestResolveServerHostPort(c *C) {
-	sampleNode := services.ServerV2{}
+	sampleNode := types.ServerV2{}
 	sampleNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
 	sampleNode.Spec.Hostname = "nodehostname"
 
 	// valid cases
 	validCases := []struct {
 		server       string
-		nodes        []services.Server
+		nodes        []types.Server
 		expectedHost string
 		expectedPort int
 	}{
@@ -736,7 +738,7 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 		},
 		{
 			server:       "eca53e45-86a9-11e7-a893-0242ac0a0101",
-			nodes:        []services.Server{&sampleNode},
+			nodes:        []types.Server{&sampleNode},
 			expectedHost: "nodehostname",
 			expectedPort: 0,
 		},
@@ -787,7 +789,7 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	ctx := context.Background()
 
-	validNode := services.ServerV2{}
+	validNode := types.ServerV2{}
 	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
 	validNode.Spec.Hostname = "nodehostname"
 
@@ -799,7 +801,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 		W: 1,
 	}
 
-	makeProvider := func(server services.ServerV2) AuthProvider {
+	makeProvider := func(server types.ServerV2) AuthProvider {
 		return authProviderMock{
 			server: server,
 		}
@@ -932,7 +934,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	c.Assert(err, IsNil)
 	data, err := json.Marshal(events.EventFields{
 		events.EventType:      events.ResizeEvent,
-		events.EventNamespace: defaults.Namespace,
+		events.EventNamespace: apidefaults.Namespace,
 		events.SessionEventID: sid.String(),
 		events.TerminalSize:   params.Serialize(),
 	})
@@ -974,24 +976,17 @@ func (s *WebSuite) TestTerminal(c *C) {
 func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	ctx := context.Background()
 
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		LocalAuth: services.NewBool(true),
-	})
-	c.Assert(err, IsNil)
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
-	c.Assert(err, IsNil)
-
 	// Change cluster networking config for keep alive interval to be run faster.
-	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
-		KeepAliveInterval: services.NewDuration(250 * time.Millisecond),
+	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		KeepAliveInterval: types.NewDuration(250 * time.Millisecond),
 	})
 	c.Assert(err, IsNil)
 	err = s.server.Auth().SetClusterNetworkingConfig(context.TODO(), netConfig)
 	c.Assert(err, IsNil)
 
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
-		Mode:                services.RecordAtNode,
-		ProxyChecksHostKeys: services.NewBoolOption(true),
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode:                types.RecordAtNode,
+		ProxyChecksHostKeys: types.NewBoolOption(true),
 	})
 	c.Assert(err, IsNil)
 	err = s.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
@@ -1096,7 +1091,7 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 // Tests the code snippet from apiserver.(*Handler).siteSessionGet/siteSessionsGet
 // that tests empty ClusterName and ServerHostname gets set.
 func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
-	nodeClient, err := s.server.NewClient(auth.TestBuiltin(teleport.RoleNode))
+	nodeClient, err := s.server.NewClient(auth.TestBuiltin(types.RoleNode))
 	c.Assert(err, IsNil)
 
 	// Create a session with empty ClusterName.
@@ -1104,7 +1099,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 		ClusterName:    "",
 		ServerID:       string(session.NewID()),
 		ID:             session.NewID(),
-		Namespace:      defaults.Namespace,
+		Namespace:      apidefaults.Namespace,
 		Login:          "foo",
 		Created:        time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 		LastActive:     time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
@@ -1243,8 +1238,8 @@ func (s *WebSuite) TestPlayback(c *C) {
 }
 
 func (s *WebSuite) TestLogin(c *C) {
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)
@@ -1310,8 +1305,8 @@ func (s *WebSuite) TestLogin(c *C) {
 }
 
 func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
@@ -1370,10 +1365,10 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 }
 
 func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorU2F,
-		U2F: &services.U2F{
+		U2F: &types.U2F{
 			AppID:  "https://" + s.server.ClusterName(),
 			Facets: []string{"https://" + s.server.ClusterName()},
 		},
@@ -1444,10 +1439,10 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 	env := newWebPack(t, 1)
 
 	// configure cluster authentication preferences
-	cap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorU2F,
-		U2F: &services.U2F{
+		U2F: &types.U2F{
 			AppID:  "https://" + env.server.TLS.ClusterName(),
 			Facets: []string{"https://" + env.server.TLS.ClusterName()},
 		},
@@ -1584,14 +1579,14 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	wc := s.client()
 
 	// create two oidc connectors, one named "foo" and another named "bar"
-	oidcConnectorSpec := services.OIDCConnectorSpecV2{
+	oidcConnectorSpec := types.OIDCConnectorSpecV2{
 		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
 		ClientID:     "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
 		ClientSecret: "AAAAAAAAAAAAAAAAAAAAAAAA",
 		IssuerURL:    "https://oidc.example.com",
 		Display:      "Login with Example",
 		Scope:        []string{"group"},
-		ClaimsToRoles: []services.ClaimMapping{
+		ClaimsToRoles: []types.ClaimMapping{
 			{
 				Claim: "group",
 				Value: "admin",
@@ -1599,13 +1594,13 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 			},
 		},
 	}
-	err := s.server.Auth().UpsertOIDCConnector(ctx, services.NewOIDCConnector("foo", oidcConnectorSpec))
+	err := s.server.Auth().UpsertOIDCConnector(ctx, types.NewOIDCConnector("foo", oidcConnectorSpec))
 	c.Assert(err, IsNil)
-	err = s.server.Auth().UpsertOIDCConnector(ctx, services.NewOIDCConnector("bar", oidcConnectorSpec))
+	err = s.server.Auth().UpsertOIDCConnector(ctx, types.NewOIDCConnector("bar", oidcConnectorSpec))
 	c.Assert(err, IsNil)
 
 	// set the auth preferences to oidc with no connector name
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type: "oidc",
 	})
 	c.Assert(err, IsNil)
@@ -1625,7 +1620,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	c.Assert(out.Auth.OIDC.Name, Equals, oidcConnectors[0].GetName())
 
 	// update the auth preferences and this time specify the connector name
-	authPreference, err = services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	authPreference, err = types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:          "oidc",
 		ConnectorName: "foo",
 	})
@@ -1750,7 +1745,11 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		// Query is the search query sent to the API.
 		Query url.Values
 		// Result is the expected returned list of events.
-		Result []events.AuditEvent
+		Result []apievents.AuditEvent
+		// TestStartKey is a flag to test start key value.
+		TestStartKey bool
+		// StartKeyValue is the value of start key to expect.
+		StartKeyValue string
 	}{
 		{
 			Comment: "Empty query",
@@ -1772,41 +1771,72 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		{
 			Comment: "Query session start and session end events",
 			Query: url.Values{
-				"include": []string{sessionEnd.GetType() + ";" + sessionStart.GetType()},
+				"include": []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
 				"from":    fromTime,
 				"to":      toTime,
 			},
-			Result: []events.AuditEvent{sessionStart, sessionEnd},
+			Result: []apievents.AuditEvent{sessionStart, sessionEnd},
 		},
 		{
 			Comment: "Query events with filter by type and limit",
 			Query: url.Values{
-				"include": []string{sessionPrint.GetType() + ";" + sessionEnd.GetType()},
+				"include": []string{sessionPrint.GetType() + "," + sessionEnd.GetType()},
 				"limit":   []string{"1"},
 				"from":    fromTime,
 				"to":      toTime,
 			},
-			Result: []events.AuditEvent{sessionPrint},
+			Result: []apievents.AuditEvent{sessionPrint},
+		},
+		{
+			Comment: "Query session start and session end events with limit and test returned start key",
+			Query: url.Values{
+				"include": []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"limit":   []string{"1"},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result:        []apievents.AuditEvent{sessionStart},
+			TestStartKey:  true,
+			StartKeyValue: sessionStart.GetID(),
+		},
+		{
+			Comment: "Query session start and session end events with limit and given start key",
+			Query: url.Values{
+				"include":  []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"startKey": []string{sessionStart.GetID()},
+				"from":     fromTime,
+				"to":       toTime,
+			},
+			Result:        []apievents.AuditEvent{sessionEnd},
+			TestStartKey:  true,
+			StartKeyValue: "",
 		},
 	}
 
 	pack := s.authPack(c, "foo")
+	// var sessionStartKey string
 	for _, tc := range testCases {
 		result := s.searchEvents(c, pack.clt, tc.Query, []string{sessionStart.GetType(), sessionPrint.GetType(), sessionEnd.GetType()})
-		c.Assert(result, HasLen, len(tc.Result), Commentf(tc.Comment))
-		for i, resultEvent := range result {
+		c.Assert(result.Events, HasLen, len(tc.Result), Commentf(tc.Comment))
+		for i, resultEvent := range result.Events {
 			c.Assert(resultEvent.GetType(), Equals, tc.Result[i].GetType(), Commentf(tc.Comment))
 			c.Assert(resultEvent.GetID(), Equals, tc.Result[i].GetID(), Commentf(tc.Comment))
+		}
+
+		// Session prints do not have ID's, only sessionStart and sessionEnd.
+		// When retrieving events for sessionStart and sessionEnd, sessionStart is returned first.
+		if tc.TestStartKey {
+			c.Assert(result.StartKey, Equals, tc.StartKeyValue, Commentf(tc.Comment))
 		}
 	}
 }
 
-func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) (result []events.EventFields) {
+func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) eventsListGetResponse {
 	response, err := clt.Get(context.Background(), clt.Endpoint("webapi", "sites", s.server.ClusterName(), "events", "search"), query)
 	c.Assert(err, IsNil)
 	var out eventsListGetResponse
 	c.Assert(json.Unmarshal(response.Bytes(), &out), IsNil)
-	return out.Events
+	return out
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
@@ -1825,7 +1855,7 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.LastConnected, NotNil)
 	c.Assert(cluster.AuthVersion, Equals, teleport.Version)
 
-	nodes, err := s.proxyClient.GetNodes(ctx, defaults.Namespace)
+	nodes, err := s.proxyClient.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
@@ -1898,12 +1928,12 @@ func TestClusterKubesGet(t *testing.T) {
 	require.Len(t, kbs, 0)
 
 	// Register a kube service.
-	err = env.server.Auth().UpsertKubeService(context.Background(), &services.ServerV2{
-		Metadata: services.Metadata{Name: "test-kube"},
-		Kind:     services.KindKubeService,
-		Version:  services.V2,
-		Spec: services.ServerSpecV2{
-			KubernetesClusters: []*services.KubernetesCluster{
+	err = env.server.Auth().UpsertKubeService(context.Background(), &types.ServerV2{
+		Metadata: types.Metadata{Name: "test-kube"},
+		Kind:     types.KindKubeService,
+		Version:  types.V2,
+		Spec: types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{
 				{
 					Name:         "test-kube-name",
 					StaticLabels: map[string]string{"test-field": "test-value"},
@@ -1946,7 +1976,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 		Kind:    types.KindAppServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Name:      uuid.New(),
 		},
 		Spec: types.ServerSpecV2{
@@ -1979,16 +2009,16 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	pack := s.authPack(c, "foo@example.com")
 
 	// Register an application called "panel".
-	server := &services.ServerV2{
-		Kind:    services.KindAppServer,
-		Version: services.V2,
-		Metadata: services.Metadata{
-			Namespace: defaults.Namespace,
+	server := &types.ServerV2{
+		Kind:    types.KindAppServer,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Namespace: apidefaults.Namespace,
 			Name:      uuid.New(),
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Version: teleport.Version,
-			Apps: []*services.App{
+			Apps: []*types.App{
 				{
 					Name:       "panel",
 					PublicAddr: "panel.example.com",
@@ -2112,7 +2142,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		c.Assert(response.FQDN, Equals, tt.outFQDN, tt.inComment)
 
 		// Verify that the application session was created.
-		session, err := s.server.Auth().GetAppSession(context.Background(), services.GetAppSessionRequest{
+		session, err := s.server.Auth().GetAppSession(context.Background(), types.GetAppSessionRequest{
 			SessionID: response.CookieValue,
 		})
 		c.Assert(err, IsNil)
@@ -2227,11 +2257,11 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 }
 
 type authProviderMock struct {
-	server services.ServerV2
+	server types.ServerV2
 }
 
-func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]services.Server, error) {
-	return []services.Server{&mock.server}, nil
+func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]types.Server, error) {
+	return []types.Server{&mock.server}, nil
 }
 
 func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p bool) ([]events.EventFields, error) {
@@ -2500,14 +2530,14 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = server.Auth().UpsertAuthServer(&services.ServerV2{
-		Kind:    services.KindAuthServer,
-		Version: services.V2,
-		Metadata: services.Metadata{
-			Namespace: defaults.Namespace,
+	err = server.Auth().UpsertAuthServer(&types.ServerV2{
+		Kind:    types.KindAuthServer,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Namespace: apidefaults.Namespace,
 			Name:      "auth",
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr:     server.TLS.Listener.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
@@ -2519,7 +2549,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: server.TLS.ClusterName(),
-		Roles:    teleport.Roles{teleport.RoleNode},
+		Roles:    types.SystemRoles{types.RoleNode},
 	})
 	require.NoError(t, err)
 
@@ -2529,7 +2559,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	const nodeID = "node"
 	nodeClient, err := server.TLS.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleNode,
+			Role:     types.RoleNode,
 			Username: nodeID,
 		},
 	})
@@ -2548,7 +2578,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(nodeID),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetSessionServer(nodeClient),
 		regular.SetEmitter(nodeClient),
@@ -2594,7 +2624,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleProxy,
+			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
 	})
@@ -2633,7 +2663,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 		regular.SetProxyMode(revTunServer),
 		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
 	)
@@ -2717,8 +2747,8 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 	)
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	require.NoError(t, err)
@@ -2799,20 +2829,20 @@ func (r *proxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response)
 }
 
 func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string) {
-	teleUser, err := services.NewUser(user)
+	teleUser, err := types.NewUser(user)
 	require.NoError(t, err)
 
 	role := services.RoleForUser(teleUser)
 	role.SetLogins(services.Allow, []string{login})
 	options := role.GetOptions()
-	options.ForwardAgent = services.NewBool(true)
+	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
 	err = r.auth.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	teleUser.AddRole(role.GetName())
-	teleUser.SetCreatedBy(services.CreatedBy{
-		User: services.UserRef{Name: "some-auth-user"},
+	teleUser.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{Name: "some-auth-user"},
 	})
 
 	err = r.auth.Auth().CreateUser(ctx, teleUser)

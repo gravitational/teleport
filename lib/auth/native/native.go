@@ -28,7 +28,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -205,7 +208,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 		return nil, trace.BadParameter("no principals provided: %v, %v, %v",
 			c.HostID, c.NodeName, c.Principals)
 	}
-	principals = utils.Deduplicate(principals)
+	principals = apiutils.Deduplicate(principals)
 
 	// create certificate
 	validBefore := uint64(ssh.CertTimeInfinity)
@@ -291,7 +294,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	// the standard format was requested. Certificate extensions are not included
 	// legacy SSH certificates due to a bug in OpenSSH <= OpenSSH 7.1:
 	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
-	if c.CertificateFormat == teleport.CertificateFormatStandard {
+	if c.CertificateFormat == constants.CertificateFormatStandard {
 		traits, err := wrappers.MarshalTraits(&c.Traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -334,10 +337,10 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 // older clients which means:
 //    * If RoleAdmin is in the list of roles, only a single principal is returned: hostID
 //    * If nodename is empty, it is not included in the list of principals.
-func BuildPrincipals(hostID string, nodeName string, clusterName string, roles teleport.Roles) []string {
+func BuildPrincipals(hostID string, nodeName string, clusterName string, roles types.SystemRoles) []string {
 	// TODO(russjones): This should probably be clusterName, but we need to
 	// verify changing this won't break older clients.
-	if roles.Include(teleport.RoleAdmin) {
+	if roles.Include(types.RoleAdmin) {
 		return []string{hostID}
 	}
 
@@ -368,5 +371,5 @@ func BuildPrincipals(hostID string, nodeName string, clusterName string, roles t
 	)
 
 	// deduplicate (in-case hostID and nodeName are the same) and return
-	return utils.Deduplicate(principals)
+	return apiutils.Deduplicate(principals)
 }

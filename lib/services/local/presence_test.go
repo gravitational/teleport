@@ -26,11 +26,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 )
@@ -56,7 +56,7 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	ctx := context.Background()
 	presenceBackend := NewPresenceService(s.bk)
 
-	tc, err := services.NewTrustedCluster("foo", services.TrustedClusterSpecV2{
+	tc, err := types.NewTrustedCluster("foo", types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Roles:                []string{"bar", "baz"},
 		Token:                "qux",
@@ -66,7 +66,7 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// we just insert this one for get all
-	stc, err := services.NewTrustedCluster("bar", services.TrustedClusterSpecV2{
+	stc, err := types.NewTrustedCluster("bar", types.TrustedClusterSpecV2{
 		Enabled:              false,
 		Roles:                []string{"baz", "aux"},
 		Token:                "quux",
@@ -128,7 +128,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 		})
 
 	// Initially expect not to be returned any servers.
-	out, err := presence.GetDatabaseServers(ctx, defaults.Namespace)
+	out, err := presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 
@@ -159,7 +159,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now expect no servers to be returned.
-	out, err = presence.GetDatabaseServers(ctx, defaults.Namespace)
+	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 
@@ -186,7 +186,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now expect no servers to be returned.
-	out, err = presence.GetDatabaseServers(ctx, defaults.Namespace)
+	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 }

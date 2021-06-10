@@ -1388,6 +1388,12 @@ func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig types
 	return trail.FromGRPC(err)
 }
 
+// ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
+func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
+	_, err := c.grpc.ResetClusterNetworkingConfig(ctx, &empty.Empty{})
+	return trail.FromGRPC(err)
+}
+
 // DeleteClusterNetworkingConfig not implemented: can only be called locally.
 func (c *Client) DeleteClusterNetworkingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -1409,6 +1415,12 @@ func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.
 		return trace.BadParameter("invalid type %T", recConfig)
 	}
 	_, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// ResetSessionRecordingConfig resets session recording configuration to defaults.
+func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
+	_, err := c.grpc.ResetSessionRecordingConfig(ctx, &empty.Empty{})
 	return trail.FromGRPC(err)
 }
 
