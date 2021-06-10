@@ -177,19 +177,21 @@ func (tf *textFormatter) Format(e *log.Entry) ([]byte, error) {
 type jsonFormatter struct {
 	log.JSONFormatter
 
+	extraFields []string
+
 	callerEnabled    bool
 	componentEnabled bool
 }
 
 // CheckAndSetDefaults checks and sets log format configuration
-func (j *jsonFormatter) CheckAndSetDefaults(extraFields []string) error {
+func (j *jsonFormatter) CheckAndSetDefaults() error {
 	// set log formatting
-	if extraFields == nil {
-		extraFields = KnownFormatFields.names()
+	if j.extraFields == nil {
+		j.extraFields = KnownFormatFields.names()
 	}
 
 	// parse input
-	res, err := parseInputFormat(extraFields)
+	res, err := parseInputFormat(j.extraFields)
 	if err != nil {
 		return trace.Wrap(err)
 	}
