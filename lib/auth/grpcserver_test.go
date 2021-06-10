@@ -1048,13 +1048,13 @@ func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) e
 func TestRoleVersions(t *testing.T) {
 	srv := newTestTLSServer(t)
 
-	role := &types.RoleV3{
+	role := &types.RoleV4{
 		Kind:    types.KindRole,
 		Version: types.V4,
 		Metadata: types.Metadata{
 			Name: "test_role",
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindRole, services.RO()),

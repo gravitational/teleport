@@ -347,7 +347,7 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_User{
 			User: r,
 		}
-	case *types.RoleV3:
+	case *types.RoleV4:
 		downgraded, err := downgradeRole(ctx, r)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1378,7 +1378,7 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 // if the client version is unknown or less than the minimum supported version
 // for V4 roles returns a shallow copy of the given role downgraded to V3. If
 // the passed in role is already V3, it is returned unmodified.
-func downgradeRole(ctx context.Context, role *types.RoleV3) (*types.RoleV3, error) {
+func downgradeRole(ctx context.Context, role *types.RoleV4) (*types.RoleV4, error) {
 	var clientVersion *semver.Version
 	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
 	if ok {
@@ -1402,7 +1402,7 @@ func downgradeRole(ctx context.Context, role *types.RoleV3) (*types.RoleV3, erro
 }
 
 // GetRole retrieves a role by name.
-func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV3, error) {
+func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV4, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -1411,7 +1411,7 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	roleV3, ok := role.(*types.RoleV3)
+	roleV3, ok := role.(*types.RoleV4)
 	if !ok {
 		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected role type"))
 	}
@@ -1432,9 +1432,9 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	var rolesV3 []*types.RoleV3
+	var rolesV3 []*types.RoleV4
 	for _, r := range roles {
-		role, ok := r.(*types.RoleV3)
+		role, ok := r.(*types.RoleV4)
 		if !ok {
 			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", r))
 		}
@@ -1450,7 +1450,7 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 }
 
 // UpsertRole upserts a role.
-func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV3) (*empty.Empty, error) {
+func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV4) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
