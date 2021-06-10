@@ -1592,6 +1592,16 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "logins substitute in allow rule with regexp",
+			inTraits: map[string][]string{
+				"foo": {"bar-baz"},
+			},
+			allow: rule{
+				inLogins:  []string{`{{regexp.replace(external.foo, "^bar-(.*)$", "$1")}}`, "root"},
+				outLogins: []string{"baz", "root"},
+			},
+		},
+		{
 			comment: "logins substitute in deny rule",
 			inTraits: map[string][]string{
 				"foo": {"bar"},
@@ -1629,6 +1639,16 @@ func TestApplyTraits(t *testing.T) {
 			allow: rule{
 				inKubeUsers:  []string{`IAM#{{external.foo}};`},
 				outKubeUsers: []string{"IAM#bar;"},
+			},
+		},
+		{
+			comment: "kube user regexp interpolation in allow rule",
+			inTraits: map[string][]string{
+				"foo": {"bar-baz"},
+			},
+			allow: rule{
+				inKubeUsers:  []string{`IAM#{{regexp.replace(external.foo, "^bar-(.*)$", "$1")}};`},
+				outKubeUsers: []string{"IAM#baz;"},
 			},
 		},
 		{
@@ -1735,6 +1755,25 @@ func TestApplyTraits(t *testing.T) {
 			},
 			allow: rule{
 				inLogins: []string{`{{email.local(email.local)}}`, `{{email.local(email.local())}}`},
+			},
+		},
+		{
+			comment: "invalid regexp in logins does not get passed along",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+			},
+			allow: rule{
+				inLogins: []string{`{{regexp.replace(external.foo, "(()", "baz")}}`},
+			},
+		},
+		{
+			comment: "logins which to not match regexp get filtered out",
+			inTraits: map[string][]string{
+				"foo": {"dev-alice", "dev-bob", "prod-charlie"},
+			},
+			allow: rule{
+				inLogins:  []string{`{{regexp.replace(external.foo, "^dev-([a-zA-Z]+)$", "$1-admin")}}`},
+				outLogins: []string{"alice-admin", "bob-admin"},
 			},
 		},
 		{
