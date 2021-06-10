@@ -496,7 +496,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 func sshPrivateKey(ca types.CertAuthority) ([]byte, error) {
 	keyPairs := ca.GetActiveKeys().SSH
 	if len(keyPairs) == 0 {
-		return nil, trace.BadParameter("no SSH key pairs found in CA for %q", ca.GetClusterName())
+		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
 	}
 	// TODO(awly): update after PKCS#11 keys are supported.
 	for _, kp := range keyPairs {

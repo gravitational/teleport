@@ -555,6 +555,8 @@ type CertRoles struct {
 	Roles []string `json:"roles"`
 }
 
+// Clone returns a deep copy of TLSKeyPair that can be mutated without
+// modifying the original.
 func (k *TLSKeyPair) Clone() *TLSKeyPair {
 	return &TLSKeyPair{
 		KeyType: k.KeyType,
@@ -563,6 +565,8 @@ func (k *TLSKeyPair) Clone() *TLSKeyPair {
 	}
 }
 
+// Clone returns a deep copy of JWTKeyPair that can be mutated without
+// modifying the original.
 func (k *JWTKeyPair) Clone() *JWTKeyPair {
 	return &JWTKeyPair{
 		PrivateKeyType: k.PrivateKeyType,
@@ -571,6 +575,8 @@ func (k *JWTKeyPair) Clone() *JWTKeyPair {
 	}
 }
 
+// Clone returns a deep copy of SSHKeyPair that can be mutated without
+// modifying the original.
 func (k *SSHKeyPair) Clone() *SSHKeyPair {
 	return &SSHKeyPair{
 		PrivateKeyType: k.PrivateKeyType,
@@ -579,6 +585,8 @@ func (k *SSHKeyPair) Clone() *SSHKeyPair {
 	}
 }
 
+// Clone returns a deep copy of CAKeySet that can be mutated without modifying
+// the original.
 func (ks CAKeySet) Clone() CAKeySet {
 	var out CAKeySet
 	if len(ks.TLS) > 0 {
@@ -602,6 +610,8 @@ func (ks CAKeySet) Clone() CAKeySet {
 	return out
 }
 
+// WithoutSecrets returns a deep copy of CAKeySet with all secret fields
+// (private keys) removed.
 func (ks CAKeySet) WithoutSecrets() CAKeySet {
 	ks = ks.Clone()
 	for _, k := range ks.SSH {
@@ -616,6 +626,8 @@ func (ks CAKeySet) WithoutSecrets() CAKeySet {
 	return ks
 }
 
+// CheckAndSetDefaults validates CAKeySet and sets defaults on any empty fields
+// as needed.
 func (ks CAKeySet) CheckAndSetDefaults() error {
 	for _, kp := range ks.SSH {
 		if err := kp.CheckAndSetDefaults(); err != nil {
@@ -635,6 +647,8 @@ func (ks CAKeySet) CheckAndSetDefaults() error {
 	return nil
 }
 
+// CheckAndSetDefaults validates SSHKeyPair and sets defaults on any empty
+// fields as needed.
 func (k *SSHKeyPair) CheckAndSetDefaults() error {
 	if len(k.PublicKey) == 0 {
 		return trace.BadParameter("SSH key pair missing public key")
@@ -642,6 +656,8 @@ func (k *SSHKeyPair) CheckAndSetDefaults() error {
 	return nil
 }
 
+// CheckAndSetDefaults validates TLSKeyPair and sets defaults on any empty
+// fields as needed.
 func (k *TLSKeyPair) CheckAndSetDefaults() error {
 	if len(k.Cert) == 0 {
 		return trace.BadParameter("TLS key pair missing certificate")
@@ -649,6 +665,8 @@ func (k *TLSKeyPair) CheckAndSetDefaults() error {
 	return nil
 }
 
+// CheckAndSetDefaults validates JWTKeyPair and sets defaults on any empty
+// fields as needed.
 func (k *JWTKeyPair) CheckAndSetDefaults() error {
 	if len(k.PublicKey) == 0 {
 		return trace.BadParameter("JWT key pair missing public key")

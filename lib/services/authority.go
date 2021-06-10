@@ -92,7 +92,7 @@ func checkUserOrHostCA(cai types.CertAuthority) error {
 	if _, err := sshutils.GetCheckers(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := sshutils.GetSigners(ca); err != nil {
+	if err := sshutils.ValidateSigners(ca); err != nil {
 		return trace.Wrap(err)
 	}
 	// This is to force users to migrate

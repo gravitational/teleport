@@ -37,24 +37,20 @@ func GetCheckers(ca types.CertAuthority) ([]ssh.PublicKey, error) {
 	return out, nil
 }
 
-// GetSigners returns a list of signers that could be used to sign keys.
-func GetSigners(ca types.CertAuthority) ([]ssh.Signer, error) {
+// ValidateSigners returns a list of signers that could be used to sign keys.
+func ValidateSigners(ca types.CertAuthority) error {
 	keys := ca.GetActiveKeys().SSH
-	out := make([]ssh.Signer, 0, len(keys))
 	for _, kp := range keys {
 		// PrivateKeys may be missing when loaded for use outside of the auth
 		// server.
 		if len(kp.PrivateKey) == 0 {
 			continue
 		}
-		signer, err := ssh.ParsePrivateKey(kp.PrivateKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if _, err := ssh.ParsePrivateKey(kp.PrivateKey); err != nil {
+			return trace.Wrap(err)
 		}
-		signer = AlgSigner(signer, GetSigningAlgName(ca))
-		out = append(out, signer)
 	}
-	return out, nil
+	return nil
 }
 
 // GetSigningAlgName returns the CA's signing algorithm type

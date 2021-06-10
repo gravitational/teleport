@@ -369,13 +369,15 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				Type:        types.UserCA,
 				ActiveKeys: types.CAKeySet{
 					SSH: []*types.SSHKeyPair{{
-						PrivateKey:     priv,
+						PrivateKey: priv,
+						// TODO: update when HSMs are supported in the config
 						PrivateKeyType: types.PrivateKeyType_RAW,
 						PublicKey:      pub,
 					}},
 					TLS: []*types.TLSKeyPair{{
-						Cert:    certPEM,
-						Key:     keyPEM,
+						Cert: certPEM,
+						Key:  keyPEM,
+						// TODO: update when HSMs are supported in the config
 						KeyType: types.PrivateKeyType_RAW,
 					}},
 				},
@@ -425,13 +427,15 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				Type:        types.HostCA,
 				ActiveKeys: types.CAKeySet{
 					SSH: []*types.SSHKeyPair{{
-						PrivateKey:     priv,
+						PrivateKey: priv,
+						// TODO: update when HSMs are supported in the config
 						PrivateKeyType: types.PrivateKeyType_RAW,
 						PublicKey:      pub,
 					}},
 					TLS: []*types.TLSKeyPair{{
-						Cert:    certPEM,
-						Key:     keyPEM,
+						Cert: certPEM,
+						Key:  keyPEM,
+						// TODO: update when HSMs are supported in the config
 						KeyType: types.PrivateKeyType_RAW,
 					}},
 				},
