@@ -309,21 +309,18 @@ func TestInactivityTimeout(t *testing.T) {
 	go func() { endCh <- f.ssh.clt.Wait() }()
 
 	// When I let the session idle (with the clock running at approx 10x speed)...
-	deadline := f.clock.Now().Add(6 * time.Second)
-
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-pollingLoop:
-	for {
+	sessionHasFinished := func() bool {
+		f.clock.Advance(1 * time.Second)
 		select {
-		case <-ticker.C:
-			f.clock.Advance(1 * time.Second)
-			require.True(t, f.clock.Now().Before(deadline), "Timeout exceeded waiting for SSH session to end")
-
 		case <-endCh:
-			break pollingLoop
+			return true
+
+		default:
+			return false
 		}
 	}
+	require.Eventually(t, sessionHasFinished, 6*time.Second, 100*time.Millisecond,
+		"Timed out waiting for session to finish")
 
 	// Expect that the idle timeout has been delivered via stderr
 	text, err := waitForBytes(stdErrCh)
