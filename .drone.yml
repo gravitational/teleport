@@ -3640,7 +3640,7 @@ steps:
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make image-ci publish-ci
+      - make clean image-ci publish-ci
 
   - name: Build/push FIPS Docker image
     image: docker
@@ -3669,6 +3669,7 @@ steps:
       # Normally, the version is set and exported by the root Makefile and then inherited,
       # but this is not the case for FIPS builds (which only run in e/Makefile)
       - export VERSION=$(cat /go/.version.txt)
+      - make clean
       - make -C e image-fips-ci publish-fips-ci
 
 services:
@@ -4323,6 +4324,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: f08c3c940261bc5417f8c9364e273eda9c626f9ddc123ffbd1dff91824ef54e4
+hmac: ea71160f52187a5fe5fdd11fecfffad0cf20c607fa0cd4ca4dfb0a712b7ced3c
 
 ...
