@@ -1658,9 +1658,10 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 	return trace.Wrap(err)
 }
 
-func (a *Server) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
-	if err := a.DynamicAccess.SetAccessRequestState(ctx, params); err != nil {
-		return trace.Wrap(err)
+func (a *Server) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) (services.AccessRequest, error) {
+	req, err := a.DynamicAccess.SetAccessRequestState(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	event := &events.AccessRequestCreate{
 		Metadata: events.Metadata{
@@ -1669,6 +1670,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			UpdatedBy: clientUsername(ctx),
+			Expires:   req.GetAccessExpiry(),
 		},
 		RequestID:    params.RequestID,
 		RequestState: params.State.String(),
@@ -1684,15 +1686,16 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		annotations, err := events.EncodeMapStrings(params.Annotations)
 		if err != nil {
 			log.WithError(err).Debugf("Failed to encode access request annotations.")
-		} else {
-			event.Annotations = annotations
+			return nil, trace.Wrap(err)
 		}
+		event.Annotations = annotations
 	}
-	err := a.emitter.EmitAuditEvent(a.closeCtx, event)
+	err = a.emitter.EmitAuditEvent(a.closeCtx, event)
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request update event.")
+		return nil, trace.Wrap(err)
 	}
-	return trace.Wrap(err)
+	return req, nil
 }
 
 func (a *Server) GetAccessCapabilities(ctx context.Context, req services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {

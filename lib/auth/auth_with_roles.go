@@ -959,9 +959,9 @@ func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req services.
 	return a.authServer.CreateAccessRequest(ctx, req)
 }
 
-func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
+func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) (services.AccessRequest, error) {
 	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	return a.authServer.SetAccessRequestState(ctx, params)
 }

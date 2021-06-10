@@ -57,13 +57,14 @@ func accessWorkflow(ctx context.Context, client *auth.Client) {
 	}
 
 	// approve access request
-	if err = client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
+	_, err = client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
 		RequestID: accessReq.GetName(),
 		State:     services.RequestState_APPROVED,
 		Reason:    "seems legit",
 		// Roles: If you don't want to grant all the roles requested,
 		// you can provide a subset of role with the Roles field.
-	}); err != nil {
+	})
+	if err != nil {
 		log.Printf("Failed to accept request: %v", err)
 		return
 	}
@@ -71,11 +72,12 @@ func accessWorkflow(ctx context.Context, client *auth.Client) {
 	log.Println("Approved Access Request")
 
 	// deny access request
-	if err = client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
+	_, err = client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
 		RequestID: accessReq.GetName(),
 		State:     services.RequestState_DENIED,
 		Reason:    "not today",
-	}); err != nil {
+	})
+	if err != nil {
 		log.Printf("Failed to deny request: %v", err)
 		return
 	}

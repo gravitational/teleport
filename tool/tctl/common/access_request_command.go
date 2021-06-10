@@ -210,13 +210,14 @@ func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		if err := client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
+		_, err := client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
 			RequestID:   reqID,
 			State:       services.RequestState_APPROVED,
 			Reason:      c.reason,
 			Annotations: annotations,
 			Roles:       c.splitRoles(),
-		}); err != nil {
+		})
+		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -233,12 +234,13 @@ func (c *AccessRequestCommand) Deny(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		if err := client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
+		_, err := client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
 			RequestID:   reqID,
 			State:       services.RequestState_DENIED,
 			Reason:      c.reason,
 			Annotations: annotations,
-		}); err != nil {
+		})
+		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
