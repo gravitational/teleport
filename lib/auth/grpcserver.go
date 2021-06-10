@@ -1411,11 +1411,11 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	roleV3, ok := role.(*types.RoleV4)
+	roleV4, ok := role.(*types.RoleV4)
 	if !ok {
 		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected role type"))
 	}
-	downgraded, err := downgradeRole(ctx, roleV3)
+	downgraded, err := downgradeRole(ctx, roleV4)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -1432,7 +1432,7 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	var rolesV3 []*types.RoleV4
+	var rolesV4 []*types.RoleV4
 	for _, r := range roles {
 		role, ok := r.(*types.RoleV4)
 		if !ok {
@@ -1442,10 +1442,10 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 		if err != nil {
 			return nil, trail.ToGRPC(err)
 		}
-		rolesV3 = append(rolesV3, downgraded)
+		rolesV4 = append(rolesV4, downgraded)
 	}
 	return &proto.GetRolesResponse{
-		Roles: rolesV3,
+		Roles: rolesV4,
 	}, nil
 }
 
