@@ -413,7 +413,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 
 	switch strings.ToLower(loggerConfig.Format.Output) {
 	case "":
-		fallthrough // not set. defaults to 'fields'
+		fallthrough // not set. defaults to 'text'
 	case "text":
 		formatter := &textFormatter{
 			ExtraFields:  loggerConfig.Format.ExtraFields,
@@ -424,10 +424,13 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 			return trace.Wrap(err)
 		}
 
-		logger.Formatter = formatter
+		logger.SetFormatter(formatter)
 	case "json":
-		formatter := &jsonFormatter{}
-		if err := formatter.CheckAndSetDefaults(loggerConfig.Format.ExtraFields); err != nil {
+		formatter := &jsonFormatter{
+			extraFields: loggerConfig.Format.ExtraFields,
+		}
+
+		if err := formatter.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 

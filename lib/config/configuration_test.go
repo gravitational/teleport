@@ -1632,8 +1632,10 @@ func TestJSONFormatter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &jsonFormatter{}
-			tt.assertErr(t, formatter.CheckAndSetDefaults(tt.extraFields))
+			formatter := &jsonFormatter{
+				extraFields: tt.extraFields,
+			}
+			tt.assertErr(t, formatter.CheckAndSetDefaults())
 		})
 	}
 }
