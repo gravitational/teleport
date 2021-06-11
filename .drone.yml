@@ -368,6 +368,7 @@ trigger:
     include:
     - master
     - branch/*
+    - gus/gocache-fix-2
 workspace:
   path: /go
 clone:
@@ -469,6 +470,7 @@ trigger:
     include:
     - master
     - branch/*
+    - gus/gocache-fix-2
 workspace:
   path: /go
 clone:
@@ -570,6 +572,7 @@ trigger:
     include:
     - master
     - branch/*
+    - gus/gocache-fix-2
 workspace:
   path: /go
 clone:
@@ -675,6 +678,7 @@ trigger:
     include:
     - master
     - branch/*
+    - gus/gocache-fix-2
 workspace:
   path: /go
 clone:
@@ -873,6 +877,7 @@ trigger:
     include:
     - master
     - branch/*
+    - gus/gocache-fix-2
 workspace:
   path: /go
 clone:
@@ -974,6 +979,7 @@ trigger:
     include:
     - master
     - branch/*
+    - gus/gocache-fix-2
 workspace:
   path: /go
 clone:
@@ -1699,7 +1705,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -1830,7 +1836,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -1958,7 +1964,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -2075,7 +2081,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -2292,7 +2298,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -2423,7 +2429,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -3132,7 +3138,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -3249,7 +3255,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -3366,7 +3372,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -3497,7 +3503,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -4481,6 +4487,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: cfe54e610604e21c5b7a3778d6a12988f5aa9edf0c83c9a2ca4037b3222c1381
+hmac: 9576e87c2c7560b3203d7935a3e9d791ba1c9374e94149d8acc821e6cc766564
 
 ...
