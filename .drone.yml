@@ -3640,6 +3640,9 @@ steps:
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
+      - ls -ld /go
+      - ls -ld /go/cache
+      - ls -l /go
       - make clean image-ci publish-ci
 
   - name: Build/push FIPS Docker image
@@ -4324,6 +4327,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ea71160f52187a5fe5fdd11fecfffad0cf20c607fa0cd4ca4dfb0a712b7ced3c
+hmac: 3c8394e0a99b6436ebe5f73e2f6e9ec91cfc66cb36773c3070a5bbf8eaab95fc
 
 ...
