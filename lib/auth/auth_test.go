@@ -881,7 +881,7 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test create new role
-	roleTest, err := types.NewRole("test", types.RoleSpecV3{
+	roleTest, err := types.NewRole("test", types.RoleSpecV4{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
 	})
