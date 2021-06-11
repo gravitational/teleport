@@ -3756,7 +3756,7 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
-      - mkdir -p /go/artifacts ${GOCACHE}
+      - mkdir -p /go/artifacts $GOCACHE
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -4467,6 +4467,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 3fce8ad586a155c767b29693a6df6358a96f33d4274c09ec9f254654f8563d37
+hmac: c0d3d6df21a9b5e5e01591a8885068b39829b084380dd8fd57a4752f1c75eda1
 
 ...
