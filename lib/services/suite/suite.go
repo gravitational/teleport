@@ -672,14 +672,14 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	role := types.RoleV3{
+	role := types.RoleV4{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "role1",
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				MaxSessionTTL:     types.Duration(time.Hour),
 				PortForwarding:    types.NewBoolOption(true),
@@ -1574,7 +1574,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: types.KindRole,
 			},
 			crud: func(context.Context) types.Resource {
-				role, err := types.NewRole("role1", types.RoleSpecV3{
+				role, err := types.NewRole("role1", types.RoleSpecV4{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},
