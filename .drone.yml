@@ -348,7 +348,6 @@ trigger:
     include:
     - master
     - branch/*
-    - gus/v6/docker-dind
 workspace:
   path: /go
 clone:
@@ -444,7 +443,6 @@ trigger:
     include:
     - master
     - branch/*
-    - gus/v6/docker-dind
 workspace:
   path: /go
 clone:
@@ -540,7 +538,6 @@ trigger:
     include:
     - master
     - branch/*
-    - gus/v6/docker-dind
 workspace:
   path: /go
 clone:
@@ -640,7 +637,6 @@ trigger:
     include:
     - master
     - branch/*
-    - gus/v6/docker-dind
 workspace:
   path: /go
 clone:
@@ -833,7 +829,6 @@ trigger:
     include:
     - master
     - branch/*
-    - gus/v6/docker-dind
 workspace:
   path: /go
 clone:
@@ -929,7 +924,6 @@ trigger:
     include:
     - master
     - branch/*
-    - gus/v6/docker-dind
 workspace:
   path: /go
 clone:
@@ -4324,6 +4318,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 4a2a0881f2f22abac17da7204864ebd683d58d2c30922b4b40834a7067b4aa39
+hmac: 07aad654cfe31b795fc843a0e2ab1222d5b2499928937b461380ac32b112f31a
 
 ...
