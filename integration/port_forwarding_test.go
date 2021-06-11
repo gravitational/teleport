@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -72,22 +71,18 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 	testCases := []struct {
-		desc          string
-		mode          regular.SSHPortForwardingMode
-		expectSuccess bool
+		desc                  string
+		portForwardingAllowed bool
+		expectSuccess         bool
 	}{
 		{
-			desc:          "Enabled (All)",
-			mode:          regular.SSHPortForwardingModeAll,
-			expectSuccess: true,
+			desc:                  "Enabled",
+			portForwardingAllowed: true,
+			expectSuccess:         true,
 		}, {
-			desc:          "Enabled (Local)",
-			mode:          regular.SSHPortForwardingModeLocal,
-			expectSuccess: true,
-		}, {
-			desc:          "Disabled",
-			mode:          regular.SSHPortForwardingModeNone,
-			expectSuccess: false,
+			desc:                  "Disabled",
+			portForwardingAllowed: false,
+			expectSuccess:         false,
 		},
 	}
 
@@ -108,7 +103,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cfg.Proxy.DisableWebService = false
 			cfg.Proxy.DisableWebInterface = true
 			cfg.SSH.Enabled = true
-			cfg.SSH.AllowTCPForwarding = tt.mode
+			cfg.SSH.AllowTCPForwarding = tt.portForwardingAllowed
 
 			teleport := suite.newTeleportWithConfig(t, nil, nil, cfg)
 			defer teleport.StopAll()

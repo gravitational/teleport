@@ -779,6 +779,15 @@ func onLogin(cf *CLIConf) error {
 	// -i flag specified? save the retrieved cert into an identity file
 	makeIdentityFile := (cf.IdentityFileOut != "")
 
+	pingResponse, err := tc.Ping(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if pingResponse.MessageOfTheDay {
+		err := showMessageOfTheDay(cf.Context, tc)
+	}
+
 	key, err := tc.Login(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
@@ -899,6 +908,13 @@ func onLogin(cf *CLIConf) error {
 
 	// Print status to show information of the logged in user.
 	return trace.Wrap(onStatus(cf))
+}
+
+// showMessageOfTheDay retrieves the cluster MOTD text, displays it and awaits
+// confirmation
+func showMessageOfTheDay(ctx context.Context, tc *client.TeleportClient) error {
+	tc.Login()
+	return nil
 }
 
 // setupNoninteractiveClient sets up existing client to use

@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -119,57 +118,51 @@ func TestSSHSection(t *testing.T) {
 		expectedConfig SSH
 	}{
 		{
-			desc:           "default",
-			yaml:           "",
-			expectError:    require.NoError,
-			expectedConfig: SSH{},
+			desc:        "default",
+			yaml:        "",
+			expectError: require.NoError,
+			expectedConfig: SSH{
+				Service:            Service{defaultEnabled: true},
+				AllowTCPForwarding: true,
+			},
 		}, {
-			desc:           "enabled",
-			yaml:           "enabled: yes",
-			expectError:    require.NoError,
-			expectedConfig: SSH{Service: Service{EnabledFlag: "yes"}},
+			desc:        "enabled",
+			yaml:        "enabled: yes",
+			expectError: require.NoError,
+			expectedConfig: SSH{
+				Service: Service{
+					defaultEnabled: true,
+					EnabledFlag:    "yes",
+				},
+				AllowTCPForwarding: true,
+			},
 		}, {
-			desc:        "Port forwarding is enabled (yes)",
+			desc:        "Port forwarding is enabled",
 			yaml:        "allow_tcp_forwarding: yes",
 			expectError: require.NoError,
 			expectedConfig: SSH{
-				AllowTCPForwarding: AllowTCPForwarding(regular.SSHPortForwardingModeAll),
-			},
-		}, {
-			desc:        "Port forwarding is enabled (all)",
-			yaml:        "allow_tcp_forwarding: all",
-			expectError: require.NoError,
-			expectedConfig: SSH{
-				AllowTCPForwarding: AllowTCPForwarding(regular.SSHPortForwardingModeAll),
+				Service:            Service{defaultEnabled: true},
+				AllowTCPForwarding: true,
 			},
 		}, {
 			desc:        "Port forwarding is disabled",
 			yaml:        "allow_tcp_forwarding: no",
 			expectError: require.NoError,
 			expectedConfig: SSH{
-				AllowTCPForwarding: AllowTCPForwarding(regular.SSHPortForwardingModeNone),
+				Service:            Service{defaultEnabled: true},
+				AllowTCPForwarding: false,
 			},
-		}, {
-			desc:        "Port forwarding is local only",
-			yaml:        "allow_tcp_forwarding: local",
-			expectError: require.NoError,
-			expectedConfig: SSH{
-				AllowTCPForwarding: AllowTCPForwarding(regular.SSHPortForwardingModeLocal),
-			},
-		}, {
-			desc:           "Invalid port forwarding value is an error",
-			yaml:           "allow_tcp_forwarding: banana",
-			expectError:    require.Error,
-			expectedConfig: SSH{},
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.desc, func(t *testing.T) {
-			var sshConfig SSH
-			err := yaml.UnmarshalStrict([]byte(testCase.yaml), &sshConfig)
+			fileConf := FileConfig{}
+			fileConf.CheckAndSetDefaults()
+
+			err := yaml.UnmarshalStrict([]byte(testCase.yaml), &fileConf.SSH)
 			testCase.expectError(t, err)
-			require.Equal(t, testCase.expectedConfig, sshConfig)
+			require.Equal(t, testCase.expectedConfig, fileConf.SSH)
 		})
 	}
 }

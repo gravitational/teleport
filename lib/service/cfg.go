@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app"
-	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -537,9 +536,8 @@ type SSHConfig struct {
 	// See github.com/gravitational/teleport/issues/4141 for details.
 	ProxyReverseTunnelFallbackAddr *utils.NetAddr
 
-	// AllowTCPForwarding describes what port forwarding mechanisms the SSH service
-	// is allowed to offer. Defaults to SSHPortForwardingModeAll
-	AllowTCPForwarding regular.SSHPortForwardingMode
+	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
+	AllowTCPForwarding bool
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -882,6 +880,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+	cfg.SSH.AllowTCPForwarding = true
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false

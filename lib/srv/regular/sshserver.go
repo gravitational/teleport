@@ -59,23 +59,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// SSHPortForwardingMode encodes a port forwarding mode.
-type SSHPortForwardingMode int
-
-const (
-	// SSHPortForwardingModeAll indicates both local and remote port forwarding
-	// is allowed
-	SSHPortForwardingModeAll SSHPortForwardingMode = iota
-
-	// SSHPortForwardingMode indicates that only local (i.e. forwarding
-	// connections from the client out to the Internet) is allowed.
-	SSHPortForwardingModeLocal
-
-	// SSHPortForwardingModeNone indicates that no port forwarding of any kind
-	// is allowed.
-	SSHPortForwardingModeNone
-)
-
 var (
 	log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentNode,
@@ -190,9 +173,9 @@ type Server struct {
 	// wtmpPath is the path to the user accounting log.
 	wtmpPath string
 
-	// portForwardingMode is the TCP port forwarding mode allowed by this
-	// server.
-	portForwardingMode SSHPortForwardingMode
+	// allowTCPForwarding indicates whether the ssh server is allowed to offer
+	// TCP port forwarding.
+	allowTCPForwarding bool
 }
 
 // GetClock returns server clock implementation
@@ -523,12 +506,12 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 	}
 }
 
-// SetPortForwardingMode sets the TCP port forwarding mode that this server is
+// SetAllowTCPForwarding sets the TCP port forwarding mode that this server is
 // allowed to offer. The default value is SSHPortForwardingModeAll, i.e. port
 // forwarding is allowed.
-func SetPortForwardingMode(mode SSHPortForwardingMode) ServerOption {
+func SetAllowTCPForwarding(allow bool) ServerOption {
 	return func(s *Server) error {
-		s.portForwardingMode = mode
+		s.allowTCPForwarding = allow
 		return nil
 	}
 }
@@ -556,15 +539,16 @@ func New(addr utils.NetAddr,
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	s := &Server{
-		addr:            addr,
-		authService:     authService,
-		hostname:        hostname,
-		proxyPublicAddr: proxyPublicAddr,
-		uuid:            uuid,
-		cancel:          cancel,
-		ctx:             ctx,
-		clock:           clockwork.NewRealClock(),
-		dataDir:         dataDir,
+		addr:               addr,
+		authService:        authService,
+		hostname:           hostname,
+		proxyPublicAddr:    proxyPublicAddr,
+		uuid:               uuid,
+		cancel:             cancel,
+		ctx:                ctx,
+		clock:              clockwork.NewRealClock(),
+		dataDir:            dataDir,
+		allowTCPForwarding: true,
 	}
 	s.limiter, err = limiter.NewLimiter(limiter.Config{})
 	if err != nil {
@@ -1095,19 +1079,21 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 }
 
-// nodeAllowsPortForward checks if this SSH service is allowed forward TCP
-// connections for the client.
-func (s *Server) nodeAllowsPortForward() bool {
-	// Because we do not support remote port forwarding (i.e. from the Internet
-	// back to the client), the values `SSHPortForwardingModeAll` and
-	// `SSHPortForwardingModeLocal` are effectively synonyms.
-	switch s.portForwardingMode {
-	case SSHPortForwardingModeAll, SSHPortForwardingModeLocal:
-		return true
-
-	default:
+func (s *Server) canPortForward(scx *srv.ServerContext, channel ssh.Channel) bool {
+	// Is the node configured to allow port forwarding?
+	if !s.allowTCPForwarding {
+		writeStderr(channel, "Node does not allow port forwarding")
 		return false
 	}
+
+	// Check if the role allows port forwarding for this user.
+	err := s.authHandlers.CheckPortForward(scx.DstAddr, scx)
+	if err != nil {
+		writeStderr(channel, err.Error())
+		return false
+	}
+
+	return true
 }
 
 // handleDirectTCPIPRequest handles port forwarding requests.
@@ -1129,16 +1115,9 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 
 	channel = scx.TrackActivity(channel)
 
-	// Check if this node allows port forwarding at all
-	if !s.nodeAllowsPortForward() {
-		writeStderr(channel, "Node does not allow port forwarding")
-		return
-	}
-
-	// Check if the role allows port forwarding for this user.
-	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)
-	if err != nil {
-		writeStderr(channel, err.Error())
+	// Bail out now if TCP port forwarding is not allowed for this node/user/role
+	// combo
+	if !s.canPortForward(scx, channel) {
 		return
 	}
 

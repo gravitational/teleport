@@ -1777,7 +1777,7 @@ func (process *TeleportProcess) initSSH() error {
 					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode})
 				}
 			}),
-			regular.SetPortForwardingMode(cfg.SSH.AllowTCPForwarding),
+			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 		)
 		if err != nil {
 			return trace.Wrap(err)

@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -206,6 +205,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	conf.Auth.defaultEnabled = true
 	conf.Proxy.defaultEnabled = true
 	conf.SSH.defaultEnabled = true
+	conf.SSH.AllowTCPForwarding = true
 	conf.Kube.defaultEnabled = false
 
 	var sc ssh.Config
@@ -606,48 +606,6 @@ func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
 	return res, nil
 }
 
-// AllowTCPForwarding describes the possible values of the
-// `allow_tcp_forwarding` SSH settings key. Essentially a wrapper around
-// regular.SSHPortForwardingMode to plug it into the YAML parser. This
-// allows us to define the parsing code _here_, rather than cluttering
-// up the SSH server code with irrelevant YAML handling.
-type AllowTCPForwarding regular.SSHPortForwardingMode
-
-// UnmarshalYAML parses a YAML representation of a SSHPortForwardingMode,
-// failing if the value cannot be converted.
-func (mode *AllowTCPForwarding) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var text string
-	err := unmarshal(&text)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var value regular.SSHPortForwardingMode
-	switch strings.ToLower(text) {
-	case "yes", "all":
-		value = regular.SSHPortForwardingModeAll
-	case "no":
-		value = regular.SSHPortForwardingModeNone
-	case "local":
-		value = regular.SSHPortForwardingModeLocal
-	default:
-		// Note that this will be hit only if the `allow_tcp_forwarding` key is
-		// set to an invalid value (e.g. "allow_tcp_forwarding: banana"). If
-		// the key is simply not present in the YAML, the config value will
-		// default to the zero value of `SSHPortForwardingModeAll`
-		return trace.BadParameter("Invalid SSH TCP forwarding mode %q", text)
-	}
-
-	(*mode) = AllowTCPForwarding(value)
-	return nil
-}
-
-// AsForwardingMode unwraps the AllowTCPForwarding value into a SSHPortForwardingMode
-// that is usable by the rest of the teleport system.
-func (mode *AllowTCPForwarding) AsForwardingMode() regular.SSHPortForwardingMode {
-	return regular.SSHPortForwardingMode(*mode)
-}
-
 // SSH is 'ssh_service' section of the config file
 type SSH struct {
 	Service               `yaml:",inline"`
@@ -662,9 +620,8 @@ type SSH struct {
 	// BPF is used to configure BPF-based auditing for this node.
 	BPF *BPF `yaml:"enhanced_recording,omitempty"`
 
-	// AllowTCPForwarding configures the TCP port forwarding modes that the
-	// server is allowed to offer.
-	AllowTCPForwarding AllowTCPForwarding `yaml:"allow_tcp_forwarding,omitempty"`
+	// AllowTCPForwarding enables or disables TCP forwarding
+	AllowTCPForwarding bool `yaml:"allow_tcp_forwarding,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
