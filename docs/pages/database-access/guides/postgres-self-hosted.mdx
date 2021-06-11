@@ -127,7 +127,7 @@ Generate a short-lived join token for the database service and save it for
 example in `/tmp/token`:
 
 ```sh
-$ tctl --config=/path/to/teleport.yaml tokens add \
+$ tctl tokens add \
     --type=db \
     --db-name=test \
     --db-protocol=postgres \
