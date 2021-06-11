@@ -2689,7 +2689,11 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
+<<<<<<< HEAD
       - mkdir -p /go/cache /go/artifacts
+=======
+      - mkdir -p /go/artifacts $GOCACHE
+>>>>>>> 8e04c0127 (drone: Let shell expand GOCACHE variable rather than Drone)
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -3380,6 +3384,6 @@ volumes:
 
 ---
 kind: signature
-hmac: fe3843b59ffa075b7167f17ba149ee8c8249fffdb2010b3b51581251ab24426e
+hmac: c0d3d6df21a9b5e5e01591a8885068b39829b084380dd8fd57a4752f1c75eda1
 
 ...
