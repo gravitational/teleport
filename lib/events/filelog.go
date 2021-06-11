@@ -279,13 +279,21 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 			break
 		}
 
+		if totalSize+size >= MaxEventBytesInResponse {
+			checkpoint, err := getCheckpointFromEvent(events[len(events)-1])
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return events, checkpoint, nil
+		}
+
 		events = append(events, event)
 		totalSize += size
 
 		// Check if there is a limit and if so, check if we've hit it.
 		// In the event that we've hit the limit, we consider the query partially complete
 		// and return a checkpoint to continue it.
-		if (len(events) >= limit && limit > 0) || totalSize >= MaxEventBytesInResponse {
+		if len(events) >= limit && limit > 0 {
 			checkpoint, err := getCheckpointFromEvent(events[len(events)-1])
 			if err != nil {
 				return nil, "", trace.Wrap(err)

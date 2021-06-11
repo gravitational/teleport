@@ -521,10 +521,14 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 			}
 		}
 		if accepted || !doFilter {
+			if totalSize+len(data) >= events.MaxEventBytesInResponse {
+				break
+			}
+
 			lastKey = docSnap.Data()["createdAt"].(int64)
 			values = append(values, fields)
 			totalSize += len(data)
-			if (limit > 0 && len(values) >= limit) || totalSize >= events.MaxEventBytesInResponse {
+			if limit > 0 && len(values) >= limit {
 				break
 			}
 		}
