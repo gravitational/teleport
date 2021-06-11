@@ -1378,6 +1378,11 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 // for V4 roles returns a shallow copy of the given role downgraded to V3. If
 // the passed in role is already V3, it is returned unmodified.
 func downgradeRole(ctx context.Context, role *types.RoleV4) (*types.RoleV4, error) {
+	if role.Version == types.V3 {
+		// role is already V3, no need to downgrade
+		return role, nil
+	}
+
 	var clientVersion *semver.Version
 	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
 	if ok {

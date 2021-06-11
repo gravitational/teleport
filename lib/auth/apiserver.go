@@ -2145,7 +2145,15 @@ func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID()))
+	roleV4, ok := role.(*types.RoleV4)
+	if !ok {
+		return nil, trace.BadParameter("Unrecognized role version")
+	}
+	downgraded, err := downgradeRole(context.Background(), roleV4)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rawMessage(services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID()))
 }
 
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -2155,7 +2163,15 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	}
 	out := make([]json.RawMessage, len(roles))
 	for i, role := range roles {
-		raw, err := services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID())
+		roleV4, ok := role.(*types.RoleV4)
+		if !ok {
+			return nil, trace.BadParameter("Unrecognized role version")
+		}
+		downgraded, err := downgradeRole(context.Background(), roleV4)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw, err := services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
