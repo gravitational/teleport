@@ -159,5 +159,5 @@ const (
 
 const (
 	// TODO(Joerger): change this to generated value
-	Version = "7.0.0-dev"
+	Version = "6.3.0-dev"
 )
