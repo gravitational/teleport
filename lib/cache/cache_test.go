@@ -24,7 +24,9 @@ import (
 	"testing"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -413,7 +415,7 @@ func waitForEvent(c *check.C, eventsC <-chan Event, expectedEvent string, skipEv
 		// wait for watcher to restart
 		select {
 		case event := <-eventsC:
-			if utils.SliceContainsStr(skipEvents, event.Type) {
+			if apiutils.SliceContainsStr(skipEvents, event.Type) {
 				continue
 			}
 			c.Assert(event.Type, check.Equals, expectedEvent)
@@ -1050,7 +1052,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	p := s.newPackForNode(c)
 	defer p.Close()
 
-	role, err := types.NewRole("role1", types.RoleSpecV3{
+	role, err := types.NewRole("role1", types.RoleSpecV4{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},
@@ -1259,11 +1261,11 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	server := suite.NewServer(types.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
+	server := suite.NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 	_, err := p.presenceS.UpsertNode(ctx, server)
 	c.Assert(err, check.IsNil)
 
-	out, err := p.presenceS.GetNodes(ctx, defaults.Namespace)
+	out, err := p.presenceS.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv := out[0]
@@ -1275,7 +1277,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1289,7 +1291,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	lease, err := p.presenceS.UpsertNode(ctx, srv)
 	c.Assert(err, check.IsNil)
 
-	out, err = p.presenceS.GetNodes(ctx, defaults.Namespace)
+	out, err = p.presenceS.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv = out[0]
@@ -1301,7 +1303,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1321,7 +1323,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1329,7 +1331,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	srv.SetExpiry(lease.Expires)
 	fixtures.DeepCompare(c, srv, out[0])
 
-	err = p.presenceS.DeleteAllNodes(ctx, defaults.Namespace)
+	err = p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1338,7 +1340,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 }
@@ -1348,7 +1350,7 @@ func (s *CacheSuite) TestProxies(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	server := suite.NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", defaults.Namespace)
+	server := suite.NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 	err := p.presenceS.UpsertProxy(server)
 	c.Assert(err, check.IsNil)
 
@@ -1415,7 +1417,7 @@ func (s *CacheSuite) TestAuthServers(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	server := suite.NewServer(types.KindAuthServer, "srv1", "127.0.0.1:2022", defaults.Namespace)
+	server := suite.NewServer(types.KindAuthServer, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 	err := p.presenceS.UpsertAuthServer(server)
 	c.Assert(err, check.IsNil)
 
@@ -1561,7 +1563,7 @@ func (s *CacheSuite) TestAppServers(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Check that the application is now in the backend.
-	out, err := p.presenceS.GetAppServers(context.Background(), defaults.Namespace)
+	out, err := p.presenceS.GetAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv := out[0]
@@ -1575,7 +1577,7 @@ func (s *CacheSuite) TestAppServers(c *check.C) {
 	}
 
 	// Make sure the cache has a single application in it.
-	out, err = p.cache.GetAppServers(context.Background(), defaults.Namespace)
+	out, err = p.cache.GetAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1593,7 +1595,7 @@ func (s *CacheSuite) TestAppServers(c *check.C) {
 
 	// Check that the application is in the backend and only one exists (so an
 	// update occurred).
-	out, err = p.presenceS.GetAppServers(context.Background(), defaults.Namespace)
+	out, err = p.presenceS.GetAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv = out[0]
@@ -1607,7 +1609,7 @@ func (s *CacheSuite) TestAppServers(c *check.C) {
 	}
 
 	// Make sure the cache has a single application in it.
-	out, err = p.cache.GetAppServers(context.Background(), defaults.Namespace)
+	out, err = p.cache.GetAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1617,7 +1619,7 @@ func (s *CacheSuite) TestAppServers(c *check.C) {
 	fixtures.DeepCompare(c, srv, out[0])
 
 	// Remove all applications from the backend.
-	err = p.presenceS.DeleteAllAppServers(context.Background(), defaults.Namespace)
+	err = p.presenceS.DeleteAllAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// Check that information has been replicated to the cache.
@@ -1629,7 +1631,7 @@ func (s *CacheSuite) TestAppServers(c *check.C) {
 	}
 
 	// Check that the cache is now empty.
-	out, err = p.cache.GetAppServers(context.Background(), defaults.Namespace)
+	out, err = p.cache.GetAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 }
@@ -1655,7 +1657,7 @@ func TestDatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that the database server is now in the backend.
-	out, err := p.presenceS.GetDatabaseServers(context.Background(), defaults.Namespace)
+	out, err := p.presenceS.GetDatabaseServers(context.Background(), apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
@@ -1669,7 +1671,7 @@ func TestDatabaseServers(t *testing.T) {
 	}
 
 	// Make sure the cache has a single database server in it.
-	out, err = p.cache.GetDatabaseServers(context.Background(), defaults.Namespace)
+	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
@@ -1681,7 +1683,7 @@ func TestDatabaseServers(t *testing.T) {
 
 	// Check that the server is in the backend and only one exists (so an
 	// update occurred).
-	out, err = p.presenceS.GetDatabaseServers(context.Background(), defaults.Namespace)
+	out, err = p.presenceS.GetDatabaseServers(context.Background(), apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
@@ -1695,13 +1697,13 @@ func TestDatabaseServers(t *testing.T) {
 	}
 
 	// Make sure the cache has a single database server in it.
-	out, err = p.cache.GetDatabaseServers(context.Background(), defaults.Namespace)
+	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 	// Remove all database servers from the backend.
-	err = p.presenceS.DeleteAllDatabaseServers(context.Background(), defaults.Namespace)
+	err = p.presenceS.DeleteAllDatabaseServers(context.Background(), apidefaults.Namespace)
 	require.NoError(t, err)
 
 	// Check that information has been replicated to the cache.
@@ -1713,7 +1715,7 @@ func TestDatabaseServers(t *testing.T) {
 	}
 
 	// Check that the cache is now empty.
-	out, err = p.cache.GetDatabaseServers(context.Background(), defaults.Namespace)
+	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 }

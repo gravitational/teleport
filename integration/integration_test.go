@@ -43,8 +43,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -259,7 +261,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				})
 				require.NoError(t, err)
 
-				recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode: tt.inRecordLocation,
 				})
 				require.NoError(t, err)
@@ -305,7 +307,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				for {
 					select {
 					case <-tickCh:
-						nodesInSite, err := site.GetNodes(ctx, defaults.Namespace)
+						nodesInSite, err := site.GetNodes(ctx, apidefaults.Namespace)
 						if err != nil && !trace.IsNotFound(err) {
 							return trace.Wrap(err)
 						}
@@ -321,7 +323,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// should have no sessions:
-			sessions, err := site.GetSessions(defaults.Namespace)
+			sessions, err := site.GetSessions(apidefaults.Namespace)
 			require.NoError(t, err)
 			require.Empty(t, sessions)
 
@@ -351,7 +353,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				for {
 					select {
 					case <-tickCh:
-						sessions, err = site.GetSessions(defaults.Namespace)
+						sessions, err = site.GetSessions(apidefaults.Namespace)
 						if err != nil {
 							return nil, trace.Wrap(err)
 						}
@@ -370,7 +372,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// wait for the user to join this session:
 			for len(session.Parties) == 0 {
 				time.Sleep(time.Millisecond * 5)
-				session, err = site.GetSession(defaults.Namespace, sessions[0].ID)
+				session, err = site.GetSession(apidefaults.Namespace, sessions[0].ID)
 				require.NoError(t, err)
 			}
 			// make sure it's us who joined! :)
@@ -409,7 +411,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// everything because the session is closing)
 			var sessionStream []byte
 			for i := 0; i < 6; i++ {
-				sessionStream, err = site.GetSessionChunk(defaults.Namespace, session.ID, 0, events.MaxChunkBytes)
+				sessionStream, err = site.GetSessionChunk(apidefaults.Namespace, session.ID, 0, events.MaxChunkBytes)
 				require.NoError(t, err)
 				if strings.Contains(string(sessionStream), "exit") {
 					break
@@ -441,7 +443,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 					select {
 					case <-tickCh:
 						// Get all session events from the backend.
-						sessionEvents, err := site.GetSessionEvents(defaults.Namespace, session.ID, 0, false)
+						sessionEvents, err := site.GetSessionEvents(apidefaults.Namespace, session.ID, 0, false)
 						if err != nil {
 							return nil, trace.Wrap(err)
 						}
@@ -763,7 +765,7 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 			for {
 				select {
 				case <-tickCh:
-					nodesInSite, err := site.GetNodes(ctx, defaults.Namespace)
+					nodesInSite, err := site.GetNodes(ctx, apidefaults.Namespace)
 					if err != nil && !trace.IsNotFound(err) {
 						return trace.Wrap(err)
 					}
@@ -914,7 +916,7 @@ func verifySessionJoin(t *testing.T, username string, teleport *TeleInstance) {
 		var sessionID string
 		for {
 			time.Sleep(time.Millisecond)
-			sessions, _ := site.GetSessions(defaults.Namespace)
+			sessions, _ := site.GetSessions(apidefaults.Namespace)
 			if len(sessions) == 0 {
 				continue
 			}
@@ -925,7 +927,7 @@ func verifySessionJoin(t *testing.T, username string, teleport *TeleInstance) {
 		require.NoError(t, err)
 		cl.Stdout = personB
 		for i := 0; i < 10; i++ {
-			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), personB)
+			err = cl.Join(context.TODO(), apidefaults.Namespace, session.ID(sessionID), personB)
 			if err == nil {
 				break
 			}
@@ -1126,7 +1128,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 
 				var ss []session.Session
 				for i := 0; i < 6; i++ {
-					ss, err = site.GetSessions(defaults.Namespace)
+					ss, err = site.GetSessions(apidefaults.Namespace)
 					if err == nil && len(ss) > 0 {
 						break
 					}
@@ -1154,7 +1156,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	teleport := suite.newTeleportInstance()
 
 	username := suite.me.Username
-	role, err := types.NewRole("devs", types.RoleSpecV3{
+	role, err := types.NewRole("devs", types.RoleSpecV4{
 		Options: tc.options,
 		Allow: types.RoleConditions{
 			Logins: []string{username},
@@ -1168,7 +1170,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	})
 	require.NoError(t, err)
 
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: tc.recordingMode,
 	})
 	require.NoError(t, err)
@@ -1379,7 +1381,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
 
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: proxyRecordMode,
 	})
 	require.NoError(t, err)
@@ -1511,7 +1513,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		for {
 			select {
 			case <-tickCh:
-				eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), defaults.Namespace, eventTypes, 0, "")
+				eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), apidefaults.Namespace, eventTypes, 0, "")
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -1687,7 +1689,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRole(mainDevs, types.RoleSpecV3{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -1715,7 +1717,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRole(auxDevs, types.RoleSpecV3{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -1761,7 +1763,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// correct nodes that identity aware GetNodes is done in TestList.
 	var nodes []types.Server
 	for i := 0; i < 10; i++ {
-		nodes, err = aux.Process.GetAuthServer().GetNodes(ctx, defaults.Namespace)
+		nodes, err = aux.Process.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
 		if len(nodes) != 2 {
 			time.Sleep(100 * time.Millisecond)
@@ -1977,7 +1979,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV3{
+	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -1992,7 +1994,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, err)
 
 	mainAdmins := "main-admins"
-	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV3{
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{"superuser"},
 		},
@@ -2003,7 +2005,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// Ops users can only access remote clusters with label 'access': 'ops'
 	mainOps := "main-ops"
-	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV3{
+	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins:        []string{username},
 			ClusterLabels: types.Labels{"access": []string{"ops"}},
@@ -2032,7 +2034,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV3{
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2212,7 +2214,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRole(mainDevs, types.RoleSpecV3{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2240,7 +2242,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRole(auxDevs, types.RoleSpecV3{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2798,7 +2800,7 @@ func waitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		nodes, err := accessPoint.GetNodes(ctx, defaults.Namespace)
+		nodes, err := accessPoint.GetNodes(ctx, apidefaults.Namespace)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2892,7 +2894,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 		t.Run(tt.desc, func(t *testing.T) {
 			// Create a Teleport instance with auth, proxy, and node.
 			makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
-				recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode: tt.inRecordLocation,
 				})
 				require.NoError(t, err)
@@ -2984,7 +2986,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 
 		// Create a Teleport instance with auth, proxy, and node.
 		makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
-			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 				Mode: tt.inRecordLocation,
 			})
 			require.NoError(t, err)
@@ -3084,7 +3086,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 
 			// create a teleport instance with auth, proxy, and node
 			makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
-				recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode:                types.RecordAtProxy,
 					ProxyChecksHostKeys: types.NewBoolOption(tt.inHostKeyCheck),
 				})
@@ -3133,7 +3135,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	// create a teleport instance with auth, proxy, and node
 	makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
-		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode: types.RecordOff,
 		})
 		require.NoError(t, err)
@@ -3158,7 +3160,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	require.NotNil(t, site)
 
 	// should have no sessions in it to start with
-	sessions, _ := site.GetSessions(defaults.Namespace)
+	sessions, _ := site.GetSessions(apidefaults.Namespace)
 	require.Len(t, sessions, 0)
 
 	// create interactive session (this goroutine is this user's terminal time)
@@ -3182,7 +3184,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// wait until there's a session in there:
 	for i := 0; len(sessions) == 0; i++ {
 		time.Sleep(time.Millisecond * 20)
-		sessions, _ = site.GetSessions(defaults.Namespace)
+		sessions, _ = site.GetSessions(apidefaults.Namespace)
 		if i > 100 {
 			t.Fatalf("Waited %v, but no sessions found", 100*20*time.Millisecond)
 			return
@@ -3193,7 +3195,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// wait for the user to join this session
 	for len(session.Parties) == 0 {
 		time.Sleep(time.Millisecond * 5)
-		session, err = site.GetSession(defaults.Namespace, sessions[0].ID)
+		session, err = site.GetSession(apidefaults.Namespace, sessions[0].ID)
 		require.NoError(t, err)
 	}
 	// make sure it's us who joined! :)
@@ -3210,13 +3212,13 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	// audit log should have the fact that the session occurred recorded in it
-	sessions, err = site.GetSessions(defaults.Namespace)
+	sessions, err = site.GetSessions(apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Len(t, sessions, 1)
 
 	// however, attempts to read the actual sessions should fail because it was
 	// not actually recorded
-	_, err = site.GetSessionChunk(defaults.Namespace, session.ID, 0, events.MaxChunkBytes)
+	_, err = site.GetSessionChunk(apidefaults.Namespace, session.ID, 0, events.MaxChunkBytes)
 	require.Error(t, err)
 }
 
@@ -3700,7 +3702,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRole(mainDevs, types.RoleSpecV3{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{suite.me.Username},
 		},
@@ -3718,7 +3720,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRole(auxDevs, types.RoleSpecV3{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{suite.me.Username},
 		},
@@ -4166,7 +4168,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		var sessionID string
 		for {
 			time.Sleep(time.Millisecond)
-			sessions, _ := site.GetSessions(defaults.Namespace)
+			sessions, _ := site.GetSessions(apidefaults.Namespace)
 			if len(sessions) == 0 {
 				continue
 			}
@@ -4195,7 +4197,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		}
 
 		for i := 0; i < 10; i++ {
-			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), personB)
+			err = cl.Join(context.TODO(), apidefaults.Namespace, session.ID(sessionID), personB)
 			if err == nil {
 				break
 			}
@@ -4258,7 +4260,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 
 	// Create and start a Teleport cluster with auth, proxy, and node.
 	makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
-		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode: types.RecordOff,
 		})
 		require.NoError(t, err)
@@ -4308,7 +4310,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 		for {
 			select {
 			case <-tickCh:
-				nodesInCluster, err := clt.GetNodes(ctx, defaults.Namespace)
+				nodesInCluster, err := clt.GetNodes(ctx, apidefaults.Namespace)
 				if err != nil && !trace.IsNotFound(err) {
 					return trace.Wrap(err)
 				}
@@ -4355,7 +4357,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.inRoleName, func(t *testing.T) {
 			// Create role with logins and labels for this test.
-			role, err := types.NewRole(tt.inRoleName, types.RoleSpecV3{
+			role, err := types.NewRole(tt.inRoleName, types.RoleSpecV4{
 				Allow: types.RoleConditions{
 					Logins:     []string{tt.inLogin},
 					NodeLabels: tt.inLabels,
@@ -4383,7 +4385,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 			nodes, err := userClt.ListNodes(context.Background())
 			require.NoError(t, err)
 			for _, node := range nodes {
-				ok := utils.SliceContainsStr(tt.outNodes, node.GetHostname())
+				ok := apiutils.SliceContainsStr(tt.outNodes, node.GetHostname())
 				if !ok {
 					t.Fatalf("Got nodes: %v, want: %v.", nodes, tt.outNodes)
 				}
@@ -4404,7 +4406,7 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 
 	// Create and start a Teleport cluster with auth, proxy, and node.
 	makeConfig := func() *service.Config {
-		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode: types.RecordOff,
 		})
 		require.NoError(t, err)
@@ -4574,7 +4576,7 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 
 			// Create and start a Teleport cluster.
 			makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
-				recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode: tt.inSessionRecording,
 				})
 				require.NoError(t, err)
@@ -4702,7 +4704,7 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 
 			// Create and start a Teleport cluster.
 			makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
-				recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode: tt.inSessionRecording,
 				})
 				require.NoError(t, err)
@@ -4779,7 +4781,7 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 
 	// Create and start a Teleport cluster.
 	makeConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
-		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode: types.RecordAtNode,
 		})
 		require.NoError(t, err)
@@ -4951,7 +4953,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	authServer := main.Process.GetAuthServer()
 
 	// Create new request role
-	requestedRole, err := types.NewRole(requestedRoleName, types.RoleSpecV3{
+	requestedRole, err := types.NewRole(requestedRoleName, types.RoleSpecV4{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
 	})
@@ -4961,7 +4963,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	require.NoError(t, err)
 
 	// Create user role with ability to request role
-	userRole, err := types.NewRole(userRoleName, types.RoleSpecV3{
+	userRole, err := types.NewRole(userRoleName, types.RoleSpecV4{
 		Options: types.RoleOptions{},
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
@@ -5393,7 +5395,7 @@ func TestTraitsPropagation(t *testing.T) {
 	role.SetName("test")
 	role.SetLogins(services.Allow, []string{me.Username})
 	// Users created by CreateEx have "testing: integration" trait.
-	role.SetNodeLabels(services.Allow, map[string]utils.Strings{"env": []string{"{{external.testing}}"}})
+	role.SetNodeLabels(services.Allow, map[string]apiutils.Strings{"env": []string{"{{external.testing}}"}})
 
 	rc.AddUserWithRole(me.Username, role)
 	lc.AddUserWithRole(me.Username, role)

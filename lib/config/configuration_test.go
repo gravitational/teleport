@@ -29,7 +29,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -42,10 +44,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
 )
 
 type testConfigFiles struct {
@@ -273,7 +274,7 @@ func TestConfigReading(t *testing.T) {
 				ListenAddress: "tcp://kube",
 			},
 			KubeClusterName: "kube-cluster",
-			PublicAddr:      utils.Strings([]string{"kube-host:1234"}),
+			PublicAddr:      apiutils.Strings([]string{"kube-host:1234"}),
 		},
 		Apps: Apps{
 			Service: Service{
@@ -490,7 +491,7 @@ func TestApplyConfig(t *testing.T) {
 	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(SmallConfigString, tokenPath)))
 	require.NoError(t, err)
 	require.NotNil(t, conf)
-	require.Equal(t, utils.Strings{"web3:443"}, conf.Proxy.PublicAddr)
+	require.Equal(t, apiutils.Strings{"web3:443"}, conf.Proxy.PublicAddr)
 
 	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
@@ -529,7 +530,7 @@ func TestApplyConfig(t *testing.T) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      "cluster-auth-preference",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{
@@ -809,7 +810,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			{Name: "hostname", Command: []string{"/bin/hostname"}, Period: 10 * time.Millisecond},
 			{Name: "date", Command: []string{"/bin/date"}, Period: 20 * time.Millisecond},
 		},
-		PublicAddr: utils.Strings{"luna3:22"},
+		PublicAddr: apiutils.Strings{"luna3:22"},
 	}, cmp.AllowUnexported(Service{})))
 
 	require.True(t, conf.Auth.Configured())
@@ -843,7 +844,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			"proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			"auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
-		PublicAddr: utils.Strings{
+		PublicAddr: apiutils.Strings{
 			"auth.default.svc.cluster.local:3080",
 		},
 		ClientIdleTimeout:     types.Duration(17 * time.Second),
@@ -940,7 +941,7 @@ func makeConfigFixture() string {
 			ListenAddress: "tcp://kube",
 		},
 		KubeClusterName: "kube-cluster",
-		PublicAddr:      utils.Strings([]string{"kube-host:1234"}),
+		PublicAddr:      apiutils.Strings([]string{"kube-host:1234"}),
 	}
 
 	// Application service.
@@ -1143,7 +1144,7 @@ func TestProxyKube(t *testing.T) {
 			cfg: Proxy{Kube: KubeProxy{
 				Service:        Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
 				KubeconfigFile: "/tmp/kubeconfig",
-				PublicAddr:     utils.Strings([]string{"kube.example.com:443"}),
+				PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
 			}},
 			want: service.KubeProxyConfig{
 				Enabled:         true,
@@ -1180,7 +1181,7 @@ func TestProxyKube(t *testing.T) {
 				Kube: KubeProxy{
 					Service:        Service{EnabledFlag: "no", ListenAddress: "0.0.0.0:8080"},
 					KubeconfigFile: "/tmp/kubeconfig",
-					PublicAddr:     utils.Strings([]string{"kube.example.com:443"}),
+					PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
 				},
 			},
 			want: service.KubeProxyConfig{

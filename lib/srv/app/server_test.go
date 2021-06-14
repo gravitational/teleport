@@ -38,9 +38,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -195,7 +196,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 	// Make sure the upload directory is created.
 	err = os.MkdirAll(filepath.Join(
 		s.dataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, defaults.Namespace,
+		events.StreamingLogsDir, apidefaults.Namespace,
 	), 0755)
 	c.Assert(err, check.IsNil)
 
@@ -230,7 +231,7 @@ func (s *Suite) TearDownTest(c *check.C) {
 
 	s.testhttp.Close()
 
-	err = s.tlsServer.Auth().DeleteAllAppServers(context.Background(), defaults.Namespace)
+	err = s.tlsServer.Auth().DeleteAllAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 }
 
@@ -238,7 +239,7 @@ func (s *Suite) TearDownTest(c *check.C) {
 // has been created.
 func (s *Suite) TestStart(c *check.C) {
 	// Fetch the services.App that the service heartbeat.
-	servers, err := s.authServer.AuthServer.GetAppServers(context.Background(), defaults.Namespace)
+	servers, err := s.authServer.AuthServer.GetAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(servers, check.HasLen, 1)
 	server := servers[0]
@@ -260,7 +261,7 @@ func (s *Suite) TestStart(c *check.C) {
 
 	// Check the expiry time is correct.
 	c.Assert(s.clock.Now().Before(server.Expiry()), check.Equals, true)
-	c.Assert(s.clock.Now().Add(2*defaults.ServerAnnounceTTL).After(server.Expiry()), check.Equals, true)
+	c.Assert(s.clock.Now().Add(2*apidefaults.ServerAnnounceTTL).After(server.Expiry()), check.Equals, true)
 }
 
 // TestWaitStop makes sure the server will block and unlock.

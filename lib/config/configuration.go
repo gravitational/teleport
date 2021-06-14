@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -527,7 +528,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// Set session recording configuration from file configuration.
-	cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode:                fc.Auth.SessionRecording,
 		ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
 	})
@@ -1042,7 +1043,7 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority,
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(services.Allow, utils.CopyStrings(allowedLogins))
+	role.SetLogins(services.Allow, apiutils.CopyStrings(allowedLogins))
 	ca.AddRole(role.GetName())
 
 	return ca, role, nil
@@ -1203,7 +1204,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// If this process is trying to join a cluster as an application service,
 	// make sure application name and URI are provided.
-	if utils.SliceContainsStr(splitRoles(clf.Roles), defaults.RoleApp) &&
+	if apiutils.SliceContainsStr(splitRoles(clf.Roles), defaults.RoleApp) &&
 		(clf.AppName == "" || clf.AppURI == "") {
 		return trace.BadParameter("application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
 	}

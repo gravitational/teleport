@@ -361,6 +361,51 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	})
 }
 
+func TestSessionRecordingConfig(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fromConfigFile, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordOff,
+	})
+	require.NoError(t, err)
+
+	anotherFromConfigFile, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtProxySync,
+	})
+	require.NoError(t, err)
+
+	dynamically, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtNodeSync,
+	})
+	require.NoError(t, err)
+	dynamically.SetOrigin(types.OriginDynamic)
+
+	testDynamicallyConfigurable(t, testDynamicallyConfigurableParams{
+		withDefaults: func(conf *InitConfig) types.ResourceWithOrigin {
+			conf.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
+			return conf.SessionRecordingConfig
+		},
+		withConfigFile: func(conf *InitConfig) types.ResourceWithOrigin {
+			conf.SessionRecordingConfig = fromConfigFile
+			return conf.SessionRecordingConfig
+		},
+		withAnotherConfigFile: func(conf *InitConfig) types.ResourceWithOrigin {
+			conf.SessionRecordingConfig = anotherFromConfigFile
+			return conf.SessionRecordingConfig
+		},
+		setDynamic: func(authServer *Server) {
+			err := authServer.SetSessionRecordingConfig(ctx, dynamically)
+			require.NoError(t, err)
+		},
+		getStored: func(authServer *Server) types.ResourceWithOrigin {
+			authPref, err := authServer.GetSessionRecordingConfig(ctx)
+			require.NoError(t, err)
+			return authPref
+		},
+	})
+}
+
 func TestClusterID(t *testing.T) {
 	conf := setupConfig(t)
 	authServer, err := Init(conf)

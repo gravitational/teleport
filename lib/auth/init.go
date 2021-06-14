@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -245,7 +246,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = asrv.SetSessionRecordingConfig(ctx, cfg.SessionRecordingConfig)
+	err = initSetSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -308,11 +309,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
 
 	// always create the default namespace
-	err = asrv.UpsertNamespace(types.NewNamespace(defaults.Namespace))
+	err = asrv.UpsertNamespace(types.NewNamespace(apidefaults.Namespace))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("Created namespace: %q.", defaults.Namespace)
+	log.Infof("Created namespace: %q.", apidefaults.Namespace)
 
 	// always create a default admin role
 	defaultRole := services.NewAdminRole()
@@ -354,7 +355,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      cfg.ClusterName.GetClusterName(),
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 			},
 			Spec: types.CertAuthoritySpecV2{
 				ClusterName:  cfg.ClusterName.GetClusterName(),
@@ -414,7 +415,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      cfg.ClusterName.GetClusterName(),
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 			},
 			Spec: types.CertAuthoritySpecV2{
 				ClusterName:  cfg.ClusterName.GetClusterName(),
@@ -536,6 +537,26 @@ func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetCon
 			return trace.Wrap(err)
 		}
 		log.Infof("Updating cluster networking configuration: %v.", newNetConfig)
+	}
+	return nil
+}
+
+func initSetSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
+	storedRecConfig, err := asrv.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedRecConfig, newRecConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if shouldReplace {
+		if err := asrv.SetSessionRecordingConfig(ctx, newRecConfig); err != nil {
+			return trace.Wrap(err)
+		}
+		log.Infof("Updating session recording configuration: %v.", newRecConfig)
 	}
 	return nil
 }
@@ -995,7 +1016,7 @@ func (i *Identity) SSHClientConfig() *ssh.ClientConfig {
 			ssh.PublicKeys(i.KeySigner),
 		},
 		HostKeyCallback: i.hostKeyCallback,
-		Timeout:         defaults.DefaultDialTimeout,
+		Timeout:         apidefaults.DefaultDialTimeout,
 	}
 }
 
@@ -1267,7 +1288,7 @@ func migrateRoleOptions(ctx context.Context, asrv *Server) error {
 		options := role.GetOptions()
 		if options.BPF == nil {
 			log.Debugf("Migrating role %v. Added default enhanced events.", role.GetName())
-			options.BPF = defaults.EnhancedEvents()
+			options.BPF = apidefaults.EnhancedEvents()
 		} else {
 			continue
 		}
