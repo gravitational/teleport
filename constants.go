@@ -429,8 +429,8 @@ const (
 	NetIQ = "netiq"
 	// ADFS is Microsoft Active Directory Federation Services
 	ADFS = "adfs"
-	// PingIdentity is an identity provider.
-	PingIdentity = "ping"
+	// Ping is an identity provider.
+	Ping = "ping"
 )
 
 const (

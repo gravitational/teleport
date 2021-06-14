@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"net/url"
 	"testing"
 	"time"
 
@@ -196,4 +197,18 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	err = a.UpsertSAMLConnector(context.Background(), connector)
 	require.NoError(t, err)
 
+	req, err := a.CreateSAMLAuthRequest(services.SAMLAuthRequest{
+		ConnectorID: "ping",
+	})
+	require.NoError(t, err)
+
+	parsed, err := url.Parse(req.RedirectURL)
+	require.NoError(t, err)
+
+	require.Equal(t, "auth.pingone.com", parsed.Host)
+	require.Equal(t, "/8be7412d-7d2f-4392-90a4-07458d3dee78/saml20/idp/sso", parsed.Path)
+
+	// SigAlg and Signature must be added when `provider: ping`
+	require.NotEmpty(t, parsed.Query().Get("SigAlg"), "SigAlg is required for provider: ping")
+	require.NotEmpty(t, parsed.Query().Get("Signature"), "Signature is required for provider: ping")
 }
