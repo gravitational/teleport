@@ -202,7 +202,7 @@ and
 tctl sessions lock --role=developers --message="Cluster maintenance." --expires="2021-06-14T22:27:00Z"
 ```
 
-#### Creating a lock with a delayed effect
+#### Creating a delayed lock
 
 ```
 $ tctl sessions lock --cluster=leaf --effective-from="2021-06-14T22:27:00Z"
