@@ -3034,7 +3034,7 @@ func (s *TLSSuite) TestEvents(c *check.C) {
 	suite.Events(c)
 }
 
-// TestEventsClusterConifg test cluster configuration
+// TestEventsClusterConfig test cluster configuration
 func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	clt, err := s.server.NewClient(TestBuiltin(types.RoleAdmin))
 	c.Assert(err, check.IsNil)
@@ -3120,17 +3120,15 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 		},
 	})
 
-	// update cluster config
-	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-		Audit: types.AuditConfig{
-			AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
-		},
+	// update audit config
+	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 	})
 	c.Assert(err, check.IsNil)
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetClusterAuditConfig(ctx, auditConfig)
 	c.Assert(err, check.IsNil)
 
-	clusterConfig, err = s.server.Auth().GetClusterConfig()
+	clusterConfig, err := s.server.Auth().GetClusterConfig()
 	c.Assert(err, check.IsNil)
 	suite.ExpectResource(c, w, 3*time.Second, clusterConfig)
 
