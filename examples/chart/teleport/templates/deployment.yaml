@@ -178,6 +178,7 @@ spec:
         ports:
         - name: authssh
           containerPort: {{ .Values.ports.authssh.containerPort }}
+{{- include "teleport.diagPort" . | indent 8 }}
         resources:
 {{ toYaml .Values.authresources | indent 10 }}
         volumeMounts:
