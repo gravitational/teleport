@@ -64,6 +64,13 @@ type ClusterConfiguration interface {
 	// DeleteClusterConfig deletes cluster config resource
 	DeleteClusterConfig() error
 
+	// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
+	GetClusterAuditConfig(context.Context, ...MarshalOption) (types.ClusterAuditConfig, error)
+	// SetClusterAuditConfig sets ClusterAuditConfig from the backend.
+	SetClusterAuditConfig(context.Context, types.ClusterAuditConfig) error
+	// DeleteClusterAuditConfig deletes ClusterAuditConfig from the backend.
+	DeleteClusterAuditConfig(ctx context.Context) error
+
 	// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
 	GetClusterNetworkingConfig(context.Context, ...MarshalOption) (types.ClusterNetworkingConfig, error)
 	// SetClusterNetworkingConfig sets ClusterNetworkingConfig from the backend.

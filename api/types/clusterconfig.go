@@ -37,11 +37,13 @@ type ClusterConfig interface {
 	// SetClusterID sets the cluster ID
 	SetClusterID(string)
 
-	// GetAuditConfig returns audit settings
-	GetAuditConfig() AuditConfig
+	// HasAuditConfig returns true if audit configuration is set.
+	// DELETE IN 8.0.0
+	HasAuditConfig() bool
 
-	// SetAuditConfig sets audit config
-	SetAuditConfig(AuditConfig)
+	// SetAuditConfig sets audit configuration.
+	// DELETE IN 8.0.0
+	SetAuditConfig(ClusterAuditConfig) error
 
 	// HasNetworkingFields returns true if embedded networking configuration is set.
 	// DELETE IN 8.0.0
@@ -166,16 +168,6 @@ func (c *ClusterConfigV3) SetClusterID(id string) {
 	c.Spec.ClusterID = id
 }
 
-// GetAuditConfig returns audit settings
-func (c *ClusterConfigV3) GetAuditConfig() AuditConfig {
-	return c.Spec.Audit
-}
-
-// SetAuditConfig sets audit config
-func (c *ClusterConfigV3) SetAuditConfig(cfg AuditConfig) {
-	c.Spec.Audit = cfg
-}
-
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -186,6 +178,23 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	if c.Version == "" {
 		c.Version = V3
 	}
+	return nil
+}
+
+// HasAuditConfig returns true if audit configuration is set.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) HasAuditConfig() bool {
+	return c.Spec.Audit != nil
+}
+
+// SetAuditConfig sets audit configuration.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) SetAuditConfig(auditConfig ClusterAuditConfig) error {
+	auditConfigV2, ok := auditConfig.(*ClusterAuditConfigV2)
+	if !ok {
+		return trace.BadParameter("unexpected type %T", auditConfig)
+	}
+	c.Spec.Audit = &auditConfigV2.Spec
 	return nil
 }
 
@@ -251,9 +260,10 @@ func (c *ClusterConfigV3) SetAuthFields(authPref AuthPreference) error {
 	return nil
 }
 
-// ClearLegacyFields clears embedded legacy fields.
+// ClearLegacyFields clears legacy fields.
 // DELETE IN 8.0.0
 func (c *ClusterConfigV3) ClearLegacyFields() {
+	c.Spec.Audit = nil
 	c.Spec.ClusterNetworkingConfigSpecV2 = nil
 	c.Spec.LegacySessionRecordingConfigSpec = nil
 	c.Spec.LegacyClusterConfigAuthFields = nil
