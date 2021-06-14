@@ -2260,6 +2260,30 @@ func (a *ServerWithRoles) DeleteAuthPreference(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetClusterAuditConfig gets cluster audit configuration.
+func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	if err := a.action(apidefaults.Namespace, types.KindClusterAuditConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetClusterAuditConfig(ctx, opts...)
+}
+
+// SetClusterAuditConfig sets cluster audit configuration.
+func (a *ServerWithRoles) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
+	if err := a.action(apidefaults.Namespace, types.KindClusterAuditConfig, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindClusterAuditConfig, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetClusterAuditConfig(ctx, auditConfig)
+}
+
+// DeleteClusterAuditConfig not implemented: can only be called locally.
+func (a *ServerWithRoles) DeleteClusterAuditConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterNetworkingConfig, types.VerbRead); err != nil {

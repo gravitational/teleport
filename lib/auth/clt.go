@@ -1611,6 +1611,11 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return nil
 }
 
+// GetClusterAuditConfig gets cluster audit configuration.
+func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	return c.APIClient.GetClusterAuditConfig(ctx)
+}
+
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
 	return c.APIClient.GetClusterNetworkingConfig(ctx)

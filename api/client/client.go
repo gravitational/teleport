@@ -1462,3 +1462,27 @@ func (c *Client) ResetAuthPreference(ctx context.Context) error {
 func (c *Client) DeleteAuthPreference(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
+
+// GetClusterAuditConfig gets cluster audit configuration.
+func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
+	resp, err := c.grpc.GetClusterAuditConfig(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// SetClusterAuditConfig sets cluster audit configuration.
+func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
+	auditConfigV2, ok := auditConfig.(*types.ClusterAuditConfigV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", auditConfig)
+	}
+	_, err := c.grpc.SetClusterAuditConfig(ctx, auditConfigV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteClusterAuditConfig not implemented: can only be called locally.
+func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}

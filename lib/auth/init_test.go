@@ -848,6 +848,7 @@ func setupConfig(t *testing.T) InitConfig {
 		Backend:                 bk,
 		Authority:               testauthority.New(),
 		ClusterConfig:           services.DefaultClusterConfig(),
+		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
 		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
 		ClusterName:             clusterName,

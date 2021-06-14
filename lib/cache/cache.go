@@ -47,6 +47,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -80,6 +81,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -110,6 +112,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -139,6 +142,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -165,6 +169,7 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -186,6 +191,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -205,6 +211,7 @@ func ForApps(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -225,6 +232,7 @@ func ForDatabases(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -1038,6 +1046,16 @@ func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterC
 	}
 	defer rg.Release()
 	return rg.clusterConfig.GetClusterConfig(opts...)
+}
+
+// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
+func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetClusterAuditConfig(ctx, opts...)
 }
 
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.

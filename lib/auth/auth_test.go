@@ -78,6 +78,7 @@ var _ = Suite(&AuthSuite{})
 
 func (s *AuthSuite) SetUpTest(c *C) {
 	ctx := context.Background()
+
 	var err error
 	s.dataDir = c.MkDir()
 	s.bk, err = lite.NewWithConfig(ctx, lite.Config{Path: s.dataDir})
@@ -115,6 +116,9 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	err = s.a.SetAuthPreference(ctx, authPreference)
+	c.Assert(err, IsNil)
+
+	err = s.a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
 	c.Assert(err, IsNil)
 
 	err = s.a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
