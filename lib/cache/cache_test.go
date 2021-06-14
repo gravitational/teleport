@@ -842,11 +842,12 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 
 // TestClusterConfig tests cluster configuration
 func (s *CacheSuite) TestClusterConfig(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
 	// DELETE IN 8.0.0
-	err := p.clusterConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+	err := p.clusterConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -867,8 +868,7 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	// DELETE IN 8.0.0
-	err = p.clusterConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -878,17 +878,25 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	// update cluster config
-	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-		Audit: types.AuditConfig{
-			AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
-		},
+	// DELETE IN 8.0.0
+	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 	})
 	c.Assert(err, check.IsNil)
-	err = p.clusterConfigS.SetClusterConfig(clusterConfig)
+	err = p.clusterConfigS.SetClusterAuditConfig(ctx, auditConfig)
 	c.Assert(err, check.IsNil)
 
-	clusterConfig, err = p.clusterConfigS.GetClusterConfig()
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	err = p.clusterConfigS.SetClusterConfig(services.DefaultClusterConfig())
+	c.Assert(err, check.IsNil)
+
+	clusterConfig, err := p.clusterConfigS.GetClusterConfig()
 	c.Assert(err, check.IsNil)
 
 	select {
