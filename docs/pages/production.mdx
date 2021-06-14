@@ -35,14 +35,16 @@ Before installing anything there are a few things you should think about.
 Teleport services listen on several ports. This table shows the default port numbers.
 
 | Port | Service | Description | Ingress | Egress |
-| - | - | - | - | - |
-| `3080` | Proxy | HTTPS port clients connect to. Used to authenticate `tsh` users and web users into the cluster. | Allow inbound connections from HTTP and SSH clients. | Allow outbound connections to HTTP and SSH clients. |
-| `3023` | Proxy | SSH port clients connect to after authentication. A proxy will forward this connection to port `3022` on the destination node. | Allow inbound traffic from SSH clients. | Allow outbound traffic to SSH clients. |
+| --- | --- | --- | --- | --- |
+| `443` | Proxy | Default proxy port when using ACME for TLS/SSL. | {/* TODO */} | {/* TODO */} |
 | `3022` | Node | SSH port to the Node Service. This is Teleport's equivalent of port `22` for SSH. | Allow inbound traffic from the proxy host. | Allow outbound traffic to the proxy host. |
-| `3025` | Auth | SSH port used by the Auth Service to serve its Auth API to other nodes in a cluster. | Allow inbound connections from all cluster nodes. | Allow outbound traffic to cluster nodes. |
+| `3023` | Proxy | SSH port clients connect to after authentication. A proxy will forward this connection to port `3022` on the destination node. | Allow inbound traffic from SSH clients. | Allow outbound traffic to SSH clients. |
 | `3024` | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. | {/* TODO */} | {/* TODO */} |
-| `3026` | Kubernetes | Port used for `kubectl` to access Teleport | {/* TODO */} | {/* TODO */} |
+| `3025` | Auth | SSH port used by the Auth Service to serve its Auth API to other nodes in a cluster. | Allow inbound connections from all cluster nodes. | Allow outbound traffic to cluster nodes. |
+| `3026` | Kubernetes | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr`. Port used for `kubectl` to access Teleport. | {/* TODO */} | {/* TODO */} |
+| `3027` | Kubernetes | Kubernetes Service `kubernetes_service.listen_addr` | {/* TODO */} | {/* TODO */} |
 | `3036` | DB | Teleport MySQL proxy listen address. | {/* TODO */} | {/* TODO */} |
+| `3080` | Proxy | HTTPS port clients connect to. Used to authenticate `tsh` users and web users into the cluster. | Allow inbound connections from HTTP and SSH clients. | Allow outbound connections to HTTP and SSH clients. |
 
 {
   /* TODO: Add several diagrams of firewall config examples */
