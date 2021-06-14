@@ -2843,6 +2843,31 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	}
 }
 
+// Check that role constructors never return nil and pass validation checks.
+func TestRoleConstructors(t *testing.T) {
+	require.NotNil(t, NewAdminRole())
+	require.NoError(t, NewAdminRole().CheckAndSetDefaults())
+	require.NotNil(t, NewImplicitRole())
+	require.NoError(t, NewImplicitRole().CheckAndSetDefaults())
+	require.NotNil(t, NewDowngradedOSSAdminRole())
+	require.NoError(t, NewDowngradedOSSAdminRole().CheckAndSetDefaults())
+	require.NotNil(t, NewOSSGithubRole([]string{}, []string{}, []string{}))
+	require.NoError(t, NewOSSGithubRole([]string{}, []string{}, []string{}).CheckAndSetDefaults())
+
+	user, err := types.NewUser("user")
+	require.NoError(t, err)
+	require.NotNil(t, RoleForUser(user))
+	require.NoError(t, RoleForUser(user).CheckAndSetDefaults())
+
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		ClusterName: "root",
+		Type:        types.HostCA,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, RoleForCertAuthority(ca))
+	require.NoError(t, RoleForCertAuthority(ca).CheckAndSetDefaults())
+}
+
 // BenchmarkCheckAccessToServer tests how long it takes to run
 // CheckAccessToServer across 4,000 nodes for 5 roles each with 5 logins each.
 //

@@ -17,12 +17,11 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport"
-
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 
+	"github.com/gravitational/teleport"
 	"github.com/pborman/uuid"
 )
 
@@ -30,23 +29,20 @@ import (
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
 	role := &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
-			Namespace:   apidefaults.Namespace,
 			Description: "Edit cluster configuration",
 		},
 		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
+				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces: []string{apidefaults.Namespace},
+				Namespaces: []string{defaults.Namespace},
 				Rules: []types.Rule{
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindRole, RW()),
@@ -62,6 +58,7 @@ func NewPresetEditorRole() types.Role {
 			},
 		},
 	}
+	role.CheckAndSetDefaults()
 	return role
 }
 
@@ -69,23 +66,20 @@ func NewPresetEditorRole() types.Role {
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
 	role := &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
-			Namespace:   apidefaults.Namespace,
 			Description: "Access cluster resources",
 		},
 		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
+				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{apidefaults.Namespace},
+				Namespaces:       []string{defaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -101,6 +95,7 @@ func NewPresetAccessRole() types.Role {
 	role.SetLogins(Allow, []string{teleport.TraitInternalLoginsVariable})
 	role.SetKubeUsers(Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(Allow, []string{teleport.TraitInternalKubeGroupsVariable})
+	role.CheckAndSetDefaults()
 	return role
 }
 
@@ -109,20 +104,17 @@ func NewPresetAccessRole() types.Role {
 // but can't initiate interactive sessions or modify configuration.
 func NewPresetAuditorRole() types.Role {
 	role := &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
-			Namespace:   apidefaults.Namespace,
 			Description: "Review cluster events and replay sessions",
 		},
 		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
 			},
 			Allow: types.RoleConditions{
-				Namespaces: []string{apidefaults.Namespace},
+				Namespaces: []string{defaults.Namespace},
 				Rules: []types.Rule{
 					types.NewRule(types.KindSession, RO()),
 					types.NewRule(types.KindEvent, RO()),
@@ -138,5 +130,6 @@ func NewPresetAuditorRole() types.Role {
 		},
 	}
 	role.SetLogins(Allow, []string{"no-login-" + uuid.New()})
+	role.CheckAndSetDefaults()
 	return role
 }
