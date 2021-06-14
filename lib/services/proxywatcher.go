@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -73,7 +73,7 @@ type ProxyWatcher struct {
 
 	// current is a list of the current servers
 	// as reported by the watcher
-	current []Server
+	current []types.Server
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -99,7 +99,7 @@ type ProxyWatcherConfig struct {
 	// it will always receive a fresh list on the start
 	// and the subsequent list of new values
 	// whenever an addition or deletion to the list is detected
-	ProxiesC chan []Server
+	ProxiesC chan []types.Server
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -129,14 +129,14 @@ func (cfg *ProxyWatcherConfig) CheckAndSetDefaults() error {
 }
 
 // GetCurrent returns a list of currently active proxies
-func (p *ProxyWatcher) GetCurrent() []Server {
+func (p *ProxyWatcher) GetCurrent() []types.Server {
 	p.RLock()
 	defer p.RUnlock()
 	return p.current
 }
 
 // setCurrent sets currently active proxy list
-func (p *ProxyWatcher) setCurrent(proxies []Server) {
+func (p *ProxyWatcher) setCurrent(proxies []types.Server) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -154,8 +154,8 @@ func (p *ProxyWatcher) setCurrent(proxies []Server) {
 // ProxyWatcherClient is used by changeset to fetch a list
 // of proxies and subscribe to updates
 type ProxyWatcherClient interface {
-	ProxyGetter
-	Events
+	types.ProxyGetter
+	types.Events
 }
 
 // Reset returns a channel which notifies of internal
@@ -205,11 +205,11 @@ func (p *ProxyWatcher) watchProxies() {
 
 // watch sets up the watch on proxies
 func (p *ProxyWatcher) watch() error {
-	watcher, err := p.Client.NewWatcher(p.Context, Watch{
+	watcher, err := p.Client.NewWatcher(p.Context, types.Watch{
 		Name: p.Component,
-		Kinds: []WatchKind{
+		Kinds: []types.WatchKind{
 			{
-				Kind: KindProxy,
+				Kind: types.KindProxy,
 			},
 		},
 		MetricComponent: p.Component,
@@ -242,7 +242,7 @@ func (p *ProxyWatcher) watch() error {
 	case <-p.ctx.Done():
 		return trace.ConnectionProblem(p.Context.Err(), "context is closing")
 	case event := <-watcher.Events():
-		if event.Type != backend.OpInit {
+		if event.Type != types.OpInit {
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
 	}
@@ -255,7 +255,7 @@ func (p *ProxyWatcher) watch() error {
 		// retry loop and try again.
 		return trace.NotFound("empty proxy list")
 	}
-	proxySet := make(map[string]Server, len(proxies))
+	proxySet := make(map[string]types.Server, len(proxies))
 	for i := range proxies {
 		proxySet[proxies[i].GetName()] = proxies[i]
 	}
@@ -292,20 +292,20 @@ func (p *ProxyWatcher) watch() error {
 
 // processEvent updates proxy map and returns true if the proxies list have been modified -
 // the proxy has been either added or deleted
-func (p *ProxyWatcher) processEvent(event Event, proxies map[string]Server) bool {
-	if event.Resource.GetKind() != KindProxy {
+func (p *ProxyWatcher) processEvent(event types.Event, proxies map[string]types.Server) bool {
+	if event.Resource.GetKind() != types.KindProxy {
 		p.Warningf("Unexpected event: %v.")
 		return false
 	}
 	switch event.Type {
-	case backend.OpDelete:
+	case types.OpDelete:
 		delete(proxies, event.Resource.GetName())
 		// Always return true if the proxy has been deleted to trigger
 		// broadcast cleanup.
 		return true
-	case backend.OpPut:
+	case types.OpPut:
 		_, existed := proxies[event.Resource.GetName()]
-		resource, ok := event.Resource.(Server)
+		resource, ok := event.Resource.(types.Server)
 		if !ok {
 			p.Warningf("unexpected type %T", event.Resource)
 			return false
@@ -318,8 +318,8 @@ func (p *ProxyWatcher) processEvent(event Event, proxies map[string]Server) bool
 	}
 }
 
-func setToList(in map[string]Server) []Server {
-	out := make([]Server, 0, len(in))
+func setToList(in map[string]types.Server) []types.Server {
+	out := make([]types.Server, 0, len(in))
 	for key := range in {
 		out = append(out, in[key])
 	}

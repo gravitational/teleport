@@ -29,7 +29,7 @@ import (
 )
 
 // ValidateUser validates the User and sets default values
-func ValidateUser(u User) error {
+func ValidateUser(u types.User) error {
 	if err := u.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -42,7 +42,7 @@ func ValidateUser(u User) error {
 }
 
 // UsersEquals checks if the users are equal
-func UsersEquals(u User, other User) bool {
+func UsersEquals(u types.User, other types.User) bool {
 	return cmp.Equal(u, other,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
@@ -68,8 +68,8 @@ func (la *LoginAttempt) Check() error {
 }
 
 // UnmarshalUser unmarshals the User resource from JSON.
-func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
-	var h ResourceHeader
+func UnmarshalUser(bytes []byte, opts ...MarshalOption) (types.User, error) {
+	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -81,8 +81,8 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
 	}
 
 	switch h.Version {
-	case V2:
-		var u UserV2
+	case types.V2:
+		var u types.UserV2
 		if err := utils.FastUnmarshal(bytes, &u); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -103,15 +103,15 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
 }
 
 // MarshalUser marshals the User resource to JSON.
-func MarshalUser(user User, opts ...MarshalOption) ([]byte, error) {
+func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch user := user.(type) {
-	case *UserV2:
-		if version := user.GetVersion(); version != V2 {
+	case *types.UserV2:
+		if version := user.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched user version %v and type %T", version, user)
 		}
 		if !cfg.PreserveResourceID {

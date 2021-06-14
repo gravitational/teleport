@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/fixtures"
 
@@ -345,9 +346,9 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	// on the collected events might have a slight skew
 	events := collectEvents(c, watcher, 3)
 	verifyEvents(c, events, []backend.Event{
-		{Type: backend.OpInit, Item: backend.Item{}},
-		{Type: backend.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
-		{Type: backend.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
+		{Type: types.OpInit, Item: backend.Item{}},
+		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
+		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
 	})
 
 	err = s.B.Delete(context.TODO(), item.Key)
@@ -391,7 +392,7 @@ func (s *BackendSuite) Events(c *check.C) {
 	// Make sure INIT event is emitted.
 	select {
 	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, backend.OpInit)
+		c.Assert(e.Type, check.Equals, types.OpInit)
 	case <-watcher.Done():
 		c.Fatalf("Watcher has unexpectedly closed.")
 	case <-time.After(2 * time.Second):
@@ -410,7 +411,7 @@ func (s *BackendSuite) Events(c *check.C) {
 	// Make sure a PUT event is emitted.
 	select {
 	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, backend.OpPut)
+		c.Assert(e.Type, check.Equals, types.OpPut)
 		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
 		c.Assert(string(e.Item.Value), check.Equals, string(item.Value))
 	case <-watcher.Done():
@@ -430,7 +431,7 @@ func (s *BackendSuite) Events(c *check.C) {
 	// Make sure a DELETE event is emitted.
 	select {
 	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, backend.OpDelete)
+		c.Assert(e.Type, check.Equals, types.OpDelete)
 		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
 	case <-watcher.Done():
 		c.Fatalf("Watcher has unexpectedly closed.")
@@ -454,7 +455,7 @@ func (s *BackendSuite) Events(c *check.C) {
 	// Make sure a PUT event is emitted.
 	select {
 	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, backend.OpPut)
+		c.Assert(e.Type, check.Equals, types.OpPut)
 		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
 		c.Assert(string(e.Item.Value), check.Equals, string(item.Value))
 	case <-watcher.Done():
@@ -473,7 +474,7 @@ func (s *BackendSuite) Events(c *check.C) {
 	// Make sure a DELETE event is emitted.
 	select {
 	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, backend.OpDelete)
+		c.Assert(e.Type, check.Equals, types.OpDelete)
 		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
 	case <-watcher.Done():
 		c.Fatalf("Watcher has unexpectedly closed.")
@@ -663,7 +664,7 @@ func (s *BackendSuite) Mirror(c *check.C, b backend.Backend) {
 	// Make sure INIT event is emitted.
 	select {
 	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, backend.OpInit)
+		c.Assert(e.Type, check.Equals, types.OpInit)
 	case <-watcher.Done():
 		c.Fatalf("Watcher has unexpectedly closed.")
 	case <-time.After(2 * time.Second):
@@ -690,7 +691,7 @@ func (s *BackendSuite) Mirror(c *check.C, b backend.Backend) {
 	// Make sure a PUT event is emitted.
 	select {
 	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, backend.OpPut)
+		c.Assert(e.Type, check.Equals, types.OpPut)
 		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
 		c.Assert(string(e.Item.Value), check.Equals, string(item.Value))
 	case <-watcher.Done():

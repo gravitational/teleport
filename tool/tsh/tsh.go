@@ -37,11 +37,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -324,7 +324,7 @@ func Run(args []string, opts ...cliOption) error {
 	}
 
 	app.Flag("auth", "Specify the type of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
-	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
+	app.Flag("namespace", "Namespace of the cluster").Default(apidefaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
@@ -492,7 +492,7 @@ func Run(args []string, opts ...cliOption) error {
 
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
-	if runtime.GOOS == teleport.WindowsOS {
+	if runtime.GOOS == constants.WindowsOS {
 		ssh.Hidden()
 		join.Hidden()
 		play.Hidden()
@@ -1105,7 +1105,7 @@ func onListNodes(cf *CLIConf) error {
 	}
 
 	// Get list of all nodes in backend and sort by "Node Name".
-	var nodes []services.Server
+	var nodes []types.Server
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		nodes, err = tc.ListNodes(cf.Context)
 		return err
@@ -1141,7 +1141,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	req.SetSuggestedReviewers(reviewers)
 	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
 
-	var res services.AccessRequest
+	var res types.AccessRequest
 	// always create access request against the root cluster
 	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
 		res, err = getRequestResolution(cf, clt, req)
@@ -1171,7 +1171,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	return nil
 }
 
-func printNodes(nodes []services.Server, format string, verbose bool) error {
+func printNodes(nodes []types.Server, format string, verbose bool) error {
 	switch strings.ToLower(format) {
 	case teleport.Text:
 		printNodesAsText(nodes, verbose)
@@ -1192,9 +1192,9 @@ func printNodes(nodes []services.Server, format string, verbose bool) error {
 	return nil
 }
 
-func printNodesAsText(nodes []services.Server, verbose bool) {
+func printNodesAsText(nodes []types.Server, verbose bool) {
 	// Reusable function to get addr or tunnel for each node
-	getAddr := func(n services.Server) string {
+	getAddr := func(n types.Server) string {
 		if n.GetUseTunnel() {
 			return "⟵ Tunnel"
 		}
@@ -1231,7 +1231,7 @@ func printNodesAsText(nodes []services.Server, verbose bool) {
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showApps(servers []services.Server, active []tlsca.RouteToApp, verbose bool) {
+func showApps(servers []types.Server, active []tlsca.RouteToApp, verbose bool) {
 	// In verbose mode, print everything on a single line and include host UUID.
 	// In normal mode, chunk the labels, print two per line and allow multiple
 	// lines per node.
@@ -1246,7 +1246,7 @@ func showApps(servers []services.Server, active []tlsca.RouteToApp, verbose bool
 					}
 				}
 				t.AddRow([]string{
-					name, app.Description, server.GetName(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+					name, app.Description, server.GetName(), app.PublicAddr, app.URI, types.LabelsAsString(app.StaticLabels, app.DynamicLabels),
 				})
 			}
 		}
@@ -1255,7 +1255,7 @@ func showApps(servers []services.Server, active []tlsca.RouteToApp, verbose bool
 		t := asciitable.MakeTable([]string{"Application", "Description", "Public Address", "Labels"})
 		for _, server := range servers {
 			for _, app := range server.GetApps() {
-				labelChunks := chunkLabels(services.CombineLabels(app.StaticLabels, app.DynamicLabels), 2)
+				labelChunks := chunkLabels(types.CombineLabels(app.StaticLabels, app.DynamicLabels), 2)
 				for i, v := range labelChunks {
 					var name string
 					var addr string
@@ -1391,7 +1391,7 @@ func onListClusters(cf *CLIConf) error {
 	}
 
 	var rootClusterName string
-	var leafClusters []services.RemoteCluster
+	var leafClusters []types.RemoteCluster
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		proxyClient, err := tc.ConnectToProxy(cf.Context)
 		if err != nil {
@@ -1455,7 +1455,7 @@ func onSSH(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			var nodes []services.Server
+			var nodes []types.Server
 			for _, node := range allNodes {
 				if node.GetHostname() == tc.Host {
 					nodes = append(nodes, node)
@@ -1577,7 +1577,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 
 	// apply defaults
 	if cf.MinsToLive == 0 {
-		cf.MinsToLive = int32(defaults.CertDuration / time.Minute)
+		cf.MinsToLive = int32(apidefaults.CertDuration / time.Minute)
 	}
 
 	// split login & host
@@ -2060,17 +2060,17 @@ func host(in string) string {
 }
 
 // getRequestResolution registers an access request with the auth server and waits for it to be resolved.
-func getRequestResolution(cf *CLIConf, clt auth.ClientI, req services.AccessRequest) (services.AccessRequest, error) {
+func getRequestResolution(cf *CLIConf, clt auth.ClientI, req types.AccessRequest) (types.AccessRequest, error) {
 	// set up request watcher before submitting the request to the admin server
 	// in order to avoid potential race.
-	filter := services.AccessRequestFilter{
+	filter := types.AccessRequestFilter{
 		User: req.GetUser(),
 	}
-	watcher, err := clt.NewWatcher(cf.Context, services.Watch{
+	watcher, err := clt.NewWatcher(cf.Context, types.Watch{
 		Name: "await-request-approval",
-		Kinds: []services.WatchKind{
-			services.WatchKind{
-				Kind:   services.KindAccessRequest,
+		Kinds: []types.WatchKind{
+			types.WatchKind{
+				Kind:   types.KindAccessRequest,
 				Filter: filter.IntoMap(),
 			},
 		},
@@ -2087,11 +2087,11 @@ Loop:
 		select {
 		case event := <-watcher.Events():
 			switch event.Type {
-			case backend.OpInit:
+			case types.OpInit:
 				log.Infof("Access-request watcher initialized...")
 				continue Loop
-			case backend.OpPut:
-				r, ok := event.Resource.(*services.AccessRequestV3)
+			case types.OpPut:
+				r, ok := event.Resource.(*types.AccessRequestV3)
 				if !ok {
 					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
@@ -2100,7 +2100,7 @@ Loop:
 					continue Loop
 				}
 				return r, nil
-			case backend.OpDelete:
+			case types.OpDelete:
 				if event.Resource.GetName() != req.GetName() {
 					log.Debugf("Skipping delete event id=%s", event.Resource.GetName())
 					continue Loop
@@ -2152,7 +2152,7 @@ func onApps(cf *CLIConf) error {
 	}
 
 	// Get a list of all applications.
-	var servers []services.Server
+	var servers []types.Server
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		servers, err = tc.ListAppServers(cf.Context)
 		return err

@@ -24,9 +24,9 @@ import "C"
 import (
 	"context"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -75,7 +75,7 @@ type SessionContext struct {
 	PID int
 
 	// Emitter is used to record events for a particular session
-	Emitter events.Emitter
+	Emitter apievents.Emitter
 
 	// Events is the set of events (command, disk, or network) to record for
 	// this session.
@@ -142,7 +142,7 @@ func (s *NOP) CloseSession(ctx *SessionContext) error {
 
 // IsHostCompatible checks that BPF programs can run on this host.
 func IsHostCompatible() error {
-	minKernel := semver.New(teleport.EnhancedRecordingMinKernel)
+	minKernel := semver.New(constants.EnhancedRecordingMinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
 		return trace.Wrap(err)

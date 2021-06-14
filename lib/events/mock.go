@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -112,21 +113,21 @@ func (d *MockAuditLog) Reset() {
 // MockEmitter is emitter that stores last audit event
 type MockEmitter struct {
 	mtx    sync.RWMutex
-	events []AuditEvent
+	events []apievents.AuditEvent
 }
 
 // CreateAuditStream creates a stream that discards all events
-func (e *MockEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (Stream, error) {
+func (e *MockEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	return e, nil
 }
 
 // ResumeAuditStream resumes a stream that discards all events
-func (e *MockEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error) {
+func (e *MockEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return e, nil
 }
 
 // EmitAuditEvent emits audit event
-func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	e.events = append(e.events, event)
@@ -134,7 +135,7 @@ func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) erro
 }
 
 // LastEvent returns last emitted event
-func (e *MockEmitter) LastEvent() AuditEvent {
+func (e *MockEmitter) LastEvent() apievents.AuditEvent {
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
 	if len(e.events) == 0 {
@@ -144,7 +145,7 @@ func (e *MockEmitter) LastEvent() AuditEvent {
 }
 
 // Events returns all the emitted events
-func (e *MockEmitter) Events() []AuditEvent {
+func (e *MockEmitter) Events() []apievents.AuditEvent {
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
 	return e.events
@@ -158,7 +159,7 @@ func (e *MockEmitter) Reset() {
 }
 
 // Status returns a channel that always blocks
-func (e *MockEmitter) Status() <-chan StreamStatus {
+func (e *MockEmitter) Status() <-chan apievents.StreamStatus {
 	return nil
 }
 

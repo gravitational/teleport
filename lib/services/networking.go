@@ -67,7 +67,7 @@ func MarshalClusterNetworkingConfig(netConfig types.ClusterNetworkingConfig, opt
 
 	switch netConfig := netConfig.(type) {
 	case *types.ClusterNetworkingConfigV2:
-		if version := netConfig.GetVersion(); version != V2 {
+		if version := netConfig.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched cluster networking config version %v and type %T", version, netConfig)
 		}
 		if !cfg.PreserveResourceID {

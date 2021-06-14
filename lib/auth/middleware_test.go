@@ -23,8 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
@@ -40,7 +39,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 	)
 	s := newTestServices(t)
 	// Set up local cluster name in the backend.
-	cn, err := services.NewClusterName(services.ClusterNameSpecV2{
+	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: localClusterName,
 	})
 	require.NoError(t, err)
@@ -71,7 +70,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		}
 		localSystemRole = tlsca.Identity{
 			Username:        "node",
-			Groups:          []string{string(teleport.RoleNode)},
+			Groups:          []string{string(types.RoleNode)},
 			TeleportCluster: localClusterName,
 			Expires:         now,
 		}
@@ -88,7 +87,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		}
 		remoteSystemRole = tlsca.Identity{
 			Username:        "node",
-			Groups:          []string{string(teleport.RoleNode)},
+			Groups:          []string{string(types.RoleNode)},
 			TeleportCluster: remoteClusterName,
 			Expires:         now,
 		}
@@ -103,8 +102,8 @@ func TestMiddlewareGetUser(t *testing.T) {
 		{
 			desc: "no client cert",
 			wantID: BuiltinRole{
-				Role:        teleport.RoleNop,
-				Username:    string(teleport.RoleNop),
+				Role:        types.RoleNop,
+				Username:    string(types.RoleNop),
 				ClusterName: localClusterName,
 				Identity:    tlsca.Identity{},
 			},
@@ -145,7 +144,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 			}},
 			wantID: BuiltinRole{
 				Username:    localSystemRole.Username,
-				Role:        teleport.RoleNode,
+				Role:        types.RoleNode,
 				ClusterName: localClusterName,
 				Identity:    localSystemRole,
 			},
@@ -190,7 +189,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 			}},
 			wantID: RemoteBuiltinRole{
 				Username:    remoteSystemRole.Username,
-				Role:        teleport.RoleNode,
+				Role:        types.RoleNode,
 				ClusterName: remoteClusterName,
 				Identity:    remoteSystemRole,
 			},
