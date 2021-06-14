@@ -23,6 +23,10 @@ two team members for a privileged role `dbadmin`.
   an SSO provider.
 </Admonition>
 
+<Admonition title="Note" type="tip">
+  The steps below describe how to use Teleport with Mattermost. You can also [integrate with many other providers](../../enterprise/workflow/index.mdx).
+</Admonition>
+
 ## Prerequisites
 
 - Installed [Teleport Enterprise](../../enterprise/introduction.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
@@ -156,22 +160,7 @@ sudo teleport-mattermost configure > /etc/teleport-mattermost.toml
 Update the config with Teleport address, Mattermost URL, and a bot token.
 
 ```toml
-# example Mattermost configuration TOML file
-[teleport]
-# For Teleport Cloud you can point to the proxy: "example.teleport.sh:443"
-auth_server = "teleport.example.com:3025"  # Teleport Auth Server GRPC API address
-client_key = "/var/lib/teleport/plugins/mattermost/auth.key" # Teleport GRPC client secret key
-client_crt = "/var/lib/teleport/plugins/mattermost/auth.crt" # Teleport GRPC client certificate
-root_cas = "/var/lib/teleport/plugins/mattermost/auth.cas"   # Teleport cluster CA certs
-
-[mattermost]
-url = "https://mattermost.example.com" # Mattermost Server URL
-token = "api-token"                    # Mattermost Bot OAuth token
-recipients = [team/channel]            # Mattermost Team or Channel to notify of new requests
-
-[log]
-output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
-severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+(!examples/resources/plugins/teleport-mattermost.toml!)
 ```
 
 ## Dual authorization
