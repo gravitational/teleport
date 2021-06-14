@@ -113,11 +113,6 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (types.AuthPre
 		return nil, trace.Wrap(err)
 	}
 
-	err = authPreference.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if cfg.ID != 0 {
 		authPreference.SetResourceID(cfg.ID)
 	}
