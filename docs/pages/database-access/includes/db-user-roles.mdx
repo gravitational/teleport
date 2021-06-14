@@ -1,0 +1,42 @@
+We recommend creating at least one Teleport role specific for database access. 
+
+And, users that wish to connect to a database through Teleport will want to have the ability to [impersonate](https://goteleport.com/docs/access-controls/guides/impersonation/) that role.
+
+Below, we'll create both of these Role Templates to allow a user to connect to any database using any database account in one handy command:
+
+```bash
+cat > dbroles.yaml << 'EOF'
+kind: role
+version: v3
+metadata:
+  name: db
+spec:
+  allow:
+    db_labels:
+      '*': '*'
+    db_names:
+    - '*'
+    db_users:
+    - '*'
+---
+kind: role
+version: v3
+metadata:
+  name: impdbrole
+spec:
+  allow:
+    impersonate:
+      users: ["Db"]
+      roles: ["Db"]
+EOF
+```
+
+```bash
+tctl create -f dbroles.yaml
+```
+
+Create a user `db-user` with the defined database access like so:
+
+```bash
+tctl users add db-user --roles=access,impdbrole --logins=root,ubuntu,ec2-user
+```
