@@ -209,7 +209,7 @@ $ tctl sessions lock --cluster=leaf --effective-from="2021-06-14T22:27:00Z"
 Created a session lock with ID "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
 ```
 
-This locks out users with the role `developers` effective from 2021-06-14 22:27 UTC.
+This locks out users accessing the cluster `leaf` effective from 2021-06-14 22:27 UTC.
 
 The above locking command would be equivalent to
 ```sh
