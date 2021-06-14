@@ -672,14 +672,14 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	role := types.RoleV3{
+	role := types.RoleV4{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "role1",
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				MaxSessionTTL:     types.Duration(time.Hour),
 				PortForwarding:    types.NewBoolOption(true),
@@ -1141,6 +1141,16 @@ func CollectOptions(opts ...Option) Options {
 
 // ClusterConfig tests cluster configuration
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
+	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+		Region:           "us-west-1",
+		Type:             "dynamodb",
+		AuditSessionsURI: "file:///home/log",
+		AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
+	})
+	c.Assert(err, check.IsNil)
+	err = s.ConfigS.SetClusterAuditConfig(context.TODO(), auditConfig)
+	c.Assert(err, check.IsNil)
+
 	// DELETE IN 8.0.0
 	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout: types.NewDuration(17 * time.Second),
@@ -1167,13 +1177,6 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 
 	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
 		ClusterID: "27",
-		Audit: types.AuditConfig{
-			Region:           "us-west-1",
-			Type:             "dynamodb",
-			AuditSessionsURI: "file:///home/log",
-			AuditTableName:   "audit_table_name",
-			AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
-		},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -1183,6 +1186,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	gotConfig, err := s.ConfigS.GetClusterConfig()
 	c.Assert(err, check.IsNil)
 	config.SetResourceID(gotConfig.GetResourceID())
+	config.SetAuditConfig(auditConfig)
 	config.SetNetworkingFields(netConfig)
 	config.SetSessionRecordingFields(recConfig)
 	config.SetAuthFields(authPref)
@@ -1574,7 +1578,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: types.KindRole,
 			},
 			crud: func(context.Context) types.Resource {
-				role, err := types.NewRole("role1", types.RoleSpecV3{
+				role, err := types.NewRole("role1", types.RoleSpecV4{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},
@@ -1764,7 +1768,11 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 			},
 			crud: func(context.Context) types.Resource {
 				// DELETE IN 8.0.0
-				err := s.ConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+				err := s.ConfigS.SetClusterAuditConfig(context.TODO(), types.DefaultClusterAuditConfig())
+				c.Assert(err, check.IsNil)
+
+				// DELETE IN 8.0.0
+				err = s.ConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
 				c.Assert(err, check.IsNil)
 
 				// DELETE IN 8.0.0
@@ -1819,6 +1827,31 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				err = s.ConfigS.DeleteClusterName()
+				c.Assert(err, check.IsNil)
+				return out
+			},
+		},
+		{
+			name: "Cluster audit configuration",
+			kind: types.WatchKind{
+				Kind: types.KindClusterAuditConfig,
+			},
+			crud: func(ctx context.Context) types.Resource {
+				auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+					Region:           "us-west-1",
+					Type:             "dynamodb",
+					AuditSessionsURI: "file:///home/log",
+					AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/test/log"},
+				})
+				c.Assert(err, check.IsNil)
+
+				err = s.ConfigS.SetClusterAuditConfig(ctx, auditConfig)
+				c.Assert(err, check.IsNil)
+
+				out, err := s.ConfigS.GetClusterAuditConfig(ctx)
+				c.Assert(err, check.IsNil)
+
+				err = s.ConfigS.DeleteClusterAuditConfig(ctx)
 				c.Assert(err, check.IsNil)
 				return out
 			},

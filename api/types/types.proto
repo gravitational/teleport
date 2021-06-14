@@ -518,7 +518,8 @@ message ClusterConfigSpecV3 {
     string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
 
     // Audit is a section with audit config
-    AuditConfig Audit = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "audit" ];
+    ClusterAuditConfigSpecV2 Audit = 4
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "audit,omitempty" ];
 
     // DELETE IN 8.0.0
     ClusterNetworkingConfigSpecV2 NetworkingConfig = 11
@@ -533,8 +534,27 @@ message ClusterConfigSpecV3 {
         [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
 }
 
-// AuditConfig represents audit log settings in the cluster
-message AuditConfig {
+// ClusterAuditConfigV2 represents audit log settings in the cluster.
+message ClusterAuditConfigV2 {
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is resource metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a ClusterAuditConfig specification
+    ClusterAuditConfigSpecV2 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// ClusterAuditConfigSpecV2 is the actual data we care about
+// for ClusterAuditConfig.
+message ClusterAuditConfigSpecV2 {
+    reserved 5;
+    reserved "audit_table_name";
+
     // Type is audit backend type
     string Type = 1 [ (gogoproto.jsontag) = "type,omitempty" ];
     // Region is a region setting for audit sessions used by cloud providers
@@ -548,14 +568,9 @@ message AuditConfig {
         (gogoproto.jsontag) = "audit_events_uri,omitempty",
         (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Strings"
     ];
-    // AuditTableName is a DB table name used for audits
-    // Deprecated in favor of AuditEventsURI
-    // DELETE IN (3.1.0)
-    string AuditTableName = 5 [ (gogoproto.jsontag) = "audit_table_name,omitempty" ];
 
     // EnableContinuousBackups is used to enable (or disable) PITR (Point-In-Time Recovery).
     bool EnableContinuousBackups = 6 [ (gogoproto.jsontag) = "continuous_backups,omitempty" ];
-
     // EnableAutoScaling is used to enable (or disable) auto scaling policy.
     bool EnableAutoScaling = 7 [ (gogoproto.jsontag) = "auto_scaling,omitempty" ];
     // ReadMaxCapacity is the maximum provisioned read capacity.
@@ -695,7 +710,7 @@ message AuthPreferenceSpecV2 {
     BoolValue DisconnectExpiredCert = 6 [
         (gogoproto.nullable) = true,
         (gogoproto.jsontag) = "disconnect_expired_cert,omitempty",
-        (gogoproto.casttype) = "BoolOption"
+        (gogoproto.customtype) = "BoolOption"
     ];
 
     // AllowLocalAuth is true if local authentication is enabled.
@@ -1081,8 +1096,8 @@ message PluginDataUpdateParams {
     map<string, string> Expect = 5 [ (gogoproto.jsontag) = "expect,omitempty" ];
 }
 
-// RoleV3 represents role resource specification
-message RoleV3 {
+// RoleV4 represents role resource specification
+message RoleV4 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
@@ -1095,11 +1110,11 @@ message RoleV3 {
     // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a role specification
-    RoleSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    RoleSpecV4 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-// RoleSpecV3 is role specification for RoleV3.
-message RoleSpecV3 {
+// RoleSpecV4 is role specification for RoleV4.
+message RoleSpecV4 {
     // Options is for OpenSSH options like agent forwarding.
     RoleOptions Options = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "options,omitempty" ];

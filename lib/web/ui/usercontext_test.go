@@ -24,7 +24,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	}
 
 	// set some rules
-	role1 := &types.RoleV3{}
+	role1 := &types.RoleV4{}
 	role1.SetNamespaces(services.Allow, []string{apidefaults.Namespace})
 	role1.SetRules(services.Allow, []types.Rule{
 		{
@@ -41,7 +41,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 		},
 	})
 
-	role2 := &types.RoleV3{}
+	role2 := &types.RoleV4{}
 	role2.SetNamespaces(services.Allow, []string{apidefaults.Namespace})
 	role2.SetRules(services.Allow, []types.Rule{
 		{
