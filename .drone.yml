@@ -2729,6 +2729,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: amd64
@@ -3387,6 +3388,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 20f9120ae00445205d91947548420ab92ce7b8564a064ea0d970072747078f6a
+hmac: 23a6e76f963898280c57fd99a4954e23236a445fa1f239091f7c01003ade9df8
 
 ...
