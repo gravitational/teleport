@@ -132,7 +132,11 @@ func TestEncryptedSAML(t *testing.T) {
 	require.NotEmpty(t, assertionInfo.Assertions)
 }
 
+// TestPingSAMLWorkaround ensures we provide required additional authn query
+// parameters for Ping backends (PingOne, PingFederate, etc) when
+// `provider: ping` is set.
 func TestPingSAMLWorkaround(t *testing.T) {
+	// Create a Server instance for testing.
 	c := clockwork.NewFakeClockAt(time.Now())
 	b, err := lite.NewWithConfig(context.Background(), lite.Config{
 		Path:             t.TempDir(),
@@ -156,6 +160,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
 
+	// Create a new SAML connector for Ping.
 	const entityDescriptor = `<md:EntityDescriptor entityID="https://auth.pingone.com/8be7412d-7d2f-4392-90a4-07458d3dee78" ID="DUp57Bcq-y4RtkrRLyYj2fYxtqR" xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
 	<md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
 		<md:KeyDescriptor use="signing">
@@ -197,18 +202,20 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	err = a.UpsertSAMLConnector(context.Background(), connector)
 	require.NoError(t, err)
 
+	// Create an auth request that we can inspect.
 	req, err := a.CreateSAMLAuthRequest(services.SAMLAuthRequest{
 		ConnectorID: "ping",
 	})
 	require.NoError(t, err)
 
+	// Parse the generated redirection URL.
 	parsed, err := url.Parse(req.RedirectURL)
 	require.NoError(t, err)
 
 	require.Equal(t, "auth.pingone.com", parsed.Host)
 	require.Equal(t, "/8be7412d-7d2f-4392-90a4-07458d3dee78/saml20/idp/sso", parsed.Path)
 
-	// SigAlg and Signature must be added when `provider: ping`
+	// SigAlg and Signature must be added when `provider: ping`.
 	require.NotEmpty(t, parsed.Query().Get("SigAlg"), "SigAlg is required for provider: ping")
 	require.NotEmpty(t, parsed.Query().Get("Signature"), "Signature is required for provider: ping")
 }
