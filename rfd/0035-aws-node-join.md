@@ -75,6 +75,8 @@ deployment of dynamic tokens.
 
 ## Details
 
+Much inspiration is taken from Vault's [IAM auth method](https://www.vaultproject.io/docs/auth/aws#iam-auth-method).
+
 ### Authentication
 
 In place of a join token, nodes will present one or more signed AWS API
@@ -210,6 +212,26 @@ Notably, the credentials need only be accessible from the Teleport nodes, not
 the auth server. All requests will be signed on the nodes and the auth server
 will only forward them to public AWS endpoints. The auth server does not even
 need to run on AWS.
+
+### Alternatives
+
+I originally looked into doing something like Vault's [EC2 auth method](https://www.vaultproject.io/docs/auth/aws#ec2-auth-method).
+
+At a high level, instead of a join token or signed API requests, the node would
+present it's signed AWS Instance Identity Document. We could check the
+signature on this and the instance details to confirm the node's AWS account.
+
+The drawback of this method is that there is no information about the AWS
+Organization in the Identity Document, and being able to accept nodes from a
+given Organization rather than explicitly listing every account is a
+requirement for this feature.
+
+It would be possible to combine the EC2 method with requests to Amazon's API to
+get the Organization for a given Account, but the required endpoints
+(`organizations:DescribeAccount` or `organizations:ListAccounts`) can only be
+called from the organization's management account. At a minimum, this would
+still require creating signed requests on the node and sending them to the auth
+server as the current design does.
 
 ## Appendix I - Example Signed Requests and Responses
 
