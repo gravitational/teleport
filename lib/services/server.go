@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -40,9 +42,9 @@ const (
 )
 
 // CompareServers compares two provided servers.
-func CompareServers(a, b Resource) int {
-	if serverA, ok := a.(Server); ok {
-		if serverB, ok := b.(Server); ok {
+func CompareServers(a, b types.Resource) int {
+	if serverA, ok := a.(types.Server); ok {
+		if serverB, ok := b.(types.Server); ok {
 			return compareServers(serverA, serverB)
 		}
 	}
@@ -54,7 +56,7 @@ func CompareServers(a, b Resource) int {
 	return Different
 }
 
-func compareServers(a, b Server) int {
+func compareServers(a, b types.Server) int {
 	if a.GetKind() != b.GetKind() {
 		return Different
 	}
@@ -138,7 +140,7 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 }
 
 // CommandLabels is a set of command labels
-type CommandLabels map[string]CommandLabel
+type CommandLabels map[string]types.CommandLabel
 
 // Clone returns copy of the set
 func (c *CommandLabels) Clone() CommandLabels {
@@ -158,7 +160,7 @@ func (c *CommandLabels) SetEnv(v string) error {
 }
 
 // SortedServers is a sort wrapper that sorts servers by name
-type SortedServers []Server
+type SortedServers []types.Server
 
 func (s SortedServers) Len() int {
 	return len(s)
@@ -173,7 +175,7 @@ func (s SortedServers) Swap(i, j int) {
 }
 
 // SortedReverseTunnels sorts reverse tunnels by cluster name
-type SortedReverseTunnels []ReverseTunnel
+type SortedReverseTunnels []types.ReverseTunnel
 
 func (s SortedReverseTunnels) Len() int {
 	return len(s)
@@ -194,7 +196,7 @@ func (s SortedReverseTunnels) Swap(i, j int) {
 // version will also be returned.
 //
 // Returns empty value if there are no proxies.
-func GuessProxyHostAndVersion(proxies []Server) (string, string, error) {
+func GuessProxyHostAndVersion(proxies []types.Server) (string, string, error) {
 	if len(proxies) == 0 {
 		return "", "", trace.NotFound("list of proxies empty")
 	}
@@ -213,7 +215,7 @@ func GuessProxyHostAndVersion(proxies []Server) (string, string, error) {
 }
 
 // UnmarshalServer unmarshals the Server resource from JSON.
-func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, error) {
+func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Server, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -223,14 +225,14 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, 
 		return nil, trace.BadParameter("missing server data")
 	}
 
-	var h ResourceHeader
+	var h types.ResourceHeader
 	if err = utils.FastUnmarshal(bytes, &h); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch h.Version {
-	case V2:
-		var s ServerV2
+	case types.V2:
+		var s types.ServerV2
 
 		if err := utils.FastUnmarshal(bytes, &s); err != nil {
 			return nil, trace.BadParameter(err.Error())
@@ -246,19 +248,19 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, 
 			s.SetExpiry(cfg.Expires)
 		}
 		if s.Metadata.Expires != nil {
-			utils.UTC(s.Metadata.Expires)
+			apiutils.UTC(s.Metadata.Expires)
 		}
 		// Force the timestamps to UTC for consistency.
 		// See https://github.com/gogo/protobuf/issues/519 for details on issues this causes for proto.Clone
-		utils.UTC(&s.Spec.Rotation.Started)
-		utils.UTC(&s.Spec.Rotation.LastRotated)
+		apiutils.UTC(&s.Spec.Rotation.Started)
+		apiutils.UTC(&s.Spec.Rotation.LastRotated)
 		return &s, nil
 	}
 	return nil, trace.BadParameter("server resource version %q is not supported", h.Version)
 }
 
 // MarshalServer marshals the Server resource to JSON.
-func MarshalServer(server Server, opts ...MarshalOption) ([]byte, error) {
+func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -268,8 +270,8 @@ func MarshalServer(server Server, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	switch server := server.(type) {
-	case *ServerV2:
-		if version := server.GetVersion(); version != V2 {
+	case *types.ServerV2:
+		if version := server.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched server version %v and type %T", version, server)
 		}
 		if !cfg.PreserveResourceID {
@@ -286,23 +288,23 @@ func MarshalServer(server Server, opts ...MarshalOption) ([]byte, error) {
 }
 
 // UnmarshalServers unmarshals a list of Server resources.
-func UnmarshalServers(bytes []byte) ([]Server, error) {
-	var servers []ServerV2
+func UnmarshalServers(bytes []byte) ([]types.Server, error) {
+	var servers []types.ServerV2
 
 	err := utils.FastUnmarshal(bytes, &servers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out := make([]Server, len(servers))
+	out := make([]types.Server, len(servers))
 	for i, v := range servers {
-		out[i] = Server(&v)
+		out[i] = types.Server(&v)
 	}
 	return out, nil
 }
 
 // MarshalServers marshals a list of Server resources.
-func MarshalServers(s []Server) ([]byte, error) {
+func MarshalServers(s []types.Server) ([]byte, error) {
 	bytes, err := utils.FastMarshal(s)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -312,7 +314,7 @@ func MarshalServers(s []Server) ([]byte, error) {
 }
 
 // NodeHasMissedKeepAlives checks if node has missed its keep alive
-func NodeHasMissedKeepAlives(s Server) bool {
+func NodeHasMissedKeepAlives(s types.Server) bool {
 	serverExpiry := s.Expiry()
-	return serverExpiry.Before(time.Now().Add(defaults.ServerAnnounceTTL - (defaults.ServerKeepAliveTTL * 2)))
+	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL * 2)))
 }

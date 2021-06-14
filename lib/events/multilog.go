@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -27,9 +28,9 @@ import (
 
 // NewMultiLog returns a new instance of a multi logger
 func NewMultiLog(loggers ...IAuditLog) (*MultiLog, error) {
-	emitters := make([]Emitter, 0, len(loggers))
+	emitters := make([]apievents.Emitter, 0, len(loggers))
 	for _, logger := range loggers {
-		emitter, ok := logger.(Emitter)
+		emitter, ok := logger.(apievents.Emitter)
 		if !ok {
 			return nil, trace.BadParameter("expected emitter, got %T", logger)
 		}
@@ -133,7 +134,7 @@ func (m *MultiLog) GetSessionEvents(namespace string, sid session.ID, after int,
 //
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
-func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []AuditEvent, lastKey string, err error) {
+func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
 	for _, log := range m.loggers {
 		events, lastKey, err := log.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
 		if !trace.IsNotImplemented(err) {
@@ -149,7 +150,7 @@ func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
-func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []AuditEvent, lastKey string, err error) {
+func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
 	for _, log := range m.loggers {
 		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
 		if !trace.IsNotImplemented(err) {

@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -287,7 +288,7 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -352,7 +353,7 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(replaceWith.Key), id(created), expires(replaceWith.Expires), replaceWith.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(replaceWith.Key), id(created), expires(replaceWith.Expires), replaceWith.Value); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -386,7 +387,7 @@ func (l *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(i.Key), recordID, expires(i.Expires), i.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), recordID, expires(i.Expires), i.Value); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -510,7 +511,7 @@ func (l *Backend) putRangeInTransaction(ctx context.Context, tx *sql.Tx, items [
 			recordID = items[i].ID
 		}
 		if !l.EventsOff && !forceEventsOff {
-			if _, err := eventsStmt.ExecContext(ctx, backend.OpPut, created, string(items[i].Key), recordID, expires(items[i].Expires), items[i].Value); err != nil {
+			if _, err := eventsStmt.ExecContext(ctx, types.OpPut, created, string(items[i].Key), recordID, expires(items[i].Expires), items[i].Value); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -548,7 +549,7 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -668,7 +669,7 @@ func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if _, err := stmt.ExecContext(ctx, backend.OpPut, created, string(item.Key), id(created), expires.UTC(), item.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(item.Key), id(created), expires.UTC(), item.Value); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -713,7 +714,7 @@ func (l *Backend) deleteInTransaction(ctx context.Context, key []byte, tx *sql.T
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if _, err := stmt.ExecContext(ctx, backend.OpDelete, created, string(key), created.UnixNano()); err != nil {
+		if _, err := stmt.ExecContext(ctx, types.OpDelete, created, string(key), created.UnixNano()); err != nil {
 			return trace.Wrap(err)
 		}
 	}

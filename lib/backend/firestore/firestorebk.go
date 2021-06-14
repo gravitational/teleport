@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -635,12 +636,12 @@ func (b *Backend) watchCollection() error {
 			switch change.Kind {
 			case firestore.DocumentAdded, firestore.DocumentModified:
 				e = backend.Event{
-					Type: backend.OpPut,
+					Type: types.OpPut,
 					Item: r.backendItem(),
 				}
 			case firestore.DocumentRemoved:
 				e = backend.Event{
-					Type: backend.OpDelete,
+					Type: types.OpDelete,
 					Item: backend.Item{
 						Key: r.Key,
 					},

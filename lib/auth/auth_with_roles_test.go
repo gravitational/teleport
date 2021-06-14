@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -102,7 +101,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 		},
 		{
 			desc:     "database service can sign database certs",
-			identity: TestBuiltin(teleport.RoleDatabase),
+			identity: TestBuiltin(types.RoleDatabase),
 		},
 	}
 

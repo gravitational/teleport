@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -246,7 +246,7 @@ func TestProxySSHConfig(t *testing.T) {
 		HostID:              "127.0.0.1",
 		NodeName:            "127.0.0.1",
 		ClusterName:         "host-cluster-name",
-		Roles:               teleport.Roles{teleport.RoleNode},
+		Roles:               types.SystemRoles{types.RoleNode},
 	})
 	require.NoError(t, err)
 

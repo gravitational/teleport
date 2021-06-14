@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -50,8 +51,8 @@ func TestMFADeviceManagement(t *testing.T) {
 	clock := srv.Clock().(clockwork.FakeClock)
 
 	// Enable U2F support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -545,8 +546,8 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	clock := srv.Clock()
 
 	// Enable U2F support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -870,8 +871,8 @@ func TestIsMFARequired(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Enable MFA support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -929,8 +930,8 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	clock := srv.Clock().(clockwork.FakeClock)
 
 	// Enable MFA support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
@@ -1017,4 +1018,188 @@ func TestDeleteLastMFADevice(t *testing.T) {
 		},
 		checkErr: require.Error,
 	})
+}
+
+// testOriginDynamicStored tests setting a ResourceWithOrigin via the server
+// API always results in the resource being stored with OriginDynamic.
+func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
+	srv := newTestTLSServer(t)
+
+	// Create a fake user.
+	user, _, err := CreateUserAndRole(srv.Auth(), "configurer", []string{})
+	require.NoError(t, err)
+	cl, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, origin := range types.OriginValues {
+		t.Run(fmt.Sprintf("setting with origin %q", origin), func(t *testing.T) {
+			err := setWithOrigin(cl, origin)
+			require.NoError(t, err)
+
+			stored, err := getStored(srv.Auth())
+			require.NoError(t, err)
+			require.Equal(t, stored.Origin(), types.OriginDynamic)
+		})
+	}
+}
+
+// TestRoleVersions tests that downgraded V3 roles are returned to older
+// clients, and V4 roles are returned to newer clients.
+func TestRoleVersions(t *testing.T) {
+	srv := newTestTLSServer(t)
+
+	role := &types.RoleV4{
+		Kind:    types.KindRole,
+		Version: types.V4,
+		Metadata: types.Metadata{
+			Name: "test_role",
+		},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindRole, services.RO()),
+					types.NewRule(types.KindEvent, services.RW()),
+				},
+			},
+		},
+	}
+	user, err := CreateUser(srv.Auth(), "test_user", role)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	testCases := []struct {
+		desc                string
+		clientVersion       string
+		disableMetadata     bool
+		expectedRoleVersion string
+		assertErr           require.ErrorAssertionFunc
+	}{
+		{
+			desc:                "old",
+			clientVersion:       "6.2.1",
+			expectedRoleVersion: "v3",
+			assertErr:           require.NoError,
+		},
+		{
+			desc:                "new",
+			clientVersion:       "6.3.0",
+			expectedRoleVersion: "v4",
+			assertErr:           require.NoError,
+		},
+		{
+			desc:                "alpha",
+			clientVersion:       "6.2.4-alpha.0",
+			expectedRoleVersion: "v4",
+			assertErr:           require.NoError,
+		},
+		{
+			desc:                "greater than 10",
+			clientVersion:       "10.0.0-beta",
+			expectedRoleVersion: "v4",
+			assertErr:           require.NoError,
+		},
+		{
+			desc:          "empty version",
+			clientVersion: "",
+			assertErr:     require.Error,
+		},
+		{
+			desc:          "invalid version",
+			clientVersion: "foo",
+			assertErr:     require.Error,
+		},
+		{
+			desc:                "no version metadata",
+			disableMetadata:     true,
+			expectedRoleVersion: "v3",
+			assertErr:           require.NoError,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// setup client metadata
+			ctx := context.Background()
+			if tc.disableMetadata {
+				ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
+			} else {
+				ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+					metadata.VersionKey: tc.clientVersion,
+				})
+			}
+
+			// test GetRole
+			gotRole, err := client.GetRole(ctx, role.GetName())
+			tc.assertErr(t, err)
+			if err == nil {
+				require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
+			}
+
+			// test GetRoles
+			gotRoles, err := client.GetRoles(ctx)
+			tc.assertErr(t, err)
+			if err == nil {
+				foundTestRole := false
+				for _, gotRole := range gotRoles {
+					if gotRole.GetName() == role.GetName() {
+						require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
+						foundTestRole = true
+					}
+				}
+				require.True(t, foundTestRole)
+			}
+		})
+	}
+}
+
+func TestAuthPreferenceOriginDynamic(t *testing.T) {
+	t.Parallel()
+
+	setWithOrigin := func(cl *Client, origin string) error {
+		authPref := types.DefaultAuthPreference()
+		authPref.SetOrigin(origin)
+		return cl.SetAuthPreference(authPref)
+	}
+
+	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+		return asrv.GetAuthPreference()
+	}
+
+	testOriginDynamicStored(t, setWithOrigin, getStored)
+}
+
+func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	setWithOrigin := func(cl *Client, origin string) error {
+		netConfig := types.DefaultClusterNetworkingConfig()
+		netConfig.SetOrigin(origin)
+		return cl.SetClusterNetworkingConfig(ctx, netConfig)
+	}
+
+	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+		return asrv.GetClusterNetworkingConfig(ctx)
+	}
+
+	testOriginDynamicStored(t, setWithOrigin, getStored)
+}
+
+func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	setWithOrigin := func(cl *Client, origin string) error {
+		recConfig := types.DefaultSessionRecordingConfig()
+		recConfig.SetOrigin(origin)
+		return cl.SetSessionRecordingConfig(ctx, recConfig)
+	}
+
+	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+		return asrv.GetSessionRecordingConfig(ctx)
+	}
+
+	testOriginDynamicStored(t, setWithOrigin, getStored)
 }

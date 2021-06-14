@@ -27,7 +27,8 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -68,7 +69,7 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.nodeAdd.Alias(AddNodeHelp)
 
 	c.nodeList = nodes.Command("ls", "List all active SSH nodes within the cluster")
-	c.nodeList.Flag("namespace", "Namespace of the nodes").Default(defaults.Namespace).StringVar(&c.namespace)
+	c.nodeList.Flag("namespace", "Namespace of the nodes").Default(apidefaults.Namespace).StringVar(&c.namespace)
 	c.nodeList.Alias(ListNodesHelp)
 }
 
@@ -113,7 +114,7 @@ Please note:
 // to a cluster
 func (c *NodeCommand) Invite(client auth.ClientI) error {
 	// parse --roles flag
-	roles, err := teleport.ParseRoles(c.roles)
+	roles, err := types.ParseTeleportRoles(c.roles)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,7 +140,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 
 	// output format swtich:
 	if c.format == "text" {
-		if roles.Include(teleport.RoleTrustedCluster) || roles.Include(teleport.LegacyClusterTokenType) {
+		if roles.Include(types.RoleTrustedCluster) || roles.Include(types.LegacyClusterTokenType) {
 			fmt.Printf(trustedClusterMessage, token, int(c.ttl.Minutes()))
 		} else {
 			fmt.Printf(nodeMessage,
