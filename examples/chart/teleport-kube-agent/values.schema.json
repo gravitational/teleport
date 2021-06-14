@@ -118,17 +118,17 @@
         "clusterRoleName": {
             "$id": "#/properties/clusterRoleName",
             "type": "string",
-            "default": "teleport-kube-agent"
+            "default": ""
         },
         "clusterRoleBindingName": {
             "$id": "#/properties/clusterRoleBindingName",
             "type": "string",
-            "default": "teleport-kube-agent"
+            "default": ""
         },
         "serviceAccountName": {
             "$id": "#/properties/serviceAccountName",
             "type": "string",
-            "default": "teleport-kube-agent"
+            "default": ""
         },
         "secretName": {
             "$id": "#/properties/secretName",
