@@ -234,6 +234,17 @@ func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalO
 	}
 
 	// To ensure backward compatibility, extend the fetched ClusterConfig
+	// resource with the values that are now stored in ClusterAuditConfig.
+	// DELETE IN 8.0.0
+	auditConfig, err := s.GetClusterAuditConfig(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := clusterConfig.SetAuditConfig(auditConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// To ensure backward compatibility, extend the fetched ClusterConfig
 	// resource with the values that are now stored in ClusterNetworkingConfig.
 	// DELETE IN 8.0.0
 	netConfig, err := s.GetClusterNetworkingConfig(context.TODO())
@@ -283,6 +294,9 @@ func (s *ClusterConfigurationService) DeleteClusterConfig() error {
 
 // SetClusterConfig sets services.ClusterConfig on the backend.
 func (s *ClusterConfigurationService) SetClusterConfig(c types.ClusterConfig) error {
+	if c.HasAuditConfig() {
+		return trace.BadParameter("cluster config has legacy audit config, call SetClusterAuditConfig to set these fields")
+	}
 	if c.HasNetworkingFields() {
 		return trace.BadParameter("cluster config has legacy networking fields, call SetClusterNetworkingConfig to set these fields")
 	}
@@ -309,6 +323,50 @@ func (s *ClusterConfigurationService) SetClusterConfig(c types.ClusterConfig) er
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+// GetClusterAuditConfig gets cluster audit config from the backend.
+func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, auditPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("cluster audit config not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalClusterAuditConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+}
+
+// SetClusterAuditConfig sets the cluster audit config on the backend.
+func (s *ClusterConfigurationService) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
+	value, err := services.MarshalClusterAuditConfig(auditConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, auditPrefix),
+		Value: value,
+		ID:    auditConfig.GetResourceID(),
+	}
+
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteClusterAuditConfig deletes ClusterAuditConfig from the backend.
+func (s *ClusterConfigurationService) DeleteClusterAuditConfig(ctx context.Context) error {
+	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, auditPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("cluster audit config not found")
+		}
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -418,6 +476,7 @@ const (
 	authPrefix             = "authentication"
 	preferencePrefix       = "preference"
 	generalPrefix          = "general"
+	auditPrefix            = "audit"
 	networkingPrefix       = "networking"
 	sessionRecordingPrefix = "session_recording"
 )

@@ -77,7 +77,7 @@ func DefaultClusterNetworkingConfig() ClusterNetworkingConfig {
 // newClusterNetworkingConfigWithLabels is a convenience method to create
 // ClusterNetworkingConfigV2 with a specific map of labels.
 func newClusterNetworkingConfigWithLabels(spec ClusterNetworkingConfigSpecV2, labels map[string]string) (ClusterNetworkingConfig, error) {
-	netConfig := ClusterNetworkingConfigV2{
+	netConfig := &ClusterNetworkingConfigV2{
 		Kind:    KindClusterNetworkingConfig,
 		Version: V2,
 		Metadata: Metadata{
@@ -91,7 +91,7 @@ func newClusterNetworkingConfigWithLabels(spec ClusterNetworkingConfigSpecV2, la
 	if err := netConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &netConfig, nil
+	return netConfig, nil
 }
 
 // GetVersion returns resource version.
