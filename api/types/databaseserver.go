@@ -286,8 +286,8 @@ func (s *DatabaseServerV3) GetType() string {
 
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
-	return fmt.Sprintf("DatabaseServer(Name=%v, Type=%v, Version=%v, Labels=%v)",
-		s.GetName(), s.GetType(), s.GetTeleportVersion(), s.GetStaticLabels())
+	return fmt.Sprintf("DatabaseServer(Name=%v, Type=%v, Version=%v, Labels=%v, HostID=%v)",
+		s.GetName(), s.GetType(), s.GetTeleportVersion(), s.GetStaticLabels(), s.Spec.HostID)
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -345,11 +345,26 @@ type SortedDatabaseServers []DatabaseServer
 // Len returns the slice length.
 func (s SortedDatabaseServers) Len() int { return len(s) }
 
-// Less compares database servers by name.
-func (s SortedDatabaseServers) Less(i, j int) bool { return s[i].GetName() < s[j].GetName() }
+// Less compares database servers by name and host ID.
+func (s SortedDatabaseServers) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+}
 
 // Swap swaps two database servers.
 func (s SortedDatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // DatabaseServers is a list of database servers.
 type DatabaseServers []DatabaseServer
+
+// DeduplicateDatabaseServers deduplicates database servers by name.
+func DeduplicateDatabaseServers(servers []DatabaseServer) (result []DatabaseServer) {
+	seen := make(map[string]struct{})
+	for _, server := range servers {
+		if _, ok := seen[server.GetName()]; ok {
+			continue
+		}
+		seen[server.GetName()] = struct{}{}
+		result = append(result, server)
+	}
+	return result
+}
