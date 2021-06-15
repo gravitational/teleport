@@ -31,8 +31,6 @@ Now you can see the monitoring information by visiting several endpoints:
 | `backend_batch_read_requests_total` | counter | cache | Number of read requests to the backend |
 | `backend_batch_read_seconds` | histogram | cache | Latency for batch read operations |
 | `backend_batch_write_requests_total` | counter | cache | Number of batch write requests to the backend |
-| `backend_batch_read_seconds` | histogram | cache | Latency for batch read operations |
-| `backend_batch_write_requests_total` | counter | cache | Number of batch write requests to the backend |
 | `backend_batch_write_seconds` | histogram | cache | Latency for backend batch write operations |
 | `backend_read_requests_total` | counter | cache | Number of read requests to the backend |
 | `backend_read_seconds` | histogram | cache | Latency for read operations |
@@ -97,8 +95,6 @@ Now you can see the monitoring information by visiting several endpoints:
 | `trusted_clusters` | gauge | Teleport | Number of tunnels per state |
 | `tx` | counter | Teleport | Number of bytes transmitted. |
 | `audit_failed_disk_monitoring` | counter | Teleport Audit Log | Number of times disk monitoring failed. |
-| `audit_failed_emit_events` | counter | Teleport Audit Log | Number of times emitting audit event failed. |
-| `audit_percentage_disk_space_used` | gauge | Teleport Audit Log | Percentage disk space used. |
 | `audit_failed_emit_events` | counter | Teleport Audit Log | Number of times emitting audit event failed. |
 | `audit_percentage_disk_space_used` | gauge | Teleport Audit Log | Percentage disk space used. |
 | `audit_server_open_files` | gauge | Teleport Audit Log | Number of open audit files |

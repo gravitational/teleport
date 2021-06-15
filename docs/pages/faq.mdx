@@ -44,6 +44,94 @@ in file configuration). As defined in [Adding a node located behind NAT - Telepo
 
 Yes, Teleport supports tunnel multiplexing on a single port. Set the `tunnel_listen_addr` to use the same port as the `web_listen_addr` address setting in the `proxy_service` configuration. Teleport will automatically use multiplexing with that configuration.
 
+## How is Open Source different from Enterprise?
+
+Teleport provides three offerings:
+
+- Open Source - Apache 2 License, self-hosted.
+- Enterprise - self-hosted or cloud, commercial license.
+- Pro - cloud only
+
+<table>
+  <thead>
+    <tr>
+      <th>Capability/Offering</th>
+      <th>Open Source</th>
+      <th>Pro</th>
+      <th>Enterprise</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>License</td>
+      <td>Apache 2</td>
+      <td>Commercial</td>
+      <td>Commercial</td>
+    </tr>
+    <tr>
+      <td>Role-Based Access Control</td>
+      <td>&#10004;</td>
+      <td>&#10004;</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>Cloud-hosted</td>
+      <td>&#10006;</td>
+      <td>&#10004;</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>Self-hosted</td>
+      <td>&#10004;</td>
+      <td>&#10006;</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>Single Sign-On</td>
+      <td>Github only</td>
+      <td>Github, Google, OIDC, SAML</td>
+      <td>Github, Google, OIDC, SAML</td>
+    </tr>
+    <tr>
+      <td>Access Requests</td>
+      <td>Limited</td>
+      <td>&#10004; [Dual authorization, mandatory requests](./access-controls/guides/dual-authz.mdx)</td>
+      <td>&#10004; [Dual authorization, mandatory requests](./access-controls/guides/dual-authz.mdx)</td>
+    </tr>
+    <tr>
+      <td>FedRamp Control</td>
+      <td>&#10006;</td>
+      <td>&#10006;</td>
+      <td>[Compiled with FIPS-certified crypto libraries, FedRamp control features](./enterprise/ssh-kubernetes-fedramp.mdx)</td>
+    </tr>
+    <tr>
+      <td>PCI DSS Features</td>
+      <td>Limited</td>
+      <td>Limited</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>SOC2 Features</td>
+      <td>Limited</td>
+      <td>&#10004;</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>Annual or Multi-Year contracts, Volume Discounts</td>
+      <td>&#10006;</td>
+      <td>&#10006;</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>Support</td>
+      <td>Best-effort, community</td>
+      <td>8x5</td>
+      <td>24x7 support with premium SLAs & account managers</td>
+    </tr>
+  </tbody>
+</table>
+
 ### What are Teleport's scalability and hardware recommendations?
 
 We recommend setting up Teleport with a [High Availability configuration](admin-guide.mdx#high-availability). Below is our
@@ -61,13 +149,15 @@ Teleport provides security critical support for the current and two previous rel
 
 | Release | Long Term Support | Release Date | Min tsh version |
 | - | - | - | - |
-| 6 | Yes | March 4th, 2021 | 3.1 |
-| 5.0 | Yes | November 24th, 2020 | 3.1 |
-| 4.4 | Yes | October 20th, 2020 | 3.1 |
-| 4.3 (EOL) | Yes | July 8th, 2020 | 3.1 |
-| 4.2 (EOL) | Yes | December 19th, 2019 | 3.1 |
-| 4.1 (EOL) | Yes | October 1st, 2019 | 3.1 |
-| 4.0 (EOL) | Yes | June 18th, 2019 | 3.1 |
+| 6.2 | No | May 21th, 2021 | 3.0.0 |
+| 6.1 | No | April 9th, 2021 | 3.0.0|
+| 6 | Yes | March 4th, 2021 | 3.0.0 |
+| 5.0 | Yes | November 24th, 2020 | 3.0.0 |
+| 4.4 | Yes | October 20th, 2020 | 3.0.0 |
+| 4.3 (EOL) | Yes | July 8th, 2020 | 3.0.0 |
+| 4.2 (EOL) | Yes | December 19th, 2019 | 3.0.0 |
+| 4.1 (EOL) | Yes | October 1st, 2019 | 3.0.0 |
+| 4.0 (EOL) | Yes | June 18th, 2019 | 3.0.0 |
 
 **How should I upgrade my cluster?**
 

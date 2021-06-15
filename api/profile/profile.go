@@ -122,7 +122,13 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	cert, err := ioutil.ReadFile(p.SSHCertPath())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// Try reading SSHCert from old cert path, return original error otherwise
+		// DELETE IN 8.0.0
+		var err2 error
+		cert, err2 = ioutil.ReadFile(p.OldSSHCertPath())
+		if err2 != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	key, err := ioutil.ReadFile(p.UserKeyPath())
@@ -320,6 +326,12 @@ func (p *Profile) SSHDir() string {
 // SSHCertPath returns the path to the profile's ssh certificate.
 func (p *Profile) SSHCertPath() string {
 	return keypaths.SSHCertPath(p.Dir, p.Name(), p.Username, p.SiteName)
+}
+
+// OldSSHCertPath returns the old (before v6.1) path to the profile's ssh certificate.
+// DELETE IN 8.0.0
+func (p *Profile) OldSSHCertPath() string {
+	return keypaths.OldSSHCertPath(p.Dir, p.Name(), p.Username)
 }
 
 // KnownHostsPath returns the path to the profile's ssh certificate authorities.

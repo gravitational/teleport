@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
@@ -131,8 +132,8 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := config.AuthClient.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	ca, err := config.AuthClient.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: config.Cluster,
 	}, false)
 	if err != nil {
