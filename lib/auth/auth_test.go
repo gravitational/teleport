@@ -77,9 +77,11 @@ type AuthSuite struct {
 var _ = Suite(&AuthSuite{})
 
 func (s *AuthSuite) SetUpTest(c *C) {
+	ctx := context.Background()
+
 	var err error
 	s.dataDir = c.MkDir()
-	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: s.dataDir})
+	s.bk, err = lite.NewWithConfig(ctx, lite.Config{Path: s.dataDir})
 	c.Assert(err, IsNil)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
@@ -116,10 +118,13 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	err = s.a.SetAuthPreference(authPreference)
 	c.Assert(err, IsNil)
 
-	err = s.a.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+	err = s.a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
 	c.Assert(err, IsNil)
 
-	err = s.a.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+	err = s.a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	c.Assert(err, IsNil)
+
+	err = s.a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 	c.Assert(err, IsNil)
 
 	err = s.a.SetClusterConfig(services.DefaultClusterConfig())
@@ -881,7 +886,7 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test create new role
-	roleTest, err := types.NewRole("test", types.RoleSpecV3{
+	roleTest, err := types.NewRole("test", types.RoleSpecV4{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
 	})

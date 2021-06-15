@@ -189,7 +189,7 @@ type Config struct {
 	Type string `yaml:"type,omitempty"`
 
 	// Params is a generic key/value property bag which allows arbitrary
-	// falues to be passed to backend
+	// values to be passed to backend
 	Params Params `yaml:",inline"`
 }
 
