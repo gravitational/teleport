@@ -21,8 +21,7 @@ that protects users against compromises of their on-disk Teleport certificates.
 - Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
 - [U2F configured](u2f.mdx) on this cluster
 - U2F hardware device, such as Yubikey or Solokey
-- Web browser that [supports U2F](https://caniuse.com/u2f) (if using SSH from
-  the Teleport Web UI)
+- Web browser that [supports U2F](https://caniuse.com/u2f) (if using SSH from the Teleport Web UI)
 
 ## Configuration
 
@@ -59,8 +58,7 @@ spec:
     ...
 ```
 
-Role-specific enforcement only applies when accessing SSH nodes or Kubernetes
-clusters matching that role's `allow` section.
+Role-specific enforcement only applies when accessing SSH nodes or Kubernetes clusters matching that role's `allow` section.
 
 #### Roles example
 
@@ -106,8 +104,7 @@ spec:
 
 Olga then assigns both roles to all engineers, including Jerry.
 
-When Jerry logs into node `dev1.example.com` (with label `env: dev`), nothing
-special happens:
+When Jerry logs into node `dev1.example.com` (with label `env: dev`), nothing special happens:
 
 ```sh
 jerry@localhost $ tsh ssh dev1.example.com
