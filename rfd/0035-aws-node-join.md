@@ -55,10 +55,7 @@ teleport:
   auth_servers:
     - auth
   aws_token:
-    credential_source:
-      type: ec2
-    claims:
-    - organization
+    enabled: true
 
 ssh_service:
   enabled: yes
@@ -79,10 +76,8 @@ Much inspiration is taken from Vault's [IAM auth method](https://www.vaultprojec
 
 ### Authentication
 
-In place of a join token, nodes will present one or more signed AWS API
-requests to the auth server based on the configured claims:
-- `sts:GetCallerIdentity` for the "identity" claim and
-- `organizations:DescribeOrganization` for the "organization" claim
+In place of a join token, nodes will present two signed AWS API requests to the
+auth server: `sts:GetCallerIdentity` and `organizations:DescribeOrganization`
 
 These are signed HTTP requests which will be serialized and sent to the auth
 server over GRPC.
@@ -91,8 +86,8 @@ The auth server will then:
 1. Check that the request URL is a valid AWS API endpoint.
 2. Send each request to the AWS API.
   - AWS will check the signature and return an error if it is invalid, in which case the node will be rejected.
-3. Extract the Account from the `sts:GetCallerIdentity` response, if the request was provided.
-4. Extract the Organization from the `organizations:DescribeOrganization` response, if the request was provided.
+3. Extract the Account from the `sts:GetCallerIdentity` response
+4. Extract the Organization from the `organizations:DescribeOrganization` response
 5. Check the Organization and Account against the configured deny rules. Reject the node if any match.
 6. Check the Organization and Account against the configured allow rules. Reject the node if none match.
 7. Possibly extra checks to prevent replay attacks, see the following section.
@@ -133,23 +128,7 @@ teleport:
   # This section should be used on nodes which will join the cluster with the
   # new aws join method, in place of auth_token.
   aws_token:
-    # credential_source is the AWS credentials source. The main supported value
-    # will be "ec2", where the node will automatically fetch aws credentials
-    # from the EC2 instance metadata. Support for a "file" or "env" type may be
-    # added, which would be especially useful for testing.
-    credential_source:
-      type: ec2
-
-    # claims configures which signed requests the node should create and send
-    # to the auth server. The two supported values are:
-    # - "identity" for the sts:GetCallerIdentity request
-    # - "organization" for the organizations:DescribeOrganization request
-    # We could default to just send both, but I think this makes more sense if
-    # the node does not have organization permissions, or if we wish to add
-    # more claims in the future.
-    claims:
-    - "identity"
-    - "organization"
+    enabled: true
 
 auth_service:
 
@@ -200,13 +179,6 @@ credential source must be launched with this IAM role.
     ]
 }
 ```
-
-The `"organizations:DescribeOrganization"` action can be omitted if the
-`"organization"` claim is not used, and nodes are only authenticated based on
-their account.
-
-The `"sts:GetCallerIdentity"` action can be omitted if the `"identity"` claim
-is not used, and nodes are only authenticated based on their organization.
 
 Notably, the credentials need only be accessible from the Teleport nodes, not
 the auth server. All requests will be signed on the nodes and the auth server
