@@ -248,9 +248,8 @@ func TestConfigReading(t *testing.T) {
 				EnabledFlag:    "true",
 				ListenAddress:  "tcp://ssh",
 			},
-			Labels:             Labels,
-			Commands:           CommandLabels,
-			AllowTCPForwarding: true,
+			Labels:   Labels,
+			Commands: CommandLabels,
 		},
 		Proxy: Proxy{
 			Service: Service{
@@ -811,8 +810,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			{Name: "hostname", Command: []string{"/bin/hostname"}, Period: 10 * time.Millisecond},
 			{Name: "date", Command: []string{"/bin/date"}, Period: 20 * time.Millisecond},
 		},
-		PublicAddr:         apiutils.Strings{"luna3:22"},
-		AllowTCPForwarding: true,
+		PublicAddr: apiutils.Strings{"luna3:22"},
 	}, cmp.AllowUnexported(Service{})))
 
 	require.True(t, conf.Auth.Configured())

@@ -205,7 +205,6 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	conf.Auth.defaultEnabled = true
 	conf.Proxy.defaultEnabled = true
 	conf.SSH.defaultEnabled = true
-	conf.SSH.AllowTCPForwarding = true
 	conf.Kube.defaultEnabled = false
 
 	var sc ssh.Config
@@ -606,6 +605,27 @@ func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
 	return res, nil
 }
 
+// Truthy represents a boolean that can me expressed in many ways (e.g. "true", "yes",
+// 1, etc). Acts as glue beetwen the YAML parser and the multi-value boolean parser in
+//`apiutils`.
+type Truthy bool
+
+// UnmarshalYAML reads a "truthy" value out of the yaml stream and converts it, if
+// possible, to boolean. See apiutils.ParseBool for acceptable values.
+func (t *Truthy) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var text string
+	if err := unmarshal(&text); err != nil {
+		return trace.Wrap(err)
+	}
+	value, err := apiutils.ParseBool(text)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	*t = Truthy(value)
+	return nil
+}
+
 // SSH is 'ssh_service' section of the config file
 type SSH struct {
 	Service               `yaml:",inline"`
@@ -620,8 +640,20 @@ type SSH struct {
 	// BPF is used to configure BPF-based auditing for this node.
 	BPF *BPF `yaml:"enhanced_recording,omitempty"`
 
-	// AllowTCPForwarding enables or disables TCP forwarding
-	AllowTCPForwarding bool `yaml:"allow_tcp_forwarding,omitempty"`
+	// MaybeAllowTCPForwarding enables or disables TCP forwarding. Because the
+	// system default is to allow TCP forwarding, we need to distinguish between
+	// an unset value and a false value so we can an unset value with `true`.
+	// Don't read this value directly - call the AllowTCPForwarding method
+	// instead.
+	MaybeAllowTCPForwarding *Truthy `yaml:"allow_tcp_forwarding,omitempty"`
+}
+
+// AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
+func (ssh *SSH) AllowTCPForwarding() bool {
+	if ssh.MaybeAllowTCPForwarding == nil {
+		return true
+	}
+	return bool(*ssh.MaybeAllowTCPForwarding)
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file

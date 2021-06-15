@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"bytes"
 	"encoding/base64"
 	"testing"
 
@@ -110,59 +111,104 @@ fake certificate
 	}
 }
 
+// minimalConfigFile is a minimal subset of a teleport config file that can be
+// mutated programatically by test cases and then re-serialised to test the
+// config file loader
+const minimalConfigFile string = `
+ssh_service:
+  enabled: yes
+`
+
+// cfgMap is a shorthand for a type that can hold the nested key-value
+// representation of a parsed YAML file.
+type cfgMap map[interface{}]interface{}
+
+// editConfig takes the minimal YAML configuration file, de-serialises it into a
+// nested key-value dictionary suitable for manipulation by a test case,
+// passes that dictionary to the caller-supplied mutator and then re-serialises
+// it ready to be injected into the config loader.
+func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
+	var cfg cfgMap
+	require.NoError(t, yaml.Unmarshal([]byte(minimalConfigFile), &cfg))
+	mutate(cfg)
+
+	text, err := yaml.Marshal(cfg)
+	require.NoError(t, err)
+
+	return text
+}
+
 func TestSSHSection(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
-		desc           string
-		yaml           string
-		expectError    require.ErrorAssertionFunc
-		expectedConfig SSH
+		desc                      string
+		mutate                    func(cfgMap)
+		expectError               require.ErrorAssertionFunc
+		expectEnabled             require.BoolAssertionFunc
+		expectAllowsTCPForwarding require.BoolAssertionFunc
 	}{
 		{
-			desc:        "default",
-			yaml:        "",
-			expectError: require.NoError,
-			expectedConfig: SSH{
-				Service:            Service{defaultEnabled: true},
-				AllowTCPForwarding: true,
-			},
+			desc:                      "default",
+			mutate:                    func(cfgMap) {},
+			expectError:               require.NoError,
+			expectEnabled:             require.True,
+			expectAllowsTCPForwarding: require.True,
 		}, {
-			desc:        "enabled",
-			yaml:        "enabled: yes",
-			expectError: require.NoError,
-			expectedConfig: SSH{
-				Service: Service{
-					defaultEnabled: true,
-					EnabledFlag:    "yes",
-				},
-				AllowTCPForwarding: true,
+			desc: "explicitly enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
 			},
+			expectError:               require.NoError,
+			expectEnabled:             require.True,
+			expectAllowsTCPForwarding: require.True,
 		}, {
-			desc:        "Port forwarding is enabled",
-			yaml:        "allow_tcp_forwarding: yes",
-			expectError: require.NoError,
-			expectedConfig: SSH{
-				Service:            Service{defaultEnabled: true},
-				AllowTCPForwarding: true,
+			desc: "diasbled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["enabled"] = "no"
 			},
+			expectError:               require.NoError,
+			expectEnabled:             require.False,
+			expectAllowsTCPForwarding: require.True,
 		}, {
-			desc:        "Port forwarding is disabled",
-			yaml:        "allow_tcp_forwarding: no",
-			expectError: require.NoError,
-			expectedConfig: SSH{
-				Service:            Service{defaultEnabled: true},
-				AllowTCPForwarding: false,
+			desc: "Port forwarding is enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["allow_tcp_forwarding"] = "yes"
 			},
+			expectError:               require.NoError,
+			expectEnabled:             require.True,
+			expectAllowsTCPForwarding: require.True,
+		}, {
+			desc: "Port forwarding is disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["allow_tcp_forwarding"] = "no"
+			},
+			expectError:               require.NoError,
+			expectEnabled:             require.True,
+			expectAllowsTCPForwarding: require.False,
+		}, {
+			desc: "Port forwarding invalid value",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["allow_tcp_forwarding"] = "banana"
+			},
+			expectError: require.Error,
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.desc, func(t *testing.T) {
-			fileConf := FileConfig{}
-			fileConf.CheckAndSetDefaults()
+			text := bytes.NewBuffer(editConfig(t, testCase.mutate))
 
-			err := yaml.UnmarshalStrict([]byte(testCase.yaml), &fileConf.SSH)
+			cfg, err := ReadConfig(text)
 			testCase.expectError(t, err)
-			require.Equal(t, testCase.expectedConfig, fileConf.SSH)
+
+			if testCase.expectEnabled != nil {
+				testCase.expectEnabled(t, cfg.SSH.Enabled())
+			}
+
+			if testCase.expectAllowsTCPForwarding != nil {
+				testCase.expectAllowsTCPForwarding(t, cfg.SSH.AllowTCPForwarding())
+			}
 		})
 	}
 }
