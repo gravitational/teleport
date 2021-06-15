@@ -433,7 +433,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
-	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{
+	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV4{
 		Options: services.RoleOptions{
 			MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
 		},

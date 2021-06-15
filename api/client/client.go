@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
@@ -278,6 +279,8 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		c.c.DialOpts,
 		grpc.WithContextDialer(c.grpcDialer()),
 		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)),
+		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 	)
 
 	var err error
@@ -935,11 +938,11 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
-	roleV3, ok := role.(*types.RoleV3)
+	roleV4, ok := role.(*types.RoleV4)
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}
-	_, err := c.grpc.UpsertRole(ctx, roleV3, c.callOpts...)
+	_, err := c.grpc.UpsertRole(ctx, roleV4, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
