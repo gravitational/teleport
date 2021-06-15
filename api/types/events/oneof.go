@@ -319,6 +319,10 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 		return e, nil
 	} else if e := in.GetMFADeviceDelete(); e != nil {
 		return e, nil
+	} else if e := in.GetBillingCardCreate(); e != nil {
+		return e, nil
+	} else if e := in.GetBillingCardDelete(); e != nil {
+		return e, nil
 	} else {
 		if in.Event == nil {
 			return nil, trace.BadParameter("failed to parse event, session record is corrupted")
