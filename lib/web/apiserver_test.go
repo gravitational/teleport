@@ -433,7 +433,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
-	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{
+	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV4{
 		Options: services.RoleOptions{
 			MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
 		},
@@ -1732,6 +1732,10 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		Query url.Values
 		// Result is the expected returned list of events.
 		Result []events.AuditEvent
+		// TestStartKey is a flag to test start key value.
+		TestStartKey bool
+		// StartKeyValue is the value of start key to expect.
+		StartKeyValue string
 	}{
 		{
 			Comment: "Empty query",
@@ -1753,7 +1757,7 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		{
 			Comment: "Query session start and session end events",
 			Query: url.Values{
-				"include": []string{sessionEnd.GetType() + ";" + sessionStart.GetType()},
+				"include": []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
 				"from":    fromTime,
 				"to":      toTime,
 			},
@@ -1762,32 +1766,63 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		{
 			Comment: "Query events with filter by type and limit",
 			Query: url.Values{
-				"include": []string{sessionPrint.GetType() + ";" + sessionEnd.GetType()},
+				"include": []string{sessionPrint.GetType() + "," + sessionEnd.GetType()},
 				"limit":   []string{"1"},
 				"from":    fromTime,
 				"to":      toTime,
 			},
 			Result: []events.AuditEvent{sessionPrint},
 		},
+		{
+			Comment: "Query session start and session end events with limit and test returned start key",
+			Query: url.Values{
+				"include": []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"limit":   []string{"1"},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result:        []events.AuditEvent{sessionStart},
+			TestStartKey:  true,
+			StartKeyValue: sessionStart.GetID(),
+		},
+		{
+			Comment: "Query session start and session end events with limit and given start key",
+			Query: url.Values{
+				"include":  []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"startKey": []string{sessionStart.GetID()},
+				"from":     fromTime,
+				"to":       toTime,
+			},
+			Result:        []events.AuditEvent{sessionEnd},
+			TestStartKey:  true,
+			StartKeyValue: "",
+		},
 	}
 
 	pack := s.authPack(c, "foo")
+	// var sessionStartKey string
 	for _, tc := range testCases {
 		result := s.searchEvents(c, pack.clt, tc.Query, []string{sessionStart.GetType(), sessionPrint.GetType(), sessionEnd.GetType()})
-		c.Assert(result, HasLen, len(tc.Result), Commentf(tc.Comment))
-		for i, resultEvent := range result {
+		c.Assert(result.Events, HasLen, len(tc.Result), Commentf(tc.Comment))
+		for i, resultEvent := range result.Events {
 			c.Assert(resultEvent.GetType(), Equals, tc.Result[i].GetType(), Commentf(tc.Comment))
 			c.Assert(resultEvent.GetID(), Equals, tc.Result[i].GetID(), Commentf(tc.Comment))
+		}
+
+		// Session prints do not have ID's, only sessionStart and sessionEnd.
+		// When retrieving events for sessionStart and sessionEnd, sessionStart is returned first.
+		if tc.TestStartKey {
+			c.Assert(result.StartKey, Equals, tc.StartKeyValue, Commentf(tc.Comment))
 		}
 	}
 }
 
-func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) (result []events.EventFields) {
+func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) eventsListGetResponse {
 	response, err := clt.Get(context.Background(), clt.Endpoint("webapi", "sites", s.server.ClusterName(), "events", "search"), query)
 	c.Assert(err, IsNil)
 	var out eventsListGetResponse
 	c.Assert(json.Unmarshal(response.Bytes(), &out), IsNil)
-	return out.Events
+	return out
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {

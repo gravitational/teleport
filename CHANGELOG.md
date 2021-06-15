@@ -1,5 +1,37 @@
 # Changelog
 
+## 6.2.4
+
+This release of Teleport contains multiple improvements.
+
+* Added support for `regexp.replace(variable, expression, replacement)` in role templates.
+* Added V4 roles with stricter default allow labels. V4 roles are backward-compatible with V3 roles, and are completely opt-in.
+
+## 6.2.3
+
+This release of Teleport contains multiple improvements.
+
+* Improvements to speed up DynamoDB events migration. We now encourage all DynamoDB users to upgrade to Teleport 6.2. [#7073](https://github.com/gravitational/teleport/pull/7073) [#7097](https://github.com/gravitational/teleport/pull/7097)
+
+## 6.2.1
+
+This release of Teleport contains an improvement and several bug fixes.
+
+## Improvements
+
+* Improve performance of DynamoDB events migration introduced in `v6.2.0`.
+  [#7083](https://github.com/gravitational/teleport/pull/7083)
+
+## Fixes
+
+* Fixed an issue with connecting to etcd in insecure mode.
+  [#7049](https://github.com/gravitational/teleport/pull/7049)
+* Fixed an issue with running Teleport on systems without utmp/wtmp support such
+  as alpine. [#7059](https://github.com/gravitational/teleport/pull/7059)
+* Fixed an issue with signing database certificates using `tctl auth sign` via
+  proxy. See [#7071](https://github.com/gravitational/teleport/discussions/7071)
+  for details. [#7038](https://github.com/gravitational/teleport/pull/7038)
+
 ## 6.2
 
 Teleport 6.2 contains new features, improvements, and bug fixes.
