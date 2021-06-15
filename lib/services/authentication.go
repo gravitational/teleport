@@ -32,7 +32,7 @@ import (
 )
 
 // ValidateLocalAuthSecrets validates local auth secret members.
-func ValidateLocalAuthSecrets(l *LocalAuthSecrets) error {
+func ValidateLocalAuthSecrets(l *types.LocalAuthSecrets) error {
 	if len(l.PasswordHash) > 0 {
 		if _, err := bcrypt.Cost(l.PasswordHash); err != nil {
 			return trace.BadParameter("invalid password hash")
@@ -94,8 +94,8 @@ func validateTOTPDevice(d *types.TOTPDevice) error {
 }
 
 // UnmarshalAuthPreference unmarshals the AuthPreference resource from JSON.
-func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (AuthPreference, error) {
-	var authPreference AuthPreferenceV2
+func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (types.AuthPreference, error) {
+	var authPreference types.AuthPreferenceV2
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -113,11 +113,6 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (AuthPreferenc
 		return nil, trace.Wrap(err)
 	}
 
-	err = authPreference.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if cfg.ID != 0 {
 		authPreference.SetResourceID(cfg.ID)
 	}
@@ -128,6 +123,6 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (AuthPreferenc
 }
 
 // MarshalAuthPreference marshals the AuthPreference resource to JSON.
-func MarshalAuthPreference(c AuthPreference, opts ...MarshalOption) ([]byte, error) {
+func MarshalAuthPreference(c types.AuthPreference, opts ...MarshalOption) ([]byte, error) {
 	return json.Marshal(c)
 }

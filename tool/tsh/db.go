@@ -51,14 +51,15 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	// Retrieve profile to be able to show which databases user is logged into.
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	sort.Slice(servers, func(i, j int) bool {
 		return servers[i].GetName() < servers[j].GetName()
 	})
-	showDatabases(tc.SiteName, servers, profile.Databases, cf.Verbose)
+	showDatabases(tc.SiteName, types.DeduplicateDatabaseServers(servers),
+		profile.Databases, cf.Verbose)
 	return nil
 }
 
@@ -99,7 +100,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 
 func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatabase, quiet bool) error {
 	log.Debugf("Fetching database access certificate for %s on cluster %v.", db, tc.SiteName)
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -117,7 +118,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 		return trace.Wrap(err)
 	}
 	// Refresh the profile.
-	profile, err = client.StatusCurrent("", cf.Proxy)
+	profile, err = client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -132,7 +133,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 // fetchDatabaseCreds is called as a part of tsh login to refresh database
 // access certificates for databases the current profile is logged into.
 func fetchDatabaseCreds(cf *CLIConf, tc *client.TeleportClient) error {
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -156,7 +157,7 @@ func onDatabaseLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -228,7 +229,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -268,7 +269,7 @@ Key:       %v
 // If logged into multiple databases, returns an error unless one specified
 // explicily via --db flag.
 func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

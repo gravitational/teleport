@@ -24,8 +24,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 )
 
@@ -63,7 +63,7 @@ func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 // ListApps prints the list of applications that have recently sent heartbeats
 // to the cluster.
 func (c *AppsCommand) ListApps(client auth.ClientI) error {
-	servers, err := client.GetAppServers(context.TODO(), defaults.Namespace)
+	servers, err := client.GetAppServers(context.TODO(), apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}

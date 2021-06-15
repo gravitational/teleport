@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -38,48 +37,42 @@ type ClusterConfig interface {
 	// SetClusterID sets the cluster ID
 	SetClusterID(string)
 
-	// GetAuditConfig returns audit settings
-	GetAuditConfig() AuditConfig
-
-	// SetAuditConfig sets audit config
-	SetAuditConfig(AuditConfig)
-
-	// GetDisconnectExpiredCert returns disconnect expired certificate setting
-	GetDisconnectExpiredCert() bool
-
-	// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
-	SetDisconnectExpiredCert(bool)
-
-	// GetLocalAuth gets if local authentication is allowed.
-	GetLocalAuth() bool
-
-	// SetLocalAuth sets if local authentication is allowed.
-	SetLocalAuth(bool)
-
-	// HasNetworkingConfig returns true if embedded networking configuration is set.
+	// HasAuditConfig returns true if audit configuration is set.
 	// DELETE IN 8.0.0
-	HasNetworkingConfig() bool
+	HasAuditConfig() bool
 
-	// GetNetworkingConfig returns embedded networking configuration.
+	// SetAuditConfig sets audit configuration.
 	// DELETE IN 8.0.0
-	GetNetworkingConfig() (ClusterNetworkingConfig, error)
+	SetAuditConfig(ClusterAuditConfig) error
 
-	// SetNetworkingConfig sets embedded networking configuration.
+	// HasNetworkingFields returns true if embedded networking configuration is set.
 	// DELETE IN 8.0.0
-	SetNetworkingConfig(ClusterNetworkingConfig) error
+	HasNetworkingFields() bool
 
-	// HasSessionRecordingConfig returns true if embedded session recording
+	// SetNetworkingFields sets embedded networking configuration.
+	// DELETE IN 8.0.0
+	SetNetworkingFields(ClusterNetworkingConfig) error
+
+	// HasSessionRecordingFields returns true if embedded session recording
 	// configuration is set.
 	// DELETE IN 8.0.0
-	HasSessionRecordingConfig() bool
+	HasSessionRecordingFields() bool
 
-	// GetSessionRecordingConfig returns embedded session recording configuration.
+	// SetSessionRecordingFields sets embedded session recording configuration.
 	// DELETE IN 8.0.0
-	GetSessionRecordingConfig() (SessionRecordingConfig, error)
+	SetSessionRecordingFields(SessionRecordingConfig) error
 
-	// SetSessionRecordingConfig sets embedded session recording configuration.
+	// HasAuthFields returns true if legacy auth fields are set.
 	// DELETE IN 8.0.0
-	SetSessionRecordingConfig(SessionRecordingConfig) error
+	HasAuthFields() bool
+
+	// SetAuthFields sets legacy auth fields.
+	// DELETE IN 8.0.0
+	SetAuthFields(AuthPreference) error
+
+	// ClearLegacyFields clears embedded legacy fields.
+	// DELETE IN 8.0.0
+	ClearLegacyFields()
 
 	// Copy creates a copy of the resource and returns it.
 	Copy() ClusterConfig
@@ -175,36 +168,6 @@ func (c *ClusterConfigV3) SetClusterID(id string) {
 	c.Spec.ClusterID = id
 }
 
-// GetAuditConfig returns audit settings
-func (c *ClusterConfigV3) GetAuditConfig() AuditConfig {
-	return c.Spec.Audit
-}
-
-// SetAuditConfig sets audit config
-func (c *ClusterConfigV3) SetAuditConfig(cfg AuditConfig) {
-	c.Spec.Audit = cfg
-}
-
-// GetDisconnectExpiredCert returns disconnect expired certificate setting
-func (c *ClusterConfigV3) GetDisconnectExpiredCert() bool {
-	return c.Spec.DisconnectExpiredCert.Value()
-}
-
-// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
-func (c *ClusterConfigV3) SetDisconnectExpiredCert(b bool) {
-	c.Spec.DisconnectExpiredCert = NewBool(b)
-}
-
-// GetLocalAuth gets if local authentication is allowed.
-func (c *ClusterConfigV3) GetLocalAuth() bool {
-	return c.Spec.LocalAuth.Value()
-}
-
-// SetLocalAuth gets if local authentication is allowed.
-func (c *ClusterConfigV3) SetLocalAuth(b bool) {
-	c.Spec.LocalAuth = NewBool(b)
-}
-
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -218,24 +181,32 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// HasNetworkingConfig returns true if embedded networking configuration is set.
+// HasAuditConfig returns true if audit configuration is set.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV3) HasNetworkingConfig() bool {
+func (c *ClusterConfigV3) HasAuditConfig() bool {
+	return c.Spec.Audit != nil
+}
+
+// SetAuditConfig sets audit configuration.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) SetAuditConfig(auditConfig ClusterAuditConfig) error {
+	auditConfigV2, ok := auditConfig.(*ClusterAuditConfigV2)
+	if !ok {
+		return trace.BadParameter("unexpected type %T", auditConfig)
+	}
+	c.Spec.Audit = &auditConfigV2.Spec
+	return nil
+}
+
+// HasNetworkingFields returns true if embedded networking configuration is set.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) HasNetworkingFields() bool {
 	return c.Spec.ClusterNetworkingConfigSpecV2 != nil
 }
 
-// GetNetworkingConfig returns embedded networking configuration.
+// SetNetworkingFields sets embedded networking configuration.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV3) GetNetworkingConfig() (ClusterNetworkingConfig, error) {
-	if c.Spec.ClusterNetworkingConfigSpecV2 == nil {
-		return nil, trace.BadParameter("ClusterNetworkingConfigSpec is not set")
-	}
-	return NewClusterNetworkingConfig(*c.Spec.ClusterNetworkingConfigSpecV2)
-}
-
-// SetNetworkingConfig sets embedded networking configuration.
-// DELETE IN 8.0.0
-func (c *ClusterConfigV3) SetNetworkingConfig(netConfig ClusterNetworkingConfig) error {
+func (c *ClusterConfigV3) SetNetworkingFields(netConfig ClusterNetworkingConfig) error {
 	netConfigV2, ok := netConfig.(*ClusterNetworkingConfigV2)
 	if !ok {
 		return trace.BadParameter("unexpected type %T", netConfig)
@@ -244,32 +215,16 @@ func (c *ClusterConfigV3) SetNetworkingConfig(netConfig ClusterNetworkingConfig)
 	return nil
 }
 
-// HasSessionRecordingConfig returns true if embedded session recording
+// HasSessionRecordingFields returns true if embedded session recording
 // configuration is set.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV3) HasSessionRecordingConfig() bool {
+func (c *ClusterConfigV3) HasSessionRecordingFields() bool {
 	return c.Spec.LegacySessionRecordingConfigSpec != nil
 }
 
-// GetSessionRecordingConfig returns embedded session recording configuration.
+// SetSessionRecordingFields sets embedded session recording configuration.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV3) GetSessionRecordingConfig() (SessionRecordingConfig, error) {
-	if c.Spec.LegacySessionRecordingConfigSpec == nil {
-		return nil, trace.BadParameter("LegacySessionRecordingConfigSpec is not set")
-	}
-	recordingSpec := SessionRecordingConfigSpecV2{
-		Mode: c.Spec.LegacySessionRecordingConfigSpec.Mode,
-	}
-	b, err := utils.ParseBool(c.Spec.LegacySessionRecordingConfigSpec.ProxyChecksHostKeys)
-	if err != nil {
-		recordingSpec.ProxyChecksHostKeys = NewBoolOption(b)
-	}
-	return NewSessionRecordingConfig(recordingSpec)
-}
-
-// SetSessionRecordingConfig sets embedded session recording configuration.
-// DELETE IN 8.0.0
-func (c *ClusterConfigV3) SetSessionRecordingConfig(recConfig SessionRecordingConfig) error {
+func (c *ClusterConfigV3) SetSessionRecordingFields(recConfig SessionRecordingConfig) error {
 	recConfigV2, ok := recConfig.(*SessionRecordingConfigV2)
 	if !ok {
 		return trace.BadParameter("unexpected type %T", recConfig)
@@ -283,6 +238,35 @@ func (c *ClusterConfigV3) SetSessionRecordingConfig(recConfig SessionRecordingCo
 		ProxyChecksHostKeys: proxyChecksHostKeys,
 	}
 	return nil
+}
+
+// HasAuthFields returns true if legacy auth fields are set.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) HasAuthFields() bool {
+	return c.Spec.LegacyClusterConfigAuthFields != nil
+}
+
+// SetAuthFields sets legacy auth fields.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) SetAuthFields(authPref AuthPreference) error {
+	authPrefV2, ok := authPref.(*AuthPreferenceV2)
+	if !ok {
+		return trace.BadParameter("unexpected type %T", authPref)
+	}
+	c.Spec.LegacyClusterConfigAuthFields = &LegacyClusterConfigAuthFields{
+		AllowLocalAuth:        NewBool(authPrefV2.Spec.AllowLocalAuth.Value),
+		DisconnectExpiredCert: NewBool(authPrefV2.Spec.DisconnectExpiredCert.Value),
+	}
+	return nil
+}
+
+// ClearLegacyFields clears legacy fields.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) ClearLegacyFields() {
+	c.Spec.Audit = nil
+	c.Spec.ClusterNetworkingConfigSpecV2 = nil
+	c.Spec.LegacySessionRecordingConfigSpec = nil
+	c.Spec.LegacyClusterConfigAuthFields = nil
 }
 
 // Copy creates a copy of the resource and returns it.

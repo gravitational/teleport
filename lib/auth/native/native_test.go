@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -108,7 +110,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 		inHostID           string
 		inNodeName         string
 		inClusterName      string
-		inRoles            teleport.Roles
+		inRoles            types.SystemRoles
 		outValidPrincipals []string
 	}{
 		{
@@ -116,7 +118,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 			inHostID:           "00000000-0000-0000-0000-000000000000",
 			inNodeName:         "auth",
 			inClusterName:      "example.com",
-			inRoles:            teleport.Roles{teleport.RoleAdmin},
+			inRoles:            types.SystemRoles{types.RoleAdmin},
 			outValidPrincipals: []string{"00000000-0000-0000-0000-000000000000"},
 		},
 		{
@@ -124,7 +126,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 			inHostID:      "11111111-1111-1111-1111-111111111111",
 			inNodeName:    "",
 			inClusterName: "example.com",
-			inRoles:       teleport.Roles{teleport.RoleNode},
+			inRoles:       types.SystemRoles{types.RoleNode},
 			outValidPrincipals: []string{
 				"11111111-1111-1111-1111-111111111111.example.com",
 				"11111111-1111-1111-1111-111111111111",
@@ -138,7 +140,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 			inHostID:      "22222222-2222-2222-2222-222222222222",
 			inNodeName:    "proxy",
 			inClusterName: "example.com",
-			inRoles:       teleport.Roles{teleport.RoleProxy},
+			inRoles:       types.SystemRoles{types.RoleProxy},
 			outValidPrincipals: []string{
 				"22222222-2222-2222-2222-222222222222.example.com",
 				"22222222-2222-2222-2222-222222222222",
@@ -154,7 +156,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 			inHostID:      "33333333-3333-3333-3333-333333333333",
 			inNodeName:    "33333333-3333-3333-3333-333333333333",
 			inClusterName: "example.com",
-			inRoles:       teleport.Roles{teleport.RoleProxy},
+			inRoles:       types.SystemRoles{types.RoleProxy},
 			outValidPrincipals: []string{
 				"33333333-3333-3333-3333-333333333333.example.com",
 				"33333333-3333-3333-3333-333333333333",
@@ -200,7 +202,7 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 	}{
 		// 0 - standard, has roles
 		{
-			teleport.CertificateFormatStandard,
+			constants.CertificateFormatStandard,
 			true,
 		},
 		// 1 - oldssh, no roles

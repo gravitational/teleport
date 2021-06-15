@@ -29,7 +29,7 @@ import (
 // SessionRecordingConfig defines session recording configuration. This is
 // a configuration resource, never create more than one instance of it.
 type SessionRecordingConfig interface {
-	Resource
+	ResourceWithOrigin
 
 	// GetMode gets the session recording mode.
 	GetMode() string
@@ -42,20 +42,34 @@ type SessionRecordingConfig interface {
 
 	// SetProxyChecksHostKeys sets if the proxy will check host keys.
 	SetProxyChecksHostKeys(bool)
-
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for SessionRecordingConfig.
-	CheckAndSetDefaults() error
 }
 
-// NewSessionRecordingConfig is a convenience method to create SessionRecordingConfigV2.
-func NewSessionRecordingConfig(spec SessionRecordingConfigSpecV2) (SessionRecordingConfig, error) {
-	recConfig := SessionRecordingConfigV2{
+// NewSessionRecordingConfigFromConfigFile is a convenience method to create
+// SessionRecordingConfigV2 labelled as originating from config file.
+func NewSessionRecordingConfigFromConfigFile(spec SessionRecordingConfigSpecV2) (SessionRecordingConfig, error) {
+	return newSessionRecordingConfigWithLabels(spec, map[string]string{
+		OriginLabel: OriginConfigFile,
+	})
+}
+
+// DefaultSessionRecordingConfig returns the default session recording configuration.
+func DefaultSessionRecordingConfig() SessionRecordingConfig {
+	config, _ := newSessionRecordingConfigWithLabels(SessionRecordingConfigSpecV2{}, map[string]string{
+		OriginLabel: OriginDefaults,
+	})
+	return config
+}
+
+// newSessionRecordingConfigWithLabels is a convenience method to create
+// SessionRecordingConfigV2 with a specific map of labels.
+func newSessionRecordingConfigWithLabels(spec SessionRecordingConfigSpecV2, labels map[string]string) (SessionRecordingConfig, error) {
+	recConfig := &SessionRecordingConfigV2{
 		Kind:    KindSessionRecordingConfig,
 		Version: V2,
 		Metadata: Metadata{
 			Name:      MetaNameSessionRecordingConfig,
 			Namespace: defaults.Namespace,
+			Labels:    labels,
 		},
 		Spec: spec,
 	}
@@ -63,13 +77,7 @@ func NewSessionRecordingConfig(spec SessionRecordingConfigSpecV2) (SessionRecord
 	if err := recConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &recConfig, nil
-}
-
-// DefaultSessionRecordingConfig returns the default session recording config.
-func DefaultSessionRecordingConfig() SessionRecordingConfig {
-	config, _ := NewSessionRecordingConfig(SessionRecordingConfigSpecV2{})
-	return config
+	return recConfig, nil
 }
 
 // GetVersion returns resource version.
@@ -119,6 +127,16 @@ func (c *SessionRecordingConfigV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// Origin returns the origin value of the resource.
+func (c *SessionRecordingConfigV2) Origin() string {
+	return c.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (c *SessionRecordingConfigV2) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
+}
+
 // GetKind returns resource kind.
 func (c *SessionRecordingConfigV2) GetKind() string {
 	return c.Kind
@@ -160,6 +178,14 @@ func (c *SessionRecordingConfigV2) CheckAndSetDefaults() error {
 	err := c.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if c.Version == "" {
+		c.Version = V2
+	}
+
+	// Make sure origin value is always set.
+	if c.Origin() == "" {
+		c.SetOrigin(OriginDynamic)
 	}
 
 	if c.Spec.Mode == "" {

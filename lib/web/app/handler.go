@@ -26,9 +26,9 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -152,7 +152,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
-	ws, err := h.c.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{
+	ws, err := h.c.AccessPoint.GetAppSession(ctx, types.GetAppSessionRequest{
 		SessionID: sessionID,
 	})
 	if err != nil {
@@ -199,7 +199,7 @@ func (h *Handler) extractSessionID(r *http.Request) (sessionID string, err error
 // getSession returns a request session used to proxy the request to the
 // application service. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
-func (h *Handler) getSession(ctx context.Context, ws services.WebSession) (*session, error) {
+func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session, error) {
 	// If a cached session exists, return it right away.
 	session, err := h.cache.get(ws.GetName())
 	if err == nil {
