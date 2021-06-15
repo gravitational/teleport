@@ -208,7 +208,8 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 #### Examples
 
 ```
-tsh --proxy proxy.example.com join <session-id>
+# join session using teleport user joe as ec2-user
+tsh --user=joe --login=ec2-user join <session-id>
 ```
 
 ### tsh play
