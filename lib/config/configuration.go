@@ -502,16 +502,13 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		log.Warnf(warningMessage)
 	}
 
-	auditConfig, err := services.AuditConfigFromObject(fc.Storage.Params)
+	// Set cluster audit configuration from file configuration.
+	auditConfigSpec, err := services.ClusterAuditConfigSpecFromObject(fc.Storage.Params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	auditConfig.Type = fc.Storage.Type
-
-	// Set cluster-wide configuration from file configuration.
-	cfg.Auth.ClusterConfig, err = types.NewClusterConfig(types.ClusterConfigSpecV3{
-		Audit: *auditConfig,
-	})
+	auditConfigSpec.Type = fc.Storage.Type
+	cfg.Auth.AuditConfig, err = types.NewClusterAuditConfig(*auditConfigSpec)
 	if err != nil {
 		return trace.Wrap(err)
 	}

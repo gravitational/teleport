@@ -84,6 +84,9 @@ message Event {
         // AuthPreference is cluster auth preference.
         types.AuthPreferenceV2 AuthPreference = 22
             [ (gogoproto.jsontag) = "auth_preference,omitempty" ];
+        // ClusterAuditConfig is a resource for cluster audit configuration.
+        types.ClusterAuditConfigV2 ClusterAuditConfig = 23
+            [ (gogoproto.jsontag) = "cluster_audit_config,omitempty" ];
     }
 }
 
@@ -1103,6 +1106,11 @@ service AuthService {
     rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
     // DeleteToken deletes an existing token in a backend described by the given request.
     rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetClusterAuditConfig gets cluster audit configuration.
+    rpc GetClusterAuditConfig(google.protobuf.Empty) returns (types.ClusterAuditConfigV2);
+    // SetClusterAuditConfig sets cluster audit configuration.
+    rpc SetClusterAuditConfig(types.ClusterAuditConfigV2) returns (google.protobuf.Empty);
 
     // GetClusterNetworkingConfig gets cluster networking configuration.
     rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
