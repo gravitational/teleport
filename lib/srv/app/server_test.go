@@ -37,8 +37,11 @@ import (
 	"github.com/pborman/uuid"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -58,7 +61,7 @@ type Suite struct {
 	tlsServer    *auth.TestTLSServer
 	authClient   *auth.Client
 	appServer    *Server
-	server       services.Server
+	server       types.Server
 	hostCertPool *x509.CertPool
 
 	hostUUID          string
@@ -69,8 +72,8 @@ type Suite struct {
 	testhttp          *httptest.Server
 	clientCertificate tls.Certificate
 
-	user services.User
-	role services.Role
+	user types.User
+	role types.Role
 }
 
 var _ = check.Suite(&Suite{})
@@ -97,12 +100,12 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Grant the user's role access to the application label "bar: baz".
-	s.role.SetAppLabels(services.Allow, services.Labels{"bar": []string{"baz"}})
+	s.role.SetAppLabels(services.Allow, types.Labels{"bar": []string{"baz"}})
 	err = s.tlsServer.Auth().UpsertRole(context.Background(), s.role)
 	c.Assert(err, check.IsNil)
 
-	rootCA, err := s.tlsServer.Auth().GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	rootCA, err := s.tlsServer.Auth().GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: "root.example.com",
 	}, false)
 	c.Assert(err, check.IsNil)
@@ -138,39 +141,39 @@ func (s *Suite) SetUpTest(c *check.C) {
 	staticLabels := map[string]string{
 		"bar": "baz",
 	}
-	dynamicLabels := map[string]services.CommandLabel{
-		"qux": &services.CommandLabelV2{
-			Period:  services.NewDuration(time.Second),
+	dynamicLabels := map[string]types.CommandLabel{
+		"qux": &types.CommandLabelV2{
+			Period:  types.NewDuration(time.Second),
 			Command: []string{"expr", "1", "+", "3"},
 		},
 	}
 	s.hostUUID = uuid.New()
-	s.server = &services.ServerV2{
-		Kind:    services.KindAppServer,
-		Version: services.V2,
-		Metadata: services.Metadata{
+	s.server = &types.ServerV2{
+		Kind:    types.KindAppServer,
+		Version: types.V2,
+		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      s.hostUUID,
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Version: teleport.Version,
-			Apps: []*services.App{
+			Apps: []*types.App{
 				{
 					Name:          "foo",
 					URI:           s.testhttp.URL,
 					PublicAddr:    "foo.example.com",
 					StaticLabels:  staticLabels,
-					DynamicLabels: services.LabelsToV2(dynamicLabels),
+					DynamicLabels: types.LabelsToV2(dynamicLabels),
 				},
 			},
 		},
 	}
 
 	// Create a client with a machine role of RoleApp.
-	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(teleport.RoleApp, s.hostUUID))
+	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
 	c.Assert(err, check.IsNil)
 
-	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, teleport.RoleApp)
+	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
 	c.Assert(err, check.IsNil)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	c.Assert(err, check.IsNil)
@@ -193,7 +196,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 	// Make sure the upload directory is created.
 	err = os.MkdirAll(filepath.Join(
 		s.dataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, defaults.Namespace,
+		events.StreamingLogsDir, apidefaults.Namespace,
 	), 0755)
 	c.Assert(err, check.IsNil)
 
@@ -228,7 +231,7 @@ func (s *Suite) TearDownTest(c *check.C) {
 
 	s.testhttp.Close()
 
-	err = s.tlsServer.Auth().DeleteAllAppServers(context.Background(), defaults.Namespace)
+	err = s.tlsServer.Auth().DeleteAllAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 }
 
@@ -236,7 +239,7 @@ func (s *Suite) TearDownTest(c *check.C) {
 // has been created.
 func (s *Suite) TestStart(c *check.C) {
 	// Fetch the services.App that the service heartbeat.
-	servers, err := s.authServer.AuthServer.GetAppServers(context.Background(), defaults.Namespace)
+	servers, err := s.authServer.AuthServer.GetAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(servers, check.HasLen, 1)
 	server := servers[0]
@@ -258,7 +261,7 @@ func (s *Suite) TestStart(c *check.C) {
 
 	// Check the expiry time is correct.
 	c.Assert(s.clock.Now().Before(server.Expiry()), check.Equals, true)
-	c.Assert(s.clock.Now().Add(2*defaults.ServerAnnounceTTL).After(server.Expiry()), check.Equals, true)
+	c.Assert(s.clock.Now().Add(2*apidefaults.ServerAnnounceTTL).After(server.Expiry()), check.Equals, true)
 }
 
 // TestWaitStop makes sure the server will block and unlock.
@@ -317,7 +320,7 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	}()
 
 	// Issue request.
-	resp, err := httpClient.Get("https://" + teleport.APIDomain)
+	resp, err := httpClient.Get("https://" + constants.APIDomain)
 	c.Assert(err, check.IsNil)
 
 	// Check response.
@@ -357,6 +360,6 @@ func (s *Suite) TestRewriteResponse(c *check.C) {
 func (s *Suite) TestSessionClose(c *check.C) {
 }
 
-func testRotationGetter(role teleport.Role) (*services.Rotation, error) {
-	return &services.Rotation{}, nil
+func testRotationGetter(role types.SystemRole) (*types.Rotation, error) {
+	return &types.Rotation{}, nil
 }

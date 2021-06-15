@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -28,7 +27,7 @@ import (
 // ClusterNetworkingConfig defines cluster networking configuration. This is
 // a configuration resource, never create more than one instance of it.
 type ClusterNetworkingConfig interface {
-	Resource
+	ResourceWithOrigin
 
 	// GetClientIdleTimeout returns client idle timeout setting
 	GetClientIdleTimeout() time.Duration
@@ -59,14 +58,32 @@ type ClusterNetworkingConfig interface {
 	SetSessionControlTimeout(t time.Duration)
 }
 
-// NewClusterNetworkingConfig is a convenience method to create ClusterNetworkingConfigV2.
-func NewClusterNetworkingConfig(spec ClusterNetworkingConfigSpecV2) (ClusterNetworkingConfig, error) {
-	netConfig := ClusterNetworkingConfigV2{
+// NewClusterNetworkingConfigFromConfigFile is a convenience method to create
+// ClusterNetworkingConfigV2 labelled as originating from config file.
+func NewClusterNetworkingConfigFromConfigFile(spec ClusterNetworkingConfigSpecV2) (ClusterNetworkingConfig, error) {
+	return newClusterNetworkingConfigWithLabels(spec, map[string]string{
+		OriginLabel: OriginConfigFile,
+	})
+}
+
+// DefaultClusterNetworkingConfig returns the default cluster networking config.
+func DefaultClusterNetworkingConfig() ClusterNetworkingConfig {
+	config, _ := newClusterNetworkingConfigWithLabels(ClusterNetworkingConfigSpecV2{}, map[string]string{
+		OriginLabel: OriginDefaults,
+	})
+	return config
+}
+
+// newClusterNetworkingConfigWithLabels is a convenience method to create
+// ClusterNetworkingConfigV2 with a specific map of labels.
+func newClusterNetworkingConfigWithLabels(spec ClusterNetworkingConfigSpecV2, labels map[string]string) (ClusterNetworkingConfig, error) {
+	netConfig := &ClusterNetworkingConfigV2{
 		Kind:    KindClusterNetworkingConfig,
 		Version: V2,
 		Metadata: Metadata{
 			Name:      MetaNameClusterNetworkingConfig,
 			Namespace: defaults.Namespace,
+			Labels:    labels,
 		},
 		Spec: spec,
 	}
@@ -74,13 +91,7 @@ func NewClusterNetworkingConfig(spec ClusterNetworkingConfigSpecV2) (ClusterNetw
 	if err := netConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &netConfig, nil
-}
-
-// DefaultClusterNetworkingConfig returns the default cluster networking config.
-func DefaultClusterNetworkingConfig() ClusterNetworkingConfig {
-	config, _ := NewClusterNetworkingConfig(ClusterNetworkingConfigSpecV2{})
-	return config
+	return netConfig, nil
 }
 
 // GetVersion returns resource version.
@@ -128,6 +139,16 @@ func (c *ClusterNetworkingConfigV2) GetResourceID() int64 {
 // SetResourceID sets resource ID.
 func (c *ClusterNetworkingConfigV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// Origin returns the origin value of the resource.
+func (c *ClusterNetworkingConfigV2) Origin() string {
+	return c.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (c *ClusterNetworkingConfigV2) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
 }
 
 // GetKind returns resource kind.
@@ -194,6 +215,14 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if c.Version == "" {
+		c.Version = V2
+	}
+
+	// Make sure origin value is always set.
+	if c.Origin() == "" {
+		c.SetOrigin(OriginDynamic)
+	}
 
 	// Set the keep-alive interval and max missed keep-alives.
 	if c.Spec.KeepAliveInterval.Duration() == 0 {
@@ -204,10 +233,4 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// String returns string representation of cluster networking configuration.
-func (c *ClusterNetworkingConfigV2) String() string {
-	return fmt.Sprintf("ClusterNetworkingConfig(ClientIdleTimeout=%v,KeepAliveInterval=%v,KeepAliveCountMax=%v,SessionControlTimeout=%v)",
-		c.Spec.ClientIdleTimeout, c.Spec.KeepAliveInterval, c.Spec.KeepAliveCountMax, c.Spec.SessionControlTimeout)
 }

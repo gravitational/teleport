@@ -14,7 +14,7 @@ This guide introduces some of these common scenarios and how to interact with Te
 3. Introspecting the cluster using Teleport features.
 
 <Admonition type="tip" title="Tip">
-  This guide also demonstrates how to configure Teleport Nodes into the *Bastion* pattern so that [only a single Node can be accessed publically](https://goteleport.com/blog/ssh-bastion-host/). 
+  This guide also demonstrates how to configure Teleport Nodes into the *Bastion* pattern so that [only a single Node can be accessed publicly](https://goteleport.com/blog/ssh-bastion-host/). 
 </Admonition>
 
 <Figure
@@ -164,7 +164,7 @@ This guide introduces some of these common scenarios and how to interact with Te
    # Join cluster
    sudo teleport start \
      --roles=node \
-     --token=./token.file \
+     --token=/path/to/token.file \
      --auth-server=tele.example.com:443
    ```
 

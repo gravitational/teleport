@@ -9,6 +9,8 @@ Teleport uses the YAML file format for configuration. A full configuration refer
 file is shown below, this provides comments and all available options for `teleport.yaml`
 By default, it is stored in `/etc/teleport.yaml`.
 
+(!docs/pages/includes/backup-warning.mdx!)
+
 This document aims to be a reference rather than a starting point for a real cluster. To
 get a good starting file, run `teleport configure -o teleport.yaml`.
 
@@ -286,7 +288,7 @@ auth_service:
     # session_control_timeout: 2m
 
     # License file to start auth server with. Note that this setting is ignored
-    # in open-source Teleport and is required only for Teleport Pro, Business
+    # in the Teleport Open-Source Edition and is required only for Teleport Pro, Business
     # and Enterprise subscription plans.
     #
     # The path can be either absolute or relative to the configured `data_dir`
