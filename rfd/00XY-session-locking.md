@@ -17,7 +17,7 @@ environment.  When such a session lock is in force:
 Security teams require greater control over a session once it's started in
 order to be able to:
 + lock out the team during maintenance windows,
-+ terminate access for a user prior to hitting the Teleport certificate's TTL,
++ terminate and disable further access for users, even if in possession of a valid Teleport certificate,
 + achieve FedRAMP/NIST compliance.
 
 ## Details
@@ -49,6 +49,8 @@ message SessionLockTarget {
     string Cluster;
     // Login specifies the name of a local UNIX user.
     string Login;
+    // Node specified the name or UUID of a node.
+    string Node;
 }
 ```
 
@@ -103,7 +105,7 @@ has been created.
 There will be a special `tctl sessions lock` helper provided, to facilitate
 supplying time information when creating new `SessionLock`s, see Scenarios below.
 
-### Disabling new certificates
+### Disable generating new certificates
 
 No new user certificates matching a session lock target should be generated
 while the session lock is in force.  An audit event should be emitted upon such
@@ -112,7 +114,15 @@ an attempt.
 A new lock check will be added to the `generateUserCert` function
 in `lib/auth/auth.go`.
 
-### Terminating existing sessions
+### Disable initiating new sessions
+
+Even if a locked-out user is already in a possession of a valid Teleport certificate,
+they should be prevented from initiating a new session.
+
+This should be implemented so that it touches _all_ the access proxies
+supported by Teleport: SSH, k8s, app and DB.
+
+### Terminate existing sessions
 
 Terminating an existing session due to a (freshly created) session lock is
 similar to terminating an existing session due to certificate expiry.  The
@@ -125,8 +135,8 @@ periodically polling the backend, two new fields are added to `srv.MonitorConfig
 + `SessionLockWatcher`: a `types.Watcher` detecting additional puts or deletes
   of `SessionLock`s pertaining to the current session.
 
-The developed logic should work with all the proxies that already make use of
-`DisconnectExpiredCert`, i.e. SSH, k8s and DB.
+The developed logic should work with every protocol that makes use of
+`srv.Monitor`: SSH, k8s and DB.
 
 ### Replicating to trusted clusters
 
@@ -248,3 +258,5 @@ showing just a generic client-specific message, e.g.:
 ```
 the connection was closed on the remote side on  15 Jun 21 10:43 CEST
 ```
+
+It might become possible to provide a more specific message once https://github.com/gravitational/teleport/issues/6091 is implemented.
