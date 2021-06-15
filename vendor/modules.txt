@@ -55,10 +55,11 @@ github.com/alecthomas/template/parse
 # github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 ## explicit
 github.com/alecthomas/units
-# github.com/aquasecurity/tracee/libbpfgo v0.0.0-20210513142145-242d721bad3d
+# github.com/aquasecurity/libbpfgo v0.1.0
 ## explicit
-github.com/aquasecurity/tracee/libbpfgo
-github.com/aquasecurity/tracee/libbpfgo/helpers
+github.com/aquasecurity/libbpfgo
+github.com/aquasecurity/libbpfgo/helpers
+## explicit
 # github.com/armon/go-radix v1.0.0
 ## explicit
 github.com/armon/go-radix
@@ -258,7 +259,6 @@ github.com/gorilla/mux
 # github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 ## explicit
 github.com/gravitational/configure/cstrings
-github.com/gravitational/configure/jsonschema
 # github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 ## explicit
 github.com/gravitational/form
@@ -267,8 +267,6 @@ github.com/gravitational/form
 github.com/gravitational/kingpin
 # github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
 ## explicit
-github.com/gravitational/license
-github.com/gravitational/license/constants
 # github.com/gravitational/oxy v0.0.0-20210316180922-c73d80d27348
 ## explicit
 github.com/gravitational/oxy/connlimit
@@ -277,9 +275,6 @@ github.com/gravitational/oxy/ratelimit
 github.com/gravitational/oxy/utils
 # github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
 ## explicit
-github.com/gravitational/reporting
-github.com/gravitational/reporting/client
-github.com/gravitational/reporting/types
 # github.com/gravitational/roundtrip v1.0.0
 ## explicit
 github.com/gravitational/roundtrip
@@ -291,6 +286,7 @@ github.com/gravitational/teleport/api/client/webclient
 github.com/gravitational/teleport/api/constants
 github.com/gravitational/teleport/api/defaults
 github.com/gravitational/teleport/api/identityfile
+github.com/gravitational/teleport/api/metadata
 github.com/gravitational/teleport/api/profile
 github.com/gravitational/teleport/api/types
 github.com/gravitational/teleport/api/types/events
@@ -511,10 +507,8 @@ github.com/xdg-go/scram
 github.com/xdg-go/stringprep
 # github.com/xeipuuv/gojsonpointer v0.0.0-20151027082146-e0fe6f683076
 ## explicit
-github.com/xeipuuv/gojsonpointer
 # github.com/xeipuuv/gojsonreference v0.0.0-20150808065054-e02fc20de94c
 ## explicit
-github.com/xeipuuv/gojsonreference
 # github.com/xeipuuv/gojsonschema v0.0.0-20151204154511-3988ac14d6f6
 ## explicit
 github.com/xeipuuv/gojsonschema

@@ -12,7 +12,7 @@ require (
 	github.com/alecthomas/colour v0.1.0 // indirect
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
-	github.com/aquasecurity/tracee/libbpfgo v0.0.0-20210513142145-242d721bad3d
+	github.com/aquasecurity/libbpfgo v0.1.0
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.37.17
 	github.com/beevik/etree v1.1.0
@@ -42,9 +42,9 @@ require (
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 	github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible
-	github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
+	github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a // indirect
 	github.com/gravitational/oxy v0.0.0-20210316180922-c73d80d27348
-	github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
+	github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c // indirect
 	github.com/gravitational/roundtrip v1.0.0
 	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.1.16-0.20210609220119-4855e69c89fc
