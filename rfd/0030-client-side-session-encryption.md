@@ -38,7 +38,7 @@ Keys will be configured in the Teleport config file, under the `teleport/storage
 The key format is modelled on the token format. Each key will be a colon-separated string, containing in-order
 1. An optional comma-separated list of tags
 2. An arbitrary text key ID
-3. a base64-encoded string holding the key bits, or the path to a file containing the same. Paths will be identified by a leading `/`.
+3. The path to a file containing a base64 encoded key.
 
 Only one tag is defined: `main`. Keys tagged with `main` may be used as Key-Encryption Keys to encrypt recordings. Untagged keys may only be used for decryption. There must be exactly one `main`-tagged key in the keyset.
 
@@ -49,9 +49,7 @@ teleport:
   storage:
     audit_sessions_uri: s3://teleport/recordings?region=ap-southeast-2
     audit_sessions_local_keys:
-      - some-key:main:AgqHAQf+tym2eV9iSKWS5TMvcaKYFFX5F3DQxICWvKk=
-      - another-key:GhBT5ktJiXGaxnFyAmzRkt0K
-      - key-in-a-file:/path/to/some/key
+      - some-key:main:/path/to/some/key
 ```
 If a `audit_sessions_local_keys` entry is not present, the system will fall back to the existing gzipped protobuf format.
 
@@ -70,7 +68,7 @@ The same process happens in reverse. When the recording reader encounters a new 
  3. Map the key ID to a key supplied in the config file, and use that key to decrypt the envelope
  4. Pass the resulting plaintext (i.e. a gzipped series of protobuf records) along as per the existing recording system.
 
-Each slice may be encrypted with a different master key, even in the same file. This allows multiple nodes with different encryption keys to write to the same session. The session will be played back as long as the node managing the playback has access to all the keys used for the session.
+Each slice of protobuf records may be encrypted with a different main key, even in the same file. This allows multiple nodes with different encryption keys to write to the same session. The session will be played back as long as the node managing the playback has access to all the keys used for the session.
 
 Reusing the existing recording machinery also allows session files in transit to be recorded at rest whenever they are stored locally on a node (e.g. async recording).
 
@@ -91,7 +89,7 @@ The V2 format will add a `flags` field after the version header. For consistency
 
 If the `Encrypted` flag is ***not*** set (see "Flags", below), the payload treated as a regular, gzipped payload as in RFD-0002. 
 
-If the `Encrypted` flag ***is*** set, the payload contains an envelope header and encrypted data. The Key ID in the envelope header identifies the master key used to encrypt the envelope. The remainder of the payload is the encrypted, gzipped session events.
+If the `Encrypted` flag ***is*** set, the payload contains an envelope header and encrypted data. The Key ID in the envelope header identifies the key-encryption key used to encrypt the envelope. The remainder of the payload is the encrypted, gzipped session events.
 
 The envelope header (see "envelope header", below) is treated as part of the payload, and included in the payload byte count.
 
