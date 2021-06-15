@@ -1,18 +1,18 @@
 ---
 title: Database Access FAQ
-description: Frequently asked questions about Teleport Database Access
+description: Frequently asked questions about Teleport Database Access.
 ---
 
 # Database Access FAQ
 
 ## Which database protocols does Teleport Database Access support?
 
-Teleport Database Access currently supports PostgreSQL and MySQL protocols, with
-MongoDB protocol support coming in [Teleport 7.0](../preview/upcoming-releases.mdx#teleport-70-stockholm).
+Teleport Database Access currently supports PostgreSQL, MySQL, and MongoDB
+protocols.
 
 For PostgreSQL and MySQL, both self-hosted and cloud-hosted versions such as AWS
 RDS, Aurora (except for Serverless version which doesn't support IAM auth),
-Redshift and GCP Cloud SQL are supported. See available [guides](./guides.mdx)
+Redshift, and GCP Cloud SQL are supported. See available [guides](./guides.mdx)
 for all supported configurations.
 
 ## Which PostgreSQL protocol features are not supported?
@@ -43,14 +43,12 @@ Teleport relies on client certificates for authentication so any database client
 that supports this method of authentication and uses modern TLS (1.2+) should
 work.
 
-Standard command-line clients such as `psql` and `mysql` are supported, there
-are also instructions for configuring select [graphical clients](./guides/gui-clients.mdx).
+Standard command-line clients such as `psql`, `mysql`, or `mongo` are supported,
+there are also instructions for configuring select [graphical clients](./guides/gui-clients.mdx).
 
 ## When will you support X database?
 
-We're focusing on PostgreSQL and MySQL initially, and adding MongoDB support in
-[Teleport 7.0](../preview/upcoming-releases.mdx#teleport-70-stockholm), but also
-planning to support more databases in future based on the customer demand.
+We plan to support more databases in the future based on customer demand.
 
 See if the database you're interested in has already been requested among
 [Github issues](https://github.com/gravitational/teleport/labels/database-access)
