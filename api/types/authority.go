@@ -353,7 +353,12 @@ func (ca *CertAuthorityV2) SetSigningAlg(alg CertAuthoritySpecV2_SigningAlgType)
 func (ca *CertAuthorityV2) setStaticFields() {
 	ca.Kind = KindCertAuthority
 	ca.Version = V2
-	ca.Metadata.Name = ca.Spec.ClusterName
+	// ca.Metadata.Name and ca.Spec.ClusterName should always be equal.
+	if ca.Metadata.Name == "" {
+		ca.Metadata.Name = ca.Spec.ClusterName
+	} else {
+		ca.Spec.ClusterName = ca.Metadata.Name
+	}
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
