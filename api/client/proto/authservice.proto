@@ -331,11 +331,6 @@ message Semaphores {
     repeated types.SemaphoreV3 Semaphores = 1 [ (gogoproto.jsontag) = "semaphores" ];
 }
 
-// MessageOfTheDay is a banner that 
-message MessageOfTheDay {
-
-}
-
 // AuditStreamRequest contains stream request - event or stream control request
 message AuditStreamRequest {
     // Request is either stream request - create, resume or complete stream
@@ -599,7 +594,7 @@ message GetRoleRequest {
 // GetRolesResponse is a response to querying for all roles.
 message GetRolesResponse {
     // Roles is a list of roles.
-    repeated types.RoleV3 Roles = 1;
+    repeated types.RoleV4 Roles = 1;
 }
 
 // DeleteRoleRequest is a request to delete a role.
@@ -1029,11 +1024,11 @@ service AuthService {
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
 
     // GetRole retrieves a role described by the given request.
-    rpc GetRole(GetRoleRequest) returns (types.RoleV3);
+    rpc GetRole(GetRoleRequest) returns (types.RoleV4);
     // GetRole retrieves all roles.
     rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
     // UpsertRole upserts a role in a backend.
-    rpc UpsertRole(types.RoleV3) returns (google.protobuf.Empty);
+    rpc UpsertRole(types.RoleV4) returns (google.protobuf.Empty);
     // DeleteRole deletes an existing role in a backend described by the given request.
     rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 
