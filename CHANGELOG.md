@@ -1,5 +1,13 @@
 # Changelog
 
+### 4.4.10
+
+This release of Teleport contains bug fixes and a new feature.
+
+* Set correct audit log instead of discard [#6433](https://github.com/gravitational/teleport/pull/6433)
+* Kubernetes: Handle a large number of trusted clusters in mTLS handshake [#6668](https://github.com/gravitational/teleport/pull/6668)
+* Add log formatting options to Teleport config file [#6505](https://github.com/gravitational/teleport/pull/6505)
+
 ### 4.4.9
 
 This release of Teleport contains a bug fix.
