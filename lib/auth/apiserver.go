@@ -2170,7 +2170,7 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 		if !ok {
 			return nil, trace.BadParameter("unrecognized role version")
 		}
-		downgraded, err := downgradeRole(context.Background(), roleV4)
+		downgraded, err := downgradeRole(r.Context(), roleV4)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
