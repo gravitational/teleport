@@ -1,6 +1,6 @@
 # Changelog
 
-## 5.2.2 
+## 5.2.3 
 
 This release of Teleport contains access request improvements. 
 

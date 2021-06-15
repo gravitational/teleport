@@ -3,7 +3,7 @@
 package teleport
 
 const (
-	Version = "5.2.2"
+	Version = "5.2.3"
 )
 
 // Gitref variable is automatically set to the output of git-describe
