@@ -2,7 +2,7 @@
 
 This page is useful for tracking content changes across versions.
 
-Oftentimes, well want to trim or combine content.
+Oftentimes, we'll want to trim or combine content.
 
 It also describes all article subsections and video content in one quick view to make planning easier.
 
