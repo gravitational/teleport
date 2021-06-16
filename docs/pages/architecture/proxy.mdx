@@ -1,6 +1,6 @@
 ---
 title: Teleport Proxy Service
-description: How Teleport implements SSH and Kubernetes access via a Proxy
+description: How Teleport implements SSH and Kubernetes access via a Proxy.
 h1: The Proxy Service
 ---
 
@@ -20,8 +20,7 @@ Teleport cluster:
 
 ### Web to SSH Proxy
 
-In this mode, Teleport Proxy implements WSS - secure web sockets - to proxy a
-client SSH connection:
+In this mode, Teleport Proxy implements WSS - secure web sockets - to proxy a client SSH connection:
 
 ![Teleport Proxy Web](../../img/proxy-web.svg)
 
@@ -54,15 +53,12 @@ the [Auth Service](authentication.mdx#authentication-in-teleport).
 1. A [`tsh` client](../cli-docs.mdx#tsh) generates an OpenSSH key pair. It forwards the generated public key, username, password, and second-factor token to the proxy.
 2. The Proxy Service forwards the request to the Auth Service.
 3. If Auth Service accepts credentials, it generates a new certificate signed by its user CA and sends it back to the Proxy Server. The certificate has a TTL
-   that defaults to 12 hours but can be configured in
-   [`tctl`](../cli-docs.mdx#tctl).
+   that defaults to 12 hours but can be configured in [`tctl`](../cli-docs.mdx#tctl).
 4. The Proxy Server returns the user certificate to the client and the client stores it in `~/.tsh/keys/example.com`. The certificate is also added to the local SSH agent if one is running.
 
 **Using Client Certificates**
 
-Once the client has obtained a certificate, it can use it to authenticate with
-any Node in the cluster. Users can use the certificate using a standard OpenSSH
-client `ssh` or using `tsh`:
+Once the client has obtained a certificate, it can use it to authenticate with any Node in the cluster. Users can use the certificate using a standard OpenSSH client `ssh` or using `tsh`:
 
 ![Teleport Proxy Web](../../img/proxy-ssh-2.svg)
 
@@ -84,7 +80,7 @@ client `ssh` or using `tsh`:
   type="tip"
   title="NOTE"
 >
-  Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation. See [User Manual](../user-manual.mdx#ssh-proxy-configuration)
+  Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation. Read the [OpenSSH Guide](../server-access/guides/openssh-client.mdx#ssh-proxy-configuration).
 </Admonition>
 
 ## Recording Proxy mode

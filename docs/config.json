@@ -59,8 +59,10 @@
           "title": "Guides",
           "slug": "/server-access/guides/",
           "entries": [
-            { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
-            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" }
+            { "title": "OpenSSH Client Guide", "slug": "/server-access/guides/openssh-client/" },
+            { "title": "OpenSSH Recording Guide", "slug": "/server-access/guides/openssh-recording/" },
+            { "title": "Teleport SSH", "slug": "/server-access/guides/ssh/" },
+            { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" }
           ]
         }
       ]
@@ -323,7 +325,7 @@
     },
     {
       "source": "/openssh-teleport/",
-      "destination": "/server-access/guides/openssh/",
+      "destination": "/server-access/guides/openssh-recording/",
       "permanent": true
     },
     {

@@ -1,0 +1,251 @@
+---
+title: OpenSSH Client Guide
+description: How to connect to and use Teleport with the OpenSSH client.
+---
+
+Teleport is fully compatible with a range of SSH clients (including OpenSSH) so teams and administrators can choose or keep the client they like while getting all the advantages of Teleport's SSH server features.
+
+This document describes:
+
+1. How to configure an environment to use OpenSSH to connect to Teleport SSH Nodes.
+2. Notes key differences between OpenSSH and Teleport tsh along the way.
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+## Differences between Teleport tsh and OpenSSH ssh
+
+There are a few differences between Teleport's `tsh` and OpenSSH's `ssh`:
+
+1. `tsh` always requires the `--proxy` flag because `tsh` needs to know which cluster you are connecting to. But if you execute `tsh --proxy=xxx login`,
+   the current proxy will be saved in your `~/.tsh` profile and won't be needed for other `tsh` commands.
+2. `tsh ssh` operates *two* usernames: one for the cluster and another for the node you are trying to log into. See [User Identities](../../user-manual.mdx#user-identities)
+   section below. For convenience, `tsh` assumes `$USER` for both by default.
+   But again, if you use `tsh login` before `tsh ssh`, your Teleport username
+   will be stored in `~/.tsh`.
+
+If you'd like to set the login name that should be used by default on the remote host, you can set the `TELEPORT_LOGIN` environment variable.
+
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  To avoid typing `tsh ssh user@host` when logging into servers, you can create a symlink `ssh -> tsh` and execute the symlink. It will behave exactly like a standard `ssh` command, i.e. `ssh login@host`. This is helpful with other tools that expect `ssh` to just work.
+</Admonition>
+
+Teleport is built using standard SSH constructs: keys, certificates, and protocols. This means that a Teleport system is 100% compatible with both OpenSSH clients and servers.
+
+For an OpenSSH client (`ssh`) to work with a Teleport proxy, two conditions must be met:
+
+1. `ssh` [must be configured](#ssh-proxy-configuration) to connect through a Teleport proxy.
+2. `ssh` needs to be given the [SSH certificate issued](#passing-teleport-ssh-certificate-to-openssh-client)  by the `tsh login` command.
+
+### SSH proxy configuration
+
+To configure `ssh` to use a Teleport proxy on `proxy.example.com`, a user must update the `/etc/ssh/ssh_config` or `~/.ssh/config`. A few examples are shown below:
+
+```bash
+# When "ssh db" is executed, OpenSSH will connect to proxy.example.com on port 3023
+# and will request a proxied connection to "db" on port 3022 (default Teleport SSH port)
+Host db
+    Port 3022
+    ProxyJump proxy.example.com:3023
+```
+
+The configuration above is all you need to `ssh root@db` if an SSH agent is running on a client computer. You can verify it by executing `ssh-add -L` right after `tsh login`. If the SSH agent is running, the cluster certificates will be printed to stdout.
+
+If there is no ssh-agent available, the certificate must be passed to the OpenSSH client explicitly.
+
+When a proxy is in ["Recording mode"](https://gravitational.com/blog/how-to-record-ssh-sessions/) the following will happen with SSH:
+
+```bash
+ssh -J user@teleport.proxy:3023 -p 3022 user@target -F ./forward.config
+```
+
+Where `forward.config` enables agent forwarding:
+
+```bash
+Host teleport.proxy
+  ForwardAgent yes
+```
+
+### Passing Teleport SSH certificate to OpenSSH client
+
+If a user does not want to use an SSH agent or if the agent is not available,
+the certificate must be passed to `ssh` via `IdentityFile` option (see `man
+ssh_config`). Consider this example: the Teleport user `joe` wants to login into
+the proxy named `lab.example.com`.
+
+He executes the [`tsh login`](../../cli-docs.mdx#tsh-login) command:
+
+```bash
+tsh --proxy=lab.example.com login --user=joe
+```
+
+His identity is now stored in `~/.tsh/keys/lab.example.com`, so his `~/.ssh/config` needs to look like this:
+
+```bash
+# ~/.ssh/config file:
+Host *.lab.example.com
+    Port 3022
+    IdentityFile ~/.tsh/keys/lab.example.com/joe
+    ProxyCommand ssh -i ~/.tsh/keys/lab.example.com/joe -p 3023 %r@lab.example.com -s proxy:%h:%p
+```
+
+Now he can SSH into any machine behind `lab.example.com` using the OpenSSH
+client:
+
+```bash
+ssh jenkins.lab.example.com
+```
+
+(!docs/pages/server-access/includes/ssh-hardening.mdx!)
+
+## Connect to a Teleport Proxy Node
+
+On your client machine, you need to import the public key of Teleport's host certificate. This will allow your OpenSSH client to verify that host certificates are signed by Teleport's trusted host Certificate Authority (CA). On your Teleport Auth server run:
+
+```bash
+# On the Teleport auth server
+tctl auth export --type=host > teleport_host_ca.pub
+```
+
+Copy the file `teleport_host_ca.pub` and add it to your local client machine's `known_hosts` configuration:
+
+```bash
+# On the machine where you want to run the ssh client
+cat teleport_host_ca.pub >> ~/.ssh/known_hosts
+```
+
+Verify that you have `ssh-agent` running on your local client machine:
+
+```bash
+eval `ssh-agent`
+# Agent pid 8403
+```
+   
+Teleport `tsh` will save SSH information to `ssh-agent` by default. Log in to the Teleport Auth server with `tsh`:
+
+```bash
+tsh login --proxy=root.example.com --user=tele-admin
+```
+
+Modify your `ssh` configuration files to use a Teleport proxy on `proxy.example.com`. These are found at `/etc/ssh/ssh_config` or `~/.ssh/config`. 
+
+```bash
+# When "ssh" is executed, OpenSSH will connect to proxy.example.com on port 3023
+# and will request a proxied connection on port 3022 (the default Teleport SSH port)
+Host proxy.example.com
+  Port 3022
+  ProxyJump proxy.example.com:3023
+```
+
+Use OpenSSH to connect:
+
+```bash
+ssh root@proxy.example.com -p 3022
+```
+
+## Connect to Teleport Nodes within a cluster
+
+It's possible to use the OpenSSH client `ssh` to connect to nodes within a Teleport cluster. Teleport supports SSH subsystems and includes a `proxy` subsystem that can be used like `netcat` is with `ProxyCommand` to connect
+through a jump host.
+
+On your client machine, you need to import the public key of Teleport's host
+certificate. This will allow your OpenSSH client to verify that host certificates
+are signed by Teleport's trusted host Certificate Authority (CA):
+
+```yaml
+# On the Teleport auth server
+tctl auth export --type=host > teleport_host_ca.pub
+
+# On the machine where you want to run the ssh client
+cat teleport_host_ca.pub >> ~/.ssh/known_hosts
+```
+
+If you have multiple Teleport clusters, you have to export and set up these
+certificate authorities for each cluster individually.
+
+<Admonition
+  type="tip"
+  title="OpenSSH and Trusted Clusters"
+>
+  If you use [recording proxy mode](../../architecture/proxy.mdx) and [trusted clusters](../../trustedclusters.mdx),
+  you need to set up the certificate authority from
+  the *root* cluster to match **all** nodes, even those that belong to *leaf*
+  clusters. For example, if your node naming scheme is `*.root.example.com`,
+  `*.leaf1.example.com`, `*.leaf2.example.com`, then the
+  `@certificate-authority` entry should match `*.example.com` and use the CA
+  from the root auth server only.
+</Admonition>
+
+Make sure you are running OpenSSH's `ssh-agent`, and have logged in to the
+Teleport proxy:
+
+```bash
+eval `ssh-agent`
+# Agent pid 8403
+tsh login --proxy=root.example.com --user=tele-admin
+```
+
+`ssh-agent` will print environment variables into the console. Either `eval` the
+output as in the example above, or copy and paste the output into the shell you
+will be using to connect to a Teleport node. The output exports the
+`SSH_AUTH_SOCK` and `SSH_AGENT_PID` environment variables that allow OpenSSH
+clients to find the SSH agent.
+
+Lastly, configure the OpenSSH client to use the Teleport proxy when connecting
+to nodes with matching names. Edit `~/.ssh/config` for your user or
+`/etc/ssh/ssh_config` for global changes:
+
+```bash
+# root.example.com is the jump host (proxy). credentials will be obtained from the
+# openssh agent.
+Host root.example.com
+    HostName 192.168.1.2
+    Port 3023
+
+# Connect to nodes in the root.example.com cluster through the jump
+# host (proxy) using the same. credentials will be obtained from the
+# openssh agent.
+Host *.root.example.com
+    HostName %h
+    Port 3022
+    ProxyCommand ssh -p 3023 %r@root.example.com -s proxy:%h:%p
+
+# When connecting to a node within a trusted cluster with the name "leaf1.example.com",
+# add the name of the cluster to the invocation of the proxy subsystem.
+Host *.leaf1.example.com
+   HostName %h
+   Port 3022
+   ProxyCommand ssh -p 3023 %r@root.example.com -s proxy:%h:%p@leaf1.example.com
+```
+
+When everything is configured properly, you can use ssh to connect to any node
+behind `root.example.com` :
+
+```bash
+ssh root@database.root.example.com
+```
+
+<Admonition
+  type="tip"
+  title="Note"
+>
+  Teleport uses OpenSSH certificates instead of keys which means you cannot ordinarily connect to a Teleport node by IP address. You have to connect by
+  DNS name. This is because OpenSSH ensures the DNS name of the node you are connecting to is listed under the `Principals` section of the OpenSSH certificate to verify you are connecting to the correct node.
+</Admonition>
+
+To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `tsh ssh` command:
+
+Example ssh to `database.work.example.com` as `root` with an OpenSSH server on port `22` via `tsh`:
+
+```bash
+tsh ssh --port=22 dev@database.root.example.com
+```
+
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  The principal/username (`dev@` in the example above) being used to connect must be listed in the Teleport user/role configuration.
+</Admonition>
