@@ -129,7 +129,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	// set up an initial role with `request_access: always` in order to
 	// trigger automatic post-login escalation.
-	populist, err := types.NewRole("populist", types.RoleSpecV3{
+	populist, err := types.NewRole("populist", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"dictator"},
@@ -142,7 +142,7 @@ func TestOIDCLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// empty role which serves as our escalation target
-	dictator, err := types.NewRole("dictator", types.RoleSpecV3{})
+	dictator, err := types.NewRole("dictator", types.RoleSpecV4{})
 	require.NoError(t, err)
 
 	alice, err := types.NewUser("alice@example.com")
