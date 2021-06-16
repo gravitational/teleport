@@ -278,7 +278,7 @@ spec:
 Assign it to a new `test-user`:
 
 ```bash
-tctl request create test-user --roles=dev
+tctl users add test-user --roles=access,dev --logins=root,ubuntu,ec2-user
 ```
 
 ### Testing the approval workflow
