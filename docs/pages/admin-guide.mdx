@@ -9,6 +9,10 @@ This manual covers the installation and configuration of Teleport and the ongoin
 
 Please visit our [installation page](installation.mdx) for instructions on downloading and installing Teleport.
 
+(!docs/pages/includes/permission-warning.mdx!)
+
+(!docs/pages/includes/backup-warning.mdx!)
+
 ## Definitions
 
 Before diving into configuring and running Teleport, it helps to take a look at the [Teleport Architecture](architecture/overview.mdx) and review the key concepts this document will be referring to:
@@ -45,7 +49,7 @@ When experimenting, you can quickly start [`teleport`](cli-docs.mdx#teleport) wi
 
 ### Systemd unit file
 
-In production, we recommend starting teleport daemon via an init system like `systemd`. Here's the recommended Teleport service unit file for systemd:
+In production, we recommend starting teleport daemon via an init system like `systemd`. Here's the recommended Teleport service unit file for `systemd`:
 
 ```systemd
 [Unit]
@@ -165,7 +169,7 @@ teleport:
   ca_pin: "sha256:ca-pin-hash-goes-here"
 
   # List of auth servers in a cluster. you will have more than one auth server
-  # if you configure teleport auth to run in HA configuration.
+  # if you configure teleport auth to run in High Availability configuration.
   # If adding a node located behind NAT, use the Proxy URL. e.g.
   #  auth_servers:
   #     - teleport-proxy.example.com:3080
@@ -759,7 +763,7 @@ Teleport supports multiple storage back-ends for storing the SSH, Application, a
 The section below uses the `dir` backend as an example. `dir` backend uses the local
 filesystem of an auth server using the configurable `data_dir` directory.
 
-For highly available (HA) configurations, users can refer to our
+For High Availability configurations, users can refer to our
 [DynamoDB](#using-dynamodb) or [Firestore](#using-firestore) chapters for information
 on how to configure the SSH events and recorded sessions to be stored on
 network storage. It is even possible to store the audit log in multiple places at the
@@ -1088,8 +1092,8 @@ It's important to note that for Teleport to use HTTP CONNECT
 tunneling, the `HTTP_PROXY` and `HTTPS_PROXY` environment variables must be set
 within Teleport's environment. You can also optionally set the `NO_PROXY`
 environment variable to avoid use of the proxy when accessing specified
-hosts/netmasks. When launching Teleport with systemd, this will probably involve
-adding some lines to your systemd unit file:
+hosts/netmasks. When launching Teleport with `systemd`, this will probably involve
+adding some lines to your `systemd` unit file:
 
 ```
 [Service]
@@ -1217,13 +1221,13 @@ non-default storage backends.
   in the Teleport Architecture documentation.
 </Admonition>
 
-Usually, there are two ways to achieve high availability. You can "outsource"
-this function to the infrastructure. For example, using a Highly Available
-network-based disk volume (similar to AWS EBS) and by migrating a failed VM to
+Usually there are two ways to achieve High Availability. You can "outsource"
+this function to the infrastructure. For example, using a highly available
+network-based disk volumes (similar to AWS EBS) and by migrating a failed VM to
 a new host. In this scenario, there's nothing Teleport-specific to be done.
 
-If high availability cannot be provided by the infrastructure (perhaps you're
-running Teleport on a bare-metal cluster), you can still configure Teleport to
+If High Availability cannot be provided by the infrastructure (perhaps you're
+running Teleport on a bare metal cluster), you can still configure Teleport to
 run in a highly available fashion.
 
 ### Auth server High Availability
@@ -1322,8 +1326,8 @@ and user records will be stored.
   title="IMPORTANT"
 >
   `etcd` can only currently be used to store Teleport's internal database in a
-  highly available way. This will allow you to have multiple auth servers in your
-  cluster for an HA deployment, but it will not also store Teleport audit events
+  highly-available way. This will allow you to have multiple auth servers in your
+  cluster for an High Availability deployment, but it will not also store Teleport audit events
   for you in the same way that [DynamoDB](#using-dynamodb) or
   [Firestore](#using-firestore) will. `etcd` is not designed to handle large volumes of time series data like audit events.
 </Admonition>
@@ -1455,7 +1459,7 @@ These optional `GET` parameters control how Teleport interacts with an S3 endpoi
 
 If you are running Teleport on AWS, you can use
 [DynamoDB](https://aws.amazon.com/dynamodb/) as a storage back-end to achieve
-high availability. DynamoDB backend supports two types of Teleport data:
+High Availability. DynamoDB backend supports two types of Teleport data:
 
 - Cluster state
 - Audit log events
@@ -1487,7 +1491,7 @@ teleport:
     # NOTE: The DynamoDB events table has a different schema to the regular Teleport
     # database table, so attempting to use the same table for both will result in errors.
     # When using highly available storage like DynamoDB, you should make sure that the list always specifies
-    # the HA storage method first, as this is what the Teleport web UI uses as its source of events to display.
+    # the High Availability storage method first, as this is what the Teleport web UI uses as its source of events to display.
     audit_events_uri:  ['dynamodb://events_table_name', 'file:///var/lib/teleport/audit/events', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
@@ -1667,7 +1671,7 @@ teleport:
     # NOTE: The Firestore events table has a different schema to the regular Teleport
     # database table, so attempting to use the same table for both will result in errors.
     # When using highly available storage like Firestore, you should make sure that the list always specifies
-    # the HA storage method first, as this is what the Teleport web UI uses as its source of events to display.
+    # the High Availability storage method first, as this is what the Teleport web UI uses as its source of events to display.
     audit_events_uri:  ['firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'file:///var/lib/teleport/audit/events', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in GCP storage:
@@ -1762,7 +1766,7 @@ When upgrading a single Teleport cluster:
   type="warning"
   title="Warning"
 >
-  If several auth servers are running in HA configuration
+  If several auth servers are running in High Availability configuration
   (for example, in AWS auto-scaling group) you have to shrink the group to
   **just one auth server** before performing an upgrade. While Teleport will attempt to perform any necessary migrations, we recommend users create a backup of their backend before upgrading the Auth Server, as a
   precaution. This allows for a safe rollback in case the migration itself fails.
@@ -1862,7 +1866,8 @@ tctl --config fresh.yaml get all
 # <your state here!>
 ```
 
-The `--bootstrap` flag does not affect, except during backend initialization (performed by auth server on the first start), so it is safe for use in supervised/HA contexts.
+The `--bootstrap` flag has no effect, except during backend initialization (performed
+by auth server on first start), so it is safe for use in supervised/High Availability contexts.
 
 **Limitations**
 
