@@ -54,9 +54,15 @@ The documentation layout and structure is presently:
         - [x] Migration From Older Charts
 - [ ] Reference Section
     - [x] YAML
-        - [ ] Need full config here
+        - [ ] Need full config update here
+        - [ ] Specific configuration examples
+        - [ ] Full YAML example with tables
     - [x] CLI
         - [ ] Need full update here
+        - [ ] Common Commands / Cheat Sheet
+        - [ ] Teleport
+        - [ ] tsh
+        - [ ] tctl
     - [ ] Glossary (moved from admin guide)
         - [ ] Link terms in Getting Started Guides to here.
     - [x] Metrics
