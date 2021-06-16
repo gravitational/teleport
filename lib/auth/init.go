@@ -264,6 +264,8 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// The first Auth Server that starts gets to set the name of the cluster.
+	// If a cluster name/ID is already stored in the backend, the attempt to set
+	// a new name returns an AlreadyExists error.
 	err = asrv.SetClusterName(cfg.ClusterName)
 	if err != nil && !trace.IsAlreadyExists(err) {
 		return nil, trace.Wrap(err)
@@ -285,10 +287,9 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			log.Warnf(warnMessage,
 				cfg.ClusterName.GetClusterName(),
 				cn.GetClusterName())
-
-			// Override user passed in cluster name with what is in the backend.
-			cfg.ClusterName = cn
 		}
+		// Override user passed in cluster name with what is in the backend.
+		cfg.ClusterName = cn
 	}
 	log.Debugf("Cluster configuration: %v.", cfg.ClusterName)
 
@@ -1377,8 +1378,11 @@ func migrateClusterID(ctx context.Context, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if clusterName.GetClusterID() == clusterConfig.GetLegacyClusterID() {
+		return nil
+	}
 
-	log.Debugf("Migrating cluster ID %q from ClusterConfig to ClusterName.", clusterConfig.GetLegacyClusterID())
+	log.Infof("Migrating cluster ID %q from ClusterConfig to ClusterName.", clusterConfig.GetLegacyClusterID())
 
 	clusterName.SetClusterID(clusterConfig.GetLegacyClusterID())
 	if err := asrv.ClusterConfiguration.UpsertClusterName(clusterName); err != nil {

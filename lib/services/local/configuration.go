@@ -220,18 +220,35 @@ func (s *ClusterConfigurationService) DeleteAuthPreference(ctx context.Context) 
 
 // GetClusterConfig gets types.ClusterConfig from the backend.
 func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
+	var (
+		clusterConfig types.ClusterConfig
+		err           error
+	)
 	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, generalPrefix))
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("cluster configuration not found")
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
-		return nil, trace.Wrap(err)
+		// When there is no legacy ClusterConfig stored in the backend, supply
+		// a default ClusterConfig instead (to be filled with data from the other
+		// resources).  This helps keep backward compatibility when a non-upgraded
+		// v7.x auth server needs to work with v6.x cluster components.
+		clusterConfig = services.DefaultClusterConfig()
+	} else {
+		clusterConfig, err = services.UnmarshalClusterConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	clusterConfig, err := services.UnmarshalClusterConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+	// To ensure backward compatibility, extend the fetched ClusterConfig
+	// resource with the ID that is now stored in ClusterName.
+	// DELETE IN 8.0.0
+	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterConfig.SetLegacyClusterID(clusterName.GetClusterID())
 
 	// To ensure backward compatibility, extend the fetched ClusterConfig
 	// resource with the values that are now stored in ClusterAuditConfig.
@@ -314,7 +331,7 @@ func (s *ClusterConfigurationService) SetClusterConfig(c types.ClusterConfig) er
 }
 
 // ForceSetClusterConfig sets types.ClusterConfig on the backend
-// without legacy field checks.
+// without legacy field checks.  To be used in tests only.
 func (s *ClusterConfigurationService) ForceSetClusterConfig(c types.ClusterConfig) error {
 	value, err := services.MarshalClusterConfig(c)
 	if err != nil {

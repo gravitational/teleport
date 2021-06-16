@@ -520,9 +520,11 @@ message ClusterConfigSpecV3 {
 
     // ClusterID is the unique cluster ID that is set once during the first auth
     // server startup.
+    // DELETE IN 8.0.0
     string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
 
     // Audit is a section with audit config
+    // DELETE IN 8.0.0
     ClusterAuditConfigSpecV2 Audit = 4
         [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "audit,omitempty" ];
 

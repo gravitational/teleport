@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 )
 
 // ClusterName defines the name of the cluster. This is a configuration
@@ -159,7 +158,7 @@ func (c *ClusterNameV2) CheckAndSetDefaults() error {
 	}
 
 	if c.Spec.ClusterID == "" {
-		c.Spec.ClusterID = uuid.New()
+		return trace.BadParameter("cluster ID is required")
 	}
 
 	return nil

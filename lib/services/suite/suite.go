@@ -1140,8 +1140,19 @@ func CollectOptions(opts ...Option) Options {
 }
 
 // ClusterConfig tests cluster configuration.
-// TODO in 8.0.0: Test only the individual resources.
+// DELETE IN 8.0.0: Test only the individual resources.
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
+	// DELETE IN 8.0.0
+	const clusterID = "27"
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterID:   clusterID,
+		ClusterName: "example.com",
+	})
+	c.Assert(err, check.IsNil)
+	err = s.ConfigS.SetClusterName(clusterName)
+	c.Assert(err, check.IsNil)
+
+	// DELETE IN 8.0.0
 	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		Region:           "us-west-1",
 		Type:             "dynamodb",
@@ -1183,6 +1194,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	gotConfig, err := s.ConfigS.GetClusterConfig()
 	c.Assert(err, check.IsNil)
 	config.SetResourceID(gotConfig.GetResourceID())
+	config.SetLegacyClusterID(clusterID)
 	config.SetAuditConfig(auditConfig)
 	config.SetNetworkingFields(netConfig)
 	config.SetSessionRecordingFields(recConfig)

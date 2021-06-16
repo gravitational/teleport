@@ -36,11 +36,16 @@ type ClusterConfig interface {
 	// DELETE IN 8.0.0
 	GetLegacyClusterID() string
 
+	// SetLegacyClusterID sets the legacy cluster ID.
+	// DELETE IN 8.0.0
+	SetLegacyClusterID(string)
+
 	// HasAuditConfig returns true if audit configuration is set.
 	// DELETE IN 8.0.0
 	HasAuditConfig() bool
 
 	// SetAuditConfig sets audit configuration.
+	// To be used in tests only.
 	// DELETE IN 8.0.0
 	SetAuditConfig(ClusterAuditConfig) error
 
@@ -157,12 +162,6 @@ func (c *ClusterConfigV3) GetMetadata() Metadata {
 	return c.Metadata
 }
 
-// GetLegacyClusterID returns the legacy cluster ID.
-// DELETE IN 8.0.0
-func (c *ClusterConfigV3) GetLegacyClusterID() string {
-	return c.Spec.ClusterID
-}
-
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -174,6 +173,18 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 		c.Version = V3
 	}
 	return nil
+}
+
+// GetLegacyClusterID returns the legacy cluster ID.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) GetLegacyClusterID() string {
+	return c.Spec.ClusterID
+}
+
+// SetLegacyClusterID sets the legacy cluster ID.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) SetLegacyClusterID(id string) {
+	c.Spec.ClusterID = id
 }
 
 // HasAuditConfig returns true if audit configuration is set.
