@@ -37,6 +37,8 @@ roles in a Teleport cluster, an administrator can execute:
 tctl get roles
 ```
 
+(!docs/pages/includes/backup-warning.mdx!)
+
 By default there is always one role called `admin` which looks like this:
 
 ```yaml
@@ -174,7 +176,18 @@ The table below documents the behavior of each option if multiple roles are assi
 | `max_connections` | Limit on how many active SSH sessions can be started via Teleport | |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
 
-### Role Versions
+## Preset roles
+
+Teleport provides several pre-defined roles out-of-the-box:
+
+| Role | Description |
+| --- | --- |
+| `admin` | Allows complete control over cluster settings, resources, and events. |
+| `editor` | Allows editing of cluster configuration settings. |
+| `auditor`| Allows reading cluster events, audit logs, and playing back session records. | 
+| `access`| Allows access to cluster resources. |
+
+### Role versions
 
 There are currently two supported role versions: `v3` and `v4`. `v4` roles are
 completely backwards-compatible with `v3`, the only difference lies in the
@@ -188,7 +201,7 @@ Label              | `v3` Default   | `v4` Default
 `kubernetes_labels` | `[{"*": "*"}]` | `[]`
 `database_labels`   | `[{"*": "*"}]` | `[]`
 
-## RBAC for Hosts
+## RBAC for hosts
 
 A Teleport role can also define which hosts (nodes) a user can have access to.
 This works by [labeling nodes](../admin-guide.mdx#labeling-nodes-and-applications) and listing
