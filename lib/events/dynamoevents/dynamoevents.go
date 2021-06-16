@@ -26,6 +26,7 @@ import (
 	"math"
 	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -739,18 +740,21 @@ func (notReadyYetError) Error() string {
 	return "The DynamoDB event backend is not ready to accept queries yet. Please retry in a couple of seconds."
 }
 
+// eventFilterList constructs a string of the form
+// "(:eventTypeN, :eventTypeN, ...)" where N is a succession of integers
+// starting from 0. The substrings :eventTypeN are automatically generated
+// variable names that are valid with in the DynamoDB query language.
+// The function generates a list of amount of these :eventTypeN variables that is a valid
+// list literal in the DynamoDB query language. In order for this list to work the request
+// needs to be supplied with the variable values for the event types you wish to fill the list with.
+//
+// The reason that this doesn't fill in the values as literals within the list is to prevent injection attacks.
 func eventFilterList(amount int) string {
-	list := "("
-
-	if amount != 0 {
-		list += ":eventType0"
+	var eventTypes []string
+	for i := 0; i < amount; i++ {
+		eventTypes = append(eventTypes, fmt.Sprintf(":eventType%d", i))
 	}
-
-	for i := 1; i < amount; i++ {
-		list += fmt.Sprintf(", :eventType%d", i)
-	}
-
-	return list + ")"
+	return "(" + strings.Join(eventTypes, ", ") + ")"
 }
 
 // searchEventsRaw is a low level function for searching for events. This is kept
