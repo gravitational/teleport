@@ -42,10 +42,6 @@ type SessionRecordingConfig interface {
 
 	// SetProxyChecksHostKeys sets if the proxy will check host keys.
 	SetProxyChecksHostKeys(bool)
-
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for SessionRecordingConfig.
-	CheckAndSetDefaults() error
 }
 
 // NewSessionRecordingConfigFromConfigFile is a convenience method to create
@@ -67,7 +63,7 @@ func DefaultSessionRecordingConfig() SessionRecordingConfig {
 // newSessionRecordingConfigWithLabels is a convenience method to create
 // SessionRecordingConfigV2 with a specific map of labels.
 func newSessionRecordingConfigWithLabels(spec SessionRecordingConfigSpecV2, labels map[string]string) (SessionRecordingConfig, error) {
-	recConfig := SessionRecordingConfigV2{
+	recConfig := &SessionRecordingConfigV2{
 		Kind:    KindSessionRecordingConfig,
 		Version: V2,
 		Metadata: Metadata{
@@ -81,7 +77,7 @@ func newSessionRecordingConfigWithLabels(spec SessionRecordingConfigSpecV2, labe
 	if err := recConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &recConfig, nil
+	return recConfig, nil
 }
 
 // GetVersion returns resource version.

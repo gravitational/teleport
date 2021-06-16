@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"crypto/ecdsa"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -139,6 +138,9 @@ type InitConfig struct {
 	// ClusterConfig holds cluster level configuration.
 	ClusterConfig types.ClusterConfig
 
+	// ClusterAuditConfig holds cluster audit configuration.
+	ClusterAuditConfig types.ClusterAuditConfig
+
 	// ClusterNetworkingConfig holds cluster networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
 
@@ -241,6 +243,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		log.Infof("Created reverse tunnel: %v.", tunnel)
 	}
 
+	err = asrv.SetClusterAuditConfig(ctx, cfg.ClusterAuditConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err = initSetClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -326,7 +333,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// generate a user certificate authority if it doesn't exist
-	userCA, err := asrv.GetCertAuthority(types.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: types.UserCA}, true)
+	_, err = asrv.GetCertAuthority(types.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: types.UserCA}, true)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -358,35 +365,33 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				Namespace: apidefaults.Namespace,
 			},
 			Spec: types.CertAuthoritySpecV2{
-				ClusterName:  cfg.ClusterName.GetClusterName(),
-				Type:         types.UserCA,
-				SigningKeys:  [][]byte{priv},
-				SigningAlg:   sshutils.ParseSigningAlg(sigAlg),
-				CheckingKeys: [][]byte{pub},
-				TLSKeyPairs:  []types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
+				ClusterName: cfg.ClusterName.GetClusterName(),
+				Type:        types.UserCA,
+				ActiveKeys: types.CAKeySet{
+					SSH: []*types.SSHKeyPair{{
+						PrivateKey: priv,
+						// TODO: update when HSMs are supported in the config
+						PrivateKeyType: types.PrivateKeyType_RAW,
+						PublicKey:      pub,
+					}},
+					TLS: []*types.TLSKeyPair{{
+						Cert: certPEM,
+						Key:  keyPEM,
+						// TODO: update when HSMs are supported in the config
+						KeyType: types.PrivateKeyType_RAW,
+					}},
+				},
+				SigningAlg: sshutils.ParseSigningAlg(sigAlg),
 			},
 		}
 
 		if err := asrv.Trust.UpsertCertAuthority(userCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if len(userCA.GetTLSKeyPairs()) == 0 {
-		log.Infof("Migrate: generating TLS CA for existing user CA.")
-		keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-			CommonName:   cfg.ClusterName.GetClusterName(),
-			Organization: []string{cfg.ClusterName.GetClusterName()},
-		}, nil, defaults.CATTL)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		userCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
-		if err := asrv.Trust.UpsertCertAuthority(userCA); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	// generate a host certificate authority if it doesn't exist
-	hostCA, err := asrv.GetCertAuthority(types.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: types.HostCA}, true)
+	_, err = asrv.GetCertAuthority(types.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: types.HostCA}, true)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -410,7 +415,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			sigAlg = *cfg.CASigningAlg
 		}
 
-		hostCA = &types.CertAuthorityV2{
+		hostCA := &types.CertAuthorityV2{
 			Kind:    types.KindCertAuthority,
 			Version: types.V2,
 			Metadata: types.Metadata{
@@ -418,52 +423,42 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				Namespace: apidefaults.Namespace,
 			},
 			Spec: types.CertAuthoritySpecV2{
-				ClusterName:  cfg.ClusterName.GetClusterName(),
-				Type:         types.HostCA,
-				SigningKeys:  [][]byte{priv},
-				SigningAlg:   sshutils.ParseSigningAlg(sigAlg),
-				CheckingKeys: [][]byte{pub},
-				TLSKeyPairs:  []types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
+				ClusterName: cfg.ClusterName.GetClusterName(),
+				Type:        types.HostCA,
+				ActiveKeys: types.CAKeySet{
+					SSH: []*types.SSHKeyPair{{
+						PrivateKey: priv,
+						// TODO: update when HSMs are supported in the config
+						PrivateKeyType: types.PrivateKeyType_RAW,
+						PublicKey:      pub,
+					}},
+					TLS: []*types.TLSKeyPair{{
+						Cert: certPEM,
+						Key:  keyPEM,
+						// TODO: update when HSMs are supported in the config
+						KeyType: types.PrivateKeyType_RAW,
+					}},
+				},
+				SigningAlg: sshutils.ParseSigningAlg(sigAlg),
 			},
 		}
-		if err := asrv.Trust.UpsertCertAuthority(hostCA); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else if len(hostCA.GetTLSKeyPairs()) == 0 {
-		log.Infof("Migrate: generating TLS CA for existing host CA.")
-		privateKey, err := ssh.ParseRawPrivateKey(hostCA.GetSigningKeys()[0])
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		privateKeyRSA, ok := privateKey.(*rsa.PrivateKey)
-		if !ok {
-			return nil, trace.BadParameter("expected RSA private key, got %T", privateKey)
-		}
-		keyPEM, certPEM, err := tlsca.GenerateSelfSignedCAWithPrivateKey(privateKeyRSA, pkix.Name{
-			CommonName:   cfg.ClusterName.GetClusterName(),
-			Organization: []string{cfg.ClusterName.GetClusterName()},
-		}, nil, defaults.CATTL)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		hostCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
 		if err := asrv.Trust.UpsertCertAuthority(hostCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	// If a JWT signer does not exist for this cluster, create one.
-	jwtSigner, err := asrv.GetCertAuthority(types.CertAuthID{
+	_, err = asrv.GetCertAuthority(types.CertAuthID{
 		DomainName: cfg.ClusterName.GetClusterName(),
 		Type:       types.JWTSigner,
 	}, true)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	if trace.IsNotFound(err) || len(jwtSigner.GetJWTKeyPairs()) == 0 {
+	if trace.IsNotFound(err) {
 		log.Infof("Migrate: Adding JWT key to existing cluster %q.", cfg.ClusterName.GetClusterName())
 
-		jwtSigner, err = services.NewJWTAuthority(cfg.ClusterName.GetClusterName())
+		jwtSigner, err := services.NewJWTAuthority(cfg.ClusterName.GetClusterName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -610,6 +605,10 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 
 	if err := migrateMFADevices(ctx, asrv); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if err := migrateCertAuthorities(ctx, asrv); err != nil {
+		return trace.Wrap(err, "fail to migrate certificate authorities to the v7 storage format: %v; please report this at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md including the *redacted* output of 'tctl get cert_authority'", err)
 	}
 
 	return nil
@@ -840,7 +839,7 @@ func checkResourceConsistency(clusterName string, resources ...types.Resource) e
 			// all CAs for this cluster do having signing keys.
 			seemsLocal := r.GetClusterName() == clusterName
 			var hasKeys bool
-			_, err := r.FirstSigningKey()
+			_, err := sshPrivateKey(r)
 			switch {
 			case err == nil:
 				hasKeys = true
@@ -940,7 +939,7 @@ func TLSCertInfo(cert *tls.Certificate) string {
 // CertAuthorityInfo returns debugging information about certificate authority
 func CertAuthorityInfo(ca types.CertAuthority) string {
 	var out []string
-	for _, keyPair := range ca.GetTLSKeyPairs() {
+	for _, keyPair := range ca.GetTrustedTLSKeyPairs() {
 		cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 		if err != nil {
 			out = append(out, err.Error())
@@ -1364,5 +1363,62 @@ func migrateMFADevices(ctx context.Context, asrv *Server) error {
 		}
 	}
 
+	return nil
+}
+
+// DELETE IN: 8.0.0
+// migrateCertAuthorities migrates the keypair storage format in cert
+// authorities to the new format.
+func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
+	var errors []error
+	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
+		cas, err := asrv.GetCertAuthorities(caType, true)
+		if err != nil {
+			errors = append(errors, trace.Wrap(err, "fetching %v CAs", caType))
+			continue
+		}
+		for _, ca := range cas {
+			if err := migrateCertAuthority(ctx, asrv, ca); err != nil {
+				errors = append(errors, trace.Wrap(err, "failed to migrate %v: %v", ca, err))
+				continue
+			}
+		}
+	}
+	if len(errors) > 0 {
+		log.Errorf("Failed to migrate certificate authorities to the v7 storage format.")
+		log.Errorf("Please report the *exact* errors below and *redacted* output of 'tctl get cert_authority' at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md")
+		for _, err := range errors {
+			log.Errorf("    %v", err)
+		}
+		return trace.Errorf("fail to migrate certificate authorities to the v7 storage format")
+	}
+	return nil
+}
+
+func migrateCertAuthority(ctx context.Context, asrv *Server, ca types.CertAuthority) error {
+	// Check if we need to migrate.
+	if ks := ca.GetActiveKeys(); len(ks.TLS) != 0 || len(ks.SSH) != 0 || len(ks.JWT) != 0 {
+		// Already using the new format.
+		return nil
+	}
+	log.Infof("Migrating %v to 7.0 storage format.", ca)
+	// CA rotation can cause weird edge cases during migration, don't allow
+	// rotation and migration in parallel.
+	if ca.GetRotation().State == types.RotationStateInProgress {
+		return trace.BadParameter("CA rotation is in progress; please finish CA rotation before upgrading teleport")
+	}
+
+	if err := services.FillNewCertAuthorityKeys(ca); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Sanity-check and upsert the modified CA.
+	if err := services.ValidateCertAuthority(ca); err != nil {
+		return trace.Wrap(err, "the migrated CA is invalid: %v", err)
+	}
+	if err := asrv.UpsertCertAuthority(ca); err != nil {
+		return trace.Wrap(err, "failed storing the migrated CA: %v", err)
+	}
+	log.Infof("Successfully migrated %v to 7.0 storage format.", ca)
 	return nil
 }

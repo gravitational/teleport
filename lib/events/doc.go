@@ -158,7 +158,7 @@ emitted by print event with chunk index 0
 
 **Multiple Auth Servers**
 
-In high availability mode scenario, multiple auth servers will be
+In High Availability mode scenario, multiple auth servers will be
  deployed behind a load balancer.
 
 Any auth server can go down during session and clients will retry the delivery

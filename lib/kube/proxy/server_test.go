@@ -51,10 +51,12 @@ func TestMTLSClientCAs(t *testing.T) {
 		ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
 			Type:        types.HostCA,
 			ClusterName: name,
-			TLSKeyPairs: []types.TLSKeyPair{{
-				Cert: cert,
-				Key:  key,
-			}},
+			ActiveKeys: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  key,
+				}},
+			},
 		})
 		ap.cas[name] = ca
 		return key, cert

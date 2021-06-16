@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -55,29 +56,10 @@ func NewJWTAuthority(clusterName string) (types.CertAuthority, error) {
 	return types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.JWTSigner,
 		ClusterName: clusterName,
-		JWTKeyPairs: []types.JWTKeyPair{keyPair},
+		ActiveKeys: types.CAKeySet{
+			JWT: []*types.JWTKeyPair{&keyPair},
+		},
 	}), nil
-}
-
-// NewCertAuthority returns new cert authority.
-// Replaced by types.NewCertAuthority.
-// DELETE in 7.0.0
-func NewCertAuthority(
-	caType types.CertAuthType,
-	clusterName string,
-	signingKeys [][]byte,
-	checkingKeys [][]byte,
-	roles []string,
-	signingAlg types.CertAuthoritySpecV2_SigningAlgType,
-) types.CertAuthority {
-	return types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         caType,
-		ClusterName:  clusterName,
-		SigningKeys:  signingKeys,
-		CheckingKeys: checkingKeys,
-		Roles:        roles,
-		SigningAlg:   signingAlg,
-	})
 }
 
 // ValidateCertAuthority validates the CertAuthority
@@ -96,17 +78,21 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 	return trace.Wrap(err)
 }
 
-func checkUserOrHostCA(ca types.CertAuthority) error {
-	if len(ca.GetCheckingKeys()) == 0 {
-		return trace.BadParameter("certificate authority missing SSH public keys")
+func checkUserOrHostCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
 	}
-	if len(ca.GetTLSKeyPairs()) == 0 {
+	if len(ca.Spec.ActiveKeys.SSH) == 0 && len(ca.Spec.CheckingKeys) == 0 {
+		return trace.BadParameter("certificate authority missing SSH key pairs")
+	}
+	if len(ca.Spec.ActiveKeys.TLS) == 0 && len(ca.Spec.TLSKeyPairs) == 0 {
 		return trace.BadParameter("certificate authority missing TLS key pairs")
 	}
 	if _, err := sshutils.GetCheckers(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := sshutils.GetSigners(ca); err != nil {
+	if err := sshutils.ValidateSigners(ca); err != nil {
 		return trace.Wrap(err)
 	}
 	// This is to force users to migrate
@@ -117,9 +103,13 @@ func checkUserOrHostCA(ca types.CertAuthority) error {
 	return trace.Wrap(err)
 }
 
-func checkJWTKeys(ca types.CertAuthority) error {
+func checkJWTKeys(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
 	// Check that some JWT keys have been set on the CA.
-	if len(ca.GetJWTKeyPairs()) == 0 {
+	if len(ca.Spec.ActiveKeys.JWT) == 0 && len(ca.Spec.JWTKeyPairs) == 0 {
 		return trace.BadParameter("missing JWT CA")
 	}
 
@@ -127,7 +117,7 @@ func checkJWTKeys(ca types.CertAuthority) error {
 	var privateKey crypto.Signer
 
 	// Check that the JWT keys set are valid.
-	for _, pair := range ca.GetJWTKeyPairs() {
+	for _, pair := range ca.GetTrustedJWTKeyPairs() {
 		if len(pair.PrivateKey) > 0 {
 			privateKey, err = utils.ParsePrivateKey(pair.PrivateKey)
 			if err != nil {
@@ -154,10 +144,10 @@ func checkJWTKeys(ca types.CertAuthority) error {
 
 // GetJWTSigner returns the active JWT key used to sign tokens.
 func GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, error) {
-	if len(ca.GetJWTKeyPairs()) == 0 {
+	if len(ca.GetActiveKeys().JWT) == 0 {
 		return nil, trace.BadParameter("no JWT keypairs found")
 	}
-	privateKey, err := utils.ParsePrivateKey(ca.GetJWTKeyPairs()[0].PrivateKey)
+	privateKey, err := utils.ParsePrivateKey(ca.GetActiveKeys().JWT[0].PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,10 +165,20 @@ func GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, erro
 
 // GetTLSCerts returns TLS certificates from CA
 func GetTLSCerts(ca types.CertAuthority) [][]byte {
-	pairs := ca.GetTLSKeyPairs()
+	pairs := ca.GetTrustedTLSKeyPairs()
 	out := make([][]byte, len(pairs))
 	for i, pair := range pairs {
 		out[i] = append([]byte{}, pair.Cert...)
+	}
+	return out
+}
+
+// GetSSHCheckingKeys returns SSH public keys from CA
+func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
+	pairs := ca.GetTrustedSSHKeyPairs()
+	out := make([][]byte, 0, len(pairs))
+	for _, pair := range pairs {
+		out = append(out, append([]byte{}, pair.PublicKey...))
 	}
 	return out
 }
@@ -300,7 +300,7 @@ func (c *UserCertParams) CheckAndSetDefaults() error {
 func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, error) {
 	certPool := x509.NewCertPool()
 	for _, ca := range cas {
-		keyPairs := ca.GetTLSKeyPairs()
+		keyPairs := ca.GetTrustedTLSKeyPairs()
 		if len(keyPairs) == 0 {
 			continue
 		}
@@ -318,7 +318,7 @@ func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, err
 // CertPool returns certificate pools from TLS certificates
 // set up in the certificate authority
 func CertPool(ca types.CertAuthority) (*x509.CertPool, error) {
-	keyPairs := ca.GetTLSKeyPairs()
+	keyPairs := ca.GetTrustedTLSKeyPairs()
 	if len(keyPairs) == 0 {
 		return nil, trace.BadParameter("certificate authority has no TLS certificates")
 	}
@@ -399,8 +399,71 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 			copy.SetResourceID(0)
 			certAuthority = &copy
 		}
+		if err := FillOldCertAuthorityKeys(certAuthority); err != nil {
+			return nil, trace.Wrap(err, "failed to populate old CertAuthority keys for %v: %v", certAuthority, err)
+		}
 		return utils.FastMarshal(certAuthority)
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}
+}
+
+func FillNewCertAuthorityKeys(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown type %T", cai)
+	}
+
+	// Reset any old state.
+	ca.Spec.ActiveKeys = types.CAKeySet{}
+	ca.Spec.AdditionalTrustedKeys = types.CAKeySet{}
+
+	// Convert all the keypair fields to new format.
+	if len(ca.Spec.SigningKeys) != len(ca.Spec.CheckingKeys) {
+		return trace.BadParameter("mis-matched SSH private (%d) and public (%d) key counts", len(ca.Spec.SigningKeys), len(ca.Spec.CheckingKeys))
+	}
+	for i := range ca.Spec.SigningKeys {
+		ca.Spec.ActiveKeys.SSH = append(ca.Spec.ActiveKeys.SSH, &types.SSHKeyPair{
+			PrivateKeyType: types.PrivateKeyType_RAW,
+			PrivateKey:     apiutils.CopyByteSlice(ca.Spec.SigningKeys[i]),
+			PublicKey:      apiutils.CopyByteSlice(ca.Spec.CheckingKeys[i]),
+		})
+	}
+	for _, kp := range ca.Spec.TLSKeyPairs {
+		ca.Spec.ActiveKeys.TLS = append(ca.Spec.ActiveKeys.TLS, kp.Clone())
+	}
+	for _, kp := range ca.Spec.JWTKeyPairs {
+		ca.Spec.ActiveKeys.JWT = append(ca.Spec.ActiveKeys.JWT, kp.Clone())
+	}
+	return nil
+}
+
+func FillOldCertAuthorityKeys(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown type %T", cai)
+	}
+	// Reset any old state.
+	ca.Spec.SigningKeys = nil
+	ca.Spec.CheckingKeys = nil
+	ca.Spec.TLSKeyPairs = nil
+	ca.Spec.JWTKeyPairs = nil
+
+	// Convert all the keypair fields to new format.
+	for _, ks := range []types.CAKeySet{ca.Spec.ActiveKeys, ca.Spec.AdditionalTrustedKeys} {
+		for _, kp := range ks.SSH {
+			ca.Spec.CheckingKeys = append(ca.Spec.CheckingKeys, apiutils.CopyByteSlice(kp.PublicKey))
+			// PrivateKey may be empty.
+			if len(kp.PrivateKey) > 0 {
+				ca.Spec.SigningKeys = append(ca.Spec.SigningKeys, apiutils.CopyByteSlice(kp.PrivateKey))
+			}
+		}
+		for _, kp := range ks.TLS {
+			ca.Spec.TLSKeyPairs = append(ca.Spec.TLSKeyPairs, *kp.Clone())
+		}
+		for _, kp := range ks.JWT {
+			ca.Spec.JWTKeyPairs = append(ca.Spec.JWTKeyPairs, *kp.Clone())
+		}
+	}
+	return nil
 }
