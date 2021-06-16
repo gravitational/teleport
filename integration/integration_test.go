@@ -1793,18 +1793,18 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 
 	// make sure both clusters have the right certificate authorities with the right signing keys.
 	var tests = []struct {
-		name             string
-		mainClusterName  string
-		auxClusterName   string
-		inCluster        *TeleInstance
-		outChkMainUserCA require.ErrorAssertionFunc
-		outLenMainUserCA int
-		outChkMainHostCA require.ErrorAssertionFunc
-		outLenMainHostCA int
-		outChkAuxUserCA  require.ErrorAssertionFunc
-		outLenAuxUserCA  int
-		outChkAuxHostCA  require.ErrorAssertionFunc
-		outLenAuxHostCA  int
+		name                       string
+		mainClusterName            string
+		auxClusterName             string
+		inCluster                  *TeleInstance
+		outChkMainUserCA           require.ErrorAssertionFunc
+		outChkMainUserCAPrivateKey require.ValueAssertionFunc
+		outChkMainHostCA           require.ErrorAssertionFunc
+		outChkMainHostCAPrivateKey require.ValueAssertionFunc
+		outChkAuxUserCA            require.ErrorAssertionFunc
+		outChkAuxUserCAPrivateKey  require.ValueAssertionFunc
+		outChkAuxHostCA            require.ErrorAssertionFunc
+		outChkAuxHostCAPrivateKey  require.ValueAssertionFunc
 	}{
 		// 0 - main
 		//   * User CA for main has one signing key.
@@ -1812,14 +1812,18 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 		//   * User CA for aux does not exist.
 		//   * Host CA for aux has no signing keys.
 		{
-			"main",
-			main.Secrets.SiteName,
-			aux.Secrets.SiteName,
-			main,
-			require.NoError, 1,
-			require.NoError, 1,
-			require.Error, 0,
-			require.NoError, 0,
+			name:                       "main",
+			mainClusterName:            main.Secrets.SiteName,
+			auxClusterName:             aux.Secrets.SiteName,
+			inCluster:                  main,
+			outChkMainUserCA:           require.NoError,
+			outChkMainUserCAPrivateKey: require.NotEmpty,
+			outChkMainHostCA:           require.NoError,
+			outChkMainHostCAPrivateKey: require.NotEmpty,
+			outChkAuxUserCA:            require.Error,
+			outChkAuxUserCAPrivateKey:  require.Empty,
+			outChkAuxHostCA:            require.NoError,
+			outChkAuxHostCAPrivateKey:  require.Empty,
 		},
 		// 1 - aux
 		//   * User CA for main has no signing keys.
@@ -1827,14 +1831,18 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 		//   * User CA for aux has one signing key.
 		//   * Host CA for aux has one signing key.
 		{
-			"aux",
-			trustedCluster.GetName(),
-			aux.Secrets.SiteName,
-			aux,
-			require.NoError, 0,
-			require.NoError, 0,
-			require.NoError, 1,
-			require.NoError, 1,
+			name:                       "aux",
+			mainClusterName:            trustedCluster.GetName(),
+			auxClusterName:             aux.Secrets.SiteName,
+			inCluster:                  aux,
+			outChkMainUserCA:           require.NoError,
+			outChkMainUserCAPrivateKey: require.Empty,
+			outChkMainHostCA:           require.NoError,
+			outChkMainHostCAPrivateKey: require.Empty,
+			outChkAuxUserCA:            require.NoError,
+			outChkAuxUserCAPrivateKey:  require.NotEmpty,
+			outChkAuxHostCA:            require.NoError,
+			outChkAuxHostCAPrivateKey:  require.NotEmpty,
 		},
 	}
 
@@ -1844,28 +1852,28 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 			mainUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkMainUserCA(t, err)
 			if err == nil {
-				require.Len(t, mainUserCAs.GetSigningKeys(), tt.outLenMainUserCA)
+				tt.outChkMainUserCAPrivateKey(t, mainUserCAs.GetActiveKeys().SSH[0].PrivateKey)
 			}
 
 			cid = types.CertAuthID{Type: types.HostCA, DomainName: tt.mainClusterName}
 			mainHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkMainHostCA(t, err)
 			if err == nil {
-				require.Len(t, mainHostCAs.GetSigningKeys(), tt.outLenMainHostCA)
+				tt.outChkMainHostCAPrivateKey(t, mainHostCAs.GetActiveKeys().SSH[0].PrivateKey)
 			}
 
 			cid = types.CertAuthID{Type: types.UserCA, DomainName: tt.auxClusterName}
 			auxUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkAuxUserCA(t, err)
 			if err == nil {
-				require.Len(t, auxUserCAs.GetSigningKeys(), tt.outLenAuxUserCA, "Aux User CA")
+				tt.outChkAuxUserCAPrivateKey(t, auxUserCAs.GetActiveKeys().SSH[0].PrivateKey)
 			}
 
 			cid = types.CertAuthID{Type: types.HostCA, DomainName: tt.auxClusterName}
 			auxHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkAuxHostCA(t, err)
 			if err == nil {
-				require.Len(t, auxHostCAs.GetSigningKeys(), tt.outLenAuxHostCA, "Aux Host CA")
+				tt.outChkAuxHostCAPrivateKey(t, auxHostCAs.GetActiveKeys().SSH[0].PrivateKey)
 			}
 		})
 	}

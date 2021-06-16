@@ -33,6 +33,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
@@ -48,9 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -1217,7 +1218,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	}
 
 	tlsClientConfig := rest.TLSClientConfig{
-		CAData:   ca.GetTLSKeyPairs()[0].Cert,
+		CAData:   ca.GetActiveKeys().TLS[0].Cert,
 		CertData: cert,
 		KeyData:  privPEM,
 	}
