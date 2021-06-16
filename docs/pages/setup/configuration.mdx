@@ -3,11 +3,11 @@ title: Teleport Configuration
 description: A general guide to common Teleport configuration scenarios and questions.
 ---
 
-This guide is intended to address several common scenario's you're likely to encounter when setting up Teleport for the first time.
+This guide is intended to address several common scenarios you're likely to encounter when setting up Teleport for the first time.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-## ACME
+## Let's Encrypt ACME
 
 By default, Teleport requires a valid TLS certificate to operate and can fetch one automatically
 using the [Let's Encrypt ACME](https://letsencrypt.org/how-it-works/) standard through a [TLS_ALPN-01](https://datatracker.ietf.org/doc/html/rfc8737) challenge.
@@ -48,13 +48,32 @@ proxy_service:
      192.168.1.1
 
      # Good
+     example.com
      tele.example.com
-     test.website.com
      subdomain.domain.net
      ```
 
   3. The Teleport Proxy Node (`public_addr`) must be publicly accessible over port `443`.
 </Admonition>
+
+## Subdomain configuration
+
+If you foresee a significant amount of testing or testing using many Teleport Nodes, you'll likely want to configure TLS by subdomain name (rather than domain name). 
+
+Doing so will allow you to use the same, top-level, domain name but avoid rate-limiting and some cross-site restrictions when testing.
+
+To add a subdomain to your existing domain name (`example.com`):
+
+1. Create an `A` record in your domain registrar entry for the new subdomain (`tele`).
+2. Supply the relevant IP address as the `A` record value for the new subdomain.
+
+<Figure
+  align="center"
+  bordered
+  caption="Subdomain and IP mapping"
+>
+  ![Subdomain and IP mapping](../../img/server-access/subdomains.png)
+</Figure>
 
 ## The insecure flag
 
@@ -72,7 +91,7 @@ There are generally two places where you'll likely disable this feature:
   tsh login --proxy=localhost:3080 --insecure --user=testuser
   ```
 
-2. Pass the flag when starting a Teleport Node through the command-line: 
+2. Pass the flag when starting a Teleport Node through the command line: 
 
   ```bash
   sudo teleport start --insecure
