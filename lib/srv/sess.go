@@ -766,6 +766,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		},
 		TerminalSize:     params.Serialize(),
 		SessionRecording: ctx.ClusterConfig.GetSessionRecording(),
+		AccessRequests:   ctx.Identity.ActiveRequests,
 	}
 
 	// Local address only makes sense for non-tunnel nodes.
@@ -910,6 +911,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		SessionRecording: ctx.ClusterConfig.GetSessionRecording(),
+		AccessRequests:   ctx.Identity.ActiveRequests,
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
