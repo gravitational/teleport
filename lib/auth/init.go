@@ -139,6 +139,9 @@ type InitConfig struct {
 	// ClusterConfig holds cluster level configuration.
 	ClusterConfig types.ClusterConfig
 
+	// ClusterAuditConfig holds cluster audit configuration.
+	ClusterAuditConfig types.ClusterAuditConfig
+
 	// ClusterNetworkingConfig holds cluster networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
 
@@ -239,6 +242,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		log.Infof("Created reverse tunnel: %v.", tunnel)
+	}
+
+	err = asrv.SetClusterAuditConfig(ctx, cfg.ClusterAuditConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	err = initSetClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig)
