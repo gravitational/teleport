@@ -178,8 +178,8 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	</md:EntityDescriptor>`
 
 	signingKeypair := &types.AsymmetricKeyPair{
-		Cert:       fixtures.SigningCertPEM,
-		PrivateKey: fixtures.SigningKeyPEM,
+		Cert:       fixtures.TLSCACertPEM,
+		PrivateKey: fixtures.TLSCAKeyPEM,
 	}
 
 	encryptionKeypair := &types.AsymmetricKeyPair{
