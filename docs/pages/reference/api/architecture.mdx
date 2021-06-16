@@ -20,6 +20,8 @@ as well as carefully control client permissions.
 For example, if your client needs to use `client.GetRole()`, the user must have permission to perform the `read` 
 action on the `role` resource. You should create a user and role with the minimum permissions required.
 
+(!docs/pages/includes/permission-warning.mdx!)
+
 ```bash
 # Copy and Paste the below and run on the Teleport Auth server.
 cat > api-role.yaml <<EOF
