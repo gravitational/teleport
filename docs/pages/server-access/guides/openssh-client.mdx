@@ -8,7 +8,7 @@ Teleport is fully compatible with a range of SSH clients (including OpenSSH) so 
 This document describes:
 
 1. How to configure an environment to use OpenSSH to connect to Teleport SSH Nodes.
-2. Notes key differences between OpenSSH and Teleport tsh along the way.
+2. Notes key differences between OpenSSH and Teleport `tsh` along the way.
 
 (!docs/pages/includes/backup-warning.mdx!)
 
@@ -16,12 +16,8 @@ This document describes:
 
 There are a few differences between Teleport's `tsh` and OpenSSH's `ssh`:
 
-1. `tsh` always requires the `--proxy` flag because `tsh` needs to know which cluster you are connecting to. But if you execute `tsh --proxy=xxx login`,
-   the current proxy will be saved in your `~/.tsh` profile and won't be needed for other `tsh` commands.
-2. `tsh ssh` operates *two* usernames: one for the cluster and another for the node you are trying to log into. See [User Identities](../../user-manual.mdx#user-identities)
-   section below. For convenience, `tsh` assumes `$USER` for both by default.
-   But again, if you use `tsh login` before `tsh ssh`, your Teleport username
-   will be stored in `~/.tsh`.
+1. `tsh` always requires the `--proxy` flag because `tsh` needs to know which cluster you are connecting to. However, once you execute `tsh --proxy=xxx login`, the current proxy address will be saved in your `~/.tsh` profile and won't be needed for subsequent `tsh` commands.
+2. `tsh ssh` operates *two* usernames: one for the cluster and another for the node you are trying to log into. (Read [User Identities](../../user-manual.mdx#user-identities) for more information.) For convenience, `tsh` assumes `$USER` for both by default. However, if you use `tsh login` before the `tsh ssh` command, your Teleport username will be stored in `~/.tsh` and will override this default.
 
 If you'd like to set the login name that should be used by default on the remote host, you can set the `TELEPORT_LOGIN` environment variable.
 
