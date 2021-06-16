@@ -197,6 +197,9 @@ const (
 	// KindBilling represents access to cloud billing features
 	KindBilling = "billing"
 
+	// V4 is the fourth version of resources.
+	V4 = "v4"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 

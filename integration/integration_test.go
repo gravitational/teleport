@@ -45,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -1146,7 +1147,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	comment := check.Commentf(tc.comment)
 
 	username := s.me.Username
-	role, err := services.NewRole("devs", services.RoleSpecV3{
+	role, err := services.NewRole("devs", types.RoleSpecV4{
 		Options: tc.options,
 		Allow: services.RoleConditions{
 			Logins: []string{username},
@@ -1699,7 +1700,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
+	role, err := services.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -1727,7 +1728,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
+	role, err = services.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -1998,7 +1999,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	devsRole, err := services.NewRole(mainDevs, services.RoleSpecV3{
+	devsRole, err := services.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2013,7 +2014,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 
 	mainAdmins := "main-admins"
-	adminsRole, err := services.NewRole(mainAdmins, services.RoleSpecV3{
+	adminsRole, err := services.NewRole(mainAdmins, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{"superuser"},
 		},
@@ -2024,7 +2025,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// Ops users can only access remote clusters with label 'access': 'ops'
 	mainOps := "main-ops"
-	mainOpsRole, err := services.NewRole(mainOps, services.RoleSpecV3{
+	mainOpsRole, err := services.NewRole(mainOps, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins:        []string{username},
 			ClusterLabels: services.Labels{"access": []string{"ops"}},
@@ -2053,7 +2054,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	auxRole, err := services.NewRole(auxDevs, services.RoleSpecV3{
+	auxRole, err := services.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2240,7 +2241,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
+	role, err := services.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2268,7 +2269,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
+	role, err = services.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -3752,7 +3753,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
+	role, err := services.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{s.me.Username},
 		},
@@ -3770,7 +3771,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
+	role, err = services.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{s.me.Username},
 		},
@@ -4416,7 +4417,7 @@ func (s *IntSuite) TestList(c *check.C) {
 
 	for _, tt := range tests {
 		// Create role with logins and labels for this test.
-		role, err := services.NewRole(tt.inRoleName, services.RoleSpecV3{
+		role, err := services.NewRole(tt.inRoleName, types.RoleSpecV4{
 			Allow: services.RoleConditions{
 				Logins:     []string{tt.inLogin},
 				NodeLabels: tt.inLabels,
