@@ -1152,14 +1152,9 @@ func CollectOptions(opts ...Option) Options {
 // DELETE IN 8.0.0: Test only the individual resources.
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	// DELETE IN 8.0.0
-	const clusterID = "27"
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   clusterID,
-		ClusterName: "example.com",
-	})
+	clusterName, err := s.ConfigS.GetClusterName()
 	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetClusterName(clusterName)
-	c.Assert(err, check.IsNil)
+	clusterID := clusterName.GetClusterID()
 
 	// DELETE IN 8.0.0
 	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
@@ -1225,7 +1220,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 // ClusterName tests cluster name.
 func (s *ServicesTestSuite) ClusterName(c *check.C, opts ...Option) {
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   "27",
+		ClusterID:   uuid.New(),
 		ClusterName: "example.com",
 	})
 	c.Assert(err, check.IsNil)
@@ -1837,6 +1832,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 			},
 			crud: func(context.Context) types.Resource {
 				clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+					ClusterID:   uuid.New(),
 					ClusterName: "example.com",
 				})
 				c.Assert(err, check.IsNil)

@@ -56,6 +56,7 @@ import (
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	. "gopkg.in/check.v1"
 )
@@ -85,6 +86,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterID:   uuid.New(),
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)
@@ -791,6 +793,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	// try and set cluster name, this should fail because you can only set the
 	// cluster name once
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterID:   uuid.New(),
 		ClusterName: "foo.localhost",
 	})
 	c.Assert(err, IsNil)

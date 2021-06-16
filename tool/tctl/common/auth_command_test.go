@@ -19,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/pborman/uuid"
 )
 
 func TestAuthSignKubeconfig(t *testing.T) {
@@ -31,6 +32,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterID:   uuid.New(),
 		ClusterName: "example.com",
 	})
 	if err != nil {
@@ -237,6 +239,7 @@ func (c mockClient) GenerateDatabaseCert(context.Context, *proto.DatabaseCertReq
 func TestCheckKubeCluster(t *testing.T) {
 	const teleportCluster = "local-teleport"
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterID:   uuid.New(),
 		ClusterName: teleportCluster,
 	})
 	require.NoError(t, err)

@@ -51,6 +51,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
+	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
@@ -89,6 +90,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterID:   uuid.New(),
 		ClusterName: "localhost",
 	})
 	c.Assert(err, check.IsNil)

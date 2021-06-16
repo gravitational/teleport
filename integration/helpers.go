@@ -60,6 +60,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -529,6 +530,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy.Enabled = true
 	tconf.Auth.ClusterName, err = types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterID:   uuid.New(),
 		ClusterName: i.Secrets.SiteName,
 	})
 	if err != nil {

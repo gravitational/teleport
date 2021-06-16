@@ -331,7 +331,7 @@ func (s *ClusterConfigurationService) SetClusterConfig(c types.ClusterConfig) er
 }
 
 // ForceSetClusterConfig sets types.ClusterConfig on the backend
-// without legacy field checks.  To be used in tests only.
+// without legacy field checks.  To be used only in tests.
 func (s *ClusterConfigurationService) ForceSetClusterConfig(c types.ClusterConfig) error {
 	value, err := services.MarshalClusterConfig(c)
 	if err != nil {

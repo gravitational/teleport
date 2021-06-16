@@ -913,6 +913,7 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 
 	// update cluster name resource metadata
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterID:   uuid.New(),
 		ClusterName: "example.com",
 	})
 	c.Assert(err, check.IsNil)
