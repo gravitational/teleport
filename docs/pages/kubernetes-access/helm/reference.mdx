@@ -1325,9 +1325,9 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 
 | Type | Default value |
 | - | - |
-| `string` | `teleport-kube-agent` |
+| `string` | `nil` |
 
-`clusterRoleName` is the name of the Kubernetes `ClusterRole` used by the `teleport-kube-agent` chart's `ServiceAccount`.
+`clusterRoleName` can be optionally used to override the name of the Kubernetes `ClusterRole` used by the `teleport-kube-agent` chart's `ServiceAccount`.
 
 <Admonition type="note">
   Most users will not need to change this.
@@ -1354,10 +1354,10 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 
 | Type | Default value |
 | - | - |
-| `string` | `teleport-kube-agent` |
+| `string` | `nil` |
 
 
-`clusterRoleBindingName` is the name of the Kubernetes `ClusterRoleBinding` used by the `teleport-kube-agent` chart's `ServiceAccount`.
+`clusterRoleBindingName` can be optionally used to override the name of the Kubernetes `ClusterRoleBinding` used by the `teleport-kube-agent` chart's `ServiceAccount`.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1380,9 +1380,9 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 
 | Type | Default value |
 | - | - |
-| `string` | `teleport-kube-agent` |
+| `string` | `nil` |
 
-`serviceAccountName` is the name of the Kubernetes `ServiceAccount` used by the `teleport-kube-agent` chart.
+`serviceAccountName` can be optionally used to override the name of the Kubernetes `ServiceAccount` used by the `teleport-kube-agent` chart.
 
 <Tabs>
   <TabItem label="values.yaml">

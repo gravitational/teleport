@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.2.4
+
+This release of Teleport contains multiple improvements.
+
+* Added support for `regexp.replace(variable, expression, replacement)` in role templates.
+* Added V4 roles with stricter default allow labels. V4 roles are backward-compatible with V3 roles, and are completely opt-in.
+
 ## 6.2.3
 
 This release of Teleport contains multiple improvements.
