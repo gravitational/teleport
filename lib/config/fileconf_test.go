@@ -173,7 +173,7 @@ func TestSSHSection(t *testing.T) {
 		}, {
 			desc: "Port forwarding is enabled",
 			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["allow_tcp_forwarding"] = "yes"
+				cfg["ssh_service"].(cfgMap)["port_forwarding"] = true
 			},
 			expectError:               require.NoError,
 			expectEnabled:             require.True,
@@ -181,7 +181,7 @@ func TestSSHSection(t *testing.T) {
 		}, {
 			desc: "Port forwarding is disabled",
 			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["allow_tcp_forwarding"] = "no"
+				cfg["ssh_service"].(cfgMap)["port_forwarding"] = false
 			},
 			expectError:               require.NoError,
 			expectEnabled:             require.True,
@@ -189,7 +189,7 @@ func TestSSHSection(t *testing.T) {
 		}, {
 			desc: "Port forwarding invalid value",
 			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["allow_tcp_forwarding"] = "banana"
+				cfg["ssh_service"].(cfgMap)["port_forwarding"] = "banana"
 			},
 			expectError: require.Error,
 		},
