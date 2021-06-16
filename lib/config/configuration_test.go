@@ -382,11 +382,11 @@ func TestTrustedClusters(t *testing.T) {
 	require.Len(t, authorities, 2)
 	require.Equal(t, "cluster-a", authorities[0].GetClusterName())
 	require.Equal(t, types.HostCA, authorities[0].GetType())
-	require.Len(t, authorities[0].GetCheckingKeys(), 1)
+	require.Len(t, authorities[0].GetActiveKeys().SSH, 1)
 	require.Equal(t, "cluster-a", authorities[1].GetClusterName())
 	require.Equal(t, types.UserCA, authorities[1].GetType())
-	require.Len(t, authorities[1].GetCheckingKeys(), 1)
-	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetCheckingKeys()[0])
+	require.Len(t, authorities[1].GetActiveKeys().SSH, 1)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetActiveKeys().SSH[0].PublicKey)
 	require.NoError(t, err)
 
 	tunnels := conf.ReverseTunnels
@@ -822,14 +822,6 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			EnabledFlag:    "yes",
 			ListenAddress:  "auth:3025",
 		},
-		Authorities: []Authority{{
-			Type:             types.HostCA,
-			DomainName:       "example.com",
-			CheckingKeys:     []string{"checking key 1"},
-			CheckingKeyFiles: []string{"/ca.checking.key"},
-			SigningKeys:      []string{"signing key 1"},
-			SigningKeyFiles:  []string{"/ca.signing.key"},
-		}},
 		ReverseTunnels: []ReverseTunnel{
 			{
 				DomainName: "tunnel.example.com",

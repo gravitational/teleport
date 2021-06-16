@@ -58,7 +58,8 @@ func onListDatabases(cf *CLIConf) error {
 	sort.Slice(servers, func(i, j int) bool {
 		return servers[i].GetName() < servers[j].GetName()
 	})
-	showDatabases(tc.SiteName, servers, profile.Databases, cf.Verbose)
+	showDatabases(tc.SiteName, types.DeduplicateDatabaseServers(servers),
+		profile.Databases, cf.Verbose)
 	return nil
 }
 
