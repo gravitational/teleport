@@ -1,0 +1,89 @@
+---
+title: Teleport Configuration
+description: A general guide to common Teleport configuration scenarios and questions.
+---
+
+This guide is intended to address several common scenario's you're likely to encounter when setting up Teleport for the first time.
+
+(!docs/pages/includes/permission-warning.mdx!)
+
+## ACME
+
+By default, Teleport requires a valid TLS certificate to operate and can fetch one automatically
+using the [Let's Encrypt ACME](https://letsencrypt.org/how-it-works/) standard through a [TLS_ALPN-01](https://datatracker.ietf.org/doc/html/rfc8737) challenge.
+
+Configure Teleport to obtain a TLS certificate through the command line:
+
+```bash
+sudo teleport configure --acme --acme-email=user@example.com --cluster-name=tele.example.com -o file
+```
+
+Or through YAML:
+
+```yaml
+proxy_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3023
+  web_listen_addr: :443
+  public_addr: tele.example.com:443
+  https_keypairs: []
+  acme:
+    enabled: "yes"
+    email: user@example.com
+```
+
+(Configuring Teleport to use ACME through the command line will generate the above YAML for you automatically.)
+
+<Admonition type="note" title="ACME Requirements">
+  When using ACME:
+
+  1. Let's Encrypt ACME will use the value supplied by `--cluster-name` and/or `public_addr`. If both are used, they must match to the domain or subdomain name.
+  
+  2. Let's Encrypt ACME doesn't support using `localhost`, `127.0.0.1`, or any numeric IP Address. The supplied address must be a domain name:
+
+     ```
+     # Bad
+     127.0.0.1
+     localhost
+     192.168.1.1
+
+     # Good
+     tele.example.com
+     test.website.com
+     subdomain.domain.net
+     ```
+
+  3. The Teleport Proxy Node (`public_addr`) must be publicly accessible over port `443`.
+</Admonition>
+
+## The insecure flag
+
+While we generally don't recommend disabling Teleport's in-built TLS, certificate, and security verifications in some circumstances it may be desirable to temporarily disable (or skip) Teleport's default behavior. 
+
+For example, one might wish to skip configuring domain name registration or obtaining an ACME TLS certificate to quickly get set up locally. In another circumstance, one might wish to test Teleport with heightened port restrictions.
+
+(!docs/pages/includes/insecure-flag.mdx!)
+
+There are generally two places where you'll likely disable this feature:
+
+1. Pass the `--insecure` flag when connecting to an SSH server or a Teleport SSH Node: 
+
+  ```bash
+  tsh login --proxy=localhost:3080 --insecure --user=testuser
+  ```
+
+2. Pass the flag when starting a Teleport Node through the command-line: 
+
+  ```bash
+  sudo teleport start --insecure
+  ```
+
+<Admonition type="tip" title="Tip">
+  `--insecure` is `disabled` by default and can be permanently overidden using YAML.
+</Admonition>
+
+Quick links:
+
+- Read the [tsh --insecure](../cli-docs.mdx#tsh) Reference Documentation
+- Read the [tctl --insecure](../cli-docs.mdx#tctl) Reference Documentation
+- Read the [teleport --insecure](../cli-docs.mdx#teleport) Reference Documentation
