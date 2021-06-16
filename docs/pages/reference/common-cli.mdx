@@ -1,0 +1,33 @@
+---
+title: Common Teleport CLI Commands
+description: 
+h1: Common Teleport Commands Reference
+---
+
+## Configure Teleport with ACME
+
+```bash
+# Configure Teleport with TLS certs
+sudo teleport configure \
+  --acme --acme-email=your_email@example.com \
+  --cluster-name=tele.example.com \
+  -o file
+```
+
+## Start Teleport
+
+```bash
+sudo teleport start
+```
+
+## Add user with roles
+
+```
+tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
+```
+
+## login with tsh
+
+```bash
+tsh login --proxy=teleport.example.com:443 --user=teleport-admin
+```
