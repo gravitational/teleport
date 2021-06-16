@@ -65,8 +65,6 @@ type (
 	PluginDataSpecV3                   = types.PluginDataSpecV3
 	PluginDataFilter                   = types.PluginDataFilter
 	PluginDataUpdateParams             = types.PluginDataUpdateParams
-	RoleV3                             = types.RoleV3
-	RoleSpecV3                         = types.RoleSpecV3
 	RoleOptions                        = types.RoleOptions
 	RoleConditions                     = types.RoleConditions
 	AccessRequestConditions            = types.AccessRequestConditions

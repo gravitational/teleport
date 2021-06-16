@@ -248,7 +248,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}
 	roles, err := services.FromSpec(
 		string(teleport.RoleRemoteProxy),
-		services.RoleSpecV3{
+		types.RoleSpecV4{
 			Allow: services.RoleConditions{
 				Namespaces: []string{services.Wildcard},
 				Rules: []services.Rule{
@@ -299,7 +299,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	case teleport.RoleAuth:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
+			types.RoleSpecV4{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
@@ -308,11 +308,11 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 				},
 			})
 	case teleport.RoleProvisionToken:
-		return services.FromSpec(role.String(), services.RoleSpecV3{})
+		return services.FromSpec(role.String(), types.RoleSpecV4{})
 	case teleport.RoleNode:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
+			types.RoleSpecV4{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
@@ -336,7 +336,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	case teleport.RoleApp:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
+			types.RoleSpecV4{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
@@ -361,7 +361,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	case teleport.RoleDatabase:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
+			types.RoleSpecV4{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
@@ -386,7 +386,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 		if services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
 			return services.FromSpec(
 				role.String(),
-				services.RoleSpecV3{
+				types.RoleSpecV4{
 					Allow: services.RoleConditions{
 						Namespaces:    []string{services.Wildcard},
 						ClusterLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
@@ -444,7 +444,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 		}
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
+			types.RoleSpecV4{
 				Allow: services.RoleConditions{
 					Namespaces:    []string{services.Wildcard},
 					ClusterLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
@@ -501,7 +501,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	case teleport.RoleWeb:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
+			types.RoleSpecV4{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
@@ -519,7 +519,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	case teleport.RoleSignup:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
+			types.RoleSpecV4{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
@@ -531,7 +531,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	case teleport.RoleAdmin:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
+			types.RoleSpecV4{
 				Options: services.RoleOptions{
 					MaxSessionTTL: services.MaxDuration(),
 				},
@@ -548,7 +548,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	case teleport.RoleNop:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
+			types.RoleSpecV4{
 				Allow: services.RoleConditions{
 					Namespaces: []string{},
 					Rules:      []services.Rule{},
@@ -557,7 +557,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	case teleport.RoleKube:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
+			types.RoleSpecV4{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
