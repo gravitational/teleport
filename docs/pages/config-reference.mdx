@@ -156,6 +156,12 @@ auth_service:
     # certificates and keys (may need to wipe out /var/lib/teleport directory)
     cluster_name: "main"
 
+    # ProxyProtocol enables support for HAProxy proxy protocol when it is turned 'on'.
+	  # We recommend it be enabled by an administrator since knowing
+	  # whether the service is in front of trusted load balancer is relevant.
+    # The default value is 'on'.
+    proxy_protocol: on
+
     authentication:
         # default authentication type. possible values are 'local' and 'github' for OSS
         #  and 'oidc', 'saml' and 'false' for Enterprise.
@@ -342,6 +348,12 @@ ssh_service:
 proxy_service:
     # Turns 'proxy' role on. Default is 'yes'
     enabled: yes
+
+    # ProxyProtocol enables support for HAProxy proxy protocol when it is turned 'on'.
+	  # We recommend it be enabled by an administrator since knowing
+	  # whether the service is in front of trusted load balancer is relevant.
+    # The default value is 'on'.
+    proxy_protocol: on
 
     # SSH forwarding/proxy address. Command line (CLI) clients always begin their
     # SSH sessions by connecting to this port
