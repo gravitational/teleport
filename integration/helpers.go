@@ -272,24 +272,42 @@ func (s *InstanceSecrets) GetRoles() []types.Role {
 // for simplicity)
 func (s *InstanceSecrets) GetCAs() []types.CertAuthority {
 	hostCA := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         types.HostCA,
-		ClusterName:  s.SiteName,
-		SigningKeys:  [][]byte{s.PrivKey},
-		CheckingKeys: [][]byte{s.PubKey},
-		Roles:        []string{},
-		SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_512,
+		Type:        types.HostCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     s.PrivKey,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      s.PubKey,
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Key:     s.PrivKey,
+				KeyType: types.PrivateKeyType_RAW,
+				Cert:    s.TLSCACert,
+			}},
+		},
+		Roles:      []string{},
+		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	hostCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
 
 	userCA := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         types.UserCA,
-		ClusterName:  s.SiteName,
-		SigningKeys:  [][]byte{s.PrivKey},
-		CheckingKeys: [][]byte{s.PubKey},
-		Roles:        []string{services.RoleNameForCertAuthority(s.SiteName)},
-		SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_512,
+		Type:        types.UserCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     s.PrivKey,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      s.PubKey,
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Key:     s.PrivKey,
+				KeyType: types.PrivateKeyType_RAW,
+				Cert:    s.TLSCACert,
+			}},
+		},
+		Roles:      []string{services.RoleNameForCertAuthority(s.SiteName)},
+		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	userCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
 
 	return []types.CertAuthority{hostCA, userCA}
 }

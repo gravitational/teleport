@@ -613,7 +613,7 @@ func withRDSPostgres(name, authToken string) withDatabaseOption {
 					Region: "us-east-1",
 				},
 				// Set CA cert, otherwise we will attempt to download RDS roots.
-				CACert: testCtx.hostCA.GetTLSKeyPairs()[0].Cert,
+				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
 			})
 		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
 		require.NoError(t, err)
@@ -648,7 +648,7 @@ func withRedshiftPostgres(name, authToken string) withDatabaseOption {
 					Redshift: types.Redshift{ClusterID: "redshift-cluster-1"},
 				},
 				// Set CA cert, otherwise we will attempt to download Redshift roots.
-				CACert: testCtx.hostCA.GetTLSKeyPairs()[0].Cert,
+				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
 			})
 		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
 		require.NoError(t, err)
@@ -686,7 +686,7 @@ func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
 					InstanceID: "instance-1",
 				},
 				// Set CA cert to pass cert validation.
-				CACert: testCtx.hostCA.GetTLSKeyPairs()[0].Cert,
+				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
 			})
 		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
 		require.NoError(t, err)
@@ -749,7 +749,7 @@ func withRDSMySQL(name, authUser, authToken string) withDatabaseOption {
 					Region: "us-east-1",
 				},
 				// Set CA cert, otherwise we will attempt to download RDS roots.
-				CACert: testCtx.hostCA.GetTLSKeyPairs()[0].Cert,
+				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
 			})
 		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
 		require.NoError(t, err)

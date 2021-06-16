@@ -97,7 +97,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
-	keys := ca.GetTLSKeyPairs()
+	keys := ca.GetTrustedTLSKeyPairs()
 
 	// The fact that cluster has keys to remote CA means that the key exchange
 	// has completed.

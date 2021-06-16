@@ -862,7 +862,7 @@ func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pairs := ca.GetJWTKeyPairs()
+	pairs := ca.GetTrustedJWTKeyPairs()
 
 	// Create response and allocate space for the keys.
 	var resp JWKSResponse
