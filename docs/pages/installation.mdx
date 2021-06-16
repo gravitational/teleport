@@ -15,66 +15,7 @@ up-to-date information.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-<Tabs>
-  <TabItem label="Debian/Ubuntu (DEB)">
-    ```bash
-    # Install our public key.
-    curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
-    # Add repo to APT
-    add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
-    # Update APT Cache
-    apt-get update
-    # Install Teleport
-    apt install teleport
-    ```
-  </TabItem>
-
-  <TabItem label="Amazon Linux 2/RHEL/Fedora (RPM)">
-    ```bash
-    yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    yum install teleport
-    ```
-  </TabItem>
-
-  <TabItem label="ARMv7 (32-bit)">
-    ```bash
-    curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz.sha256
-    # <checksum> <filename>
-    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-    shasum -a 256 teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-    # Verify that the checksums match
-    tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-    cd teleport
-    ./install
-    ```
-  </TabItem>
-
-  <TabItem label="ARM64/ARMv8 (64-bit)">
-    ```bash
-    curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz.sha256
-    # <checksum> <filename>
-    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-    shasum -a 256 teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-    # Verify that the checksums match
-    tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-    cd teleport
-    ./install
-    ```
-  </TabItem>
-
-  <TabItem label="Tarball">
-    ```bash
-    curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256
-    # <checksum> <filename>
-    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    shasum -a 256 teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    # Verify that the checksums match
-    tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    cd teleport
-    ./install
-    ```
-  </TabItem>
-</Tabs>
+(!docs/pages/includes/install-steps.mdx!)
 
 ## Docker
 
@@ -93,11 +34,11 @@ helm repo add teleport https://charts.releases.teleport.dev
 helm install teleport teleport/teleport-cluster
 ```
 
-## MacOS
+## macOS
 
 <Tabs>
   <TabItem label="Download">
-    [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=macos) (tsh client only, signed) file, double-click to run the Installer.
+    [Download macOS .pkg installer](https://goteleport.com/teleport/download?os=macos) (tsh client only, signed) file, double-click to run the Installer.
 
     <Admonition type="note">
       This method only installs the `tsh` client for interacting with Teleport clusters.
@@ -216,7 +157,7 @@ that the open-source community has been successful in building and running Telep
 | Operating System | Teleport Client | Teleport Server |
 | - | - | - |
 | Linux v2.6.23+ | yes | yes |
-| MacOS v10.12+ | yes | yes |
+| macOS v10.12+ | yes | yes |
 | Windows \[2] | yes \[2] | no |
 
 \[1] *Teleport is written in Go and it's possible to build it on
