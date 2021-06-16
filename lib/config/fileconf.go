@@ -622,8 +622,9 @@ type SSH struct {
 	// MaybeAllowTCPForwarding enables or disables TCP port forwarding. We're
 	// using a pointer-to-bool here because the system default is to allow TCP
 	// forwarding, we need to distinguish between an unset value and a false
-	// value so we can an unset value with `true`.
-	// Don't read this value directly - call the AllowTCPForwarding method
+	// value so we can an override unset value with `true`.
+	//
+	// Don't read this value directly: call the AllowTCPForwarding method
 	// instead.
 	MaybeAllowTCPForwarding *bool `yaml:"port_forwarding,omitempty"`
 }
