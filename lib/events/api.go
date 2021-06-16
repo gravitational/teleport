@@ -594,6 +594,8 @@ type IAuditLog interface {
 	//
 	// The only mandatory requirement is a date range (UTC). Results must always
 	// show up sorted by date (newest first)
+	//
+	// This function may never return more than 1 MiB of event data.
 	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error)
 
 	// SearchSessionEvents is a flexible way to find session events.
@@ -602,6 +604,8 @@ type IAuditLog interface {
 	//
 	// Event types to filter can be specified and pagination is handled by an iterator key that allows
 	// a query to be resumed.
+	//
+	// This function may never return more than 1 MiB of event data.
 	SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error)
 
 	// WaitForDelivery waits for resources to be released and outstanding requests to
