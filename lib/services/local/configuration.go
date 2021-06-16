@@ -243,12 +243,16 @@ func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalO
 
 	// To ensure backward compatibility, extend the fetched ClusterConfig
 	// resource with the ID that is now stored in ClusterName.
+	// (But only if the cluster ID is not set already, to retain the ability
+	// to provide legacy cluster ID.)
 	// DELETE IN 8.0.0
-	clusterName, err := s.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if clusterConfig.GetLegacyClusterID() == "" {
+		clusterName, err := s.GetClusterName()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clusterConfig.SetLegacyClusterID(clusterName.GetClusterID())
 	}
-	clusterConfig.SetLegacyClusterID(clusterName.GetClusterID())
 
 	// To ensure backward compatibility, extend the fetched ClusterConfig
 	// resource with the values that are now stored in ClusterAuditConfig.

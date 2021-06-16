@@ -1430,7 +1430,7 @@ func migrateClusterID(ctx context.Context, asrv *Server) error {
 		return nil
 	}
 
-	log.Infof("Migrating cluster ID %q from ClusterConfig to ClusterName.", clusterConfig.GetLegacyClusterID())
+	log.Infof("Migrating cluster ID %q from legacy ClusterConfig to ClusterName.", clusterConfig.GetLegacyClusterID())
 
 	clusterName.SetClusterID(clusterConfig.GetLegacyClusterID())
 	if err := asrv.ClusterConfiguration.UpsertClusterName(clusterName); err != nil {
