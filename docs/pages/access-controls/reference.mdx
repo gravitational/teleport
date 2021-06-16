@@ -187,6 +187,20 @@ Teleport provides several pre-defined roles out-of-the-box:
 | `auditor`| Allows reading cluster events, audit logs, and playing back session records. | 
 | `access`| Allows access to cluster resources. |
 
+### Role Versions
+
+There are currently two supported role versions: `v3` and `v4`. `v4` roles are
+completely backwards-compatible with `v3`, the only difference lies in the
+default allow labels which will be applied to the role if they are not
+explicitly set.
+
+Label              | `v3` Default   | `v4` Default
+------------------ | -------------- | ---------------
+`node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
+`app_labels`        | `[{"*": "*"}]` | `[]`
+`kubernetes_labels` | `[{"*": "*"}]` | `[]`
+`database_labels`   | `[{"*": "*"}]` | `[]`
+
 ## RBAC for Hosts
 
 A Teleport role can also define which hosts (nodes) a user can have access to.
