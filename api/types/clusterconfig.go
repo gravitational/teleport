@@ -288,6 +288,9 @@ func (c *ClusterConfigV3) SetLocalAuth(b bool) {
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
+	if c.Metadata.Name == "" {
+		c.Metadata.Name = MetaNameClusterConfig
+	}
 	// make sure we have defaults for all metadata fields
 	err := c.Metadata.CheckAndSetDefaults()
 	if err != nil {
