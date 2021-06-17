@@ -129,7 +129,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			},
 		},
 	}
-	if err := services.FillOldCertAuthorityKeys(ca); err != nil {
+	if err := services.SyncCertAuthorityKeys(ca); err != nil {
 		panic(err)
 	}
 	return ca
