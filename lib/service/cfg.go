@@ -538,6 +538,9 @@ type SSHConfig struct {
 	//
 	// See github.com/gravitational/teleport/issues/4141 for details.
 	ProxyReverseTunnelFallbackAddr *utils.NetAddr
+
+	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
+	AllowTCPForwarding bool
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -881,6 +884,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+	cfg.SSH.AllowTCPForwarding = true
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false
