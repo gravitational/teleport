@@ -19,6 +19,7 @@ package srv
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -124,7 +125,9 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 type Monitor struct {
 	// MonitorConfig is a connection monitor configuration
 	MonitorConfig
-	Shell ssh.Channel
+
+	// MessageWriter wraps a channel to send text messages to the client.
+	MessageWriter io.StringWriter
 }
 
 // Start starts monitoring connection
@@ -198,8 +201,8 @@ func (w *Monitor) Start() {
 				}
 				w.Entry.Debugf("Disconnecting client: %v", event.Reason)
 
-				if w.Shell != nil && w.IdleTimeoutMessage != "" {
-					w.Shell.Stderr().Write([]byte(w.IdleTimeoutMessage))
+				if w.MessageWriter != nil && w.IdleTimeoutMessage != "" {
+					w.MessageWriter.WriteString(w.IdleTimeoutMessage)
 				}
 				w.Conn.Close()
 

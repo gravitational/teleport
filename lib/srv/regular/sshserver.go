@@ -1110,6 +1110,17 @@ func (s *Server) canPortForward(scx *srv.ServerContext, channel ssh.Channel) err
 	return nil
 }
 
+// stderrWriter wraps an ssh.Channel in an implementation of io.StringWriter
+// that sends anything written back the client over its stderr stream
+type stderrWriter struct {
+	channel ssh.Channel
+}
+
+func (w *stderrWriter) WriteString(s string) (int, error) {
+	writeStderr(w.channel, s)
+	return len(s), nil
+}
+
 // handleDirectTCPIPRequest handles port forwarding requests.
 func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, channel ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
@@ -1257,7 +1268,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	ch = scx.TrackActivity(ch)
 	if scx.Monitor != nil {
 		scx.Monitor.IdleTimeoutMessage = s.IdleTimeoutMessage
-		scx.Monitor.Shell = ch
+		scx.Monitor.MessageWriter = &stderrWriter{channel: ch}
 	}
 
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
