@@ -841,6 +841,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 }
 
 // TestClusterConfig tests cluster configuration
+// DELETE IN 8.0.0: Test only the individual resources.
 func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	ctx := context.Background()
 	p := s.newPackForAuth(c)
@@ -868,6 +869,7 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
+	// DELETE IN 8.0.0
 	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 	c.Assert(err, check.IsNil)
 
@@ -884,6 +886,21 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 	err = p.clusterConfigS.SetClusterAuditConfig(ctx, auditConfig)
+	c.Assert(err, check.IsNil)
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// DELETE IN 8.0.0
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "example.com",
+	})
+	c.Assert(err, check.IsNil)
+	err = p.clusterConfigS.SetClusterName(clusterName)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -910,24 +927,6 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 	clusterConfig.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, clusterConfig, out)
-
-	// update cluster name resource metadata
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: "example.com",
-	})
-	c.Assert(err, check.IsNil)
-	err = p.clusterConfigS.SetClusterName(clusterName)
-	c.Assert(err, check.IsNil)
-
-	clusterName, err = p.clusterConfigS.GetClusterName()
-	c.Assert(err, check.IsNil)
-
-	select {
-	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
-	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
-	}
 
 	outName, err := p.cache.GetClusterName()
 	c.Assert(err, check.IsNil)

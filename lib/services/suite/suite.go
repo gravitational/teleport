@@ -1153,7 +1153,16 @@ func CollectOptions(opts ...Option) Options {
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	// DELETE IN 8.0.0
 	clusterName, err := s.ConfigS.GetClusterName()
-	c.Assert(err, check.IsNil)
+	if trace.IsNotFound(err) {
+		clusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+			ClusterName: "example.com",
+		})
+		c.Assert(err, check.IsNil)
+		err = s.ConfigS.SetClusterName(clusterName)
+		c.Assert(err, check.IsNil)
+	} else {
+		c.Assert(err, check.IsNil)
+	}
 	clusterID := clusterName.GetClusterID()
 
 	// DELETE IN 8.0.0
@@ -1191,7 +1200,8 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	err = s.ConfigS.SetAuthPreference(authPref)
 	c.Assert(err, check.IsNil)
 
-	config := services.DefaultClusterConfig()
+	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
+	c.Assert(err, check.IsNil)
 	err = s.ConfigS.SetClusterConfig(config)
 	c.Assert(err, check.IsNil)
 
@@ -1204,17 +1214,6 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	config.SetSessionRecordingFields(recConfig)
 	config.SetAuthFields(authPref)
 	fixtures.DeepCompare(c, config, gotConfig)
-
-	// Some parts (e.g. auth server) will not function
-	// without cluster name or cluster config
-	if CollectOptions(opts...).SkipDelete {
-		return
-	}
-	err = s.ConfigS.DeleteClusterConfig()
-	c.Assert(err, check.IsNil)
-
-	_, err = s.ConfigS.GetClusterConfig()
-	fixtures.ExpectNotFound(c, err)
 }
 
 // ClusterName tests cluster name.
@@ -1781,17 +1780,25 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 			kind: types.WatchKind{
 				Kind: types.KindClusterConfig,
 			},
-			crud: func(context.Context) types.Resource {
+			crud: func(ctx context.Context) types.Resource {
 				// DELETE IN 8.0.0
-				err := s.ConfigS.SetClusterAuditConfig(context.TODO(), types.DefaultClusterAuditConfig())
+				clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+					ClusterName: "example.com",
+				})
+				c.Assert(err, check.IsNil)
+				err = s.ConfigS.SetClusterName(clusterName)
 				c.Assert(err, check.IsNil)
 
 				// DELETE IN 8.0.0
-				err = s.ConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+				err = s.ConfigS.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
 				c.Assert(err, check.IsNil)
 
 				// DELETE IN 8.0.0
-				err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+				err = s.ConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+				c.Assert(err, check.IsNil)
+
+				// DELETE IN 8.0.0
+				err = s.ConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 				c.Assert(err, check.IsNil)
 
 				// DELETE IN 8.0.0
@@ -1812,7 +1819,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				// the event handler performs an additional get of ClusterConfig from
 				// the backend.  Therefore, do not delete the resource immediately but
 				// wait until the event has been actually emitted.  DELETE IN 8.0.0
-				w, err := s.EventsS.NewWatcher(context.TODO(), types.Watch{
+				w, err := s.EventsS.NewWatcher(ctx, types.Watch{
 					Kinds: []types.WatchKind{{Kind: types.KindClusterConfig}},
 				})
 				c.Assert(err, check.IsNil)
@@ -1835,7 +1842,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				})
 				c.Assert(err, check.IsNil)
 
-				err = s.ConfigS.SetClusterName(clusterName)
+				err = s.ConfigS.UpsertClusterName(clusterName)
 				c.Assert(err, check.IsNil)
 
 				out, err := s.ConfigS.GetClusterName()
