@@ -131,6 +131,9 @@ func (c *StaticTokensV2) GetStaticTokens() []ProvisionToken {
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *StaticTokensV2) CheckAndSetDefaults() error {
+	if c.Metadata.Name == "" {
+		c.Metadata.Name = MetaNameStaticTokens
+	}
 	// make sure we have defaults for all metadata fields
 	err := c.Metadata.CheckAndSetDefaults()
 	if err != nil {
