@@ -82,7 +82,7 @@ type ClusterConfig interface {
 func NewClusterConfig(spec ClusterConfigSpecV4) (ClusterConfig, error) {
 	cc := ClusterConfigV4{
 		Kind:    KindClusterConfig,
-		Version: V3,
+		Version: V4,
 		Metadata: Metadata{
 			Name:      MetaNameClusterConfig,
 			Namespace: defaults.Namespace,

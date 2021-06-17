@@ -767,7 +767,7 @@ func (t *TestTLSServer) Addr() net.Addr {
 	return t.Listener.Addr()
 }
 
-// Start starts TLS server on loopback address on the first lisenting socket
+// Start starts TLS server on loopback address on the first listening socket
 func (t *TestTLSServer) Start() error {
 	go t.TLSServer.Serve()
 	return nil

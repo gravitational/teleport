@@ -75,7 +75,7 @@ func MarshalClusterNetworkingConfig(netConfig types.ClusterNetworkingConfig, opt
 			netConfig.Version = types.V3
 
 		case types.V3:
-			// The current latest version: nothing to do
+			// The current latest version, so nothing to do
 			break
 
 		default:

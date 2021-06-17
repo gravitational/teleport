@@ -88,7 +88,7 @@ func DefaultClusterNetworkingConfig() ClusterNetworkingConfig {
 func newClusterNetworkingConfigWithLabels(spec ClusterNetworkingConfigSpecV3, labels map[string]string) (ClusterNetworkingConfig, error) {
 	netConfig := &ClusterNetworkingConfigV3{
 		Kind:    KindClusterNetworkingConfig,
-		Version: V2,
+		Version: V3,
 		Metadata: Metadata{
 			Name:      MetaNameClusterNetworkingConfig,
 			Namespace: defaults.Namespace,
