@@ -46,7 +46,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/pborman/uuid"
 	"gopkg.in/yaml.v2"
 )
 
@@ -483,8 +482,7 @@ func (c ClusterName) Parse() (types.ClusterName, error) {
 	if string(c) == "" {
 		return nil, nil
 	}
-	return types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
+	return services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: string(c),
 	})
 }

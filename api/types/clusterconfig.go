@@ -45,7 +45,6 @@ type ClusterConfig interface {
 	HasAuditConfig() bool
 
 	// SetAuditConfig sets audit configuration.
-	// To be used in tests only.
 	// DELETE IN 8.0.0
 	SetAuditConfig(ClusterAuditConfig) error
 

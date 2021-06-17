@@ -95,7 +95,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 		clusterName = name[0]
 	}
 	// Create a cluster with minimal viable config.
-	clusterNameRes, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterNameRes, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
