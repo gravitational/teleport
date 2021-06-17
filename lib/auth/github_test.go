@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 )
 
@@ -54,7 +53,6 @@ func (s *GithubSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, check.IsNil)

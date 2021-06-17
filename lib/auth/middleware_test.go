@@ -28,7 +28,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,7 +40,6 @@ func TestMiddlewareGetUser(t *testing.T) {
 	s := newTestServices(t)
 	// Set up local cluster name in the backend.
 	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
 		ClusterName: localClusterName,
 	})
 	require.NoError(t, err)

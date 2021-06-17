@@ -48,7 +48,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
@@ -442,7 +441,6 @@ func TestClusterName(t *testing.T) {
 	// should start, but with the original name.
 	newConfig := conf
 	newConfig.ClusterName, err = types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
 		ClusterName: "dev.localhost",
 	})
 	require.NoError(t, err)
@@ -848,7 +846,6 @@ func TestMigrateClusterID(t *testing.T) {
 	require.NoError(t, err)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
 		ClusterName: "localhost",
 	})
 	require.NoError(t, err)
@@ -868,7 +865,6 @@ func setupConfig(t *testing.T) InitConfig {
 	require.NoError(t, err)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)

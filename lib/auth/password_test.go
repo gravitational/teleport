@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
@@ -59,7 +58,6 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 
 	// set cluster name
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)

@@ -43,7 +43,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 )
 
 // TestAuthServerConfig is auth server test config
@@ -217,7 +216,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	identity := local.NewIdentityService(srv.Backend)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
 		ClusterName: cfg.ClusterName,
 	})
 	if err != nil {

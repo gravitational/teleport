@@ -12,7 +12,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -97,7 +96,6 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	}
 	// Create a cluster with minimal viable config.
 	clusterNameRes, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)

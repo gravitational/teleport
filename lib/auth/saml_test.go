@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,7 +42,6 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.NoError(t, err)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
@@ -148,7 +146,6 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	require.NoError(t, err)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)

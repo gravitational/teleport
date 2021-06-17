@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 )
 
@@ -50,7 +49,6 @@ func (s *OIDCSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterID:   uuid.New(),
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, check.IsNil)
