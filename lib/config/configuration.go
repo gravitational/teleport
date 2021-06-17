@@ -808,6 +808,8 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		}
 	}
 
+	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
+
 	return nil
 }
 
