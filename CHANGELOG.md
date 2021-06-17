@@ -1,6 +1,6 @@
 # Changelog
 
-## 6.2.4
+## 6.2.5
 
 This release of Teleport contains new features, bug fixes, and multiple improvements.
 
