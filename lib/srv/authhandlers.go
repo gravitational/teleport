@@ -17,12 +17,14 @@ limitations under the License.
 package srv
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -100,7 +102,11 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 	identity.RoleSet = roleSet
 	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
-
+	accessRequestIDs, err := parseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
+	if err != nil {
+		return IdentityContext{}, trace.Wrap(err)
+	}
+	identity.ActiveRequests = accessRequestIDs
 	return identity, nil
 }
 
@@ -492,4 +498,33 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 // isProxy returns true if it's a regular SSH proxy.
 func (h *AuthHandlers) isProxy() bool {
 	return h.Component == teleport.ComponentProxy
+}
+
+// AccessRequests are the access requests associated with a session
+type AccessRequests struct {
+	IDs []string `json:"access_requests"`
+}
+
+func parseAccessRequestIDs(str string) ([]string, error) {
+	var accessRequestIDs []string
+	var ar AccessRequests
+
+	if str == "" {
+		return []string{}, nil
+	}
+	err := json.Unmarshal([]byte(str), &ar)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, v := range ar.IDs {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return nil, trace.WrapWithMessage(err, "failed to parse access request ID")
+		}
+		if fmt.Sprintf("%v", id) == "" {
+			return nil, trace.Errorf("invalid uuid: %v", id)
+		}
+		accessRequestIDs = append(accessRequestIDs, v)
+	}
+	return accessRequestIDs, nil
 }
