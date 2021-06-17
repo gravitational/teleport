@@ -278,7 +278,7 @@ func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.Ce
 	log.Debugf("Received validate response; CAs=%v", validateResponse.CAs)
 
 	for _, ca := range validateResponse.CAs {
-		for _, keyPair := range ca.GetTLSKeyPairs() {
+		for _, keyPair := range ca.GetActiveKeys().TLS {
 			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 			if err != nil {
 				return nil, trace.Wrap(err)

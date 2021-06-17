@@ -113,11 +113,9 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	m := &Monitor{
+	return &Monitor{
 		MonitorConfig: cfg,
-	}
-
-	return m, nil
+	}, nil
 }
 
 // Monitor monitors the activity on a single connection and disconnects

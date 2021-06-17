@@ -379,9 +379,29 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
 }
 
+// GetAuthPreference gets AuthPreference from the backend.
+func (a *Server) GetAuthPreference() (types.AuthPreference, error) {
+	return a.GetCache().GetAuthPreference()
+}
+
 // GetClusterConfig gets ClusterConfig from the backend.
 func (a *Server) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
 	return a.GetCache().GetClusterConfig(opts...)
+}
+
+// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
+func (a *Server) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	return a.GetCache().GetClusterAuditConfig(ctx, opts...)
+}
+
+// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
+func (a *Server) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	return a.GetCache().GetClusterNetworkingConfig(ctx, opts...)
+}
+
+// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
+func (a *Server) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	return a.GetCache().GetSessionRecordingConfig(ctx, opts...)
 }
 
 // GetClusterName returns the domain name that identifies this authority server.
@@ -450,11 +470,11 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		DomainName: domainName,
 	}, true)
 	if err != nil {
-		return nil, trace.BadParameter("failed to load host CA for '%s': %v", domainName, err)
+		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
 	// get the private key of the certificate authority
-	caPrivateKey, err := ca.FirstSigningKey()
+	caPrivateKey, err := sshPrivateKey(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -471,6 +491,21 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		Roles:               roles,
 		TTL:                 ttl,
 	})
+}
+
+func sshPrivateKey(ca types.CertAuthority) ([]byte, error) {
+	keyPairs := ca.GetActiveKeys().SSH
+	if len(keyPairs) == 0 {
+		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
+	}
+	// TODO(awly): update after PKCS#11 keys are supported.
+	for _, kp := range keyPairs {
+		if kp.PrivateKeyType != types.PrivateKeyType_RAW {
+			continue
+		}
+		return kp.PrivateKey, nil
+	}
+	return nil, trace.NotFound("no raw SSH private key found in CA for %q", ca.GetClusterName())
 }
 
 // certs is a pair of SSH and TLS certificates
@@ -752,7 +787,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := ca.FirstSigningKey()
+	privateKey, err := sshPrivateKey(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1393,7 +1428,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	}
 
 	// get the private key of the certificate authority
-	caPrivateKey, err := ca.FirstSigningKey()
+	caPrivateKey, err := sshPrivateKey(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1448,7 +1483,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		Cert:       hostSSHCert,
 		TLSCert:    hostTLSCert,
 		TLSCACerts: services.GetTLSCerts(ca),
-		SSHCACerts: ca.GetCheckingKeys(),
+		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
 }
 

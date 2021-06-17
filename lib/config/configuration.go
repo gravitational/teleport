@@ -34,6 +34,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -48,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -398,9 +399,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		logger.SetOutput(logFile)
 	}
 	switch strings.ToLower(loggerConfig.Severity) {
-	case "":
-		break // not set
-	case "info":
+	case "", "info":
 		logger.SetLevel(log.InfoLevel)
 	case "err", "error":
 		logger.SetLevel(log.ErrorLevel)
@@ -444,18 +443,6 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Auth.SSHAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
-	}
-
-	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
-	// same pattern as the rest of the configuration (they are not configuration
-	// singletons). However, we need to keep them around while Telekube uses them.
-	for _, authority := range fc.Auth.Authorities {
-		ca, role, err := authority.Parse()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Auth.Authorities = append(cfg.Auth.Authorities, ca)
-		cfg.Auth.Roles = append(cfg.Auth.Roles, role)
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
 		tun, err := t.ConvertAndValidate()
@@ -502,16 +489,13 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		log.Warnf(warningMessage)
 	}
 
-	auditConfig, err := services.AuditConfigFromObject(fc.Storage.Params)
+	// Set cluster audit configuration from file configuration.
+	auditConfigSpec, err := services.ClusterAuditConfigSpecFromObject(fc.Storage.Params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	auditConfig.Type = fc.Storage.Type
-
-	// Set cluster-wide configuration from file configuration.
-	cfg.Auth.ClusterConfig, err = types.NewClusterConfig(types.ClusterConfigSpecV3{
-		Audit: *auditConfig,
-	})
+	auditConfigSpec.Type = fc.Storage.Type
+	cfg.Auth.AuditConfig, err = types.NewClusterAuditConfig(*auditConfigSpec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -814,9 +798,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		}
 	}
 
-	if fc.SSH.IdleTimeoutMessage != "" {
-		cfg.SSH.IdleTimeoutMessage = fc.SSH.IdleTimeoutMessage
-	}
+	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
 
 	return nil
 }
@@ -999,12 +981,15 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 
 	// create a new certificate authority
 	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         types.UserCA,
-		ClusterName:  clusterName,
-		SigningKeys:  nil,
-		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubkey)},
-		Roles:        nil,
-		SigningAlg:   types.CertAuthoritySpecV2_UNKNOWN,
+		Type:        types.UserCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PublicKey: ssh.MarshalAuthorizedKey(pubkey),
+			}},
+		},
+		Roles:      nil,
+		SigningAlg: types.CertAuthoritySpecV2_UNKNOWN,
 	})
 
 	// transform old allowed logins into roles
@@ -1040,9 +1025,13 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority,
 	domainName := strings.TrimPrefix(options[0], prefix)
 
 	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         authType,
-		ClusterName:  domainName,
-		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+		Type:        authType,
+		ClusterName: domainName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PublicKey: ssh.MarshalAuthorizedKey(pubKey),
+			}},
+		},
 	})
 
 	// transform old allowed logins into roles

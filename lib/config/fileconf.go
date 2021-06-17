@@ -418,10 +418,6 @@ type Auth struct {
 	LicenseFile string `yaml:"license_file,omitempty"`
 
 	// FOR INTERNAL USE:
-	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
-	Authorities []Authority `yaml:"authorities,omitempty"`
-
-	// FOR INTERNAL USE:
 	// ReverseTunnels is a list of SSH tunnels to 3rd party proxy services (used to talk
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
@@ -619,10 +615,22 @@ type SSH struct {
 	// BPF is used to configure BPF-based auditing for this node.
 	BPF *BPF `yaml:"enhanced_recording,omitempty"`
 
-	// IdleTimeoutMessage is sent to the client when the inactivity timeout
-	// expires. The empty string implies no message should be sent prior to
-	// disconnection.
-	IdleTimeoutMessage string `yaml:"idle_timeout_message,omitempty"`
+	// MaybeAllowTCPForwarding enables or disables TCP port forwarding. We're
+	// using a pointer-to-bool here because the system default is to allow TCP
+	// forwarding, we need to distinguish between an unset value and a false
+	// value so we can an override unset value with `true`.
+	//
+	// Don't read this value directly: call the AllowTCPForwarding method
+	// instead.
+	MaybeAllowTCPForwarding *bool `yaml:"port_forwarding,omitempty"`
+}
+
+// AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
+func (ssh *SSH) AllowTCPForwarding() bool {
+	if ssh.MaybeAllowTCPForwarding == nil {
+		return true
+	}
+	return *ssh.MaybeAllowTCPForwarding
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file

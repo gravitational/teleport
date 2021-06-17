@@ -495,6 +495,9 @@ type AuthConfig struct {
 	// ClusterConfig stores cluster level configuration.
 	ClusterConfig types.ClusterConfig
 
+	// AuditConfig stores cluster audit configuration.
+	AuditConfig types.ClusterAuditConfig
+
 	// NetworkingConfig stores cluster networking configuration.
 	NetworkingConfig types.ClusterNetworkingConfig
 
@@ -535,6 +538,9 @@ type SSHConfig struct {
 	//
 	// See github.com/gravitational/teleport/issues/4141 for details.
 	ProxyReverseTunnelFallbackAddr *utils.NetAddr
+
+	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
+	AllowTCPForwarding bool
 
 	// IdleTimeoutMessage is sent to the client when a session expires due to
 	// the inactivity timeout expiring. The empty string indicates that no
@@ -859,6 +865,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
 	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
+	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
 	cfg.Auth.Preference = types.DefaultAuthPreference()
@@ -882,6 +889,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+	cfg.SSH.AllowTCPForwarding = true
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false

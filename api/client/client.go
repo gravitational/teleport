@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
@@ -277,6 +278,9 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	dialOpts := append([]grpc.DialOption{}, c.c.DialOpts...)
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
+	dialOpts = append(dialOpts,
+		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor))
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
 	// to explicitly provide gprc.WithInsecure in the client's dial options.
 	if c.tlsConfig != nil {
@@ -957,11 +961,11 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
-	roleV3, ok := role.(*types.RoleV3)
+	roleV4, ok := role.(*types.RoleV4)
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}
-	_, err := c.grpc.UpsertRole(ctx, roleV3, c.callOpts...)
+	_, err := c.grpc.UpsertRole(ctx, roleV4, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -1433,4 +1437,28 @@ func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
 func (c *Client) ResetAuthPreference(ctx context.Context) error {
 	_, err := c.grpc.ResetAuthPreference(ctx, &empty.Empty{})
 	return trail.FromGRPC(err)
+}
+
+// GetClusterAuditConfig gets cluster audit configuration.
+func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
+	resp, err := c.grpc.GetClusterAuditConfig(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// SetClusterAuditConfig sets cluster audit configuration.
+func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
+	auditConfigV2, ok := auditConfig.(*types.ClusterAuditConfigV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", auditConfig)
+	}
+	_, err := c.grpc.SetClusterAuditConfig(ctx, auditConfigV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteClusterAuditConfig not implemented: can only be called locally.
+func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
 }
