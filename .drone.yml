@@ -325,7 +325,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -381,6 +381,7 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -419,7 +420,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -475,6 +476,7 @@ steps:
   environment:
     ARCH: "386"
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -513,7 +515,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -573,6 +575,7 @@ steps:
     ARCH: amd64
     FIPS: "yes"
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -611,7 +614,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -667,6 +670,7 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: windows
     UID: "1000"
@@ -802,7 +806,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -858,6 +862,7 @@ steps:
   environment:
     ARCH: arm
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -896,7 +901,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -952,6 +957,7 @@ steps:
   environment:
     ARCH: arm64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -1221,7 +1227,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -1273,6 +1279,7 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -1317,7 +1324,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -1371,6 +1378,7 @@ steps:
     ARCH: amd64
     FIPS: "yes"
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -1413,7 +1421,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -1465,6 +1473,7 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -1512,7 +1521,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -1566,6 +1575,7 @@ steps:
     ARCH: amd64
     FIPS: "yes"
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -1610,7 +1620,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -1735,7 +1745,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -1857,7 +1867,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -1968,7 +1978,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -2076,7 +2086,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -2128,6 +2138,7 @@ steps:
   environment:
     ARCH: "386"
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -2172,7 +2183,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -2297,7 +2308,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -2794,7 +2805,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -2846,6 +2857,7 @@ steps:
   environment:
     ARCH: arm
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -2890,7 +2902,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -2942,6 +2954,7 @@ steps:
   environment:
     ARCH: arm64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -2986,7 +2999,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -3097,7 +3110,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -3208,7 +3221,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -3333,7 +3346,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -3458,7 +3471,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -3510,6 +3523,7 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: windows
     UID: "1000"
@@ -3593,7 +3607,7 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
-      - mkdir -p /go/artifacts ${GOCACHE}
+      - mkdir -p /go/artifacts $GOCACHE
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -4303,6 +4317,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 500a3e3248826b7f7b1563d9fe6d6f04065767c60822b83080b1f574ca88edb4
+hmac: 40636998fdb459a30bc1eb4663719b698d2187f5a856ab4a3140773650e4022c
 
 ...
