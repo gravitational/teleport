@@ -288,10 +288,13 @@ func TestInactivityTimeout(t *testing.T) {
 	//  * a client connected to the SSH server,
 	//  * an SSH session running over the client connection
 	mutateCfg := func(cfg *auth.TestServerConfig) {
-		cfg.Auth.ClusterNetworkingConfig = types.DefaultClusterNetworkingConfig()
-		cfg.Auth.ClusterNetworkingConfig.SetClientIdleTimeout(5 * time.Second)
+		networkCfg := types.DefaultClusterNetworkingConfig()
+		networkCfg.SetClientIdleTimeout(5 * time.Second)
+		networkCfg.SetIdleTimeoutMessage(timeoutMessage)
+
+		cfg.Auth.ClusterNetworkingConfig = networkCfg
 	}
-	f := newCustomFixture(t, mutateCfg, SetIdleTimeoutMessage(timeoutMessage))
+	f := newCustomFixture(t, mutateCfg)
 
 	// If all goes well, the client will be closed by the time cleanup happens,
 	// so change the assertion on closing the client to expect it to fail

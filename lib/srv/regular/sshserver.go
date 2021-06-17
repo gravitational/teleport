@@ -176,10 +176,6 @@ type Server struct {
 	// allowTCPForwarding indicates whether the ssh server is allowed to offer
 	// TCP port forwarding.
 	allowTCPForwarding bool
-
-	// IdleTimeoutMessage is the message to send to the client if their session
-	// times out due to inactivity.
-	IdleTimeoutMessage string
 }
 
 // GetClock returns server clock implementation
@@ -516,15 +512,6 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 func SetAllowTCPForwarding(allow bool) ServerOption {
 	return func(s *Server) error {
 		s.allowTCPForwarding = allow
-		return nil
-	}
-}
-
-// SetIdleTimeoutMessage sets the idle timeout message to be sent to the user
-// if/when their session times out due to inactivity.
-func SetIdleTimeoutMessage(msg string) ServerOption {
-	return func(s *Server) error {
-		s.IdleTimeoutMessage = msg
 		return nil
 	}
 }
@@ -1266,16 +1253,17 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	defer scx.Close()
 
 	ch = scx.TrackActivity(ch)
-	if scx.Monitor != nil {
-		scx.Monitor.IdleTimeoutMessage = s.IdleTimeoutMessage
-		scx.Monitor.MessageWriter = &stderrWriter{channel: ch}
-	}
 
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		log.Errorf("Unable to fetch cluster networking config: %v.", err)
 		writeStderr(ch, "Unable to fetch cluster networking configuration.")
 		return
+	}
+
+	if scx.Monitor != nil {
+		scx.Monitor.IdleTimeoutMessage = netConfig.GetIdleTimeoutMessage()
+		scx.Monitor.MessageWriter = &stderrWriter{channel: ch}
 	}
 
 	// The keep-alive loop will keep pinging the remote server and after it has

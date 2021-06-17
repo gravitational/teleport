@@ -1384,7 +1384,7 @@ func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterN
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
 func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
-	netConfigV2, ok := netConfig.(*types.ClusterNetworkingConfigV2)
+	netConfigV2, ok := netConfig.(*types.ClusterNetworkingConfigV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", netConfig)
 	}

@@ -126,7 +126,8 @@ type Monitor struct {
 	// MonitorConfig is a connection monitor configuration
 	MonitorConfig
 
-	// MessageWriter wraps a channel to send text messages to the client.
+	// MessageWriter wraps a channel to send text messages to the client. Use
+	// for disconnection messages, etc.
 	MessageWriter io.StringWriter
 }
 

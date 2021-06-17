@@ -44,7 +44,7 @@ message Event {
         // ClusterNameV2 is a cluster name resource
         types.ClusterNameV2 ClusterName = 6 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
         // ClusterConfig is a cluster configuration resource
-        types.ClusterConfigV3 ClusterConfig = 7
+        types.ClusterConfigV4 ClusterConfig = 7
             [ (gogoproto.jsontag) = "cluster_config,omitempty" ];
         // User is a user resource
         types.UserV2 User = 8 [ (gogoproto.jsontag) = "user,omitempty" ];
@@ -76,7 +76,7 @@ message Event {
         // WebToken is a web token.
         types.WebTokenV3 WebToken = 19 [ (gogoproto.jsontag) = "web_token,omitempty" ];
         // ClusterNetworkingConfig is a resource for cluster networking configuration.
-        types.ClusterNetworkingConfigV2 ClusterNetworkingConfig = 20
+        types.ClusterNetworkingConfigV3 ClusterNetworkingConfig = 20
             [ (gogoproto.jsontag) = "cluster_networking_config,omitempty" ];
         // SessionRecordingConfig is a resource for session recording configuration.
         types.SessionRecordingConfigV2 SessionRecordingConfig = 21
@@ -1108,9 +1108,9 @@ service AuthService {
     rpc SetClusterAuditConfig(types.ClusterAuditConfigV2) returns (google.protobuf.Empty);
 
     // GetClusterNetworkingConfig gets cluster networking configuration.
-    rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
+    rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV3);
     // SetClusterNetworkingConfig sets cluster networking configuration.
-    rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty);
+    rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV3) returns (google.protobuf.Empty);
     // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
     rpc ResetClusterNetworkingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 

@@ -338,7 +338,7 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_ClusterName{
 			ClusterName: r,
 		}
-	case *types.ClusterConfigV3:
+	case *types.ClusterConfigV4:
 		out.Resource = &proto.Event_ClusterConfig{
 			ClusterConfig: r,
 		}
@@ -403,7 +403,7 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_ClusterAuditConfig{
 			ClusterAuditConfig: r,
 		}
-	case *types.ClusterNetworkingConfigV2:
+	case *types.ClusterNetworkingConfigV3:
 		out.Resource = &proto.Event_ClusterNetworkingConfig{
 			ClusterNetworkingConfig: r,
 		}
@@ -2522,7 +2522,7 @@ func (g *GRPCServer) SetClusterAuditConfig(ctx context.Context, auditConfig *typ
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
-func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *empty.Empty) (*types.ClusterNetworkingConfigV2, error) {
+func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *empty.Empty) (*types.ClusterNetworkingConfigV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2531,7 +2531,7 @@ func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *empty.Em
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	netConfigV2, ok := netConfig.(*types.ClusterNetworkingConfigV2)
+	netConfigV2, ok := netConfig.(*types.ClusterNetworkingConfigV3)
 	if !ok {
 		return nil, trace.BadParameter("unexpected type %T", netConfig)
 	}
@@ -2539,7 +2539,7 @@ func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *empty.Em
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
-func (g *GRPCServer) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) (*empty.Empty, error) {
+func (g *GRPCServer) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

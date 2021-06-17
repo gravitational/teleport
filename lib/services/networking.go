@@ -25,7 +25,7 @@ import (
 
 // UnmarshalClusterNetworkingConfig unmarshals the ClusterNetworkingConfig resource from JSON.
 func UnmarshalClusterNetworkingConfig(bytes []byte, opts ...MarshalOption) (types.ClusterNetworkingConfig, error) {
-	var netConfig types.ClusterNetworkingConfigV2
+	var netConfig types.ClusterNetworkingConfigV3
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -66,10 +66,22 @@ func MarshalClusterNetworkingConfig(netConfig types.ClusterNetworkingConfig, opt
 	}
 
 	switch netConfig := netConfig.(type) {
-	case *types.ClusterNetworkingConfigV2:
-		if version := netConfig.GetVersion(); version != types.V2 {
-			return nil, trace.BadParameter("mismatched cluster networking config version %v and type %T", version, netConfig)
+	case *types.ClusterNetworkingConfigV3:
+		switch netConfig.GetVersion() {
+		case types.V2:
+			// A V2 resource is the same as a V3 resource, except that it lacks a idle timeout
+			// message. This will default to the empty string, so we can simply update the
+			// config version number and carry on.
+			netConfig.Version = types.V3
+
+		case types.V3:
+			// The current latest version: nothing to do
+			break
+
+		default:
+			return nil, trace.BadParameter("mismatched cluster networking config version %v and type %T", netConfig.GetVersion(), netConfig)
 		}
+
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

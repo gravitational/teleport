@@ -1767,7 +1767,6 @@ func (process *TeleportProcess) initSSH() error {
 				}
 			}),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
-			regular.SetIdleTimeoutMessage(cfg.SSH.IdleTimeoutMessage),
 		)
 		if err != nil {
 			return trace.Wrap(err)

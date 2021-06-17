@@ -321,18 +321,18 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	fromConfigFile, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+	fromConfigFile, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV3{
 		ClientIdleTimeout: types.Duration(7 * time.Minute),
 	})
 	require.NoError(t, err)
 
-	anotherFromConfigFile, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+	anotherFromConfigFile, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV3{
 		ClientIdleTimeout: types.Duration(10 * time.Minute),
 		KeepAliveInterval: types.Duration(3 * time.Minute),
 	})
 	require.NoError(t, err)
 
-	dynamically, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+	dynamically, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV3{
 		KeepAliveInterval: types.Duration(4 * time.Minute),
 	})
 	require.NoError(t, err)

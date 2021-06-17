@@ -27,20 +27,20 @@ import (
 // DefaultClusterConfig is used as the default cluster configuration when
 // one is not specified (record at node).
 func DefaultClusterConfig() types.ClusterConfig {
-	return &types.ClusterConfigV3{
+	return &types.ClusterConfigV4{
 		Kind:    types.KindClusterConfig,
-		Version: types.V3,
+		Version: types.V4,
 		Metadata: types.Metadata{
 			Name:      types.MetaNameClusterConfig,
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.ClusterConfigSpecV3{},
+		Spec: types.ClusterConfigSpecV4{},
 	}
 }
 
 // UnmarshalClusterConfig unmarshals the ClusterConfig resource from JSON.
 func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (types.ClusterConfig, error) {
-	var clusterConfig types.ClusterConfigV3
+	var clusterConfig types.ClusterConfigV4
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -77,8 +77,8 @@ func MarshalClusterConfig(clusterConfig types.ClusterConfig, opts ...MarshalOpti
 	}
 
 	switch clusterConfig := clusterConfig.(type) {
-	case *types.ClusterConfigV3:
-		if version := clusterConfig.GetVersion(); version != types.V3 {
+	case *types.ClusterConfigV4:
+		if version := clusterConfig.GetVersion(); version != types.V4 {
 			return nil, trace.BadParameter("mismatched cluster config version %v and type %T", version, clusterConfig)
 		}
 		if !cfg.PreserveResourceID {
