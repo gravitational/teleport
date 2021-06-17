@@ -138,6 +138,7 @@ func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
 	return text
 }
 
+// TestSSHSection tests the config parser for the SSH config block
 func TestSSHSection(t *testing.T) {
 	t.Parallel()
 

@@ -1079,21 +1079,22 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 }
 
-func (s *Server) canPortForward(scx *srv.ServerContext, channel ssh.Channel) bool {
+// canPortForward determines if port forwarding is allowed for the current
+// user/role/node combo. Returns nil if port forwarding is allowed, non-nil
+// if denied.
+func (s *Server) canPortForward(scx *srv.ServerContext, channel ssh.Channel) error {
 	// Is the node configured to allow port forwarding?
 	if !s.allowTCPForwarding {
-		writeStderr(channel, "Node does not allow port forwarding")
-		return false
+		return trace.AccessDenied("node does not allow port forwarding")
 	}
 
 	// Check if the role allows port forwarding for this user.
 	err := s.authHandlers.CheckPortForward(scx.DstAddr, scx)
 	if err != nil {
-		writeStderr(channel, err.Error())
-		return false
+		return err
 	}
 
-	return true
+	return nil
 }
 
 // handleDirectTCPIPRequest handles port forwarding requests.
@@ -1117,7 +1118,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 
 	// Bail out now if TCP port forwarding is not allowed for this node/user/role
 	// combo
-	if !s.canPortForward(scx, channel) {
+	if err = s.canPortForward(scx, channel); err != nil {
+		writeStderr(channel, err.Error())
 		return
 	}
 
