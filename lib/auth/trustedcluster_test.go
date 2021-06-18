@@ -95,7 +95,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 		clusterName = name[0]
 	}
 	// Create a cluster with minimal viable config.
-	clusterNameRes, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterNameRes, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
@@ -111,8 +111,8 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	require.NoError(t, a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
 	require.NoError(t, a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
 	require.NoError(t, a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
-	require.NoError(t, a.SetAuthPreference(types.DefaultAuthPreference()))
-	require.NoError(t, a.SetClusterConfig(services.DefaultClusterConfig()))
+	require.NoError(t, a.SetAuthPreference(ctx, types.DefaultAuthPreference()))
+	require.NoError(t, a.SetClusterConfig(types.DefaultClusterConfig()))
 
 	return a
 }

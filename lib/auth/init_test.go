@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -281,6 +282,7 @@ func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurablePara
 
 func TestAuthPreference(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	fromConfigFile, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type: constants.OIDC,
@@ -306,11 +308,11 @@ func TestAuthPreference(t *testing.T) {
 			return conf.AuthPreference
 		},
 		setDynamic: func(authServer *Server) {
-			err := authServer.SetAuthPreference(dynamically)
+			err := authServer.SetAuthPreference(ctx, dynamically)
 			require.NoError(t, err)
 		},
 		getStored: func(authServer *Server) types.ResourceWithOrigin {
-			authPref, err := authServer.GetAuthPreference()
+			authPref, err := authServer.GetAuthPreference(ctx)
 			require.NoError(t, err)
 			return authPref
 		},
@@ -414,7 +416,7 @@ func TestClusterID(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterConfig()
+	cc, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEqual(t, clusterID, "")
@@ -424,7 +426,7 @@ func TestClusterID(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterConfig()
+	cc, err = authServer.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, cc.GetClusterID(), clusterID)
 }
@@ -439,7 +441,7 @@ func TestClusterName(t *testing.T) {
 	// Start the auth server with a different cluster name. The auth server
 	// should start, but with the original name.
 	newConfig := conf
-	newConfig.ClusterName, err = types.NewClusterName(types.ClusterNameSpecV2{
+	newConfig.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "dev.localhost",
 	})
 	require.NoError(t, err)
@@ -768,7 +770,7 @@ func TestMigrateOSS(t *testing.T) {
 		err := as.CreateRole(services.NewAdminRole())
 		require.NoError(t, err)
 
-		connector := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 			ClientID:     "aaa",
 			ClientSecret: "bbb",
 			RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
@@ -789,6 +791,7 @@ func TestMigrateOSS(t *testing.T) {
 				},
 			},
 		})
+		require.NoError(t, err)
 
 		err = as.CreateGithubConnector(connector)
 		require.NoError(t, err)
@@ -831,13 +834,39 @@ func TestMigrateOSS(t *testing.T) {
 	})
 }
 
+func TestMigrateClusterID(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	as := newTestAuthServer(ctx, t)
+
+	const legacyClusterID = "legacy-cluster-id"
+	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
+		ClusterID: legacyClusterID,
+	})
+	require.NoError(t, err)
+	err = as.ClusterConfiguration.(*local.ClusterConfigurationService).ForceSetClusterConfig(clusterConfig)
+	require.NoError(t, err)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+	})
+	require.NoError(t, err)
+	require.NoError(t, as.SetClusterName(clusterName))
+
+	require.NoError(t, migrateClusterID(ctx, as))
+
+	clusterName, err = as.GetClusterName()
+	require.NoError(t, err)
+	require.Equal(t, legacyClusterID, clusterName.GetClusterID())
+}
+
 func setupConfig(t *testing.T) InitConfig {
 	tempDir := t.TempDir()
 
 	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
 	require.NoError(t, err)
 
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
@@ -848,12 +877,12 @@ func setupConfig(t *testing.T) InitConfig {
 		NodeName:                "foo",
 		Backend:                 bk,
 		Authority:               testauthority.New(),
-		ClusterConfig:           services.DefaultClusterConfig(),
 		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
+		ClusterConfig:           types.DefaultClusterConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
 		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
 		ClusterName:             clusterName,
-		StaticTokens:            services.DefaultStaticTokens(),
+		StaticTokens:            types.DefaultStaticTokens(),
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
 	}
@@ -912,7 +941,8 @@ func TestMigrateCertAuthorities(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("create %v CA", spec.Type), func(t *testing.T) {
-			ca := types.NewCertAuthority(spec)
+			ca, err := types.NewCertAuthority(spec)
+			require.NoError(t, err)
 			// Do NOT use services.MarshalCertAuthority to keep all fields as-is.
 			enc, err := utils.FastMarshal(ca)
 			require.NoError(t, err)

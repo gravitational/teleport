@@ -482,7 +482,7 @@ func (c ClusterName) Parse() (types.ClusterName, error) {
 	if string(c) == "" {
 		return nil, nil
 	}
-	return types.NewClusterName(types.ClusterNameSpecV2{
+	return services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: string(c),
 	})
 }
@@ -958,7 +958,10 @@ func (t *ReverseTunnel) ConvertAndValidate() (types.ReverseTunnel, error) {
 		t.Addresses[i] = addr.String()
 	}
 
-	out := types.NewReverseTunnel(t.DomainName, t.Addresses)
+	out, err := types.NewReverseTunnel(t.DomainName, t.Addresses)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := services.ValidateReverseTunnel(out); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1026,7 +1029,7 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		})
 	}
 
-	v2 := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
+	v2, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
@@ -1035,10 +1038,13 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		Scope:         o.Scope,
 		ClaimsToRoles: mappings,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	v2.SetACR(o.ACR)
 	v2.SetProvider(o.Provider)
-	if err := v2.Check(); err != nil {
+	if err := v2.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return v2, nil

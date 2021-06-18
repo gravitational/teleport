@@ -59,7 +59,7 @@ func NewJWTAuthority(clusterName string) (types.CertAuthority, error) {
 		ActiveKeys: types.CAKeySet{
 			JWT: []*types.JWTKeyPair{&keyPair},
 		},
-	}), nil
+	})
 }
 
 // ValidateCertAuthority validates the CertAuthority
@@ -383,6 +383,10 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 
 // MarshalCertAuthority marshals the CertAuthority resource to JSON.
 func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidateCertAuthority(certAuthority); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -390,9 +394,6 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 
 	switch certAuthority := certAuthority.(type) {
 	case *types.CertAuthorityV2:
-		if version := certAuthority.GetVersion(); version != types.V2 {
-			return nil, trace.BadParameter("mismatched certificate authority version %v and type %T", version, certAuthority)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
