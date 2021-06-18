@@ -775,7 +775,7 @@ func withCloudSQLMySQL(name, authUser, authToken string) withDatabaseOption {
 		require.NoError(t, err)
 		go mysqlServer.Serve()
 		t.Cleanup(func() { mysqlServer.Close() })
-		server := types.NewDatabaseServerV3(name, nil,
+		server, err := types.NewDatabaseServerV3(name, nil,
 			types.DatabaseServerSpecV3{
 				Protocol:      defaults.ProtocolMySQL,
 				URI:           net.JoinHostPort("localhost", mysqlServer.Port()),
@@ -790,6 +790,7 @@ func withCloudSQLMySQL(name, authUser, authToken string) withDatabaseOption {
 				// Set CA cert to pass cert validation.
 				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
 			})
+		require.NoError(t, err)
 		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
 		require.NoError(t, err)
 		testCtx.mysql[name] = testMySQL{
