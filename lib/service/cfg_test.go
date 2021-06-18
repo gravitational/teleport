@@ -83,6 +83,7 @@ func TestDefaultConfig(t *testing.T) {
 	ssh := config.SSH
 	require.Equal(t, ssh.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
 	require.Equal(t, ssh.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
+	require.Equal(t, ssh.AllowTCPForwarding, true)
 
 	// proxy section
 	proxy := config.Proxy
