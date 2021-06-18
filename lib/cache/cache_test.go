@@ -121,10 +121,11 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 
 // newPackWithoutCache returns a new test pack without creating cache
 func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, error) {
+	ctx := context.Background()
 	p := &testPack{
 		dataDir: dir,
 	}
-	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
 		Path:             p.dataDir,
 		PollStreamPeriod: 200 * time.Millisecond,
 	})
@@ -135,7 +136,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 
 	p.cacheBackend, err = memory.New(
 		memory.Config{
-			Context: context.TODO(),
+			Context: ctx,
 			Mirror:  true,
 		})
 	if err != nil {
@@ -166,13 +167,14 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 
 // newPack returns a new test pack or fails the test on error
 func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
+	ctx := context.Background()
 	p, err := newPackWithoutCache(dir, setupConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	p.cache, err = New(setupConfig(Config{
-		Context:       context.TODO(),
+		Context:       ctx,
 		Backend:       p.cacheBackend,
 		Events:        p.eventsS,
 		ClusterConfig: p.clusterConfigS,
@@ -235,12 +237,13 @@ func (s *CacheSuite) TestCA(c *check.C) {
 // TestOnlyRecentInit makes sure init fails
 // with "only recent" cache strategy
 func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackWithoutCache(c, ForAuth)
 	defer p.Close()
 
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	_, err := New(ForAuth(Config{
-		Context:       context.TODO(),
+		Context:       ctx,
 		Backend:       p.cacheBackend,
 		Events:        p.eventsS,
 		ClusterConfig: p.clusterConfigS,
@@ -315,10 +318,11 @@ func (s *CacheSuite) onlyRecentDisconnect(c *check.C) {
 // verifies that all watchers of the cache will be closed
 // if the underlying watcher to the target backend is closed
 func (s *CacheSuite) TestWatchers(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	w, err := p.cache.NewWatcher(context.TODO(), types.Watch{Kinds: []types.WatchKind{
+	w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
 		{
 			Kind: types.KindCertAuthority,
 		},
@@ -354,7 +358,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	req, err := services.NewAccessRequest("alice", "dictator")
 	c.Assert(err, check.IsNil)
 
-	c.Assert(p.dynamicAccessS.CreateAccessRequest(context.TODO(), req), check.IsNil)
+	c.Assert(p.dynamicAccessS.CreateAccessRequest(ctx, req), check.IsNil)
 
 	select {
 	case e := <-w.Events():
@@ -364,7 +368,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	c.Assert(p.dynamicAccessS.DeleteAccessRequest(context.TODO(), req.GetName()), check.IsNil)
+	c.Assert(p.dynamicAccessS.DeleteAccessRequest(ctx, req.GetName()), check.IsNil)
 
 	select {
 	case e := <-w.Events():
@@ -379,8 +383,8 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// create and then delete the non-matching request.
-	c.Assert(p.dynamicAccessS.CreateAccessRequest(context.TODO(), req2), check.IsNil)
-	c.Assert(p.dynamicAccessS.DeleteAccessRequest(context.TODO(), req2.GetName()), check.IsNil)
+	c.Assert(p.dynamicAccessS.CreateAccessRequest(ctx, req2), check.IsNil)
+	c.Assert(p.dynamicAccessS.DeleteAccessRequest(ctx, req2.GetName()), check.IsNil)
 
 	// because our filter did not match the request, the create event should never
 	// have been created, meaning that the next event on the pipe is the delete
@@ -429,6 +433,7 @@ func waitForEvent(c *check.C, eventsC <-chan Event, expectedEvent string, skipEv
 // TestCompletenessInit verifies that flaky backends don't cause
 // the cache to return partial results during init.
 func (s *CacheSuite) TestCompletenessInit(c *check.C) {
+	ctx := context.Background()
 	const caCount = 100
 	const inits = 20
 	p := s.newPackWithoutCache(c, ForAuth)
@@ -445,7 +450,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 
 		p.cacheBackend, err = memory.New(
 			memory.Config{
-				Context: context.TODO(),
+				Context: ctx,
 				Mirror:  true,
 			})
 		c.Assert(err, check.IsNil)
@@ -455,7 +460,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 		p.eventsS.closeWatchers()
 
 		p.cache, err = New(ForAuth(Config{
-			Context:       context.TODO(),
+			Context:       ctx,
 			Backend:       p.cacheBackend,
 			Events:        p.eventsS,
 			ClusterConfig: p.clusterConfigS,
@@ -498,6 +503,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 // TestCompletenessReset verifies that flaky backends don't cause
 // the cache to return partial results during reset.
 func (s *CacheSuite) TestCompletenessReset(c *check.C) {
+	ctx := context.Background()
 	const caCount = 100
 	const resets = 20
 	p := s.newPackWithoutCache(c, ForAuth)
@@ -511,7 +517,7 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
+		Context:       ctx,
 		Backend:       p.cacheBackend,
 		Events:        p.eventsS,
 		ClusterConfig: p.clusterConfigS,
@@ -560,6 +566,7 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 // on closure, giving new caches the ability to start from a known
 // good state if the origin state is unavailable.
 func (s *CacheSuite) TestTombstones(c *check.C) {
+	ctx := context.Background()
 	const caCount = 10
 	p := s.newPackWithoutCache(c, ForAuth)
 	defer p.Close()
@@ -572,7 +579,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
+		Context:       ctx,
 		Backend:       p.cacheBackend,
 		Events:        p.eventsS,
 		ClusterConfig: p.clusterConfigS,
@@ -606,7 +613,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 	p.eventsS.closeWatchers()
 
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
+		Context:       ctx,
 		Backend:       p.cacheBackend,
 		Events:        p.eventsS,
 		ClusterConfig: p.clusterConfigS,
@@ -645,13 +652,14 @@ func (s *CacheSuite) TestPreferRecent(c *check.C) {
 }
 
 func (s *CacheSuite) preferRecent(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackWithoutCache(c, ForAuth)
 	defer p.Close()
 
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
+		Context:       ctx,
 		Backend:       p.cacheBackend,
 		Events:        p.eventsS,
 		ClusterConfig: p.clusterConfigS,
@@ -859,7 +867,7 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	}
 
 	// DELETE IN 8.0.0
-	err = p.clusterConfigS.SetAuthPreference(types.DefaultAuthPreference())
+	err = p.clusterConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -997,6 +1005,7 @@ func (s *CacheSuite) TestNamespaces(c *check.C) {
 
 // TestUsers tests caching of users
 func (s *CacheSuite) TestUsers(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
@@ -1041,7 +1050,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 	user.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, user, out)
 
-	err = p.usersS.DeleteUser(context.TODO(), user.GetName())
+	err = p.usersS.DeleteUser(ctx, user.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1321,7 +1330,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	// update keep alive on the node and make sure
 	// it propagates
 	lease.Expires = time.Now().UTC().Add(time.Hour)
-	err = p.presenceS.KeepAliveNode(context.TODO(), *lease)
+	err = p.presenceS.KeepAliveNode(ctx, *lease)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1489,6 +1498,7 @@ func (s *CacheSuite) TestAuthServers(c *check.C) {
 
 // TestRemoteClusters tests remote clusters caching
 func (s *CacheSuite) TestRemoteClusters(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
@@ -1521,7 +1531,6 @@ func (s *CacheSuite) TestRemoteClusters(c *check.C) {
 	meta.Labels = map[string]string{"env": "prod"}
 	rc.SetMetadata(meta)
 
-	ctx := context.TODO()
 	err = p.presenceS.UpdateRemoteCluster(ctx, rc)
 	c.Assert(err, check.IsNil)
 

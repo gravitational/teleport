@@ -2413,6 +2413,7 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 
 // TestAuthenticateWebUserOTP tests web authentication flow for password + OTP
 func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
+	ctx := context.Background()
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
@@ -2429,7 +2430,6 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
 	c.Assert(err, check.IsNil)
-	ctx := context.Background()
 	err = s.server.Auth().UpsertMFADevice(ctx, user, dev)
 	c.Assert(err, check.IsNil)
 
@@ -2445,7 +2445,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, check.IsNil)
-	err = s.server.Auth().SetAuthPreference(authPreference)
+	err = s.server.Auth().SetAuthPreference(ctx, authPreference)
 	c.Assert(err, check.IsNil)
 
 	// authentication attempt fails with wrong passwrod
@@ -2536,12 +2536,13 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 }
 
 func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
+	ctx := context.Background()
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		AllowLocalAuth: types.NewBoolOption(true),
 	})
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().SetAuthPreference(authPref)
+	err = s.server.Auth().SetAuthPreference(ctx, authPref)
 	c.Assert(err, check.IsNil)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2550,7 +2551,7 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().SetAuthPreference(authPreference)
+	err = s.server.Auth().SetAuthPreference(ctx, authPreference)
 	c.Assert(err, check.IsNil)
 
 	username := "user1"
@@ -2584,6 +2585,7 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 // TestLoginNoLocalAuth makes sure that logins for local accounts can not be
 // performed when local auth is disabled.
 func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
+	ctx := context.Background()
 	user := "foo"
 	pass := []byte("barbaz")
 
@@ -2600,7 +2602,7 @@ func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 		AllowLocalAuth: types.NewBoolOption(false),
 	})
 	c.Assert(err, check.IsNil)
-	err = s.server.Auth().SetAuthPreference(authPref)
+	err = s.server.Auth().SetAuthPreference(ctx, authPref)
 	c.Assert(err, check.IsNil)
 
 	// Make sure access is denied for web login.

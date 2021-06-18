@@ -598,7 +598,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 }
 
 func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
@@ -701,7 +701,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	authClient := h.cfg.ProxyClient
 	connectorName := p.ByName("connector")
 
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -796,7 +796,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	authType := constants.Local
 	secondFactor := constants.SecondFactorOff
 	localAuth := true
-	cap, err := h.cfg.ProxyClient.GetAuthPreference()
+	cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
 	} else {
@@ -1288,7 +1288,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	// get cluster preferences to see if we should login
 	// with password or password+otp
 	authClient := h.cfg.ProxyClient
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2162,7 +2162,7 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	authClient := h.cfg.ProxyClient
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

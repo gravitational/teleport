@@ -250,7 +250,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetAuthPreference(types.DefaultAuthPreference())
+	err = srv.AuthServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -272,7 +272,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = srv.AuthServer.SetAuthPreference(authPreference)
+	err = srv.AuthServer.SetAuthPreference(ctx, authPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -282,6 +282,7 @@ func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurablePara
 
 func TestAuthPreference(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	fromConfigFile, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type: constants.OIDC,
@@ -307,11 +308,11 @@ func TestAuthPreference(t *testing.T) {
 			return conf.AuthPreference
 		},
 		setDynamic: func(authServer *Server) {
-			err := authServer.SetAuthPreference(dynamically)
+			err := authServer.SetAuthPreference(ctx, dynamically)
 			require.NoError(t, err)
 		},
 		getStored: func(authServer *Server) types.ResourceWithOrigin {
-			authPref, err := authServer.GetAuthPreference()
+			authPref, err := authServer.GetAuthPreference(ctx)
 			require.NoError(t, err)
 			return authPref
 		},

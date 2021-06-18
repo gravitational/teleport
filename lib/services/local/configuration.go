@@ -167,8 +167,8 @@ func (s *ClusterConfigurationService) DeleteStaticTokens() error {
 
 // GetAuthPreference fetches the cluster authentication preferences
 // from the backend and return them.
-func (s *ClusterConfigurationService) GetAuthPreference() (types.AuthPreference, error) {
-	item, err := s.Get(context.TODO(), backend.Key(authPrefix, preferencePrefix, generalPrefix))
+func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	item, err := s.Get(ctx, backend.Key(authPrefix, preferencePrefix, generalPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("authentication preference not found")
@@ -181,7 +181,7 @@ func (s *ClusterConfigurationService) GetAuthPreference() (types.AuthPreference,
 
 // SetAuthPreference sets the cluster authentication preferences
 // on the backend.
-func (s *ClusterConfigurationService) SetAuthPreference(preferences types.AuthPreference) error {
+func (s *ClusterConfigurationService) SetAuthPreference(ctx context.Context, preferences types.AuthPreference) error {
 	// Perform the modules-provided checks.
 	if err := modules.ValidateResource(preferences); err != nil {
 		return trace.Wrap(err)
@@ -198,7 +198,7 @@ func (s *ClusterConfigurationService) SetAuthPreference(preferences types.AuthPr
 		ID:    preferences.GetResourceID(),
 	}
 
-	_, err = s.Put(context.TODO(), item)
+	_, err = s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -220,11 +220,10 @@ func (s *ClusterConfigurationService) DeleteAuthPreference(ctx context.Context) 
 
 // GetClusterConfig gets types.ClusterConfig from the backend.
 func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	var (
-		clusterConfig types.ClusterConfig
-		err           error
-	)
-	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, generalPrefix))
+	ctx := context.TODO()
+
+	var clusterConfig types.ClusterConfig
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, generalPrefix))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -268,7 +267,7 @@ func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalO
 	// To ensure backward compatibility, extend the fetched ClusterConfig
 	// resource with the values that are now stored in ClusterNetworkingConfig.
 	// DELETE IN 8.0.0
-	netConfig, err := s.GetClusterNetworkingConfig(context.TODO())
+	netConfig, err := s.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -279,7 +278,7 @@ func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalO
 	// To ensure backward compatibility, extend the fetched ClusterConfig
 	// resource with the values that are now stored in SessionRecordingConfig.
 	// DELETE IN 8.0.0
-	recConfig, err := s.GetSessionRecordingConfig(context.TODO())
+	recConfig, err := s.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -290,7 +289,7 @@ func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalO
 	// To ensure backward compatibility, extend the fetched ClusterConfig
 	// resource with the values that are now stored in AuthPreference.
 	// DELETE IN 8.0.0
-	authPref, err := s.GetAuthPreference()
+	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

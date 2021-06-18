@@ -60,7 +60,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
@@ -554,7 +554,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			Facets: []string{"teleport"},
 		}})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -882,7 +882,7 @@ func TestIsMFARequired(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -941,7 +941,7 @@ func TestDeleteLastMFADevice(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
@@ -1158,15 +1158,16 @@ func TestRoleVersions(t *testing.T) {
 
 func TestAuthPreferenceOriginDynamic(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	setWithOrigin := func(cl *Client, origin string) error {
 		authPref := types.DefaultAuthPreference()
 		authPref.SetOrigin(origin)
-		return cl.SetAuthPreference(authPref)
+		return cl.SetAuthPreference(ctx, authPref)
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
-		return asrv.GetAuthPreference()
+		return asrv.GetAuthPreference(ctx)
 	}
 
 	testOriginDynamicStored(t, setWithOrigin, getStored)
