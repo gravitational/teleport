@@ -30,7 +30,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
 	if err != nil {
@@ -237,7 +237,7 @@ func (c mockClient) GenerateDatabaseCert(context.Context, *proto.DatabaseCertReq
 
 func TestCheckKubeCluster(t *testing.T) {
 	const teleportCluster = "local-teleport"
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: teleportCluster,
 	})
 	require.NoError(t, err)

@@ -57,7 +57,7 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set cluster name
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)

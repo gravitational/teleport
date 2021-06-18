@@ -3148,9 +3148,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 				"key": "val",
 			},
 		},
-		Spec: types.ClusterNameSpecV2{
-			ClusterName: clusterNameResource.GetClusterName(),
-		},
+		Spec: clusterNameResource.(*types.ClusterNameV2).Spec,
 	}
 
 	err = s.server.Auth().DeleteClusterName()

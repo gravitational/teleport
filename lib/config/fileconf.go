@@ -482,7 +482,7 @@ func (c ClusterName) Parse() (types.ClusterName, error) {
 	if string(c) == "" {
 		return nil, nil
 	}
-	return types.NewClusterName(types.ClusterNameSpecV2{
+	return services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: string(c),
 	})
 }

@@ -33,6 +33,11 @@ type ClusterName interface {
 	SetClusterName(string)
 	// GetClusterName gets the name of the cluster.
 	GetClusterName() string
+
+	// SetClusterID sets the ID of the cluster.
+	SetClusterID(string)
+	// GetClusterID gets the ID of the cluster.
+	GetClusterID() string
 }
 
 // NewClusterName is a convenience wrapper to create a ClusterName resource.
@@ -116,6 +121,16 @@ func (c *ClusterNameV2) GetClusterName() string {
 	return c.Spec.ClusterName
 }
 
+// SetClusterID sets the ID of the cluster.
+func (c *ClusterNameV2) SetClusterID(id string) {
+	c.Spec.ClusterID = id
+}
+
+// GetClusterID gets the ID of the cluster.
+func (c *ClusterNameV2) GetClusterID() string {
+	return c.Spec.ClusterID
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *ClusterNameV2) setStaticFields() {
 	c.Kind = KindClusterName
@@ -134,10 +149,14 @@ func (c *ClusterNameV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("cluster name is required")
 	}
 
+	if c.Spec.ClusterID == "" {
+		return trace.BadParameter("cluster ID is required")
+	}
+
 	return nil
 }
 
 // String represents a human readable version of the cluster name.
 func (c *ClusterNameV2) String() string {
-	return fmt.Sprintf("ClusterName(%v)", c.Spec.ClusterName)
+	return fmt.Sprintf("ClusterName(%v, ID=%v)", c.Spec.ClusterName, c.Spec.ClusterID)
 }

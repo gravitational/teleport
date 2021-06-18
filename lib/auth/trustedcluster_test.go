@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -94,7 +95,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 		clusterName = name[0]
 	}
 	// Create a cluster with minimal viable config.
-	clusterNameRes, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterNameRes, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)

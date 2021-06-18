@@ -84,7 +84,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	s.bk, err = lite.NewWithConfig(ctx, lite.Config{Path: s.dataDir})
 	c.Assert(err, IsNil)
 
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)
@@ -790,7 +790,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 
 	// try and set cluster name, this should fail because you can only set the
 	// cluster name once
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "foo.localhost",
 	})
 	c.Assert(err, IsNil)
