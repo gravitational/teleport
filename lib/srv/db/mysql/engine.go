@@ -69,7 +69,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		}
 	}()
 	// Perform authorization checks.
-	err = e.checkAccess(sessionCtx)
+	err = e.checkAccess(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -109,8 +109,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 }
 
 // checkAccess does authorization check for MySQL connection about to be established.
-func (e *Engine) checkAccess(sessionCtx *common.Session) error {
-	ap, err := e.Auth.GetAuthPreference()
+func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
+	ap, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

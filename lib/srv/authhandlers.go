@@ -17,7 +17,6 @@ limitations under the License.
 package srv
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -332,8 +331,11 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 // hostKeyCallback allows connections to hosts that present keys only if
 // strict host key checking is disabled.
 func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
+	// Use the server's shutdown context.
+	ctx := h.c.Server.Context()
+
 	// If strict host key checking is enabled, reject host key fallback.
-	recConfig, err := h.c.AccessPoint.GetSessionRecordingConfig(context.TODO())
+	recConfig, err := h.c.AccessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -387,6 +389,9 @@ func (h *AuthHandlers) canLoginWithoutRBAC(cert *ssh.Certificate, clusterName st
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server and if RBAC rules allow login.
 func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName string, teleportUser, osUser string) error {
+	// Use the server's shutdown context.
+	ctx := h.c.Server.Context()
+
 	h.log.Debugf("Checking permissions for (%v,%v) to login to node with RBAC checks.", teleportUser, osUser)
 
 	// get the ca that signd the users certificate
@@ -401,7 +406,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 		return trace.Wrap(err)
 	}
 
-	ap, err := h.c.AccessPoint.GetAuthPreference()
+	ap, err := h.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

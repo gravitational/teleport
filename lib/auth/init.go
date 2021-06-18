@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -258,29 +257,14 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = initSetAuthPreference(asrv, cfg.AuthPreference)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// set cluster level config on the backend and then force a sync of the cache.
-	clusterConfig, err := asrv.GetClusterConfig()
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-	// init a unique cluster ID, it must be set once only during the first
-	// start so if it's already there, reuse it
-	if clusterConfig != nil && clusterConfig.GetClusterID() != "" {
-		cfg.ClusterConfig.SetClusterID(clusterConfig.GetClusterID())
-	} else {
-		cfg.ClusterConfig.SetClusterID(uuid.New())
-	}
-	err = asrv.SetClusterConfig(cfg.ClusterConfig)
+	err = initSetAuthPreference(ctx, asrv, cfg.AuthPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// The first Auth Server that starts gets to set the name of the cluster.
+	// If a cluster name/ID is already stored in the backend, the attempt to set
+	// a new name returns an AlreadyExists error.
 	err = asrv.SetClusterName(cfg.ClusterName)
 	if err != nil && !trace.IsAlreadyExists(err) {
 		return nil, trace.Wrap(err)
@@ -302,10 +286,9 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			log.Warnf(warnMessage,
 				cfg.ClusterName.GetClusterName(),
 				cn.GetClusterName())
-
-			// Override user passed in cluster name with what is in the backend.
-			cfg.ClusterName = cn
 		}
+		// Override user passed in cluster name with what is in the backend.
+		cfg.ClusterName = cn
 	}
 	log.Debugf("Cluster configuration: %v.", cfg.ClusterName)
 
@@ -496,8 +479,8 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	return asrv, nil
 }
 
-func initSetAuthPreference(asrv *Server, newAuthPref types.AuthPreference) error {
-	storedAuthPref, err := asrv.GetAuthPreference()
+func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
+	storedAuthPref, err := asrv.GetAuthPreference(ctx)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -508,7 +491,7 @@ func initSetAuthPreference(asrv *Server, newAuthPref types.AuthPreference) error
 		return trace.Wrap(err)
 	}
 	if shouldReplace {
-		if err := asrv.SetAuthPreference(newAuthPref); err != nil {
+		if err := asrv.SetAuthPreference(ctx, newAuthPref); err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Updating cluster auth preference: %v.", newAuthPref)
@@ -609,6 +592,10 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 
 	if err := migrateCertAuthorities(ctx, asrv); err != nil {
 		return trace.Wrap(err, "fail to migrate certificate authorities to the v7 storage format: %v; please report this at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md including the *redacted* output of 'tctl get cert_authority'", err)
+	}
+
+	if err := migrateClusterID(ctx, asrv); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -1420,5 +1407,34 @@ func migrateCertAuthority(ctx context.Context, asrv *Server, ca types.CertAuthor
 		return trace.Wrap(err, "failed storing the migrated CA: %v", err)
 	}
 	log.Infof("Successfully migrated %v to 7.0 storage format.", ca)
+	return nil
+}
+
+// DELETE IN: 8.0.0
+// migrateClusterID moves the cluster ID information
+// from ClusterConfig to ClusterName.
+func migrateClusterID(ctx context.Context, asrv *Server) error {
+	clusterConfig, err := asrv.ClusterConfiguration.GetClusterConfig()
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	clusterName, err := asrv.ClusterConfiguration.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if clusterName.GetClusterID() == clusterConfig.GetLegacyClusterID() {
+		return nil
+	}
+
+	log.Infof("Migrating cluster ID %q from legacy ClusterConfig to ClusterName.", clusterConfig.GetLegacyClusterID())
+
+	clusterName.SetClusterID(clusterConfig.GetLegacyClusterID())
+	if err := asrv.ClusterConfiguration.UpsertClusterName(clusterName); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
