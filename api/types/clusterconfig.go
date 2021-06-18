@@ -27,15 +27,18 @@ import (
 
 // ClusterConfig defines cluster level configuration. This is a configuration
 // resource, never create more than one instance of it.
+// DELETE IN 8.0.0
 type ClusterConfig interface {
 	// Resource provides common resource properties.
 	Resource
 
-	// GetClusterID returns the unique cluster ID
-	GetClusterID() string
+	// GetLegacyClusterID returns the legacy cluster ID.
+	// DELETE IN 8.0.0
+	GetLegacyClusterID() string
 
-	// SetClusterID sets the cluster ID
-	SetClusterID(string)
+	// SetLegacyClusterID sets the legacy cluster ID.
+	// DELETE IN 8.0.0
+	SetLegacyClusterID(string)
 
 	// HasAuditConfig returns true if audit configuration is set.
 	// DELETE IN 8.0.0
@@ -158,16 +161,6 @@ func (c *ClusterConfigV3) GetMetadata() Metadata {
 	return c.Metadata
 }
 
-// GetClusterID returns the unique cluster ID
-func (c *ClusterConfigV3) GetClusterID() string {
-	return c.Spec.ClusterID
-}
-
-// SetClusterID sets the cluster ID
-func (c *ClusterConfigV3) SetClusterID(id string) {
-	c.Spec.ClusterID = id
-}
-
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -179,6 +172,18 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 		c.Version = V3
 	}
 	return nil
+}
+
+// GetLegacyClusterID returns the legacy cluster ID.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) GetLegacyClusterID() string {
+	return c.Spec.ClusterID
+}
+
+// SetLegacyClusterID sets the legacy cluster ID.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) SetLegacyClusterID(id string) {
+	c.Spec.ClusterID = id
 }
 
 // HasAuditConfig returns true if audit configuration is set.
@@ -267,6 +272,7 @@ func (c *ClusterConfigV3) ClearLegacyFields() {
 	c.Spec.ClusterNetworkingConfigSpecV2 = nil
 	c.Spec.LegacySessionRecordingConfigSpec = nil
 	c.Spec.LegacyClusterConfigAuthFields = nil
+	c.Spec.ClusterID = ""
 }
 
 // Copy creates a copy of the resource and returns it.

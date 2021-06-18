@@ -1152,10 +1152,26 @@ func CollectOptions(opts ...Option) Options {
 	return suiteOpts
 }
 
-// ClusterConfig tests cluster configuration
+// ClusterConfig tests cluster configuration.
+// DELETE IN 8.0.0: Test only the individual resources.
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	ctx := context.Background()
 
+	// DELETE IN 8.0.0
+	clusterName, err := s.ConfigS.GetClusterName()
+	if trace.IsNotFound(err) {
+		clusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+			ClusterName: "example.com",
+		})
+		c.Assert(err, check.IsNil)
+		err = s.ConfigS.SetClusterName(clusterName)
+		c.Assert(err, check.IsNil)
+	} else {
+		c.Assert(err, check.IsNil)
+	}
+	clusterID := clusterName.GetClusterID()
+
+	// DELETE IN 8.0.0
 	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		Region:           "us-west-1",
 		Type:             "dynamodb",
@@ -1190,39 +1206,28 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	err = s.ConfigS.SetAuthPreference(ctx, authPref)
 	c.Assert(err, check.IsNil)
 
-	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-		ClusterID: "27",
-	})
+	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
 	c.Assert(err, check.IsNil)
-
 	err = s.ConfigS.SetClusterConfig(config)
 	c.Assert(err, check.IsNil)
 
 	gotConfig, err := s.ConfigS.GetClusterConfig()
 	c.Assert(err, check.IsNil)
 	config.SetResourceID(gotConfig.GetResourceID())
+	config.SetLegacyClusterID(clusterID)
 	config.SetAuditConfig(auditConfig)
 	config.SetNetworkingFields(netConfig)
 	config.SetSessionRecordingFields(recConfig)
 	config.SetAuthFields(authPref)
 	fixtures.DeepCompare(c, config, gotConfig)
+}
 
-	// Some parts (e.g. auth server) will not function
-	// without cluster name or cluster config
-	if CollectOptions(opts...).SkipDelete {
-		return
-	}
-	err = s.ConfigS.DeleteClusterConfig()
-	c.Assert(err, check.IsNil)
-
-	_, err = s.ConfigS.GetClusterConfig()
-	fixtures.ExpectNotFound(c, err)
-
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+// ClusterName tests cluster name.
+func (s *ServicesTestSuite) ClusterName(c *check.C, opts ...Option) {
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
 	c.Assert(err, check.IsNil)
-
 	err = s.ConfigS.SetClusterName(clusterName)
 	c.Assert(err, check.IsNil)
 
@@ -1789,6 +1794,15 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 			crud: func(ctx context.Context) types.Resource {
 				// DELETE IN 8.0.0
 				err := s.ConfigS.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
+				clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+					ClusterName: "example.com",
+				})
+				c.Assert(err, check.IsNil)
+				err = s.ConfigS.SetClusterName(clusterName)
+				c.Assert(err, check.IsNil)
+
+				// DELETE IN 8.0.0
+				err = s.ConfigS.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
 				c.Assert(err, check.IsNil)
 
 				// DELETE IN 8.0.0
@@ -1835,12 +1849,12 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				Kind: types.KindClusterName,
 			},
 			crud: func(context.Context) types.Resource {
-				clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+				clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 					ClusterName: "example.com",
 				})
 				c.Assert(err, check.IsNil)
 
-				err = s.ConfigS.SetClusterName(clusterName)
+				err = s.ConfigS.UpsertClusterName(clusterName)
 				c.Assert(err, check.IsNil)
 
 				out, err := s.ConfigS.GetClusterName()

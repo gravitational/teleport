@@ -57,6 +57,7 @@ type ClusterConfiguration interface {
 	// DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.
 	DeleteSessionRecordingConfig(ctx context.Context) error
 
+	// DELETE IN 8.0.0: ClusterConfig and all related methods.
 	// GetClusterConfig gets services.ClusterConfig from the backend.
 	GetClusterConfig(opts ...MarshalOption) (types.ClusterConfig, error)
 	// SetClusterConfig sets services.ClusterConfig on the backend.

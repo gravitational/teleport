@@ -528,7 +528,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.DataDir = dataDir
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy.Enabled = true
-	tconf.Auth.ClusterName, err = types.NewClusterName(types.ClusterNameSpecV2{
+	tconf.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})
 	if err != nil {

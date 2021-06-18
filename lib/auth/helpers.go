@@ -215,7 +215,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	access := local.NewAccessService(srv.Backend)
 	identity := local.NewIdentityService(srv.Backend)
 
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: cfg.ClusterName,
 	})
 	if err != nil {
