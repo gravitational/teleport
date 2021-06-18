@@ -140,13 +140,6 @@ func (c *RemoteClusterV3) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *RemoteClusterV3) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // GetName returns the name of the RemoteCluster.
 func (c *RemoteClusterV3) GetName() string {
 	return c.Metadata.Name

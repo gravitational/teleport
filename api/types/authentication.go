@@ -137,13 +137,6 @@ func (c *AuthPreferenceV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *AuthPreferenceV2) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata.
 func (c *AuthPreferenceV2) GetMetadata() Metadata {
 	return c.Metadata
@@ -373,18 +366,17 @@ func (d *MFADevice) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (d *MFADevice) GetKind() string                       { return d.Kind }
-func (d *MFADevice) GetSubKind() string                    { return d.SubKind }
-func (d *MFADevice) SetSubKind(sk string)                  { d.SubKind = sk }
-func (d *MFADevice) GetVersion() string                    { return d.Version }
-func (d *MFADevice) GetMetadata() Metadata                 { return d.Metadata }
-func (d *MFADevice) GetName() string                       { return d.Metadata.GetName() }
-func (d *MFADevice) SetName(n string)                      { d.Metadata.SetName(n) }
-func (d *MFADevice) GetResourceID() int64                  { return d.Metadata.ID }
-func (d *MFADevice) SetResourceID(id int64)                { d.Metadata.SetID(id) }
-func (d *MFADevice) Expiry() time.Time                     { return d.Metadata.Expiry() }
-func (d *MFADevice) SetExpiry(exp time.Time)               { d.Metadata.SetExpiry(exp) }
-func (d *MFADevice) SetTTL(clock Clock, ttl time.Duration) { d.Metadata.SetTTL(clock, ttl) }
+func (d *MFADevice) GetKind() string         { return d.Kind }
+func (d *MFADevice) GetSubKind() string      { return d.SubKind }
+func (d *MFADevice) SetSubKind(sk string)    { d.SubKind = sk }
+func (d *MFADevice) GetVersion() string      { return d.Version }
+func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
+func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
+func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
+func (d *MFADevice) GetResourceID() int64    { return d.Metadata.ID }
+func (d *MFADevice) SetResourceID(id int64)  { d.Metadata.SetID(id) }
+func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }
+func (d *MFADevice) SetExpiry(exp time.Time) { d.Metadata.SetExpiry(exp) }
 
 // MFAType returns the human-readable name of the MFA protocol of this device.
 func (d *MFADevice) MFAType() string {

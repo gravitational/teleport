@@ -99,13 +99,6 @@ func (u *ResetPasswordTokenSecretsV3) SetExpiry(t time.Time) {
 	u.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (u *ResetPasswordTokenSecretsV3) SetTTL(clock Clock, ttl time.Duration) {
-	u.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (u *ResetPasswordTokenSecretsV3) GetMetadata() Metadata {
 	return u.Metadata

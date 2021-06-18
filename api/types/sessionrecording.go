@@ -99,13 +99,6 @@ func (c *SessionRecordingConfigV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *SessionRecordingConfigV2) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata.
 func (c *SessionRecordingConfigV2) GetMetadata() Metadata {
 	return c.Metadata
