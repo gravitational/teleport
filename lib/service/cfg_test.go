@@ -283,20 +283,6 @@ func TestCheckDatabase(t *testing.T) {
 			outErr: true,
 		},
 		{
-			desc: "GCP unsupported for MySQL",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolMySQL,
-				URI:      "localhost:3306",
-				GCP: DatabaseGCP{
-					ProjectID:  "project-1",
-					InstanceID: "instance-1",
-				},
-				CACert: fixtures.LocalhostCert,
-			},
-			outErr: true,
-		},
-		{
 			desc: "Redshift region not set",
 			inDatabase: Database{
 				Name:     "example",

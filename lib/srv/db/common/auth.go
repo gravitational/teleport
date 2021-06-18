@@ -22,20 +22,25 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
+	"io"
+	"net/http"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshift"
 
-	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
+	"google.golang.org/api/googleapi"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
 
 	"github.com/gravitational/trace"
@@ -51,22 +56,22 @@ type Auth interface {
 	GetRedshiftAuthToken(sessionCtx *Session) (string, string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
+	// GetCloudSQLPassword generates password for a Cloud SQL database user.
+	GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetTLSConfig builds the client TLS configuration for the session.
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	// Closes releases all resources used by authenticator.
+	io.Closer
 }
 
 // AuthConfig is the database access authenticator configuration.
 type AuthConfig struct {
 	// AuthClient is the cluster auth client.
 	AuthClient *libauth.Client
-	// AWSSession is the AWS session for the server's region which is used
-	// to generate RDS/Aurora/Redshift auth tokens. May be empty.
-	AWSSession *awssession.Session
-	// GCPIAM is the GCP IAM client used to generate GCP auth tokens.
-	// May be empty when not proxying any Cloud SQL databases.
-	GCPIAM *gcpcredentials.IamCredentialsClient
+	// Clients provides interface for obtaining cloud provider clients.
+	Clients CloudClients
 	// Clock is the clock implementation.
 	Clock clockwork.Clock
 	// Log is used for logging.
@@ -77,6 +82,9 @@ type AuthConfig struct {
 func (c *AuthConfig) CheckAndSetDefaults() error {
 	if c.AuthClient == nil {
 		return trace.BadParameter("missing AuthClient")
+	}
+	if c.Clients == nil {
+		c.Clients = NewCloudClients()
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -106,25 +114,27 @@ func NewAuth(config AuthConfig) (Auth, error) {
 // GetRDSAuthToken returns authorization token that will be used as a password
 // when connecting to RDS and Aurora databases.
 func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
-	if a.cfg.AWSSession == nil {
-		return "", trace.BadParameter("AWS session for %s is not initialized", sessionCtx)
+	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Server.GetAWS().Region)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating RDS auth token for %s.", sessionCtx)
 	return rdsutils.BuildAuthToken(
 		sessionCtx.Server.GetURI(),
 		sessionCtx.Server.GetAWS().Region,
 		sessionCtx.DatabaseUser,
-		a.cfg.AWSSession.Config.Credentials)
+		awsSession.Config.Credentials)
 }
 
 // GetRedshiftAuthToken returns authorization token that will be used as a
 // password when connecting to Redshift databases.
 func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, error) {
-	if a.cfg.AWSSession == nil {
-		return "", "", trace.BadParameter("AWS session for %s is not initialized", sessionCtx)
+	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Server.GetAWS().Region)
+	if err != nil {
+		return "", "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating Redshift auth token for %s.", sessionCtx)
-	resp, err := redshift.New(a.cfg.AWSSession).GetClusterCredentials(&redshift.GetClusterCredentialsInput{
+	resp, err := redshift.New(awsSession).GetClusterCredentials(&redshift.GetClusterCredentialsInput{
 		ClusterIdentifier: aws.String(sessionCtx.Server.GetAWS().Redshift.ClusterID),
 		DbUser:            aws.String(sessionCtx.DatabaseUser),
 		DbName:            aws.String(sessionCtx.DatabaseName),
@@ -144,11 +154,12 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
 // GetCloudSQLAuthToken returns authorization token that will be used as a
 // password when connecting to Cloud SQL databases.
 func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error) {
-	if a.cfg.GCPIAM == nil {
-		return "", trace.BadParameter("GCP IAM client is not initialized")
+	gcpIAM, err := a.cfg.Clients.GetGCPIAMClient(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating GCP auth token for %s.", sessionCtx)
-	resp, err := a.cfg.GCPIAM.GenerateAccessToken(ctx,
+	resp, err := gcpIAM.GenerateAccessToken(ctx,
 		&gcpcredentialspb.GenerateAccessTokenRequest{
 			// From GenerateAccessToken docs:
 			//
@@ -170,6 +181,59 @@ func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) 
 		return "", trace.Wrap(err)
 	}
 	return resp.AccessToken, nil
+}
+
+// GetCloudSQLPassword updates the specified database user's password to a
+// random value using GCP Cloud SQL Admin API.
+//
+// It is used to generate a one-time password when connecting to GCP MySQL
+// databases which don't support IAM authentication.
+func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (string, error) {
+	gcpCloudSQL, err := a.cfg.Clients.GetGCPSQLAdminClient(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	a.cfg.Log.Debugf("Generating GCP user password for %s.", sessionCtx)
+	token, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	// Cloud SQL will return 409 to a user update operation if there is another
+	// one in progress, so retry upon encountering it. Also, be nice to the API
+	// and retry with a backoff.
+	retry, err := utils.NewConstant(time.Second)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
+	defer cancel()
+	err = retry.For(retryCtx, func() error {
+		err := a.updateCloudSQLUser(ctx, sessionCtx, gcpCloudSQL, &sqladmin.User{
+			Password: token,
+		})
+		if err != nil && !isStatusConflictError(err) { // We only want to retry on 409.
+			return utils.PermanentRetryError(err)
+		}
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
+}
+
+func isStatusConflictError(err error) bool {
+	e, ok := trace.Unwrap(err).(*googleapi.Error)
+	return ok && e.Code == http.StatusConflict
+}
+
+// updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
+func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL *sqladmin.Service, user *sqladmin.User) error {
+	_, err := gcpCloudSQL.Users.Update(
+		sessionCtx.Server.GetGCP().ProjectID,
+		sessionCtx.Server.GetGCP().InstanceID,
+		user).Name(sessionCtx.DatabaseUser).Host("%").Context(ctx).Do()
+	return trace.Wrap(err)
 }
 
 // GetTLSConfig builds the client TLS configuration for the session.
@@ -276,6 +340,11 @@ func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *
 // GetAuthPreference returns the cluster authentication config.
 func (a *dbAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return a.cfg.AuthClient.GetAuthPreference(ctx)
+}
+
+// Close releases all resources used by authenticator.
+func (a *dbAuth) Close() error {
+	return a.cfg.Clients.Close()
 }
 
 // getVerifyCloudSQLCertificate returns a function that performs verification
