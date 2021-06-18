@@ -99,11 +99,12 @@ func (s *OIDCSuite) TestUserInfo(c *check.C) {
 	defer idp.Close()
 
 	// Create OIDC connector and client.
-	connector := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV2{
 		IssuerURL:    idp.s.URL,
 		ClientID:     "00000000000000000000000000000000",
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
 	})
+	c.Assert(err, check.IsNil)
 	oidcClient, err := s.a.getOrCreateOIDCClient(connector)
 	c.Assert(err, check.IsNil)
 

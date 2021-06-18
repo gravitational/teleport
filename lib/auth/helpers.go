@@ -255,7 +255,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetClusterConfig(services.DefaultClusterConfig())
+	err = srv.AuthServer.SetClusterConfig(types.DefaultClusterConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

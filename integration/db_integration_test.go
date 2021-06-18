@@ -402,9 +402,9 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Clock = p.clock
 
 	// Establish trust b/w root and leaf.
-	err = p.root.cluster.CreateEx(p.leaf.cluster.Secrets.AsSlice(), rcConf)
+	err = p.root.cluster.CreateEx(t, p.leaf.cluster.Secrets.AsSlice(), rcConf)
 	require.NoError(t, err)
-	err = p.leaf.cluster.CreateEx(p.root.cluster.Secrets.AsSlice(), lcConf)
+	err = p.leaf.cluster.CreateEx(t, p.root.cluster.Secrets.AsSlice(), lcConf)
 	require.NoError(t, err)
 
 	// Start both clusters.

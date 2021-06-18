@@ -584,12 +584,14 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	err = srv.Auth().UpsertKubeService(ctx, k8sSrv)
 	require.NoError(t, err)
 	// Register a database.
-	db := types.NewDatabaseServerV3("db-a", nil, types.DatabaseServerSpecV3{
+	db, err := types.NewDatabaseServerV3("db-a", nil, types.DatabaseServerSpecV3{
 		Protocol: "postgres",
 		URI:      "localhost",
 		Hostname: "localhost",
 		HostID:   "localhost",
 	})
+	require.NoError(t, err)
+
 	_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
 	require.NoError(t, err)
 

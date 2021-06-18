@@ -918,7 +918,7 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	err = p.clusterConfigS.SetClusterConfig(services.DefaultClusterConfig())
+	err = p.clusterConfigS.SetClusterConfig(types.DefaultClusterConfig())
 	c.Assert(err, check.IsNil)
 
 	clusterConfig, err := p.clusterConfigS.GetClusterConfig()
@@ -948,9 +948,10 @@ func (s *CacheSuite) TestNamespaces(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	v := types.NewNamespace("universe")
+	v, err := types.NewNamespace("universe")
+	c.Assert(err, check.IsNil)
 	ns := &v
-	err := p.presenceS.UpsertNamespace(*ns)
+	err = p.presenceS.UpsertNamespace(*ns)
 	c.Assert(err, check.IsNil)
 
 	ns, err = p.presenceS.GetNamespace(ns.GetName())
@@ -1136,10 +1137,10 @@ func (s *CacheSuite) TestReverseTunnels(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	tunnel := types.NewReverseTunnel("example.com", []string{"example.com:2023"})
+	tunnel, err := types.NewReverseTunnel("example.com", []string{"example.com:2023"})
+	c.Assert(err, check.IsNil)
 	c.Assert(p.presenceS.UpsertReverseTunnel(tunnel), check.IsNil)
 
-	var err error
 	tunnel, err = p.presenceS.GetReverseTunnel(tunnel.GetName())
 	c.Assert(err, check.IsNil)
 
@@ -1662,13 +1663,15 @@ func TestDatabaseServers(t *testing.T) {
 	ctx := context.Background()
 
 	// Upsert database server into backend.
-	server := types.NewDatabaseServerV3("foo", nil,
+	server, err := types.NewDatabaseServerV3("foo", nil,
 		types.DatabaseServerSpecV3{
 			Protocol: defaults.ProtocolPostgres,
 			URI:      "localhost:5432",
 			Hostname: "localhost",
 			HostID:   uuid.New(),
 		})
+	require.NoError(t, err)
+
 	_, err = p.presenceS.UpsertDatabaseServer(ctx, server)
 	require.NoError(t, err)
 

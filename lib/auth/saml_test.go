@@ -113,14 +113,15 @@ func TestEncryptedSAML(t *testing.T) {
 		PrivateKey: fixtures.EncryptionKeyPEM,
 	}
 
-	connector := types.NewSAMLConnector("spongebob", types.SAMLConnectorSpecV2{
-		Cert: signingKeypair.Cert,
+	connector, err := types.NewSAMLConnector("spongebob", types.SAMLConnectorSpecV2{
+		Cert:                     signingKeypair.Cert,
+		Issuer:                   "http://idp.example.com/metadata.php",
+		SSO:                      "nil",
+		AssertionConsumerService: "http://sp.example.com/demo1/index.php?acs",
+		EntityDescriptor:         EntityDescriptor,
 	})
+	require.NoError(t, err)
 
-	connector.SetEntityDescriptor(EntityDescriptor)
-	connector.SetIssuer("http://idp.example.com/metadata.php")
-	connector.SetSSO("nil")
-	connector.SetAssertionConsumerService("http://sp.example.com/demo1/index.php?acs")
 	connector.SetSigningKeyPair(signingKeypair)
 	connector.SetEncryptionKeyPair(encryptionKeypair)
 
@@ -187,7 +188,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		PrivateKey: fixtures.EncryptionKeyPEM,
 	}
 
-	connector := types.NewSAMLConnector("ping", types.SAMLConnectorSpecV2{
+	connector, err := types.NewSAMLConnector("ping", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "https://proxy.example.com:3080/v1/webapi/saml/acs",
 		Provider:                 "ping",
 		Display:                  "Ping",
@@ -198,6 +199,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		SigningKeyPair:    signingKeypair,
 		EncryptionKeyPair: encryptionKeypair,
 	})
+	require.NoError(t, err)
 
 	err = a.UpsertSAMLConnector(context.Background(), connector)
 	require.NoError(t, err)

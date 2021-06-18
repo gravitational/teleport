@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -93,21 +92,16 @@ func NewAuthPreferenceFromConfigFile(spec AuthPreferenceSpecV2) (AuthPreference,
 // NewAuthPreferenceWithLabels is a convenience method to create
 // AuthPreferenceV2 with a specific map of labels.
 func newAuthPreferenceWithLabels(spec AuthPreferenceSpecV2, labels map[string]string) (AuthPreference, error) {
-	pref := AuthPreferenceV2{
-		Kind:    KindClusterAuthPreference,
-		Version: V2,
+	pref := &AuthPreferenceV2{
 		Metadata: Metadata{
-			Name:      MetaNameClusterAuthPreference,
-			Namespace: defaults.Namespace,
-			Labels:    labels,
+			Labels: labels,
 		},
 		Spec: spec,
 	}
-
 	if err := pref.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pref, nil
+	return pref, nil
 }
 
 // DefaultAuthPreference returns the default authentication preferences.
@@ -254,23 +248,20 @@ func (c *AuthPreferenceV2) SetAllowLocalAuth(b bool) {
 	c.Spec.AllowLocalAuth = NewBoolOption(b)
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (c *AuthPreferenceV2) setStaticFields() {
+	c.Kind = KindClusterAuthPreference
+	c.Version = V2
+	c.Metadata.Name = MetaNameClusterAuthPreference
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
-	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if c.Version == "" {
-		c.Version = V2
-	}
 
-	// Make sure origin value is always set.
-	if c.Origin() == "" {
-		c.SetOrigin(OriginDynamic)
-	}
-
-	// if nothing is passed in, set defaults
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
 	}
@@ -282,6 +273,9 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 	if c.Spec.DisconnectExpiredCert == nil {
 		c.Spec.DisconnectExpiredCert = NewBoolOption(false)
+	}
+	if c.Origin() == "" {
+		c.SetOrigin(OriginDynamic)
 	}
 
 	// make sure type makes sense
@@ -332,7 +326,6 @@ func (u *U2F) Check() error {
 // the Device field in the returned MFADevice.
 func NewMFADevice(name, id string, addedAt time.Time) *MFADevice {
 	return &MFADevice{
-		Kind: KindMFADevice,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -342,17 +335,18 @@ func NewMFADevice(name, id string, addedAt time.Time) *MFADevice {
 	}
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (d *MFADevice) setStaticFields() {
+	d.Kind = KindMFADevice
+	d.Version = V1
+}
+
 // CheckAndSetDefaults validates MFADevice fields and populates empty fields
 // with default values.
 func (d *MFADevice) CheckAndSetDefaults() error {
+	d.setStaticFields()
 	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if d.Kind == "" {
-		return trace.BadParameter("MFADevice missing Kind field")
-	}
-	if d.Version == "" {
-		d.Version = V1
 	}
 	if d.Id == "" {
 		return trace.BadParameter("MFADevice missing ID field")

@@ -20,7 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -64,16 +63,11 @@ func DefaultSessionRecordingConfig() SessionRecordingConfig {
 // SessionRecordingConfigV2 with a specific map of labels.
 func newSessionRecordingConfigWithLabels(spec SessionRecordingConfigSpecV2, labels map[string]string) (SessionRecordingConfig, error) {
 	recConfig := &SessionRecordingConfigV2{
-		Kind:    KindSessionRecordingConfig,
-		Version: V2,
 		Metadata: Metadata{
-			Name:      MetaNameSessionRecordingConfig,
-			Namespace: defaults.Namespace,
-			Labels:    labels,
+			Labels: labels,
 		},
 		Spec: spec,
 	}
-
 	if err := recConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -165,15 +159,18 @@ func (c *SessionRecordingConfigV2) SetProxyChecksHostKeys(t bool) {
 	c.Spec.ProxyChecksHostKeys = NewBoolOption(t)
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (c *SessionRecordingConfigV2) setStaticFields() {
+	c.Kind = KindSessionRecordingConfig
+	c.Version = V2
+	c.Metadata.Name = MetaNameSessionRecordingConfig
+}
+
 // CheckAndSetDefaults verifies the constraints for SessionRecordingConfig.
 func (c *SessionRecordingConfigV2) CheckAndSetDefaults() error {
-	// Make sure we have defaults for all metadata fields.
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if c.Version == "" {
-		c.Version = V2
 	}
 
 	// Make sure origin value is always set.
