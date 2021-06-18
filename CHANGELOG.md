@@ -1,11 +1,15 @@
 # Changelog
 
-## 6.2.4
+## 6.2.5
 
-This release of Teleport contains multiple improvements.
+This release of Teleport contains new features, bug fixes, and multiple improvements.
 
-* Added support for `regexp.replace(variable, expression, replacement)` in role templates.
-* Added V4 roles with stricter default allow labels. V4 roles are backward-compatible with V3 roles, and are completely opt-in.
+* Added support for `regexp.replace` in role templates. [#7152](https://github.com/gravitational/teleport/pull/7152)
+* Added `RoleV4` with stricter default allow labels. `RoleV4` is backward-compatible with `RoleV3` and is completely opt-in. [#7132](https://github.com/gravitational/teleport/pull/7132) [#7118](https://github.com/gravitational/teleport/pull/7118)
+* Updated OIDC connector to gracefully degrade UserInfo endpoint. [#7333](https://github.com/gravitational/teleport/pull/7333)
+* Improved Access Requests events to allow easier correlation between access requests and `session.start` events. [#6863](https://github.com/gravitational/teleport/pull/6863)
+* Fixed an issue that could cause upgrade from Teleport 5.x to 6.x to fail. [#7310](https://github.com/gravitational/teleport/pull/7310)
+* Fixed multiple issues with events subsystem. [#7303](https://github.com/gravitational/teleport/pull/7303) [#7266](https://github.com/gravitational/teleport/pull/7266)
 
 ## 6.2.3
 
