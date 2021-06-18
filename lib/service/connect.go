@@ -810,19 +810,23 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 	// Try and connect to the Auth Server. If the request fails, try and
 	// connect through a tunnel.
-	process.log.Debugf("Attempting to connect to Auth Server directly.")
-	directClient, directDialErr := process.newClientDirect(authServers, tlsConfig)
-	if directDialErr == nil {
-		process.log.Debug("Connected to Auth Server with direct connection.")
+	logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
+	logger.Debug("Attempting to connect to Auth Server directly.")
+	directClient, err := process.newClientDirect(authServers, tlsConfig)
+	if err == nil {
+		logger.Debug("Connected to Auth Server with direct connection.")
 		return directClient, nil
 	}
-	process.log.Debug("Failed to connect to Auth Server directly.")
+	logger.Debug("Failed to connect to Auth Server directly.")
+	// store err in directLogger, only log it if tunnel dial fails.
+	directErrLogger := logger.WithError(err)
 
 	// Don't attempt to connect through a tunnel as a proxy or auth server.
 	if identity.ID.Role == teleport.RoleAuth || identity.ID.Role == teleport.RoleProxy {
-		return nil, trace.Wrap(directDialErr)
+		return nil, trace.Wrap(err)
 	}
 
+	logger.Debug("Attempting to discover reverse tunnel address.")
 	var proxyAddr string
 	if process.Config.SSH.ProxyReverseTunnelFallbackAddr != nil {
 		proxyAddr = process.Config.SSH.ProxyReverseTunnelFallbackAddr.String()
@@ -831,17 +835,19 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 		var err error
 		proxyAddr, err = process.findReverseTunnel(authServers)
 		if err != nil {
-			process.log.Debug("Failed to discover reverse tunnel address.")
-			return nil, trace.NewAggregate(directDialErr, err)
+			directErrLogger.Debug("Failed to connect to Auth Server directly.")
+			logger.WithError(err).Debug("Failed to discover reverse tunnel address.")
+			return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
 		}
 	}
 
-	logger := process.log.WithField("proxy-addr", proxyAddr)
+	logger = process.log.WithField("proxy-addr", proxyAddr)
 	logger.Debug("Attempting to connect to Auth Server through tunnel.")
 	tunnelClient, err := process.newClientThroughTunnel(proxyAddr, tlsConfig, identity.SSHClientConfig())
 	if err != nil {
-		logger.Debug("Failed to connect to Auth Server through tunnel.")
-		return nil, trace.NewAggregate(directDialErr, err)
+		directErrLogger.Debug("Failed to connect to Auth Server directly.")
+		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
+		return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
 	}
 
 	logger.Debug("Connected to Auth Server through tunnel.")
