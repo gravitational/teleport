@@ -205,8 +205,6 @@ func AcquireSemaphoreWithRetry(ctx context.Context, req AcquireSemaphoreWithRetr
 	err = retry.For(ctx, func() (err error) {
 		lease, err = req.Service.AcquireSemaphore(ctx, req.Request)
 		return trace.Wrap(err)
-	}, func(err error) bool {
-		return true // Retry on any error.
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

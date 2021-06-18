@@ -241,13 +241,13 @@ func (r *Linear) String() string {
 
 // For retries the provided function until it succeeds or the context expires.
 // Only errors matching retryIf filter are retried.
-func (r *Linear) For(ctx context.Context, retryFn func() error, retryIf func(error) bool) error {
+func (r *Linear) For(ctx context.Context, retryFn func() error) error {
 	for {
 		err := retryFn()
 		if err == nil {
 			return nil
 		}
-		if !retryIf(err) {
+		if _, ok := trace.Unwrap(err).(*permanentRetryError); ok {
 			return trace.Wrap(err)
 		}
 		log.Debugf("Will retry in %v: %v.", r.Duration(), err)
@@ -258,6 +258,21 @@ func (r *Linear) For(ctx context.Context, retryFn func() error, retryIf func(err
 			return trace.LimitExceeded(ctx.Err().Error())
 		}
 	}
+}
+
+// PermanentRetryError returns a new instance of a permanent retry error.
+func PermanentRetryError(err error) error {
+	return &permanentRetryError{err: err}
+}
+
+// permanentRetryError indicates that retry loop should stop.
+type permanentRetryError struct {
+	err error
+}
+
+// Error returns the original error message.
+func (e *permanentRetryError) Error() string {
+	return e.err.Error()
 }
 
 // RetryFastFor retries a function repeatedly for a set amount of

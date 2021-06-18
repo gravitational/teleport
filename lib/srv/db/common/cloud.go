@@ -95,15 +95,14 @@ func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (*sqladmin.Serv
 }
 
 // Closes closes all initialized clients.
-func (c *cloudClients) Close() error {
+func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-	var errors []error
 	if c.gcpIAM != nil {
-		errors = append(errors, c.gcpIAM.Close())
+		err = c.gcpIAM.Close()
 		c.gcpIAM = nil
 	}
-	return trace.NewAggregate(errors...)
+	return trace.Wrap(err)
 }
 
 func (c *cloudClients) initAWSSession(region string) (*awssession.Session, error) {

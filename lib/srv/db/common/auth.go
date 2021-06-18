@@ -208,17 +208,23 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()
 	err = retry.For(retryCtx, func() error {
-		return a.updateCloudSQLUser(ctx, sessionCtx, gcpCloudSQL, &sqladmin.User{
+		err := a.updateCloudSQLUser(ctx, sessionCtx, gcpCloudSQL, &sqladmin.User{
 			Password: token,
 		})
-	}, func(err error) bool {
-		e, ok := trace.Unwrap(err).(*googleapi.Error)
-		return ok && e.Code == http.StatusConflict // We only want to retry on 409.
+		if err != nil && !isStatusConflictError(err) { // We only want to retry on 409.
+			return utils.PermanentRetryError(err)
+		}
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	return token, nil
+}
+
+func isStatusConflictError(err error) bool {
+	e, ok := trace.Unwrap(err).(*googleapi.Error)
+	return ok && e.Code == http.StatusConflict
 }
 
 // updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
