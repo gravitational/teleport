@@ -169,17 +169,19 @@ func TestIntegrations(t *testing.T) {
 
 	t.Run("AuditOff", suite.bind(testAuditOff))
 	t.Run("AuditOn", suite.bind(testAuditOn))
+	t.Run("BPFExec", suite.bind(testBPFExec))
+	t.Run("BPFInteractive", suite.bind(testBPFInteractive))
 	t.Run("BPFSessionDifferentiation", suite.bind(testBPFSessionDifferentiation))
 	t.Run("CmdLabels", suite.bind(testCmdLabels))
 	t.Run("ControlMaster", suite.bind(testControlMaster))
 	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
+	t.Run("DataTransfer", suite.bind(testDataTransfer))
 	t.Run("Disconnection", suite.bind(testDisconnectScenarios))
 	t.Run("Discovery", suite.bind(testDiscovery))
 	t.Run("DiscoveryNode", suite.bind(testDiscoveryNode))
 	t.Run("DiscoveryRecovers", suite.bind(testDiscoveryRecovers))
 	t.Run("EnvironmentVars", suite.bind(testEnvironmentVariables))
 	t.Run("ExecEvents", suite.bind(testExecEvents))
-	t.Run("SessionStartContainsAccessRequest", suite.bind(testSessionStartContainsAccessRequest))
 	t.Run("ExternalClient", suite.bind(testExternalClient))
 	t.Run("HA", suite.bind(testHA))
 	t.Run("Interactive (Regular)", suite.bind(testInteractiveRegular))
@@ -188,14 +190,17 @@ func TestIntegrations(t *testing.T) {
 	t.Run("InvalidLogin", suite.bind(testInvalidLogins))
 	t.Run("JumpTrustedClusters", suite.bind(testJumpTrustedClusters))
 	t.Run("JumpTrustedClustersWithLabels", suite.bind(testJumpTrustedClustersWithLabels))
+	t.Run("List", suite.bind(testList))
 	t.Run("MapRoles", suite.bind(testMapRoles))
 	t.Run("MultiplexingTrustedClusters", suite.bind(testMultiplexingTrustedClusters))
 	t.Run("PAM", suite.bind(testPAM))
+	t.Run("PortForwarding", suite.bind(testPortForwarding))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
 	t.Run("RotateChangeSigningAlg", suite.bind(testRotateChangeSigningAlg))
 	t.Run("RotateRollback", suite.bind(testRotateRollback))
 	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
 	t.Run("RotateTrustedClusters", suite.bind(testRotateTrustedClusters))
+	t.Run("SessionStartContainsAccessRequest", suite.bind(testSessionStartContainsAccessRequest))
 	t.Run("Shutdown", suite.bind(testShutdown))
 	t.Run("TrustedClusters", suite.bind(testTrustedClusters))
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
@@ -204,11 +209,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
-	t.Run("DataTransfer", suite.bind(testDataTransfer))
-	t.Run("BPFInteractive", suite.bind(testBPFInteractive))
-	t.Run("BPFExec", suite.bind(testBPFExec))
-	t.Run("List", suite.bind(testList))
-
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -348,31 +348,22 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// wait until we've found the session in the audit log
 			getSession := func(site auth.ClientI) (*session.Session, error) {
-				tickCh := time.Tick(500 * time.Millisecond)
-				stopCh := time.After(10 * time.Second)
-				for {
-					select {
-					case <-tickCh:
-						sessions, err = site.GetSessions(apidefaults.Namespace)
-						if err != nil {
-							return nil, trace.Wrap(err)
-						}
-						if len(sessions) != 1 {
-							continue
-						}
-						return &sessions[0], nil
-					case <-stopCh:
-						return nil, trace.BadParameter("unable to find sessions after 10s (mode=%v)", tt.inRecordLocation)
-					}
+				timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				sessions, err := waitForSessionToBeEstablished(timeout, apidefaults.Namespace, site)
+				if err != nil {
+					return nil, trace.Wrap(err)
 				}
+				return &sessions[0], nil
 			}
 			session, err := getSession(site)
 			require.NoError(t, err)
+			sessionID := session.ID
 
 			// wait for the user to join this session:
 			for len(session.Parties) == 0 {
 				time.Sleep(time.Millisecond * 5)
-				session, err = site.GetSession(apidefaults.Namespace, sessions[0].ID)
+				session, err = site.GetSession(apidefaults.Namespace, sessionID)
 				require.NoError(t, err)
 			}
 			// make sure it's us who joined! :)
@@ -888,8 +879,6 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 
 // verifySessionJoin covers SSH into shell and joining the same session from another client
 func verifySessionJoin(t *testing.T, username string, teleport *TeleInstance) {
-	sessionEndC := make(chan interface{})
-
 	// get a reference to site obj:
 	site := teleport.GetSiteAPI(Site)
 	require.NotNil(t, site)
@@ -898,48 +887,67 @@ func verifySessionJoin(t *testing.T, username string, teleport *TeleInstance) {
 	personB := NewTerminal(250)
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
+	sessionA := make(chan error)
 	openSession := func() {
 		cl, err := teleport.NewClient(t, ClientConfig{Login: username, Cluster: Site, Host: Host})
-		require.NoError(t, err)
+		if err != nil {
+			sessionA <- trace.Wrap(err)
+			return
+		}
 		cl.Stdout = personA
 		cl.Stdin = personA
 		// Person A types something into the terminal (including "exit")
 		personA.Type("\aecho hi\n\r\aexit\n\r\a")
-		err = cl.SSH(context.TODO(), []string{}, false)
-		require.NoError(t, err)
-		sessionEndC <- true
-
+		sessionA <- cl.SSH(context.TODO(), []string{}, false)
 	}
 
 	// PersonB: wait for a session to become available, then join:
+	sessionB := make(chan error)
 	joinSession := func() {
-		var sessionID string
-		for {
-			time.Sleep(time.Millisecond)
-			sessions, _ := site.GetSessions(apidefaults.Namespace)
-			if len(sessions) == 0 {
-				continue
-			}
-			sessionID = string(sessions[0].ID)
-			break
+		sessionTimeoutCtx, sessionTimeoutCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer sessionTimeoutCancel()
+		sessions, err := waitForSessionToBeEstablished(sessionTimeoutCtx, apidefaults.Namespace, site)
+		if err != nil {
+			sessionB <- trace.Wrap(err)
+			return
 		}
+
+		sessionID := string(sessions[0].ID)
 		cl, err := teleport.NewClient(t, ClientConfig{Login: username, Cluster: Site, Host: Host})
-		require.NoError(t, err)
-		cl.Stdout = personB
-		for i := 0; i < 10; i++ {
-			err = cl.Join(context.TODO(), apidefaults.Namespace, session.ID(sessionID), personB)
-			if err == nil {
-				break
+		if err != nil {
+			sessionB <- trace.Wrap(err)
+			return
+		}
+
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-timeoutCtx.Done():
+				sessionB <- timeoutCtx.Err()
+				return
+
+			case <-ticker.C:
+				err := cl.Join(context.TODO(), apidefaults.Namespace, session.ID(sessionID), personB)
+				if err == nil {
+					sessionB <- nil
+					return
+				}
 			}
 		}
-		require.NoError(t, err)
 	}
 
 	go openSession()
 	go joinSession()
 
-	// wait for the session to end
-	err := waitFor(sessionEndC, time.Second*10)
+	// wait for the sessions to end
+	err := waitForError(sessionA, time.Second*10)
+	require.NoError(t, err)
+
+	err = waitForError(sessionB, time.Second*10)
 	require.NoError(t, err)
 
 	// make sure the output of B is mirrored in A
@@ -1126,18 +1134,10 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				require.NoError(t, err)
 				require.Len(t, sems, 1)
 
-				var ss []session.Session
-				for i := 0; i < 6; i++ {
-					ss, err = site.GetSessions(apidefaults.Namespace)
-					if err == nil && len(ss) > 0 {
-						break
-					}
-					select {
-					case <-time.After(time.Millisecond * 100):
-					case <-ctx.Done():
-						return
-					}
-				}
+				timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+				defer cancel()
+
+				ss, err := waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
 				require.NoError(t, err)
 				require.Len(t, ss, 1)
 				require.Nil(t, teleport.StopAuth(false))
@@ -1793,18 +1793,18 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 
 	// make sure both clusters have the right certificate authorities with the right signing keys.
 	var tests = []struct {
-		name             string
-		mainClusterName  string
-		auxClusterName   string
-		inCluster        *TeleInstance
-		outChkMainUserCA require.ErrorAssertionFunc
-		outLenMainUserCA int
-		outChkMainHostCA require.ErrorAssertionFunc
-		outLenMainHostCA int
-		outChkAuxUserCA  require.ErrorAssertionFunc
-		outLenAuxUserCA  int
-		outChkAuxHostCA  require.ErrorAssertionFunc
-		outLenAuxHostCA  int
+		name                       string
+		mainClusterName            string
+		auxClusterName             string
+		inCluster                  *TeleInstance
+		outChkMainUserCA           require.ErrorAssertionFunc
+		outChkMainUserCAPrivateKey require.ValueAssertionFunc
+		outChkMainHostCA           require.ErrorAssertionFunc
+		outChkMainHostCAPrivateKey require.ValueAssertionFunc
+		outChkAuxUserCA            require.ErrorAssertionFunc
+		outChkAuxUserCAPrivateKey  require.ValueAssertionFunc
+		outChkAuxHostCA            require.ErrorAssertionFunc
+		outChkAuxHostCAPrivateKey  require.ValueAssertionFunc
 	}{
 		// 0 - main
 		//   * User CA for main has one signing key.
@@ -1812,14 +1812,18 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 		//   * User CA for aux does not exist.
 		//   * Host CA for aux has no signing keys.
 		{
-			"main",
-			main.Secrets.SiteName,
-			aux.Secrets.SiteName,
-			main,
-			require.NoError, 1,
-			require.NoError, 1,
-			require.Error, 0,
-			require.NoError, 0,
+			name:                       "main",
+			mainClusterName:            main.Secrets.SiteName,
+			auxClusterName:             aux.Secrets.SiteName,
+			inCluster:                  main,
+			outChkMainUserCA:           require.NoError,
+			outChkMainUserCAPrivateKey: require.NotEmpty,
+			outChkMainHostCA:           require.NoError,
+			outChkMainHostCAPrivateKey: require.NotEmpty,
+			outChkAuxUserCA:            require.Error,
+			outChkAuxUserCAPrivateKey:  require.Empty,
+			outChkAuxHostCA:            require.NoError,
+			outChkAuxHostCAPrivateKey:  require.Empty,
 		},
 		// 1 - aux
 		//   * User CA for main has no signing keys.
@@ -1827,14 +1831,18 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 		//   * User CA for aux has one signing key.
 		//   * Host CA for aux has one signing key.
 		{
-			"aux",
-			trustedCluster.GetName(),
-			aux.Secrets.SiteName,
-			aux,
-			require.NoError, 0,
-			require.NoError, 0,
-			require.NoError, 1,
-			require.NoError, 1,
+			name:                       "aux",
+			mainClusterName:            trustedCluster.GetName(),
+			auxClusterName:             aux.Secrets.SiteName,
+			inCluster:                  aux,
+			outChkMainUserCA:           require.NoError,
+			outChkMainUserCAPrivateKey: require.Empty,
+			outChkMainHostCA:           require.NoError,
+			outChkMainHostCAPrivateKey: require.Empty,
+			outChkAuxUserCA:            require.NoError,
+			outChkAuxUserCAPrivateKey:  require.NotEmpty,
+			outChkAuxHostCA:            require.NoError,
+			outChkAuxHostCAPrivateKey:  require.NotEmpty,
 		},
 	}
 
@@ -1844,28 +1852,28 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 			mainUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkMainUserCA(t, err)
 			if err == nil {
-				require.Len(t, mainUserCAs.GetSigningKeys(), tt.outLenMainUserCA)
+				tt.outChkMainUserCAPrivateKey(t, mainUserCAs.GetActiveKeys().SSH[0].PrivateKey)
 			}
 
 			cid = types.CertAuthID{Type: types.HostCA, DomainName: tt.mainClusterName}
 			mainHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkMainHostCA(t, err)
 			if err == nil {
-				require.Len(t, mainHostCAs.GetSigningKeys(), tt.outLenMainHostCA)
+				tt.outChkMainHostCAPrivateKey(t, mainHostCAs.GetActiveKeys().SSH[0].PrivateKey)
 			}
 
 			cid = types.CertAuthID{Type: types.UserCA, DomainName: tt.auxClusterName}
 			auxUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkAuxUserCA(t, err)
 			if err == nil {
-				require.Len(t, auxUserCAs.GetSigningKeys(), tt.outLenAuxUserCA, "Aux User CA")
+				tt.outChkAuxUserCAPrivateKey(t, auxUserCAs.GetActiveKeys().SSH[0].PrivateKey)
 			}
 
 			cid = types.CertAuthID{Type: types.HostCA, DomainName: tt.auxClusterName}
 			auxHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 			tt.outChkAuxHostCA(t, err)
 			if err == nil {
-				require.Len(t, auxHostCAs.GetSigningKeys(), tt.outLenAuxHostCA, "Aux Host CA")
+				tt.outChkAuxHostCAPrivateKey(t, auxHostCAs.GetActiveKeys().SSH[0].PrivateKey)
 			}
 		})
 	}
@@ -3182,14 +3190,10 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	}()
 
 	// wait until there's a session in there:
-	for i := 0; len(sessions) == 0; i++ {
-		time.Sleep(time.Millisecond * 20)
-		sessions, _ = site.GetSessions(apidefaults.Namespace)
-		if i > 100 {
-			t.Fatalf("Waited %v, but no sessions found", 100*20*time.Millisecond)
-			return
-		}
-	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	sessions, err = waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
+	require.NoError(t, err)
 	session := &sessions[0]
 
 	// wait for the user to join this session
@@ -4165,16 +4169,11 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 	// joinSession will join the existing session on a server.
 	joinSession := func() {
 		// Find the existing session in the backend.
-		var sessionID string
-		for {
-			time.Sleep(time.Millisecond)
-			sessions, _ := site.GetSessions(apidefaults.Namespace)
-			if len(sessions) == 0 {
-				continue
-			}
-			sessionID = string(sessions[0].ID)
-			break
-		}
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		sessions, err := waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
+		require.NoError(t, err)
+		sessionID := string(sessions[0].ID)
 
 		cl, err := teleport.NewClient(t, ClientConfig{
 			Login:   suite.me.Username,
@@ -5245,7 +5244,18 @@ func waitFor(c chan interface{}, timeout time.Duration) error {
 	case <-c:
 		return nil
 	case <-tick:
-		return fmt.Errorf("timeout waiting for event")
+		return trace.LimitExceeded("timeout waiting for event")
+	}
+}
+
+// waitForError helper waits on an error channel for up to the given timeout
+func waitForError(c chan error, timeout time.Duration) error {
+	tick := time.Tick(timeout)
+	select {
+	case err := <-c:
+		return err
+	case <-tick:
+		return trace.LimitExceeded("timeout waiting for event")
 	}
 }
 

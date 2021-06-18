@@ -34,10 +34,12 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 	ca1, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "cluster1",
-		TLSKeyPairs: []types.TLSKeyPair{{
-			Cert: cert,
-			Key:  key,
-		}},
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  key,
+			}},
+		},
 	})
 	require.NoError(t, err)
 
@@ -49,14 +51,16 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 	ca2, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "cluster2",
-		TLSKeyPairs: []types.TLSKeyPair{
-			{
-				Cert: cert,
-				Key:  key,
-			},
-			{
-				Cert: cert2,
-				Key:  key2,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert: cert,
+					Key:  key,
+				},
+				{
+					Cert: cert2,
+					Key:  key2,
+				},
 			},
 		},
 	})
@@ -87,10 +91,12 @@ func TestCertAuthorityEquivalence(t *testing.T) {
 	ca1, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "cluster1",
-		TLSKeyPairs: []types.TLSKeyPair{{
-			Cert: cert,
-			Key:  key,
-		}},
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  key,
+			}},
+		},
 	})
 	require.NoError(t, err)
 
@@ -102,14 +108,16 @@ func TestCertAuthorityEquivalence(t *testing.T) {
 	ca2, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "cluster2",
-		TLSKeyPairs: []types.TLSKeyPair{
-			{
-				Cert: cert,
-				Key:  key,
-			},
-			{
-				Cert: cert2,
-				Key:  key2,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert: cert,
+					Key:  key,
+				},
+				{
+					Cert: cert2,
+					Key:  key2,
+				},
 			},
 		},
 	})

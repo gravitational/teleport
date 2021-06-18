@@ -40,12 +40,17 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         types.HostCA,
-		ClusterName:  "cluster-name",
-		SigningKeys:  [][]byte{priv},
-		CheckingKeys: [][]byte{pub},
-		Roles:        nil,
-		SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_256,
+		Type:        types.HostCA,
+		ClusterName: "cluster-name",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     priv,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      pub,
+			}},
+		},
+		Roles:      nil,
+		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_256,
 	})
 	require.NoError(t, err)
 

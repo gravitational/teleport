@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -17,7 +19,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAuthSignKubeconfig(t *testing.T) {
@@ -42,15 +43,16 @@ func TestAuthSignKubeconfig(t *testing.T) {
 	}
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         types.HostCA,
-		ClusterName:  "example.com",
-		SigningKeys:  nil,
-		CheckingKeys: [][]byte{[]byte("SSH CA cert")},
-		Roles:        nil,
-		SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_512,
+		Type:        types.HostCA,
+		ClusterName: "example.com",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{PublicKey: []byte("SSH CA cert")}},
+			TLS: []*types.TLSKeyPair{{Cert: []byte("TLS CA cert")}},
+		},
+		Roles:      nil,
+		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
 	require.NoError(t, err)
-	ca.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: []byte("TLS CA cert")}})
 
 	client := mockClient{
 		clusterName:    clusterName,
@@ -184,7 +186,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				t.Errorf("got client cert: %q, want %q", gotCert, client.userCerts.TLS)
 			}
 			gotCA := kc.Clusters[kc.CurrentContext].CertificateAuthorityData
-			wantCA := ca.GetTLSKeyPairs()[0].Cert
+			wantCA := ca.GetActiveKeys().TLS[0].Cert
 			if !bytes.Equal(gotCA, wantCA) {
 				t.Errorf("got CA cert: %q, want %q", gotCA, wantCA)
 			}
