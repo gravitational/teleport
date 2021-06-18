@@ -118,9 +118,7 @@ Open a second terminal and issue the command:
 tsh login --proxy=localhost:3080 --insecure --user=testuser
 ```
 
-<Admonition type="note" title="Note">
-  The `--insecure` flag is not recommended in production but can be used to bypass certain TLS and port requirements when testing locally.
-</Admonition>
+(!docs/pages/includes/insecure-flag.mdx!)
 
 You will be prompted to enter the password and One-Time Passcode you created for your user `testuser`:
 
@@ -175,4 +173,4 @@ root@localhost:~#
 - [Remove your user](../../cli-docs.mdx#tctl-users-add) to restart the quickstart.
 - Try out one of our [Helm Guides](../../kubernetes-access/helm/guides.mdx).
 - Try out one of our [Database Access Guides](../../database-access/guides.mdx).
-- Learn about the [Teleport Server Access](../../server-access/introduction.mdx).
+- Learn about [Teleport Server Access](../../server-access/introduction.mdx).
