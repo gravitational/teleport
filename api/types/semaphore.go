@@ -260,13 +260,6 @@ func (c *SemaphoreV3) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *SemaphoreV3) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (c *SemaphoreV3) GetMetadata() Metadata {
 	return c.Metadata
