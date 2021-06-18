@@ -1306,12 +1306,12 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(c *check.C) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+	lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 	c.Assert(err, check.IsNil)
-	go lock.KeepAlive(ctx)
+	go lock.KeepAlive(cancelCtx)
 
 	for i := 0; i < renewals; i++ {
 		select {
@@ -1349,15 +1349,15 @@ func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
 		// we leak lock handles in the spawned goroutines, so
 		// context-based cancellation is needed to cleanup the
 		// background keepalive activity.
-		ctx, cancel := context.WithCancel(ctx)
+		cancelCtx, cancel := context.WithCancel(ctx)
 		var wg sync.WaitGroup
 		for i := int64(0); i < locks; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+				lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 				c.Assert(err, check.IsNil)
-				go lock.KeepAlive(ctx)
+				go lock.KeepAlive(cancelCtx)
 			}()
 		}
 		wg.Wait()
@@ -1387,7 +1387,7 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(c *check.C) {
 	// we leak lock handles in the spawned goroutines, so
 	// context-based cancellation is needed to cleanup the
 	// background keepalive activity.
-	ctx, cancel := context.WithCancel(ctx)
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var success int64
 	var failure int64
@@ -1395,9 +1395,9 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(c *check.C) {
 	for i := int64(0); i < attempts; i++ {
 		wg.Add(1)
 		go func() {
-			lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+			lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 			if err == nil {
-				go lock.KeepAlive(ctx)
+				go lock.KeepAlive(cancelCtx)
 				atomic.AddInt64(&success, 1)
 			} else {
 				atomic.AddInt64(&failure, 1)
@@ -1423,14 +1423,14 @@ func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
 			MaxLeases:     1,
 		},
 	}
-	ctx, cancel := context.WithCancel(ctx)
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+	lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 	c.Assert(err, check.IsNil)
-	go lock.KeepAlive(ctx)
+	go lock.KeepAlive(cancelCtx)
 
 	// MaxLeases is 1, so second acquire op fails.
-	_, err = services.AcquireSemaphoreLock(ctx, cfg)
+	_, err = services.AcquireSemaphoreLock(cancelCtx, cfg)
 	fixtures.ExpectLimitExceeded(c, err)
 
 	// Lock is successfully released.
@@ -1441,9 +1441,9 @@ func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
 	// and high tick rate to verify renewals.
 	cfg.Expiry = time.Second
 	cfg.TickRate = time.Millisecond * 50
-	lock, err = services.AcquireSemaphoreLock(ctx, cfg)
+	lock, err = services.AcquireSemaphoreLock(cancelCtx, cfg)
 	c.Assert(err, check.IsNil)
-	go lock.KeepAlive(ctx)
+	go lock.KeepAlive(cancelCtx)
 
 	timeout := time.After(time.Second)
 
