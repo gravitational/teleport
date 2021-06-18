@@ -44,9 +44,9 @@ type ClusterConfiguration interface {
 	DeleteStaticTokens() error
 
 	// GetAuthPreference gets types.AuthPreference from the backend.
-	GetAuthPreference() (types.AuthPreference, error)
+	GetAuthPreference(context.Context) (types.AuthPreference, error)
 	// SetAuthPreference sets types.AuthPreference from the backend.
-	SetAuthPreference(types.AuthPreference) error
+	SetAuthPreference(context.Context, types.AuthPreference) error
 	// DeleteAuthPreference deletes types.AuthPreference from the backend.
 	DeleteAuthPreference(ctx context.Context) error
 

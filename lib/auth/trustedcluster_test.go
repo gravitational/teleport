@@ -111,7 +111,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	require.NoError(t, a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
 	require.NoError(t, a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
 	require.NoError(t, a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
-	require.NoError(t, a.SetAuthPreference(types.DefaultAuthPreference()))
+	require.NoError(t, a.SetAuthPreference(ctx, types.DefaultAuthPreference()))
 	require.NoError(t, a.SetClusterConfig(services.DefaultClusterConfig()))
 
 	return a

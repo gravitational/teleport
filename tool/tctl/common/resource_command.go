@@ -421,12 +421,13 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 
 // createAuthPreference implements `tctl create cap.yaml` command.
 func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
 	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	storedAuthPref, err := client.GetAuthPreference()
+	storedAuthPref, err := client.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -434,7 +435,7 @@ func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw service
 		return trace.Wrap(err)
 	}
 
-	if err := client.SetAuthPreference(newAuthPref); err != nil {
+	if err := client.SetAuthPreference(ctx, newAuthPref); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("cluster auth preference has been updated\n")
@@ -589,7 +590,7 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 }
 
 func resetAuthPreference(ctx context.Context, client auth.ClientI) error {
-	storedAuthPref, err := client.GetAuthPreference()
+	storedAuthPref, err := client.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -903,7 +904,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterAuthPreference)
 		}
-		authPref, err := client.GetAuthPreference()
+		authPref, err := client.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
