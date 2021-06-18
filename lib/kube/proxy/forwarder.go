@@ -590,7 +590,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		authCtx.kubeCluster = kubeCluster
 	}
 
-	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference()
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -620,7 +620,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ap, err := f.cfg.CachingAuthClient.GetAuthPreference()
+	ap, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

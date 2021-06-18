@@ -189,6 +189,7 @@ func newUser(name string, roles []string) types.User {
 }
 
 func (s *ServicesTestSuite) UsersCRUD(c *check.C) {
+	ctx := context.Background()
 	u, err := s.WebS.GetUsers(false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(u), check.Equals, 0)
@@ -215,13 +216,13 @@ func (s *ServicesTestSuite) UsersCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	usersEqual(c, out, user)
 
-	c.Assert(s.WebS.DeleteUser(context.TODO(), "user1"), check.IsNil)
+	c.Assert(s.WebS.DeleteUser(ctx, "user1"), check.IsNil)
 
 	u, err = s.WebS.GetUsers(false)
 	c.Assert(err, check.IsNil)
 	userSlicesEqual(c, u, []types.User{newUser("user2", nil)})
 
-	err = s.WebS.DeleteUser(context.TODO(), "user1")
+	err = s.WebS.DeleteUser(ctx, "user1")
 	fixtures.ExpectNotFound(c, err)
 
 	// bad username
@@ -563,8 +564,9 @@ func (s *ServicesTestSuite) PasswordHashCRUD(c *check.C) {
 }
 
 func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
+	ctx := context.Background()
 	req := types.GetWebSessionRequest{User: "user1", SessionID: "sid1"}
-	_, err := s.WebS.WebSessions().Get(context.TODO(), req)
+	_, err := s.WebS.WebSessions().Get(ctx, req)
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("%#v", err))
 
 	dt := s.Clock.Now().Add(1 * time.Minute)
@@ -575,10 +577,10 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
 			Priv:    []byte("priv123"),
 			Expires: dt,
 		})
-	err = s.WebS.WebSessions().Upsert(context.TODO(), ws)
+	err = s.WebS.WebSessions().Upsert(ctx, ws)
 	c.Assert(err, check.IsNil)
 
-	out, err := s.WebS.WebSessions().Get(context.TODO(), req)
+	out, err := s.WebS.WebSessions().Get(ctx, req)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.DeepEquals, ws)
 
@@ -589,19 +591,19 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
 			Priv:    []byte("priv321"),
 			Expires: dt,
 		})
-	err = s.WebS.WebSessions().Upsert(context.TODO(), ws1)
+	err = s.WebS.WebSessions().Upsert(ctx, ws1)
 	c.Assert(err, check.IsNil)
 
-	out2, err := s.WebS.WebSessions().Get(context.TODO(), req)
+	out2, err := s.WebS.WebSessions().Get(ctx, req)
 	c.Assert(err, check.IsNil)
 	c.Assert(out2, check.DeepEquals, ws1)
 
-	c.Assert(s.WebS.WebSessions().Delete(context.TODO(), types.DeleteWebSessionRequest{
+	c.Assert(s.WebS.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      req.User,
 		SessionID: req.SessionID,
 	}), check.IsNil)
 
-	_, err = s.WebS.WebSessions().Get(context.TODO(), req)
+	_, err = s.WebS.WebSessions().Get(ctx, req)
 	fixtures.ExpectNotFound(c, err)
 }
 
@@ -1060,6 +1062,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *check.C) {
 
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(c *check.C) {
+	ctx := context.Background()
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:                  "local",
 		SecondFactor:          "otp",
@@ -1067,10 +1070,10 @@ func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	err = s.ConfigS.SetAuthPreference(ap)
+	err = s.ConfigS.SetAuthPreference(ctx, ap)
 	c.Assert(err, check.IsNil)
 
-	gotAP, err := s.ConfigS.GetAuthPreference()
+	gotAP, err := s.ConfigS.GetAuthPreference(ctx)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(gotAP.GetType(), check.Equals, "local")
@@ -1080,15 +1083,16 @@ func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 
 // SessionRecordingConfig tests session recording configuration.
 func (s *ServicesTestSuite) SessionRecordingConfig(c *check.C) {
+	ctx := context.Background()
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	c.Assert(err, check.IsNil)
 
-	err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), recConfig)
+	err = s.ConfigS.SetSessionRecordingConfig(ctx, recConfig)
 	c.Assert(err, check.IsNil)
 
-	gotrecConfig, err := s.ConfigS.GetSessionRecordingConfig(context.TODO())
+	gotrecConfig, err := s.ConfigS.GetSessionRecordingConfig(ctx)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(gotrecConfig.GetMode(), check.Equals, types.RecordAtProxy)
@@ -1151,6 +1155,8 @@ func CollectOptions(opts ...Option) Options {
 // ClusterConfig tests cluster configuration.
 // DELETE IN 8.0.0: Test only the individual resources.
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
+	ctx := context.Background()
+
 	// DELETE IN 8.0.0
 	clusterName, err := s.ConfigS.GetClusterName()
 	if trace.IsNotFound(err) {
@@ -1181,7 +1187,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 		ClientIdleTimeout: types.NewDuration(17 * time.Second),
 	})
 	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetClusterNetworkingConfig(context.TODO(), netConfig)
+	err = s.ConfigS.SetClusterNetworkingConfig(ctx, netConfig)
 	c.Assert(err, check.IsNil)
 
 	// DELETE IN 8.0.0
@@ -1189,7 +1195,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 		Mode: types.RecordAtProxy,
 	})
 	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), recConfig)
+	err = s.ConfigS.SetSessionRecordingConfig(ctx, recConfig)
 	c.Assert(err, check.IsNil)
 
 	// DELETE IN 8.0.0
@@ -1197,7 +1203,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 		DisconnectExpiredCert: types.NewBoolOption(true),
 	})
 	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetAuthPreference(authPref)
+	err = s.ConfigS.SetAuthPreference(ctx, authPref)
 	c.Assert(err, check.IsNil)
 
 	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
@@ -1247,16 +1253,17 @@ func (s *ServicesTestSuite) ClusterName(c *check.C, opts ...Option) {
 
 // ClusterNetworkingConfig tests cluster networking configuration.
 func (s *ServicesTestSuite) ClusterNetworkingConfig(c *check.C) {
+	ctx := context.Background()
 	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout: types.NewDuration(17 * time.Second),
 		KeepAliveCountMax: 3000,
 	})
 	c.Assert(err, check.IsNil)
 
-	err = s.ConfigS.SetClusterNetworkingConfig(context.TODO(), netConfig)
+	err = s.ConfigS.SetClusterNetworkingConfig(ctx, netConfig)
 	c.Assert(err, check.IsNil)
 
-	gotNetConfig, err := s.ConfigS.GetClusterNetworkingConfig(context.TODO())
+	gotNetConfig, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(gotNetConfig.GetClientIdleTimeout(), check.Equals, 17*time.Second)
@@ -1275,6 +1282,7 @@ func (w *semWrapper) KeepAliveSemaphoreLease(ctx context.Context, lease types.Se
 }
 
 func (s *ServicesTestSuite) SemaphoreFlakiness(c *check.C) {
+	ctx := context.Background()
 	const renewals = 3
 	// wrap our services.Semaphores instance to cause two out of three lease
 	// keepalive attempts fail with a meaningless error.  Locks should make
@@ -1303,12 +1311,12 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(c *check.C) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.TODO())
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+	lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 	c.Assert(err, check.IsNil)
-	go lock.KeepAlive(ctx)
+	go lock.KeepAlive(cancelCtx)
 
 	for i := 0; i < renewals; i++ {
 		select {
@@ -1330,6 +1338,7 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(c *check.C) {
 // to start returning "too much contention" errors at around 100 concurrent
 // attempts.
 func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
+	ctx := context.Background()
 	const locks int64 = 50
 	const iters = 5
 	for i := 0; i < iters; i++ {
@@ -1345,20 +1354,20 @@ func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
 		// we leak lock handles in the spawned goroutines, so
 		// context-based cancellation is needed to cleanup the
 		// background keepalive activity.
-		ctx, cancel := context.WithCancel(context.TODO())
+		cancelCtx, cancel := context.WithCancel(ctx)
 		var wg sync.WaitGroup
 		for i := int64(0); i < locks; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+				lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 				c.Assert(err, check.IsNil)
-				go lock.KeepAlive(ctx)
+				go lock.KeepAlive(cancelCtx)
 			}()
 		}
 		wg.Wait()
 		cancel()
-		c.Assert(s.PresenceS.DeleteSemaphore(context.TODO(), types.SemaphoreFilter{
+		c.Assert(s.PresenceS.DeleteSemaphore(ctx, types.SemaphoreFilter{
 			SemaphoreKind: cfg.Params.SemaphoreKind,
 			SemaphoreName: cfg.Params.SemaphoreName,
 		}), check.IsNil)
@@ -1368,6 +1377,7 @@ func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
 // SemaphoreConcurrency verifies that a large number of concurrent
 // acquisitions result in the correct number of successful acquisitions.
 func (s *ServicesTestSuite) SemaphoreConcurrency(c *check.C) {
+	ctx := context.Background()
 	const maxLeases int64 = 20
 	const attempts int64 = 200
 	cfg := services.SemaphoreLockConfig{
@@ -1382,7 +1392,7 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(c *check.C) {
 	// we leak lock handles in the spawned goroutines, so
 	// context-based cancellation is needed to cleanup the
 	// background keepalive activity.
-	ctx, cancel := context.WithCancel(context.TODO())
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var success int64
 	var failure int64
@@ -1390,9 +1400,9 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(c *check.C) {
 	for i := int64(0); i < attempts; i++ {
 		wg.Add(1)
 		go func() {
-			lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+			lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 			if err == nil {
-				go lock.KeepAlive(ctx)
+				go lock.KeepAlive(cancelCtx)
 				atomic.AddInt64(&success, 1)
 			} else {
 				atomic.AddInt64(&failure, 1)
@@ -1408,6 +1418,7 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(c *check.C) {
 // SemaphoreLock verifies correct functionality of the basic
 // semaphore lock scenarios.
 func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
+	ctx := context.Background()
 	cfg := services.SemaphoreLockConfig{
 		Service: s.PresenceS,
 		Expiry:  time.Hour,
@@ -1417,14 +1428,14 @@ func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
 			MaxLeases:     1,
 		},
 	}
-	ctx, cancel := context.WithCancel(context.TODO())
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+	lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 	c.Assert(err, check.IsNil)
-	go lock.KeepAlive(ctx)
+	go lock.KeepAlive(cancelCtx)
 
 	// MaxLeases is 1, so second acquire op fails.
-	_, err = services.AcquireSemaphoreLock(ctx, cfg)
+	_, err = services.AcquireSemaphoreLock(cancelCtx, cfg)
 	fixtures.ExpectLimitExceeded(c, err)
 
 	// Lock is successfully released.
@@ -1435,9 +1446,9 @@ func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
 	// and high tick rate to verify renewals.
 	cfg.Expiry = time.Second
 	cfg.TickRate = time.Millisecond * 50
-	lock, err = services.AcquireSemaphoreLock(ctx, cfg)
+	lock, err = services.AcquireSemaphoreLock(cancelCtx, cfg)
 	c.Assert(err, check.IsNil)
-	go lock.KeepAlive(ctx)
+	go lock.KeepAlive(cancelCtx)
 
 	timeout := time.After(time.Second)
 
@@ -1452,7 +1463,7 @@ func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
 	}
 
 	// forcibly delete the semaphore
-	c.Assert(s.PresenceS.DeleteSemaphore(context.TODO(), types.SemaphoreFilter{
+	c.Assert(s.PresenceS.DeleteSemaphore(ctx, types.SemaphoreFilter{
 		SemaphoreKind: cfg.Params.SemaphoreKind,
 		SemaphoreName: cfg.Params.SemaphoreName,
 	}), check.IsNil)
@@ -1629,7 +1640,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				out, err := s.Users().GetUser(user.GetName(), false)
 				c.Assert(err, check.IsNil)
 
-				c.Assert(s.Users().DeleteUser(context.TODO(), user.GetName()), check.IsNil)
+				c.Assert(s.Users().DeleteUser(ctx, user.GetName()), check.IsNil)
 				return out
 			},
 		},
@@ -1802,7 +1813,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				// DELETE IN 8.0.0
-				err = s.ConfigS.SetAuthPreference(types.DefaultAuthPreference())
+				err = s.ConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
 				c.Assert(err, check.IsNil)
 
 				config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
@@ -1987,7 +1998,7 @@ func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
 }
 
 func (s *ServicesTestSuite) runEventsTests(c *check.C, testCases []eventTest) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	w, err := s.EventsS.NewWatcher(ctx, types.Watch{
 		Kinds: eventsTestKinds(testCases),
 	})
