@@ -176,7 +176,7 @@ func (c *ClusterConfigV4) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if c.Version == "" {
-		c.Version = V3
+		c.Version = V4
 	}
 	return nil
 }
