@@ -1793,7 +1793,6 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 			},
 			crud: func(ctx context.Context) types.Resource {
 				// DELETE IN 8.0.0
-				err := s.ConfigS.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
 				clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 					ClusterName: "example.com",
 				})
