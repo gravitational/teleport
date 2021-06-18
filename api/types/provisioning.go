@@ -168,13 +168,6 @@ func (p *ProvisionTokenV2) Expiry() time.Time {
 	return p.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (p *ProvisionTokenV2) SetTTL(clock Clock, ttl time.Duration) {
-	p.Metadata.SetTTL(clock, ttl)
-}
-
 // GetName returns server name
 func (p *ProvisionTokenV2) GetName() string {
 	return p.Metadata.Name

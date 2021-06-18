@@ -182,13 +182,6 @@ func (r *RoleV4) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (r *RoleV4) SetTTL(clock Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
-}
-
 // SetName sets the role name and is a shortcut for SetMetadata().Name.
 func (r *RoleV4) SetName(s string) {
 	r.Metadata.Name = s

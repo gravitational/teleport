@@ -122,13 +122,6 @@ func (r *TunnelConnectionV2) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (r *TunnelConnectionV2) SetTTL(clock Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
-}
-
 // GetName returns the name of the User
 func (r *TunnelConnectionV2) GetName() string {
 	return r.Metadata.Name
