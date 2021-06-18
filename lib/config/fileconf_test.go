@@ -17,11 +17,13 @@ limitations under the License.
 package config
 
 import (
+	"bytes"
 	"encoding/base64"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 func TestAuthenticationSection(t *testing.T) {
@@ -105,6 +107,109 @@ fake certificate
 			fc, err := ReadFromString(encodedConfigString)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(fc.Auth.Authentication, tt.outAuthenticationConfig))
+		})
+	}
+}
+
+// minimalConfigFile is a minimal subset of a teleport config file that can be
+// mutated programatically by test cases and then re-serialised to test the
+// config file loader
+const minimalConfigFile string = `
+ssh_service:
+  enabled: yes
+`
+
+// cfgMap is a shorthand for a type that can hold the nested key-value
+// representation of a parsed YAML file.
+type cfgMap map[interface{}]interface{}
+
+// editConfig takes the minimal YAML configuration file, de-serialises it into a
+// nested key-value dictionary suitable for manipulation by a test case,
+// passes that dictionary to the caller-supplied mutator and then re-serialises
+// it ready to be injected into the config loader.
+func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
+	var cfg cfgMap
+	require.NoError(t, yaml.Unmarshal([]byte(minimalConfigFile), &cfg))
+	mutate(cfg)
+
+	text, err := yaml.Marshal(cfg)
+	require.NoError(t, err)
+
+	return text
+}
+
+// TestSSHSection tests the config parser for the SSH config block
+func TestSSHSection(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		desc                      string
+		mutate                    func(cfgMap)
+		expectError               require.ErrorAssertionFunc
+		expectEnabled             require.BoolAssertionFunc
+		expectAllowsTCPForwarding require.BoolAssertionFunc
+	}{
+		{
+			desc:                      "default",
+			mutate:                    func(cfgMap) {},
+			expectError:               require.NoError,
+			expectEnabled:             require.True,
+			expectAllowsTCPForwarding: require.True,
+		}, {
+			desc: "explicitly enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
+			},
+			expectError:               require.NoError,
+			expectEnabled:             require.True,
+			expectAllowsTCPForwarding: require.True,
+		}, {
+			desc: "diasbled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["enabled"] = "no"
+			},
+			expectError:               require.NoError,
+			expectEnabled:             require.False,
+			expectAllowsTCPForwarding: require.True,
+		}, {
+			desc: "Port forwarding is enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["port_forwarding"] = true
+			},
+			expectError:               require.NoError,
+			expectEnabled:             require.True,
+			expectAllowsTCPForwarding: require.True,
+		}, {
+			desc: "Port forwarding is disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["port_forwarding"] = false
+			},
+			expectError:               require.NoError,
+			expectEnabled:             require.True,
+			expectAllowsTCPForwarding: require.False,
+		}, {
+			desc: "Port forwarding invalid value",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["port_forwarding"] = "banana"
+			},
+			expectError: require.Error,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, testCase.mutate))
+
+			cfg, err := ReadConfig(text)
+			testCase.expectError(t, err)
+
+			if testCase.expectEnabled != nil {
+				testCase.expectEnabled(t, cfg.SSH.Enabled())
+			}
+
+			if testCase.expectAllowsTCPForwarding != nil {
+				testCase.expectAllowsTCPForwarding(t, cfg.SSH.AllowTCPForwarding())
+			}
 		})
 	}
 }

@@ -105,7 +105,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		panic(err)
 	}
 
-	return &types.CertAuthorityV2{
+	ca := &types.CertAuthorityV2{
 		Kind:    types.KindCertAuthority,
 		SubKind: string(config.Type),
 		Version: types.V2,
@@ -114,19 +114,25 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.CertAuthoritySpecV2{
-			Type:         config.Type,
-			ClusterName:  config.ClusterName,
-			CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(signer.PublicKey())},
-			SigningKeys:  [][]byte{keyBytes},
-			TLSKeyPairs:  []types.TLSKeyPair{{Cert: cert, Key: key}},
-			JWTKeyPairs: []types.JWTKeyPair{
-				{
+			Type:        config.Type,
+			ClusterName: config.ClusterName,
+			ActiveKeys: types.CAKeySet{
+				SSH: []*types.SSHKeyPair{{
+					PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
+					PrivateKey: keyBytes,
+				}},
+				TLS: []*types.TLSKeyPair{{Cert: cert, Key: key}},
+				JWT: []*types.JWTKeyPair{{
 					PublicKey:  publicKey,
 					PrivateKey: privateKey,
-				},
+				}},
 			},
 		},
 	}
+	if err := services.FillOldCertAuthorityKeys(ca); err != nil {
+		panic(err)
+	}
+	return ca
 }
 
 // ServicesTestSuite is an acceptance test suite
@@ -286,11 +292,14 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 
 	cas, err := s.CAS.GetCertAuthorities(types.UserCA, false)
 	c.Assert(err, check.IsNil)
-	ca2 := *ca
+	ca2 := ca.Clone().(*types.CertAuthorityV2)
+	ca2.Spec.ActiveKeys.SSH[0].PrivateKey = nil
 	ca2.Spec.SigningKeys = nil
-	ca2.Spec.TLSKeyPairs = []types.TLSKeyPair{{Cert: ca2.Spec.TLSKeyPairs[0].Cert}}
-	ca2.Spec.JWTKeyPairs = []types.JWTKeyPair{{PublicKey: ca2.Spec.JWTKeyPairs[0].PublicKey}}
-	fixtures.DeepCompare(c, cas[0], &ca2)
+	ca2.Spec.ActiveKeys.TLS[0].Key = nil
+	ca2.Spec.TLSKeyPairs[0].Key = nil
+	ca2.Spec.ActiveKeys.JWT[0].PrivateKey = nil
+	ca2.Spec.JWTKeyPairs[0].PrivateKey = nil
+	fixtures.DeepCompare(c, cas[0], ca2)
 
 	cas, err = s.CAS.GetCertAuthorities(types.UserCA, true)
 	c.Assert(err, check.IsNil)
@@ -842,10 +851,10 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 			AttributesToRoles: []types.AttributeMapping{
 				{Name: "groups", Value: "admin", Roles: []string{"admin"}},
 			},
-			Cert: fixtures.SigningCertPEM,
+			Cert: fixtures.TLSCACertPEM,
 			SigningKeyPair: &types.AsymmetricKeyPair{
-				PrivateKey: fixtures.SigningKeyPEM,
-				Cert:       fixtures.SigningCertPEM,
+				PrivateKey: fixtures.TLSCAKeyPEM,
+				Cert:       fixtures.TLSCACertPEM,
 			},
 		},
 	}
