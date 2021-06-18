@@ -100,13 +100,6 @@ func (n *Namespace) SetExpiry(expires time.Time) {
 	n.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (n *Namespace) SetTTL(clock Clock, ttl time.Duration) {
-	n.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (n *Namespace) GetMetadata() Metadata {
 	return n.Metadata

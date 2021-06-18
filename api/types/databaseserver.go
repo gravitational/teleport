@@ -161,13 +161,6 @@ func (s *DatabaseServerV3) Expiry() time.Time {
 	return s.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (s *DatabaseServerV3) SetTTL(clock Clock, ttl time.Duration) {
-	s.Metadata.SetTTL(clock, ttl)
-}
-
 // GetName returns the resource name.
 func (s *DatabaseServerV3) GetName() string {
 	return s.Metadata.Name

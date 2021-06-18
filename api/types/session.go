@@ -143,13 +143,6 @@ func (ws *WebSessionV2) SetExpiry(expiry time.Time) {
 	ws.Metadata.SetExpiry(expiry)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (ws *WebSessionV2) SetTTL(clock Clock, ttl time.Duration) {
-	ws.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata gets resource Metadata
 func (ws *WebSessionV2) GetMetadata() Metadata {
 	return ws.Metadata
@@ -408,11 +401,6 @@ func (r *WebTokenV3) GetResourceID() int64 {
 // SetResourceID sets the token resource ID
 func (r *WebTokenV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
-}
-
-// SetTTL sets the token resource TTL (time-to-live) value
-func (r *WebTokenV3) SetTTL(clock Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
 }
 
 // GetToken returns the token value
