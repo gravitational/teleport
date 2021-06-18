@@ -467,6 +467,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	var values []events.EventFields
 	var parsedStartKey int64
 	var err error
+	totalSize := 0
 
 	if startKey != "" {
 		parsedStartKey, err = strconv.ParseInt(startKey, 10, 64)
@@ -518,8 +519,13 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 			}
 		}
 		if accepted || !doFilter {
+			if totalSize+len(data) >= events.MaxEventBytesInResponse {
+				break
+			}
+
 			lastKey = docSnap.Data()["createdAt"].(int64)
 			values = append(values, fields)
+			totalSize += len(data)
 			if limit > 0 && len(values) >= limit {
 				break
 			}
@@ -536,7 +542,12 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		eventArr = append(eventArr, event)
 	}
 
-	return eventArr, fmt.Sprintf("%d", lastKey), nil
+	var lastKeyString string
+	if lastKey != 0 {
+		lastKeyString = fmt.Sprintf("%d", lastKey)
+	}
+
+	return eventArr, lastKeyString, nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to

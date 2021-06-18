@@ -19,6 +19,8 @@ package dynamoevents
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"math"
 	"net/url"
@@ -672,6 +674,10 @@ type checkpointKey struct {
 
 	// A DynamoDB query iterator. Allows us to resume a partial query.
 	Iterator map[string]*dynamodb.AttributeValue `json:"iterator,omitempty"`
+
+	// EventKey is a derived identifier for an event used for resuming
+	// sub-page breaks due to size constraints.
+	EventKey string `json:"event_key,omitempty"`
 }
 
 // SearchEvents is a flexible way to find events.
@@ -748,6 +754,7 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 	}
 
 	var values []event
+	totalSize := 0
 	dates := daysBetween(fromUTC, toUTC)
 	query := "CreatedAtDate = :date AND CreatedAt BETWEEN :start and :end"
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
@@ -770,10 +777,13 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 		}
 	}
 
+	hasLeft := false
+	foundStart := checkpoint.EventKey == ""
+
 	// This is the main query loop, here we send individual queries for each date and
 	// we stop if we hit `limit` or process all dates, whichever comes first.
 dateLoop:
-	for _, date := range dates {
+	for i, date := range dates {
 		checkpoint.Date = date
 
 		attributes := map[string]interface{}{
@@ -815,6 +825,20 @@ dateLoop:
 				if err := json.Unmarshal(data, &fields); err != nil {
 					return nil, "", trace.BadParameter("failed to unmarshal event %v", err)
 				}
+
+				if !foundStart {
+					key, err := getSubPageCheckpoint(&e)
+					if err != nil {
+						return nil, "", trace.Wrap(err)
+					}
+
+					if key != checkpoint.EventKey {
+						continue
+					}
+
+					foundStart = true
+				}
+
 				accepted := false
 				for i := range eventTypes {
 					if e.EventType == eventTypes[i] {
@@ -823,9 +847,24 @@ dateLoop:
 					}
 				}
 				if accepted || !doFilter {
+					// Because this may break on non page boundaries an additional
+					// checkpoint is needed for sub-page breaks.
+					if totalSize+len(data) >= events.MaxEventBytesInResponse {
+						hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
+						key, err := getSubPageCheckpoint(&e)
+						if err != nil {
+							return nil, "", trace.Wrap(err)
+						}
+						checkpoint.EventKey = key
+						break dateLoop
+					}
+
+					totalSize += len(data)
 					values = append(values, e)
 					left--
+
 					if left == 0 {
+						hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
 						break dateLoop
 					}
 				}
@@ -837,15 +876,10 @@ dateLoop:
 		}
 	}
 
-	// When no events are left we set the checkpoint to null
-	if len(values) == 0 {
-		checkpoint = checkpointKey{}
-	}
-
 	var lastKey []byte
 	var err error
 
-	if len(values) > 0 {
+	if hasLeft {
 		lastKey, err = json.Marshal(&checkpoint)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -853,6 +887,16 @@ dateLoop:
 	}
 
 	return values, string(lastKey), nil
+}
+
+func getSubPageCheckpoint(e *event) (string, error) {
+	data, err := utils.FastMarshal(e)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:]), nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
