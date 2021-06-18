@@ -229,7 +229,7 @@ func NewDowngradedOSSAdminRole() types.Role {
 
 // NewOSSGithubRole creates a role for enabling RBAC for open source Github users
 func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) types.Role {
-	role, _ := types.NewRole(RoleNameForUser("github-"+uuid.New()), types.RoleSpecV4{
+	role, _ := types.NewRole("github-"+uuid.New(), types.RoleSpecV4{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -258,7 +258,7 @@ func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) 
 
 // RoleForCertAuthority creates role using types.CertAuthority.
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
-	role, _ := types.NewRole(RoleNameForUser(RoleNameForCertAuthority(ca.GetClusterName())), types.RoleSpecV4{
+	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV4{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
 		},
