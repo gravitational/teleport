@@ -333,6 +333,9 @@ ssh_service:
         enabled: no
         service_name: teleport
 
+    # Enables/disables TCP forwarding. Default is 'true'
+    port_forwarding: true
+
 # This section configures the 'proxy service'
 proxy_service:
     # Turns 'proxy' role on. Default is 'yes'
