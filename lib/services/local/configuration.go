@@ -84,6 +84,11 @@ func (s *ClusterConfigurationService) DeleteClusterName() error {
 // SetClusterName sets the name of the cluster in the backend. SetClusterName
 // can only be called once on a cluster after which it will return trace.AlreadyExists.
 func (s *ClusterConfigurationService) SetClusterName(c types.ClusterName) error {
+	// DELETE IN 8.0.0: Move this ClusterID check to ClusterName.CheckAndSetDefaults.
+	if c.GetClusterID() == "" {
+		return trace.BadParameter("cluster ID is required")
+	}
+
 	value, err := services.MarshalClusterName(c)
 	if err != nil {
 		return trace.Wrap(err)
@@ -103,6 +108,11 @@ func (s *ClusterConfigurationService) SetClusterName(c types.ClusterName) error 
 
 // UpsertClusterName sets the name of the cluster in the backend.
 func (s *ClusterConfigurationService) UpsertClusterName(c types.ClusterName) error {
+	// DELETE IN 8.0.0: Move this ClusterID check to ClusterName.CheckAndSetDefaults.
+	if c.GetClusterID() == "" {
+		return trace.BadParameter("cluster ID is required")
+	}
+
 	value, err := services.MarshalClusterName(c)
 	if err != nil {
 		return trace.Wrap(err)
