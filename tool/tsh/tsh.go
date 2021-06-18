@@ -242,6 +242,16 @@ type CLIConf struct {
 
 	// HomePath is where tsh stores profiles
 	HomePath string
+
+	// proxyRootCluster is the root cluster name is the root cluster name for an
+	// ssh proxy
+	proxyRootCluster string
+
+	// proxyProxyHost is the teleport proxy hostname for an ssh proxy
+	proxyProxyHost string
+
+	// proxyNode is the destination hostname for an ssh proxy
+	proxyNode string
 }
 
 func main() {
@@ -490,6 +500,14 @@ func Run(args []string, opts ...cliOption) error {
 	// MFA subcommands.
 	mfa := newMFACommand(app)
 
+	// Config export for ssh.
+	export := app.Command("export", "Export application configuration")
+	exportSSH := export.Command("ssh", "Export SSH configuration")
+	exportProxy := export.Command("proxy", "OpenSSH proxy wrapper for exported SSH configs")
+	exportProxy.Arg("proxy", "Teleport proxy host").Required().StringVar(&cf.proxyProxyHost)
+	exportProxy.Arg("cluster", "Cluster name containing target proxy host").Required().StringVar(&cf.proxyRootCluster)
+	exportProxy.Arg("node", "Proxy target hostname").Required().StringVar(&cf.proxyNode)
+
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
@@ -621,6 +639,10 @@ func Run(args []string, opts ...cliOption) error {
 		err = onRequestCreate(&cf)
 	case reqReview.FullCommand():
 		err = onRequestReview(&cf)
+	case exportSSH.FullCommand():
+		err = onExportSSH(&cf)
+	case exportProxy.FullCommand():
+		err = onExportProxy(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
