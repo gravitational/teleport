@@ -43,12 +43,17 @@ func TestServerKeyAuth(t *testing.T) {
 		log: testlog.FailureOnly(t),
 		localAccessPoint: mockAccessPoint{
 			ca: types.NewCertAuthority(types.CertAuthoritySpecV2{
-				Type:         types.HostCA,
-				ClusterName:  "cluster-name",
-				SigningKeys:  [][]byte{priv},
-				CheckingKeys: [][]byte{pub},
-				Roles:        nil,
-				SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_256,
+				Type:        types.HostCA,
+				ClusterName: "cluster-name",
+				ActiveKeys: types.CAKeySet{
+					SSH: []*types.SSHKeyPair{{
+						PrivateKey:     priv,
+						PrivateKeyType: types.PrivateKeyType_RAW,
+						PublicKey:      pub,
+					}},
+				},
+				Roles:      nil,
+				SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_256,
 			}),
 		},
 	}

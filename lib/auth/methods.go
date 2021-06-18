@@ -330,7 +330,7 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 	for i, ca := range authorities {
 		out[i] = TrustedCerts{
 			ClusterName:      ca.GetClusterName(),
-			HostCertificates: ca.GetCheckingKeys(),
+			HostCertificates: services.GetSSHCheckingKeys(ca),
 			TLSCertificates:  services.GetTLSCerts(ca),
 		}
 	}
