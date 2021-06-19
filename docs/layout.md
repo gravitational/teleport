@@ -38,15 +38,15 @@ The documentation layout and structure is presently:
     - [x] Introduction
     - [x] Adopters
     - [x] Getting Started
-    - [ ] FAQ
+    - [x] FAQ
     - [x] Changelog
 - [ ] Setup (renamed from infrastructure guides)
-    - [ ] Installation (moved from Home Section)
-    - [ ] Local Docker
-    - [ ] Configuration (ported from admin manual)
+    - [x] Installation (moved from Home Section)
+    - [x] Docker Compose
+    - [x] FAQ (ported from admin manual)
         - [ ] Admin manual subsections split
-        - [ ] Ports, DNS, PEM, SSH
-    - [ ] Terraform (moved from infrastructure guides)
+        - [x] Ports, DNS, ~~PEM~~, SSH
+    - [x] Terraform (moved from infrastructure guides)
     - [ ] Helm Guides (moved from Kubernetes)
         - [x] AWS EKS Cluster
         - [x] Google Cloud GKE Cluster
@@ -75,11 +75,11 @@ The documentation layout and structure is presently:
   - [x] Introduction (New)
   - [x] Getting Started (New)
   - [x] Guides
-    - [ ] SSH (moved from user guide)
+    - [x] SSH (moved from user guide)
     - [x] PAM
-    - [ ] OpenSSH Recording Proxy
-    - [ ] OpenSSH Client
-    - [ ] Enhanced Session Recording (moved from Features)
+    - [x] OpenSSH Recording Proxy
+    - [x] OpenSSH Client
+    - [x] Enhanced Session Recording (moved from Features)
     - [ ] Resource Catalog/Introspection (move all introspection, management items into here)
     - [ ] Proxy, NAT, Connecting (think we can factor out a bunch of stuff in the admin guide and move into here)
 - [x] Kubernetes Access
