@@ -981,20 +981,6 @@ tctl rm users/admin
 
 ## Trusted Clusters
 
-As explained in the [architecture document](architecture/overview.mdx#design-principles),
-Teleport can partition compute infrastructure into multiple clusters. A cluster
-is a group of nodes connected to the cluster's auth server, acting as a
-Certificate Authority (CA) for all users and nodes.
-
-To retrieve an SSH certificate, users must authenticate with a cluster through a
-proxy server. So, if users want to connect to nodes belonging to different
-clusters, they would normally have to use a different `--proxy` flag for each
-cluster. This is not always convenient.
-
-The concept of trusted clusters allows Teleport administrators to connect
-multiple clusters and establish trust between them. Trusted clusters
-allow users of one cluster to seamlessly SSH into the nodes of another cluster without having to "hop" between proxy servers. Moreover, users don't even need to have a direct connection to other clusters' proxy servers. Trusted clusters also have their own restrictions on user access.
-
 To learn more about Trusted Clusters please visit our [Trusted Cluster Guide](trustedclusters.mdx).
 
 ## GitHub OAuth 2.0
