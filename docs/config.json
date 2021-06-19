@@ -221,9 +221,10 @@
       "icon": "list",
       "title": "Reference",
       "entries": [
-        { "title": "YAML", "slug": "/config-reference/" },
-        { "title": "CLI", "slug": "/cli-docs/" },
-        { "title": "Metrics", "slug": "/metrics-logs-reference/" },
+        { "title": "YAML", "slug": "/reference/config-reference/" },
+        { "title": "CLI", "slug": "/reference/cli-docs/" },
+        { "title": "Metrics", "slug": "/reference/metrics-logs-reference/" },
+        { "title": "Glossary", "slug": "/reference/glossary/" },
         {
           "title": "API",
           "slug": "/reference/api/",
@@ -359,6 +360,21 @@
     {
       "source": "/cloud/faq/",
       "destination": "/pro/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/config-reference/",
+      "destination": "/reference/config-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/metrics-logs-reference/",
+      "destination": "/reference/metrics-logs-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/cli-docs/",
+      "destination": "/reference/cli-docs/",
       "permanent": true
     }
   ]
