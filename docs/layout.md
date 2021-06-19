@@ -80,8 +80,12 @@ The documentation layout and structure is presently:
     - [x] OpenSSH Recording Proxy
     - [x] OpenSSH Client
     - [x] Enhanced Session Recording (moved from Features)
-    - [ ] Resource Catalog/Introspection (move all introspection, management items into here)
     - [ ] Proxy, NAT, Connecting (think we can factor out a bunch of stuff in the admin guide and move into here)
+  - [x] Architecture
+    - [ ] Should share some topics with the top-level Architecture/Security article.
+    - [x] Bastion Pattern
+    - [x] Resource Catalog/Introspection (move all introspection, management items into here)
+    - [x] Other common Server Access concepts (greater detail than FAQ)
 - [x] Kubernetes Access
     - [x] Introduction
     - [x] Getting Started
