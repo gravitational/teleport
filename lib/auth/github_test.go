@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
@@ -52,7 +53,7 @@ func (s *GithubSuite) SetUpSuite(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, check.IsNil)

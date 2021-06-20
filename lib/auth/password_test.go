@@ -57,7 +57,7 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set cluster name
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)
@@ -226,13 +226,14 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 }
 
 func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
+	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)
 
-	err = s.a.SetAuthPreference(authPreference)
+	err = s.a.SetAuthPreference(ctx, authPreference)
 	c.Assert(err, IsNil)
 
 	username := "joe@example.com"
@@ -257,13 +258,14 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 }
 
 func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
+	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
 
-	err = s.a.SetAuthPreference(authPreference)
+	err = s.a.SetAuthPreference(ctx, authPreference)
 	c.Assert(err, IsNil)
 
 	username := "joe@example.com"
@@ -294,6 +296,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 }
 
 func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
+	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
@@ -357,7 +360,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	for _, tc := range testCases {
 		// set new auth preference settings
 		authPreference.SetSecondFactor(tc.secondFactor)
-		err = s.a.SetAuthPreference(authPreference)
+		err = s.a.SetAuthPreference(ctx, authPreference)
 		c.Assert(err, IsNil)
 
 		_, err = s.a.changePasswordWithToken(context.TODO(), tc.req)
@@ -365,7 +368,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	}
 
 	authPreference.SetSecondFactor(constants.SecondFactorOff)
-	err = s.a.SetAuthPreference(authPreference)
+	err = s.a.SetAuthPreference(ctx, authPreference)
 	c.Assert(err, IsNil)
 
 	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
@@ -397,6 +400,7 @@ func (s *PasswordSuite) shouldLockAfterFailedAttempts(c *C, req services.ChangeP
 }
 
 func (s *PasswordSuite) prepareForPasswordChange(user string, pass []byte, secondFactorType constants.SecondFactorType) (services.ChangePasswordReq, error) {
+	ctx := context.Background()
 	req := services.ChangePasswordReq{
 		User:        user,
 		OldPassword: pass,
@@ -420,7 +424,7 @@ func (s *PasswordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		return req, err
 	}
 
-	err = s.a.SetAuthPreference(ap)
+	err = s.a.SetAuthPreference(ctx, ap)
 	if err != nil {
 		return req, err
 	}

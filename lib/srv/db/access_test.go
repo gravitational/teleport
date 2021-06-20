@@ -38,15 +38,12 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/siddontang/go-mysql/client"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/api/option"
-	"google.golang.org/grpc"
 )
 
 func TestMain(m *testing.M) {
@@ -524,10 +521,12 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 	dbAuthorizer, err := auth.NewAuthorizer(c.clusterName, c.authClient, c.authClient, c.authClient)
 	require.NoError(t, err)
 
-	// Unauthenticated GCP IAM client so we don't try to initialize a real one.
-	gcpIAM, err := gcpcredentials.NewIamCredentialsClient(ctx,
-		option.WithGRPCDialOption(grpc.WithInsecure()), // Insecure must be set for unauth client.
-		option.WithoutAuthentication())
+	// Create test database auth tokens generator.
+	testAuth, err := newTestAuth(common.AuthConfig{
+		AuthClient: c.authClient,
+		Clients:    &common.TestCloudClients{},
+		Clock:      c.clock,
+	})
 	require.NoError(t, err)
 
 	server, err := New(ctx, Config{
@@ -539,13 +538,9 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 		Authorizer:    dbAuthorizer,
 		Servers:       servers,
 		TLSConfig:     tlsConfig,
+		Auth:          testAuth,
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
-		},
-		NewAuth: func(ac common.AuthConfig) (common.Auth, error) {
-			// Use test auth implementation that only fakes cloud auth tokens
-			// generation.
-			return newTestAuth(ac)
 		},
 		NewAudit: func(common.AuditConfig) (common.Audit, error) {
 			// Use the same audit logger implementation but substitute the
@@ -554,7 +549,6 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 				Emitter: c.emitter,
 			})
 		},
-		GCPIAM: gcpIAM,
 	})
 	require.NoError(t, err)
 
@@ -572,7 +566,7 @@ func withSelfHostedPostgres(name string) withDatabaseOption {
 		require.NoError(t, err)
 		go postgresServer.Serve()
 		t.Cleanup(func() { postgresServer.Close() })
-		server := types.NewDatabaseServerV3(name, nil,
+		server, err := types.NewDatabaseServerV3(name, nil,
 			types.DatabaseServerSpecV3{
 				Protocol:      defaults.ProtocolPostgres,
 				URI:           net.JoinHostPort("localhost", postgresServer.Port()),
@@ -581,6 +575,7 @@ func withSelfHostedPostgres(name string) withDatabaseOption {
 				HostID:        testCtx.hostID,
 				DynamicLabels: dynamicLabels,
 			})
+		require.NoError(t, err)
 		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -601,7 +596,7 @@ func withRDSPostgres(name, authToken string) withDatabaseOption {
 		require.NoError(t, err)
 		go postgresServer.Serve()
 		t.Cleanup(func() { postgresServer.Close() })
-		server := types.NewDatabaseServerV3(name, nil,
+		server, err := types.NewDatabaseServerV3(name, nil,
 			types.DatabaseServerSpecV3{
 				Protocol:      defaults.ProtocolPostgres,
 				URI:           net.JoinHostPort("localhost", postgresServer.Port()),
@@ -615,6 +610,7 @@ func withRDSPostgres(name, authToken string) withDatabaseOption {
 				// Set CA cert, otherwise we will attempt to download RDS roots.
 				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
 			})
+		require.NoError(t, err)
 		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -635,7 +631,7 @@ func withRedshiftPostgres(name, authToken string) withDatabaseOption {
 		require.NoError(t, err)
 		go postgresServer.Serve()
 		t.Cleanup(func() { postgresServer.Close() })
-		server := types.NewDatabaseServerV3(name, nil,
+		server, err := types.NewDatabaseServerV3(name, nil,
 			types.DatabaseServerSpecV3{
 				Protocol:      defaults.ProtocolPostgres,
 				URI:           net.JoinHostPort("localhost", postgresServer.Port()),
@@ -650,6 +646,7 @@ func withRedshiftPostgres(name, authToken string) withDatabaseOption {
 				// Set CA cert, otherwise we will attempt to download Redshift roots.
 				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
 			})
+		require.NoError(t, err)
 		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -673,7 +670,7 @@ func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
 		require.NoError(t, err)
 		go postgresServer.Serve()
 		t.Cleanup(func() { postgresServer.Close() })
-		server := types.NewDatabaseServerV3(name, nil,
+		server, err := types.NewDatabaseServerV3(name, nil,
 			types.DatabaseServerSpecV3{
 				Protocol:      defaults.ProtocolPostgres,
 				URI:           net.JoinHostPort("localhost", postgresServer.Port()),
@@ -688,6 +685,7 @@ func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
 				// Set CA cert to pass cert validation.
 				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
 			})
+		require.NoError(t, err)
 		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -707,7 +705,7 @@ func withSelfHostedMySQL(name string) withDatabaseOption {
 		require.NoError(t, err)
 		go mysqlServer.Serve()
 		t.Cleanup(func() { mysqlServer.Close() })
-		server := types.NewDatabaseServerV3(name, nil,
+		server, err := types.NewDatabaseServerV3(name, nil,
 			types.DatabaseServerSpecV3{
 				Protocol:      defaults.ProtocolMySQL,
 				URI:           net.JoinHostPort("localhost", mysqlServer.Port()),
@@ -716,6 +714,7 @@ func withSelfHostedMySQL(name string) withDatabaseOption {
 				HostID:        testCtx.hostID,
 				DynamicLabels: dynamicLabels,
 			})
+		require.NoError(t, err)
 		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
 		require.NoError(t, err)
 		testCtx.mysql[name] = testMySQL{
@@ -737,7 +736,7 @@ func withRDSMySQL(name, authUser, authToken string) withDatabaseOption {
 		require.NoError(t, err)
 		go mysqlServer.Serve()
 		t.Cleanup(func() { mysqlServer.Close() })
-		server := types.NewDatabaseServerV3(name, nil,
+		server, err := types.NewDatabaseServerV3(name, nil,
 			types.DatabaseServerSpecV3{
 				Protocol:      defaults.ProtocolMySQL,
 				URI:           net.JoinHostPort("localhost", mysqlServer.Port()),
@@ -751,6 +750,47 @@ func withRDSMySQL(name, authUser, authToken string) withDatabaseOption {
 				// Set CA cert, otherwise we will attempt to download RDS roots.
 				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
 			})
+		require.NoError(t, err)
+		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
+		require.NoError(t, err)
+		testCtx.mysql[name] = testMySQL{
+			db:     mysqlServer,
+			server: server,
+		}
+		return server
+	}
+}
+
+func withCloudSQLMySQL(name, authUser, authToken string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.DatabaseServer {
+		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthUser:   authUser,
+			AuthToken:  authToken,
+			// Cloud SQL presented certificate must have <project-id>:<instance-id>
+			// in its CN.
+			CN: "project-1:instance-1",
+		})
+		require.NoError(t, err)
+		go mysqlServer.Serve()
+		t.Cleanup(func() { mysqlServer.Close() })
+		server, err := types.NewDatabaseServerV3(name, nil,
+			types.DatabaseServerSpecV3{
+				Protocol:      defaults.ProtocolMySQL,
+				URI:           net.JoinHostPort("localhost", mysqlServer.Port()),
+				Version:       teleport.Version,
+				Hostname:      constants.APIDomain,
+				HostID:        testCtx.hostID,
+				DynamicLabels: dynamicLabels,
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+				},
+				// Set CA cert to pass cert validation.
+				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
+			})
+		require.NoError(t, err)
 		_, err = testCtx.authClient.UpsertDatabaseServer(ctx, server)
 		require.NoError(t, err)
 		testCtx.mysql[name] = testMySQL{
