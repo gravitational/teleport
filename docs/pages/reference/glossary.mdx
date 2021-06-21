@@ -7,20 +7,25 @@ description: Glossary of key Teleport terms, keywords, and definitions.
 
 | Term | Description | Link |
 | --- | --- | --- |
-| Auth | A *Teleport Auth Service* contains two Certificate Authorities (CA). One is used to sign user keys. The other signs Teleport Node keys. | [Teleport Auth](../architecture/authentication.mdx) |
-| Cluster | A collection of Teleport Nodes connected to the same Teleport Certificate Authority is called a *Teleport Cluster*. | [Architecture Overview](../architecture/overview.mdx) |
-| Cluster Name | Every Teleport Cluster must have a *name*. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated. **IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created. | [Admin Guide Configuration](../admin-guide.mdx#configuration) |
-| Enhanced Session Recording | *Teleport Enhanced Session Recording* provides enhanced security, logging, and session correlation using BPF. | [Enhanced Session Recording](../server-access/guides/bpf-session-recording.mdx) |
-| Join Tokens | Used by Teleport Nodes or Trusted Clusters to connect to an existing Teleport Cluster. *Join Tokens* can be *static* (valid indefinitely, set through YAML) or *dynamic* (only valid for a specified duration). | [Join Tokens](../architecture/trustedclusters.mdx#join-tokens) |
-| Node (Generic) | A *Node* is any resource (computing device, server, database, VM, Linux instance, etc.). | [Teleport Nodes](../architecture/nodes.mdx) |
-| Node (Teleport) | A *Teleport Node* is a copy of Teleport installed and running on a computing device governing access for that resource, the resources it's connected to, and the Teleport Cluster to which it belongs. A *Teleport Node* can run in three primary modes: *Auth*, *Proxy*, *Node* (SSH) and several specialized modes: *DB*, *App*, *Kubernetes*, etc. | [Teleport Nodes](../architecture/nodes.mdx) |
-| Proxy (Generic) | A *Proxy* service operates as an intermediary accepting incoming connections and routing outgoing ones. | [Teleport Proxy](../architecture/proxy.mdx) |
-| Proxy (Teleport) | *Teleport Proxy* is a stateless service and primary mode that a Teleport Node can run in. It serves as an authentication gateway, performs IP address lookup and proxies a connection from client to Node, and serves the Teleport Web UI. | [Teleport Proxy](../architecture/proxy.mdx) |
-| Session Recording | Teleports default Session Recording provides Audit Logging, video playback, and Event routing. | [Admin Guide Audit Log](../admin-guide.mdx#audit-log) |
-| tctl | An administrative tool used for managing Teleport. | [tctl Reference Documentation](../reference/cli-docs.mdx#tctl) |
-| Teleport | The service that's installed on a Node to run Teleport Nodes. | [teleport Reference Documentation](../reference/cli-docs.mdx#teleport) |
-| Trusted Cluster | Teleport Auth Service can allow third-party users or nodes to connect if their public keys are signed by a Trusted Certificate. A *Trusted Cluster* is a pair of public keys of the trusted Certificate Authority. It can be configured via `teleport.yaml` file. | [Trusted Clusters](../architecture/trustedclusters.mdx) |
-| tsh | A client tool used primarily when interacting with Teleport as a user. Provides `ssh`, login, and Access Request functionalities. | [tsh Reference Documentation](../reference/cli-docs.mdx#tsh) |
+| <h4 id="auth">Auth</h4> | One of three primary modes that a Teleport Node can be put into. *Teleport Auth Service* uses two Certificate Authorities (CA): one to sign user keys, the other signs Teleport Node keys. | [Teleport Auth](../architecture/authentication.mdx) |
+| <h4 id="teleport-cluster">Cluster</h4> | A collection of Teleport Nodes connected to the same Teleport Certificate Authority is called a *Teleport Cluster*. | [Architecture Overview](../architecture/overview.mdx) |
+| <h4 id="cluster-name">Cluster Name</h4> | Every Teleport Cluster must have a *name*. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated. **IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created. | [Admin Guide Configuration](../admin-guide.mdx#configuration) |
+| <h4 id="enhanced-session-recording">Enhanced Session Recording</h4> | *Teleport Enhanced Session Recording* provides enhanced security, logging, and session correlation using BPF. | [Enhanced Session Recording](../server-access/guides/bpf-session-recording.mdx) |
+| <h4 id="join-tokens">Join Tokens</h4> | Used by Teleport Nodes or Trusted Clusters to connect to an existing Teleport Cluster. *Join Tokens* can be *static* (valid indefinitely, set through YAML) or *dynamic* (only valid for a specified duration). | [Join Tokens](../architecture/trustedclusters.mdx#join-tokens) |
+| <h4 id="teleport-node">Node (Teleport)</h4> | A *Teleport Node* is a copy of Teleport installed and running on a computing device governing access for that resource, the resources it's connected to, and the Teleport Cluster to which it belongs. A *Teleport Node* can run in three primary modes: *Auth*, *Proxy*, *Node* (SSH) and several specialized modes: *DB*, *App*, *Kubernetes*, etc. | [Teleport Nodes](../architecture/nodes.mdx) |
+| <h4 id="teleport-proxy">Proxy (Teleport)</h4> | *Teleport Proxy* is a stateless service and primary mode that a Teleport Node can run in. It serves as an authentication gateway, performs IP address lookup and proxies a connection from client to Node, and serves the Teleport Web UI. | [Teleport Proxy](../architecture/proxy.mdx) |
+| <h4 id="session-recording">Session Recording</h4> | Teleports default *Session Recording* provides [Audit Logging](../admin-guide.mdx#audit-log), video playback, and [Event](../admin-guide.mdx#events) routing. | [Admin Guide Audit Log](../admin-guide.mdx#audit-log) |
+| <h4 id="tctl">tctl</h4> | An administrative tool used for managing Teleport. | [tctl Reference Documentation](../reference/cli-docs.mdx#tctl) |
+| <h4 id="teleport">Teleport</h4> | The service that's installed on a Node to run Teleport Nodes. | [teleport Reference Documentation](../reference/cli-docs.mdx#teleport) |
+| <h4 id="trusted-cluster">Trusted Cluster</h4> | Teleport Auth Service can allow third-party users or nodes to connect if their public keys are signed by a Trusted Certificate. A *Trusted Cluster* is a pair of public keys of the trusted Certificate Authority. It can be configured via `teleport.yaml` file. | [Trusted Clusters](../architecture/trustedclusters.mdx) |
+| <h4 id="tsh">tsh</h4> | A client tool used primarily when interacting with Teleport as a user. Provides `ssh`, login, and Access Request functionalities. | [tsh Reference Documentation](../reference/cli-docs.mdx#tsh) |
+
+## Generic terms
+
+| Term | Description | Link |
+| --- | --- | --- |
+| Node (Generic) | A *Node* is any resource (computing device, server, database, VM, Linux instance, etc.). | - |
+| Proxy (Generic) | A *Proxy* service operates as an intermediary accepting incoming connections and routing outgoing ones. | - |
 
 ## SSH terms
 
@@ -35,17 +40,25 @@ description: Glossary of key Teleport terms, keywords, and definitions.
 | Term | Acroynym | Description | Link |
 | --- | --- | --- |  --- |
 | Automatic Certificate Management Environment | ACME | A Let's Encrypt standard for acquiring and renewing TLS/SSL certificates automatically.| [Let's Encrypt](https://letsencrypt.org/docs/) |
-| Certificate Authority | CA | A *Certificate Authority* can sign a public key of a user or node, establishing their cluster membership. | |
-| Connector | _ | Used to integrate a tool, service, or app with a specific security or identity management provider. | |
-| Fast IDentity Online | FIDO | |
-| OAuth 2.0 | _ | | 
-| OpenID Connect | OIDC | | | 
+| Certificate Authority | CA | A *Certificate Authority* can sign a public key of a user or node, establishing their cluster membership. | - |
+| Connector (SAML) | - | Used to integrate a tool, service, or app with a specific security or identity management provider. | - |
+| OAuth 2.0 | - | A widespread security protocol for authenticating. | [oauth.net/2/](https://oauth.net/2/) | 
+| One-Time Password | OTP | Passwords generated as *One-Time Passwords* are valid only for a narrow window of time before new passwords are generated to replace them. Often used as a form of 2FA. Also, synonomous with *One-Time Passcode*. | [IETF RFC 2289](https://datatracker.ietf.org/doc/html/rfc2289) | 
+| OpenID Connect | OIDC | A commonly used SSO specification. | [openid.net](https://openid.net/connect/) | 
 | Privacy Enhanced Mail | PEM | A file type (`.pem`) and cryptographic format for sending pairs of keys or certificates. A pair of public and private keys used to manage access. | [IETF RFC 7468](https://datatracker.ietf.org/doc/html/rfc7468) |
-| Provider | _ | | 
-| Secure Sockets layer | SSL | | [What is SSL?](https://www.ssl.com/faqs/faq-what-is-ssl/) | 
-| Single Sign-On | SSO | | | 
-| Security Assertion Markup Language | SAML | | | 
-| Time to Live | TTL | The specified duration that a certificate is valid for. | |
-| Transport Layer Security | TLS | | | 
-| Two-Factor | 2FA | An additional authentication layer required in addition to a primary authentication form. | |
-| Universal 2nd Factor | U2F | | 
+| Provider (SSO)| - | An external party that authenticates users and facilitates trust between multiple resources. SSO identity providers allow users to sign in using authentication standards like SAML and OIDC to access protected resources. | - |
+| Secure Sockets layer | SSL | A protocol for securing client/server connections and applications. Uses certificates to encrypt connections. Replaced by TLS. | [What is SSL?](https://www.ssl.com/faqs/faq-what-is-ssl/) | 
+| Single Sign-On | SSO | A security scheme that allows users to authenticate to multiple resources using a single set of credentials. SAML and OIDC are common SSO specifications. | - | 
+| Security Assertion Markup Language | SAML | A commonly used, XML-based, SSO specification. | [IETF RFC 7522](https://datatracker.ietf.org/doc/html/rfc7522) | 
+| Time to Live | TTL | The specified duration that a certificate is valid for. We typically recommend issuing *short-lived certificates* for [users](../user-manual.mdx#short-lived-sessions) and [Teleport Nodes](../architecture/nodes.mdx#node-identity-on-a-cluster). | - |
+| Transport Layer Security | TLS | A protocol for securing client/server connections and applications. Uses certificates to encrypt connections. Replaces SSL. (Sometimes colloquially refered to as SSL.) | [IETF RFC 8446](https://datatracker.ietf.org/doc/html/rfc8446) | 
+| Two-Factor Authentication | 2FA | An additional authentication layer required in addition to a primary authentication form. Teleport requires that new users create *both* a password and One-Time Passcode. | - |
+| Universal 2nd Factor | U2F | A 2FA authentication standard that uses cryptographic hardware (like a keychain device or key fob). | [FIDO U2F Specification](https://fidoalliance.org/specifications/download/#tablepress-17) |
+
+## Misc
+
+| Term | Acroynym | Description | Link |
+| --- | --- | --- |  --- |
+| Fast IDentity Online | FIDO | An open industry association that creates and manages authentication standards like U2F.  | [fidoalliance.org](https://fidoalliance.org/) |
+| Internet Engineer Task Force| IETF | The organization responsibile for maintaining and creating most Internet and Web standards like SAML, SMTP, SSL, and TLS.  | [ietf.org](https://www.ietf.org/) |
+| OpenID Foundation | OID | The non-profit foundation responsibile for maintaining OIDC.  | [openid.net](https://openid.net/foundation/) |
