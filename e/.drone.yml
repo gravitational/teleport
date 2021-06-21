@@ -165,6 +165,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -282,6 +283,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -388,6 +390,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -499,6 +502,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -605,6 +609,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -816,6 +821,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -923,6 +929,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -933,6 +940,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 3f9422a2405f07bfed3491d54e07e747042564b64536eb7e79f31516d6ec33df
+hmac: c773f053533df858be5f6daa6a6ba0f817fb4e1575377946ac67dd3e382054d3
 
 ...
