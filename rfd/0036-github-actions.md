@@ -21,7 +21,7 @@ To improve speed and quality of the current pull request process.
 
 ### Assigning Reviewers 
 
-We will assign reviewers when a PR is opened, ready for review, or reopened: 
+Reviewers will be assigned when a pull request is opened, ready for review, or reopened. 
 
 ```yaml
 # Example workflow configuration 
@@ -78,7 +78,7 @@ bot check-reviews
 
 ### Implementation 
 
-This project will use [go-github](https://github.com/google/go-github) to access the Github API. 
+This project will use [go-github](https://github.com/google/go-github) and use the Github API to assign and check reviewers. 
 
 Information about the pull request needs to be obtained in order to authenticate and use the client library to make API calls. Github actions allows you to [access execution context information](https://docs.github.com/en/enterprise-server@3.0/actions/reference/context-and-expression-syntax-for-github-actions). One of the default environment variables provided by Github actions is  `GITHUB_EVENT_PATH`, which is the path to file with the complete webhook event payload. With this, we can gather information about the pull requests to make the necessary API calls. 
 
@@ -125,27 +125,25 @@ permissions:
   pull-requests: read|write|none
 ```
 
-[Setting permissions](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#permissions)
+[Setting permissions](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#permissions).
 
 #### Bot Failures 
 
 
 Reviewers will need to be manually added to pull request. 
 
-Bot runs in the context of master so, if the workflow does not succeed due to a bug, we need a way to make changes to it and allow it to be merged. We can do this by adding a tag on the PR that needs to make changes to `.github/workflows` and dismiss the workflow. 
-
-CODEOWNERS will still need to approve these changes before the edits get merged. 
+The workflow runs in the context of master so if the workflow does not succeed due to a failure/bug in the bot, we need a way to make changes to `.github/workflows` without running actions and allow it to be merged. We can do this by ignoring changes to the path. However, the workflow will still run if some changes occur in paths that do not match the patterns in `paths-ignore`. 
 
 ```yaml
-# Example config that ignores PR's with `override` tag:
 on:
   pull_request:
     types: [opened, ready_for_review, reopened]
-    tags-ignore:
-        - 'override' 
-```
+    paths-ignore: '.github/workflows/**'
+```      
 
+__CODEOWNERS will still need to approve these changes before the edits get merged.__ 
 
+[Ignoring paths](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#example-ignoring-paths).
 
 ### Unit tests
 
@@ -153,4 +151,3 @@ on:
 - Ensuring the correct reviewers are assigned to the author.
 - Allow running merge command when required reviewers approve.
 - Dont run merge command if all required reviewers haven't approved.
-
