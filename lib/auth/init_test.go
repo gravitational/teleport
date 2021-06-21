@@ -851,7 +851,12 @@ func TestMigrateClusterID(t *testing.T) {
 		ClusterName: "localhost",
 	})
 	require.NoError(t, err)
+	require.Error(t, as.SetClusterName(clusterName))
 	require.NoError(t, as.ClusterConfiguration.(*local.ClusterConfigurationService).ForceSetClusterName(clusterName))
+
+	clusterName, err = as.GetClusterName()
+	require.NoError(t, err)
+	require.Empty(t, clusterName.GetClusterID())
 
 	require.NoError(t, migrateClusterID(ctx, as))
 
