@@ -178,7 +178,8 @@ steps:
     path: /var/run
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -279,7 +280,8 @@ steps:
     path: /var/run
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -408,7 +410,8 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -503,7 +506,8 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -602,7 +606,8 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -697,7 +702,8 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -889,7 +895,8 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -984,7 +991,8 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1129,6 +1137,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1312,7 +1321,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1409,7 +1419,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1509,7 +1520,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1608,7 +1620,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1728,7 +1741,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -1850,7 +1864,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -1966,7 +1981,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2074,7 +2090,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2171,7 +2188,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2291,7 +2309,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -2407,7 +2426,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2890,7 +2910,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2987,7 +3008,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3098,7 +3120,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3209,7 +3232,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3329,7 +3353,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3454,7 +3479,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3555,7 +3581,8 @@ steps:
     target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
-  image: docker:20.10.6-dind
+  image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3668,6 +3695,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -3768,6 +3796,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -3871,6 +3900,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -4007,6 +4037,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -4295,6 +4326,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -4317,6 +4349,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 40636998fdb459a30bc1eb4663719b698d2187f5a856ab4a3140773650e4022c
+hmac: d4a0667b42bac402a90210dcac85adeca264ef1b47975c13594ac8746a2d16dc
 
 ...
