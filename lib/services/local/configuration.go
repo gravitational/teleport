@@ -88,7 +88,13 @@ func (s *ClusterConfigurationService) SetClusterName(c types.ClusterName) error 
 	if c.GetClusterID() == "" {
 		return trace.BadParameter("cluster ID is required")
 	}
+	return s.ForceSetClusterName(c)
+}
 
+// ForceSetClusterName creates types.ClusterName on the backend
+// without additional field checks.  To be used only in tests.
+// DELETE IN 8.0.0
+func (s *ClusterConfigurationService) ForceSetClusterName(c types.ClusterName) error {
 	value, err := services.MarshalClusterName(c)
 	if err != nil {
 		return trace.Wrap(err)
