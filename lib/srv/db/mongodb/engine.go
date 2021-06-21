@@ -191,21 +191,13 @@ func (e *Engine) authorizeClientMessage(sessionCtx *common.Session, message prot
 		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Server.GetAllLabels()},
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 		&services.DatabaseNameMatcher{Name: database})
-	if err != nil {
-		e.Audit.OnQuery(e.Context, sessionCtx, common.Query{
-			Database: msg.GetDatabase(),
-			// Commands may consist of multiple bson documents.
-			Query: strings.Join(msg.GetDocumentsAsStrings(), ", "),
-			Error: err,
-		})
-		return trace.Wrap(err)
-	}
 	e.Audit.OnQuery(e.Context, sessionCtx, common.Query{
 		Database: msg.GetDatabase(),
 		// Commands may consist of multiple bson documents.
 		Query: strings.Join(msg.GetDocumentsAsStrings(), ", "),
+		Error: err,
 	})
-	return nil
+	return trace.Wrap(err)
 }
 
 func (e *Engine) replyError(clientConn net.Conn, replyTo protocol.Message, err error) {

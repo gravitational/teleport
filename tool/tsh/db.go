@@ -308,7 +308,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Debugf("Executing command: %v %v", cmd.Path, strings.Join(cmd.Args[1:], " "))
+	log.Debugf("Executing command: %s.", cmd)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
