@@ -41,7 +41,9 @@ func TestAuthTokens(t *testing.T) {
 		withCloudSQLPostgres("postgres-cloudsql-correct-token", cloudSQLAuthToken),
 		withCloudSQLPostgres("postgres-cloudsql-incorrect-token", "qwe123"),
 		withRDSMySQL("mysql-rds-correct-token", "root", rdsAuthToken),
-		withRDSMySQL("mysql-rds-incorrect-token", "root", "qwe123"))
+		withRDSMySQL("mysql-rds-incorrect-token", "root", "qwe123"),
+		withCloudSQLMySQL("mysql-cloudsql-correct-token", "root", cloudSQLPassword),
+		withCloudSQLMySQL("mysql-cloudsql-incorrect-token", "root", "qwe123"))
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -97,6 +99,18 @@ func TestAuthTokens(t *testing.T) {
 		{
 			desc:     "incorrect MySQL RDS IAM auth token",
 			service:  "mysql-rds-incorrect-token",
+			protocol: defaults.ProtocolMySQL,
+			err:      true,
+		},
+		{
+			desc:     "correct MySQL Cloud SQL IAM auth token",
+			service:  "mysql-cloudsql-correct-token",
+			protocol: defaults.ProtocolMySQL,
+			err:      false,
+		},
+		{
+			desc:     "incorrect MySQL Cloud SQL IAM auth token",
+			service:  "mysql-cloudsql-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
 			err:      true,
 		},
@@ -157,6 +171,8 @@ const (
 	redshiftAuthToken = "redshift-auth-token"
 	// cloudSQLAuthToken is a mock Cloud SQL IAM auth token.
 	cloudSQLAuthToken = "cloudsql-auth-token"
+	// cloudSQLPassword is a mock Cloud SQL user password.
+	cloudSQLPassword = "cloudsql-password"
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
@@ -175,4 +191,10 @@ func (a *testAuth) GetRedshiftAuthToken(sessionCtx *common.Session) (string, str
 func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Cloud SQL auth token for %v.", sessionCtx)
 	return cloudSQLAuthToken, nil
+}
+
+// GetCloudSQLPassword generates Cloud SQL user password.
+func (a *testAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *common.Session) (string, error) {
+	a.Infof("Generating Cloud SQL user password %v.", sessionCtx)
+	return cloudSQLPassword, nil
 }

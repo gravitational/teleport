@@ -21,8 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/defaults"
 )
 
 // ResetPasswordToken represents a temporary token used to reset passwords
@@ -44,15 +42,16 @@ type ResetPasswordToken interface {
 }
 
 // NewResetPasswordToken creates an instance of ResetPasswordToken.
-func NewResetPasswordToken(tokenID string) ResetPasswordToken {
-	return &ResetPasswordTokenV3{
-		Kind:    KindResetPasswordToken,
-		Version: V3,
+func NewResetPasswordToken(tokenID string) (ResetPasswordToken, error) {
+	u := &ResetPasswordTokenV3{
 		Metadata: Metadata{
-			Name:      tokenID,
-			Namespace: defaults.Namespace,
+			Name: tokenID,
 		},
 	}
+	if err := u.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return u, nil
 }
 
 // GetName returns Name
@@ -105,13 +104,6 @@ func (u *ResetPasswordTokenV3) SetExpiry(t time.Time) {
 	u.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (u *ResetPasswordTokenV3) SetTTL(clock Clock, ttl time.Duration) {
-	u.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (u *ResetPasswordTokenV3) GetMetadata() Metadata {
 	return u.Metadata
@@ -147,13 +139,17 @@ func (u *ResetPasswordTokenV3) SetSubKind(s string) {
 	u.SubKind = s
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (u *ResetPasswordTokenV3) setStaticFields() {
+	u.Kind = KindResetPasswordToken
+	u.Version = V3
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (u ResetPasswordTokenV3) CheckAndSetDefaults() error {
+	u.setStaticFields()
 	if err := u.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if u.Version == "" {
-		u.Version = V3
 	}
 	return nil
 }

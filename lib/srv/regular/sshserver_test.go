@@ -912,8 +912,9 @@ func TestProxyReverseTunnel(t *testing.T) {
 
 	// Create a reverse tunnel and remote cluster simulating what the trusted
 	// cluster exchange does.
-	err = f.testSrv.Auth().UpsertReverseTunnel(
-		types.NewReverseTunnel(f.testSrv.ClusterName(), []string{reverseTunnelAddress.String()}))
+	rt, err := types.NewReverseTunnel(f.testSrv.ClusterName(), []string{reverseTunnelAddress.String()})
+	require.NoError(t, err)
+	err = f.testSrv.Auth().UpsertReverseTunnel(rt)
 	require.NoError(t, err)
 	remoteCluster, err := types.NewRemoteCluster("localhost")
 	require.NoError(t, err)

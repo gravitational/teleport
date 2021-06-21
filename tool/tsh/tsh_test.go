@@ -875,12 +875,12 @@ func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.T
 func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
-	connector := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
 	})
-	require.NoError(t, connector.CheckAndSetDefaults())
+	require.NoError(t, err)
 	return connector
 }
 

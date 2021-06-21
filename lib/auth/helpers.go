@@ -218,7 +218,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	access := local.NewAccessService(srv.Backend)
 	identity := local.NewIdentityService(srv.Backend)
 
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: cfg.ClusterName,
 	})
 	if err != nil {
@@ -258,12 +258,12 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetAuthPreference(types.DefaultAuthPreference())
+	err = srv.AuthServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetClusterConfig(services.DefaultClusterConfig())
+	err = srv.AuthServer.SetClusterConfig(types.DefaultClusterConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -280,7 +280,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = srv.AuthServer.SetAuthPreference(authPreference)
+	err = srv.AuthServer.SetAuthPreference(ctx, authPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

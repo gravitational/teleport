@@ -778,7 +778,7 @@ func (ap mockAccessPoint) GetSessionRecordingConfig(context.Context, ...services
 	return ap.recordingConfig, nil
 }
 
-func (ap mockAccessPoint) GetAuthPreference() (types.AuthPreference, error) {
+func (ap mockAccessPoint) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return ap.authPref, nil
 }
 

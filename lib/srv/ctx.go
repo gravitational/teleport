@@ -316,7 +316,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		cancel:                 cancel,
 	}
 
-	authPref, err := srv.GetAccessPoint().GetAuthPreference()
+	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

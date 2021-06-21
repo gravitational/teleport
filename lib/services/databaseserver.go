@@ -28,6 +28,7 @@ func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalO
 	if err := databaseServer.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -35,9 +36,6 @@ func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalO
 
 	switch databaseServer := databaseServer.(type) {
 	case *types.DatabaseServerV3:
-		if version := databaseServer.GetVersion(); version != types.V3 {
-			return nil, trace.BadParameter("mismatched database server version %v and type %T", version, databaseServer)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

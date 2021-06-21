@@ -125,7 +125,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			nodeSSHPort := teleport.GetPortSSHInt()
-			cl, err := teleport.NewClient(ClientConfig{
+			cl, err := teleport.NewClient(t, ClientConfig{
 				Login:   suite.me.Username,
 				Cluster: Site,
 				Host:    Host,
