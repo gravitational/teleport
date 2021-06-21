@@ -293,7 +293,7 @@ github.com/gravitational/teleport/api/utils
 github.com/gravitational/teleport/api/utils/keypaths
 github.com/gravitational/teleport/api/utils/sshutils
 github.com/gravitational/teleport/api/utils/tlsutils
-# github.com/gravitational/trace v1.1.15
+# github.com/gravitational/trace v1.1.16-0.20210609220119-4855e69c89fc
 ## explicit
 github.com/gravitational/trace
 github.com/gravitational/trace/internal
@@ -674,6 +674,7 @@ google.golang.org/api/internal/third_party/uritemplates
 google.golang.org/api/iterator
 google.golang.org/api/option
 google.golang.org/api/option/internaloption
+google.golang.org/api/sqladmin/v1beta4
 google.golang.org/api/storage/v1
 google.golang.org/api/transport
 google.golang.org/api/transport/cert

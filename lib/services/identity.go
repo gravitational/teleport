@@ -31,7 +31,6 @@ import (
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -273,12 +272,6 @@ type GithubAuthRequest struct {
 	RouteToCluster string `json:"route_to_cluster,omitempty"`
 	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
 	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
-}
-
-// SetTTL sets Expires header using realtime clock
-func (r *GithubAuthRequest) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	expireTime := clock.Now().UTC().Add(ttl)
-	r.Expires = &expireTime
 }
 
 // SetExpiry sets expiry time for the object

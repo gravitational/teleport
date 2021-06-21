@@ -33,6 +33,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
@@ -48,9 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -181,7 +182,7 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 	username := suite.me.Username
 	kubeGroups := []string{testImpersonationGroup}
 	kubeUsers := []string{"alice@example.com"}
-	role, err := types.NewRole("kubemaster", types.RoleSpecV3{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
@@ -191,7 +192,7 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
 
-	err = teleport.CreateEx(nil, tconf)
+	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
 
 	err = teleport.Start()
@@ -351,7 +352,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 	username := suite.me.Username
 	kubeGroups := []string{testImpersonationGroup}
 	kubeUsers := []string{"alice@example.com"}
-	role, err := types.NewRole("kubemaster", types.RoleSpecV3{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
@@ -365,7 +366,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
 
-	err = teleport.CreateEx(nil, tconf)
+	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
 
 	err = teleport.Start()
@@ -403,7 +404,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 
 	username := suite.me.Username
 	kubeGroups := []string{testImpersonationGroup}
-	role, err := types.NewRole("kubemaster", types.RoleSpecV3{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
@@ -412,7 +413,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
 
-	err = teleport.CreateEx(nil, tconf)
+	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
 
 	err = teleport.Start()
@@ -500,7 +501,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// main cluster has a role and user called main-kube
 	username := suite.me.Username
 	mainKubeGroups := []string{testImpersonationGroup}
-	mainRole, err := types.NewRole("main-kube", types.RoleSpecV3{
+	mainRole, err := types.NewRole("main-kube", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: mainKubeGroups,
@@ -525,10 +526,10 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	defer lib.SetInsecureDevMode(false)
 
 	mainConf.Proxy.Kube.Enabled = true
-	err = main.CreateEx(nil, mainConf)
+	err = main.CreateEx(t, nil, mainConf)
 	require.NoError(t, err)
 
-	err = aux.CreateEx(nil, auxConf)
+	err = aux.CreateEx(t, nil, auxConf)
 	require.NoError(t, err)
 
 	// auxiliary cluster has a role aux-kube
@@ -536,7 +537,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "aux-kube" to local role "main-kube"
 	auxKubeGroups := []string{teleport.TraitInternalKubeGroupsVariable}
-	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV3{
+	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 			// Note that main cluster can pass it's kubernetes groups
@@ -754,7 +755,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// main cluster has a role and user called main-kube
 	username := suite.me.Username
 	mainKubeGroups := []string{testImpersonationGroup}
-	mainRole, err := types.NewRole("main-kube", types.RoleSpecV3{
+	mainRole, err := types.NewRole("main-kube", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: mainKubeGroups,
@@ -783,10 +784,10 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// ClusterOverride forces connection to be routed
 	// to cluster aux
 	mainConf.Proxy.Kube.ClusterOverride = clusterAux
-	err = main.CreateEx(nil, mainConf)
+	err = main.CreateEx(t, nil, mainConf)
 	require.NoError(t, err)
 
-	err = aux.CreateEx(nil, auxConf)
+	err = aux.CreateEx(t, nil, auxConf)
 	require.NoError(t, err)
 
 	// auxiliary cluster has a role aux-kube
@@ -794,7 +795,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "aux-kube" to local role "main-kube"
 	auxKubeGroups := []string{teleport.TraitInternalKubeGroupsVariable}
-	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV3{
+	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 			// Note that main cluster can pass it's kubernetes groups
@@ -1034,7 +1035,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 
 	username := suite.me.Username
 	kubeGroups := []string{testImpersonationGroup}
-	role, err := types.NewRole("kubemaster", types.RoleSpecV3{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV4{
 		Options: tc.options,
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
@@ -1044,7 +1045,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
 
-	err = teleport.CreateEx(nil, tconf)
+	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
 
 	err = teleport.Start()
@@ -1217,7 +1218,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	}
 
 	tlsClientConfig := rest.TLSClientConfig{
-		CAData:   ca.GetTLSKeyPairs()[0].Cert,
+		CAData:   ca.GetActiveKeys().TLS[0].Cert,
 		CertData: cert,
 		KeyData:  privPEM,
 	}

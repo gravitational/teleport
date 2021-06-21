@@ -636,7 +636,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	// if user did not provide auth domain name, use this host's name
 	if cfg.Auth.Enabled && cfg.Auth.ClusterName == nil {
-		cfg.Auth.ClusterName, err = types.NewClusterName(types.ClusterNameSpecV2{
+		cfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 			ClusterName: cfg.Hostname,
 		})
 		if err != nil {
@@ -867,8 +867,8 @@ func adminCreds() (*int, *int, error) {
 // initUploadHandler initializes upload handler based on the config settings,
 // currently the only upload handler supported is S3
 // the call can return trace.NotFound if no upload handler is setup
-func initUploadHandler(auditConfig types.AuditConfig, dataDir string) (events.MultipartHandler, error) {
-	if auditConfig.AuditSessionsURI == "" {
+func initUploadHandler(auditConfig types.ClusterAuditConfig, dataDir string) (events.MultipartHandler, error) {
+	if !auditConfig.ShouldUploadSessions() {
 		recordsDir := filepath.Join(dataDir, events.RecordsDir)
 		if err := os.MkdirAll(recordsDir, teleport.SharedDirMode); err != nil {
 			return nil, trace.ConvertSystemError(err)
@@ -888,7 +888,7 @@ func initUploadHandler(auditConfig types.AuditConfig, dataDir string) (events.Mu
 		}
 		return wrapper, nil
 	}
-	uri, err := utils.ParseSessionsURI(auditConfig.AuditSessionsURI)
+	uri, err := utils.ParseSessionsURI(auditConfig.AuditSessionsURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -906,7 +906,7 @@ func initUploadHandler(auditConfig types.AuditConfig, dataDir string) (events.Mu
 		return handler, nil
 	case teleport.SchemeS3:
 		config := s3sessions.Config{}
-		if err := config.SetFromURL(uri, auditConfig.Region); err != nil {
+		if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		handler, err := s3sessions.NewHandler(config)
@@ -934,22 +934,10 @@ func initUploadHandler(auditConfig types.AuditConfig, dataDir string) (events.Mu
 
 // initExternalLog initializes external storage, if the storage is not
 // setup, returns (nil, nil).
-func initExternalLog(ctx context.Context, auditConfig types.AuditConfig, log logrus.FieldLogger, backend backend.Backend) (events.IAuditLog, error) {
-	//
-	// DELETE IN: 5.0
-	// We could probably just remove AuditTableName now (its been deprecated for a while), but
-	// its probably more polite to delete it on a major release transition.
-	//
-	if auditConfig.AuditTableName != "" {
-		log.Warningf("Please note that 'audit_table_name' is deprecated and will be removed in several releases. Use audit_events_uri: '%v://%v' instead.", dynamo.GetName(), auditConfig.AuditTableName)
-		if len(auditConfig.AuditEventsURI) != 0 {
-			return nil, trace.BadParameter("Detected configuration specifying 'audit_table_name' and 'audit_events_uri' at the same time. Please migrate your config to use 'audit_events_uri' only.")
-		}
-		auditConfig.AuditEventsURI = []string{fmt.Sprintf("%v://%v", dynamo.GetName(), auditConfig.AuditTableName)}
-	}
+func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, log logrus.FieldLogger, backend backend.Backend) (events.IAuditLog, error) {
 	var hasNonFileLog bool
 	var loggers []events.IAuditLog
-	for _, eventsURI := range auditConfig.AuditEventsURI {
+	for _, eventsURI := range auditConfig.AuditEventsURIs() {
 		uri, err := utils.ParseSessionsURI(eventsURI)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -971,15 +959,15 @@ func initExternalLog(ctx context.Context, auditConfig types.AuditConfig, log log
 			hasNonFileLog = true
 			cfg := dynamoevents.Config{
 				Tablename:               uri.Host,
-				Region:                  auditConfig.Region,
-				EnableContinuousBackups: auditConfig.EnableContinuousBackups,
-				EnableAutoScaling:       auditConfig.EnableAutoScaling,
-				ReadMinCapacity:         auditConfig.ReadMinCapacity,
-				ReadMaxCapacity:         auditConfig.ReadMaxCapacity,
-				ReadTargetValue:         auditConfig.ReadTargetValue,
-				WriteMinCapacity:        auditConfig.WriteMinCapacity,
-				WriteMaxCapacity:        auditConfig.WriteMaxCapacity,
-				WriteTargetValue:        auditConfig.WriteTargetValue,
+				Region:                  auditConfig.Region(),
+				EnableContinuousBackups: auditConfig.EnableContinuousBackups(),
+				EnableAutoScaling:       auditConfig.EnableAutoScaling(),
+				ReadMinCapacity:         auditConfig.ReadMinCapacity(),
+				ReadMaxCapacity:         auditConfig.ReadMaxCapacity(),
+				ReadTargetValue:         auditConfig.ReadTargetValue(),
+				WriteMinCapacity:        auditConfig.WriteMinCapacity(),
+				WriteMaxCapacity:        auditConfig.WriteMaxCapacity(),
+				WriteTargetValue:        auditConfig.WriteTargetValue(),
 			}
 			err = cfg.SetFromURL(uri)
 			if err != nil {
@@ -1022,7 +1010,7 @@ func initExternalLog(ctx context.Context, auditConfig types.AuditConfig, log log
 		return nil, nil
 	}
 
-	if !services.ShouldUploadSessions(auditConfig) && hasNonFileLog {
+	if !auditConfig.ShouldUploadSessions() && hasNonFileLog {
 		// if audit events are being exported, session recordings should
 		// be exported as well.
 		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
@@ -1075,7 +1063,7 @@ func (process *TeleportProcess) initAuthService() error {
 			process.log.Warn(warningMessage)
 		}
 
-		auditConfig := cfg.Auth.ClusterConfig.GetAuditConfig()
+		auditConfig := cfg.Auth.AuditConfig
 		uploadHandler, err = initUploadHandler(
 			auditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
 		if err != nil {
@@ -1164,6 +1152,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Authority:               cfg.Keygen,
 		ClusterConfiguration:    cfg.ClusterConfiguration,
 		ClusterConfig:           cfg.Auth.ClusterConfig,
+		ClusterAuditConfig:      cfg.Auth.AuditConfig,
 		ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
 		SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
 		ClusterName:             cfg.Auth.ClusterName,
@@ -1777,6 +1766,7 @@ func (process *TeleportProcess) initSSH() error {
 					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode})
 				}
 			}),
+			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 		)
 		if err != nil {
 			return trace.Wrap(err)

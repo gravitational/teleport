@@ -130,7 +130,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	// set up an initial role with `request_access: always` in order to
 	// trigger automatic post-login escalation.
-	populist, err := types.NewRole("populist", types.RoleSpecV3{
+	populist, err := types.NewRole("populist", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"dictator"},
@@ -143,7 +143,7 @@ func TestOIDCLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// empty role which serves as our escalation target
-	dictator, err := types.NewRole("dictator", types.RoleSpecV3{})
+	dictator, err := types.NewRole("dictator", types.RoleSpecV4{})
 	require.NoError(t, err)
 
 	alice, err := types.NewUser("alice@example.com")
@@ -875,12 +875,12 @@ func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.T
 func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
-	connector := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
 	})
-	require.NoError(t, connector.CheckAndSetDefaults())
+	require.NoError(t, err)
 	return connector
 }
 

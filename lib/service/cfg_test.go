@@ -83,6 +83,7 @@ func TestDefaultConfig(t *testing.T) {
 	ssh := config.SSH
 	require.Equal(t, ssh.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
 	require.Equal(t, ssh.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
+	require.Equal(t, ssh.AllowTCPForwarding, true)
 
 	// proxy section
 	proxy := config.Proxy
@@ -278,20 +279,6 @@ func TestCheckDatabase(t *testing.T) {
 					ProjectID:  "project-1",
 					InstanceID: "instance-1",
 				},
-			},
-			outErr: true,
-		},
-		{
-			desc: "GCP unsupported for MySQL",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolMySQL,
-				URI:      "localhost:3306",
-				GCP: DatabaseGCP{
-					ProjectID:  "project-1",
-					InstanceID: "instance-1",
-				},
-				CACert: fixtures.LocalhostCert,
 			},
 			outErr: true,
 		},

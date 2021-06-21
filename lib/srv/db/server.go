@@ -35,10 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
 
-	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
-	"github.com/aws/aws-sdk-go/aws"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
@@ -59,8 +55,6 @@ type Config struct {
 	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
 	NewAudit NewAuditFn
-	// NewAuth allows to override authenticator in tests.
-	NewAuth NewAuthFn
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
 	// Authorizer is used to authorize requests coming from proxy.
@@ -71,20 +65,16 @@ type Config struct {
 	Servers types.DatabaseServers
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
-	// GCPIAM allows to override GCP IAM client used in tests.
-	GCPIAM *gcpcredentials.IamCredentialsClient
+	// Auth is responsible for generating database auth tokens.
+	Auth common.Auth
 }
 
-type (
-	// NewAuditFn defines a function that creates an audit logger.
-	NewAuditFn func(common.AuditConfig) (common.Audit, error)
-	// NewAuthFn defines a function that creates authenticator.
-	NewAuthFn func(common.AuthConfig) (common.Auth, error)
-)
+// NewAuditFn defines a function that creates an audit logger.
+type NewAuditFn func(common.AuditConfig) (common.Audit, error)
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
 // to function.
-func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
+func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
@@ -103,8 +93,14 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	if c.NewAudit == nil {
 		c.NewAudit = common.NewAudit
 	}
-	if c.NewAuth == nil {
-		c.NewAuth = common.NewAuth
+	if c.Auth == nil {
+		c.Auth, err = common.NewAuth(common.AuthConfig{
+			AuthClient: c.AuthClient,
+			Clock:      c.Clock,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing TLSConfig")
@@ -140,9 +136,6 @@ type Server struct {
 	mu sync.RWMutex
 	// log is used for logging.
 	log *logrus.Entry
-	// awsSessions contains per-region AWS sessions which are only initialized
-	// if there are any RDS/Aurora/Redshift databases in respective regions.
-	awsSessions map[string]*awssession.Session
 }
 
 // New returns a new database server.
@@ -160,7 +153,6 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		closeFunc:     cancel,
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		heartbeats:    make(map[string]*srv.Heartbeat),
-		awsSessions:   make(map[string]*awssession.Session),
 		middleware: &auth.Middleware{
 			AccessPoint:   config.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
@@ -192,44 +184,6 @@ func (s *Server) initDatabaseServer(ctx context.Context, server types.DatabaseSe
 	}
 	if err := s.initCACert(ctx, server); err != nil {
 		return trace.Wrap(err)
-	}
-	if err := s.initCloudClients(ctx, server); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (s *Server) initCloudClients(ctx context.Context, server types.DatabaseServer) error {
-	var err error
-	switch server.GetType() {
-	case types.DatabaseTypeRDS, types.DatabaseTypeRedshift:
-		region := server.GetAWS().Region
-		if _, ok := s.awsSessions[region]; ok {
-			return nil // Already initialized.
-		}
-		session, err := awssession.NewSessionWithOptions(awssession.Options{
-			SharedConfigState: awssession.SharedConfigEnable,
-			Config: aws.Config{
-				Region: aws.String(region),
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err, "failed to initialize AWS session in region %q for database %q",
-				region, server.GetName())
-		}
-		s.awsSessions[region] = session
-	case types.DatabaseTypeCloudSQL:
-		if s.cfg.GCPIAM != nil {
-			return nil // Already initialized.
-		}
-		s.cfg.GCPIAM, err = gcpcredentials.NewIamCredentialsClient(ctx)
-		if err != nil {
-			return trace.Wrap(err, "failed to initialize GCP IAM client for database %q",
-				server.GetName())
-		}
-	default:
-		// For other types of databases e.g. self-hosted we don't need to
-		// initialize any cloud API clients.
 	}
 	return nil
 }
@@ -322,10 +276,7 @@ func (s *Server) Close() error {
 	for _, heartbeat := range s.heartbeats {
 		errors = append(errors, heartbeat.Close())
 	}
-	// Close the GCP IAM client if needed.
-	if s.cfg.GCPIAM != nil {
-		errors = append(errors, s.cfg.GCPIAM.Close())
-	}
+	errors = append(errors, s.cfg.Auth.Close())
 	return trace.NewAggregate(errors...)
 }
 
@@ -426,15 +377,6 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 
 // dispatch returns an appropriate database engine for the session.
 func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter) (common.Engine, error) {
-	auth, err := s.cfg.NewAuth(common.AuthConfig{
-		AuthClient: s.cfg.AuthClient,
-		AWSSession: s.awsSessions[sessionCtx.Server.GetAWS().Region],
-		GCPIAM:     s.cfg.GCPIAM,
-		Clock:      s.cfg.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
 		Emitter: streamWriter,
 	})
@@ -444,7 +386,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	switch sessionCtx.Server.GetProtocol() {
 	case defaults.ProtocolPostgres:
 		return &postgres.Engine{
-			Auth:    auth,
+			Auth:    s.cfg.Auth,
 			Audit:   audit,
 			Context: s.closeContext,
 			Clock:   s.cfg.Clock,
@@ -452,11 +394,12 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 		}, nil
 	case defaults.ProtocolMySQL:
 		return &mysql.Engine{
-			Auth:    auth,
-			Audit:   audit,
-			Context: s.closeContext,
-			Clock:   s.cfg.Clock,
-			Log:     sessionCtx.Log,
+			Auth:       s.cfg.Auth,
+			Audit:      audit,
+			AuthClient: s.cfg.AuthClient,
+			Context:    s.closeContext,
+			Clock:      s.cfg.Clock,
+			Log:        sessionCtx.Log,
 		}, nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
