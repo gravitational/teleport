@@ -60,7 +60,8 @@
           "slug": "/server-access/guides/",
           "entries": [
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
-            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" }
+            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
+            { "title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/" }
           ]
         }
       ]
@@ -205,16 +206,6 @@
         { "title": "Teleport Auth", "slug": "/architecture/authentication/" },
         { "title": "Teleport Proxy", "slug": "/architecture/proxy/" },
         { "title": "Trusted Clusters", "slug": "/architecture/trustedclusters/" }
-      ]
-    },
-    {
-      "icon": "bolt",
-      "title": "Advanced Features",
-      "entries": [
-        {
-          "title": "BPF Session Recording",
-          "slug": "/features/enhanced-session-recording/"
-        }
       ]
     },
     {
@@ -375,6 +366,11 @@
     {
       "source": "/cli-docs/",
       "destination": "/reference/cli-docs/",
+      "permanent": true
+    },
+    {
+      "source": "/features/enhanced-session-recording/",
+      "destination": "/server-access/guides/bpf-session-recording/",
       "permanent": true
     }
   ]

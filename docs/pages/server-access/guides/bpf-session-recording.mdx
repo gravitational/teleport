@@ -4,7 +4,7 @@ description: How to record your SSH and Kubernetes sessions into the audit log.
 h1: Enhanced Session Recording
 ---
 
-Teleport's (default) [SSH and Kubernetes session recording](../architecture/nodes.mdx#session-recording)
+Teleport's (default) [SSH and Kubernetes session recording](../../architecture/nodes.mdx#session-recording)
 feature captures what is echoed to a terminal.
 
 This has inherent advantages, for example, because no input is captured, Teleport
@@ -35,7 +35,7 @@ Teleport Enhanced Session Recording mitigates all three concerns by providing ad
 Teleport with Enhanced Session Recording requires Linux kernel 4.18+ as well as kernel headers.
 
 <Admonition type="tip">
-  Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/authentication.mdx#audit-log) for more details.
+  Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../../architecture/authentication.mdx#audit-log) for more details.
 </Admonition>
 
 You can check your kernel version using the `uname` command. The output should look
@@ -294,10 +294,10 @@ We recommend installing BCC tools using your distribution's package manager wher
 
 ## Step 3/5. Install and configure Teleport Node
 
-Follow our [installation instructions](../installation.mdx) to install Teleport Auth, Proxy
+Follow our [installation instructions](../../installation.mdx) to install Teleport Auth, Proxy
 and Nodes.
 
-Set up the Teleport node with this `etc/teleport.yaml`. See our [configuration file setup](../admin-guide.mdx#configuration) for more instructions.
+Set up the Teleport node with this `etc/teleport.yaml`. See our [configuration file setup](../../admin-guide.mdx#configuration) for more instructions.
 
 ```yaml
 # Example Config to be saved as etc/teleport.yaml
@@ -357,25 +357,25 @@ ssh_service:
 
 ## Step 5/5. Inspect logs
 
-The resulting enhanced session recording will be shown in [Teleport's Audit Log](../architecture/authentication.mdx#audit-log).
+The resulting enhanced session recording will be shown in [Teleport's Audit Log](../../architecture/authentication.mdx#audit-log).
 
 ```bash
 teleport-auth ~:  tree /var/lib/teleport/log
 
 # /var/lib/teleport/log
 # ├── 1048a649-8f3f-4431-9529-0c53339b65a5
-# │   ├── 2020-01-13.00:00:00.log
-# │   └── sessions
-# │       └── default
-# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.chunks.gz
-# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.events.gz
-# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.command-events.gz
-# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.network-events.gz
-# │           └── fad07202-35bb-11ea-83aa-125400432324.index
+# │   ├── 2020-01-13.00:00:00.log
+# │   └── sessions
+# │       └── default
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.chunks.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.events.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.command-events.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.network-events.gz
+# │           └── fad07202-35bb-11ea-83aa-125400432324.index
 # ├── events.log -> /var/lib/teleport/log/1048a649-8f3f-4431-9529-0c53339b65a5/2020-01-13.00:00:00.log
 # ├── playbacks
-# │   └── sessions
-# │       └── default
+# │   └── sessions
+# │       └── default
 # └── upload
 #     └── sessions
 #         └── default
