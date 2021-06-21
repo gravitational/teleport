@@ -43,6 +43,12 @@ The documentation layout and structure is presently:
 - [ ] Setup (renamed from infrastructure guides)
     - [x] Installation (moved from Home Section)
     - [x] Docker Compose
+    - [ ] Cloud Infrastructure
+        - [ ] Probably move existing cloud providers (not Teleport Cloud) in here?
+        - [ ] AWS
+        - [ ] GCP
+        - [ ] Azure
+        - [ ] IBM
     - [x] FAQ (ported from admin manual)
         - [ ] Admin manual subsections split
         - [x] Ports, DNS, ~~PEM~~, SSH
@@ -63,7 +69,7 @@ The documentation layout and structure is presently:
         - [ ] Teleport
         - [ ] tsh
         - [ ] tctl
-    - [ ] Glossary (moved from admin guide)
+    - [x] Glossary (moved from admin guide)
         - [ ] Link terms in Getting Started Guides to here.
     - [x] Metrics
     - [x] API
@@ -169,7 +175,7 @@ The documentation layout and structure is presently:
     - [x] Teleport Auth
     - [x] Teleport Proxy
     - [x] Trusted Clusters
-        - [ ] Move all Trusted Cluster content from the Admin Guide into here as well.
+        - [x] Move all Trusted Cluster content from the Admin Guide into here as well.
     - [ ] Security - new Article
 - [x] Preview Section
     - [x] Upcoming Releases
