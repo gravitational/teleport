@@ -204,7 +204,7 @@
         { "title": "Teleport Nodes", "slug": "/architecture/nodes/" },
         { "title": "Teleport Auth", "slug": "/architecture/authentication/" },
         { "title": "Teleport Proxy", "slug": "/architecture/proxy/" },
-        { "title": "Trusted Clusters", "slug": "/trustedclusters/" }
+        { "title": "Trusted Clusters", "slug": "/architecture/trustedclusters/" }
       ]
     },
     {
