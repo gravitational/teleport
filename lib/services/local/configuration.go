@@ -248,7 +248,7 @@ func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalO
 		// a default ClusterConfig instead (to be filled with data from the other
 		// resources).  This helps keep backward compatibility when a non-upgraded
 		// v7.x auth server needs to work with v6.x cluster components.
-		clusterConfig = services.DefaultClusterConfig()
+		clusterConfig = types.DefaultClusterConfig()
 	} else {
 		clusterConfig, err = services.UnmarshalClusterConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 		if err != nil {

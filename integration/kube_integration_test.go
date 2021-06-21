@@ -192,7 +192,7 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
 
-	err = teleport.CreateEx(nil, tconf)
+	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
 
 	err = teleport.Start()
@@ -366,7 +366,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
 
-	err = teleport.CreateEx(nil, tconf)
+	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
 
 	err = teleport.Start()
@@ -413,7 +413,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
 
-	err = teleport.CreateEx(nil, tconf)
+	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
 
 	err = teleport.Start()
@@ -526,10 +526,10 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	defer lib.SetInsecureDevMode(false)
 
 	mainConf.Proxy.Kube.Enabled = true
-	err = main.CreateEx(nil, mainConf)
+	err = main.CreateEx(t, nil, mainConf)
 	require.NoError(t, err)
 
-	err = aux.CreateEx(nil, auxConf)
+	err = aux.CreateEx(t, nil, auxConf)
 	require.NoError(t, err)
 
 	// auxiliary cluster has a role aux-kube
@@ -784,10 +784,10 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// ClusterOverride forces connection to be routed
 	// to cluster aux
 	mainConf.Proxy.Kube.ClusterOverride = clusterAux
-	err = main.CreateEx(nil, mainConf)
+	err = main.CreateEx(t, nil, mainConf)
 	require.NoError(t, err)
 
-	err = aux.CreateEx(nil, auxConf)
+	err = aux.CreateEx(t, nil, auxConf)
 	require.NoError(t, err)
 
 	// auxiliary cluster has a role aux-kube
@@ -1045,7 +1045,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
 
-	err = teleport.CreateEx(nil, tconf)
+	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
 
 	err = teleport.Start()

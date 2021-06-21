@@ -770,7 +770,7 @@ func TestMigrateOSS(t *testing.T) {
 		err := as.CreateRole(services.NewAdminRole())
 		require.NoError(t, err)
 
-		connector := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 			ClientID:     "aaa",
 			ClientSecret: "bbb",
 			RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
@@ -791,6 +791,7 @@ func TestMigrateOSS(t *testing.T) {
 				},
 			},
 		})
+		require.NoError(t, err)
 
 		err = as.CreateGithubConnector(connector)
 		require.NoError(t, err)
@@ -876,12 +877,12 @@ func setupConfig(t *testing.T) InitConfig {
 		NodeName:                "foo",
 		Backend:                 bk,
 		Authority:               testauthority.New(),
-		ClusterConfig:           services.DefaultClusterConfig(),
 		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
+		ClusterConfig:           types.DefaultClusterConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
 		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
 		ClusterName:             clusterName,
-		StaticTokens:            services.DefaultStaticTokens(),
+		StaticTokens:            types.DefaultStaticTokens(),
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
 	}
@@ -940,7 +941,8 @@ func TestMigrateCertAuthorities(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("create %v CA", spec.Type), func(t *testing.T) {
-			ca := types.NewCertAuthority(spec)
+			ca, err := types.NewCertAuthority(spec)
+			require.NoError(t, err)
 			// Do NOT use services.MarshalCertAuthority to keep all fields as-is.
 			enc, err := utils.FastMarshal(ca)
 			require.NoError(t, err)

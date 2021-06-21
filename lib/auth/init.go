@@ -299,7 +299,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
 
 	// always create the default namespace
-	err = asrv.UpsertNamespace(types.NewNamespace(apidefaults.Namespace))
+	err = asrv.UpsertNamespace(types.DefaultNamespace())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
