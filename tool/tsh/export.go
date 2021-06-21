@@ -17,15 +17,43 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/trace"
 )
+
+func findServerByHostname(ctx context.Context, tc *client.TeleportClient, hostname string) (types.Server, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	site, err := proxyClient.CurrentClusterAccessPoint(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	siteNodes, err := site.GetNodes(ctx, tc.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, node := range siteNodes {
+		if node.GetHostname() == hostname {
+			return node, nil
+		}
+	}
+
+	return nil, nil
+}
 
 // onExportSSH handles the `tsh export ssh` command.
 func onExportSSH(cf *CLIConf) error {
@@ -83,6 +111,25 @@ func onExportSSH(cf *CLIConf) error {
 	return nil
 }
 
+func onTestNode(cf *CLIConf) error {
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the proxyNode flag is suffixed by the root cluster, remove it.
+	target := strings.TrimSuffix(cf.proxyNode, "."+cf.proxyRootCluster)
+
+	node, err := findServerByHostname(cf.Context, tc, target)
+	if err != nil {
+		return err
+	} else if node == nil {
+		return trace.NotFound("no node found with name %s", target)
+	}
+
+	return nil
+}
+
 // onExportProxy handles the `tsh export proxy` command.
 func onExportProxy(cf *CLIConf) error {
 	// TODO: This may replaced/enhanced by upcoming `tsh proxy` support.
@@ -109,25 +156,18 @@ func onExportProxy(cf *CLIConf) error {
 	// If the proxyNode flag is suffixed by the root cluster, remove it.
 	target := strings.TrimSuffix(cf.proxyNode, "."+cf.proxyRootCluster)
 
-	// Resolve the Server instance for the target.
+	// Resolve the Server instance for the target and fetch its internal
+	// address.
 	var nodeAddr string
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		nodes, err := tc.ListAllNodes(cf.Context)
+		node, err := findServerByHostname(cf.Context, tc, target)
 		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		for _, n := range nodes {
-			if n.GetHostname() == target {
-				nodeAddr = n.GetAddr()
-				break
-			}
-		}
-
-		if nodeAddr == "" {
+			return err
+		} else if node == nil {
 			return trace.NotFound("no node found with name %s", target)
 		}
 
+		nodeAddr = node.GetAddr()
 		return nil
 	})
 	if err != nil {
@@ -141,6 +181,8 @@ func onExportProxy(cf *CLIConf) error {
 		return err
 	}
 
+	// TODO: If we can't proxy directly through teleport, we'll need something
+	// more sophisticated to resolve the ssh client path.
 	proxyString := fmt.Sprintf("proxy:%s:%s", target, nodePort)
 	child := exec.Command("ssh", "-p", proxyPort, proxyHost, "-s", proxyString)
 	child.Stdin = os.Stdin

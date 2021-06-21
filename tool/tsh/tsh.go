@@ -503,6 +503,9 @@ func Run(args []string, opts ...cliOption) error {
 	// Config export for ssh.
 	export := app.Command("export", "Export application configuration")
 	exportSSH := export.Command("ssh", "Export SSH configuration")
+	exportTest := export.Command("test", "Test if a given host string matches a Teleport node")
+	exportTest.Arg("cluster", "Cluster name containing target proxy host").Required().StringVar(&cf.proxyRootCluster)
+	exportTest.Arg("node", "Hostname to test").Required().StringVar(&cf.proxyNode)
 	exportProxy := export.Command("proxy", "OpenSSH proxy wrapper for exported SSH configs")
 	exportProxy.Arg("proxy", "Teleport proxy host").Required().StringVar(&cf.proxyProxyHost)
 	exportProxy.Arg("cluster", "Cluster name containing target proxy host").Required().StringVar(&cf.proxyRootCluster)
@@ -641,6 +644,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onRequestReview(&cf)
 	case exportSSH.FullCommand():
 		err = onExportSSH(&cf)
+	case exportTest.FullCommand():
+		err = onTestNode(&cf)
 	case exportProxy.FullCommand():
 		err = onExportProxy(&cf)
 	default:
