@@ -23,7 +23,8 @@
           "title": "Guides",
           "slug": "/setup/guides/",
           "entries": [
-            {"title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/"}
+            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
+            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" }
           ]
         },
         {
@@ -318,6 +319,11 @@
       "source": "/features/enhanced-session-recording/",
       "destination": "/server-access/guides/bpf-session-recording/",
       "permanent": true
-    }    
+    },
+    {
+      "source": "/quickstart-docker/",
+      "destination": "/setup/guides/docker-compose/",
+      "permanent": true
+    }
   ]
 }

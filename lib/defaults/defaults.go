@@ -128,6 +128,10 @@ const (
 	// for the response headers to arrive
 	ReadHeadersTimeout = time.Second
 
+	// DatabaseConnectTimeout is a timeout for connecting to a database via
+	// database access.
+	DatabaseConnectTimeout = time.Minute
+
 	// HandshakeReadDeadline is the default time to wait for the client during
 	// the TLS handshake.
 	HandshakeReadDeadline = 5 * time.Second
