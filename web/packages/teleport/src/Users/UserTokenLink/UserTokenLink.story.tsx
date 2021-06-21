@@ -32,7 +32,7 @@ export const Reset = () => {
 const props = {
   token: {
     value: '0c536179038b386728dfee6602ca297f',
-    expires: new Date('2050-12-20T17:28:20.93Z'),
+    expires: new Date('2021-04-08T07:30:00Z'),
     username: 'Lester',
   },
 

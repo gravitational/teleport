@@ -749,7 +749,7 @@ exports[`success state 1`] = `
              Lester 
           </span>
           has been reset. Share this URL with the user to set up a new password, link is valid for 
-          30 years
+          30 minutes
           .
         </div>
         <div

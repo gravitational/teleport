@@ -34,7 +34,7 @@ export default function UserTokenLink({
 }: Props) {
   const tokenUrl = cfg.getUserResetTokenRoute(token.value, asInvite);
 
-  const duration = moment(new Date()).diff(token.expires);
+  const duration = moment(Date.now()).diff(token.expires);
   const expiresText = moment.duration(duration).humanize();
 
   return (

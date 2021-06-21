@@ -76,7 +76,7 @@ export default function EventList(props: Props) {
     const columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
     const sortDir = colSortDirs[columnKey];
     const sorted = sortBy(filtered, columnKey);
-    if (sortDir === Table.SortTypes.DESC) {
+    if (sortDir === Table.SortTypes.ASC) {
       return sorted.reverse();
     }
 

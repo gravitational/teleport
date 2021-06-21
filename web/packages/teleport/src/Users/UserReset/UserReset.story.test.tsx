@@ -29,6 +29,10 @@ test('failed state', () => {
 });
 
 test('success state', () => {
+  jest
+    .spyOn(Date, 'now')
+    .mockImplementation(() => Date.parse('2021-04-08T07:00:00Z'));
+
   const { getByTestId } = render(<stories.Success />);
   expect(getByTestId('Modal')).toMatchSnapshot();
 });
