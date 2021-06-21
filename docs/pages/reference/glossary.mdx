@@ -7,43 +7,45 @@ description: Glossary of key Teleport terms, keywords, and definitions.
 
 | Term | Description | Link |
 | --- | --- | --- |
-| Cluster | A Teleport Auth Service contains two CAs. One is used to sign user keys and the other signs node keys. A collection of nodes connected to the same CA is called a "cluster". | |
-| Cluster Name | Every Teleport cluster must have a name. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated. **IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created. | |
-| Enhanced Session Recording | | |
-| Join Tokens | | |
-| Node | Synonym to "server" or "computer", something one can "SSH to". A node must be running the [`teleport`](cli-docs.mdx#teleport) daemon with "node" role/service turned on. | |
-| Proxy | | |
-| Session Recording | | |
-| tctl | | |
-| Teleport | | 
-| Trusted Cluster | Teleport Auth Service can allow 3rd party users or nodes to connect if their public keys are signed by a trusted CA. A *trusted cluster* is a pair of public keys of the trusted CA. It can be configured via `teleport.yaml` file. | |
-| tsh | | | 
+| Auth | A *Teleport Auth Service* contains two Certificate Authorities (CA). One is used to sign user keys. The other signs Teleport Node keys. | [Teleport Auth](../architecture/authentication.mdx) |
+| Cluster | A collection of Teleport Nodes connected to the same Teleport Certificate Authority is called a *Teleport Cluster*. | [Architecture Overview](../architecture/overview.mdx) |
+| Cluster Name | Every Teleport Cluster must have a *name*. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated. **IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created. | [Admin Guide Configuration](../admin-guide.mdx#configuration) |
+| Enhanced Session Recording | *Teleport Enhanced Session Recording* provides enhanced security, logging, and session correlation using BPF. | [Enhanced Session Recording](../server-access/guides/bpf-session-recording.mdx) |
+| Join Tokens | Used by Teleport Nodes or Trusted Clusters to connect to an existing Teleport Cluster. *Join Tokens* can be *static* (valid indefinitely, set through YAML) or *dynamic* (only valid for a specified duration). | [Join Tokens](../architecture/trustedclusters.mdx#join-tokens) |
+| Node (Generic) | A *Node* is any resource (computing device, server, database, VM, Linux instance, etc.). | [Teleport Nodes](../architecture/nodes.mdx) |
+| Node (Teleport) | A *Teleport Node* is a copy of Teleport installed and running on a computing device governing access for that resource, the resources it's connected to, and the Teleport Cluster to which it belongs. A *Teleport Node* can run in three primary modes: *Auth*, *Proxy*, *Node* (SSH) and several specialized modes: *DB*, *App*, *Kubernetes*, etc. | [Teleport Nodes](../architecture/nodes.mdx) |
+| Proxy (Generic) | A *Proxy* service operates as an intermediary accepting incoming connections and routing outgoing ones. | [Teleport Proxy](../architecture/proxy.mdx) |
+| Proxy (Teleport) | *Teleport Proxy* is a stateless service and primary mode that a Teleport Node can run in. It serves as an authentication gateway, performs IP address lookup and proxies a connection from client to Node, and serves the Teleport Web UI. | [Teleport Proxy](../architecture/proxy.mdx) |
+| Session Recording | Teleports default Session Recording provides Audit Logging, video playback, and Event routing. | [Admin Guide Audit Log](../admin-guide.mdx#audit-log) |
+| tctl | An administrative tool used for managing Teleport. | [tctl Reference Documentation](../reference/cli-docs.mdx#tctl) |
+| Teleport | The service that's installed on a Node to run Teleport Nodes. | [teleport Reference Documentation](../reference/cli-docs.mdx#teleport) |
+| Trusted Cluster | Teleport Auth Service can allow third-party users or nodes to connect if their public keys are signed by a Trusted Certificate. A *Trusted Cluster* is a pair of public keys of the trusted Certificate Authority. It can be configured via `teleport.yaml` file. | [Trusted Clusters](../architecture/trustedclusters.mdx) |
+| tsh | A client tool used primarily when interacting with Teleport as a user. Provides `ssh`, login, and Access Request functionalities. | [tsh Reference Documentation](../reference/cli-docs.mdx#tsh) |
 
 ## SSH terms
 
 | Term | Description | Link |
 | --- | --- | --- |
-| Jumphost | Synonym to "server" or "computer", something one can "SSH to". A node must be running the [`teleport`](cli-docs.mdx#teleport) daemon with "node" role/service turned on. | |
-| Bastion | A Teleport Auth Service contains two CAs. One is used to sign user keys and the other signs node keys. A collection of nodes connected to the same CA is called a "cluster". | |
-| Agent Forwarding | | |
-
+| Agent Forwarding | `ssh-agent` allows you to use local SSH keys to connect when using `ssh`. Teleport certificates are saved into `ssh-agent` by default. | [Setup SSH Agent Forwarding](../server-access/guides/openssh.mdx#setup-ssh-agent-forwarding) |
+| Bastion | A security best practice and infrastructure pattern where a single, publically-facing, resource handles all incoming and outgoing traffic. Protected resources are accessed by clients through the *Bastion Host* and never directly. | [Server Access Getting Started](../server-access/getting-started.mdx) |
+| SSH Jumphost | A security best practice and infrastructure pattern where a single, publically-facing, SSH server handles all incoming and outgoing traffic. Once SSH clients are connected to the *SSH Jumphost*, they can connect to protected SSH resources indirectly.  | [How to Set Up an SSH Jump Server](https://goteleport.com/blog/ssh-jump-server/) |
 
 ## Identity management
 
 | Term | Acroynym | Description | Link |
 | --- | --- | --- |  --- |
-| | TLS | | | 
-|  | SSL | | | 
-|  | ACME | | | 
+| Automatic Certificate Management Environment | ACME | A Let's Encrypt standard for acquiring and renewing TLS/SSL certificates automatically.| [Let's Encrypt](https://letsencrypt.org/docs/) |
+| Certificate Authority | CA | A *Certificate Authority* can sign a public key of a user or node, establishing their cluster membership. | |
+| Connector | _ | Used to integrate a tool, service, or app with a specific security or identity management provider. | |
+| Fast IDentity Online | FIDO | |
+| OAuth 2.0 | _ | | 
+| OpenID Connect | OIDC | | | 
+| Privacy Enhanced Mail | PEM | A file type (`.pem`) and cryptographic format for sending pairs of keys or certificates. A pair of public and private keys used to manage access. | [IETF RFC 7468](https://datatracker.ietf.org/doc/html/rfc7468) |
+| Provider | _ | | 
+| Secure Sockets layer | SSL | | [What is SSL?](https://www.ssl.com/faqs/faq-what-is-ssl/) | 
 | Single Sign-On | SSO | | | 
-|  | SAML | | | 
-|  | OIDC | | | 
-| OAuth 2.0 | | | 
-| Provider | | | 
-| Connector | - | Used to integrate a tool, service, or app with a specific security or identity management provider. | |
-|  | FIDO | |
-|  | U2F | | 
-| Two-Factor | 2FA | | 
-| Time to Live | TTL | The specified duration that a certificate is valid for. | 
-| | PEM |  | |
-| Certificate Authority | CA | A pair of public/private keys Teleport uses to manage access. A CA can sign a public key of a user or node, establishing their cluster membership. | |
+| Security Assertion Markup Language | SAML | | | 
+| Time to Live | TTL | The specified duration that a certificate is valid for. | |
+| Transport Layer Security | TLS | | | 
+| Two-Factor | 2FA | An additional authentication layer required in addition to a primary authentication form. | |
+| Universal 2nd Factor | U2F | | 
