@@ -34,12 +34,11 @@ func TestDefaultConstructors(t *testing.T) {
 	require.NotNil(t, DefaultClusterNetworkingConfig())
 	require.NoError(t, DefaultClusterNetworkingConfig().CheckAndSetDefaults())
 	require.NotNil(t, DefaultSessionRecordingConfig())
-	require.NotNil(t, DefaultSessionRecordingConfig())
 	require.NoError(t, DefaultSessionRecordingConfig().CheckAndSetDefaults())
 	require.NotNil(t, DefaultStaticTokens())
 	require.NoError(t, DefaultStaticTokens().CheckAndSetDefaults())
 
 	ns := DefaultNamespace()
-	require.NotEmpty(t, cmp.Diff(ns, Namespace{}))
+	require.NotEmpty(t, ns.GetName())
 	require.NoError(t, ns.CheckAndSetDefaults())
 }
