@@ -388,7 +388,7 @@ func (p *clusterConfigParser) parse(event backend.Event) (types.Resource, error)
 		if !bytes.HasPrefix(event.Item.Key, backend.Key(clusterConfigPrefix, generalPrefix)) {
 			return nil, nil
 		}
-		h, err := resourceHeader(event, types.KindClusterConfig, types.V4, 0)
+		h, err := resourceHeader(event, types.KindClusterConfig, types.V3, 0)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -456,7 +456,7 @@ type clusterNetworkingConfigParser struct {
 func (p *clusterNetworkingConfigParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindClusterNetworkingConfig, types.V3, 0)
+		h, err := resourceHeader(event, types.KindClusterNetworkingConfig, types.V2, 0)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

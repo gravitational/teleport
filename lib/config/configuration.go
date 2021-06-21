@@ -501,7 +501,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// Set cluster networking configuration from file configuration.
-	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV3{
+	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
 		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,

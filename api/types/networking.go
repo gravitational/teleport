@@ -69,7 +69,7 @@ type ClusterNetworkingConfig interface {
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
 // ClusterNetworkingConfigV2 labelled as originating from config file.
-func NewClusterNetworkingConfigFromConfigFile(spec ClusterNetworkingConfigSpecV3) (ClusterNetworkingConfig, error) {
+func NewClusterNetworkingConfigFromConfigFile(spec ClusterNetworkingConfigSpecV2) (ClusterNetworkingConfig, error) {
 	return newClusterNetworkingConfigWithLabels(spec, map[string]string{
 		OriginLabel: OriginConfigFile,
 	})
@@ -77,7 +77,7 @@ func NewClusterNetworkingConfigFromConfigFile(spec ClusterNetworkingConfigSpecV3
 
 // DefaultClusterNetworkingConfig returns the default cluster networking config.
 func DefaultClusterNetworkingConfig() ClusterNetworkingConfig {
-	config, _ := newClusterNetworkingConfigWithLabels(ClusterNetworkingConfigSpecV3{}, map[string]string{
+	config, _ := newClusterNetworkingConfigWithLabels(ClusterNetworkingConfigSpecV2{}, map[string]string{
 		OriginLabel: OriginDefaults,
 	})
 	return config
@@ -85,10 +85,10 @@ func DefaultClusterNetworkingConfig() ClusterNetworkingConfig {
 
 // newClusterNetworkingConfigWithLabels is a convenience method to create
 // ClusterNetworkingConfigV2 with a specific map of labels.
-func newClusterNetworkingConfigWithLabels(spec ClusterNetworkingConfigSpecV3, labels map[string]string) (ClusterNetworkingConfig, error) {
-	netConfig := &ClusterNetworkingConfigV3{
+func newClusterNetworkingConfigWithLabels(spec ClusterNetworkingConfigSpecV2, labels map[string]string) (ClusterNetworkingConfig, error) {
+	netConfig := &ClusterNetworkingConfigV2{
 		Kind:    KindClusterNetworkingConfig,
-		Version: V3,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      MetaNameClusterNetworkingConfig,
 			Namespace: defaults.Namespace,
@@ -104,129 +104,129 @@ func newClusterNetworkingConfigWithLabels(spec ClusterNetworkingConfigSpecV3, la
 }
 
 // GetVersion returns resource version.
-func (c *ClusterNetworkingConfigV3) GetVersion() string {
+func (c *ClusterNetworkingConfigV2) GetVersion() string {
 	return c.Version
 }
 
 // GetName returns the name of the resource.
-func (c *ClusterNetworkingConfigV3) GetName() string {
+func (c *ClusterNetworkingConfigV2) GetName() string {
 	return c.Metadata.Name
 }
 
 // SetName sets the name of the resource.
-func (c *ClusterNetworkingConfigV3) SetName(name string) {
+func (c *ClusterNetworkingConfigV2) SetName(name string) {
 	c.Metadata.Name = name
 }
 
 // SetExpiry sets expiry time for the object.
-func (c *ClusterNetworkingConfigV3) SetExpiry(expires time.Time) {
+func (c *ClusterNetworkingConfigV2) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
 // Expiry returns object expiry setting.
-func (c *ClusterNetworkingConfigV3) Expiry() time.Time {
+func (c *ClusterNetworkingConfigV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
 // SetTTL sets Expires header using the provided clock.
 // Use SetExpiry instead.
 // DELETE IN 7.0.0
-func (c *ClusterNetworkingConfigV3) SetTTL(clock Clock, ttl time.Duration) {
+func (c *ClusterNetworkingConfigV2) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 
 // GetMetadata returns object metadata.
-func (c *ClusterNetworkingConfigV3) GetMetadata() Metadata {
+func (c *ClusterNetworkingConfigV2) GetMetadata() Metadata {
 	return c.Metadata
 }
 
 // GetResourceID returns resource ID.
-func (c *ClusterNetworkingConfigV3) GetResourceID() int64 {
+func (c *ClusterNetworkingConfigV2) GetResourceID() int64 {
 	return c.Metadata.ID
 }
 
 // SetResourceID sets resource ID.
-func (c *ClusterNetworkingConfigV3) SetResourceID(id int64) {
+func (c *ClusterNetworkingConfigV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
 // Origin returns the origin value of the resource.
-func (c *ClusterNetworkingConfigV3) Origin() string {
+func (c *ClusterNetworkingConfigV2) Origin() string {
 	return c.Metadata.Origin()
 }
 
 // SetOrigin sets the origin value of the resource.
-func (c *ClusterNetworkingConfigV3) SetOrigin(origin string) {
+func (c *ClusterNetworkingConfigV2) SetOrigin(origin string) {
 	c.Metadata.SetOrigin(origin)
 }
 
 // GetKind returns resource kind.
-func (c *ClusterNetworkingConfigV3) GetKind() string {
+func (c *ClusterNetworkingConfigV2) GetKind() string {
 	return c.Kind
 }
 
 // GetSubKind returns resource subkind.
-func (c *ClusterNetworkingConfigV3) GetSubKind() string {
+func (c *ClusterNetworkingConfigV2) GetSubKind() string {
 	return c.SubKind
 }
 
 // SetSubKind sets resource subkind.
-func (c *ClusterNetworkingConfigV3) SetSubKind(sk string) {
+func (c *ClusterNetworkingConfigV2) SetSubKind(sk string) {
 	c.SubKind = sk
 }
 
 // GetClientIdleTimeout returns client idle timeout setting.
-func (c *ClusterNetworkingConfigV3) GetClientIdleTimeout() time.Duration {
+func (c *ClusterNetworkingConfigV2) GetClientIdleTimeout() time.Duration {
 	return c.Spec.ClientIdleTimeout.Duration()
 }
 
 // SetClientIdleTimeout sets client idle timeout setting.
-func (c *ClusterNetworkingConfigV3) SetClientIdleTimeout(d time.Duration) {
+func (c *ClusterNetworkingConfigV2) SetClientIdleTimeout(d time.Duration) {
 	c.Spec.ClientIdleTimeout = Duration(d)
 }
 
 // GetKeepAliveInterval gets the keep-alive interval.
-func (c *ClusterNetworkingConfigV3) GetKeepAliveInterval() time.Duration {
+func (c *ClusterNetworkingConfigV2) GetKeepAliveInterval() time.Duration {
 	return c.Spec.KeepAliveInterval.Duration()
 }
 
 // SetKeepAliveInterval sets the keep-alive interval.
-func (c *ClusterNetworkingConfigV3) SetKeepAliveInterval(t time.Duration) {
+func (c *ClusterNetworkingConfigV2) SetKeepAliveInterval(t time.Duration) {
 	c.Spec.KeepAliveInterval = Duration(t)
 }
 
 // GetKeepAliveCountMax gets the number of missed keep-alive messages before
 // the server disconnects the client.
-func (c *ClusterNetworkingConfigV3) GetKeepAliveCountMax() int64 {
+func (c *ClusterNetworkingConfigV2) GetKeepAliveCountMax() int64 {
 	return c.Spec.KeepAliveCountMax
 }
 
 // SetKeepAliveCountMax sets the number of missed keep-alive messages before
 // the server disconnects the client.
-func (c *ClusterNetworkingConfigV3) SetKeepAliveCountMax(m int64) {
+func (c *ClusterNetworkingConfigV2) SetKeepAliveCountMax(m int64) {
 	c.Spec.KeepAliveCountMax = m
 }
 
 // GetSessionControlTimeout gets the session control timeout.
-func (c *ClusterNetworkingConfigV3) GetSessionControlTimeout() time.Duration {
+func (c *ClusterNetworkingConfigV2) GetSessionControlTimeout() time.Duration {
 	return c.Spec.SessionControlTimeout.Duration()
 }
 
 // SetSessionControlTimeout sets the session control timeout.
-func (c *ClusterNetworkingConfigV3) SetSessionControlTimeout(d time.Duration) {
+func (c *ClusterNetworkingConfigV2) SetSessionControlTimeout(d time.Duration) {
 	c.Spec.SessionControlTimeout = Duration(d)
 }
 
-func (c *ClusterNetworkingConfigV3) GetIdleTimeoutMessage() string {
+func (c *ClusterNetworkingConfigV2) GetIdleTimeoutMessage() string {
 	return c.Spec.IdleTimeoutMessage
 }
 
-func (c *ClusterNetworkingConfigV3) SetIdleTimeoutMessage(msg string) {
+func (c *ClusterNetworkingConfigV2) SetIdleTimeoutMessage(msg string) {
 	c.Spec.IdleTimeoutMessage = msg
 }
 
 // CheckAndSetDefaults verifies the constraints for ClusterNetworkingConfig.
-func (c *ClusterNetworkingConfigV3) CheckAndSetDefaults() error {
+func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	// Make sure we have defaults for all metadata fields.
 	err := c.Metadata.CheckAndSetDefaults()
 	if err != nil {

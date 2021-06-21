@@ -1165,7 +1165,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
 
-	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV3{
+	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		SessionControlTimeout: types.Duration(tc.sessCtlTimeout),
 	})
 	require.NoError(t, err)

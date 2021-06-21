@@ -101,7 +101,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 func TestAuthenticate(t *testing.T) {
 	t.Parallel()
 
-	nc, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV3{
+	nc, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout: types.NewDuration(time.Hour),
 	})
 	require.NoError(t, err)

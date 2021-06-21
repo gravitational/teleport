@@ -550,7 +550,7 @@ message ClusterNameSpecV2 {
 }
 
 // ClusterConfigV3 implements the ClusterConfig interface.
-message ClusterConfigV4 {
+message ClusterConfigV3 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
@@ -563,11 +563,11 @@ message ClusterConfigV4 {
     // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a cluster config V3 spec
-    ClusterConfigSpecV4 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    ClusterConfigSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
-message ClusterConfigSpecV4 {
+message ClusterConfigSpecV3 {
     reserved 1, 3, 5, 6, 7, 8, 9, 10;
 
     // ClusterID is the unique cluster ID that is set once during the first auth
@@ -579,7 +579,7 @@ message ClusterConfigSpecV4 {
         [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "audit,omitempty" ];
 
     // DELETE IN 8.0.0
-    ClusterNetworkingConfigSpecV3 NetworkingConfig = 11
+    ClusterNetworkingConfigSpecV2 NetworkingConfig = 11
         [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
 
     // DELETE IN 8.0.0
@@ -644,8 +644,8 @@ message ClusterAuditConfigSpecV2 {
     double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
 }
 
-// ClusterNetworkingConfigV3 contains cluster-wide networking configuration.
-message ClusterNetworkingConfigV3 {
+// ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
+message ClusterNetworkingConfigV2 {
     // Kind is a resource kind
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
@@ -655,13 +655,13 @@ message ClusterNetworkingConfigV3 {
     // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a ClusterNetworkingConfig specification
-    ClusterNetworkingConfigSpecV3 Spec = 5
+    ClusterNetworkingConfigSpecV2 Spec = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // ClusterNetworkingConfigSpecV2 is the actual data we care about
 // for ClusterNetworkingConfig.
-message ClusterNetworkingConfigSpecV3 {
+message ClusterNetworkingConfigSpecV2 {
     // ClientIdleTimeout sets global cluster default setting for client idle
     // timeouts.
     int64 ClientIdleTimeout = 1

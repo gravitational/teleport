@@ -1161,7 +1161,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	c.Assert(err, check.IsNil)
 
 	// DELETE IN 8.0.0
-	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV3{
+	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout: types.NewDuration(17 * time.Second),
 	})
 	c.Assert(err, check.IsNil)
@@ -1184,7 +1184,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	err = s.ConfigS.SetAuthPreference(authPref)
 	c.Assert(err, check.IsNil)
 
-	config, err := types.NewClusterConfig(types.ClusterConfigSpecV4{
+	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
 		ClusterID: "27",
 	})
 	c.Assert(err, check.IsNil)
@@ -1242,7 +1242,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 
 // ClusterNetworkingConfig tests cluster networking configuration.
 func (s *ServicesTestSuite) ClusterNetworkingConfig(c *check.C) {
-	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV3{
+	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout: types.NewDuration(17 * time.Second),
 		KeepAliveCountMax: 3000,
 	})
@@ -1792,7 +1792,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				err = s.ConfigS.SetAuthPreference(types.DefaultAuthPreference())
 				c.Assert(err, check.IsNil)
 
-				config, err := types.NewClusterConfig(types.ClusterConfigSpecV4{})
+				config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
 				c.Assert(err, check.IsNil)
 
 				err = s.ConfigS.SetClusterConfig(config)
@@ -1871,7 +1871,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				Kind: types.KindClusterNetworkingConfig,
 			},
 			crud: func(ctx context.Context) types.Resource {
-				netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV3{
+				netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 					ClientIdleTimeout: types.Duration(5 * time.Second),
 				})
 				c.Assert(err, check.IsNil)

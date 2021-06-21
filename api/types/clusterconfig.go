@@ -79,10 +79,10 @@ type ClusterConfig interface {
 }
 
 // NewClusterConfig is a convenience wrapper to create a ClusterConfig resource.
-func NewClusterConfig(spec ClusterConfigSpecV4) (ClusterConfig, error) {
-	cc := ClusterConfigV4{
+func NewClusterConfig(spec ClusterConfigSpecV3) (ClusterConfig, error) {
+	cc := ClusterConfigV3{
 		Kind:    KindClusterConfig,
-		Version: V4,
+		Version: V3,
 		Metadata: Metadata{
 			Name:      MetaNameClusterConfig,
 			Namespace: defaults.Namespace,
@@ -97,99 +97,99 @@ func NewClusterConfig(spec ClusterConfigSpecV4) (ClusterConfig, error) {
 }
 
 // GetVersion returns resource version
-func (c *ClusterConfigV4) GetVersion() string {
+func (c *ClusterConfigV3) GetVersion() string {
 	return c.Version
 }
 
 // GetSubKind returns resource subkind
-func (c *ClusterConfigV4) GetSubKind() string {
+func (c *ClusterConfigV3) GetSubKind() string {
 	return c.SubKind
 }
 
 // SetSubKind sets resource subkind
-func (c *ClusterConfigV4) SetSubKind(sk string) {
+func (c *ClusterConfigV3) SetSubKind(sk string) {
 	c.SubKind = sk
 }
 
 // GetKind returns resource kind
-func (c *ClusterConfigV4) GetKind() string {
+func (c *ClusterConfigV3) GetKind() string {
 	return c.Kind
 }
 
 // GetResourceID returns resource ID
-func (c *ClusterConfigV4) GetResourceID() int64 {
+func (c *ClusterConfigV3) GetResourceID() int64 {
 	return c.Metadata.ID
 }
 
 // SetResourceID sets resource ID
-func (c *ClusterConfigV4) SetResourceID(id int64) {
+func (c *ClusterConfigV3) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
 // GetName returns the name of the cluster.
-func (c *ClusterConfigV4) GetName() string {
+func (c *ClusterConfigV3) GetName() string {
 	return c.Metadata.Name
 }
 
 // SetName sets the name of the cluster.
-func (c *ClusterConfigV4) SetName(e string) {
+func (c *ClusterConfigV3) SetName(e string) {
 	c.Metadata.Name = e
 }
 
 // Expiry returns object expiry setting
-func (c *ClusterConfigV4) Expiry() time.Time {
+func (c *ClusterConfigV3) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
 // SetExpiry sets expiry time for the object
-func (c *ClusterConfigV4) SetExpiry(expires time.Time) {
+func (c *ClusterConfigV3) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
 // SetTTL sets Expires header using the provided clock.
 // Use SetExpiry instead.
 // DELETE IN 7.0.0
-func (c *ClusterConfigV4) SetTTL(clock Clock, ttl time.Duration) {
+func (c *ClusterConfigV3) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 
 // GetMetadata returns object metadata
-func (c *ClusterConfigV4) GetMetadata() Metadata {
+func (c *ClusterConfigV3) GetMetadata() Metadata {
 	return c.Metadata
 }
 
 // GetClusterID returns the unique cluster ID
-func (c *ClusterConfigV4) GetClusterID() string {
+func (c *ClusterConfigV3) GetClusterID() string {
 	return c.Spec.ClusterID
 }
 
 // SetClusterID sets the cluster ID
-func (c *ClusterConfigV4) SetClusterID(id string) {
+func (c *ClusterConfigV3) SetClusterID(id string) {
 	c.Spec.ClusterID = id
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
-func (c *ClusterConfigV4) CheckAndSetDefaults() error {
+func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
 	err := c.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if c.Version == "" {
-		c.Version = V4
+		c.Version = V3
 	}
 	return nil
 }
 
 // HasAuditConfig returns true if audit configuration is set.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV4) HasAuditConfig() bool {
+func (c *ClusterConfigV3) HasAuditConfig() bool {
 	return c.Spec.Audit != nil
 }
 
 // SetAuditConfig sets audit configuration.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV4) SetAuditConfig(auditConfig ClusterAuditConfig) error {
+func (c *ClusterConfigV3) SetAuditConfig(auditConfig ClusterAuditConfig) error {
 	auditConfigV2, ok := auditConfig.(*ClusterAuditConfigV2)
 	if !ok {
 		return trace.BadParameter("unexpected type %T", auditConfig)
@@ -200,31 +200,31 @@ func (c *ClusterConfigV4) SetAuditConfig(auditConfig ClusterAuditConfig) error {
 
 // HasNetworkingFields returns true if embedded networking configuration is set.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV4) HasNetworkingFields() bool {
-	return c.Spec.ClusterNetworkingConfigSpecV3 != nil
+func (c *ClusterConfigV3) HasNetworkingFields() bool {
+	return c.Spec.ClusterNetworkingConfigSpecV2 != nil
 }
 
 // SetNetworkingFields sets embedded networking configuration.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV4) SetNetworkingFields(netConfig ClusterNetworkingConfig) error {
-	netConfigV3, ok := netConfig.(*ClusterNetworkingConfigV3)
+func (c *ClusterConfigV3) SetNetworkingFields(netConfig ClusterNetworkingConfig) error {
+	netConfigV2, ok := netConfig.(*ClusterNetworkingConfigV2)
 	if !ok {
 		return trace.BadParameter("unexpected type %T", netConfig)
 	}
-	c.Spec.ClusterNetworkingConfigSpecV3 = &netConfigV3.Spec
+	c.Spec.ClusterNetworkingConfigSpecV2 = &netConfigV2.Spec
 	return nil
 }
 
 // HasSessionRecordingFields returns true if embedded session recording
 // configuration is set.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV4) HasSessionRecordingFields() bool {
+func (c *ClusterConfigV3) HasSessionRecordingFields() bool {
 	return c.Spec.LegacySessionRecordingConfigSpec != nil
 }
 
 // SetSessionRecordingFields sets embedded session recording configuration.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV4) SetSessionRecordingFields(recConfig SessionRecordingConfig) error {
+func (c *ClusterConfigV3) SetSessionRecordingFields(recConfig SessionRecordingConfig) error {
 	recConfigV2, ok := recConfig.(*SessionRecordingConfigV2)
 	if !ok {
 		return trace.BadParameter("unexpected type %T", recConfig)
@@ -242,13 +242,13 @@ func (c *ClusterConfigV4) SetSessionRecordingFields(recConfig SessionRecordingCo
 
 // HasAuthFields returns true if legacy auth fields are set.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV4) HasAuthFields() bool {
+func (c *ClusterConfigV3) HasAuthFields() bool {
 	return c.Spec.LegacyClusterConfigAuthFields != nil
 }
 
 // SetAuthFields sets legacy auth fields.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV4) SetAuthFields(authPref AuthPreference) error {
+func (c *ClusterConfigV3) SetAuthFields(authPref AuthPreference) error {
 	authPrefV2, ok := authPref.(*AuthPreferenceV2)
 	if !ok {
 		return trace.BadParameter("unexpected type %T", authPref)
@@ -262,20 +262,20 @@ func (c *ClusterConfigV4) SetAuthFields(authPref AuthPreference) error {
 
 // ClearLegacyFields clears legacy fields.
 // DELETE IN 8.0.0
-func (c *ClusterConfigV4) ClearLegacyFields() {
+func (c *ClusterConfigV3) ClearLegacyFields() {
 	c.Spec.Audit = nil
-	c.Spec.ClusterNetworkingConfigSpecV3 = nil
+	c.Spec.ClusterNetworkingConfigSpecV2 = nil
 	c.Spec.LegacySessionRecordingConfigSpec = nil
 	c.Spec.LegacyClusterConfigAuthFields = nil
 }
 
 // Copy creates a copy of the resource and returns it.
-func (c *ClusterConfigV4) Copy() ClusterConfig {
+func (c *ClusterConfigV3) Copy() ClusterConfig {
 	out := *c
 	return &out
 }
 
 // String represents a human readable version of the cluster name.
-func (c *ClusterConfigV4) String() string {
+func (c *ClusterConfigV3) String() string {
 	return fmt.Sprintf("ClusterConfig(ClusterID=%v)", c.Spec.ClusterID)
 }
