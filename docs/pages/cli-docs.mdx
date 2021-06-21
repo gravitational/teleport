@@ -317,7 +317,7 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 #### Examples
 
 ```bash
-tsh --proxy=proxy.example.com scp -P example.txt user@host/destination/dir
+tsh --proxy=proxy.example.com scp -P example.txt user@host:/destination/dir
 ```
 
 ### tsh ls
@@ -1026,9 +1026,9 @@ tctl auth sign --format openssh --host grav-00 --user teleport -o grav_host
 # create a certificate with a TTL of 24 hours for the jenkins user
 # the jenkins.pem file can later be used with `tsh`
 tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
-# create a certificate with a TTL of 1 day for the jenkins user
+# create a certificate with a TTL of 3 months for the jenkins user
 # the jenkins.pem file can later be used with `tsh`
-tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
+tctl auth sign --ttl=2190h --user=jenkins --out=jenkins.pem
 # create a certificate with a TTL of 1 day for the jenkins user
 # The kubeconfig file can later be used with `kubectl` or compatible tooling.
 tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
