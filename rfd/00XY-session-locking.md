@@ -30,10 +30,10 @@ A new resource named `SessionLock` with the following specification is introduce
 message SessionLockSpecV2 {
     // Target describes the set of sessions to which the session lock applies.
     SessionLockTarget Target;
-    // EffectiveFrom is the time point at which the session lock comes into force.
-    google.protobuf.Timestamp EffectiveFrom;
     // Message is the message displayed to locked-out users.
     string Message;
+    // Expires if set specifies TTL for the lock.
+    google.protobuf.Timestamp Expires;
 }
 
 // SessionLockTarget lists the attributes of a session all of which (when set)
@@ -62,28 +62,6 @@ Note that `SessionLock` is not a singleton resource: when there are multiple
 `SessionLock`s stored (and in force), it suffices for a session to be matched
 by any one of the locks to be terminated/disabled.
 
-If the conditions encoded by a set of `SessionLock`s was to be expressed in
-a single logical formula, the conditions within `SessionLockTarget` would be
-connected with logical conjunction while those of multiple `SessionLock`s would
-be connected with logical disjunction.  This is similar to the notion of
-_disjunctive normal form_ of propositional logic.  In the ordinary case where
-`SessionLockTarget` lists just a single attribute, the formula would reduce to
-a simple disjunction of atomic constraints.
-
-#### Expiration & audit
-
-There is no explicit expiry field in `SessionLockSpecV2`.  The common `Metadata.Expires`
-field is used instead.
-
-Since the `Metadata.Expires` field is also used by the backends to delete stale
-data, this automatically guarantees no expired `SessionLocks` will be returned
-by methods like `GetSessionLocks`, which in turn implies only unexpired locks
-can ever be presented to the user in summary outputs.
-
-Historical `SessionLock` records can be reconstructed only from the audit log.
-Every `SessionLock` create/update/delete should cause an audit event to be
-emitted.
-
 #### Relation to `User.Status`
 
 There already exists a field of `User` resource that is used to
@@ -99,7 +77,7 @@ also help with alleviating the load associated with caching `User` resources.
 #### `tctl` support
 
 `SessionLock` resources can be managed using `tctl [get|create|rm]`.  In this
-way, it is possible to update (e.g. delay) or remove a session lock after it
+way, it is possible to update or remove a session lock after it
 has been created.
 
 There will be a special `tctl sessions lock` helper provided, to facilitate
@@ -199,45 +177,17 @@ tctl create <<EOF
 kind: session_lock
 metadata:
   name: dc7cee9d-fe5e-4534-a90d-db770f0234a1
-  expires: "2021-06-14T22:27:00Z"   # RFC3339
 spec:
   target:
     role: developers
   message: "Cluster maintenance."
+  expires: "2021-06-14T22:27:00Z"   # RFC3339
 version: v2
 EOF
 ```
 and
 ```sh
 tctl sessions lock --role=developers --message="Cluster maintenance." --expires="2021-06-14T22:27:00Z"
-```
-
-#### Creating a delayed lock
-
-```
-$ tctl sessions lock --cluster=leaf --effective-from="2021-06-14T22:27:00Z"
-Created a session lock with ID "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
-```
-
-This locks out users accessing the cluster `leaf` effective from 2021-06-14 22:27 UTC.
-
-The above locking command would be equivalent to
-```sh
-tctl create <<EOF
-kind: session_lock
-metadata:
-  name: dc7cee9d-fe5e-4534-a90d-db770f0234a1
-spec:
-  target:
-    cluster: leaf
-  effective_from: "2021-06-14T22:27:00Z"   # RFC3339
-version: v2
-EOF
-```
-and, assuming the time at which the command is issued on 2021-06-14
-at 12:27 UTC, to
-```sh
-tctl sessions lock --cluster=leaf --effective-in=10h
 ```
 
 #### Generation of new user certificates prevented
