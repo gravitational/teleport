@@ -249,6 +249,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: amd64
@@ -354,6 +355,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: 386
@@ -462,6 +464,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: amd64
@@ -569,6 +572,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: windows
       ARCH: amd64
@@ -778,6 +782,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: arm
@@ -884,6 +889,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: arm64
@@ -927,6 +933,6 @@ volumes:
 
 ---
 kind: signature
-hmac: b524c35593f3d7e55742bd25ec614e15dc1b010af179241ae25d52166330845c
+hmac: 3f9422a2405f07bfed3491d54e07e747042564b64536eb7e79f31516d6ec33df
 
 ...
