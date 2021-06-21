@@ -58,7 +58,7 @@ type ClusterNetworkingConfig interface {
 	SetSessionControlTimeout(t time.Duration)
 
 	// GetIdleTimeoutMessage fetches the message to be sent to the client in
-	// the event of an idle timeout. An empty string implies n message should
+	// the event of an idle timeout. An empty string implies no message should
 	// be sent.
 	GetIdleTimeoutMessage() string
 

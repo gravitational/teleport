@@ -203,7 +203,9 @@ func (w *Monitor) Start() {
 				w.Entry.Debugf("Disconnecting client: %v", event.Reason)
 
 				if w.MessageWriter != nil && w.IdleTimeoutMessage != "" {
-					w.MessageWriter.WriteString(w.IdleTimeoutMessage)
+					if _, err := w.MessageWriter.WriteString(w.IdleTimeoutMessage); err != nil {
+						w.Entry.WithError(err).Warn("Failed to send idle timeout message.")
+					}
 				}
 				w.Conn.Close()
 
