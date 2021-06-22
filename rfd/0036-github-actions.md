@@ -121,7 +121,7 @@ check-reviews
 A list of the current reviews for the pull request needs to be obtained to see who has approved. I will obtain the PR number from the exection context and will then use the [list reviews for a pull request](https://docs.github.com/en/rest/reference/pulls#list-reviews-for-a-pull-request) endpoint to get the reviews, see which users in the list whose review state is "APPROVED" (will parse from response), and compare with the approvers with required reviewers stored in the hardcoded JSON object stored in the Github secrets object. 
 
 
-At this point, we need to rerun the workflow. We can obtain the run ID from the [Github context](https://docs.github.com/en/enterprise-server@3.0/actions/reference/context-and-expression-syntax-for-github-actions#github-context)(github.run_id). The run id number does not change if you rerun the workflow. To run the workflow again, we can call the [re-run a workflow](https://docs.github.com/en/rest/reference/actions#re-run-a-workflow) endpoint. 
+At this point, we need to rerun the workflow. We can obtain the run ID from the [Github context](https://docs.github.com/en/enterprise-server@3.0/actions/reference/context-and-expression-syntax-for-github-actions#github-context). The run id number does not change if you rerun the workflow. To run the workflow again, we can call the [re-run a workflow](https://docs.github.com/en/rest/reference/actions#re-run-a-workflow) endpoint. 
 
 
 ### Authentication & Permissions
@@ -132,9 +132,11 @@ The token expires when the job is finished.
 
 The `GITHUB_TOKEN` can be set with the following permissions and the scope is sufficient for all jobs: 
 
-```
+```yaml
 permissions:
+  # to re-run workflow 
   actions: read|write|none
+  # to assign and check reviewers
   pull-requests: read|write|none
 ```
 
