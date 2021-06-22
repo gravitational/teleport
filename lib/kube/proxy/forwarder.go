@@ -32,8 +32,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -159,7 +161,7 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ServerID")
 	}
 	if f.Namespace == "" {
-		f.Namespace = defaults.Namespace
+		f.Namespace = apidefaults.Namespace
 	}
 	if f.Context == nil {
 		f.Context = context.TODO()
@@ -493,7 +495,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// any user to access common API methods, e.g. discovery methods
 	// required for initial client usage, without it, restricted user's
 	// kubectl clients will not work
-	if !utils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
+	if !apiutils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
 		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
 	}
 
@@ -588,7 +590,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		authCtx.kubeCluster = kubeCluster
 	}
 
-	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference()
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -618,7 +620,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ap, err := f.cfg.CachingAuthClient.GetAuthPreference()
+	ap, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -661,7 +663,7 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	f.log.Debugf("Using async streamer for session.")
 	dir := filepath.Join(
 		f.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, defaults.Namespace,
+		events.StreamingLogsDir, apidefaults.Namespace,
 	)
 	fileStreamer, err := filesessions.NewStreamer(dir)
 	if err != nil {
@@ -1138,7 +1140,7 @@ func setupImpersonationHeaders(log log.FieldLogger, ctx authContext, headers htt
 		}
 	}
 
-	impersonateGroups = utils.Deduplicate(impersonateGroups)
+	impersonateGroups = apiutils.Deduplicate(impersonateGroups)
 
 	// By default, if no kubernetes_users is set (which will be a majority),
 	// user will impersonate themselves, which is the backwards-compatible behavior.

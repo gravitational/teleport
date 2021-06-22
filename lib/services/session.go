@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -43,8 +44,8 @@ func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (types.WebSession,
 		if err := utils.FastUnmarshal(bytes, &ws); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		utils.UTC(&ws.Spec.BearerTokenExpires)
-		utils.UTC(&ws.Spec.Expires)
+		apiutils.UTC(&ws.Spec.BearerTokenExpires)
+		apiutils.UTC(&ws.Spec.Expires)
 
 		if err := ws.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -89,6 +90,10 @@ func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]by
 
 // MarshalWebToken serializes the web token as JSON-encoded payload
 func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, error) {
+	if err := webToken.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -96,9 +101,6 @@ func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, er
 
 	switch webToken := webToken.(type) {
 	case *types.WebTokenV3:
-		if version := webToken.GetVersion(); version != types.V3 {
-			return nil, trace.BadParameter("mismatched web token version %v and type %T", version, webToken)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -138,7 +140,7 @@ func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (types.WebToken, err
 		if !config.Expires.IsZero() {
 			token.Metadata.SetExpiry(config.Expires)
 		}
-		utils.UTC(token.Metadata.Expires)
+		apiutils.UTC(token.Metadata.Expires)
 		return &token, nil
 	}
 	return nil, trace.BadParameter("web token resource version %v is not supported", hdr.Version)

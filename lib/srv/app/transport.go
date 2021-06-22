@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -287,7 +288,7 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 
 		// If the redirect location is one of the hosts specified in the list of
 		// redirects, rewrite the header.
-		if utils.SliceContainsStr(t.c.rewrite.Redirect, host(u.Host)) {
+		if apiutils.SliceContainsStr(t.c.rewrite.Redirect, host(u.Host)) {
 			u.Scheme = "https"
 			u.Host = net.JoinHostPort(t.c.publicAddr, t.c.publicPort)
 		}

@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -246,12 +248,12 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Se
 			s.SetExpiry(cfg.Expires)
 		}
 		if s.Metadata.Expires != nil {
-			utils.UTC(s.Metadata.Expires)
+			apiutils.UTC(s.Metadata.Expires)
 		}
 		// Force the timestamps to UTC for consistency.
 		// See https://github.com/gogo/protobuf/issues/519 for details on issues this causes for proto.Clone
-		utils.UTC(&s.Spec.Rotation.Started)
-		utils.UTC(&s.Spec.Rotation.LastRotated)
+		apiutils.UTC(&s.Spec.Rotation.Started)
+		apiutils.UTC(&s.Spec.Rotation.LastRotated)
 		return &s, nil
 	}
 	return nil, trace.BadParameter("server resource version %q is not supported", h.Version)
@@ -262,6 +264,7 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -269,9 +272,6 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 
 	switch server := server.(type) {
 	case *types.ServerV2:
-		if version := server.GetVersion(); version != types.V2 {
-			return nil, trace.BadParameter("mismatched server version %v and type %T", version, server)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -314,5 +314,5 @@ func MarshalServers(s []types.Server) ([]byte, error) {
 // NodeHasMissedKeepAlives checks if node has missed its keep alive
 func NodeHasMissedKeepAlives(s types.Server) bool {
 	serverExpiry := s.Expiry()
-	return serverExpiry.Before(time.Now().Add(defaults.ServerAnnounceTTL - (defaults.ServerKeepAliveTTL * 2)))
+	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL * 2)))
 }

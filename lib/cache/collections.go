@@ -20,8 +20,8 @@ import (
 	"context"
 	"strings"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
 )
@@ -73,6 +73,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
 			collections[resourceKind] = &clusterConfig{watch: watch, Cache: c}
+		case types.KindClusterAuditConfig:
+			if c.ClusterConfig == nil {
+				return nil, trace.BadParameter("missing parameter ClusterConfig")
+			}
+			collections[resourceKind] = &clusterAuditConfig{watch: watch, Cache: c}
 		case types.KindClusterNetworkingConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
@@ -624,7 +629,7 @@ type node struct {
 
 // erase erases all data in the collection
 func (c *node) erase(ctx context.Context) error {
-	if err := c.presenceCache.DeleteAllNodes(ctx, defaults.Namespace); err != nil {
+	if err := c.presenceCache.DeleteAllNodes(ctx, apidefaults.Namespace); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -633,7 +638,7 @@ func (c *node) erase(ctx context.Context) error {
 }
 
 func (c *node) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.Presence.GetNodes(ctx, defaults.Namespace)
+	resources, err := c.Presence.GetNodes(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1307,7 +1312,7 @@ type databaseServer struct {
 }
 
 func (s *databaseServer) erase(ctx context.Context) error {
-	err := s.presenceCache.DeleteAllDatabaseServers(ctx, defaults.Namespace)
+	err := s.presenceCache.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -1315,7 +1320,7 @@ func (s *databaseServer) erase(ctx context.Context) error {
 }
 
 func (s *databaseServer) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := s.Presence.GetDatabaseServers(ctx, defaults.Namespace)
+	resources, err := s.Presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1374,7 +1379,7 @@ type appServer struct {
 
 // erase erases all data in the collection
 func (a *appServer) erase(ctx context.Context) error {
-	if err := a.presenceCache.DeleteAllAppServers(ctx, defaults.Namespace); err != nil {
+	if err := a.presenceCache.DeleteAllAppServers(ctx, apidefaults.Namespace); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -1383,7 +1388,7 @@ func (a *appServer) erase(ctx context.Context) error {
 }
 
 func (a *appServer) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := a.Presence.GetAppServers(ctx, defaults.Namespace)
+	resources, err := a.Presence.GetAppServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1707,7 +1712,7 @@ func (c *authPreference) erase(ctx context.Context) error {
 
 func (c *authPreference) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
 	var noConfig bool
-	resource, err := c.ClusterConfig.GetAuthPreference()
+	resource, err := c.ClusterConfig.GetAuthPreference(ctx)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -1725,7 +1730,7 @@ func (c *authPreference) fetch(ctx context.Context) (apply func(ctx context.Cont
 		}
 
 		c.setTTL(resource)
-		if err := c.clusterConfigCache.SetAuthPreference(resource); err != nil {
+		if err := c.clusterConfigCache.SetAuthPreference(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -1748,7 +1753,7 @@ func (c *authPreference) processEvent(ctx context.Context, event types.Event) er
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		c.setTTL(resource)
-		if err := c.clusterConfigCache.SetAuthPreference(resource); err != nil {
+		if err := c.clusterConfigCache.SetAuthPreference(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -1758,6 +1763,76 @@ func (c *authPreference) processEvent(ctx context.Context, event types.Event) er
 }
 
 func (c *authPreference) watchKind() types.WatchKind {
+	return c.watch
+}
+
+type clusterAuditConfig struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *clusterAuditConfig) erase(ctx context.Context) error {
+	if err := c.clusterConfigCache.DeleteClusterAuditConfig(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *clusterAuditConfig) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var noConfig bool
+	resource, err := c.ClusterConfig.GetClusterAuditConfig(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		noConfig = true
+	}
+	return func(ctx context.Context) error {
+		// either zero or one instance exists, so we either erase or
+		// update, but not both.
+		if noConfig {
+			if err := c.erase(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+
+		c.setTTL(resource)
+		if err := c.clusterConfigCache.SetClusterAuditConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}, nil
+}
+
+func (c *clusterAuditConfig) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := c.clusterConfigCache.DeleteClusterAuditConfig(ctx)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.ClusterAuditConfig)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		c.setTTL(resource)
+		if err := c.clusterConfigCache.SetClusterAuditConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *clusterAuditConfig) watchKind() types.WatchKind {
 	return c.watch
 }
 

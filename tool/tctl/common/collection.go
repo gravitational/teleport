@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -169,8 +170,8 @@ func (a *authorityCollection) resources() (r []types.Resource) {
 func (a *authorityCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Cluster Name", "CA Type", "Fingerprint", "Role Map"})
 	for _, a := range a.cas {
-		for _, keyBytes := range a.GetCheckingKeys() {
-			fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
+		for _, key := range a.GetTrustedSSHKeyPairs() {
+			fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey)
 			if err != nil {
 				fingerprint = fmt.Sprintf("<bad key: %v>", err)
 			}
@@ -398,7 +399,7 @@ func formatLastHeartbeat(t time.Time) string {
 	if t.IsZero() {
 		return "not available"
 	}
-	return utils.HumanTimeFormat(t)
+	return apiutils.HumanTimeFormat(t)
 }
 
 func writeJSON(c ResourceCollection, w io.Writer) error {

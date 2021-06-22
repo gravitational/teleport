@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -256,7 +257,7 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 	}
 
 	// role lists must be deduplicated and sorted
-	rev.Roles = utils.Deduplicate(rev.Roles)
+	rev.Roles = apiutils.Deduplicate(rev.Roles)
 	sort.Strings(rev.Roles)
 
 	// basic compatibility/sanity checks
@@ -931,7 +932,7 @@ func (m *RequestValidator) Validate(req types.AccessRequest) error {
 		// if no suggested reviewers were provided by the user then
 		// use the defaults suggested by the user's static roles.
 		if len(req.GetSuggestedReviewers()) == 0 {
-			req.SetSuggestedReviewers(utils.Deduplicate(m.SuggestedReviewers))
+			req.SetSuggestedReviewers(apiutils.Deduplicate(m.SuggestedReviewers))
 		}
 	}
 	return nil
@@ -949,7 +950,7 @@ func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
 
 	var expanded []string
 	for _, role := range allRoles {
-		if n := role.GetName(); !utils.SliceContainsStr(m.user.GetRoles(), n) && m.CanRequestRole(n) {
+		if n := role.GetName(); !apiutils.SliceContainsStr(m.user.GetRoles(), n) && m.CanRequestRole(n) {
 			// user does not currently hold this role, and is allowed to request it.
 			expanded = append(expanded, n)
 		}
@@ -1119,7 +1120,7 @@ func (m *RequestValidator) SystemAnnotations() map[string][]string {
 	for k, va := range m.Annotations.Allow {
 		var filtered []string
 		for _, v := range va {
-			if !utils.SliceContainsStr(m.Annotations.Deny[k], v) {
+			if !apiutils.SliceContainsStr(m.Annotations.Deny[k], v) {
 				filtered = append(filtered, v)
 			}
 		}
@@ -1179,6 +1180,10 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (types.AccessReq
 
 // MarshalAccessRequest marshals the AccessRequest resource to JSON.
 func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidateAccessRequest(accessRequest); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1186,9 +1191,6 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 
 	switch accessRequest := accessRequest.(type) {
 	case *types.AccessRequestV3:
-		if version := accessRequest.GetVersion(); version != types.V3 {
-			return nil, trace.BadParameter("mismatched access request version %v and type %T", version, accessRequest)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

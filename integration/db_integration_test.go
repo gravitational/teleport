@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -44,6 +46,7 @@ import (
 	"github.com/siddontang/go-mysql/client"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // TestDatabaseAccessPostgresRootCluster tests a scenario where a user connects
@@ -180,6 +183,65 @@ func TestDatabaseAccessMySQLLeafCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestDatabaseAccessMongoRootCluster tests a scenario where a user connects
+// to a Mongo database running in a root cluster.
+func TestDatabaseAccessMongoRootCluster(t *testing.T) {
+	pack := setupDatabaseTest(t)
+
+	// Connect to the database service in root cluster.
+	client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.mongoService.Name,
+			Protocol:    pack.root.mongoService.Protocol,
+			Username:    "admin",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+	require.NoError(t, err)
+
+	// Disconnect.
+	err = client.Disconnect(context.Background())
+	require.NoError(t, err)
+}
+
+// TestDatabaseAccessMongoLeafCluster tests a scenario where a user connects
+// to a Mongo database running in a leaf cluster.
+func TestDatabaseAccessMongoLeafCluster(t *testing.T) {
+	pack := setupDatabaseTest(t)
+	pack.waitForLeaf(t)
+
+	// Connect to the database service in root cluster.
+	client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()), // Connecting via root cluster.
+		Cluster:    pack.leaf.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.leaf.mongoService.Name,
+			Protocol:    pack.leaf.mongoService.Protocol,
+			Username:    "admin",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+	require.NoError(t, err)
+
+	// Disconnect.
+	err = client.Disconnect(context.Background())
+	require.NoError(t, err)
+}
+
 // TestRootLeafIdleTimeout tests idle client connection termination by proxy and DB services in
 // trusted cluster setup.
 func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
@@ -268,7 +330,7 @@ func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 		t.Fatalf("failed to create linear backoff: %v", err)
 	}
 	for {
-		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), defaults.Namespace, []string{eventType}, 100, "")
+		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), apidefaults.Namespace, []string{eventType}, 100, "")
 		if err != nil {
 			t.Fatalf("failed to call SearchEvents: %v", err)
 		}
@@ -310,6 +372,9 @@ type databaseClusterPack struct {
 	mysqlService    service.Database
 	mysqlAddr       string
 	mysql           *mysql.TestServer
+	mongoService    service.Database
+	mongoAddr       string
+	mongo           *mongodb.TestServer
 }
 
 type testOptions struct {
@@ -353,10 +418,12 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		root: databaseClusterPack{
 			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
 			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
 		},
 		leaf: databaseClusterPack{
 			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
 			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
 		},
 	}
 
@@ -401,9 +468,9 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Clock = p.clock
 
 	// Establish trust b/w root and leaf.
-	err = p.root.cluster.CreateEx(p.leaf.cluster.Secrets.AsSlice(), rcConf)
+	err = p.root.cluster.CreateEx(t, p.leaf.cluster.Secrets.AsSlice(), rcConf)
 	require.NoError(t, err)
-	err = p.leaf.cluster.CreateEx(p.root.cluster.Secrets.AsSlice(), lcConf)
+	err = p.leaf.cluster.CreateEx(t, p.root.cluster.Secrets.AsSlice(), lcConf)
 	require.NoError(t, err)
 
 	// Start both clusters.
@@ -445,6 +512,11 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		Protocol: defaults.ProtocolMySQL,
 		URI:      p.root.mysqlAddr,
 	}
+	p.root.mongoService = service.Database{
+		Name:     "root-mongo",
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      p.root.mongoAddr,
+	}
 	rdConf := service.MakeDefaultConfig()
 	rdConf.DataDir = t.TempDir()
 	rdConf.Token = "static-token-value"
@@ -455,7 +527,11 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		},
 	}
 	rdConf.Databases.Enabled = true
-	rdConf.Databases.Databases = []service.Database{p.root.postgresService, p.root.mysqlService}
+	rdConf.Databases.Databases = []service.Database{
+		p.root.postgresService,
+		p.root.mysqlService,
+		p.root.mongoService,
+	}
 	rdConf.Clock = p.clock
 	p.root.dbProcess, p.root.dbAuthClient, err = p.root.cluster.StartDatabase(rdConf)
 	require.NoError(t, err)
@@ -474,6 +550,11 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		Protocol: defaults.ProtocolMySQL,
 		URI:      p.leaf.mysqlAddr,
 	}
+	p.leaf.mongoService = service.Database{
+		Name:     "leaf-mongo",
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      p.leaf.mongoAddr,
+	}
 	ldConf := service.MakeDefaultConfig()
 	ldConf.DataDir = t.TempDir()
 	ldConf.Token = "static-token-value"
@@ -484,7 +565,11 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		},
 	}
 	ldConf.Databases.Enabled = true
-	ldConf.Databases.Databases = []service.Database{p.leaf.postgresService, p.leaf.mysqlService}
+	ldConf.Databases.Databases = []service.Database{
+		p.leaf.postgresService,
+		p.leaf.mysqlService,
+		p.leaf.mongoService,
+	}
 	ldConf.Clock = p.clock
 	p.leaf.dbProcess, p.leaf.dbAuthClient, err = p.leaf.cluster.StartDatabase(ldConf)
 	require.NoError(t, err)
@@ -516,6 +601,18 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.root.mysql.Close()
 	})
 
+	// Create and start test Mongo in the root cluster.
+	p.root.mongo, err = mongodb.NewTestServer(common.TestServerConfig{
+		AuthClient: p.root.dbAuthClient,
+		Name:       p.root.mongoService.Name,
+		Address:    p.root.mongoAddr,
+	})
+	require.NoError(t, err)
+	go p.root.mongo.Serve()
+	t.Cleanup(func() {
+		p.root.mongo.Close()
+	})
+
 	// Create and start test Postgres in the leaf cluster.
 	p.leaf.postgres, err = postgres.NewTestServer(common.TestServerConfig{
 		AuthClient: p.leaf.dbAuthClient,
@@ -538,6 +635,18 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	go p.leaf.mysql.Serve()
 	t.Cleanup(func() {
 		p.leaf.mysql.Close()
+	})
+
+	// Create and start test Mongo in the leaf cluster.
+	p.leaf.mongo, err = mongodb.NewTestServer(common.TestServerConfig{
+		AuthClient: p.leaf.dbAuthClient,
+		Name:       p.leaf.mongoService.Name,
+		Address:    p.leaf.mongoAddr,
+	})
+	require.NoError(t, err)
+	go p.leaf.mongo.Serve()
+	t.Cleanup(func() {
+		p.leaf.mongo.Close()
 	})
 
 	return p
@@ -573,7 +682,7 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 	for {
 		select {
 		case <-time.Tick(500 * time.Millisecond):
-			servers, err := accessPoint.GetDatabaseServers(context.Background(), defaults.Namespace)
+			servers, err := accessPoint.GetDatabaseServers(context.Background(), apidefaults.Namespace)
 			if err != nil {
 				logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue

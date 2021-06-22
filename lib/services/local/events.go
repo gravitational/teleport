@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -67,6 +68,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newStaticTokensParser()
 		case types.KindClusterConfig:
 			parser = newClusterConfigParser(e.getClusterConfig)
+		case types.KindClusterAuditConfig:
+			parser = newClusterAuditConfigParser()
 		case types.KindClusterNetworkingConfig:
 			parser = newClusterNetworkingConfigParser()
 		case types.KindClusterAuthPreference:
@@ -281,7 +284,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      name,
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 			},
 		}, nil
 	case types.OpPut:
@@ -363,6 +366,8 @@ func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) 
 func newClusterConfigParser(getClusterConfig getClusterConfigFunc) *clusterConfigParser {
 	prefixes := [][]byte{
 		backend.Key(clusterConfigPrefix, generalPrefix),
+		backend.Key(clusterConfigPrefix, namePrefix),
+		backend.Key(clusterConfigPrefix, auditPrefix),
 		backend.Key(clusterConfigPrefix, networkingPrefix),
 		backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
 		backend.Key(authPrefix, preferencePrefix, generalPrefix),
@@ -400,6 +405,40 @@ func (p *clusterConfigParser) parse(event backend.Event) (types.Resource, error)
 			return nil, trace.Wrap(err)
 		}
 		return clusterConfig, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newClusterAuditConfigParser() *clusterAuditConfigParser {
+	return &clusterAuditConfigParser{
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, auditPrefix)),
+	}
+}
+
+type clusterAuditConfigParser struct {
+	baseParser
+}
+
+func (p *clusterAuditConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindClusterAuditConfig, types.V2, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameClusterAuditConfig)
+		return h, nil
+	case types.OpPut:
+		clusterAuditConfig, err := services.UnmarshalClusterAuditConfig(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clusterAuditConfig, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -696,7 +735,7 @@ func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 
 func newNodeParser() *nodeParser {
 	return &nodeParser{
-		baseParser: newBaseParser(backend.Key(nodesPrefix, defaults.Namespace)),
+		baseParser: newBaseParser(backend.Key(nodesPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -759,7 +798,7 @@ func (p *tunnelConnectionParser) parse(event backend.Event) (types.Resource, err
 			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      name,
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 			},
 		}, nil
 	case types.OpPut:
@@ -806,7 +845,7 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 
 func newAppServerParser() *appServerParser {
 	return &appServerParser{
-		baseParser: newBaseParser(backend.Key(appsPrefix, serversPrefix, defaults.Namespace)),
+		baseParser: newBaseParser(backend.Key(appsPrefix, serversPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -907,7 +946,7 @@ func (p *kubeServiceParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDatabaseServerParser() *databaseServerParser {
 	return &databaseServerParser{
-		baseParser: newBaseParser(backend.Key(dbServersPrefix, defaults.Namespace)),
+		baseParser: newBaseParser(backend.Key(dbServersPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -927,7 +966,7 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 			Version: types.V3,
 			Metadata: types.Metadata{
 				Name:        name,
-				Namespace:   defaults.Namespace,
+				Namespace:   apidefaults.Namespace,
 				Description: hostID, // Pass host ID via description field for the cache.
 			},
 		}, nil
@@ -1007,7 +1046,7 @@ func resourceHeader(event backend.Event, kind, version string, offset int) (type
 		Version: version,
 		Metadata: types.Metadata{
 			Name:      string(name),
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 	}, nil
 }
@@ -1023,7 +1062,7 @@ func resourceHeaderWithTemplate(event backend.Event, hdr types.ResourceHeader, o
 		Version: hdr.Version,
 		Metadata: types.Metadata{
 			Name:      string(name),
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 	}, nil
 }

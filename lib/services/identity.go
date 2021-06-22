@@ -24,13 +24,13 @@ import (
 	"context"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -274,12 +274,6 @@ type GithubAuthRequest struct {
 	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
 }
 
-// SetTTL sets Expires header using realtime clock
-func (r *GithubAuthRequest) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	expireTime := clock.Now().UTC().Add(ttl)
-	r.Expires = &expireTime
-}
-
 // SetExpiry sets expiry time for the object
 func (r *GithubAuthRequest) SetExpiry(expires time.Time) {
 	r.Expires = &expires
@@ -306,7 +300,7 @@ func (r *GithubAuthRequest) Check() error {
 		if err != nil {
 			return trace.BadParameter("bad PublicKey: %v", err)
 		}
-		if (r.CertTTL > defaults.MaxCertDuration) || (r.CertTTL < defaults.MinCertDuration) {
+		if (r.CertTTL > apidefaults.MaxCertDuration) || (r.CertTTL < defaults.MinCertDuration) {
 			return trace.BadParameter("wrong CertTTL")
 		}
 	}
@@ -374,7 +368,7 @@ func (i *OIDCAuthRequest) Check() error {
 		if err != nil {
 			return trace.BadParameter("PublicKey: bad key: %v", err)
 		}
-		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
+		if (i.CertTTL > apidefaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
 			return trace.BadParameter("CertTTL: wrong certificate TTL")
 		}
 	}
@@ -439,7 +433,7 @@ func (i *SAMLAuthRequest) Check() error {
 		if err != nil {
 			return trace.BadParameter("PublicKey: bad key: %v", err)
 		}
-		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
+		if (i.CertTTL > apidefaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
 			return trace.BadParameter("CertTTL: wrong certificate TTL")
 		}
 	}

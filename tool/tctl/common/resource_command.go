@@ -24,7 +24,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -121,7 +123,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources")
 	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").Required().SetValue(&rc.refs)
 	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&rc.format)
-	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(defaults.Namespace).StringVar(&rc.namespace)
+	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(apidefaults.Namespace).StringVar(&rc.namespace)
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
 
 	rc.getCmd.Alias(getHelp)
@@ -419,12 +421,13 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 
 // createAuthPreference implements `tctl create cap.yaml` command.
 func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
 	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	storedAuthPref, err := client.GetAuthPreference()
+	storedAuthPref, err := client.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -432,7 +435,7 @@ func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw service
 		return trace.Wrap(err)
 	}
 
-	if err := client.SetAuthPreference(newAuthPref); err != nil {
+	if err := client.SetAuthPreference(ctx, newAuthPref); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("cluster auth preference has been updated\n")
@@ -494,14 +497,14 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		types.KindClusterNetworkingConfig,
 		types.KindSessionRecordingConfig,
 	}
-	if !utils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
+	if !apiutils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
 	ctx := context.TODO()
 	switch rc.ref.Kind {
 	case types.KindNode:
-		if err = client.DeleteNode(ctx, defaults.Namespace, rc.ref.Name); err != nil {
+		if err = client.DeleteNode(ctx, apidefaults.Namespace, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("node %v has been deleted\n", rc.ref.Name)
@@ -587,7 +590,7 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 }
 
 func resetAuthPreference(ctx context.Context, client auth.ClientI) error {
-	storedAuthPref, err := client.GetAuthPreference()
+	storedAuthPref, err := client.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -901,7 +904,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterAuthPreference)
 		}
-		authPref, err := client.GetAuthPreference()
+		authPref, err := client.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

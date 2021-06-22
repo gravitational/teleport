@@ -26,8 +26,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -124,7 +126,7 @@ func oidcConfig(conn types.OIDCConnector) oidc.ClientConfig {
 			Secret: conn.GetClientSecret(),
 		},
 		// open id notifies provider that we are using OIDC scopes
-		Scope: utils.Deduplicate(append([]string{"openid", "email"}, conn.GetScope()...)),
+		Scope: apiutils.Deduplicate(append([]string{"openid", "email"}, conn.GetScope()...)),
 	}
 }
 
@@ -452,7 +454,7 @@ func (a *Server) calculateOIDCUser(connector types.OIDCConnector, claims jose.Cl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleTTL := roles.AdjustSessionTTL(defaults.MaxCertDuration)
+	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
 	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
 
 	return &p, nil
@@ -467,7 +469,7 @@ func (a *Server) createOIDCUser(p *createUserParams) (types.User, error) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      p.username,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Expires:   &expires,
 		},
 		Spec: types.UserSpecV2{
@@ -552,9 +554,12 @@ func claimsFromIDToken(oidcClient *oidc.Client, idToken string) (jose.Claims, er
 // the issuer to be HTTPS and leave integrity and confidentiality to TLS. Authenticity is taken care of
 // during the token exchange.
 func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken string) (jose.Claims, error) {
+	// If the issuer URL is not HTTPS, return the error as trace.NotFound to
+	// allow the caller to treat this condition gracefully and extract claims
+	// just from the token.
 	err := isHTTPS(issuerURL)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NotFound(err.Error())
 	}
 
 	oac, err := oidcClient.OAuthClient()
@@ -574,9 +579,13 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 	}
 
 	endpoint := pc.UserInfoEndpoint.String()
+
+	// If the userinfo endpoint is not HTTPS, return the error as trace.NotFound to
+	// allow the caller to treat this condition gracefully and extract claims
+	// just from the token.
 	err = isHTTPS(endpoint)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NotFound(err.Error())
 	}
 	log.Debugf("Fetching OIDC claims from UserInfo endpoint: %q.", endpoint)
 
@@ -786,7 +795,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 	userInfoClaims, err := claimsFromUserInfo(oidcClient, connector.GetIssuerURL(), t.AccessToken)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			log.Debugf("OIDC provider doesn't offer UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
+			log.Debugf("OIDC provider doesn't offer valid UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
 			return idTokenClaims, nil
 		}
 		log.Debugf("Unable to fetch UserInfo claims: %v.", err)

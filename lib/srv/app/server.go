@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -204,10 +205,10 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		Component:       teleport.ComponentApp,
 		Announcer:       c.AccessPoint,
 		GetServerInfo:   s.GetServerInfo,
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
-		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/2),
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/2),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		ServerTTL:       defaults.ServerAnnounceTTL,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
 		OnHeartbeat:     c.OnHeartbeat,
 	})
 	if err != nil {
@@ -245,7 +246,7 @@ func (s *Server) GetServerInfo() (types.Resource, error) {
 	s.server.SetApps(apps)
 
 	// Update the TTL.
-	s.server.SetExpiry(s.c.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
+	s.server.SetExpiry(s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 
 	// Update rotation state.
 	rotation, err := s.c.GetRotation(types.RoleApp)
@@ -375,7 +376,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	ap, err := s.c.AccessPoint.GetAuthPreference()
+	ap, err := s.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -383,7 +384,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 		Verified:       identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
-	err = authContext.Checker.CheckAccessToApp(defaults.Namespace, app, mfaParams)
+	err = authContext.Checker.CheckAccessToApp(apidefaults.Namespace, app, mfaParams)
 	if err != nil {
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
@@ -448,7 +449,7 @@ func (s *Server) newHTTPServer() *http.Server {
 
 	return &http.Server{
 		Handler:           authMiddleware,
-		ReadHeaderTimeout: defaults.DefaultDialTimeout,
+		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 	}
 }

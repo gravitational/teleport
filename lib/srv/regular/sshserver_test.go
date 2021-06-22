@@ -39,10 +39,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -146,7 +146,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	nodeDir := t.TempDir()
 	serverOptions := []ServerOption{
 		SetUUID(nodeID),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
 		SetShell("/bin/sh"),
 		SetSessionServer(nodeClient),
@@ -810,7 +810,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
@@ -838,8 +838,9 @@ func TestProxyReverseTunnel(t *testing.T) {
 
 	// Create a reverse tunnel and remote cluster simulating what the trusted
 	// cluster exchange does.
-	err = f.testSrv.Auth().UpsertReverseTunnel(
-		types.NewReverseTunnel(f.testSrv.ClusterName(), []string{reverseTunnelAddress.String()}))
+	rt, err := types.NewReverseTunnel(f.testSrv.ClusterName(), []string{reverseTunnelAddress.String()})
+	require.NoError(t, err)
+	err = f.testSrv.Auth().UpsertReverseTunnel(rt)
 	require.NoError(t, err)
 	remoteCluster, err := types.NewRemoteCluster("localhost")
 	require.NoError(t, err)
@@ -887,7 +888,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 			},
 		),
 		SetSessionServer(nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetEmitter(nodeClient),
@@ -988,7 +989,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
@@ -1105,7 +1106,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
@@ -1234,7 +1235,7 @@ func TestLimiter(t *testing.T) {
 		SetShell("/bin/sh"),
 		SetSessionServer(nodeClient),
 		SetEmitter(nodeClient),
-		SetNamespace(defaults.Namespace),
+		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),

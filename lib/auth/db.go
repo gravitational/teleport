@@ -22,8 +22,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -69,11 +69,10 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	re := &proto.DatabaseCertResponse{Cert: cert}
-	for _, ca := range hostCA.GetTLSKeyPairs() {
-		re.CACerts = append(re.CACerts, ca.Cert)
-	}
-	return re, nil
+	return &proto.DatabaseCertResponse{
+		Cert:    cert,
+		CACerts: services.GetTLSCerts(hostCA),
+	}, nil
 }
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking
@@ -130,7 +129,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	// Get the correct cert TTL based on roles.
-	ttl := roles.AdjustSessionTTL(defaults.CertDuration)
+	ttl := roles.AdjustSessionTTL(apidefaults.CertDuration)
 
 	// Generate the TLS certificate.
 	userCA, err := s.Trust.GetCertAuthority(types.CertAuthID{
@@ -156,10 +155,8 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	re := &proto.DatabaseCSRResponse{Cert: tlsCert}
-	for _, ca := range hostCA.GetTLSKeyPairs() {
-		re.CACerts = append(re.CACerts, ca.Cert)
-	}
-
-	return re, nil
+	return &proto.DatabaseCSRResponse{
+		Cert:    tlsCert,
+		CACerts: services.GetTLSCerts(hostCA),
+	}, nil
 }

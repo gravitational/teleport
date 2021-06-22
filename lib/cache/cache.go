@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -46,6 +47,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -79,6 +81,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -109,6 +112,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -138,6 +142,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -164,6 +169,7 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -172,7 +178,7 @@ func ForNode(cfg Config) Config {
 		// Node only needs to "know" about default
 		// namespace events to avoid matching too much
 		// data about other namespaces or node events
-		{Kind: types.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 	}
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
@@ -185,12 +191,13 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindKubeService},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
@@ -204,6 +211,7 @@ func ForApps(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -212,7 +220,7 @@ func ForApps(cfg Config) Config {
 		{Kind: types.KindProxy},
 		// Applications only need to "know" about default namespace events to avoid
 		// matching too much data about other namespaces or events.
-		{Kind: types.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 	}
 	cfg.QueueSize = defaults.AppsQueueSize
 	return cfg
@@ -224,6 +232,7 @@ func ForDatabases(cfg Config) Config {
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
@@ -232,7 +241,7 @@ func ForDatabases(cfg Config) Config {
 		{Kind: types.KindProxy},
 		// Databases only need to "know" about default namespace events to
 		// avoid matching too much data about other namespaces or events.
-		{Kind: types.KindNamespace, Name: defaults.Namespace},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 	}
 	cfg.QueueSize = defaults.DatabasesQueueSize
 	return cfg
@@ -1039,6 +1048,16 @@ func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterC
 	return rg.clusterConfig.GetClusterConfig(opts...)
 }
 
+// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
+func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetClusterAuditConfig(ctx, opts...)
+}
+
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
 func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
 	rg, err := c.read()
@@ -1301,13 +1320,13 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 }
 
 // GetAuthPreference gets the cluster authentication config.
-func (c *Cache) GetAuthPreference() (types.AuthPreference, error) {
+func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.clusterConfig.GetAuthPreference()
+	return rg.clusterConfig.GetAuthPreference(ctx)
 }
 
 // GetSessionRecordingConfig gets session recording configuration.

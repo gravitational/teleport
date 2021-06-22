@@ -83,6 +83,7 @@ func TestDefaultConfig(t *testing.T) {
 	ssh := config.SSH
 	require.Equal(t, ssh.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
 	require.Equal(t, ssh.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
+	require.Equal(t, ssh.AllowTCPForwarding, true)
 
 	// proxy section
 	proxy := config.Proxy
@@ -282,20 +283,6 @@ func TestCheckDatabase(t *testing.T) {
 			outErr: true,
 		},
 		{
-			desc: "GCP unsupported for MySQL",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolMySQL,
-				URI:      "localhost:3306",
-				GCP: DatabaseGCP{
-					ProjectID:  "project-1",
-					InstanceID: "instance-1",
-				},
-				CACert: fixtures.LocalhostCert,
-			},
-			outErr: true,
-		},
-		{
 			desc: "Redshift region not set",
 			inDatabase: Database{
 				Name:     "example",
@@ -308,6 +295,15 @@ func TestCheckDatabase(t *testing.T) {
 				},
 			},
 			outErr: true,
+		},
+		{
+			desc: "MongoDB connection string",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolMongoDB,
+				URI:      "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
+			},
+			outErr: false,
 		},
 	}
 	for _, test := range tests {

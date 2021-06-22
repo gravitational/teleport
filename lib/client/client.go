@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -102,7 +103,7 @@ func (proxy *ProxyClient) GetSites() ([]types.Site, error) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(defaults.DefaultDialTimeout):
+	case <-time.After(apidefaults.DefaultDialTimeout):
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 	log.Debugf("Found clusters: %v", stdout.String())
@@ -284,7 +285,13 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 		// Database certs have to be requested with CertUsage All because
 		// pre-7.0 servers do not accept usage-restricted certificates.
 		if params.RouteToDatabase.ServiceName != "" {
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+			switch params.RouteToDatabase.Protocol {
+			case defaults.ProtocolMongoDB:
+				// MongoDB expects certificate and key pair in the same pem file.
+				key.DBTLSCerts[params.RouteToDatabase.ServiceName] = append(certs.TLS, key.Priv...)
+			default:
+				key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+			}
 		}
 
 	case proto.UserCertsRequest_SSH:
@@ -292,7 +299,13 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 	case proto.UserCertsRequest_App:
 		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
 	case proto.UserCertsRequest_Database:
-		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+		switch params.RouteToDatabase.Protocol {
+		case defaults.ProtocolMongoDB:
+			// MongoDB expects certificate and key pair in the same pem file.
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = append(certs.TLS, key.Priv...)
+		default:
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+		}
 	case proto.UserCertsRequest_Kubernetes:
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
 	}
@@ -682,7 +695,7 @@ func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context, quiet bool) 
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
-	dialer := auth.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
+	dialer := client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return proxy.dialAuthServer(ctx, clusterName)
 	})
 
@@ -997,7 +1010,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	nc := &NodeClient{
 		Client:    client,
 		Proxy:     proxy,
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
 	}
 
@@ -1069,7 +1082,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	nc := &NodeClient{
 		Client:    client,
 		Proxy:     proxy,
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
 	}
 

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -76,12 +77,14 @@ type AuthSuite struct {
 var _ = Suite(&AuthSuite{})
 
 func (s *AuthSuite) SetUpTest(c *C) {
+	ctx := context.Background()
+
 	var err error
 	s.dataDir = c.MkDir()
-	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: s.dataDir})
+	s.bk, err = lite.NewWithConfig(ctx, lite.Config{Path: s.dataDir})
 	c.Assert(err, IsNil)
 
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)
@@ -112,16 +115,19 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	err = s.a.SetAuthPreference(authPreference)
+	err = s.a.SetAuthPreference(ctx, authPreference)
 	c.Assert(err, IsNil)
 
-	err = s.a.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+	err = s.a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
 	c.Assert(err, IsNil)
 
-	err = s.a.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+	err = s.a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	c.Assert(err, IsNil)
 
-	err = s.a.SetClusterConfig(services.DefaultClusterConfig())
+	err = s.a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	c.Assert(err, IsNil)
+
+	err = s.a.SetClusterConfig(types.DefaultClusterConfig())
 	c.Assert(err, IsNil)
 
 	s.mockEmitter = &events.MockEmitter{}
@@ -135,6 +141,7 @@ func (s *AuthSuite) TearDownTest(c *C) {
 }
 
 func (s *AuthSuite) TestSessions(c *C) {
+	ctx := context.Background()
 	c.Assert(s.a.UpsertCertAuthority(
 		suite.NewTestCA(types.UserCA, "me.localhost")), IsNil)
 
@@ -163,18 +170,18 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
-	out, err := s.a.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, IsNil)
 	ws.SetPriv(nil)
 	fixtures.DeepCompare(c, ws, out)
 
-	err = s.a.WebSessions().Delete(context.TODO(), types.DeleteWebSessionRequest{
+	err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      user,
 		SessionID: ws.GetName(),
 	})
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+	_, err = s.a.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      user,
 		SessionID: ws.GetName(),
 	})
@@ -577,7 +584,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	hostCert, err := sshutils.ParseCertificate(keys.Cert)
 	c.Assert(err, IsNil)
 	comment := Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
-	c.Assert(utils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
+	c.Assert(apiutils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
 
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:    multiUseToken,
@@ -784,7 +791,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 
 	// try and set cluster name, this should fail because you can only set the
 	// cluster name once
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "foo.localhost",
 	})
 	c.Assert(err, IsNil)
@@ -880,7 +887,7 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test create new role
-	roleTest, err := types.NewRole("test", types.RoleSpecV3{
+	roleTest, err := types.NewRole("test", types.RoleSpecV4{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
 	})
@@ -968,8 +975,9 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 func (s *AuthSuite) TestGithubConnectorCRUDEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test github create event
-	github := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
-	err := s.a.upsertGithubConnector(ctx, github)
+	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
+	c.Assert(err, IsNil)
+	err = s.a.upsertGithubConnector(ctx, github)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.GithubConnectorCreatedEvent)
 	s.mockEmitter.Reset()
@@ -989,8 +997,9 @@ func (s *AuthSuite) TestGithubConnectorCRUDEventsEmitted(c *C) {
 func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test oidc create event
-	oidc := types.NewOIDCConnector("test", types.OIDCConnectorSpecV2{ClientID: "a"})
-	err := s.a.UpsertOIDCConnector(ctx, oidc)
+	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV2{ClientID: "a"})
+	c.Assert(err, IsNil)
+	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.OIDCConnectorCreatedEvent)
 	s.mockEmitter.Reset()
@@ -1010,7 +1019,7 @@ func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
 func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
 	ctx := context.Background()
 	// generate a certificate that makes ParseCertificatePEM happy, copied from ca_test.go
-	ca, err := tlsca.FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	c.Assert(err, IsNil)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
@@ -1026,12 +1035,13 @@ func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
 	c.Assert(err, IsNil)
 
 	// test saml create
-	saml := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
+	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "a",
 		Issuer:                   "b",
 		SSO:                      "c",
 		Cert:                     string(certBytes),
 	})
+	c.Assert(err, IsNil)
 
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	c.Assert(err, IsNil)
