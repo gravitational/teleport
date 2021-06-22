@@ -85,6 +85,8 @@ implementation. It is _fully compatible with OpenSSH_,
 
 ## Installing and Running
 
+| Follow the [Installation](https://goteleport.com/docs/installation/) Guide
+
 Download the [latest binary release](https://goteleport.com/teleport/download),
 unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries into
 `/usr/local/bin`.
