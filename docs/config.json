@@ -23,8 +23,13 @@
           "title": "Guides",
           "slug": "/setup/guides/",
           "entries": [
+            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" },
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
-            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" }
+            { "title": "AWS Terraform", "slug": "/setup/guides/aws-terraform-guide/" },
+            { "title": "AWS", "slug": "/setup/guides/aws-guide/" },
+            { "title": "GCP", "slug": "/setup/guides/gcp-guide/" },
+            { "title": "IBM", "slug": "/setup/guides/ibm-guide/" },
+            { "title": "Azure", "slug": "/setup/guides/azure-guide/" }
           ]
         }
       ]
@@ -154,16 +159,6 @@
       "title": "Preview",
       "entries": [
         { "title": "Upcoming Releases", "slug": "/preview/upcoming-releases/" }
-      ]
-    },
-    {
-      "icon": "book",
-      "title": "Infrastructure Guides",
-      "entries": [
-        { "title": "AWS", "slug": "/aws-oss-guide/" },
-        { "title": "AWS Terraform", "slug": "/aws-terraform-guide/" },
-        { "title": "GCP", "slug": "/gcp-guide/" },
-        { "title": "IBM", "slug": "/ibm-cloud-guide/" }
       ]
     },
     {
@@ -322,6 +317,26 @@
     {
       "source": "/quickstart-docker/",
       "destination": "/setup/guides/docker-compose/",
+      "permanent": true
+    },
+    {
+      "source": "/aws-oss-guide/",
+      "destination": "/setup/guides/aws-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/ibm-cloud-guide/",
+      "destination": "/setup/guides/ibm-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/gcp-guide/",
+      "destination": "/setup/guides/gcp-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/aws-terraform-guide/",
+      "destination": "/setup/guides/aws-terraform-guide/",
       "permanent": true
     }
   ]

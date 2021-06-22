@@ -5,12 +5,6 @@ description: How to install and configure Gravitational Teleport on GCP for SSH 
 
 We've created this guide to give customers a high-level overview of how to use Teleport on [Google Cloud](https://cloud.google.com/gcp/) (GCP). This guide provides a high-level introduction leading to a deep dive into how to set up and run Teleport in production.
 
-We have split this guide into:
-
-- [GCP Teleport Introduction](#gcp-teleport-introduction)
-- [GCP Quickstart](#quickstart)
-- [Teleport on GCP FAQ](#teleport-on-gcp-faq)
-
 ## GCP Teleport introduction
 
 This guide will cover how to set up, configure and run Teleport on GCP.
@@ -36,7 +30,7 @@ Optional:
 We recommend setting up Teleport in High Availability mode. In High Availability mode Firestore
 stores the state of the system and Google Cloud Storage stores the audit logs.
 
-![GCP Intro Image](../img/gcp/gcp-teleport.svg)
+![GCP Intro Image](../../../img/gcp/gcp-teleport.svg)
 
 ### Compute Engine: VM instances with Instance Groups
 
@@ -50,7 +44,7 @@ GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/do
 this is helpful when adding new instances to an instance group.
 
 To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000`
-see  [Admin Guide: Troubleshooting](admin-guide.mdx#troubleshooting) for more information.
+see  [Admin Guide: Troubleshooting](../../admin-guide.mdx#troubleshooting) for more information.
 
 ### Storage: Cloud Firestore
 
@@ -99,10 +93,10 @@ record is sufficient.
 
 The Authentication server will need to read and write to Firestore.  For this, it'll need the correct permission via Server Accounts. Learn how to [enable and create service accounts for instances](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances).
 
-![Service Account](../img/gcp/gcp-permissions.png)
+![Service Account](../../../img/gcp/gcp-permissions.png)
 
 **Download JSON Service Key**
-![GCP Service Key](../img/gcp/gcp-service-key.png)
+![GCP Service Key](../../../img/gcp/gcp-service-key.png)
 
 ## Quickstart
 
@@ -112,7 +106,7 @@ We recommend starting by creating the resources. We highly recommend creating th
 
 ### Install and configure Teleport
 
-Follow install instructions from our [installation page](installation.mdx#linux).
+Follow install instructions from our [installation page](../../installation.mdx#linux).
 
 We recommend further configuring Teleport using the following steps.
 
@@ -194,7 +188,7 @@ proxy_service:
 
 ## Step 4/4. Add users
 
-Follow [adding users](enterprise/quickstart-enterprise.mdx#step-33-adding-users) or integrate with [Google Workspace](enterprise/sso/ssh-google-workspace.mdx) to provide SSO access.
+Follow [adding users](../../enterprise/quickstart-enterprise.mdx#step-33-adding-users) or integrate with [Google Workspace](../../enterprise/sso/ssh-google-workspace.mdx) to provide SSO access.
 
 ## Teleport on GCP FAQ
 
@@ -210,4 +204,4 @@ tool across clouds.
 You can use Teleport for all the services that you would SSH into. This guide is
 focused on Google Compute Engine. 
 
-Read [adding users](enterprise/quickstart-enterprise.mdx#step-33-adding-users) or integrate with [Google Workspace](enterprise/sso/ssh-google-workspace.mdx) to provide SSO access.
+Read [adding users](../../enterprise/quickstart-enterprise.mdx#step-33-adding-users) or integrate with [Google Workspace](../../enterprise/sso/ssh-google-workspace.mdx) to provide SSO access.
