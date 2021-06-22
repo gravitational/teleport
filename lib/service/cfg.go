@@ -673,12 +673,6 @@ func (d *Database) Check() error {
 		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.Name)
 	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
-	case d.GCP.ProjectID != "" && d.GCP.InstanceID != "":
-		// TODO(r0mant): See if we can download it automatically similar to RDS:
-		// https://cloud.google.com/sql/docs/postgres/instance-info#rest-v1beta4
-		if len(d.CACert) == 0 {
-			return trace.BadParameter("missing Cloud SQL instance root certificate for database %q", d.Name)
-		}
 	}
 	return nil
 }
