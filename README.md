@@ -103,6 +103,8 @@ In a production environment, Teleport must run as `root`. For testing or non-pro
 
 ## Docker
 
+| Follow the Docker-Compose [Getting Started](https://goteleport.com/docs/setup/guides/docker-compose/) Guide
+
 ### Deploy Teleport
 
 If you wish to deploy Teleport inside a Docker container:
