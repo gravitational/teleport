@@ -23,15 +23,15 @@
 
 ## Table of Contents
 
-1. [Introduction](#Introduction)
-1. [Installing and Running](#Installing-and-Running)
-1. [Docker](#Docker)
-1. [Building Teleport](#Building-Teleport)
-1. [Why did We Build Teleport?](#Why-did-We-Build-Teleport?)
-1. [More Information](#More-Information)
-1. [Support and Contributing](#Support-and-Contributing)
-1. [Is Teleport Secure and Production Ready?](#Is-Teleport-Secure-and-Production-Ready?)
-1. [Who Built Teleport?](#Who-Built-Teleport?)
+1. [Introduction](#introduction)
+1. [Installing and Running](#installing-and-running)
+1. [Docker](#docker)
+1. [Building Teleport](#building-teleport)
+1. [Why did We Build Teleport?](#why-did-we-build-teleport)
+1. [More Information](#more-information)
+1. [Support and Contributing](#support-and-contributing)
+1. [Is Teleport Secure and Production Ready?](#is-teleport-secure-and-production-ready)
+1. [Who Built Teleport?](#who-built-teleport)
 
 ## Introduction
 
