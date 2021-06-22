@@ -22,7 +22,7 @@ description: Glossary of key Teleport terms, keywords, and definitions.
 
 ## Generic terms
 
-| Term | Shorthand/Acroynym | Description | Link |
+| Term | Shorthand/Abbr. | Description | Link |
 | --- | --- | --- | --- |
 | Disaster Recovery | DR | A set of strategies to increase redundancy of data and/or information in preparation for disaster, emergencies, or other unforeseen scenarios. | - |
 | High Availability | HA | A strategy to maximize the up-time of a service or resource to gaurantee that customers and users can connect at all times. | - |
@@ -30,7 +30,7 @@ description: Glossary of key Teleport terms, keywords, and definitions.
 | Principle of Least Privilege | PoLP | A best practice that encourages granting users no more than the level of access that they minimally need. | - | 
 | Proxy (Generic) | - | A *Proxy* service operates as an intermediary accepting incoming connections and routing outgoing ones. | - |
 | Role-Based Access Control | RBAC | A best practice that defines the level of permission and access by one's role or roles. | - |
-| root user | root | The default superuser in most Linux distributions. | - |
+| root user | 'root' | The default superuser in most Linux distributions. | - |
 | Secure Administrator Workstations | SAW | A security best practice that restricts access to critical resources not only by role but also by physical (or virtual) machines as well. | - |
 | sudo | - | A Linux command that grants a user greater access and priviliges than they would usually have. | - |
 | Zero Admin | - | A security best that discourages making any user a "superuser" (one with "all the permissions"). | - |
@@ -38,7 +38,7 @@ description: Glossary of key Teleport terms, keywords, and definitions.
 
 ## SSH terms
 
-| Term | Shorthand/Acroynym | Description | Link |
+| Term | Shorthand/Abbr. | Description | Link |
 | --- | --- | --- | --- |
 | Agent Forwarding | - | `ssh-agent` allows you to use local SSH keys to connect when using `ssh`. Teleport certificates are saved into `ssh-agent` by default. | [Setup SSH Agent Forwarding](../server-access/guides/openssh.mdx#setup-ssh-agent-forwarding) |
 | Bastion Host | Bastion | A security best practice and infrastructure pattern where a single, publically-facing, resource handles all incoming and outgoing traffic. Protected resources are accessed by clients through the *Bastion Host* and never directly. | [Server Access Getting Started](../server-access/getting-started.mdx) |
@@ -47,20 +47,20 @@ description: Glossary of key Teleport terms, keywords, and definitions.
 
 ## Identity management
 
-| Term | Shorthand/Acroynym | Description | Link |
+| Term | Shorthand/Abbr. | Description | Link |
 | --- | --- | --- |  --- |
 | Automatic Certificate Management Environment | ACME | A Let's Encrypt standard for acquiring and renewing TLS/SSL certificates automatically.| [Let's Encrypt](https://letsencrypt.org/docs/) |
 | Certificate Authority | CA | A *Certificate Authority* can sign a public key of a user or node, establishing their cluster membership. | - |
-| SAML onnector | Connector | Used to integrate a tool, service, or app with a specific security or identity management provider. | - |
+| SAML onnector | 'Connector' | Used to integrate a tool, service, or app with a specific security or identity management provider. | - |
 | OAuth 2.0 | - | A widespread security protocol for authenticating. | [oauth.net/2/](https://oauth.net/2/) | 
 | One-Time Password | OTP | Passwords generated as *One-Time Passwords* are valid only for a narrow window of time before new passwords are generated to replace them. Often used as a form of 2FA. Also, synonomous with *One-Time Passcode*. | [IETF RFC 2289](https://datatracker.ietf.org/doc/html/rfc2289) | 
 | OpenID Connect | OIDC | A commonly used SSO specification. | [openid.net](https://openid.net/connect/) | 
 | Privacy Enhanced Mail | PEM | A file type (`.pem`) and cryptographic format for sending pairs of keys or certificates. A pair of public and private keys used to manage access. | [IETF RFC 7468](https://datatracker.ietf.org/doc/html/rfc7468) |
-| SSO Provider | Provider | An external party that authenticates users and facilitates trust between multiple resources. SSO identity providers allow users to sign in using authentication standards like SAML and OIDC to access protected resources. | - |
+| Security Assertion Markup Language | SAML | A commonly used, XML-based, SSO specification. | [IETF RFC 7522](https://datatracker.ietf.org/doc/html/rfc7522) | 
 | Secure Sockets layer | SSL | A protocol for securing client/server connections and applications. Uses certificates to encrypt connections. Replaced by TLS. | [What is SSL?](https://www.ssl.com/faqs/faq-what-is-ssl/) | 
 | Self-Signed Certificate | - | A less-secure way to quickly generate an SSL certificate (usually for testing locally) through a tool like OpenSSL. | [OpenSSL](https://www.openssl.org/) | 
 | Single Sign-On | SSO | A security scheme that allows users to authenticate to multiple resources using a single set of credentials. SAML and OIDC are common SSO specifications. | - | 
-| Security Assertion Markup Language | SAML | A commonly used, XML-based, SSO specification. | [IETF RFC 7522](https://datatracker.ietf.org/doc/html/rfc7522) | 
+| SSO Provider | 'Provider' | An external party that authenticates users and facilitates trust between multiple resources. SSO identity providers allow users to sign in using authentication standards like SAML and OIDC to access protected resources. | - |
 | Time to Live | TTL | The specified duration that a certificate is valid for. We typically recommend issuing *short-lived certificates* for [users](../user-manual.mdx#short-lived-sessions) and [Teleport Nodes](../architecture/nodes.mdx#node-identity-on-a-cluster). | - |
 | Transport Layer Security | TLS | A protocol for securing client/server connections and applications. Uses certificates to encrypt connections. Replaces SSL. (Sometimes colloquially refered to as SSL.) | [IETF RFC 8446](https://datatracker.ietf.org/doc/html/rfc8446) | 
 | Two-Factor Authentication | 2FA | An additional authentication layer required in addition to a primary authentication form. Teleport requires that new users create *both* a password and One-Time Passcode. | - |
@@ -68,7 +68,7 @@ description: Glossary of key Teleport terms, keywords, and definitions.
 
 ## Misc
 
-| Term | Shorthand/Acroynym | Description | Link |
+| Term | Shorthand/Abbr. | Description | Link |
 | --- | --- | --- |  --- |
 | Fast IDentity Online | FIDO | An open industry association that creates and manages authentication standards like U2F.  | [fidoalliance.org](https://fidoalliance.org/) |
 | Internet Engineer Task Force| IETF | The organization responsibile for maintaining and creating most Internet and Web standards like SAML, SMTP, SSL, and TLS.  | [ietf.org](https://www.ietf.org/) |
