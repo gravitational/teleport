@@ -122,7 +122,13 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	cert, err := ioutil.ReadFile(p.SSHCertPath())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// Try reading SSHCert from old cert path, return original error otherwise
+		// DELETE IN 8.0.0
+		var err2 error
+		cert, err2 = ioutil.ReadFile(p.OldSSHCertPath())
+		if err2 != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	key, err := ioutil.ReadFile(p.KeyPath())
@@ -130,7 +136,7 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	caCerts, err := ioutil.ReadFile(p.SSHCAsPath())
+	caCerts, err := ioutil.ReadFile(p.KnownHostsPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -322,7 +328,13 @@ func (p *Profile) SSHCertPath() string {
 	return filepath.Join(p.SSHDir(), p.SiteName+constants.FileExtSSHCert)
 }
 
-// SSHCAsPath returns the path to the profile's ssh certificate authorities.
-func (p *Profile) SSHCAsPath() string {
+// OldSSHCertPath returns the old (before v6.1) path to the profile's ssh certificate.
+// DELETE IN 8.0.0
+func (p *Profile) OldSSHCertPath() string {
+	return filepath.Join(p.UserKeyDir(), p.Username+constants.FileExtSSHCert)
+}
+
+// KnownHostsPath returns the path to the profile's ssh certificate authorities.
+func (p *Profile) KnownHostsPath() string {
 	return filepath.Join(p.Dir, constants.FileNameKnownHosts)
 }
