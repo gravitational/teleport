@@ -117,6 +117,16 @@ func onTestNode(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	proxyHost, _, err := net.SplitHostPort(tc.Config.SSHProxyAddr)
+	if err != nil {
+		return err
+	}
+
+	// Save some time by not testing the proxy host itself.
+	if cf.proxyNode == proxyHost {
+		os.Exit(1)
+	}
+
 	// If the proxyNode flag is suffixed by the root cluster, remove it.
 	target := strings.TrimSuffix(cf.proxyNode, "."+cf.proxyRootCluster)
 
