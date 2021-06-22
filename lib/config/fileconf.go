@@ -595,8 +595,7 @@ type Auth struct {
 	Service `yaml:",inline"`
 
 	// ProxyProtocol enables support for HAProxy proxy protocol when it is turned 'on'.
-	// We recommend it be enabled by an administrator since knowing
-	// whether the service is in front of trusted load balancer is relevant.
+	// Verify whether the service is in front of a trusted load balancer.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 
 	// ClusterName is the name of the CA who manages this cluster
