@@ -45,6 +45,7 @@ access to behind-NAT resources such as:
 * [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-access/)
 * [PostgreSQL and MySQL databases](https://goteleport.com/teleport/docs/database-access/)
 * [Internal Web apps](https://goteleport.com/teleport/docs/application-access/)
+* [Networked servers](https://goteleport.com/docs/server-access/)
 
 Teleport is trivial to set up as a Linux daemon or in a Kubernetes pod. It's rapidly
 replacing legacy `sshd`-based setups at organizations who need:
