@@ -338,6 +338,8 @@ const (
 	DatabaseSessionEndCode = "TDB01I"
 	// DatabaseSessionQueryCode is the database query event code.
 	DatabaseSessionQueryCode = "TDB02I"
+	// DatabaseSessionQueryFailedCode is the database query failure event code.
+	DatabaseSessionQueryFailedCode = "TDB02W"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"

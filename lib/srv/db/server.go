@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
@@ -316,7 +317,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Dispatch the connection for processing by an appropriate database
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
-	if err != nil {
+	if err != nil && !utils.IsOKNetworkError(err) && !trace.IsAccessDenied(err) {
 		log.WithError(err).Error("Failed to handle connection.")
 		return
 	}
@@ -400,6 +401,14 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 			Context:    s.closeContext,
 			Clock:      s.cfg.Clock,
 			Log:        sessionCtx.Log,
+		}, nil
+	case defaults.ProtocolMongoDB:
+		return &mongodb.Engine{
+			Auth:    s.cfg.Auth,
+			Audit:   audit,
+			Context: s.closeContext,
+			Clock:   s.cfg.Clock,
+			Log:     sessionCtx.Log,
 		}, nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",

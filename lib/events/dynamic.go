@@ -331,7 +331,7 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
-	case DatabaseSessionQueryEvent:
+	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
 		var e events.DatabaseSessionQuery
 		if err := utils.FastUnmarshal(data, &e); err != nil {
 			return nil, trace.Wrap(err)
