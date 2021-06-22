@@ -28,13 +28,13 @@ import (
 	"strings"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -45,6 +45,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/gravitational/teleport"
 )
 
 var (
@@ -108,19 +110,12 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
-)
 
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(writeLatencies)
-	prometheus.MustRegister(txLatencies)
-	prometheus.MustRegister(batchReadLatencies)
-	prometheus.MustRegister(readLatencies)
-	prometheus.MustRegister(writeRequests)
-	prometheus.MustRegister(txRequests)
-	prometheus.MustRegister(batchReadRequests)
-	prometheus.MustRegister(readRequests)
-}
+	prometheusCollectors = []prometheus.Collector{
+		writeLatencies, txLatencies, batchReadLatencies,
+		readLatencies, writeRequests, txRequests, batchReadRequests, readRequests,
+	}
+)
 
 type EtcdBackend struct {
 	backend.NoMigrations
@@ -181,7 +176,11 @@ var _ backend.Backend = &EtcdBackend{}
 
 // New returns new instance of Etcd-powered backend
 func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
-	var err error
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if params == nil {
 		return nil, trace.BadParameter("missing etcd configuration")
 	}
@@ -216,11 +215,10 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		buf:              buf,
 	}
 
+	// Check that the etcd nodes are at least the minimum version supported
 	if err = b.reconnect(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Check that the etcd nodes are at least the minimum version supported
 	timeout, cancel := context.WithTimeout(ctx, time.Second*3*time.Duration(len(cfg.Nodes)))
 	defer cancel()
 	for _, n := range cfg.Nodes {
@@ -236,6 +234,13 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 				status.Version, n, teleport.MinimumEtcdVersion)
 		}
 	}
+
+	// Reconnect the etcd client to work around a data race in their code.
+	// Upstream fix: https://github.com/etcd-io/etcd/pull/12992
+	if err = b.reconnect(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go b.asyncWatch()
 
 	// Wrap backend in a input sanitizer and return it.
 	return b, nil
@@ -262,7 +267,7 @@ func (cfg *Config) Validate() error {
 		cfg.BufferSize = backend.DefaultBufferSize
 	}
 	if cfg.DialTimeout == 0 {
-		cfg.DialTimeout = defaults.DefaultDialTimeout
+		cfg.DialTimeout = apidefaults.DefaultDialTimeout
 	}
 	if cfg.PasswordFile != "" {
 		out, err := ioutil.ReadFile(cfg.PasswordFile)
@@ -292,6 +297,12 @@ func (b *EtcdBackend) CloseWatchers() {
 }
 
 func (b *EtcdBackend) reconnect(ctx context.Context) error {
+	if b.client != nil {
+		if err := b.client.Close(); err != nil {
+			b.Entry.WithError(err).Warning("Failed closing existing etcd client on reconnect.")
+		}
+	}
+
 	tlsConfig := utils.TLSConfig(nil)
 
 	if b.cfg.TLSCertFile != "" {
@@ -340,7 +351,6 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	b.client = clt
-	go b.asyncWatch()
 	return nil
 }
 
@@ -642,7 +652,7 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 			ID:  e.Kv.ModRevision,
 		},
 	}
-	if event.Type == backend.OpDelete {
+	if event.Type == types.OpDelete {
 		return event, nil
 	}
 	// get the new expiration date if it was updated
@@ -710,12 +720,12 @@ func convertErr(err error) error {
 	return trace.ConnectionProblem(err, err.Error())
 }
 
-func fromType(eventType mvccpb.Event_EventType) backend.OpType {
+func fromType(eventType mvccpb.Event_EventType) types.OpType {
 	switch eventType {
 	case mvccpb.PUT:
-		return backend.OpPut
+		return types.OpPut
 	default:
-		return backend.OpDelete
+		return types.OpDelete
 	}
 }
 

@@ -18,6 +18,7 @@ package events
 
 import (
 	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -29,7 +30,7 @@ import (
 //
 // This is mainly used to convert from the backend format used by
 // our various event backends.
-func FromEventFields(fields EventFields) (AuditEvent, error) {
+func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 	data, err := json.Marshal(fields)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -104,6 +105,14 @@ func FromEventFields(fields EventFields) (AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
+	case UserUpdatedEvent:
+		// note: user.update is a custom code applied on top of the same data as the user.create event
+		//       and they are thus functionally identical. There exists no direct gRPC version of user.update.
+		var e events.UserCreate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
 	case UserPasswordChangeEvent:
 		var e events.UserPasswordChange
 		if err := utils.FastUnmarshal(data, &e); err != nil {
@@ -111,6 +120,14 @@ func FromEventFields(fields EventFields) (AuditEvent, error) {
 		}
 		return &e, nil
 	case AccessRequestCreateEvent:
+		var e events.AccessRequestCreate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case AccessRequestReviewEvent:
+		// note: access_request.review is a custom code applied on top of the same data as the access_request.create event
+		//       and they are thus functionally identical. There exists no direct gRPC version of access_request.review.
 		var e events.AccessRequestCreate
 		if err := utils.FastUnmarshal(data, &e); err != nil {
 			return nil, trace.Wrap(err)
@@ -314,7 +331,7 @@ func FromEventFields(fields EventFields) (AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
-	case DatabaseSessionQueryEvent:
+	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
 		var e events.DatabaseSessionQuery
 		if err := utils.FastUnmarshal(data, &e); err != nil {
 			return nil, trace.Wrap(err)
@@ -345,7 +362,7 @@ func FromEventFields(fields EventFields) (AuditEvent, error) {
 
 // GetSessionID pulls the session ID from the events that have a
 // SessionMetadata. For other events an empty string is returned.
-func GetSessionID(event AuditEvent) string {
+func GetSessionID(event apievents.AuditEvent) string {
 	var sessionID string
 
 	if g, ok := event.(SessionMetadataGetter); ok {
@@ -358,7 +375,7 @@ func GetSessionID(event AuditEvent) string {
 // ToEventFields converts from the typed interface-style event representation
 // to the old dynamic map style representation in order to provide outer compatibility
 // with existing public API routes when the backend is updated with the typed events.
-func ToEventFields(event AuditEvent) (EventFields, error) {
+func ToEventFields(event apievents.AuditEvent) (EventFields, error) {
 	var fields EventFields
 	if err := utils.ObjectToStruct(event, &fields); err != nil {
 		return nil, trace.Wrap(err)

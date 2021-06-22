@@ -32,6 +32,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -94,15 +96,9 @@ var (
 			Help: "Number of times emitting audit event failed.",
 		},
 	)
-)
 
-func init() {
-	// Metrics have to be registered to be exposed.
-	prometheus.MustRegister(auditOpenFiles)
-	prometheus.MustRegister(auditDiskUsed)
-	prometheus.MustRegister(auditFailedDisk)
-	prometheus.MustRegister(AuditFailedEmit)
-}
+	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit}
+)
 
 // AuditLog is a new combined facility to record Teleport events and
 // sessions. It implements IAuditLog
@@ -236,12 +232,17 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
 	al := &AuditLog{
-		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, defaults.Namespace),
+		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, apidefaults.Namespace),
 		AuditLogConfig: cfg,
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentAuditLog,
@@ -258,7 +259,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	// create a directory for session logs:
-	sessionDir := filepath.Join(cfg.DataDir, cfg.ServerID, SessionLogsDir, defaults.Namespace)
+	sessionDir := filepath.Join(cfg.DataDir, cfg.ServerID, SessionLogsDir, apidefaults.Namespace)
 	if err := os.MkdirAll(sessionDir, *cfg.DirMask); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -325,7 +326,7 @@ func (l *SessionRecording) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter session ID")
 	}
 	if l.Namespace == "" {
-		l.Namespace = defaults.Namespace
+		l.Namespace = apidefaults.Namespace
 	}
 	return nil
 }
@@ -961,10 +962,10 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 }
 
 // EmitAuditEvent adds a new event to the local file log
-func (l *AuditLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	// If an external logger has been set, use it as the emitter, otherwise
 	// fallback to the local disk based emitter.
-	var emitAuditEvent func(ctx context.Context, event AuditEvent) error
+	var emitAuditEvent func(ctx context.Context, event apievents.AuditEvent) error
 
 	if l.ExternalLog != nil {
 		emitAuditEvent = l.ExternalLog.EmitAuditEvent
@@ -1016,7 +1017,7 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 	return out, nil
 }
 
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]AuditEvent, string, error) {
+func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	g := l.log.WithFields(log.Fields{"namespace": namespace, "eventType": eventType, "limit": limit})
 	g.Debugf("SearchEvents(%v, %v)", fromUTC, toUTC)
 	if limit <= 0 {
@@ -1031,7 +1032,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 	return l.localLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, startKey)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	if l.ExternalLog != nil {
@@ -1176,7 +1177,7 @@ func (l *LegacyHandler) IsUnpacked(ctx context.Context, sessionID session.ID) (b
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	_, err = readSessionIndex(l.cfg.Dir, authServers, defaults.Namespace, sessionID)
+	_, err = readSessionIndex(l.cfg.Dir, authServers, apidefaults.Namespace, sessionID)
 	if err == nil {
 		return true, nil
 	}
@@ -1193,14 +1194,13 @@ func (l *LegacyHandler) Download(ctx context.Context, sessionID session.ID, writ
 
 const loggerClosedMessage = "the logger has been closed"
 
-type closedLogger struct {
-}
+type closedLogger struct{}
 
 func (a *closedLogger) EmitAuditEventLegacy(e Event, f EventFields) error {
 	return trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) EmitAuditEvent(ctx context.Context, e AuditEvent) error {
+func (a *closedLogger) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
 	return trace.NotImplemented(loggerClosedMessage)
 }
 
@@ -1220,11 +1220,11 @@ func (a *closedLogger) GetSessionEvents(namespace string, sid session.ID, after 
 	return nil, trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]AuditEvent, string, error) {
+func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
+func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 

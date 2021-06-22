@@ -25,10 +25,12 @@ import (
 	"strconv"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	firestorebk "github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -91,16 +93,12 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
-)
 
-func init() {
-	prometheus.MustRegister(writeRequests)
-	prometheus.MustRegister(batchWriteRequests)
-	prometheus.MustRegister(batchReadRequests)
-	prometheus.MustRegister(writeLatencies)
-	prometheus.MustRegister(batchWriteLatencies)
-	prometheus.MustRegister(batchReadLatencies)
-}
+	prometheusCollectors = []prometheus.Collector{
+		writeRequests, batchWriteRequests, batchReadRequests,
+		writeLatencies, batchWriteLatencies, batchReadLatencies,
+	}
+)
 
 const (
 
@@ -166,7 +164,6 @@ func (cfg *EventsConfig) SetFromParams(params backend.Params) error {
 
 // SetFromURL establishes values on an EventsConfig from the supplied URI
 func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
-
 	disableExpiredDocumentPurgeParamString := url.Query().Get(disableExpiredDocumentPurgePropertyKey)
 	if disableExpiredDocumentPurgeParamString == "" {
 		cfg.DisableExpiredDocumentPurge = false
@@ -269,6 +266,11 @@ type event struct {
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
 func New(cfg EventsConfig) (*Log, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	l := log.WithFields(log.Fields{
 		trace.Component: teleport.Component(teleport.ComponentFirestore),
 	})
@@ -304,7 +306,7 @@ func New(cfg EventsConfig) (*Log, error) {
 }
 
 // EmitAuditEvent emits audit event
-func (l *Log) EmitAuditEvent(ctx context.Context, in events.AuditEvent) error {
+func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
 	data, err := utils.FastMarshal(in)
 	if err != nil {
 		return trace.Wrap(err)
@@ -323,7 +325,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in events.AuditEvent) error {
 		SessionID:      sessionID,
 		EventIndex:     in.GetIndex(),
 		EventType:      in.GetType(),
-		EventNamespace: defaults.Namespace,
+		EventNamespace: apidefaults.Namespace,
 		CreatedAt:      in.GetTime().Unix(),
 		Fields:         string(data),
 	}
@@ -362,7 +364,7 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 		SessionID:      sessionID,
 		EventIndex:     int64(eventIndex),
 		EventType:      fields.GetString(events.EventType),
-		EventNamespace: defaults.Namespace,
+		EventNamespace: apidefaults.Namespace,
 		CreatedAt:      created.Unix(),
 		Fields:         string(data),
 	}
@@ -394,7 +396,7 @@ func (l *Log) PostSessionSlice(slice events.SessionSlice) error {
 		}
 		event := event{
 			SessionID:      slice.SessionID,
-			EventNamespace: defaults.Namespace,
+			EventNamespace: apidefaults.Namespace,
 			EventType:      chunk.EventType,
 			EventIndex:     chunk.EventIndex,
 			CreatedAt:      time.Unix(0, chunk.Time).In(time.UTC).Unix(),
@@ -459,14 +461,15 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 	return values, nil
 }
 
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
 	doFilter := len(eventTypes) > 0
 
 	var lastKey int64
 	var values []events.EventFields
-	var parsedStartKey int64 = -1
+	var parsedStartKey int64
 	var err error
+	totalSize := 0
 
 	if startKey != "" {
 		parsedStartKey, err = strconv.ParseInt(startKey, 10, 64)
@@ -477,7 +480,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 
 	modifyquery := func(query firestore.Query) firestore.Query {
 		if startKey != "" {
-			return query.StartAt(parsedStartKey)
+			return query.StartAfter(parsedStartKey)
 		}
 
 		return query
@@ -485,7 +488,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 
 	start := time.Now()
 	docSnaps, err := modifyquery(l.svc.Collection(l.CollectionName).
-		Where(eventNamespaceDocProperty, "==", defaults.Namespace).
+		Where(eventNamespaceDocProperty, "==", apidefaults.Namespace).
 		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
 		Where(createdAtDocProperty, "<=", toUTC.Unix()).
 		OrderBy(createdAtDocProperty, firestore.Asc)).
@@ -518,8 +521,13 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 			}
 		}
 		if accepted || !doFilter {
+			if totalSize+len(data) >= events.MaxEventBytesInResponse {
+				break
+			}
+
 			lastKey = docSnap.Data()["createdAt"].(int64)
 			values = append(values, fields)
+			totalSize += len(data)
 			if limit > 0 && len(values) >= limit {
 				break
 			}
@@ -527,7 +535,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	}
 	sort.Sort(events.ByTimeAndIndex(values))
 
-	eventArr := make([]events.AuditEvent, 0, len(values))
+	eventArr := make([]apievents.AuditEvent, 0, len(values))
 	for _, fields := range values {
 		event, err := events.FromEventFields(fields)
 		if err != nil {
@@ -536,18 +544,23 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		eventArr = append(eventArr, event)
 	}
 
-	return eventArr, fmt.Sprintf("%d", lastKey), nil
+	var lastKeyString string
+	if lastKey != 0 {
+		lastKeyString = fmt.Sprintf("%d", lastKey)
+	}
+
+	return eventArr, lastKeyString, nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
 	// only search for specific event types
 	query := []string{
 		events.SessionStartEvent,
 		events.SessionEndEvent,
 	}
-	return l.SearchEvents(fromUTC, toUTC, defaults.Namespace, query, limit, startKey)
+	return l.SearchEvents(fromUTC, toUTC, apidefaults.Namespace, query, limit, startKey)
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to

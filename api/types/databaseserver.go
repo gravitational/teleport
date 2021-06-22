@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
@@ -83,17 +81,18 @@ type DatabaseServer interface {
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
-func NewDatabaseServerV3(name string, labels map[string]string, spec DatabaseServerSpecV3) *DatabaseServerV3 {
-	return &DatabaseServerV3{
-		Kind:    KindDatabaseServer,
-		Version: V3,
+func NewDatabaseServerV3(name string, labels map[string]string, spec DatabaseServerSpecV3) (*DatabaseServerV3, error) {
+	s := &DatabaseServerV3{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
-			Labels:    labels,
+			Name:   name,
+			Labels: labels,
 		},
 		Spec: spec,
 	}
+	if err := s.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s, nil
 }
 
 // GetVersion returns the database server resource version.
@@ -159,13 +158,6 @@ func (s *DatabaseServerV3) SetExpiry(expiry time.Time) {
 // Expiry returns the resource expiry time.
 func (s *DatabaseServerV3) Expiry() time.Time {
 	return s.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (s *DatabaseServerV3) SetTTL(clock Clock, ttl time.Duration) {
-	s.Metadata.SetTTL(clock, ttl)
 }
 
 // GetName returns the resource name.
@@ -287,18 +279,23 @@ func (s *DatabaseServerV3) GetType() string {
 
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
-	return fmt.Sprintf("DatabaseServer(Name=%v, Type=%v, Version=%v, Labels=%v)",
-		s.GetName(), s.GetType(), s.GetTeleportVersion(), s.GetStaticLabels())
+	return fmt.Sprintf("DatabaseServer(Name=%v, Type=%v, Version=%v, Labels=%v, HostID=%v)",
+		s.GetName(), s.GetType(), s.GetTeleportVersion(), s.GetStaticLabels(), s.Spec.HostID)
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (s *DatabaseServerV3) setStaticFields() {
+	s.Kind = KindDatabaseServer
+	s.Version = V3
 }
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (s *DatabaseServerV3) CheckAndSetDefaults() error {
+	s.setStaticFields()
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if s.Kind == "" {
-		return trace.BadParameter("database server %q kind is empty", s.GetName())
-	}
+
 	for key := range s.Spec.DynamicLabels {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("database server %q invalid label key: %q", s.GetName(), key)
@@ -341,11 +338,26 @@ type SortedDatabaseServers []DatabaseServer
 // Len returns the slice length.
 func (s SortedDatabaseServers) Len() int { return len(s) }
 
-// Less compares database servers by name.
-func (s SortedDatabaseServers) Less(i, j int) bool { return s[i].GetName() < s[j].GetName() }
+// Less compares database servers by name and host ID.
+func (s SortedDatabaseServers) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+}
 
 // Swap swaps two database servers.
 func (s SortedDatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // DatabaseServers is a list of database servers.
 type DatabaseServers []DatabaseServer
+
+// DeduplicateDatabaseServers deduplicates database servers by name.
+func DeduplicateDatabaseServers(servers []DatabaseServer) (result []DatabaseServer) {
+	seen := make(map[string]struct{})
+	for _, server := range servers {
+		if _, ok := seen[server.GetName()]; ok {
+			continue
+		}
+		seen[server.GetName()] = struct{}{}
+		result = append(result, server)
+	}
+	return result
+}

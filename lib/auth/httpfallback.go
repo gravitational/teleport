@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -36,7 +37,7 @@ import (
 // DELETE IN 7.0
 
 // GetRoles returns a list of roles
-func (c *Client) GetRoles(ctx context.Context) ([]services.Role, error) {
+func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	if resp, err := c.APIClient.GetRoles(ctx); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -53,9 +54,9 @@ func (c *Client) GetRoles(ctx context.Context) ([]services.Role, error) {
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles := make([]services.Role, len(items))
+	roles := make([]types.Role, len(items))
 	for i, roleBytes := range items {
-		role, err := services.UnmarshalRole(roleBytes, services.SkipValidation())
+		role, err := services.UnmarshalRole(roleBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -65,7 +66,7 @@ func (c *Client) GetRoles(ctx context.Context) ([]services.Role, error) {
 }
 
 // UpsertRole creates or updates role
-func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
+func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
 	if err := c.APIClient.UpsertRole(ctx, role); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return trace.Wrap(err)
@@ -83,7 +84,7 @@ func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
 }
 
 // GetRole returns role by name
-func (c *Client) GetRole(ctx context.Context, name string) (services.Role, error) {
+func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if resp, err := c.APIClient.GetRole(ctx, name); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -99,7 +100,7 @@ func (c *Client) GetRole(ctx context.Context, name string) (services.Role, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, err := services.UnmarshalRole(out.Bytes(), services.SkipValidation())
+	role, err := services.UnmarshalRole(out.Bytes())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,7 +127,7 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 // DELETE IN 8.0
 
 // UpsertToken adds provisioning tokens for the auth server
-func (c *Client) UpsertToken(ctx context.Context, tok services.ProvisionToken) error {
+func (c *Client) UpsertToken(ctx context.Context, tok types.ProvisionToken) error {
 	if err := c.APIClient.UpsertToken(ctx, tok); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return trace.Wrap(err)
@@ -147,7 +148,7 @@ func (c *Client) UpsertToken(ctx context.Context, tok services.ProvisionToken) e
 }
 
 // GetTokens returns a list of active invitation tokens for nodes and users
-func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
+func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
 	if resp, err := c.APIClient.GetTokens(ctx); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -160,15 +161,15 @@ func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var tokens []services.ProvisionTokenV1
+	var tokens []types.ProvisionTokenV1
 	if err := json.Unmarshal(out.Bytes(), &tokens); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.ProvisionTokensFromV1(tokens), nil
+	return types.ProvisionTokensFromV1(tokens), nil
 }
 
 // GetToken returns provisioning token
-func (c *Client) GetToken(ctx context.Context, token string) (services.ProvisionToken, error) {
+func (c *Client) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
 	if resp, err := c.APIClient.GetToken(ctx, token); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -181,7 +182,7 @@ func (c *Client) GetToken(ctx context.Context, token string) (services.Provision
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalProvisionToken(out.Bytes(), services.SkipValidation())
+	return services.UnmarshalProvisionToken(out.Bytes())
 }
 
 // DeleteToken deletes a given provisioning token on the auth server (CA). It
@@ -200,7 +201,7 @@ func (c *Client) DeleteToken(ctx context.Context, token string) error {
 }
 
 // UpsertOIDCConnector updates or creates OIDC connector
-func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
+func (c *Client) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
 	if err := c.APIClient.UpsertOIDCConnector(ctx, connector); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return trace.Wrap(err)
@@ -223,7 +224,7 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OID
 }
 
 // GetOIDCConnector returns OIDC connector information by id
-func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (services.OIDCConnector, error) {
+func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error) {
 	if resp, err := c.APIClient.GetOIDCConnector(ctx, id, withSecrets); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -240,11 +241,11 @@ func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bo
 	if err != nil {
 		return nil, err
 	}
-	return services.UnmarshalOIDCConnector(out.Bytes(), services.SkipValidation())
+	return services.UnmarshalOIDCConnector(out.Bytes())
 }
 
 // GetOIDCConnectors gets OIDC connectors list
-func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]services.OIDCConnector, error) {
+func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
 	if resp, err := c.APIClient.GetOIDCConnectors(ctx, withSecrets); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -262,9 +263,9 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]ser
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]services.OIDCConnector, len(items))
+	connectors := make([]types.OIDCConnector, len(items))
 	for i, raw := range items {
-		connector, err := services.UnmarshalOIDCConnector(raw, services.SkipValidation())
+		connector, err := services.UnmarshalOIDCConnector(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -291,7 +292,7 @@ func (c *Client) DeleteOIDCConnector(ctx context.Context, connectorID string) er
 }
 
 // UpsertSAMLConnector updates or creates SAML connector
-func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
+func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
 	if err := c.APIClient.UpsertSAMLConnector(ctx, connector); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return trace.Wrap(err)
@@ -314,7 +315,7 @@ func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAM
 }
 
 // GetSAMLConnector returns SAML connector information by id
-func (c *Client) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (services.SAMLConnector, error) {
+func (c *Client) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
 	if resp, err := c.APIClient.GetSAMLConnector(ctx, id, withSecrets); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -331,11 +332,11 @@ func (c *Client) GetSAMLConnector(ctx context.Context, id string, withSecrets bo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalSAMLConnector(out.Bytes(), services.SkipValidation())
+	return services.UnmarshalSAMLConnector(out.Bytes())
 }
 
 // GetSAMLConnectors gets SAML connectors list
-func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]services.SAMLConnector, error) {
+func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
 	if resp, err := c.APIClient.GetSAMLConnectors(ctx, withSecrets); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -353,9 +354,9 @@ func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]ser
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]services.SAMLConnector, len(items))
+	connectors := make([]types.SAMLConnector, len(items))
 	for i, raw := range items {
-		connector, err := services.UnmarshalSAMLConnector(raw, services.SkipValidation())
+		connector, err := services.UnmarshalSAMLConnector(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -382,7 +383,7 @@ func (c *Client) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 }
 
 // UpsertGithubConnector creates or updates a Github connector
-func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
+func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
 	if err := c.APIClient.UpsertGithubConnector(ctx, connector); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return trace.Wrap(err)
@@ -405,7 +406,7 @@ func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.G
 }
 
 // GetGithubConnectors returns all configured Github connectors
-func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]services.GithubConnector, error) {
+func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
 	if resp, err := c.APIClient.GetGithubConnectors(ctx, withSecrets); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -424,7 +425,7 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]s
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]services.GithubConnector, len(items))
+	connectors := make([]types.GithubConnector, len(items))
 	for i, raw := range items {
 		connector, err := services.UnmarshalGithubConnector(raw)
 		if err != nil {
@@ -436,7 +437,7 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]s
 }
 
 // GetGithubConnector returns the specified Github connector
-func (c *Client) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (services.GithubConnector, error) {
+func (c *Client) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error) {
 	if resp, err := c.APIClient.GetGithubConnector(ctx, id, withSecrets); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -471,7 +472,7 @@ func (c *Client) DeleteGithubConnector(ctx context.Context, id string) error {
 	return nil
 }
 
-func (c *Client) GetTrustedCluster(ctx context.Context, name string) (services.TrustedCluster, error) {
+func (c *Client) GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error) {
 	if resp, err := c.APIClient.GetTrustedCluster(ctx, name); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -485,7 +486,7 @@ func (c *Client) GetTrustedCluster(ctx context.Context, name string) (services.T
 		return nil, trace.Wrap(err)
 	}
 
-	trustedCluster, err := services.UnmarshalTrustedCluster(out.Bytes(), services.SkipValidation())
+	trustedCluster, err := services.UnmarshalTrustedCluster(out.Bytes())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -493,7 +494,7 @@ func (c *Client) GetTrustedCluster(ctx context.Context, name string) (services.T
 	return trustedCluster, nil
 }
 
-func (c *Client) GetTrustedClusters(ctx context.Context) ([]services.TrustedCluster, error) {
+func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	if resp, err := c.APIClient.GetTrustedClusters(ctx); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -511,9 +512,9 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]services.TrustedClus
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	trustedClusters := make([]services.TrustedCluster, len(items))
+	trustedClusters := make([]types.TrustedCluster, len(items))
 	for i, bytes := range items {
-		trustedCluster, err := services.UnmarshalTrustedCluster(bytes, services.SkipValidation())
+		trustedCluster, err := services.UnmarshalTrustedCluster(bytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -524,7 +525,7 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]services.TrustedClus
 }
 
 // UpsertTrustedCluster creates or updates a trusted cluster.
-func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
 	if resp, err := c.APIClient.UpsertTrustedCluster(ctx, trustedCluster); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -595,7 +596,7 @@ func (c *Client) DeleteNode(ctx context.Context, namespace string, name string) 
 }
 
 // GetNodes returns the list of servers registered in the cluster.
-func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if resp, err := c.APIClient.GetNodes(ctx, namespace); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
@@ -604,14 +605,7 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 		return resp, nil
 	}
 
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{
-		"skip_validation": []string{fmt.Sprintf("%t", cfg.SkipValidation)},
-	})
+	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -620,12 +614,12 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	re := make([]services.Server, len(items))
+	re := make([]types.Server, len(items))
 	for i, raw := range items {
 		s, err := services.UnmarshalServer(
 			raw,
-			services.KindNode,
-			services.AddOptions(opts, services.SkipValidation())...)
+			types.KindNode,
+			opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -633,4 +627,48 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	}
 
 	return re, nil
+}
+
+// GetAuthPreference gets cluster auth preference.
+func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	if resp, err := c.APIClient.GetAuthPreference(ctx); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+	out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cap, err := services.UnmarshalAuthPreference(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cap, nil
+}
+
+// SetAuthPreference sets cluster auth preference.
+func (c *Client) SetAuthPreference(ctx context.Context, cap types.AuthPreference) error {
+	if err := c.APIClient.SetAuthPreference(ctx, cap); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+	data, err := services.MarshalAuthPreference(cap)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = c.PostJSON(c.Endpoint("authentication", "preference"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

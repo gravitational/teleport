@@ -186,6 +186,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -296,6 +297,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -345,7 +347,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -408,6 +410,7 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -434,6 +437,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -445,7 +449,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -508,6 +512,7 @@ steps:
   environment:
     ARCH: "386"
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -534,6 +539,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -545,7 +551,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -612,6 +618,7 @@ steps:
     ARCH: amd64
     FIPS: "yes"
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -638,6 +645,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -649,7 +657,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -712,6 +720,7 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: windows
     UID: "1000"
@@ -738,6 +747,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -846,7 +856,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -909,6 +919,7 @@ steps:
   environment:
     ARCH: arm
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -935,6 +946,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -946,7 +958,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:87
 ################################################
 
 kind: pipeline
@@ -1009,6 +1021,7 @@ steps:
   environment:
     ARCH: arm64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -1035,6 +1048,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1179,6 +1193,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1234,9 +1249,8 @@ steps:
     image: alpine/helm:latest
     commands:
       - cd /go/chart
-      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport
-      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-kube-agent
       - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-cluster
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-kube-agent
       # copy index.html to root of the S3 bucket
       - cp /go/src/github.com/gravitational/teleport/examples/chart/index.html /go/chart
       # this will index all previous versions of the charts downloaded from the S3 bucket,
@@ -1277,7 +1291,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -1336,6 +1350,7 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -1368,6 +1383,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1379,7 +1395,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -1440,6 +1456,7 @@ steps:
     ARCH: amd64
     FIPS: "yes"
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -1470,6 +1487,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1481,7 +1499,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -1540,6 +1558,7 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -1575,6 +1594,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1586,7 +1606,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -1647,6 +1667,7 @@ steps:
     ARCH: amd64
     FIPS: "yes"
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -1679,6 +1700,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1690,7 +1712,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -1805,6 +1827,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -1821,7 +1844,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -1933,6 +1956,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -1949,7 +1973,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -2055,6 +2079,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2066,7 +2091,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -2169,6 +2194,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2180,7 +2206,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -2239,6 +2265,7 @@ steps:
   environment:
     ARCH: "386"
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -2271,6 +2298,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2282,7 +2310,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -2397,6 +2425,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -2413,7 +2442,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -2519,6 +2548,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2916,7 +2946,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -2975,6 +3005,7 @@ steps:
   environment:
     ARCH: arm
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -3007,6 +3038,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3018,7 +3050,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -3077,6 +3109,7 @@ steps:
   environment:
     ARCH: arm64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
     UID: "1000"
@@ -3109,6 +3142,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3120,7 +3154,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -3226,6 +3260,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3237,7 +3272,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -3343,6 +3378,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3354,7 +3390,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -3469,6 +3505,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3485,7 +3522,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:329
+# Generated at dronegen/tag.go:330
 ################################################
 
 kind: pipeline
@@ -3600,6 +3637,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3616,7 +3654,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:188
 ################################################
 
 kind: pipeline
@@ -3675,6 +3713,7 @@ steps:
   environment:
     ARCH: amd64
     GID: "1000"
+    GOCACHE: /go/cache
     GOPATH: /go
     OS: windows
     UID: "1000"
@@ -3706,6 +3745,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3743,6 +3783,7 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+      GOCACHE: /go/cache
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -3756,7 +3797,7 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
-      - mkdir -p /go/cache /go/artifacts
+      - mkdir -p /go/artifacts $GOCACHE
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -3765,6 +3806,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: amd64
@@ -3789,6 +3831,7 @@ steps:
     environment:
       UID: 1000
       GID: 1000
+      GOCACHE: /go/cache
       GOPATH: /go
       OS: linux
       ARCH: amd64
@@ -3815,6 +3858,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -3915,6 +3959,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -4018,6 +4063,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -4156,6 +4202,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -4443,6 +4490,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -4465,6 +4513,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: f0299a5810cf2a4a89aaf0c521009855cb764e357deaed4c8be73819085a83dd
+hmac: 7aa9349b1d1bd6a6b60aaa47abda52c8b2eaf7772a576195f40f38174717cae0
 
 ...

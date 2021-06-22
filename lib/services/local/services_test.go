@@ -62,7 +62,10 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		*EventsService
 	}
 
-	eventsService := NewEventsService(s.bk)
+	configService, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
+
+	eventsService := NewEventsService(s.bk, configService.GetClusterConfig)
 	presenceService := NewPresenceService(s.bk)
 
 	s.suite = &suite.ServicesTestSuite{
@@ -73,7 +76,7 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		Access:        NewAccessService(s.bk),
 		EventsS:       eventsService,
 		ChangesC:      make(chan interface{}),
-		ConfigS:       NewClusterConfigurationService(s.bk),
+		ConfigS:       configService,
 		Clock:         clock,
 		NewProxyWatcher: func() (*services.ProxyWatcher, error) {
 			return services.NewProxyWatcher(services.ProxyWatcherConfig{
@@ -84,14 +87,10 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 					PresenceService: presenceService,
 					EventsService:   eventsService,
 				},
-				ProxiesC: make(chan []services.Server, 10),
+				ProxiesC: make(chan []types.Server, 10),
 			})
 		},
 	}
-
-	// DELETE IN 8.0.0
-	err = s.suite.ConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
-	c.Assert(err, check.IsNil)
 }
 
 func (s *ServicesSuite) TearDownTest(c *check.C) {

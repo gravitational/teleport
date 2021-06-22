@@ -118,17 +118,17 @@
         "clusterRoleName": {
             "$id": "#/properties/clusterRoleName",
             "type": "string",
-            "default": "teleport-kube-agent"
+            "default": ""
         },
         "clusterRoleBindingName": {
             "$id": "#/properties/clusterRoleBindingName",
             "type": "string",
-            "default": "teleport-kube-agent"
+            "default": ""
         },
         "serviceAccountName": {
             "$id": "#/properties/serviceAccountName",
             "type": "string",
-            "default": "teleport-kube-agent"
+            "default": ""
         },
         "secretName": {
             "$id": "#/properties/secretName",
@@ -152,7 +152,8 @@
             "required": [
                 "config",
                 "deployment",
-                "pod"
+                "pod",
+                "serviceAccount"
             ],
             "properties": {
                 "config": {
@@ -167,6 +168,11 @@
                 },
                 "pod": {
                     "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                },
+                "serviceAccount": {
+                    "$id": "#/properties/annotations/properties/serviceAccount",
                     "type": "object",
                     "default": {}
                 }

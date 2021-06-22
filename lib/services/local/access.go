@@ -20,6 +20,7 @@ import (
 	"context"
 	"sort"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -42,12 +43,12 @@ func (s *AccessService) DeleteAllRoles() error {
 }
 
 // GetRoles returns a list of roles registered with the local auth server
-func (s *AccessService) GetRoles(ctx context.Context) ([]services.Role, error) {
+func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 	result, err := s.GetRange(context.TODO(), backend.Key(rolesPrefix), backend.RangeEnd(backend.Key(rolesPrefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]services.Role, 0, len(result.Items))
+	out := make([]types.Role, 0, len(result.Items))
 	for _, item := range result.Items {
 		role, err := services.UnmarshalRole(item.Value,
 			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
@@ -61,7 +62,7 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]services.Role, error) {
 }
 
 // CreateRole creates a role on the backend.
-func (s *AccessService) CreateRole(role services.Role) error {
+func (s *AccessService) CreateRole(role types.Role) error {
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -81,7 +82,7 @@ func (s *AccessService) CreateRole(role services.Role) error {
 }
 
 // UpsertRole updates parameters about role
-func (s *AccessService) UpsertRole(ctx context.Context, role services.Role) error {
+func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) error {
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -102,7 +103,7 @@ func (s *AccessService) UpsertRole(ctx context.Context, role services.Role) erro
 }
 
 // GetRole returns a role by name
-func (s *AccessService) GetRole(ctx context.Context, name string) (services.Role, error) {
+func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing role name")
 	}

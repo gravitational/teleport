@@ -77,5 +77,5 @@ func Input(ctx context.Context, out io.Writer, in *ContextReader, question strin
 	if err != nil {
 		return "", trace.WrapWithMessage(err, "failed reading prompt response")
 	}
-	return string(answer), nil
+	return strings.TrimSpace(string(answer)), nil
 }
