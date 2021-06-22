@@ -18,12 +18,12 @@ package mysql
 
 import (
 	"crypto/tls"
-	"io"
 	"net"
-	"strings"
 	"sync/atomic"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/siddontang/go-mysql/client"
 	"github.com/siddontang/go-mysql/mysql"
@@ -83,7 +83,7 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: "mysql",
+		trace.Component: defaults.ProtocolMySQL,
 		"name":          config.Name,
 	})
 	return &TestServer{
@@ -103,7 +103,7 @@ func (s *TestServer) Serve() error {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
+			if utils.IsOKNetworkError(err) {
 				return nil
 			}
 			s.log.WithError(err).Error("Failed to accept connection.")

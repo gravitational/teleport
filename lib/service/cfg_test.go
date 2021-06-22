@@ -296,6 +296,15 @@ func TestCheckDatabase(t *testing.T) {
 			},
 			outErr: true,
 		},
+		{
+			desc: "MongoDB connection string",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolMongoDB,
+				URI:      "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
+			},
+			outErr: false,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
