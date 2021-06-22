@@ -2583,7 +2583,7 @@ func (g *GRPCServer) GetAuthPreference(ctx context.Context, _ *empty.Empty) (*ty
 	}
 	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
 	if !ok {
-		return nil, trace.Wrap(trace.BadParameter("unexpected type %T", authPref))
+		return nil, trace.BadParameter("unexpected type %T", authPref)
 	}
 	return authPrefV2, nil
 }
