@@ -242,13 +242,19 @@ func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gc
 // authority. For onprem we generate a client certificate signed by the host
 // CA used to authenticate.
 func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
-	addr, err := utils.ParseAddr(sessionCtx.Server.GetURI())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	tlsConfig := &tls.Config{
-		ServerName: addr.Host(),
-		RootCAs:    x509.NewCertPool(),
+		RootCAs: x509.NewCertPool(),
+	}
+	// Don't set the ServerName when connecting to a MongoDB cluster - in case
+	// of replica set the driver may dial multiple servers and will set
+	// ServerName itself. For Postgres/MySQL we're always connecting to the
+	// server specified in URI so set ServerName ourselves.
+	if sessionCtx.Server.GetProtocol() != defaults.ProtocolMongoDB {
+		addr, err := utils.ParseAddr(sessionCtx.Server.GetURI())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConfig.ServerName = addr.Host()
 	}
 	// Add CA certificate to the trusted pool if it's present, e.g. when
 	// connecting to RDS/Aurora which require AWS CA.

@@ -578,6 +578,19 @@ type certRequest struct {
 	clientIP string
 }
 
+// check verifies the cert request is valid.
+func (r *certRequest) check() error {
+	// When generating certificate for MongoDB access, database username must
+	// be encoded into it. This is required to be able to tell which database
+	// user to authenticate the connection as.
+	if r.dbProtocol == defaults.ProtocolMongoDB {
+		if r.dbUser == "" {
+			return trace.BadParameter("must provide database user name to generate certificate for database %q", r.dbService)
+		}
+	}
+	return nil
+}
+
 type certRequestOption func(*certRequest)
 
 func certRequestMFAVerified(mfaID string) certRequestOption {
@@ -714,6 +727,11 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 
 // generateUserCert generates user certificates
 func (a *Server) generateUserCert(req certRequest) (*certs, error) {
+	err := req.check()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// reuse the same RSA keys for SSH and TLS keys
 	cryptoPubKey, err := sshutils.CryptoPublicKey(req.publicKey)
 	if err != nil {

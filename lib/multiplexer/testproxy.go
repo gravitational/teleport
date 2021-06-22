@@ -62,6 +62,7 @@ func (p *TestProxy) Serve() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		p.log.Debugf("Accepted connection from %v.", clientConn.RemoteAddr().String())
 		go func() {
 			if err := p.handleConnection(clientConn); err != nil {
 				p.log.WithError(err).Error("Failed to handle connection.")
@@ -126,6 +127,7 @@ func (p *TestProxy) sendProxyLine(clientConn, serverConn net.Conn) error {
 		Source:      net.TCPAddr{IP: net.ParseIP(clientAddr.Host()), Port: clientAddr.Port(0)},
 		Destination: net.TCPAddr{IP: net.ParseIP(serverAddr.Host()), Port: serverAddr.Port(0)},
 	}
+	p.log.Debugf("Sending %v to %v.", proxyLine.String(), serverConn.RemoteAddr().String())
 	_, err = serverConn.Write([]byte(proxyLine.String()))
 	if err != nil {
 		return trace.Wrap(err)
