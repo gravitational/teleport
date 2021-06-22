@@ -41,11 +41,11 @@ SSH, HTTPS, Kubernetes API, MySQL, and PostgreSQL wire protocols.
 On the server-side, Teleport is a single binary which enables convenient secure
 access to behind-NAT resources such as:
 
-* [SSH nodes](https://goteleport.com/teleport/docs/quickstart/) - SSH works in browsers too!
-* [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-access/)
-* [PostgreSQL and MySQL databases](https://goteleport.com/teleport/docs/database-access/)
-* [Internal Web apps](https://goteleport.com/teleport/docs/application-access/)
-* [Networked servers](https://goteleport.com/teleport/docs/server-access/)
+* [SSH nodes](https://goteleport.com/docs/getting-started/) - SSH works in browsers too!
+* [Kubernetes clusters](https://goteleport.com/docs/kubernetes-access/introduction/)
+* [PostgreSQL and MySQL databases](https://goteleport.com/docs/database-access/introduction/)
+* [Internal Web apps](https://goteleport.com/docs/application-access/introduction/)
+* [Networked servers](https://goteleport.com/docs/server-access/introduction/)
 
 Teleport is trivial to set up as a Linux daemon or in a Kubernetes pod. It's rapidly
 replacing legacy `sshd`-based setups at organizations who need:
