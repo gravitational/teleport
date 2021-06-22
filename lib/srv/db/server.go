@@ -169,7 +169,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// starting up dynamic labels and loading root certs for RDS dbs.
 	for _, db := range server.cfg.Servers {
 		if err := server.initDatabaseServer(ctx, db); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "failed to initialize %v", server)
 		}
 	}
 
@@ -186,6 +186,7 @@ func (s *Server) initDatabaseServer(ctx context.Context, server types.DatabaseSe
 	if err := s.initCACert(ctx, server); err != nil {
 		return trace.Wrap(err)
 	}
+	s.log.Debugf("Initialized %v.", server)
 	return nil
 }
 
