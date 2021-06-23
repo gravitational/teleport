@@ -14,7 +14,7 @@ Teleport services listen on several ports. This table shows the default port num
     <tr>
       <td>443</td>
       <td>Proxy</td>
-      <td>Default proxy port when using ACME for TLS/SSL.</td>
+      <td>Default proxy port when using ACME for TLS/SSL. Supercedes port `3025` if ACME is used.</td>
       <td>Allow inbound SSL/TLS connections to the proxy host.</td>
       <td>-</td>
     </tr>
@@ -42,7 +42,7 @@ Teleport services listen on several ports. This table shows the default port num
     <tr>
       <td>3025</td>
       <td>Auth</td>
-      <td>SSH port used by the Auth Service to serve its Auth API to other nodes in a cluster.</td>
+      <td>TLS port used by the Auth Service to serve its Auth API to other nodes in a cluster.</td>
       <td>Allow inbound connections from all cluster nodes.</td>
       <td>Allow outbound traffic to cluster nodes.</td>
     </tr>
@@ -70,7 +70,7 @@ Teleport services listen on several ports. This table shows the default port num
     <tr>
       <td>3080</td>
       <td>Proxy</td>
-      <td>HTTPS port clients connect to. Used to authenticate `tsh` users and web users into the cluster.</td>
+      <td>Default HTTPS port clients connect to. Will be superceded by port `443` if used. Used to authenticate `tsh` users and web users into the cluster.</td>
       <td>Allow inbound connections from HTTP and SSH clients.</td>
       <td>Allow outbound connections to HTTP and SSH clients.</td>
     </tr>
