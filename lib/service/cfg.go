@@ -672,12 +672,6 @@ func (d *Database) Check() error {
 				d.Name, err)
 		}
 	}
-	// Validate Redshift specific configuration.
-	if d.AWS.Redshift.ClusterID != "" {
-		if d.AWS.Region == "" {
-			return trace.BadParameter("missing AWS region for Redshift database %q", d.Name)
-		}
-	}
 	// Validate Cloud SQL specific configuration.
 	switch {
 	case d.GCP.ProjectID != "" && d.GCP.InstanceID == "":
