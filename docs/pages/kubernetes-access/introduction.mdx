@@ -3,9 +3,9 @@ title: Kubernetes Access
 description: Teleport Kubernetes Access introduction, demo, and resources.
 ---
 
-Teleport provides unified access for Kubernetes clusters.
+Teleport provides secure access for Kubernetes clusters.
 
-- Users can receive short-lived certificates using Single Sign-On (SSO) and switch between clusters without logging in twice.
+- Users can receive short-lived kubeconfigs (and certificates) using Single Sign-On (SSO) and switch between clusters without logging in twice.
 - Admins can use *roles* to implement policies like the best practice that *developers must not access production* and enforce dual authorization using [access requests](../enterprise/workflow/index.mdx) for privileged operations.
 - Organizations can achieve compliance by capturing `kubectl` events and session recordings for `kubectl`.
 
