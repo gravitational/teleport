@@ -399,6 +399,10 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_DatabaseServer{
 			DatabaseServer: r,
 		}
+	case *types.ClusterAuditConfigV2:
+		out.Resource = &proto.Event_ClusterAuditConfig{
+			ClusterAuditConfig: r,
+		}
 	case *types.ClusterNetworkingConfigV2:
 		out.Resource = &proto.Event_ClusterNetworkingConfig{
 			ClusterNetworkingConfig: r,
@@ -1378,6 +1382,11 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 // for V4 roles returns a shallow copy of the given role downgraded to V3. If
 // the passed in role is already V3, it is returned unmodified.
 func downgradeRole(ctx context.Context, role *types.RoleV4) (*types.RoleV4, error) {
+	if role.Version == types.V3 {
+		// role is already V3, no need to downgrade
+		return role, nil
+	}
+
 	var clientVersion *semver.Version
 	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
 	if ok {
@@ -1629,7 +1638,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			Account:       otpKey.AccountName(),
 		}}
 	case proto.AddMFADeviceRequestInit_U2F:
-		cap, err := auth.GetAuthPreference()
+		cap, err := auth.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1689,7 +1698,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			return nil, trace.Wrap(err)
 		}
 	case *proto.MFARegisterResponse_U2F:
-		cap, err := auth.GetAuthPreference()
+		cap, err := auth.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1757,7 +1766,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authPref, err := auth.GetAuthPreference()
+	authPref, err := auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2483,6 +2492,35 @@ func (g *GRPCServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInN
 	return &empty.Empty{}, nil
 }
 
+// GetClusterAuditConfig gets cluster audit configuration.
+func (g *GRPCServer) GetClusterAuditConfig(ctx context.Context, _ *empty.Empty) (*types.ClusterAuditConfigV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	auditConfig, err := auth.ServerWithRoles.GetClusterAuditConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	auditConfigV2, ok := auditConfig.(*types.ClusterAuditConfigV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", auditConfig)
+	}
+	return auditConfigV2, nil
+}
+
+// SetClusterAuditConfig sets cluster audit configuration.
+func (g *GRPCServer) SetClusterAuditConfig(ctx context.Context, auditConfig *types.ClusterAuditConfigV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = auth.ServerWithRoles.SetClusterAuditConfig(ctx, auditConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *empty.Empty) (*types.ClusterNetworkingConfigV2, error) {
 	auth, err := g.authenticate(ctx)
@@ -2562,6 +2600,36 @@ func (g *GRPCServer) ResetSessionRecordingConfig(ctx context.Context, _ *empty.E
 		return nil, trace.Wrap(err)
 	}
 	if err = auth.ServerWithRoles.ResetSessionRecordingConfig(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetAuthPreference gets cluster auth preference.
+func (g *GRPCServer) GetAuthPreference(ctx context.Context, _ *empty.Empty) (*types.AuthPreferenceV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPref, err := auth.ServerWithRoles.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected type %T", authPref))
+	}
+	return authPrefV2, nil
+}
+
+// SetAuthPreference sets cluster auth preference.
+func (g *GRPCServer) SetAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPref.SetOrigin(types.OriginDynamic)
+	if err = auth.ServerWithRoles.SetAuthPreference(ctx, authPref); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil
