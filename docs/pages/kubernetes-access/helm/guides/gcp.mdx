@@ -82,7 +82,6 @@ Go to the "Roles" section of Google Cloud IAM & Admin.
   ![DNS updater role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
 </Figure>
 
-
 4. Use the "Filter" box to find each of the following permissions in the list and add it.
 You can type things like `dns.resourceRecordSets.*` to quickly filter the list.
 
@@ -124,7 +123,6 @@ Go to the "Service Accounts" section of Google Cloud IAM & Admin.
 <Figure align="left" bordered caption="Enter service account details">
   ![Enter service account details](../../../../img/helm/gcp/8-createserviceaccount@1.5x.png)
 </Figure>
-
 
 3. In the "Grant this service account access to project" section, add these four roles:
 
@@ -191,7 +189,7 @@ kubectl --namespace teleport create secret generic teleport-gcp-credentials --fr
 
 ### Step 4: Install and configure cert-manager
 
-Reference: [`cert-manager` docs](https://cert-manager.io/docs/)
+Reference the [cert-manager docs](https://cert-manager.io/docs/).
 
 In this example, we are using multiple pods to create a highly-available Teleport cluster. As such, we will be using
 `cert-manager` to centrally provision TLS certificates using Let's Encrypt. These certificates will be mounted into each
@@ -443,4 +441,3 @@ You can follow our [Getting Started with Teleport guide](../../../getting-starte
 Teleport cluster.
 
 See the [high availability section of our Helm chart reference](../reference.mdx#highavailability) for more details on high availability.
-
