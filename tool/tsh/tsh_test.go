@@ -554,7 +554,7 @@ func TestFormatConnectCommand(t *testing.T) {
 				ServiceName: "test",
 				Protocol:    defaults.ProtocolPostgres,
 			},
-			command: `psql "service=root-test user=<user> dbname=<database>"`,
+			command: `tsh db connect --db-user=<user> --db-name=<name> test`,
 		},
 		{
 			comment: "default user is specified",
@@ -563,7 +563,7 @@ func TestFormatConnectCommand(t *testing.T) {
 				Protocol:    defaults.ProtocolPostgres,
 				Username:    "postgres",
 			},
-			command: `psql "service=root-test dbname=<database>"`,
+			command: `tsh db connect --db-name=<name> test`,
 		},
 		{
 			comment: "default database is specified",
@@ -572,7 +572,7 @@ func TestFormatConnectCommand(t *testing.T) {
 				Protocol:    defaults.ProtocolPostgres,
 				Database:    "postgres",
 			},
-			command: `psql "service=root-test user=<user>"`,
+			command: `tsh db connect --db-user=<user> test`,
 		},
 		{
 			comment: "default user/database are specified",
@@ -582,15 +582,7 @@ func TestFormatConnectCommand(t *testing.T) {
 				Username:    "postgres",
 				Database:    "postgres",
 			},
-			command: `psql "service=root-test"`,
-		},
-		{
-			comment: "unsupported database protocol",
-			db: tlsca.RouteToDatabase{
-				ServiceName: "test",
-				Protocol:    "mongodb",
-			},
-			command: "",
+			command: `tsh db connect test`,
 		},
 	}
 	for _, test := range tests {
@@ -875,12 +867,12 @@ func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.T
 func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
-	connector := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
 	})
-	require.NoError(t, connector.CheckAndSetDefaults())
+	require.NoError(t, err)
 	return connector
 }
 

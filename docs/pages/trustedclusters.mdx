@@ -215,13 +215,6 @@ At this point, the users of the "root" cluster should be able to see "leaf" in t
 
 ## RBAC
 
-<Admonition
-  type="warning"
-  title="Version Warning"
->
-  The RBAC section is applicable only to Teleport Enterprise. Teleport Open Source does not support SSH roles.
-</Admonition>
-
 When a *leaf* cluster "leaf" from the diagram above establishes trust with
 the *root* cluster "root", it needs a way to configure which users from
 "root" should be allowed in and what permissions should they have. Teleport offers

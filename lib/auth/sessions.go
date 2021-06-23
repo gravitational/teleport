@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ import (
 func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest, user types.User, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
 	if !modules.GetModules().Features().App {
 		return nil, trace.AccessDenied(
-			"this Teleport cluster doesn't support application access, please contact the cluster administrator")
+			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
 	}
 
 	// Don't let the app session go longer than the identity expiration,
@@ -87,13 +87,16 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session := types.NewWebSession(sessionID, types.KindWebSession, types.KindAppSession, types.WebSessionSpecV2{
+	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
 		User:    req.Username,
 		Priv:    privateKey,
 		Pub:     certs.ssh,
 		TLSCert: certs.tls,
 		Expires: s.clock.Now().Add(ttl),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err = s.Identity.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}

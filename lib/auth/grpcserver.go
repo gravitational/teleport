@@ -1638,7 +1638,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			Account:       otpKey.AccountName(),
 		}}
 	case proto.AddMFADeviceRequestInit_U2F:
-		cap, err := auth.GetAuthPreference()
+		cap, err := auth.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1698,7 +1698,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			return nil, trace.Wrap(err)
 		}
 	case *proto.MFARegisterResponse_U2F:
-		cap, err := auth.GetAuthPreference()
+		cap, err := auth.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1766,7 +1766,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authPref, err := auth.GetAuthPreference()
+	authPref, err := auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2600,6 +2600,36 @@ func (g *GRPCServer) ResetSessionRecordingConfig(ctx context.Context, _ *empty.E
 		return nil, trace.Wrap(err)
 	}
 	if err = auth.ServerWithRoles.ResetSessionRecordingConfig(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetAuthPreference gets cluster auth preference.
+func (g *GRPCServer) GetAuthPreference(ctx context.Context, _ *empty.Empty) (*types.AuthPreferenceV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPref, err := auth.ServerWithRoles.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected type %T", authPref))
+	}
+	return authPrefV2, nil
+}
+
+// SetAuthPreference sets cluster auth preference.
+func (g *GRPCServer) SetAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPref.SetOrigin(types.OriginDynamic)
+	if err = auth.ServerWithRoles.SetAuthPreference(ctx, authPref); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil

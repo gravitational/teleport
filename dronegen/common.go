@@ -74,9 +74,10 @@ type buildType struct {
 // It includes the Docker socket volume by default, plus any extra volumes passed in
 func dockerService(v ...volumeRef) service {
 	return service{
-		Name:    "Start Docker",
-		Image:   "docker:dind",
-		Volumes: append(v, volumeRefDocker),
+		Name:       "Start Docker",
+		Image:      "docker:dind",
+		Privileged: true,
+		Volumes:    append(v, volumeRefDocker),
 	}
 }
 
