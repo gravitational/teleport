@@ -298,6 +298,10 @@ auth_service:
     # the configured `data_dir` .
     license_file: /var/lib/teleport/license.pem
 
+    # Send a custom message to the client when they are disconnected due to
+    # inactivity. (Currently only supported for SSH connections)
+    idle_timeout_message: ""
+
 # This section configures the 'node service':
 ssh_service:
     # Turns 'ssh' role on. Default is 'yes'
