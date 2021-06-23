@@ -1164,7 +1164,7 @@ func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter,
 
 // getU2FAppID returns the U2F AppID in the auth configuration
 func (s *APIServer) getU2FAppID(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cap, err := auth.GetAuthPreference()
+	cap, err := auth.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2303,7 +2303,7 @@ func (s *APIServer) setStaticTokens(auth ClientI, w http.ResponseWriter, r *http
 }
 
 func (s *APIServer) getClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cap, err := auth.GetAuthPreference()
+	cap, err := auth.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2329,7 +2329,7 @@ func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter
 	}
 	cap.SetOrigin(types.OriginDynamic)
 
-	err = auth.SetAuthPreference(cap)
+	err = auth.SetAuthPreference(r.Context(), cap)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

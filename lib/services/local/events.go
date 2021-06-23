@@ -366,6 +366,7 @@ func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) 
 func newClusterConfigParser(getClusterConfig getClusterConfigFunc) *clusterConfigParser {
 	prefixes := [][]byte{
 		backend.Key(clusterConfigPrefix, generalPrefix),
+		backend.Key(clusterConfigPrefix, namePrefix),
 		backend.Key(clusterConfigPrefix, auditPrefix),
 		backend.Key(clusterConfigPrefix, networkingPrefix),
 		backend.Key(clusterConfigPrefix, sessionRecordingPrefix),

@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
@@ -83,17 +81,18 @@ type DatabaseServer interface {
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
-func NewDatabaseServerV3(name string, labels map[string]string, spec DatabaseServerSpecV3) *DatabaseServerV3 {
-	return &DatabaseServerV3{
-		Kind:    KindDatabaseServer,
-		Version: V3,
+func NewDatabaseServerV3(name string, labels map[string]string, spec DatabaseServerSpecV3) (*DatabaseServerV3, error) {
+	s := &DatabaseServerV3{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
-			Labels:    labels,
+			Name:   name,
+			Labels: labels,
 		},
 		Spec: spec,
 	}
+	if err := s.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s, nil
 }
 
 // GetVersion returns the database server resource version.
@@ -159,13 +158,6 @@ func (s *DatabaseServerV3) SetExpiry(expiry time.Time) {
 // Expiry returns the resource expiry time.
 func (s *DatabaseServerV3) Expiry() time.Time {
 	return s.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (s *DatabaseServerV3) SetTTL(clock Clock, ttl time.Duration) {
-	s.Metadata.SetTTL(clock, ttl)
 }
 
 // GetName returns the resource name.
@@ -291,17 +283,19 @@ func (s *DatabaseServerV3) String() string {
 		s.GetName(), s.GetType(), s.GetTeleportVersion(), s.GetStaticLabels(), s.Spec.HostID)
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (s *DatabaseServerV3) setStaticFields() {
+	s.Kind = KindDatabaseServer
+	s.Version = V3
+}
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (s *DatabaseServerV3) CheckAndSetDefaults() error {
+	s.setStaticFields()
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if s.Version == "" {
-		s.Version = V3
-	}
-	if s.Kind == "" {
-		return trace.BadParameter("database server %q kind is empty", s.GetName())
-	}
+
 	for key := range s.Spec.DynamicLabels {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("database server %q invalid label key: %q", s.GetName(), key)

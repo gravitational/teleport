@@ -346,9 +346,6 @@ func itemToRole(item backend.Item) (types.Role, error) {
 // itemFromOIDCConnector attempts to encode the supplied connector as an
 // instance of `backend.Item` suitable for storage.
 func itemFromOIDCConnector(connector types.OIDCConnector) (*backend.Item, error) {
-	if err := connector.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
