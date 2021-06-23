@@ -134,8 +134,3 @@ const (
 	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
 )
-
-const (
-	// TODO(Joerger): change this to generated value
-	Version = "7.0.0-dev"
-)

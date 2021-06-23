@@ -33,7 +33,8 @@ func TestDatabaseServerStart(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedPostgres("postgres"),
-		withSelfHostedMySQL("mysql"))
+		withSelfHostedMySQL("mysql"),
+		withSelfHostedMongo("mongo"))
 
 	err := testCtx.server.Start()
 	require.NoError(t, err)
@@ -46,6 +47,9 @@ func TestDatabaseServerStart(t *testing.T) {
 		},
 		{
 			server: testCtx.mysql["mysql"].server,
+		},
+		{
+			server: testCtx.mongo["mongo"].server,
 		},
 	}
 

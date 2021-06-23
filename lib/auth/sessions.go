@@ -87,13 +87,16 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session := types.NewWebSession(sessionID, types.KindWebSession, types.KindAppSession, types.WebSessionSpecV2{
+	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
 		User:    req.Username,
 		Priv:    privateKey,
 		Pub:     certs.ssh,
 		TLSCert: certs.tls,
 		Expires: s.clock.Now().Add(ttl),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err = s.Identity.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}

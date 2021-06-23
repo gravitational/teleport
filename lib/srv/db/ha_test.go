@@ -49,7 +49,7 @@ func TestHA(t *testing.T) {
 
 	// Offline database server will be tried first and trigger connection error.
 	offlineHostID := "host-id-1"
-	offlineDBServer := types.NewDatabaseServerV3("postgres", nil,
+	offlineDBServer, err := types.NewDatabaseServerV3("postgres", nil,
 		types.DatabaseServerSpecV3{
 			Protocol: defaults.ProtocolPostgres,
 			URI:      net.JoinHostPort("localhost", postgresServer.Port()),
@@ -57,6 +57,7 @@ func TestHA(t *testing.T) {
 			Hostname: constants.APIDomain,
 			HostID:   offlineHostID,
 		})
+	require.NoError(t, err)
 	_, err = testCtx.authClient.UpsertDatabaseServer(ctx, offlineDBServer)
 	require.NoError(t, err)
 	testCtx.fakeRemoteSite.OfflineTunnels = map[string]struct{}{
@@ -65,7 +66,7 @@ func TestHA(t *testing.T) {
 
 	// Online database server will serve the connection.
 	onlineHostID := "host-id-2"
-	onlineDBServer := types.NewDatabaseServerV3("postgres", nil,
+	onlineDBServer, err := types.NewDatabaseServerV3("postgres", nil,
 		types.DatabaseServerSpecV3{
 			Protocol: defaults.ProtocolPostgres,
 			URI:      net.JoinHostPort("localhost", postgresServer.Port()),
@@ -73,6 +74,7 @@ func TestHA(t *testing.T) {
 			Hostname: constants.APIDomain,
 			HostID:   onlineHostID,
 		})
+	require.NoError(t, err)
 	_, err = testCtx.authClient.UpsertDatabaseServer(ctx, onlineDBServer)
 	require.NoError(t, err)
 	onlineServer := testCtx.setupDatabaseServer(ctx, t, onlineHostID, onlineDBServer)

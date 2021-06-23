@@ -278,7 +278,7 @@ func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.Ce
 	log.Debugf("Received validate response; CAs=%v", validateResponse.CAs)
 
 	for _, ca := range validateResponse.CAs {
-		for _, keyPair := range ca.GetTLSKeyPairs() {
+		for _, keyPair := range ca.GetActiveKeys().TLS {
 			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -703,9 +703,12 @@ func (a *Server) deactivateCertAuthority(t types.TrustedCluster) error {
 // createReverseTunnel will create a services.ReverseTunnel givenin the
 // services.TrustedCluster resource.
 func (a *Server) createReverseTunnel(t types.TrustedCluster) error {
-	reverseTunnel := types.NewReverseTunnel(
+	reverseTunnel, err := types.NewReverseTunnel(
 		t.GetName(),
 		[]string{t.GetReverseTunnelAddress()},
 	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(a.UpsertReverseTunnel(reverseTunnel))
 }

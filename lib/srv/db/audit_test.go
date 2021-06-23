@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // TestAuditPostgres verifies proper audit events are emitted for Postgres
@@ -93,6 +94,41 @@ func TestAuditMySQL(t *testing.T) {
 	err = mysql.Close()
 	require.NoError(t, err)
 	requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
+}
+
+// TestAuditMongo verifies proper audit events are emitted for MongoDB
+// connections.
+func TestAuditMongo(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{"admin"})
+
+	// Access denied should trigger an unsuccessful session start event.
+	_, err := testCtx.mongoClient(ctx, "alice", "mongo", "notadmin")
+	require.Error(t, err)
+	waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
+
+	// Connect should trigger successful session start event.
+	mongo, err := testCtx.mongoClient(ctx, "alice", "mongo", "admin")
+	require.NoError(t, err)
+	waitForEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+
+	// Find command in a database we don't have access to.
+	_, err = mongo.Database("notadmin").Collection("test").Find(ctx, bson.M{})
+	require.Error(t, err)
+	waitForEvent(t, testCtx, libevents.DatabaseSessionQueryFailedCode)
+
+	// Find command should trigger the query event.
+	_, err = mongo.Database("admin").Collection("test").Find(ctx, bson.M{})
+	require.NoError(t, err)
+	waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+
+	// Closing connection should trigger session end event.
+	err = mongo.Disconnect(ctx)
+	require.NoError(t, err)
+	waitForEvent(t, testCtx, libevents.DatabaseSessionEndCode)
 }
 
 func requireEvent(t *testing.T, testCtx *testContext, code string) {

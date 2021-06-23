@@ -372,6 +372,9 @@ const (
 	// DatabaseSessionQueryEvent is emitted when a database client executes
 	// a query.
 	DatabaseSessionQueryEvent = "db.session.query"
+	// DatabaseSessionQueryFailedEvent is emitted when database client's request
+	// to execute a database query/command was unsuccessful.
+	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.

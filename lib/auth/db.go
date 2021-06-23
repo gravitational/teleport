@@ -69,11 +69,10 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	re := &proto.DatabaseCertResponse{Cert: cert}
-	for _, ca := range hostCA.GetTLSKeyPairs() {
-		re.CACerts = append(re.CACerts, ca.Cert)
-	}
-	return re, nil
+	return &proto.DatabaseCertResponse{
+		Cert:    cert,
+		CACerts: services.GetTLSCerts(hostCA),
+	}, nil
 }
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking
@@ -156,10 +155,8 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	re := &proto.DatabaseCSRResponse{Cert: tlsCert}
-	for _, ca := range hostCA.GetTLSKeyPairs() {
-		re.CACerts = append(re.CACerts, ca.Cert)
-	}
-
-	return re, nil
+	return &proto.DatabaseCSRResponse{
+		Cert:    tlsCert,
+		CACerts: services.GetTLSCerts(hostCA),
+	}, nil
 }

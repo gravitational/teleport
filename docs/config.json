@@ -23,7 +23,8 @@
           "title": "Guides",
           "slug": "/setup/guides/",
           "entries": [
-            {"title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/"}
+            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
+            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" }
           ]
         },
         {
@@ -65,7 +66,8 @@
           "slug": "/server-access/guides/",
           "entries": [
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
-            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" }
+            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
+            {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"}
           ]
         }
       ]
@@ -211,16 +213,6 @@
       ]
     },
     {
-      "icon": "bolt",
-      "title": "Advanced Features",
-      "entries": [
-        {
-          "title": "BPF Session Recording",
-          "slug": "/features/enhanced-session-recording/"
-        }
-      ]
-    },
-    {
       "icon": "list",
       "title": "Reference",
       "entries": [
@@ -321,6 +313,16 @@
     {
       "source": "/enterprise/sso/ssh-gsuite/",
       "destination": "/enterprise/sso/ssh-google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/features/enhanced-session-recording/",
+      "destination": "/server-access/guides/bpf-session-recording/",
+      "permanent": true
+    },
+    {
+      "source": "/quickstart-docker/",
+      "destination": "/setup/guides/docker-compose/",
       "permanent": true
     }
   ]

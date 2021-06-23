@@ -157,9 +157,8 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	re := &KubeCSRResponse{Cert: tlsCert}
-	for _, keyPair := range hostCA.GetTLSKeyPairs() {
-		re.CertAuthorities = append(re.CertAuthorities, keyPair.Cert)
-	}
-	return re, nil
+	return &KubeCSRResponse{
+		Cert:            tlsCert,
+		CertAuthorities: services.GetTLSCerts(hostCA),
+	}, nil
 }
