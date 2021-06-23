@@ -8,6 +8,13 @@ using Teleport Helm charts and Google Cloud Platform products (Firestore and Goo
 
 (!docs/pages/kubernetes-access/helm/includes/helm-install.mdx!)
 
+<Admonition
+  type="note" 
+  title="Note">
+>
+  The steps below apply to Google Cloud Google Kubernetes Engine (GKE) Standard deployments.
+</Admonition>
+
 ### Step 3: Google Cloud IAM configuration
 
 For Teleport to be able to create the Firestore collections, indexes and the Google Cloud storage bucket it needs,
@@ -118,7 +125,6 @@ Go to the "Service Accounts" section of Google Cloud IAM & Admin.
   ![Enter service account details](../../../../img/helm/gcp/8-createserviceaccount@1.5x.png)
 </Figure>
 
-
 3. In the "Grant this service account access to project" section, add these four roles:
 
 | Role | Purpose |
@@ -158,7 +164,6 @@ Go back to the "Service Accounts" view in Google Cloud IAM & Admin.
   ![Private key saved](../../../../img/helm/gcp/12-privatekey@1.5x.png)
 </Figure>
 
-
 #### Create the Kubernetes secret containing the JSON private key for the service account
 
 Find the path where the JSON private key was just saved (likely your browser's default "Downloads" directory).
@@ -184,7 +189,7 @@ kubectl --namespace teleport create secret generic teleport-gcp-credentials --fr
 
 ### Step 4: Install and configure cert-manager
 
-Reference: [`cert-manager` docs](https://cert-manager.io/docs/)
+Reference the [cert-manager docs](https://cert-manager.io/docs/).
 
 In this example, we are using multiple pods to create a highly-available Teleport cluster. As such, we will be using
 `cert-manager` to centrally provision TLS certificates using Let's Encrypt. These certificates will be mounted into each
@@ -436,4 +441,3 @@ You can follow our [Getting Started with Teleport guide](../../../getting-starte
 Teleport cluster.
 
 See the [high availability section of our Helm chart reference](../reference.mdx#highavailability) for more details on high availability.
-
