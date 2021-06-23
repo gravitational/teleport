@@ -1595,39 +1595,6 @@ func (c *Client) SetStaticTokens(st services.StaticTokens) error {
 	return nil
 }
 
-func (c *Client) GetAuthPreference() (services.AuthPreference, error) {
-	out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cap, err := services.UnmarshalAuthPreference(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cap, nil
-}
-
-func (c *Client) SetAuthPreference(cap services.AuthPreference) error {
-	data, err := services.MarshalAuthPreference(cap)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(c.Endpoint("authentication", "preference"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// DeleteAuthPreference not implemented: can only be called locally.
-func (c *Client) DeleteAuthPreference(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetLocalClusterName returns local cluster name
 func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()

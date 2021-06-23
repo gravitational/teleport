@@ -1337,3 +1337,29 @@ func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toU
 
 	return decodedEvents, response.LastKey, nil
 }
+
+// GetAuthPreference gets cluster auth preference.
+func (c *Client) GetAuthPreference() (types.AuthPreference, error) {
+	ctx := context.TODO()
+	resp, err := c.grpc.GetAuthPreference(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// SetAuthPreference sets cluster auth preference.
+func (c *Client) SetAuthPreference(authPref types.AuthPreference) error {
+	ctx := context.TODO()
+	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", authPref)
+	}
+	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAuthPreference not implemented: can only be called locally.
+func (c *Client) DeleteAuthPreference(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
