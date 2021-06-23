@@ -77,7 +77,8 @@
             { "title": "Multiple Clusters", "slug": "/kubernetes-access/guides/multiple-clusters/" },
             { "title": "CI/CD", "slug": "/kubernetes-access/guides/cicd/" },
             { "title": "Federation", "slug": "/kubernetes-access/guides/federation/" },
-            { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" }
+            { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" },
+            { "title": "Standalone", "slug": "/kubernetes-access/guides/standalone-teleport/" }
           ]
         },
         {
@@ -86,11 +87,11 @@
           "entries": [
             { "title": "AWS EKS Cluster", "slug": "/kubernetes-access/helm/guides/aws/" },
             { "title": "Google Cloud GKE Cluster", "slug": "/kubernetes-access/helm/guides/gcp/" },
-            { "title": "Customize Deployment config", "slug": "/kubernetes-access/helm/guides/custom/" },
-            { "title": "Migrating from older charts", "slug": "/kubernetes-access/helm/guides/migration/" }
+            { "title": "Customize Deployment Config", "slug": "/kubernetes-access/helm/guides/custom/" },
+            { "title": "Migrating From Older Charts", "slug": "/kubernetes-access/helm/guides/migration/" }
           ]
         },
-        { "title": "Helm Chart reference", "slug": "/kubernetes-access/helm/reference/" },
+        { "title": "Helm Chart Reference", "slug": "/kubernetes-access/helm/reference/" },
         { "title": "Access Controls", "slug": "/kubernetes-access/controls/" }
       ]
     },
