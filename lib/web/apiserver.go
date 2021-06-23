@@ -176,9 +176,6 @@ type RewritingHandler struct {
 
 	// appHandler is a http.Handler to forward requests to applications.
 	appHandler *app.Handler
-
-	// publicAddr is the public address the proxy is running at.
-	publicAddr string
 }
 
 // Check if this request should be forwarded to an application handler to
@@ -480,7 +477,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		),
 		handler:    h,
 		appHandler: appHandler,
-		publicAddr: cfg.ProxySettings.SSH.PublicAddr,
 	}, nil
 }
 
