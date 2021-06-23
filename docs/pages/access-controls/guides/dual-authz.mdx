@@ -101,8 +101,6 @@ spec:
         verbs: ['list', 'read']
       - resources: ['access_plugin_data']
         verbs: ['update']
-    # teleport currently refuses to issue certs for a user with 0 logins,
-    # this restriction may be lifted in future versions.
     logins: ['access-plugin-not-used']
 ```
 

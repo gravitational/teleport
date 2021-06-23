@@ -6,9 +6,9 @@ h1: Teleport Slack Plugin Setup
 
 This guide examines how to configure Teleport for use with Slack.
 
-Slack integration allows you to treat Teleport access and permission requests within Slack messages as well as through the command line.
+Slack integration allows you to review, grant, and deny access to SSH servers within Slack messages as well as through the command line and Web UI.
 
-<Admonition type="Note" title="Access Requests">
+<Admonition type="Note" title="Supported editions">
   Access Requests are now supported in both the Teleport Open Source and Enterprise Editions.
 </Admonition>
 
@@ -34,7 +34,7 @@ This guide assumes that you have:
 
 ## Step 1/4. Create a user and role for access
 
-1. Log into your Teleport Authentication Node. The Authentication Node is where you'll most likely perform administrative tasks and run the powerful `tctl` ("tea-kettle") admin tool. 
+1. Log into your Teleport Authentication Node. The Auth Node is where you'll most likely perform administrative tasks and run the powerful `tctl` ("tea-kettle") admin tool. 
 
 2. Create a new user and role with only API access to the `access_request` API. 
   
@@ -59,8 +59,6 @@ This guide assumes that you have:
            verbs: ['list', 'read']
          - resources: ['access_plugin_data']
            verbs: ['update']
-       # Teleport currently refuses to issue certs for a user with 0 logins.
-       # This restriction may be lifted in future versions.
        logins: ['access-plugin-not-used']
    ```
     
@@ -68,14 +66,12 @@ This guide assumes that you have:
   
    Ensure that the role and name is `access-plugin`; the plugin requires this to function properly.
 
-   <Admonition type="warning" title="Warning">
-    The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
-   </Admonition>
+   (!docs/pages/includes/permission-warning.mdx!)
 
 3. Create the bot for Teleport using the created role:
   
    ```bash
-   sudo tctl create -f access.yaml
+   tctl create -f access.yaml
    ```
 
 <Admonition type="tip">
@@ -89,7 +85,7 @@ Teleport Plugin uses the `access-plugin` role and user to perform the approval.
 We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
 ```bash
-sudo tctl auth --auth-server=auth.example.com:3025 sign --format=tls --user=access-plugin --out=auth --ttl=1h
+tctl auth --auth-server=auth.example.com:3025 sign --format=tls --user=access-plugin --out=auth --ttl=1h
 # ...
 ```
 
@@ -207,9 +203,9 @@ Copy or move the certificates there and point the config file to them:
 # Navigate up directories
 cd ../
 # Move certificate files created by 'tctl auth sign'
-sudo mv -f auth.cas /var/lib/teleport/plugins/slack/
-sudo mv -f auth.crt /var/lib/teleport/plugins/slack/
-sudo mv -f auth.key /var/lib/teleport/plugins/slack/
+mv -f auth.cas /var/lib/teleport/plugins/slack/
+mv -f auth.crt /var/lib/teleport/plugins/slack/
+mv -f auth.key /var/lib/teleport/plugins/slack/
 ```
 
 #### Editing the config file
@@ -217,7 +213,7 @@ sudo mv -f auth.key /var/lib/teleport/plugins/slack/
 Run the following command to modify the configuration file before we deploy it:
 
 ```bash
-sudo nano teleport-access-slack/teleport-slack.toml
+nano teleport-access-slack/teleport-slack.toml
 ```
 
 Teleport YAML configuration files are divided into sections:
@@ -239,7 +235,7 @@ Teleport YAML configuration files are divided into sections:
 4. Copy `teleport-slack.toml` to the location used by the Slack Plugin:
 
    ```bash
-   sudo mv teleport-access-slack/teleport-slack.toml /etc/teleport-slack.toml
+   mv teleport-access-slack/teleport-slack.toml /etc/teleport-slack.toml
    ```
 
 ## Step 4/4. Test run
@@ -253,7 +249,6 @@ sudo teleport-slack start
 If everything works fine, the log output should look like this:
 
 ```bash
-sudo teleport-slack start
 # INFO   Starting Teleport Access Slack Plugin (=teleport.plugin.version=): slack/app.go:72
 ```
 
@@ -264,76 +259,91 @@ Many of Teleport's default user roles lack the ability to make role requests.
 Create a test role called `dev` with that ability:
 
 ```yaml
-kind: "role"
-version: "v3"
+kind: 'role'
+version: 'v3'
 metadata:
-  name: "dev"
-  namespace: "default"
+  name: 'dev'
 spec:
   allow:
     request:
-      roles: ['*']
+      roles: ['slackdev']
+---
+kind: role
+version: v3
+metadata:
+  name: 'slackdev'
+spec:
+  allow:
+    logins: ['access']
 ```
+
+<Admonition title="Tip" type="tip">
+  It's generally a good idea to create roles that are specific to a task or scenario. Above, we create a role specific for testing Slack integration.
+</Admonition>
 
 Assign it to a new `test-user`:
 
 ```bash
-tctl users add test-user --roles=access,dev --logins=root,ubuntu,ec2-user
+tctl users add test-user --roles=dev
 ```
 
-### Testing the approval workflow
-
-You can create a test permissions request with `tctl` and check if the plugin works as expected like this:
-
-#### Create a test permissions request on behalf of a user
-
+The new user can login using `tsh`:
 ```bash
-tctl request create test-user --roles=dev
+tsh login --proxy=auth.example.com:443 --user=test-user
 ```
 
-A user can also try using `--request-roles` flag.
+### Test access requests
+
+Create a test permissions request with `tsh`:
 
 ```bash
-# Example with a user trying to request a role DBA.
-tsh login --request-roles=dev
+# Make a request for a permitted role
+tsh login --request-roles=slackdev
 ```
 
-The Slack Plugin will display:
+Each request will be assigned a UUID:
 
-```bash
+```
+# Output
 INFO   Successfully posted to Slack request_id:37dFhe-7780-4cff-a1ce-345c0318776f request_op:put slack_channel:AIFODUF21 slack_timestamp:1622651379.000200 slack/app.go:221
 ````
 
-#### Approve or deny the request on Slack
-
-The messages should automatically update to reflect approvals and denials. 
-
-You can also check the request status with `tctl`:
-
-```bash
-tctl request ls
-```
-
-### tsh user login and request admin role
-
-You can also test the full workflow from the user's perspective using `tsh`:
-
-```bash
-tsh login --request-roles=dev
-# Seeking request approval... (id: ceffe3e2-a556-45b3-b1a3-685ba9359e68)
-```
-
-You should now see a new request in Teleport, and a message about the request on Slack. 
+The request will appear in Teleport as will a message about the request on Slack:
 
 ![Slack Channel Messages](../../../img/enterprise/plugins/slack/slack-approval-deny.png)
 
-You can approve or deny it and `tsh` should log in successfully or error out right after you click an action button on Slack.
+### Approve or deny requests
 
-### Setup with systemd
+Users with the ability to approve or deny requests can use `tsh`:
 
-In production, we recommend starting the Teleport plugin daemon via an init system like `systemd`.
+```bash
+# Approve the request
+tsh request review --approve b8fa34de-3822-48aa-86f1-1865f9c7c4b9
 
-Here's the recommended Teleport Plugin service unit file for `systemd`:
+# Deny the request
+tsh request review --deny b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+```
+
+Admins can approve or deny requests using `tctl`:
+
+```bash
+# Display all active requests
+tctl request ls
+
+# Approve the request
+tctl request approve b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+
+# Deny the request
+tctl request deny b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+```
+
+Slack messages will automatically update to reflect approvals and denials. 
+
+## Production setup
+
+We recommend running the Teleport plugin daemon in production using a tool like `systemd`.
+
+The recommended Teleport Plugin service unit file for `systemd`:
 
 ```bash
 (!examples/systemd/plugins/teleport-slack.service!)
