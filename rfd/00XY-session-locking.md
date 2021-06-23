@@ -43,14 +43,23 @@ message SessionLockSpecV2 {
 message SessionLockTarget {
     // User specifies the name of a Teleport user.
     string User;
-    // Role specifies the name of a RBAC role.
+    
+    // Role specifies the name of an RBAC role.
     string Role;
+    
     // Cluster specifies the name of a Teleport cluster.
+    // A matching (remote) cluster is also unregistered and prevented from registering.
     string Cluster;
+    
     // Login specifies the name of a local UNIX user.
     string Login;
-    // Node specified the name or UUID of a node.
+    
+    // Node specifies the name or UUID of a node.
+    // A matching node is also unregistered and prevented from registering.
     string Node;
+    
+    // MFADevice specifies the ID of an MFA device recorded in a user certificate.
+    string MFADevice;
 }
 ```
 
