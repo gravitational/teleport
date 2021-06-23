@@ -155,6 +155,13 @@ const (
 	// MetaNameClusterConfig is the exact name of the cluster config singleton resource.
 	MetaNameClusterConfig = "cluster-config"
 
+	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
+	KindClusterAuditConfig = "cluster_audit_config"
+
+	// MetaNameClusterAuditConfig is the exact name of the singleton resource holding
+	// cluster audit configuration.
+	MetaNameClusterAuditConfig = "cluster-audit-config"
+
 	// KindClusterNetworkingConfig is the resource that holds cluster networking configuration.
 	KindClusterNetworkingConfig = "cluster_networking_config"
 

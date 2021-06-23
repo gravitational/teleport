@@ -20,7 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -42,10 +41,6 @@ type SessionRecordingConfig interface {
 
 	// SetProxyChecksHostKeys sets if the proxy will check host keys.
 	SetProxyChecksHostKeys(bool)
-
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for SessionRecordingConfig.
-	CheckAndSetDefaults() error
 }
 
 // NewSessionRecordingConfigFromConfigFile is a convenience method to create
@@ -67,21 +62,16 @@ func DefaultSessionRecordingConfig() SessionRecordingConfig {
 // newSessionRecordingConfigWithLabels is a convenience method to create
 // SessionRecordingConfigV2 with a specific map of labels.
 func newSessionRecordingConfigWithLabels(spec SessionRecordingConfigSpecV2, labels map[string]string) (SessionRecordingConfig, error) {
-	recConfig := SessionRecordingConfigV2{
-		Kind:    KindSessionRecordingConfig,
-		Version: V2,
+	recConfig := &SessionRecordingConfigV2{
 		Metadata: Metadata{
-			Name:      MetaNameSessionRecordingConfig,
-			Namespace: defaults.Namespace,
-			Labels:    labels,
+			Labels: labels,
 		},
 		Spec: spec,
 	}
-
 	if err := recConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &recConfig, nil
+	return recConfig, nil
 }
 
 // GetVersion returns resource version.
@@ -107,13 +97,6 @@ func (c *SessionRecordingConfigV2) SetExpiry(expires time.Time) {
 // Expiry returns object expiry setting.
 func (c *SessionRecordingConfigV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *SessionRecordingConfigV2) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
 }
 
 // GetMetadata returns object metadata.
@@ -176,15 +159,18 @@ func (c *SessionRecordingConfigV2) SetProxyChecksHostKeys(t bool) {
 	c.Spec.ProxyChecksHostKeys = NewBoolOption(t)
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (c *SessionRecordingConfigV2) setStaticFields() {
+	c.Kind = KindSessionRecordingConfig
+	c.Version = V2
+	c.Metadata.Name = MetaNameSessionRecordingConfig
+}
+
 // CheckAndSetDefaults verifies the constraints for SessionRecordingConfig.
 func (c *SessionRecordingConfigV2) CheckAndSetDefaults() error {
-	// Make sure we have defaults for all metadata fields.
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if c.Version == "" {
-		c.Version = V2
 	}
 
 	// Make sure origin value is always set.

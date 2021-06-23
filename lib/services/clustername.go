@@ -21,7 +21,18 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/pborman/uuid"
 )
+
+// NewClusterNameWithRandomID creates a ClusterName, supplying a random
+// ClusterID if the field is not provided in spec.
+func NewClusterNameWithRandomID(spec types.ClusterNameSpecV2) (types.ClusterName, error) {
+	if spec.ClusterID == "" {
+		spec.ClusterID = uuid.New()
+	}
+	return types.NewClusterName(spec)
+}
 
 // UnmarshalClusterName unmarshals the ClusterName resource from JSON.
 func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (types.ClusterName, error) {
@@ -57,6 +68,10 @@ func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (types.ClusterNam
 
 // MarshalClusterName marshals the ClusterName resource to JSON.
 func MarshalClusterName(clusterName types.ClusterName, opts ...MarshalOption) ([]byte, error) {
+	if err := clusterName.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -64,9 +79,6 @@ func MarshalClusterName(clusterName types.ClusterName, opts ...MarshalOption) ([
 
 	switch clusterName := clusterName.(type) {
 	case *types.ClusterNameV2:
-		if version := clusterName.GetVersion(); version != types.V2 {
-			return nil, trace.BadParameter("mismatched cluster name version %v and type %T", version, clusterName)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

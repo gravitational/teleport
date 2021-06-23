@@ -83,7 +83,13 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "identity output").Short('o').Required().StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q, %q or %q", identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatTLS, identityfile.FormatKubernetes, identityfile.FormatDatabase)).
+	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q, %q, %q or %q",
+		identityfile.FormatFile,
+		identityfile.FormatOpenSSH,
+		identityfile.FormatTLS,
+		identityfile.FormatKubernetes,
+		identityfile.FormatDatabase,
+		identityfile.FormatMongo)).
 		Default(string(identityfile.DefaultFormat)).
 		StringVar((*string)(&a.outputFormat))
 	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").
@@ -146,10 +152,10 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if len(certAuthority.GetTLSKeyPairs()) != 1 {
-			return trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetTLSKeyPairs()))
+		if len(certAuthority.GetActiveKeys().TLS) != 1 {
+			return trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
 		}
-		keyPair := certAuthority.GetTLSKeyPairs()[0]
+		keyPair := certAuthority.GetActiveKeys().TLS[0]
 		if a.exportPrivateKeys {
 			fmt.Println(string(keyPair.Key))
 		}
@@ -190,20 +196,20 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 	// print:
 	for _, ca := range authorities {
 		if a.exportPrivateKeys {
-			for _, key := range ca.GetSigningKeys() {
-				fingerprint, err := sshutils.PrivateKeyFingerprint(key)
+			for _, key := range ca.GetActiveKeys().SSH {
+				fingerprint, err := sshutils.PrivateKeyFingerprint(key.PrivateKey)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 				if a.exportAuthorityFingerprint != "" && fingerprint != a.exportAuthorityFingerprint {
 					continue
 				}
-				os.Stdout.Write(key)
+				os.Stdout.Write(key.PrivateKey)
 				fmt.Fprintf(os.Stdout, "\n")
 			}
 		} else {
-			for _, keyBytes := range ca.GetCheckingKeys() {
-				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
+			for _, key := range ca.GetTrustedSSHKeyPairs() {
+				fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -214,7 +220,7 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 				// export certificates in the old 1.0 format where host and user
 				// certificate authorities were exported in the known_hosts format.
 				if a.compatVersion == "1.0" {
-					castr, err := hostCAFormat(ca, keyBytes, client)
+					castr, err := hostCAFormat(ca, key.PublicKey, client)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -227,9 +233,9 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 				var castr string
 				switch ca.GetType() {
 				case types.UserCA:
-					castr, err = userCAFormat(ca, keyBytes)
+					castr, err = userCAFormat(ca, key.PublicKey)
 				case types.HostCA:
-					castr, err = hostCAFormat(ca, keyBytes, client)
+					castr, err = hostCAFormat(ca, key.PublicKey, client)
 				default:
 					return trace.BadParameter("unknown user type: %q", ca.GetType())
 				}
@@ -270,7 +276,7 @@ func (a *AuthCommand) GenerateKeys() error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(clusterAPI auth.ClientI) error {
 	switch {
-	case a.outputFormat == identityfile.FormatDatabase:
+	case a.outputFormat == identityfile.FormatDatabase || a.outputFormat == identityfile.FormatMongo:
 		return a.generateDatabaseKeys(clusterAPI)
 	case a.genUser != "" && a.genHost == "":
 		return a.generateUserKeys(clusterAPI)

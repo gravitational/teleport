@@ -671,9 +671,6 @@ func (s *IdentityService) GetU2FSignChallenge(user string) (*u2f.Challenge, erro
 
 // UpsertOIDCConnector upserts OIDC Connector
 func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
-	if err := connector.Check(); err != nil {
-		return trace.Wrap(err)
-	}
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
