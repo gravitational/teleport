@@ -1267,13 +1267,18 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
-	resp, err := c.grpc.GetNodes(ctx, &types.ResourcesInNamespaceRequest{Namespace: namespace}, c.callOpts...)
+	stream, err := c.grpc.GetNodesStream(ctx, &types.ResourcesInNamespaceRequest{
+		Namespace: namespace,
+	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	nodes := make([]types.Server, len(resp.Servers))
-	for i, node := range resp.Servers {
-		nodes[i] = node
+	var nodes []types.Server
+	for node, err := stream.Recv(); err != io.EOF; node, err = stream.Recv() {
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		nodes = append(nodes, node)
 	}
 	return nodes, nil
 }

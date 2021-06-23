@@ -714,6 +714,7 @@ func (m *ServerV2) XXX_DiscardUnknown() {
 var xxx_messageInfo_ServerV2 proto.InternalMessageInfo
 
 // ServerV2List is a list of servers.
+// DELETE IN 8.0.0, only used by deprecated GetNodes rpc
 type ServerV2List struct {
 	// Servers is a list of servers.
 	Servers              []*ServerV2 `protobuf:"bytes,1,rep,name=Servers,proto3" json:"Servers,omitempty"`

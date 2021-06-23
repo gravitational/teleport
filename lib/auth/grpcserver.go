@@ -2424,6 +2424,7 @@ func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespace
 }
 
 // GetNodes retrieves all nodes in the given namespace.
+// DELETE IN 8.0.0, deprecated in favor of GetNodesStream
 func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2443,6 +2444,29 @@ func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespa
 	return &types.ServerV2List{
 		Servers: serversV2,
 	}, nil
+}
+
+// GetNodesStream returns a stream of all nodes in the given namespace.
+func (g *GRPCServer) GetNodesStream(req *types.ResourcesInNamespaceRequest, stream proto.AuthService_GetNodesStreamServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	nodes, err := auth.ServerWithRoles.GetNodes(stream.Context(), req.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, node := range nodes {
+		v2, ok := node.(*types.ServerV2)
+		if !ok {
+			return trace.Errorf("encountered unexpected node type: %T", node)
+		}
+		if err := stream.Send(v2); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // UpsertNode upserts a node.

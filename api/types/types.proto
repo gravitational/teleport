@@ -217,6 +217,7 @@ message ServerV2 {
 }
 
 // ServerV2List is a list of servers.
+// DELETE IN 8.0.0, only used by deprecated GetNodes rpc
 message ServerV2List {
     // Servers is a list of servers.
     repeated ServerV2 Servers = 1;
