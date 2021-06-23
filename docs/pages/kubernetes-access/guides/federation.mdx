@@ -1,12 +1,12 @@
 ---
 title: Teleport Kubernetes Access and Trusted Clusters
-description: Federated Access using Teleport Trusted Clusters
+description: Federated Access using Teleport Trusted Clusters.
 ---
 
-## Federated Kubernetes Access With Trusted Clusters
+## Federated Kubernetes access with Trusted Clusters
 
 There are cases when you have Kubernetes clusters that have to operate independently,
-for example they are part of a different organization or have intermittent connectivity.
+for example, they are part of a different organization or have intermittent connectivity.
 
 You can take advantage of [Trusted Clusters](../../trustedclusters.mdx)
 to federate trust across Kubernetes clusters.
@@ -18,25 +18,24 @@ login](../../cli-docs.mdx#tsh-login).
 
 For example, consider the following setup:
 
-- There are three Teleport/Kubernetes clusters: `main`, `east`, and `west`. These
-  are the names set in `cluster_name` setting in their configuration files.
+- There are three Teleport/Kubernetes clusters: `main`, `east`, and `west`. These are the names set in `cluster_name` setting in their configuration files.
 - The clusters `east` and `west` are trusted clusters for `main`.
 - Users always authenticate against `main` but use their certificates to access
   SSH nodes and Kubernetes API in all three clusters.
 - The DNS name of the main proxy server is `main.example.com`
 
-In this scenario, users usually login using this command:
+In this scenario, users usually log in using this command:
 
 ```bash
 # Using login without arguments
-$ tsh --proxy=main.example.com login
+tsh --proxy=main.example.com login
 
-# user's `kubeconfig` now contains one entry for the main Kubernetes
-# endpoint, i.e. `main.example.com` .
+# User's `kubeconfig` now contains one entry for the main Kubernetes
+# endpoint, i.e. `main.example.com`.
 
 # Receive a certificate for "east":
-$ tsh --proxy=main.example.com login east
+tsh --proxy=main.example.com login east
 
-# user's `kubeconfig` now contains the entry for the "east" Kubernetes
-# endpoint, i.e. `east.main.example.com` .
+# User's `kubeconfig` now contains the entry for the "east" Kubernetes
+# endpoint, i.e. `east.main.example.com`.
 ```
