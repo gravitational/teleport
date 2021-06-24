@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
 
@@ -100,6 +101,26 @@ func (m *MessageOpMsg) GetDatabase() string {
 		}
 	}
 	return ""
+}
+
+// GetCommand returns the Mongo command this document represents.
+//
+// The command name is the first key in the ordered bson document, for example:
+// { "isMaster": 1, ... }
+// { "listDatabases": 1, "nameOnly": false, ... }
+func (m *MessageOpMsg) GetCommand() (string, error) {
+	document, err := m.GetDocument()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	var doc bson.D
+	if err := bson.Unmarshal(document, &doc); err != nil {
+		return "", trace.Wrap(err)
+	}
+	if len(doc) == 0 {
+		return "", trace.BadParameter("empty command document: %v", m)
+	}
+	return doc[0].Key, nil
 }
 
 // MoreToCome is whether sender will send another message right after this one.

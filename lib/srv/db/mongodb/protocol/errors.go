@@ -64,11 +64,36 @@ func makeOpReplyError(err error) (Message, error) {
 // makeOpMsgError builds a OP_MSG error wire message.
 func makeOpMsgError(err error) (Message, error) {
 	document, err := bson.Marshal(bson.M{
-		"ok":     0,
-		"errmsg": err.Error(),
+		"ok":       0,
+		"errmsg":   err.Error(),
+		"code":     errorToCode(err),
+		"codeName": errorToCodeName(err),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return MakeOpMsg(document), nil
 }
+
+// errorToCode returns Mongo error code appropriate for the error.
+func errorToCode(err error) int {
+	if trace.IsAccessDenied(err) {
+		return unauthorizedCode
+	}
+	return 0
+}
+
+// errorToCodeName returns Mongo error code name appropriate for the error.
+func errorToCodeName(err error) string {
+	if trace.IsAccessDenied(err) {
+		return unauthorizedCodeName
+	}
+	return ""
+}
+
+const (
+	// unauthorizedCode is the code for unauthorized Mongo error.
+	unauthorizedCode = 13
+	// unauthorizedCodeName is the code name for unauthorized Mongo error.
+	unauthorizedCodeName = "Unauthorized"
+)

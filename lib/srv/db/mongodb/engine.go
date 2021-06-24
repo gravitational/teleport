@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
 
 	"github.com/gravitational/trace"
@@ -126,8 +127,14 @@ func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Ses
 		return trace.Wrap(err)
 	}
 	e.Log.Debugf("<=== %v", serverMessage)
+	// See if we need to make any modifications to the reply.
+	serverMessage, err = e.transform(sessionCtx, clientMessage, serverMessage)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// ... and pass it back to the client.
-	_, err = clientConn.Write(serverMessage.GetBytes())
+	//_, err = clientConn.Write(serverMessage.GetBytes())
+	_, err = clientConn.Write(serverMessage.ToWire(clientMessage.GetHeader().RequestID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -144,6 +151,61 @@ func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Ses
 		}
 	}
 	return nil
+}
+
+func (e *Engine) transform(sessionCtx *common.Session, clientMessage, serverMessage protocol.Message) (protocol.Message, error) {
+	clientMsg, ok := clientMessage.(*protocol.MessageOpMsg)
+	if !ok {
+		return serverMessage, nil
+	}
+	serverMsg, ok := serverMessage.(*protocol.MessageOpMsg)
+	if !ok {
+		return serverMessage, nil
+	}
+	cmd, err := clientMsg.GetCommand()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch cmd {
+	case "listDatabases":
+		document, err := serverMsg.GetDocument()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// array, ok := document.Lookup("databases").ArrayOK()
+		// if !ok {
+		// 	return trace.BadParameter("expected array: %v", document)
+		// }
+		// values, err := array.Values()
+		// if err != nil {
+		// 	return trace.Wrap(err)
+		// }
+		// for _, value := range values {
+		// 	e.Log.Debugf("========== ARRAY VALUE: %v", value)
+		// }
+		var doc bson.M
+		if err := bson.Unmarshal(document, &doc); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		databases, ok := doc["databases"].(bson.A)
+		if !ok {
+			return nil, trace.BadParameter("couldn't convert %[1]T %[1]v", doc["databases"])
+		}
+		var filtered bson.A
+		for _, db := range databases {
+			err := e.checkAccessToDatabase(sessionCtx, db.(bson.M)["name"].(string))
+			if err == nil {
+				filtered = append(filtered, db)
+			}
+		}
+		doc["databases"] = filtered
+		marshaled, err := bson.Marshal(doc)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return protocol.MakeOpMsg(marshaled), nil
+	}
+	return serverMessage, nil
 }
 
 // authorizeConnection does authorization check for MongoDB connection about
@@ -186,11 +248,7 @@ func (e *Engine) authorizeClientMessage(sessionCtx *common.Session, message prot
 		e.Log.Warnf("No database info in message: %v.", message)
 		return nil
 	}
-	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server,
-		services.AccessMFAParams{Verified: true},
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Server.GetAllLabels()},
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
-		&services.DatabaseNameMatcher{Name: database})
+	err := e.checkAccessToDatabase(sessionCtx, database)
 	e.Audit.OnQuery(e.Context, sessionCtx, common.Query{
 		Database: msg.GetDatabase(),
 		// Commands may consist of multiple bson documents.
@@ -198,6 +256,14 @@ func (e *Engine) authorizeClientMessage(sessionCtx *common.Session, message prot
 		Error: err,
 	})
 	return trace.Wrap(err)
+}
+
+func (e *Engine) checkAccessToDatabase(sessionCtx *common.Session, database string) error {
+	return sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server,
+		services.AccessMFAParams{Verified: true},
+		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Server.GetAllLabels()},
+		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
+		&services.DatabaseNameMatcher{Name: database})
 }
 
 func (e *Engine) replyError(clientConn net.Conn, replyTo protocol.Message, err error) {
