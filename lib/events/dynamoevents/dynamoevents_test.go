@@ -31,8 +31,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -112,12 +113,12 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 		c.Assert(err, check.IsNil)
 	}
 
-	var history []events.AuditEvent
+	var history []apievents.AuditEvent
 
 	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
 		time.Sleep(s.EventsSuite.QueryDelay)
 
-		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 0, "")
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 0, "")
 		c.Assert(err, check.IsNil)
 
 		if len(history) == eventCount {
@@ -188,7 +189,7 @@ func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 
 	for time.Since(waitStart) < attemptWaitFor {
 		err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-			eventArr, _, err = s.log.searchEventsRaw(start, end, defaults.Namespace, []string{"test.event"}, 1000, "")
+			eventArr, _, err = s.log.searchEventsRaw(start, end, apidefaults.Namespace, []string{"test.event"}, 1000, "")
 			return err
 		})
 		c.Assert(err, check.IsNil)

@@ -17,14 +17,15 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sync"
 	"time"
 
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 )
 
 // HalfJitter is a global jitter instance used for one-off jitters.
@@ -149,6 +150,11 @@ func newLinear(cfg LinearConfig) *Linear {
 	return &Linear{LinearConfig: cfg, closedChan: closedChan}
 }
 
+// NewConstant returns a new linear retry with constant interval.
+func NewConstant(interval time.Duration) (*Linear, error) {
+	return NewLinear(LinearConfig{Step: interval, Max: interval})
+}
+
 // Linear is used to calculate retry period
 // that follows the following logic:
 // On the first error there is no delay
@@ -231,6 +237,42 @@ func (r *Linear) After() <-chan time.Time {
 // String returns user-friendly representation of the LinearPeriod
 func (r *Linear) String() string {
 	return fmt.Sprintf("Linear(attempt=%v, duration=%v)", r.attempt, r.Duration())
+}
+
+// For retries the provided function until it succeeds or the context expires.
+// Only errors matching retryIf filter are retried.
+func (r *Linear) For(ctx context.Context, retryFn func() error) error {
+	for {
+		err := retryFn()
+		if err == nil {
+			return nil
+		}
+		if _, ok := trace.Unwrap(err).(*permanentRetryError); ok {
+			return trace.Wrap(err)
+		}
+		log.Debugf("Will retry in %v: %v.", r.Duration(), err)
+		select {
+		case <-r.After():
+			r.Inc()
+		case <-ctx.Done():
+			return trace.LimitExceeded(ctx.Err().Error())
+		}
+	}
+}
+
+// PermanentRetryError returns a new instance of a permanent retry error.
+func PermanentRetryError(err error) error {
+	return &permanentRetryError{err: err}
+}
+
+// permanentRetryError indicates that retry loop should stop.
+type permanentRetryError struct {
+	err error
+}
+
+// Error returns the original error message.
+func (e *permanentRetryError) Error() string {
+	return e.err.Error()
 }
 
 // RetryFastFor retries a function repeatedly for a set amount of
