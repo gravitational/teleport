@@ -2423,28 +2423,6 @@ func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespace
 	return serverV2, nil
 }
 
-// GetNodes retrieves all nodes in the given namespace.
-func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ns, err := auth.ServerWithRoles.GetNodes(ctx, req.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	serversV2 := make([]*types.ServerV2, len(ns))
-	for i, t := range ns {
-		var ok bool
-		if serversV2[i], ok = t.(*types.ServerV2); !ok {
-			return nil, trace.Errorf("encountered unexpected node type: %T", t)
-		}
-	}
-	return &types.ServerV2List{
-		Servers: serversV2,
-	}, nil
-}
-
 // UpsertNode upserts a node.
 func (g *GRPCServer) UpsertNode(ctx context.Context, node *types.ServerV2) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)

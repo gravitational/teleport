@@ -595,40 +595,6 @@ func (c *Client) DeleteNode(ctx context.Context, namespace string, name string) 
 	return nil
 }
 
-// GetNodes returns the list of servers registered in the cluster.
-func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	if resp, err := c.APIClient.GetNodes(ctx, namespace); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re := make([]types.Server, len(items))
-	for i, raw := range items {
-		s, err := services.UnmarshalServer(
-			raw,
-			types.KindNode,
-			opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		re[i] = s
-	}
-
-	return re, nil
-}
-
 // GetAuthPreference gets cluster auth preference.
 func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	if resp, err := c.APIClient.GetAuthPreference(ctx); err != nil {
