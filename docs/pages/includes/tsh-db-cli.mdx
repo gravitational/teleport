@@ -3,7 +3,7 @@
 Lists available databases and their connection information.
 
 ```shell
-$ tsh db ls
+tsh db ls
 ```
 
 Displays only the databases a user has access to (see [RBAC](../database-access/rbac.mdx)).
@@ -13,22 +13,36 @@ Displays only the databases a user has access to (see [RBAC](../database-access/
 Retrieves database credentials.
 
 ```shell
-$ tsh db login example
-$ tsh db login --db-user=postgres --db-name=postgres example
+tsh db login example
+tsh db login --db-user=postgres --db-name=postgres example
 ```
 
-| Flag | Description |
-| - | - |
-| `--db-user` | Optionally, set default database account name to connect as. |
-| `--db-name` | Optionally, set default database name to connect to. |
+<table>
+  <thead>
+    <tr>
+      <td>Flag</td>
+      <td>Description</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`--db-user`</td>
+      <td>Optionally, set default database account name to connect as.</td>
+    </tr>
+    <tr>
+      <td>`--db-name`</td>
+      <td>Optionally, set default database name to connect to.</td>
+    </tr>
+  </tbody>
+</table>
 
 ## tsh db logout
 
 Removes database credentials.
 
 ```shell
-$ tsh db logout example
-$ tsh db logout
+tsh db logout example
+tsh db logout
 ```
 
 ## tsh db env
@@ -36,24 +50,46 @@ $ tsh db logout
 Outputs environment variables for a particular database.
 
 ```shell
-$ tsh db env
-$ tsh db env --db=example
-$ eval $(tsh db env)
+tsh db env
+tsh db env --db=example
+eval $(tsh db env)
 ```
 
-| Flag | Description |
-| - | - |
-| `--db` | Database server name to print environment for. Required, if logged into multiple databases simultaneously. |
+<table>
+  <thead>
+    <tr>
+      <td>Flag</td>
+      <td>Description</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`--db`</td>
+      <td>Database server name to print environment for. Required, if logged into multiple databases simultaneously.</td>
+    </tr>
+  </tbody>
+</table>
 
 ## tsh db config
 
 Prints database connection information. Useful when configuring GUI clients.
 
 ```shell
-$ tsh db config
-$ tsh db config --db=example
+tsh db config
+tsh db config --db=example
 ```
 
-| Flag | Description |
-| - | - |
-| `--db` | Database server name to print configuration for. Required, if logged into multiple databases simultaneously. |
+<table>
+  <thead>
+    <tr>
+      <td>Flag</td>
+      <td>Description</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`--db`</td>
+      <td>Database server name to print configuration for. Required, if logged into multiple databases simultaneously.</td>
+    </tr>
+  </tbody>
+</table>

@@ -2,8 +2,8 @@
 
 Starts Teleport Database Service agent.
 
-```shell
-$ teleport db start \
+```bash
+sudo teleport db start \
     --token=/path/to/token \
     --auth-server=proxy.example.com:3080 \
     --name=example \
@@ -11,22 +11,81 @@ $ teleport db start \
     --uri=postgres.example.com:5432
 ```
 
-| Flag | Description |
-| - | - |
-| `-d/--debug` | Enable verbose logging to stderr. |
-| `--pid-file` | Full path to the PID file. By default no PID file will be created. |
-| `--auth-server` | Address of the Teleport proxy server. |
-| `--token` | Invitation token to register with an auth server. |
-| `--ca-pin` | CA pin to validate the auth server. |
-| `-c/--config` | Path to a configuration file (default `/etc/teleport.yaml`). |
-| `--labels` | Comma-separated list of labels for this node, for example `env=dev,app=web`. |
-| `--fips` | Start Teleport in FedRAMP/FIPS 140-2 mode. |
-| `--name` | Name of the proxied database. |
-| `--description` | Description of the proxied database. |
-| `--protocol` | Proxied database protocol. Supported are: `postgres` and `mysql`. |
-| `--uri` | Address the proxied database is reachable at. |
-| `--ca-cert` | Database CA certificate path. |
-| `--aws-region` | (Only for RDS, Aurora or Redshift) AWS region RDS, Aurora or Redshift database instance is running in. |
-| `--aws-redshift-cluster-id` | (Only for Redshift) Redshift database cluster identifier. |
-| `--gcp-project-id` | (Only for Cloud SQL) GCP Cloud SQL project identifier. |
-| `--gcp-instance-id` | (Only for Cloud SQL) GCP Cloud SQL instance identifier.|
+<table>
+  <thead>
+    <tr>
+      <td>Flag</td>
+      <td>Description</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`-d/--debug`</td>
+      <td>Enable verbose logging to stderr.</td>
+    </tr>
+    <tr>
+      <td>`--pid-file`</td>
+      <td>Full path to the PID file. By default no PID file will be created.</td>
+    </tr>
+    <tr>
+      <td>`--auth-server`</td>
+      <td>Address of the Teleport proxy server..</td>
+    </tr>
+    <tr>
+      <td>`--token`</td>
+      <td>Invitation token to register with an auth server.</td>
+    </tr>
+    <tr>
+      <td>`--ca-pin`</td>
+      <td>CA pin to validate the auth server.</td>
+    </tr>
+    <tr>
+      <td>`-c/--config`</td>
+      <td>Path to a configuration file (default `/etc/teleport.yaml`).</td>
+    </tr>
+    <tr>
+      <td>`--labels`</td>
+      <td>Comma-separated list of labels for this node, for example `env=dev,app=web`.</td>
+    </tr>
+    <tr>
+      <td>`--fips`</td>
+      <td>Start Teleport in FedRAMP/FIPS 140-2 mode.</td>
+    </tr>
+    <tr>
+      <td>`--name`</td>
+      <td>Name of the proxied database.</td>
+    </tr>
+    <tr>
+      <td>`--description`</td>
+      <td>Description of the proxied database.</td>
+    </tr>
+    <tr>
+      <td>`--protocol`</td>
+      <td>Proxied database protocol. Supported are: `postgres` and `mysql`.</td>
+    </tr>
+    <tr>
+      <td>`--uri`</td>
+      <td>Address the proxied database is reachable at.</td>
+    </tr>
+    <tr>
+      <td>`--ca-cert`</td>
+      <td>Database CA certificate path.</td>
+    </tr>
+    <tr>
+      <td>`--aws-region`</td>
+      <td>(Only for RDS, Aurora or Redshift) AWS region RDS, Aurora or Redshift database instance is running in.</td>
+    </tr>
+    <tr>
+      <td>`--aws-redshift-cluster-id`</td>
+      <td>(Only for Redshift) Redshift database cluster identifier.</td>
+    </tr>
+    <tr>
+      <td>`--gcp-project-id`</td>
+      <td>(Only for Cloud SQL) GCP Cloud SQL project identifier.</td>
+    </tr>
+    <tr>
+      <td>`--gcp-instance-id`</td>
+      <td>(Only for Cloud SQL) GCP Cloud SQL instance identifier.</td>
+    </tr>
+  </tbody>
+</table>
