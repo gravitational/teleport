@@ -12,7 +12,7 @@ h1: tsh Command Line (CLI) Reference
 current and past sessions on the cluster, copy files to and from nodes, and list
 information about the cluster.
 
-### tsh Global Flags
+## tsh Global Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
@@ -28,7 +28,7 @@ information about the cluster.
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
 
-### tsh help
+## tsh help
 
 Prints help:
 
@@ -36,7 +36,7 @@ Prints help:
 tsh help
 ```
 
-### tsh version
+## tsh version
 
 Prints client version:
 
@@ -44,7 +44,7 @@ Prints client version:
 tsh version
 ```
 
-### tsh ssh
+## tsh ssh
 
 Run shell or execute a command on a remote SSH node:
 
@@ -52,7 +52,7 @@ Run shell or execute a command on a remote SSH node:
 tsh ssh [<flags>] <[user@]host> [<command>...]
 ```
 
-#### Arguments
+### Arguments
 
 `<[user@]host> [<command>...]`
 
@@ -61,7 +61,7 @@ tsh ssh [<flags>] <[user@]host> [<command>...]
 - `host` A `nodename` of a cluster node or a
 - `command` The command to execute on a remote host.
 
-#### Flags
+### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
@@ -77,12 +77,12 @@ tsh ssh [<flags>] <[user@]host> [<command>...]
 | `--enable-escape-sequences` | | | Enable support for SSH escape sequences. Type `~?` during an SSH session to list supported sequences. |
 | `--no-use-local-ssh-agent` | | | Do not load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). Useful when using `gpg-agent` or Yubikeys. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable to `false` (default `true`) |
 
-#### [Global Flags](#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
-#### Examples
+### Examples
 
 ```bash
 # Log in to node `grav-00` as OS User `root` with Teleport User `teleport`
@@ -92,7 +92,7 @@ tsh ssh -o ForwardAgent=yes root@grav-00
 tsh ssh -o AddKeysToAgent=yes root@grav-00
 ```
 
-### tsh apps ls
+## tsh apps ls
 
 List all available applications:
 
@@ -100,7 +100,7 @@ List all available applications:
 tsh apps ls
 ```
 
-### tsh join
+## tsh join
 
 Joins an active session:
 
@@ -108,31 +108,31 @@ Joins an active session:
 tsh join [<flags>] <session-id>
 ```
 
-#### Arguments
+### Arguments
 
 `<session-id>`
 
 - `session-id` The UUID of an active Teleport Session obtained by `teleport status` within
   the session.
 
-#### Flags
+### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `--cluster` | none | a cluster_name | Specify the cluster to connect |
 
-#### [Global Flags](#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
-#### Examples
+### Examples
 
 ```bash
 tsh --proxy proxy.example.com join <session-id>
 ```
 
-### tsh play
+## tsh play
 
 Plays back a prior session:
 
@@ -140,31 +140,31 @@ Plays back a prior session:
 tsh play [<flags>] <session-id>
 ```
 
-#### Arguments
+### Arguments
 
 `<session-id>`
 
 - `session-id` The UUID of a past Teleport Session obtained by `teleport status` within
   the session or from the Web UI.
 
-#### Flags
+### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `--cluster` | none | a cluster_name | Specify the cluster to connect |
 
-#### [Global Flags](#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
-#### Examples
+### Examples
 
 ```bash
 tsh --proxy proxy.example.com play <session-id>
 ```
 
-### tsh scp
+## tsh scp
 
 Copies files from source to dest:
 
@@ -174,12 +174,12 @@ tsh scp [<flags>] <source>... <dest>
 
 {/* TODO Confirm which flags are supported and whether supports multiple sources */}
 
-#### Arguments
+### Arguments
 
 - `<source>` - filepath to copy
 - `<dest>` - target destination
 
-#### Flags
+### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
@@ -188,18 +188,18 @@ tsh scp [<flags>] <source>... <dest>
 | `-P, --port` | none | port number | Port to connect to on the remote host |
 | `-q, --quiet` | none | none | Quiet mode |
 
-#### [Global Flags](#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
-#### Examples
+### Examples
 
 ```bash
 tsh --proxy=proxy.example.com scp -P example.txt user@host:/destination/dir
 ```
 
-### tsh ls
+## tsh ls
 
 List cluster nodes:
 
@@ -209,22 +209,22 @@ tsh ls [<flags>] [<label>]
 
 {/* TODO: label? or labels? seems like it only supports one label at a time */}
 
-#### Arguments
+### Arguments
 
 - `<label>` - `key=value` label to filer nodes by
 
-#### Flags
+### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `-v, --verbose` | none | none | also print Node ID |
 
-#### [Global Flags](#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
-#### Examples
+### Examples
 
 ```bash
 tsh ls
@@ -255,7 +255,7 @@ grav-02   10.156.0.7:3022    os:osx
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-### tsh kube ls
+## tsh kube ls
 
 List Kubernetes clusters:
 
@@ -263,7 +263,7 @@ List Kubernetes clusters:
 tsh kube ls
 ```
 
-#### Examples
+### Examples
 
 ```bash
 tsh kube ls
@@ -276,24 +276,24 @@ microk8s
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-### tsh clusters
+## tsh clusters
 
 ```bash
 tsh clusters [<flags>]
 ```
 
-#### Flags
+### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `-q, --quiet` | none | none | no headers in output |
 
-#### [Global Flags](#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
-#### Examples
+### Examples
 
 ```bash
 tsh clusters
@@ -312,7 +312,7 @@ production offline
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-### tsh login
+## tsh login
 
 Logs in to the cluster. When `tsh` logs in, the auto-expiring key is stored in
 `~/.tsh` and is valid for 12 hours by default unless you specify another
@@ -322,11 +322,11 @@ interval via `--ttl` flag (capped by the server-side configuration).
 tsh login [<flags>] [<cluster>]
 ```
 
-#### Arguments
+### Arguments
 
 - `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../trustedclusters.mdx#introduction) for more information.
 
-#### Flags
+### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
@@ -338,12 +338,12 @@ tsh login [<flags>] [<cluster>]
 | `--request-reason` | none | | Reason for requesting additional roles |
 | `--no-use-local-ssh-agent` | | | Do not load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). Useful when using `gpg-agent` or Yubikeys. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable to `false` (default `true`) |
 
-#### [Global Flags](#tsh-global-flags)
+### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
-#### Examples
+### Examples
 
 *The proxy endpoint can take a https and ssh port in this format `host:https_port[,ssh_proxy_port]`*
 
@@ -382,7 +382,7 @@ tsh login --proxy=proxy.example.com --format=kubernetes -o kubeconfig
 tsh login --proxy=proxy.example.com --request-reason="I need to run a debug script on production"
 ```
 
-### tsh kube login
+## tsh kube login
 
 Log into a Kubernetes cluster. Discover connected clusters by using [`tsh kube ls`](#tsh-kube-ls).
 
@@ -408,7 +408,7 @@ CURRENT   NAME                                        CLUSTER                   
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-### tsh logout
+## tsh logout
 
 Deletes the client's cluster certificate:
 
@@ -416,7 +416,7 @@ Deletes the client's cluster certificate:
 tsh logout
 ```
 
-### tsh status
+## tsh status
 
 Display the list of proxy servers and retrieved certificates:
 
@@ -424,7 +424,7 @@ Display the list of proxy servers and retrieved certificates:
 tsh status
 ```
 
-#### Examples
+### Examples
 
 ```bash
 tsh status
@@ -443,7 +443,7 @@ tsh status
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-### tsh mfa ls
+## tsh mfa ls
 
 List all registered Multi-Factor Authentication (MFA) devices:
 
@@ -451,7 +451,7 @@ List all registered Multi-Factor Authentication (MFA) devices:
 tsh mfa ls
 ```
 
-### tsh mfa add
+## tsh mfa add
 
 Register a new Multi-Factor Authentication (MFA) device:
 
@@ -459,7 +459,7 @@ Register a new Multi-Factor Authentication (MFA) device:
 tsh mfa add
 ```
 
-#### Examples
+### Examples
 
 ```bash
 tsh mfa add
@@ -493,7 +493,7 @@ MFA device "android" added.
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-### tsh mfa rm
+## tsh mfa rm
 
 Remove a registered Multi-Factor Authentication (MFA) device. You can view your
 registered devices using [`tsh mfa ls`](#tsh-mfa-ls).
