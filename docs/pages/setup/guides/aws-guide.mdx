@@ -7,14 +7,6 @@ We've created this guide to give customers a high-level overview of how to use T
 on Amazon Web Services (AWS). This guide provides a high-level introduction leading to
 a deep dive into how to set up and run Teleport in production.
 
-We have split this guide into:
-
-- [Teleport on AWS FAQ](#teleport-on-aws-faq)
-- [Authenticating to EKS Using GitHub Credentials with Teleport Open Source Edition](#using-teleport-with-eks)
-- [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
-- [Teleport AWS Tips and Tricks](#teleport-aws-tips-and-tricks)
-- [AWS High Availability with Terraform](aws-terraform-guide.mdx)
-
 ### Teleport on AWS FAQ
 
 **Why would you want to use Teleport with AWS?**
@@ -60,7 +52,7 @@ This guide will cover how to set up, configure and run Teleport on [AWS](https:/
 We recommend setting up Teleport in High Availability mode. In High Availability mode DynamoDB
 stores the state of the system and S3 will store audit logs.
 
-![AWS Intro Image](../img/aws/aws-intro.png)
+![AWS Intro Image](../../../img/aws/aws-intro.png)
 
 ### EC2 / Autoscale
 
@@ -79,10 +71,10 @@ types of Teleport data:
 - Cluster state
 - Cluster events
 
-See [DynamoDB Admin Guide for more information](admin-guide.mdx#using-dynamodb)
+See [DynamoDB Admin Guide for more information](../../admin-guide.mdx#using-dynamodb)
 
-![AWS DynamoDB Tables](../img/aws/dynamodb-tables.png)
-![Setting Streams](../img/aws/setting-stream.png)
+![AWS DynamoDB Tables](../../../img/aws/dynamodb-tables.png)
+![Setting Streams](../../../img/aws/setting-stream.png)
 Setting Stream to `NEW IMAGE`
 
 For maintainability and ease of use, we recommend following our [Terraform example](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/dynamo.tf)
@@ -489,8 +481,8 @@ aws ec2 associate-iam-instance-profile --iam-instance-profile Name=teleport-role
 
 #### Install Teleport
 
-1. [Download and Install Teleport](installation.mdx)
-2. [Setup systemd](production.mdx#running-teleport-in-production)
+1. [Download and Install Teleport](../../installation.mdx)
+2. [Setup systemd](../../production.mdx#running-teleport-in-production)
 3. Setup Teleport config file. `sudo cp teleport.yaml /etc/teleport.yaml`. An example is below.
 
 ```
@@ -562,7 +554,7 @@ sudo certbot certonly --standalone \
 
 #### Setup Github auth
 
-Run this on the Teleport EC2 Host, see [Github authentication](admin-guide.mdx#github-oauth-20) for more info.
+Run this on the Teleport EC2 Host, see [Github authentication](../../admin-guide.mdx#github-oauth-20) for more info.
 
 ```bash
 export TELEPORT_PUBLIC_DNS_NAME="[teleport-proxy-url]"
@@ -647,7 +639,7 @@ correct binary.
 We've got a few other resources for Enterprise customers such as our
 
 - [Running Teleport Enterprise in High Availability mode on AWS using Terraform](aws-terraform-guide.mdx)
-- [Teleport Enterprise Quickstart](enterprise/quickstart-enterprise.mdx)
+- [Teleport Enterprise Quickstart](../../enterprise/quickstart-enterprise.mdx)
 
 If you would like help setting up Teleport Enterprise on AWS, please mail us at [info@goteleport.com](mailto:info@goteleport.com)
 
