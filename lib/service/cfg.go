@@ -667,24 +667,12 @@ func (d *Database) Check() error {
 				d.Name, err)
 		}
 	}
-	// Validate Redshift specific configuration.
-	if d.AWS.Redshift.ClusterID != "" {
-		if d.AWS.Region == "" {
-			return trace.BadParameter("missing AWS region for Redshift database %q", d.Name)
-		}
-	}
 	// Validate Cloud SQL specific configuration.
 	switch {
 	case d.GCP.ProjectID != "" && d.GCP.InstanceID == "":
 		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.Name)
 	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
-	case d.GCP.ProjectID != "" && d.GCP.InstanceID != "":
-		// TODO(r0mant): See if we can download it automatically similar to RDS:
-		// https://cloud.google.com/sql/docs/postgres/instance-info#rest-v1beta4
-		if len(d.CACert) == 0 {
-			return trace.BadParameter("missing Cloud SQL instance root certificate for database %q", d.Name)
-		}
 	}
 	return nil
 }
