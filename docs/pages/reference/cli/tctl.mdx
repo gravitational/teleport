@@ -1,0 +1,605 @@
+---
+title: Teleport tctl CLI Reference
+description: The detailed guide and reference documentation for Teleport's tctl Command Line Interface (CLI) tool.
+h1: tctl Command Line (CLI) Reference
+---
+
+(!docs/pages/includes/permission-warning.mdx!)
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+`tctl` is an admin CLI tool used to administer a Teleport cluster. It connects
+to an Auth Server, meaning that it must be run on the same host with the role
+`auth`. If you run `tctl` on a non- `auth` node it will show an error.
+
+`tctl` allows a cluster administrator to manage all resources in a cluster
+including nodes, users, tokens, and certificates.
+
+`tctl` can also be used to modify the dynamic configuration of the cluster, like
+creating new user roles or connecting trusted clusters.
+
+The `TELEPORT_CONFIG_FILE` environment variable indicates where the Teleport configuration file is. 
+If you're connecting to a remote Teleport cluster (Teleport cloud) through a `tsh` session and have a file `/etc/teleport.yaml` on your machine set the `TELEPORT_CONFIG_FILE` to `""`.  Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine which could result in the error `ERROR: open /var/lib/teleport/host_uuid: permission denied`.
+
+**Example**:
+```bash
+export TELEPORT_CONFIG_FILE=""
+tctl tokens add --type=node
+```
+
+### tctl Global Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-d, --debug` | none | none | Enable verbose logging to stderr |
+| `-c, --config` | `/etc/teleport.yaml` | **string** filepath | Path to a configuration file |
+
+### tctl  help
+
+Shows help:
+
+```bash
+tctl help
+```
+
+### tctl users add
+
+Generates a user invitation token:
+
+```bash
+tctl users add [<flags>] <account> [<local-logins>]
+```
+
+#### Arguments
+
+- `<account>` - The Teleport user account name.
+- `<local-logins>` - A comma-separated list of local UNIX users this account can log in as. If unspecified the account will be mapped to an OS user of the same name. See examples below.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--k8s-groups` | none | a kubernetes group | Kubernetes groups to assign to a user, e.g. `system:masters` |
+| `--k8s-users` | none | a kubernetes user | Kubernetes user to assign to a user, e.g. `jenkins` |
+| `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
+
+#### [Global Flags](#tctl-global-flags)
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
+
+#### Examples
+
+```bash
+# Adds teleport user "joe" with mappings to
+# OS users "joe" and "root"
+tctl users add joe joe,root
+# Adds teleport user "joe" with mappings to
+# OS users "joe" only
+tctl users add joe
+```
+
+### tctl users ls
+
+Lists all user accounts:
+
+```bash
+tctl users ls [<flags>]
+```
+
+### tctl users rm
+
+Deletes user accounts:
+
+```bash
+tctl users rm <logins>
+```
+
+#### Arguments
+
+- `<logins>` - comma-separated list of Teleport users
+
+#### Examples
+
+```bash
+tctl users rm sally,tim
+# Removes users sally and tim
+```
+
+### tctl users reset
+
+Reset local user account password and any associated second factor with expiring link to populate values. **Usage**: `tctl users reset <account>`
+
+#### Arguments
+
+- `<account>` - Teleport Local DB User
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--ttl` | `8h` | relative duration like `5s`, `2m`, or `3h` | Set the expiration time for token, default is `8h0m0s`, maximum is `24h0m0s` |
+
+#### Examples
+
+```bash
+# tctl users reset jeff
+User jeff has been reset. Share this URL with the user to complete password reset, the link is valid for 8h0m0s:
+https://teleport.example.com:3080/web/reset/8a4a40bec3a31a28db44fa64c0c70ca3
+# Resets jeff's password and any associated second factor.  Jeff populates the password and confirms the token with the link.
+```
+
+### tctl request ls
+
+List of open requests:
+
+```bash
+tctl request ls
+```
+
+#### Examples
+
+```bash
+tctl request ls
+
+# Output
+Token                                Requestor Metadata       Created At (UTC)    Status
+------------------------------------ --------- -------------- ------------------- -------
+request-id-1                         alice     roles=dictator 07 Nov 19 19:38 UTC PENDING
+```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+
+### tctl request approve
+
+Approve a user's request:
+
+```bash
+tctl request approve [token]
+```
+
+#### Arguments
+
+- `<tokens>` - comma-separated list of Teleport tokens.
+
+#### Examples
+
+```bash
+tctl request approve request-id-1, request-id-2
+```
+
+### tctl request deny
+
+Denies a user's request:
+
+```bash
+tctl request deny [token]
+```
+
+#### Arguments
+
+- `<tokens>` - comma-separated list of Teleport tokens.
+
+#### Examples
+
+```bash
+tctl request deny request-id-1, request-id-2
+```
+
+### tctl request rm
+
+Delete a users role request:
+
+```bash
+tctl request rm [token]
+```
+
+#### Arguments
+
+- `<tokens>` - comma-separated list of Teleport tokens.
+
+#### Examples
+
+```bash
+tctl request rm request-id-1
+```
+
+### tctl nodes add
+
+Generate a node invitation token:
+
+```bash
+tctl nodes add [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--roles` | `node` | `node,auth` or `proxy` | Comma-separated list of roles for the new node to assume |
+| `--ttl` | 30m | relative duration like 5s, 2m, or 3h | Time to live for a generated token |
+| `--token` | none | **string** token value | A custom token to use, auto-generated if not provided. Should match token set with `teleport start --token` |
+
+#### [Global Flags](#tctl-global-flags)
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
+
+#### Examples
+
+```bash
+# Generates a token that can be used by a node to join the cluster, default ttl is 30 minutes
+tctl nodes add
+# Generates a token that can be used to add an SSH node to the cluster.
+# The node will run both the proxy service and the node (ssh) service.
+# This token can be used within an hour.
+tctl nodes add --roles=node,proxy --ttl=1h
+```
+
+### tctl nodes ls
+
+List all active SSH nodes within the cluster:
+
+```bash
+tctl nodes ls [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--namespace` | none | **string** namespace | Namespace of the nodes |
+
+#### [Global Flags](#tctl-global-flags)
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
+
+### tctl tokens add
+
+Create an invitation token:
+
+```bash
+tctl tokens add --type=TYPE [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--type` | none | `trusted_cluster`, `node`, `proxy` | Type of token to add |
+| `--value` | none | **string** token value | Value of token to add |
+| `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
+
+#### [Global Flags](#tctl-global-flags)
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
+
+#### Examples
+
+```bash
+# Generate an invite token for a trusted_cluster
+tctl tokens add --type=trusted_cluster --ttl=5m
+# Generate an invite token for a trusted_cluster with labels
+tctl tokens add --type=trusted_cluster --labels=env=prod
+# Generate an invite token for a node
+# This is equivalent to `tctl nodes add`
+tctl tokens add --type=node
+# Generate an invite token for a kubernetes_service
+tctl tokens add --type=kube
+# Generate an invite token for an app_service
+tctl tokens add --type=app
+```
+
+### tctl tokens rm
+
+Delete/revoke an invitation token:
+
+```bash
+tctl tokens rm [<token>]
+```
+
+#### Arguments
+
+- `<token>` The full-length token string to delete
+
+### tctl tokens ls
+
+List node and user invitation tokens:
+
+```bash
+tctl tokens ls [<flags>]
+```
+
+#### Example
+
+```bash
+tctl tokens ls
+
+# Output
+Token                            Type            Expiry Time (UTC)
+-------------------------------- --------------- -------------------
+ecce46d19bb4144716e5984269db1ac0 Node            11 Oct 19 22:17 UTC
+fcbf269ca26440f35865ec29994f0fb4 trusted_cluster 11 Oct 19 22:19 UTC
+6fd001d4200348deec9b50c4479ba07d User signup     11 Oct 19 22:20 UTC
+```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+
+### tctl auth export
+
+Export public cluster (CA) keys to stdout:
+
+```bash
+tctl auth export [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--keys` | none | none | if set, will print private keys |
+| `--fingerprint` | none | **string** e.g. `SHA265:<fingerprint>` | filter authority by fingerprint |
+| `--compat` | none | version number | export certificates compatible with specific version of Teleport |
+| `--type` | none | `user, host` or `tls` | certificate type |
+
+#### [Global Flags](#tctl-global-flags)
+
+These flags are available for all commands `--debug, --config`. Run:
+
+```bash
+tctl help <subcommand>
+``` 
+
+or see the [Global Flags Section](#tctl-global-flags).
+
+#### Examples
+
+```bash
+# Export all keys
+tctl auth export
+# Filter by fingerprint
+tctl auth export --fingerprint=SHA256:8xu5kh1CbHCZRrGuitbQd4hM+d9V+I7YA1mUwA/2tAo
+# Export tls certs only
+tctl auth export --type tls
+```
+
+### tctl auth sign
+
+Create an identity file(s) for a given user:
+
+```bash
+tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--user` | none | existing user | Teleport user name |
+| `--host` | none | auth host | Teleport host name |
+| `-o, --out` | none | filepath | identity output |
+| `--format` | `file` | `file`, `openssh`, `tls` or `kubernetes` | identity format |
+| `--identity` | `file` | `file` | identity format |
+| `--auth-server` | none | auth host & port | Remote Teleport host name |
+| `--ttl` | none | relative duration like 5s, 2m, or 3h | TTL (time to live) for the generated certificate |
+| `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag |
+| `--proxy` | `""` | Address of the teleport proxy. | When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file |
+| `--leaf-cluster` | `""` | The name of a leaf cluster. | |
+| `--kube-cluster-name` | `""` | Kubernetes Cluster Name | |
+
+#### [Global Flags](#tctl-global-flags)
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
+
+#### Examples
+
+```bash
+# Export identity file to teleport_id.pem
+# for user `teleport` with a ttl set to 5m
+tctl auth sign --format file --ttl=5m --user teleport -o teleport_id.pem
+# Export identity formatted for openssh to teleport_id.pem
+tctl auth sign --format openssh --user teleport -o teleport_id.pem
+# Export host identity, `--format openssh` must be set with `--host`
+# Generates grav-01 (private key) and grav-01-cert.pub in the current directory
+tctl auth sign --format openssh --host grav-00
+# Invalid command, only one of --user or --host should be set
+tctl auth sign --format openssh --host grav-00 --user teleport -o grav_host
+# error: --user or --host must be specified
+# create a certificate with a TTL of 24 hours for the jenkins user
+# the jenkins.pem file can later be used with `tsh`
+tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
+# create a certificate with a TTL of 3 months for the jenkins user
+# the jenkins.pem file can later be used with `tsh`
+tctl auth sign --ttl=2190h --user=jenkins --out=jenkins.pem
+# create a certificate with a TTL of 1 day for the jenkins user
+# The kubeconfig file can later be used with `kubectl` or compatible tooling.
+tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
+# Exports an identity from the Auth Server in preparation for remote
+# tctl execution.
+tctl auth sign --user=admin --out=identity.pem
+```
+
+### tctl auth rotate
+
+Rotate certificate authorities in the cluster:
+
+```bash
+tctl auth rotate [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--grace-period` | none | relative duration like 5s, 2m, or 3h | Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to log in again and nodes to re-register. |
+| `--manual` | none | none | Activate manual rotation, set rotation phases manually |
+| `--type` | `user,host` | `user` or `host` | Certificate authority to rotate |
+| `--phase` | | `init, standby, update_clients, update_servers, rollback` | Target rotation phase to set, used in manual rotation |
+
+#### [Global Flags](#tctl-global-flags)
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
+
+#### Examples
+
+```bash
+# Rotate only user certificates with a grace period of 200 hours:
+tctl auth rotate --type=user --grace-period=200h
+
+# Rotate only host certificates with a grace period of 8 hours:
+tctl auth rotate --type=host --grace-period=8h
+```
+
+### tctl create
+
+Create or update a Teleport resource from a YAML file.
+
+The supported resource types are: user, node, cluster, role, connector.
+See the [Resource Guide](../../admin-guide.mdx#resources) for complete docs on how to build these yaml files.
+
+```bash
+tctl create [<flags>] <filename>
+```
+
+#### Arguments
+
+- `<filename>` resource definition file
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-f, --force` | none | none | Overwrite the resource if already exists |
+
+#### [Global Flags](#tctl-global-flags)
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
+
+#### Examples
+
+```bash
+# Update a user record
+tctl create -f joe.yaml
+# Add a trusted cluster
+tctl create cluster.yaml
+# Update a trusted cluster
+tctl create -f cluster.yaml
+```
+
+### tctl rm
+
+Delete a resource:
+
+```bash
+tctl rm [<resource-type/resource-name>]
+```
+
+#### Arguments
+
+- `[<resource-type/resource-name>]` Resource to delete
+  - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,token`]
+  - `<resource name>` Resource name to delete
+
+#### Examples
+
+```bash
+# Delete a SAML connector called "okta":
+tctl rm saml/okta
+
+# Delete a local user called "admin":
+tctl rm users/admin
+```
+
+### tctl get
+
+Print a YAML declaration of various Teleport resources:
+
+```bash
+tctl get [<flags>] [<resource-type/resource-name>],...
+```
+
+#### Arguments
+
+- `[<resource-type/resource-name>]` Resource to get
+  - `<resource type>` Type of a resource \[for example: `user,cluster,token`]
+  - `<resource name>` Resource name to get
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | | `yaml, json` or `text` | Output format |
+| `--with-secrets` | none | none | Include secrets in resources like certificate authorities or OIDC connectors |
+
+#### [Global Flags](#tctl-global-flags)
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
+
+#### Examples
+
+```bash
+tctl get users
+# dump the user definition into a file:
+tctl get user/joe > joe.yaml
+# prints the trusted cluster 'east'
+tctl get cluster/east
+# prints all trusted clusters and all users
+tctl get clusters,users
+# Dump all resources for backup into state.yaml
+tctl get all > state.yaml
+```
+
+### tctl status
+
+Report cluster status:
+
+```bash
+tctl status
+```
+
+#### Examples
+
+```bash
+# Checks status of cluster.
+tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
+pin   sha256:1146cdd2b887772dcc2e879232c8f60012a839f7958724ce5744005474b15b9d
+# Checks remote auth status using exported identity.
+tctl status \
+    --auth-server=192.168.99.102:3025 \
+    --identity=identity.pem
+```
+
+### tctl top
+
+Reports diagnostic information.
+
+The diagnostic metrics endpoint must be enabled with `teleport start --diag-addr=<bind-addr>` for `tctl top` to work.
+
+```
+tctl top [<diag-addr>] [<refresh>]
+```
+
+#### Argument
+
+- `[<diag-addr>]` Diagnostic HTTP URL (HTTPS not supported)
+- `[<refresh>]` Refresh period e.g. `5s`, `2m`, or `3h`
+
+#### Example
+
+```bash
+sudo teleport start --diag-addr=127.0.0.1:3000
+# View stats with a refresh period of 5 seconds
+tctl top http://127.0.0.1:3000 5s
+```
+
+### tctl version
+
+Print cluster version:
+
+```bash
+tctl version
+```
