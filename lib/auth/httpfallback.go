@@ -598,47 +598,6 @@ func (c *Client) DeleteNode(ctx context.Context, namespace string, name string) 
 	return nil
 }
 
-// GetNodes returns the list of servers registered in the cluster.
-func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
-	if resp, err := c.APIClient.GetNodes(ctx, namespace); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{
-		"skip_validation": []string{fmt.Sprintf("%t", cfg.SkipValidation)},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re := make([]services.Server, len(items))
-	for i, raw := range items {
-		s, err := services.UnmarshalServer(
-			raw,
-			services.KindNode,
-			services.AddOptions(opts, services.SkipValidation())...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		re[i] = s
-	}
-
-	return re, nil
-}
-
 // SearchEvents allows searching for audit events with pagination support.
 func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
 	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
