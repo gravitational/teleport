@@ -42,15 +42,15 @@ proxy:
 config:
   # used for cluster name, advertise_ip, and public addresses
   # cluster name may be overridden with config.teleport.auth_service.cluster_name
-  # If high availability is set it is only used for the proxy
+  # If High Availability is set it is only used for the proxy
   public_address: teleport.example.com
   #used for listen addreses in proxy, auth and ssh
   listen_addr: 0.0.0.0
 
   # Set to true to have separate proxy and auth instances for high availability.
-  # You must use non-dir storage for high availability or you can only have 1 auth instance.
+  # You must use non-dir storage for High Availability or you can only have 1 auth instance.
   highAvailability: false
-  # High availability configuration with proxy and auth servers. No configured SSH service.
+  # High Availability configuration with proxy and auth servers. No configured SSH service.
   proxyCount: 2
   authCount: 2
   auth_public_address: auth.example.com
@@ -61,7 +61,7 @@ config:
     externalTrafficPolicy: ""
     loadBalancerSourceRanges: []
 
-# Set for proxies in high availability, single proxy and ssh service only deployments
+# Set for proxies in High Availability, single proxy and ssh service only deployments
 # auth_service_connection:
 #   auth_token: dogs-are-much-nicer-than-cats
 #   auth_servers:
@@ -196,7 +196,7 @@ otherConfig:
   teleportConfig:
     # place a full teleport.yaml configuration here
 
-# Teleport configuration for high availability deployment
+# Teleport configuration for High Availability deployment
 otherConfigHA:
   useOtherConfig: false
   teleportConfig:
@@ -285,7 +285,7 @@ extraVolumeMounts: []
   #   mountPath: /var/lib/ca-certs
   #   readOnly: true
 
-# Volume mounts only for the auth service in high availability deployments
+# Volume mounts only for the auth service in High Availability deployments
 extraAuthVolumes: []
 extraAuthVolumeMounts: []
 
@@ -361,7 +361,7 @@ strategy: RollingUpdate
 #           values:
 #           - teleport
 #
-## For high availability, distribute teleport pods to nodes as evenly as possible
+## For High Availability, distribute teleport pods to nodes as evenly as possible
 #   podAntiAffinity:
 #     preferredDuringSchedulingIgnoredDuringExecution:
 #     - podAffinityTerm:

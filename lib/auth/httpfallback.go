@@ -628,3 +628,47 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 
 	return re, nil
 }
+
+// GetAuthPreference gets cluster auth preference.
+func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	if resp, err := c.APIClient.GetAuthPreference(ctx); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+	out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cap, err := services.UnmarshalAuthPreference(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cap, nil
+}
+
+// SetAuthPreference sets cluster auth preference.
+func (c *Client) SetAuthPreference(ctx context.Context, cap types.AuthPreference) error {
+	if err := c.APIClient.SetAuthPreference(ctx, cap); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+	data, err := services.MarshalAuthPreference(cap)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = c.PostJSON(c.Endpoint("authentication", "preference"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}

@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -495,6 +497,9 @@ type AuthConfig struct {
 	// ClusterConfig stores cluster level configuration.
 	ClusterConfig types.ClusterConfig
 
+	// AuditConfig stores cluster audit configuration.
+	AuditConfig types.ClusterAuditConfig
+
 	// NetworkingConfig stores cluster networking configuration.
 	NetworkingConfig types.ClusterNetworkingConfig
 
@@ -535,6 +540,9 @@ type SSHConfig struct {
 	//
 	// See github.com/gravitational/teleport/issues/4141 for details.
 	ProxyReverseTunnelFallbackAddr *utils.NetAddr
+
+	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
+	AllowTCPForwarding bool
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -632,7 +640,24 @@ func (d *Database) Check() error {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
 			d.Name, d.Protocol, defaults.DatabaseProtocols)
 	}
-	if _, _, err := net.SplitHostPort(d.URI); err != nil {
+	// For MongoDB we support specifying either server address or connection
+	// string in the URI which is useful when connecting to a replica set.
+	if d.Protocol == defaults.ProtocolMongoDB &&
+		(strings.HasPrefix(d.URI, connstring.SchemeMongoDB+"://") ||
+			strings.HasPrefix(d.URI, connstring.SchemeMongoDBSRV+"://")) {
+		connString, err := connstring.ParseAndValidate(d.URI)
+		if err != nil {
+			return trace.BadParameter("invalid MongoDB database %q connection string %q: %v",
+				d.Name, d.URI, err)
+		}
+		// Validate read preference to catch typos early.
+		if connString.ReadPreference != "" {
+			if _, err := readpref.ModeFromString(connString.ReadPreference); err != nil {
+				return trace.BadParameter("invalid MongoDB database %q read preference %q",
+					d.Name, connString.ReadPreference)
+			}
+		}
+	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
 	}
@@ -642,31 +667,12 @@ func (d *Database) Check() error {
 				d.Name, err)
 		}
 	}
-	// Validate Redshift specific configuration.
-	if d.AWS.Redshift.ClusterID != "" {
-		if d.AWS.Region == "" {
-			return trace.BadParameter("missing AWS region for Redshift database %q", d.Name)
-		}
-	}
 	// Validate Cloud SQL specific configuration.
 	switch {
 	case d.GCP.ProjectID != "" && d.GCP.InstanceID == "":
 		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.Name)
 	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
-	case d.GCP.ProjectID != "" && d.GCP.InstanceID != "":
-		// Only Postgres Cloud SQL instances currently support IAM authentication.
-		// It's a relatively new feature so we'll be able to enable it once it
-		// expands to MySQL as well:
-		//   https://cloud.google.com/sql/docs/postgres/authentication
-		if d.Protocol != defaults.ProtocolPostgres {
-			return trace.BadParameter("Cloud SQL IAM authentication is currently supported only for PostgreSQL databases, can't use database %q with protocol %q", d.Name, d.Protocol)
-		}
-		// TODO(r0mant): See if we can download it automatically similar to RDS:
-		// https://cloud.google.com/sql/docs/postgres/instance-info#rest-v1beta4
-		if len(d.CACert) == 0 {
-			return trace.BadParameter("missing Cloud SQL instance root certificate for database %q", d.Name)
-		}
 	}
 	return nil
 }
@@ -852,8 +858,9 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
-	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
-	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
+	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
+	cfg.Auth.ClusterConfig = types.DefaultClusterConfig()
+	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
 	cfg.Auth.Preference = types.DefaultAuthPreference()
@@ -877,6 +884,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+	cfg.SSH.AllowTCPForwarding = true
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false

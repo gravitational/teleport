@@ -132,6 +132,8 @@ type Config struct {
 	ProxySSHAddr utils.NetAddr
 	// ProxyWebAddr points to the web (HTTPS) address of the proxy
 	ProxyWebAddr utils.NetAddr
+	// ProxyPublicAddr contains web proxy public addresses.
+	ProxyPublicAddrs []utils.NetAddr
 
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
@@ -174,9 +176,6 @@ type RewritingHandler struct {
 
 	// appHandler is a http.Handler to forward requests to applications.
 	appHandler *app.Handler
-
-	// publicAddr is the public address the proxy is running at.
-	publicAddr string
 }
 
 // Check if this request should be forwarded to an application handler to
@@ -190,7 +189,7 @@ func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
-	if redir, ok := app.HasName(r, h.publicAddr); ok {
+	if redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs); ok {
 		http.Redirect(w, r, redir, http.StatusFound)
 		return
 	}
@@ -478,7 +477,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		),
 		handler:    h,
 		appHandler: appHandler,
-		publicAddr: cfg.ProxySettings.SSH.PublicAddr,
 	}, nil
 }
 
@@ -598,7 +596,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 }
 
 func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
@@ -701,7 +699,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	authClient := h.cfg.ProxyClient
 	connectorName := p.ByName("connector")
 
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -796,7 +794,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	authType := constants.Local
 	secondFactor := constants.SecondFactorOff
 	localAuth := true
-	cap, err := h.cfg.ProxyClient.GetAuthPreference()
+	cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
 	} else {
@@ -862,7 +860,7 @@ func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pairs := ca.GetJWTKeyPairs()
+	pairs := ca.GetTrustedJWTKeyPairs()
 
 	// Create response and allocate space for the keys.
 	var resp JWKSResponse
@@ -1241,7 +1239,10 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token := ctx.getToken()
+	token, err := ctx.getToken()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	user, err := clt.GetUser(ctx.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1285,7 +1286,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	// get cluster preferences to see if we should login
 	// with password or password+otp
 	authClient := h.cfg.ProxyClient
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2159,7 +2160,7 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	authClient := h.cfg.ProxyClient
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -376,7 +376,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	ap, err := s.c.AccessPoint.GetAuthPreference()
+	ap, err := s.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

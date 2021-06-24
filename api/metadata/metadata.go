@@ -19,7 +19,7 @@ package metadata
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -31,7 +31,7 @@ const (
 // defaultMetadata returns the default metadata which will be added to all outgoing calls.
 func defaultMetadata() map[string]string {
 	return map[string]string{
-		VersionKey: constants.Version,
+		VersionKey: api.Version,
 	}
 }
 
