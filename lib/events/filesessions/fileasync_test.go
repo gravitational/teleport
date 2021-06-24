@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 
@@ -80,7 +81,7 @@ func TestUploadParallel(t *testing.T) {
 	// wait until uploader blocks on the clock
 	p.clock.BlockUntil(1)
 
-	sessions := make(map[string][]events.AuditEvent)
+	sessions := make(map[string][]apievents.AuditEvent)
 
 	for i := 0; i < 5; i++ {
 		fileStreamer, err := NewStreamer(p.scanDir)
@@ -99,7 +100,7 @@ func TestUploadParallel(t *testing.T) {
 
 	for range sessions {
 		var event events.UploadEvent
-		var sessionEvents []events.AuditEvent
+		var sessionEvents []apievents.AuditEvent
 		var found bool
 		select {
 		case event = <-p.memEventsC:
@@ -147,14 +148,14 @@ func TestUploadResume(t *testing.T) {
 
 				callbackStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 					Inner: streamer,
-					OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event events.AuditEvent) error {
+					OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 						if event.GetIndex() > 600 && terminateConnection.CAS(1, 0) == true {
 							log.Debugf("Terminating connection at event %v", event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
 					},
-					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (events.Stream, error) {
+					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (apievents.Stream, error) {
 						stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 						require.Nil(t, err)
 						streamResumed.Inc()
@@ -179,14 +180,14 @@ func TestUploadResume(t *testing.T) {
 
 				callbackStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 					Inner: streamer,
-					OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event events.AuditEvent) error {
+					OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 						if event.GetIndex() > 600 && terminateConnection.Inc() <= 10 {
 							log.Debugf("Terminating connection #%v at event %v", terminateConnection.Load(), event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
 					},
-					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (events.Stream, error) {
+					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (apievents.Stream, error) {
 						stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 						require.Nil(t, err)
 						streamResumed.Inc()
@@ -211,20 +212,20 @@ func TestUploadResume(t *testing.T) {
 
 				callbackStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 					Inner: streamer,
-					OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event events.AuditEvent) error {
+					OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 						if event.GetIndex() > 600 && terminateConnection.CAS(1, 0) == true {
 							log.Debugf("Terminating connection at event %v", event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
 					},
-					OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer events.Streamer) (events.Stream, error) {
+					OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer events.Streamer) (apievents.Stream, error) {
 						stream, err := streamer.CreateAuditStream(ctx, sid)
 						require.Nil(t, err)
 						streamCreated.Inc()
 						return stream, nil
 					},
-					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (events.Stream, error) {
+					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (apievents.Stream, error) {
 						return nil, trace.NotFound("stream not found")
 					},
 				})
@@ -265,20 +266,20 @@ func TestUploadResume(t *testing.T) {
 
 				callbackStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 					Inner: streamer,
-					OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event events.AuditEvent) error {
+					OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 						if event.GetIndex() > 600 && terminateConnection.CAS(1, 0) == true {
 							log.Debugf("Terminating connection at event %v", event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
 					},
-					OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer events.Streamer) (events.Stream, error) {
+					OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer events.Streamer) (apievents.Stream, error) {
 						stream, err := streamer.CreateAuditStream(ctx, sid)
 						require.Nil(t, err)
 						streamCreated.Inc()
 						return stream, nil
 					},
-					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (events.Stream, error) {
+					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (apievents.Stream, error) {
 						stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 						require.Nil(t, err)
 						streamResumed.Inc()
@@ -311,7 +312,7 @@ func TestUploadBackoff(t *testing.T) {
 	p := newUploaderPack(t, func(streamer events.Streamer) (events.Streamer, error) {
 		return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 			Inner: streamer,
-			OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event events.AuditEvent) error {
+			OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 				terminateAt := terminateConnectionAt.Load()
 				if terminateAt > 0 && event.GetIndex() >= terminateAt {
 					log.Debugf("Terminating connection at event %v", event.GetIndex())
@@ -594,7 +595,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 }
 
 // emitStream creates and sends the session stream
-func emitStream(ctx context.Context, t *testing.T, streamer events.Streamer, inEvents []events.AuditEvent) {
+func emitStream(ctx context.Context, t *testing.T, streamer events.Streamer, inEvents []apievents.AuditEvent) {
 	sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
 
 	stream, err := streamer.CreateAuditStream(ctx, session.ID(sid))
@@ -608,11 +609,11 @@ func emitStream(ctx context.Context, t *testing.T, streamer events.Streamer, inE
 }
 
 // readStream reads and decodes the audit stream from uploadID
-func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *events.MemoryUploader) []events.AuditEvent {
+func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *events.MemoryUploader) []apievents.AuditEvent {
 	parts, err := uploader.GetParts(uploadID)
 	require.Nil(t, err)
 
-	var outEvents []events.AuditEvent
+	var outEvents []apievents.AuditEvent
 	var reader *events.ProtoReader
 	for i, part := range parts {
 		if i == 0 {

@@ -49,7 +49,7 @@ message Event {
         // User is a user resource
         types.UserV2 User = 8 [ (gogoproto.jsontag) = "user,omitempty" ];
         // Role is a role resource
-        types.RoleV3 Role = 9 [ (gogoproto.jsontag) = "role,omitempty" ];
+        types.RoleV4 Role = 9 [ (gogoproto.jsontag) = "role,omitempty" ];
         // Namespace is a namespace resource
         types.Namespace Namespace = 10 [ (gogoproto.jsontag) = "namespace,omitempty" ];
         // Server is a node or proxy resource
@@ -78,9 +78,15 @@ message Event {
         // ClusterNetworkingConfig is a resource for cluster networking configuration.
         types.ClusterNetworkingConfigV2 ClusterNetworkingConfig = 20
             [ (gogoproto.jsontag) = "cluster_networking_config,omitempty" ];
-        // SessionRecordingConfigV2 is a resource for session recording configuration.
+        // SessionRecordingConfig is a resource for session recording configuration.
         types.SessionRecordingConfigV2 SessionRecordingConfig = 21
             [ (gogoproto.jsontag) = "session_recording_config,omitempty" ];
+        // AuthPreference is cluster auth preference.
+        types.AuthPreferenceV2 AuthPreference = 22
+            [ (gogoproto.jsontag) = "auth_preference,omitempty" ];
+        // ClusterAuditConfig is a resource for cluster audit configuration.
+        types.ClusterAuditConfigV2 ClusterAuditConfig = 23
+            [ (gogoproto.jsontag) = "cluster_audit_config,omitempty" ];
     }
 }
 
@@ -588,7 +594,7 @@ message GetRoleRequest {
 // GetRolesResponse is a response to querying for all roles.
 message GetRolesResponse {
     // Roles is a list of roles.
-    repeated types.RoleV3 Roles = 1;
+    repeated types.RoleV4 Roles = 1;
 }
 
 // DeleteRoleRequest is a request to delete a role.
@@ -1018,11 +1024,11 @@ service AuthService {
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
 
     // GetRole retrieves a role described by the given request.
-    rpc GetRole(GetRoleRequest) returns (types.RoleV3);
+    rpc GetRole(GetRoleRequest) returns (types.RoleV4);
     // GetRole retrieves all roles.
     rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
     // UpsertRole upserts a role in a backend.
-    rpc UpsertRole(types.RoleV3) returns (google.protobuf.Empty);
+    rpc UpsertRole(types.RoleV4) returns (google.protobuf.Empty);
     // DeleteRole deletes an existing role in a backend described by the given request.
     rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 
@@ -1096,16 +1102,29 @@ service AuthService {
     // DeleteToken deletes an existing token in a backend described by the given request.
     rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 
+    // GetClusterAuditConfig gets cluster audit configuration.
+    rpc GetClusterAuditConfig(google.protobuf.Empty) returns (types.ClusterAuditConfigV2);
+    // SetClusterAuditConfig sets cluster audit configuration.
+    rpc SetClusterAuditConfig(types.ClusterAuditConfigV2) returns (google.protobuf.Empty);
+
     // GetClusterNetworkingConfig gets cluster networking configuration.
     rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
     // SetClusterNetworkingConfig sets cluster networking configuration.
     rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty);
+    // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
+    rpc ResetClusterNetworkingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // GetSessionRecordingConfig gets session recording configuration.
     rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2);
     // SetSessionRecordingConfig sets session recording configuration.
     rpc SetSessionRecordingConfig(types.SessionRecordingConfigV2) returns (google.protobuf.Empty);
+    // ResetSessionRecordingConfig resets session recording configuration to defaults.
+    rpc ResetSessionRecordingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 
+    // GetAuthPreference gets cluster auth preference.
+    rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2);
+    // SetAuthPreference sets cluster auth preference.
+    rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty);
     // ResetAuthPreference resets cluster auth preference to defaults.
     rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty);
 
