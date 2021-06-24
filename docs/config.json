@@ -224,12 +224,12 @@
           "title": "CLI",
           "slug": "/reference/cli-docs/",
           "entries": [
-            {"title": "Teleport Reference", "slug": "/reference/cli/teleport/"},
-            {"title": "tsh Reference", "slug": "/reference/cli/tsh/"},
-            {"title": "tctl Reference", "slug": "/reference/cli/tctl/"}
+            {"title": "Teleport", "slug": "/reference/cli/teleport/"},
+            {"title": "tsh", "slug": "/reference/cli/tsh/"},
+            {"title": "tctl", "slug": "/reference/cli/tctl/"}
           ]
         },
-        { "title": "Metrics", "slug": "/metrics-logs-reference/" },
+        { "title": "Cheatsheet", "slug": "/reference/cheatsheet/" },
         {
           "title": "API",
           "slug": "/reference/api/",
@@ -238,7 +238,8 @@
             {"title": "Getting Started", "slug": "/reference/api/getting-started/"},
             {"title": "Architecture", "slug": "/reference/api/architecture/"}
           ]
-        }
+        },
+        { "title": "Metrics", "slug": "/metrics-logs-reference/" }
       ]
     }
   ],
