@@ -56,16 +56,14 @@ The auth server will then:
      effectively create a new IID with a new signature)
 3. Check that the AWS join token matches the AWS account in the IID, and the
    requested Teleport service role.
-4. Check that this IID has not already been used to join the cluster. \*
-5. Check that the EC2 instance is currently running. \*\*
+4. Check that this EC2 instance has not already joined the cluster.
+   - The node name will be set to `<aws_account_id>-<aws_instance_id>` so that
+     the auth server can efficiently check the backend to see whether this
+     instance has already joined.
+   - This is to prevent replay attacks with the IID
+5. Check that the EC2 instance is currently running. \*
 
-\* Step 4 requires that we store all recently joined IID pkcs7 signatures in the
-backend (at least within the TTL of the Identity Document). It would be easy
-to store these immediately when returning the ssh keys to the node, but if the
-node then fails to connect back to the cluster with the ssh keys it will
-effectively be locked out.
-
-\*\* Step 5 requires AWS credentials on the Auth server with permissions for
+\* Step 5 requires AWS credentials on the Auth server with permissions for
 `ec2:DescribeInstances`. If you need Nodes to be able to join the teleport
 cluster from different AWS accounts than the one in which the Teleport Auth
 server is running, there are a few extra required steps:
