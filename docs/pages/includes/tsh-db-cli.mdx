@@ -1,0 +1,59 @@
+## tsh db ls
+
+Lists available databases and their connection information.
+
+```bash
+tsh db ls
+```
+
+Displays only the databases a user has access to (see [RBAC](../rbac.mdx)).
+
+## tsh db login
+
+Retrieves database credentials.
+
+```bash
+tsh db login example
+tsh db login --db-user=postgres --db-name=postgres example
+```
+
+| Flag | Description |
+| - | - |
+| `--db-user` | Optionally, set default database account name to connect as. |
+| `--db-name` | Optionally, set default database name to connect to. |
+
+## tsh db logout
+
+Removes database credentials.
+
+```bash
+tsh db logout example
+tsh db logout
+```
+
+## tsh db env
+
+Outputs environment variables for a particular database.
+
+```bash
+tsh db env
+tsh db env --db=example
+eval $(tsh db env)
+```
+
+| Flag | Description |
+| - | - |
+| `--db` | Database server name to print environment for. Required, if logged into multiple databases simultaneously. |
+
+## tsh db config
+
+Prints database connection information. Useful when configuring GUI clients.
+
+```bash
+tsh db config
+tsh db config --db=example
+```
+
+| Flag | Description |
+| - | - |
+| `--db` | Database server name to print configuration for. Required, if logged into multiple databases simultaneously. |
