@@ -57,7 +57,7 @@ tsh ssh [<flags>] <[user@]host> [<command>...]
 `<[user@]host> [<command>...]`
 
 - `user` The login identity to use on the remote host. If `[user]` is not specified the user defaults to `$USER` or can be set with `--user`. If the flag `--user`
-  and positional argument `[user]` are specified the arg `[user]` takes precedence.
+  and positional argument `[user]` are specified the arg `[user]` takes precedence. Required.
 - `host` A `nodename` of a cluster node or a
 - `command` The command to execute on a remote host.
 
@@ -438,6 +438,105 @@ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+
+
+## tsh env
+
+Print commands to set Teleport session environment variables.
+
+```bash
+tsh env
+```
+
+### Examples
+
+```bash
+tsh env
+
+# Output
+export TELEPORT_PROXY=cli.go-teleport.com:443
+export TELEPORT_CLUSTER=cli.go-teleport.com
+```
+
+## tsh request ls
+
+List access requests.
+
+```bash
+tsh request ls [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-f`, `--format` | `text` | `text`, `json` | Format output (text, json) |
+| `--reviewable` | | | Only show requests reviewable by current user |
+| `--suggested` | | | Only show requests that suggest current user as reviewer |
+| `--my-requests` | | | Only show requests created by current user |
+
+## tsh request show
+
+Show request details.
+
+```bash
+tsh request show [token]
+```
+
+### Arguments
+
+- `<token>` - a Teleport request token.
+
+## tsh request new 
+
+Alias: `create`.
+
+Create a new access request.
+
+```bash
+tsh request new [<flags>]
+tsh request create [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--roles` | `text` | Roles to be requested. Required. |
+| `--reason` | | A String such as `for testing` | Reason for requesting |
+| `--reviewers` | | Teleport users such as `tele-admin` | Suggested reviewers |
+
+### Examples
+
+```bash
+tsh request create --roles=access
+# Output
+Seeking request approval... (id: 6a7e6ce2-9d82-48ac-91f1-f6c112aa01e1)
+
+tsh request new --roles=access,admin
+# Output
+Seeking request approval... (id: 8eeb8229-ca7b-45e6-bd41-0f7db17c9ed5)
+```
+
+## tsh request review
+
+Review an access request.
+
+```bash
+tsh request review [token]
+```
+
+### Arguments
+
+- `<token>` - a Teleport request token.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--approve` |`true` | `true`, `false` | Review proposes approval |
+| `--deny` |`true` | `true`, `false` | Review proposes denial |
+| `--reason` | | A String such as `for testing` | Review reason message |
 
 ## tsh mfa ls
 
