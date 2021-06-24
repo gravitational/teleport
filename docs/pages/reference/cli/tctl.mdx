@@ -34,7 +34,7 @@ tctl tokens add --type=node
 | `-d, --debug` | none | none | Enable verbose logging to stderr |
 | `-c, --config` | `/etc/teleport.yaml` | **string** filepath | Path to a configuration file |
 
-## tctl  help
+## tctl help
 
 Shows help:
 
@@ -149,6 +149,24 @@ request-id-1                         alice     roles=dictator 07 Nov 19 19:38 UT
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
+## tctl request get
+
+Show access request by ID:
+
+```bash
+tctl request get [token]
+```
+
+### Arguments
+
+- `<tokens>` - comma-separated list of Teleport request tokens.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | | `yaml, json` or `text` | Output format, 'text' or 'json' |
+
 ## tctl request approve
 
 Approve a user's request:
@@ -159,13 +177,53 @@ tctl request approve [token]
 
 ### Arguments
 
-- `<tokens>` - comma-separated list of Teleport tokens.
+- `<tokens>` - comma-separated list of Teleport request tokens.
 
 ### Examples
 
 ```bash
 tctl request approve request-id-1, request-id-2
 ```
+
+## tctl requests create 
+
+Create pending access request.
+
+```bash
+tctl requests create [username] [<flags>]
+```
+
+### Arguments
+
+- `[username]` - name of target user.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--roles` | `*` | Teleport roles  | Roles to be requested |
+| `--reason` | | A String like `dev test` | Optional reason message |
+| `--dry-run` | | `true`, `false` | Don't actually generate the access request |
+
+## tctl requests review
+
+Review an access request.
+
+```bash
+tctl requests review [token] [<flags>]
+```
+
+### Arguments
+
+- `<tokens>` - comma-separated list of Teleport request tokens.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--author` | | A Teleport username like `tele-admin` | Username of reviewer |
+| `--approve` | | `true`, `false` | Review proposes approval |
+| `--deny` | | `true`, `false` | Review proposes denial |
 
 ## tctl request deny
 
@@ -177,7 +235,7 @@ tctl request deny [token]
 
 ### Arguments
 
-- `<tokens>` - comma-separated list of Teleport tokens.
+- `<tokens>` - comma-separated list of Teleport request tokens.
 
 ### Examples
 
@@ -195,7 +253,7 @@ tctl request rm [token]
 
 ### Arguments
 
-- `<tokens>` - comma-separated list of Teleport tokens.
+- `<tokens>` - comma-separated list of Teleport request tokens.
 
 ### Examples
 
@@ -381,7 +439,7 @@ tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags>]
 | `--format` | `file` | `file`, `openssh`, `tls` or `kubernetes` | identity format |
 | `--identity` | `file` | `file` | identity format |
 | `--auth-server` | none | auth host & port | Remote Teleport host name |
-| `--ttl` | none | relative duration like 5s, 2m, or 3h | TTL (time to live) for the generated certificate |
+| `--ttl` | none | A relative duration such as `5s`, `2m`, or `3h`. | TTL (time to live) for the generated certificate |
 | `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag |
 | `--proxy` | `""` | Address of the teleport proxy. | When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file |
 | `--leaf-cluster` | `""` | The name of a leaf cluster. | |
@@ -488,6 +546,27 @@ tctl create cluster.yaml
 # Update a trusted cluster
 tctl create -f cluster.yaml
 ```
+
+## tctl update	
+
+Update resource fields:
+
+```bash
+tctl update [<resource-type/resource-name>] [<flags>]
+```
+
+### Arguments
+
+- `[<resource-type/resource-name>]` Resource to delete
+  - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,token`]
+  - `<resource name>` Resource name to delete
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--set-labels` |  | An identifying label such as `env=prod`. | Set labels |
+| `--set-ttl` |  | A relative duration such as `5s`, `2m`, or `3h`. | Set TTL |
 
 ## tctl rm
 
@@ -605,3 +684,5 @@ tctl version
 ```
 
 (!docs/pages/includes/tctl-db-cli.mdx!)
+
+(!docs/pages/includes/tctl-app-cli.mdx!)
