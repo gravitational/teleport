@@ -19,11 +19,16 @@ package services
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // MarshalNamespace marshals the Namespace resource to JSON.
-func MarshalNamespace(resource Namespace, opts ...MarshalOption) ([]byte, error) {
+func MarshalNamespace(resource types.Namespace, opts ...MarshalOption) ([]byte, error) {
+	if err := resource.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -39,7 +44,7 @@ func MarshalNamespace(resource Namespace, opts ...MarshalOption) ([]byte, error)
 }
 
 // UnmarshalNamespace unmarshals the Namespace resource from JSON.
-func UnmarshalNamespace(data []byte, opts ...MarshalOption) (*Namespace, error) {
+func UnmarshalNamespace(data []byte, opts ...MarshalOption) (*types.Namespace, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing namespace data")
 	}
@@ -51,7 +56,7 @@ func UnmarshalNamespace(data []byte, opts ...MarshalOption) (*Namespace, error) 
 
 	// always skip schema validation on namespaces unmarshal
 	// the namespace is always created by teleport now
-	var namespace Namespace
+	var namespace types.Namespace
 	if err := utils.FastUnmarshal(data, &namespace); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}

@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -102,7 +101,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 		},
 		{
 			desc:     "database service can sign database certs",
-			identity: TestBuiltin(teleport.RoleDatabase),
+			identity: TestBuiltin(types.RoleDatabase),
 		},
 	}
 
@@ -130,13 +129,14 @@ func TestGenerateDatabaseCert(t *testing.T) {
 // TestSetAuthPreference tests the dynamic configuration rules described
 // in rfd/0016-dynamic-configuration.md § Implementation.
 func TestSetAuthPreference(t *testing.T) {
+	ctx := context.Background()
 	testAuth, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
 	// Initialize with the default auth preference.
-	err = testAuth.AuthServer.SetAuthPreference(types.DefaultAuthPreference())
+	err = testAuth.AuthServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
-	storedAuthPref, err := testAuth.AuthServer.GetAuthPreference()
+	storedAuthPref, err := testAuth.AuthServer.GetAuthPreference(ctx)
 	require.NoError(t, err)
 	require.Empty(t, resourceDiff(storedAuthPref, types.DefaultAuthPreference()))
 
@@ -154,9 +154,9 @@ func TestSetAuthPreference(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Run("from default to dynamic", func(t *testing.T) {
-		err = server.SetAuthPreference(dynamicAuthPref)
+		err = server.SetAuthPreference(ctx, dynamicAuthPref)
 		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference()
+		storedAuthPref, err = server.GetAuthPreference(ctx)
 		require.NoError(t, err)
 		require.Empty(t, resourceDiff(storedAuthPref, dynamicAuthPref))
 	})
@@ -166,18 +166,18 @@ func TestSetAuthPreference(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Run("from dynamic to another dynamic", func(t *testing.T) {
-		err = server.SetAuthPreference(newDynamicAuthPref)
+		err = server.SetAuthPreference(ctx, newDynamicAuthPref)
 		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference()
+		storedAuthPref, err = server.GetAuthPreference(ctx)
 		require.NoError(t, err)
 		require.Empty(t, resourceDiff(storedAuthPref, newDynamicAuthPref))
 	})
 
 	staticAuthPref := newU2FAuthPreferenceFromConfigFile(t)
 	t.Run("from dynamic to static", func(t *testing.T) {
-		err = server.SetAuthPreference(staticAuthPref)
+		err = server.SetAuthPreference(ctx, staticAuthPref)
 		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference()
+		storedAuthPref, err = server.GetAuthPreference(ctx)
 		require.NoError(t, err)
 		require.Empty(t, resourceDiff(storedAuthPref, staticAuthPref))
 	})
@@ -188,14 +188,14 @@ func TestSetAuthPreference(t *testing.T) {
 	require.NoError(t, err)
 	replaceStatic := func(success bool) func(t *testing.T) {
 		return func(t *testing.T) {
-			err = server.SetAuthPreference(newAuthPref)
+			err = server.SetAuthPreference(ctx, newAuthPref)
 			checkSetResult := require.Error
 			if success {
 				checkSetResult = require.NoError
 			}
 			checkSetResult(t, err)
 
-			storedAuthPref, err = server.GetAuthPreference()
+			storedAuthPref, err = server.GetAuthPreference(ctx)
 			require.NoError(t, err)
 			expectedStored := staticAuthPref
 			if success {

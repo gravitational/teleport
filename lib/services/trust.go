@@ -16,6 +16,8 @@ limitations under the License.
 
 package services
 
+import "github.com/gravitational/teleport/api/types"
+
 // Trust is responsible for managing certificate authorities
 // Each authority is managing some domain, e.g. example.com
 //
@@ -27,35 +29,35 @@ package services
 // be only used to validate
 type Trust interface {
 	// CreateCertAuthority inserts a new certificate authority
-	CreateCertAuthority(ca CertAuthority) error
+	CreateCertAuthority(ca types.CertAuthority) error
 
 	// UpsertCertAuthority updates or inserts a new certificate authority
-	UpsertCertAuthority(ca CertAuthority) error
+	UpsertCertAuthority(ca types.CertAuthority) error
 
 	// CompareAndSwapCertAuthority updates the cert authority value
 	// if existing value matches existing parameter,
 	// returns nil if succeeds, trace.CompareFailed otherwise
-	CompareAndSwapCertAuthority(new, existing CertAuthority) error
+	CompareAndSwapCertAuthority(new, existing types.CertAuthority) error
 
 	// DeleteCertAuthority deletes particular certificate authority
-	DeleteCertAuthority(id CertAuthID) error
+	DeleteCertAuthority(id types.CertAuthID) error
 
 	// DeleteAllCertAuthorities deletes cert authorities of a certain type
-	DeleteAllCertAuthorities(caType CertAuthType) error
+	DeleteAllCertAuthorities(caType types.CertAuthType) error
 
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
-	GetCertAuthority(id CertAuthID, loadSigningKeys bool, opts ...MarshalOption) (CertAuthority, error)
+	GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts ...MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of authorities of a given type
 	// loadSigningKeys controls whether signing keys should be loaded or not
-	GetCertAuthorities(caType CertAuthType, loadSigningKeys bool, opts ...MarshalOption) ([]CertAuthority, error)
+	GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bool, opts ...MarshalOption) ([]types.CertAuthority, error)
 
 	// ActivateCertAuthority moves a CertAuthority from the deactivated list to
 	// the normal list.
-	ActivateCertAuthority(id CertAuthID) error
+	ActivateCertAuthority(id types.CertAuthID) error
 
 	// DeactivateCertAuthority moves a CertAuthority from the normal list to
 	// the deactivated list.
-	DeactivateCertAuthority(id CertAuthID) error
+	DeactivateCertAuthority(id types.CertAuthID) error
 }

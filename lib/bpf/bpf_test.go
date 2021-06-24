@@ -33,8 +33,9 @@ import (
 	"unsafe"
 
 	"github.com/aquasecurity/tracee/libbpfgo"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/api/constants"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -87,7 +88,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	// Create a monitoring session for init. The events we execute should not
 	// have PID 1, so nothing should be captured in the Audit Log.
 	cgroupID, err := service.OpenSession(&SessionContext{
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		SessionID: uuid.New(),
 		ServerID:  uuid.New(),
 		Login:     "foo",
@@ -95,9 +96,9 @@ func (s *Suite) TestWatch(c *check.C) {
 		PID:       cmd.Process.Pid,
 		Emitter:   emitter,
 		Events: map[string]bool{
-			teleport.EnhancedRecordingCommand: true,
-			teleport.EnhancedRecordingDisk:    true,
-			teleport.EnhancedRecordingNetwork: true,
+			constants.EnhancedRecordingCommand: true,
+			constants.EnhancedRecordingDisk:    true,
+			constants.EnhancedRecordingNetwork: true,
 		},
 	})
 	c.Assert(err, check.IsNil)
@@ -122,11 +123,11 @@ func (s *Suite) TestWatch(c *check.C) {
 		var pid uint64
 
 		switch ev := e.(type) {
-		case *events.SessionCommand:
+		case *apievents.SessionCommand:
 			pid = ev.BPFMetadata.PID
-		case *events.SessionDisk:
+		case *apievents.SessionDisk:
 			pid = ev.BPFMetadata.PID
-		case *events.SessionNetwork:
+		case *apievents.SessionNetwork:
 			pid = ev.BPFMetadata.PID
 		}
 		c.Assert(int(pid), check.Equals, cmd.Process.Pid)

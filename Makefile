@@ -17,6 +17,9 @@ DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
 # These are standard autotools variables, don't change them please
+ifneq ("$(wildcard /bin/bash)","")
+SHELL := /bin/bash
+endif
 BUILDDIR ?= build
 ASSETS_BUILDDIR ?= lib/web/build
 BINDIR ?= /usr/local/bin
@@ -117,7 +120,7 @@ ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
 
-VERSRC = version.go gitref.go
+VERSRC = version.go gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
@@ -131,7 +134,7 @@ export
 #            This is the default build target for convenience of working on
 #            a web UI.
 .PHONY: all
-all: $(VERSRC)
+all: version
 	@echo "---> Building OSS binaries."
 	$(MAKE) $(BINARIES)
 
@@ -454,7 +457,11 @@ lint-helm:
 		fi; \
 	done
 
-# This rule triggers re-generation of version.go and gitref.go if Makefile changes
+# This rule triggers re-generation of version files if Makefile changes.
+.PHONY: version
+version: $(VERSRC)
+
+# This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
