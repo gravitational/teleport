@@ -1,0 +1,503 @@
+---
+title: Teleport tsh CLI Reference
+description: The detailed guide and reference documentation for Teleport's tsh Command Line Interface (CLI) tool.
+h1: tsh Command Line (CLI) Reference
+---
+
+(!docs/pages/includes/permission-warning.mdx!)
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+`tsh` is a CLI client used by Teleport Users. It allows users to interact with
+current and past sessions on the cluster, copy files to and from nodes, and list
+information about the cluster.
+
+### tsh Global Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-l, --login` | none | an identity name | the login identity that the Teleport User should use |
+| `--proxy` | none | `host:https_port[,ssh_proxy_port]` | set SSH proxy address |
+| `--user` | `$USER` | none | the Teleport User name |
+| `--ttl` | none | relative duration like 5s, 2m, or 3h | set time to live for a SSH session, session ttl unrestricted if unset {/* TODO Check this */} |
+| `-i, --identity` | none | **string** filepath | Identity file |
+| `--cert-format` | `file` | `file` or `openssh` | SSH certificate format |
+| `--insecure` | none | none | Do not verify server's certificate and host name. Use only in test environments |
+| `--auth` | `local` | any defined [authentication connector](../../admin-guide.mdx#authentication) | Specify the type of authentication connector to use. |
+| `--skip-version-check` | none | none | Skip version checking between server and client. |
+| `-d, --debug` | none | none | Verbose logging to stdout |
+| `-J, --jumphost` | none | A jump host | SSH jumphost |
+
+### tsh help
+
+Prints help:
+
+```bash
+tsh help
+```
+
+### tsh version
+
+Prints client version:
+
+```bash
+tsh version
+```
+
+### tsh ssh
+
+Run shell or execute a command on a remote SSH node:
+
+```bash
+tsh ssh [<flags>] <[user@]host> [<command>...]
+```
+
+#### Arguments
+
+`<[user@]host> [<command>...]`
+
+- `user` The login identity to use on the remote host. If `[user]` is not specified the user defaults to `$USER` or can be set with `--user`. If the flag `--user`
+  and positional argument `[user]` are specified the arg `[user]` takes precedence.
+- `host` A `nodename` of a cluster node or a
+- `command` The command to execute on a remote host.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-p, --port` | none | port | SSH port on a remote host |
+| `-A, --forward-agent` | none | none | Forward agent to target node like `ssh -A` |
+| `-L, --forward` | none | none | Forward localhost connections to remote server |
+| `-D, --dynamic-forward` | none | none | Forward localhost connections to remote server using SOCKS5 |
+| `-N, -no-remote-exec` | none | none | Don't execute remote command, useful for port forwarding |
+| `--local` | none | | Execute command on localhost after connecting to SSH node |
+| `-t, --tty` | `file` | | Allocate TTY |
+| `--cluster` | none | | Specify the cluster to connect |
+| `-o, --option` | `local` | | OpenSSH options in the format used in the configuration file |
+| `--enable-escape-sequences` | | | Enable support for SSH escape sequences. Type `~?` during an SSH session to list supported sequences. |
+| `--no-use-local-ssh-agent` | | | Do not load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). Useful when using `gpg-agent` or Yubikeys. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable to `false` (default `true`) |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+```bash
+# Log in to node `grav-00` as OS User `root` with Teleport User `teleport`
+tsh ssh --proxy proxy.example.com --user teleport -d root@grav-00
+# `tsh ssh` takes the same arguments as OpenSSH client:
+tsh ssh -o ForwardAgent=yes root@grav-00
+tsh ssh -o AddKeysToAgent=yes root@grav-00
+```
+
+### tsh apps ls
+
+List all available applications:
+
+```bash
+tsh apps ls
+```
+
+### tsh join
+
+Joins an active session:
+
+```bash
+tsh join [<flags>] <session-id>
+```
+
+#### Arguments
+
+`<session-id>`
+
+- `session-id` The UUID of an active Teleport Session obtained by `teleport status` within
+  the session.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--cluster` | none | a cluster_name | Specify the cluster to connect |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+```bash
+tsh --proxy proxy.example.com join <session-id>
+```
+
+### tsh play
+
+Plays back a prior session:
+
+```bash
+tsh play [<flags>] <session-id>
+```
+
+#### Arguments
+
+`<session-id>`
+
+- `session-id` The UUID of a past Teleport Session obtained by `teleport status` within
+  the session or from the Web UI.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--cluster` | none | a cluster_name | Specify the cluster to connect |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+```bash
+tsh --proxy proxy.example.com play <session-id>
+```
+
+### tsh scp
+
+Copies files from source to dest:
+
+```bash
+tsh scp [<flags>] <source>... <dest>
+```
+
+{/* TODO Confirm which flags are supported and whether supports multiple sources */}
+
+#### Arguments
+
+- `<source>` - filepath to copy
+- `<dest>` - target destination
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--cluster` | none | a cluster_name | Specify the cluster to connect |
+| `-r, --recursive` | none | none | Recursive copy of subdirectories |
+| `-P, --port` | none | port number | Port to connect to on the remote host |
+| `-q, --quiet` | none | none | Quiet mode |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+```bash
+tsh --proxy=proxy.example.com scp -P example.txt user@host:/destination/dir
+```
+
+### tsh ls
+
+List cluster nodes:
+
+```bash
+tsh ls [<flags>] [<label>]
+```
+
+{/* TODO: label? or labels? seems like it only supports one label at a time */}
+
+#### Arguments
+
+- `<label>` - `key=value` label to filer nodes by
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-v, --verbose` | none | none | also print Node ID |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+```bash
+tsh ls
+
+# Output
+Node Name Address            Labels
+--------- ------------------ ------
+grav-00   10.164.0.0:3022    os:linux
+grav-01   10.156.0.2:3022    os:linux
+grav-02   10.156.0.7:3022    os:osx
+
+tsh ls -v
+
+# Output
+Node Name Node ID                              Address            Labels
+--------- ------------------------------------ ------------------ ------
+grav-00   52e3e46a-372f-494b-bdd9-a1d25b9d6dec 10.164.0.0:3022    os:linux
+grav-01   73d86fc7-7c4b-42e3-9a5f-c46e177a29e8 10.156.0.2:3022    os:linux
+grav-02  24503590-e8ae-4a0a-ad7a-dd1865c04e30 10.156.0.7:3022     os:osx
+
+# Only show nodes with os label set to 'osx':
+tsh ls os=osx
+
+# Output
+Node Name Address            Labels
+--------- ------------------ ------
+grav-02   10.156.0.7:3022    os:osx
+```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+
+### tsh kube ls
+
+List Kubernetes clusters:
+
+```bash
+tsh kube ls
+```
+
+#### Examples
+
+```bash
+tsh kube ls
+
+# Output
+Kube Cluster Name                     Selected
+------------------------------------- --------
+gke_bens-demos_us-central1-c_gks-demo *
+microk8s
+```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+
+### tsh clusters
+
+```bash
+tsh clusters [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-q, --quiet` | none | none | no headers in output |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+```bash
+tsh clusters
+
+# Output
+Cluster Name Status
+------------ ------
+staging          online
+production       offline
+
+tsh clusters --quiet
+
+# Output
+staging online
+production offline
+```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+
+### tsh login
+
+Logs in to the cluster. When `tsh` logs in, the auto-expiring key is stored in
+`~/.tsh` and is valid for 12 hours by default unless you specify another
+interval via `--ttl` flag (capped by the server-side configuration).
+
+```bash
+tsh login [<flags>] [<cluster>]
+```
+
+#### Arguments
+
+- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../trustedclusters.mdx#introduction) for more information.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--bind-addr` | none | host:port | Address in the form of host:port to bind to for login command webhook |
+| `-o, --out` | none | filepath | Identity output filepath |
+| `--format` | `file` | `file`, `openssh` or `kubernetes` | Identity format: file, openssh (for OpenSSH compatibility) or kubernetes (for kubeconfig) |
+| `--browser` | none | `none` | Set to 'none' to suppress opening system default browser for `tsh login` commands |
+| `--request-roles` | none | | Request one or more extra roles |
+| `--request-reason` | none | | Reason for requesting additional roles |
+| `--no-use-local-ssh-agent` | | | Do not load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). Useful when using `gpg-agent` or Yubikeys. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable to `false` (default `true`) |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+*The proxy endpoint can take a https and ssh port in this format `host:https_port[,ssh_proxy_port]`*
+
+```bash
+# Use ports 8080 and 8023 for https and SSH proxy:
+tsh --proxy=proxy.example.com:8080,8023 login
+
+# Use port 8080 and 3023 (default) for SSH proxy:
+tsh --proxy=proxy.example.com:8080 login
+
+# Use port 23 as custom SSH port, keep HTTPS proxy port as default
+tsh --proxy=work.example.com:,23 login
+
+# Login and select cluster "two":
+tsh --proxy=proxy.example.com login two
+
+# Select cluster "two" using existing credentials and proxy:
+tsh login two
+
+# Login to the  cluster with a very short-lived certificate
+tsh --ttl=1 login
+
+# Login using the local Teleport 'admin' user:
+tsh --proxy=proxy.example.com --auth=local --user=admin login
+
+# Login using Github as an SSO provider, assuming the Github connector is called "github"
+tsh --proxy=proxy.example.com --auth=github --user=admin login
+
+# Suppress the opening of the system default browser for external provider logins
+tsh --proxy=proxy.example.com --browser=none
+
+# Login to cluster and output a local kubeconfig
+tsh login --proxy=proxy.example.com --format=kubernetes -o kubeconfig
+
+# Enterprise only: Request access to a cluster.
+tsh login --proxy=proxy.example.com --request-reason="I need to run a debug script on production"
+```
+
+### tsh kube login
+
+Log into a Kubernetes cluster. Discover connected clusters by using [`tsh kube ls`](#tsh-kube-ls).
+
+```bash
+tsh kube login <kube-cluster>
+```
+
+```bash
+# tsh kube login to k8s cluster (gke_bens-demos_us-central1-c_gks-demo)
+tsh kube login gke_bens-demos_us-central1-c_gks-demo
+Logged into kubernetes cluster "gke_bens-demos_us-central1-c_gks-demo"
+
+# On login, kubeconfig is pointed at the first cluster (alphabetically)
+kubectl config current-context
+aws-gke_bens-demos_us-central1-c_gks-demo
+
+# But all clusters are populated as contexts
+kubectl config get-contexts
+# Output
+CURRENT   NAME                                        CLUSTER                       AUTHINFO                                    NAMESPACE
+*         aws-gke_bens-demos_us-central1-c_gks-demo   aws                           aws-gke_bens-demos_us-central1-c_gks-demo
+          aws-microk8s                                aws                           aws-microk8s
+```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+
+### tsh logout
+
+Deletes the client's cluster certificate:
+
+```bash
+tsh logout
+```
+
+### tsh status
+
+Display the list of proxy servers and retrieved certificates:
+
+```bash
+tsh status
+```
+
+#### Examples
+
+```bash
+tsh status
+
+# Output
+> Profile URL:  https://proxy.example.com:3080
+  Logged in as:       benarent
+  Cluster:            aws
+  Roles:              admin*
+  Logins:             benarent, root, ec2-user, ubunutu
+  Kubernetes:         enabled
+  Kubernetes cluster: "gke_bens-demos_us-central1-c_gks-demo"
+  Kubernetes groups:  system:masters
+  Valid until:        2020-11-21 01:50:23 -0800 PST [valid for 11h52m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+
+### tsh mfa ls
+
+List all registered Multi-Factor Authentication (MFA) devices:
+
+```bash
+tsh mfa ls
+```
+
+### tsh mfa add
+
+Register a new Multi-Factor Authentication (MFA) device:
+
+```bash
+tsh mfa add
+```
+
+#### Examples
+
+```bash
+tsh mfa add
+
+# Output
+Choose device type [TOTP, U2F]: u2f
+Enter device name: desktop yubikey
+Tap any *registered* security key
+Tap your *new* security key
+MFA device "desktop yubikey" added.
+```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+
+```bash
+tsh mfa add
+
+# Output
+Choose device type [TOTP, U2F]: totp
+Enter device name: android
+Tap any *registered* security key
+Open your TOTP app and create a new manual entry with these fields:
+Name: awly@example.com:3080
+Issuer: Teleport
+Algorithm: SHA1
+Number of digits: 6
+Period: 30s
+Secret: 6DHDR7GWA7ZKLLWEWRIF55WXJKZ52UVJ
+
+Once created, enter an OTP code generated by the app: 123456
+MFA device "android" added.
+```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+
+### tsh mfa rm
+
+Remove a registered Multi-Factor Authentication (MFA) device. You can view your
+registered devices using [`tsh mfa ls`](#tsh-mfa-ls).
+
+```bash
+tsh mfa rm <device-name>
+```
