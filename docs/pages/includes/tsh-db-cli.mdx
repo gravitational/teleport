@@ -17,10 +17,24 @@ tsh db login example
 tsh db login --db-user=postgres --db-name=postgres example
 ```
 
-| Flag | Description |
-| - | - |
-| `--db-user` | Optionally, set default database account name to connect as. |
-| `--db-name` | Optionally, set default database name to connect to. |
+<table>
+  <thead>
+    <tr>
+      <td>Flag</td>
+      <td>Description</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`--db-user`</td>
+      <td>Optionally, set default database account name to connect as.</td>
+    </tr>
+    <tr>
+      <td>`--db-name`</td>
+      <td>Optionally, set default database name to connect to.</td>
+    </tr>
+  </tbody>
+</table>
 
 ## tsh db logout
 
@@ -41,9 +55,20 @@ tsh db env --db=example
 eval $(tsh db env)
 ```
 
-| Flag | Description |
-| - | - |
-| `--db` | Database server name to print environment for. Required, if logged into multiple databases simultaneously. |
+<table>
+  <thead>
+    <tr>
+      <td>Flag</td>
+      <td>Description</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`--db`</td>
+      <td>Database server name to print environment for. Required, if logged into multiple databases simultaneously.</td>
+    </tr>
+  </tbody>
+</table>
 
 ## tsh db config
 
@@ -54,6 +79,17 @@ tsh db config
 tsh db config --db=example
 ```
 
-| Flag | Description |
-| - | - |
-| `--db` | Database server name to print configuration for. Required, if logged into multiple databases simultaneously. |
+<table>
+  <thead>
+    <tr>
+      <td>Flag</td>
+      <td>Description</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`--db`</td>
+      <td>Database server name to print configuration for. Required, if logged into multiple databases simultaneously.</td>
+    </tr>
+  </tbody>
+</table>
