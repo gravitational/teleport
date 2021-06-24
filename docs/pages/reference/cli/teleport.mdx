@@ -22,9 +22,9 @@ the following services.
 | [DB](../../database-access/reference.mdx) | `db` | Indicates that the Teleport node should be run as a database access server. |
 | [Trusted Cluster](../../trustedclusters.mdx) | `trusted_cluster` | The node will support a leaf cluster used to connect to another Teleport cluster. |
 
-### teleport start
+## teleport start
 
-#### Flags
+### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
@@ -49,7 +49,7 @@ the following services.
 | `--app-uri` | none | none | Internal address of the application to proxy |
 | `--app-public-addr` | none | none | Public address fo the application to proxy |
 
-#### Examples
+### Examples
 
 ```
 # By default without any configuration, teleport starts running as a single-node
@@ -71,7 +71,7 @@ sudo teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080
     --labels=group=dev
 ```
 
-### teleport status
+## teleport status
 
 Shows the status of a Teleport connection:
 
@@ -97,7 +97,7 @@ for reference only.
   View [Config Reference](../../config-reference.mdx) for all YAML configuration options.
 </Admonition>
 
-### teleport version
+## teleport version
 
 Shows the release version:
 
@@ -105,7 +105,7 @@ Shows the release version:
 teleport version
 ```
 
-### teleport help
+## teleport help
 
 Displays help options for `teleport`:
 
