@@ -290,7 +290,7 @@ func TestInactivityTimeout(t *testing.T) {
 	mutateCfg := func(cfg *auth.TestServerConfig) {
 		networkCfg := types.DefaultClusterNetworkingConfig()
 		networkCfg.SetClientIdleTimeout(5 * time.Second)
-		networkCfg.SetIdleTimeoutMessage(timeoutMessage)
+		networkCfg.SetClientIdleTimeoutMessage(timeoutMessage)
 
 		cfg.Auth.ClusterNetworkingConfig = networkCfg
 	}

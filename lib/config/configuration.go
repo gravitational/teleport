@@ -502,11 +502,11 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Set cluster networking configuration from file configuration.
 	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
-		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
-		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
-		SessionControlTimeout: fc.Auth.SessionControlTimeout,
-		IdleTimeoutMessage:    fc.Auth.IdleTimeoutMessage,
+		ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
+		ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
+		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
+		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
+		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 	})
 	if err != nil {
 		return trace.Wrap(err)

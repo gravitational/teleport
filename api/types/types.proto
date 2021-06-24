@@ -689,8 +689,8 @@ message ClusterNetworkingConfigSpecV2 {
     int64 SessionControlTimeout = 4
         [ (gogoproto.jsontag) = "session_control_timeout", (gogoproto.casttype) = "Duration" ];
 
-    // IdleTimeoutMessage is the message sent to the user when a connection times out.
-    string IdleTimeoutMessage = 5 [ (gogoproto.jsontag) = "idle_timeout_message" ];
+    // ClientIdleTimeoutMessage is the message sent to the user when a connection times out.
+    string ClientIdleTimeoutMessage = 5 [ (gogoproto.jsontag) = "idle_timeout_message" ];
 }
 
 // SessionRecordingConfigV2 contains session recording configuration.

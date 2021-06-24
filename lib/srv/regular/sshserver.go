@@ -1262,7 +1262,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	}
 
 	if scx.Monitor != nil {
-		scx.Monitor.IdleTimeoutMessage = netConfig.GetIdleTimeoutMessage()
+		scx.Monitor.IdleTimeoutMessage = netConfig.GetClientIdleTimeoutMessage()
 		scx.Monitor.MessageWriter = &stderrWriter{channel: ch}
 	}
 

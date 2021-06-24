@@ -464,10 +464,10 @@ type Auth struct {
 	// missed before the server disconnects the client.
 	KeepAliveCountMax int64 `yaml:"keep_alive_count_max,omitempty"`
 
-	// IdleTimeoutMessage is sent to the client when the inactivity timeout
+	// ClientIdleTimeoutMessage is sent to the client when the inactivity timeout
 	// expires. The empty string implies no message should be sent prior to
 	// disconnection.
-	IdleTimeoutMessage string `yaml:"idle_timeout_message,omitempty"`
+	ClientIdleTimeoutMessage string `yaml:"client_idle_timeout_message,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key

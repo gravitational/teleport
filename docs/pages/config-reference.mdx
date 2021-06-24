@@ -270,6 +270,11 @@ auth_service:
     # Examples: "30m", "1h" or "1h30m"
     client_idle_timeout: never
 
+    # Send a custom message to the client when they are disconnected due to
+    # inactivity. The empty string indicates that no message will be sent.
+    # (Currently only supported for SSH connections)
+    client_idle_timeout_message: ""
+
     # Determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active SSH session. (default is 'no')
     disconnect_expired_cert: no
@@ -298,9 +303,6 @@ auth_service:
     # the configured `data_dir` .
     license_file: /var/lib/teleport/license.pem
 
-    # Send a custom message to the client when they are disconnected due to
-    # inactivity. (Currently only supported for SSH connections)
-    idle_timeout_message: ""
 
 # This section configures the 'node service':
 ssh_service:

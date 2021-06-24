@@ -186,7 +186,7 @@ func TestAuthSection(t *testing.T) {
 		}, {
 			desc: "Idle timeout message",
 			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["idle_timeout_message"] = "Are you pondering what I'm pondering?"
+				cfg["auth_service"].(cfgMap)["client_idle_timeout_message"] = "Are you pondering what I'm pondering?"
 			},
 			expectError:   require.NoError,
 			expectIdleMsg: requireEqual("Are you pondering what I'm pondering?"),
@@ -205,7 +205,7 @@ func TestAuthSection(t *testing.T) {
 			}
 
 			if tt.expectIdleMsg != nil {
-				tt.expectIdleMsg(t, cfg.Auth.IdleTimeoutMessage)
+				tt.expectIdleMsg(t, cfg.Auth.ClientIdleTimeoutMessage)
 			}
 		})
 	}
