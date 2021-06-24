@@ -44,11 +44,13 @@ message SessionLockTarget {
     // User specifies the name of a Teleport user.
     string User;
     
-    // Role specifies the name of an RBAC role.
+    // Role specifies the name of an RBAC role known to the root cluster.
+    // In remote clusters, this contraint is evaluated before translating to local roles.
     string Role;
     
-    // Cluster specifies the name of a Teleport cluster.
-    // A matching (remote) cluster is also unregistered and prevented from registering.
+    // Cluster specifies the name of a leaf Teleport cluster.
+    // This prevents the root cluster's users from connecting to nodes in the leaf cluster
+    // but does not prevent the leaf cluster from heartbeating back to the root cluster.
     string Cluster;
     
     // Login specifies the name of a local UNIX user.
@@ -92,6 +94,32 @@ has been created.
 There will be a special `tctl sessions lock` helper provided, to facilitate
 supplying time information when creating new `SessionLock`s, see Scenarios below.
 
+### Propagation within a Teleport cluster
+
+For the purposes of lock detection and evaluation, the `SessionLock` resource will be propagated using the cache system to all Teleport roles/services.
+
+An `auth.AccessPoint` wrapper will be introduced that makes the getters return a `trace.ConnectionProblem` for stale data. The wrapper will be parametrized by a duration that defines the maximum failure period after which the data are considered stale.
+
+`SessionLockTarget` will be convertible into a filter for `types.WatchKind`, allowing
+the creation of watchers that match specific contexts. The `GetSessionLocks` method
+should also accept `SessionLockTarget`s as filters.
+
+### Fallback mode
+
+If the "strict" cache returns an error indicating stale data, there is a decision to be made about whether to rely on the last known locks. There will be two levels on which to determine this decision.
+
+1. If a lockable transaction involves a user and the user's certificate has an extension named `teleport-session-lock-fallback`, the transaction is locked out based on the extension's value which comes from the user's RBAC role:
+
+```
+spec:
+   options: 
+       # In strict mode, if the session locks are not up to date the session will be terminated.
+       # In best_effort mode, the most recent view of the locks will remain to be used.
+       session_lock_fallback: strict | best_effort
+```
+
+2. A `SessionLockFallback` field is added to the `ClusterAuthPreference` resource. The new field configures the cluster-wide fallback mode that applies when a more specific hint is not available. It defaults to `strict`.
+
 ### Disable generating new certificates
 
 No new user certificates matching a session lock target should be generated
@@ -121,11 +149,16 @@ periodically polling the backend, two new fields are added to `srv.MonitorConfig
   `srv.NewMonitor`;
 + `SessionLockWatcher`: a `types.Watcher` detecting additional puts or deletes
   of `SessionLock`s pertaining to the current session.
+  
+`SessionLockWatcher` will be similar to `services.ProxyWatcher` in that it should reload
+automatically after a failure.  If a tolerance interval is exceeded while performing
+such reloads, the fallback mode described above is employed until a healthy connection
+is reestablished.
 
 The developed logic should work with every protocol that makes use of
 `srv.Monitor`: SSH, k8s and DB.
 
-### Replicating to trusted clusters
+### Replication to leaf clusters
 
 `SessionLock` resources are replicated from the root cluster to leaf clusters
 in a similar manner to how CAs are shared between trusted clusters.
@@ -135,12 +168,17 @@ The goal should be achieved by introducing a routine similar to
 the default period of 10 minutes defined in `defaults.LowResPollingPeriod`)
 a `types.Watcher`-based algorithm should be preferred.
 
-To be able to distinguish session locks received from a remote (root) cluster,
+To be able to distinguish session locks received from the root cluster,
 the root cluster should send the `SessionLock` resource a resource label of the
 form:
 ```
 teleport.dev/replicated-from: <root-cluster-name>
 ```
+
+A tolerance interval similar to the case of intra-cluster propagation should be used.
+When a leaf cluster's reverse tunnel connection exhibits intolerable failures,
+the leaf cluster's fallback mode will be enforced with respect to the connections
+authenticated with a user certificate issued by the root cluster's CA.
 
 ### Scenarios
 
@@ -206,16 +244,26 @@ while a session lock targeting role `developers` is in force will result in the
 following error:
 
 ```
-ERROR: session lock targeting role "developers" is in force
+ERROR: session lock targeting role "developers" is in force (Cluster maintenance.)
 ```
 
 #### Live SSH session terminated
 
-Terminated just like when `disconnect_expired_cert` is enabled,
-showing just a generic client-specific message, e.g.:
+An informational message is printed before the connection is terminated: 
 
 ```
+Session lock targeting role "developers" is in force: Cluster maintenance.
 the connection was closed on the remote side on  15 Jun 21 10:43 CEST
 ```
 
-It might become possible to provide a more specific message once https://github.com/gravitational/teleport/issues/6091 is implemented.
+#### Locking out a node
+
+```
+$ tctl sessions lock --node=hostname
+```
+
+#### Locking out an MFA device ID
+
+```
+$ tctl sessions lock --mfa-device=id
+```
