@@ -144,16 +144,15 @@ buildbox-centos6:
 
 #
 # Builds a Docker buildbox for CentOS 6 FIPS builds
+# Teleport FIPS builds fail on CentOS 6 builds as of Go 1.16, so have been disabled for Teleport 7.0+
+# This is due to the lower glibc version used with CentOS 6 not supporting the 'getauxval' syscall,
+# preventing Go's boringcrypto fork being compiled from source.
+# https://github.com/gravitational/teleport/issues/7207
 #
 .PHONY:buildbox-centos6-fips
 buildbox-centos6-fips:
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS6_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS6_FIPS) || true; fi;
-	docker build \
-		--build-arg UID=$(UID) \
-		--build-arg GID=$(GID) \
-		--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
-		--cache-from $(BUILDBOX_CENTOS6_FIPS) \
-		--tag $(BUILDBOX_CENTOS6_FIPS) -f Dockerfile-centos6-fips .
+	@echo "Teleport FIPS builds fail on CentOS 6 as of Go 1.16, so have been disabled for Teleport 7.0+."
+	@exit 1
 
 #
 # Builds a Docker buildbox for ARMv7/ARM64 builds
