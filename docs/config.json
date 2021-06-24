@@ -45,7 +45,14 @@
           ]
         },
         { "title": "Access Controls", "slug": "/application-access/controls/" },
-        { "title": "Reference", "slug": "/application-access/reference/" }
+        {
+          "title": "Reference",
+          "slug": "/application-access/reference/",
+          "entries": [
+            { "title": "Configuration", "slug": "/application-access/reference/configuration/" },
+            { "title": "CLI", "slug": "/application-access/reference/cli/" }
+          ]
+        }
       ]
     },
     {

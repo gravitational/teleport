@@ -4,7 +4,13 @@ description: Cheatsheet of common Teleport CLI commands.
 h1: Common Teleport Commands Reference
 ---
 
+(!docs/pages/includes/permission-warning.mdx!)
+
 ## Configure and start Teleport with Acme
+
+`--cluster-name` should be set be the same as the cluster name. 
+
+Make sure to leave port `443` open:
 
 ```bash
 # Configure Teleport with TLS certs
@@ -17,17 +23,9 @@ sudo teleport configure \
 sudo teleport start
 ```
 
-## Create dependent roles
+## Add a user with roles and logins
 
-```bash
-```
-
-## Create a user with a role
-
-```bash
-```
-
-## Add a user with roles
+Create a user `teleport-admin` with `editor,access` roles and `root,ubuntu,ec2-user` logins:
 
 ```bash
 tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
@@ -35,21 +33,134 @@ tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-use
 
 ## Login with tsh
 
+Log in and log out with `tsh`:
+
 ```bash
+# Login
 tsh login --proxy=teleport.example.com:443 --user=teleport-admin
+
+# Logout and remove cached info
+tsh logout
+```
+
+## Inspect your SSH certificate
+
+Display relevant information about your locally cached `tsh` certificate:
+
+```bash
+tsh status
+``` 
+
+## Create dependent roles
+
+Create a role with another role that request it:
+
+```bash
+# Create YAML file
+cat > roles.yaml << 'EOF'
+kind: 'role'
+version: 'v3'
+metadata:
+  name: 'dev'
+spec:
+  allow:
+    request:
+      roles: ['slackdev']
+---
+kind: role
+version: v3
+metadata:
+  name: 'slackdev'
+spec:
+  allow:
+    logins: ['access']
+EOF
+
+# Create YAML file
+tctl create -f roles.yaml
 ```
 
 ## Request roles with tsh
 
 ```bash
+# Make a request for a permitted role
+tsh login --request-roles=slackdev
 ```
-
 ## Approve or deny roles with tsh
 
 ```bash
+# Approve the request
+tsh request review --approve b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+
+# Deny the request
+tsh request review --deny b8fa34de-3822-48aa-86f1-1865f9c7c4b9
 ```
 
 ## Approve or deny roles with tctl
 
 ```bash
+# Display all active requests
+tctl request ls
+
+# Approve the request
+tctl request approve b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+
+# Deny the request
+tctl request deny b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+```
+
+## Create a role to impersonate another role
+
+Create a role with another role that impersonates it:
+
+```bash
+# Create YAML file
+cat > roles.yaml << 'EOF'
+kind: role
+version: v3
+metadata:
+  name: testrole
+spec:
+  allow:
+    logins: ['access']
+---
+kind: role
+version: v3
+metadata:
+  name: imperole
+spec:
+  allow:
+    impersonate:
+      roles: ['testrole']
+EOF
+
+# Create the roles
+tctl create -f roles.yaml
+```
+
+## Create a user with a role
+
+Create a role with a user:
+
+```bash
+# Create YAML file
+cat > roleuser.yaml << 'EOF'
+kind: user
+metadata:
+  name: test-user
+spec:
+  roles: ['testrole']
+version: v2
+---
+kind: role
+version: v3
+metadata:
+  name: testrole
+spec:
+  allow:
+    logins: ['access']
+EOF
+
+# Create YAML file
+tctl create -f roleuser.yaml
 ```
