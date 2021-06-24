@@ -862,8 +862,6 @@ service AuthService {
     // WatchEvents returns a new stream of cluster events
     rpc WatchEvents(Watch) returns (stream Event);
 
-    // GetNodes retrieves all nodes.
-    rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
     // UpsertNode upserts a node in a backend.
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
     // DeleteNode deletes an existing node in a backend described by the given request.

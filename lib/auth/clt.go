@@ -1756,6 +1756,32 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
 
+// GetNodes returns the list of servers registered in the cluster.
+func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	re := make([]types.Server, len(items))
+	for i, raw := range items {
+		s, err := services.UnmarshalServer(
+			raw,
+			types.KindNode,
+			opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = s
+	}
+
+	return re, nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if

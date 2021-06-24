@@ -2408,28 +2408,6 @@ func (g *GRPCServer) IsMFARequired(ctx context.Context, req *proto.IsMFARequired
 	return resp, nil
 }
 
-// GetNodes retrieves all nodes in the given namespace.
-func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-	ns, err := auth.ServerWithRoles.GetNodes(ctx, req.Namespace)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-	serversV2 := make([]*types.ServerV2, len(ns))
-	for i, t := range ns {
-		var ok bool
-		if serversV2[i], ok = t.(*types.ServerV2); !ok {
-			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected node type: %T", t))
-		}
-	}
-	return &types.ServerV2List{
-		Servers: serversV2,
-	}, nil
-}
-
 // UpsertNode upserts a node.
 func (g *GRPCServer) UpsertNode(ctx context.Context, node *services.ServerV2) (*services.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)
