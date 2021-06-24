@@ -7,205 +7,191 @@ state: draft
 
 ## What
 
-EC2 instances will be able to join a teleport cluster without explicitly
-provisioning a join token on the auth server.
+Teleport nodes running on EC2 instances will be able to join a teleport cluster
+without the need to share any secret token with the node.
 
-In place of a join token, nodes will present one or more signed AWS API
-requests to the auth server. The auth server will send these requests to the
-public AWS API to confirm that:
-1. Because the AWS API accepted the signed request, the node holds valid AWS
-   credentials with permissions for the relevant API endpoints.
-2. Based on the API response, the node's AWS credentials belong to the
-   configured AWS Organization and/or Account.
-
-### tl;dr
-
-Configure auth server to allow nodes to join with the new aws join method:
-```yaml
-teleport:
-  nodename: auth
-
-auth_service:
-  enabled: yes
-  aws_join:
-    allow:
-    - organization: "o-1111111111"
-```
-
-Create ec2 instances in organization "o-1111111111" with a role with the
-following attached policy:
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "organizations:DescribeOrganization"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
-```
-
-Configure teleport nodes on ec2 instances:
-```yaml
-teleport:
-  auth_servers:
-    - auth
-  aws_token:
-    enabled: true
-
-ssh_service:
-  enabled: yes
-```
-
-Nodes will be authenticated with the new aws join method and be able to join
-the cluster.
+Instead, the node will provide either a signed
+[EC2 Instance Identity Document](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html)
+or a signed
+[sts:GetCallerIdentity](https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html)
+request that will be used to confirm the AWS account that the EC2 instance is
+running in. With a configured AWS join token on the auth server, the node
+will be allowed to join the cluster based on its AWS account.
 
 ## Why
 
-This will make provisioning nodes on ec2 simpler and arguably more secure.
+This will make provisioning nodes on EC2 simpler and arguably more secure.
 There is no need to configure static tokens, or to manage the provisioning and
 deployment of dynamic tokens.
 
 ## Details
 
-Much inspiration is taken from Vault's [IAM auth method](https://www.vaultproject.io/docs/auth/aws#iam-auth-method).
+We are currently exploring two ways to implement this, both inspired by [similar
+designs](https://www.vaultproject.io/docs/auth/aws) used by Vault.
 
-### Authentication
+The first is the "EC2 Method", which uses signed EC2 Instance Identity Documents
+which EC2 instances can fetch from the AWS
+[IMDSv2](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html).
 
-In place of a join token, nodes will present two signed AWS API requests to the
-auth server: `sts:GetCallerIdentity` and `organizations:DescribeOrganization`
+The second is the "IAM Method", in which the EC2 instance will create and sign
+an HTTPS API request to Amazon's public `sts:GetCallerIdentity` endpoint and
+pass it to the auth server.
 
-These are signed HTTP requests which will be serialized and sent to the auth
-server over GRPC.
+### EC2 Method
+
+In place of a join token, nodes will present an EC2 IID (Instance Identity
+Document) to the auth server, with a corresponding PKCS7 signature.
+
+This will be sent along with the other existing parameters in a
+[RegisterUsingTokenRequest](
+https://github.com/gravitational/teleport/blob/d4247cb150d720be97521347b74bf9c526ae869f/lib/auth/auth.go#L1538-L1563).
 
 The auth server will then:
-1. Check that the request URL is a valid AWS API endpoint.
-2. Send each request to the AWS API.
-  - AWS will check the signature and return an error if it is invalid, in which case the node will be rejected.
-3. Extract the Account from the `sts:GetCallerIdentity` response
-4. Extract the Organization from the `organizations:DescribeOrganization` response
-5. Check the Organization and Account against the configured deny rules. Reject the node if any match.
-6. Check the Organization and Account against the configured allow rules. Reject the node if none match.
-7. Possibly extra checks to prevent replay attacks, see the following section.
+1. Use the AWS DSA public certificate to check that the PKCS7 signature for the
+   IID is valid (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/verify-pkcs7.html).
+2. Check that the `pendingTime` of the IID, which is the time the instance was
+   launched, is within a 5 minute TTL.
+   - if the node fails to join the cluster during this window, the user can
+     stop and restart the EC2 instance to reset the `pendingTime` (and
+     effectively create a new IID with a new signature)
+3. Check that the AWS join token matches the AWS account in the IID, and the
+   requested Teleport service role.
+4. Check that this IID has not already been used to join the cluster. \*
+5. Check that the EC2 instance is currently running. \*\*
 
-By presenting signed AWS API requests, the node proves that it has access to
-AWS credentials. We rely on AWS to verify the signatures.
+\* Step 4 requires that we store all recently joined IID pkcs7 signatures in the
+backend (at least within the TTL of the Identity Document). It would be easy
+to store these immediately when returning the ssh keys to the node, but if the
+node then fails to connect back to the cluster with the ssh keys it will
+effectively be locked out.
 
-The API responses prove the Organization and Account of the credentials
-used to sign the requests. We check that the request is a real AWS API
-endpoint, and rely on AWS to return the real identity for the signed
-requests.
+\*\* Step 5 requires AWS credentials on the Auth server with permissions for
+`ec2:DescribeInstances`. If you need Nodes to be able to join the teleport
+cluster from different AWS accounts than the one in which the Teleport Auth
+server is running, there are a few extra required steps:
+1. Every AWS account in which Nodes should be able to join will need an IAM
+   role which can be assumed from the account of the Auth server. This role
+   needs permissions for `ec2:DescribeInstances`.
+2. The IAM role of the Auth server needs permissions to `sts:AssumeRole` for
+   the ARN of every foreign IAM role from step 1. These ARNs will need to be
+   configured in the AWS join token.
 
-Nodes never share their AWS credentials, only signed requests.
+### IAM Method
 
-### Mitigating the Risk of Replay Attacks
+In place of a join token, nodes will present a signed `sts:GetCallerIdentity`
+request to the auth server.
 
-Signed API requests will only be held in memory and never logged or written to
-disk. All transport of signed API requests will be over TLS.
+The form of this request is an HTTP `POST` request to `sts.amazonaws.com` with
+`Action=GetCallerIdentity` in the body. The request can include arbitrary
+headers which will also be signed using the
+[Signature Version 4 signing process](https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html).
+The signature will then be included in the `Authorization` header of the request.
+See Appendix I for an example.
 
-We can include arbitrary headers in the signed API request and AWS will verify
-the signature over those headers. We can use this to include a timestamp on the
-request and enforce a TTL. Amazon does this by default with a TTL of 15
-minutes.  We could set a shorter TTL ourselves, or make it configurable.
+The actual creation and signing of the request will be done on the node with
+the AWS SDK for Go.
 
-We could also include a UUID header, and use this to verify that each signed
-request is only used once by having the auth server store the UUID of requests
-that have been used recently and still have a valid TTL. With multiple auth
-servers this would require some backend coordination.
+Because the signed request can include arbitrary headers, this allows us to
+issue a challenge (a crypto random string of bytes) that the node must include
+in the signed request. We can make use of gRPC bidirectional streams to
+implement the following flow at a new `RegisterWithAWSToken` gRPC endpoint:
+
+1. The node initiates a `RegisterWithAWSToken` request.
+2. The auth server enforces that TLS is used for transport.
+3. The auth server sends a base64 encoded 32 byte crypto-random challenge.
+4. The node creates the `sts:GetCallerIdentity` request, adds the challenge in
+   a header, and signs it with its AWS credentials.
+5. The node sends a join request to the auth server, including the signed
+   `sts:GetCallerIdentity` request and other parameters currently in
+   [RegisterUsingTokenRequest](
+   https://github.com/gravitational/teleport/blob/d4247cb150d720be97521347b74bf9c526ae869f/lib/auth/auth.go#L1538-L1563)
+6. The auth server checks that the signed request is valid:
+   - it is a `POST` request to `sts.amazonaws.com`
+   - the body is `Action=GetCallerIdentity&Version=2011-06-15`
+   - the `X-Teleport-Challenge` header value equals the issued challenge
+   - the Authorization header includes `x-teleport-challenge` as one of the signed headers
+   - the Authorization header includes `AWS4-HMAC-SHA256` as the signing algorithm
+7. The auth server sends the signed request to `sts.amazonaws.com` over TLS and gets the response.
+8. The auth server checks for a provision token that matches the AWS account in
+   the `sts:GetCallerIdentity` response and the teleport service role of the
+   join request.
+9. The auth server sends credentials to join the cluster.
+
+In order to create the signed requests, the node will need to have access to
+AWS credentials. As the `sts:GetCallerIdentity` request does not require any
+explicit permissions, it is sufficient to attach *any* IAM policy to the EC2
+instance.
+
+### Comparison of EC2 and IAM methods
+
+|                                                              | EC2 | IAM | Dynamic Token |
+| ------------------------------------------------------------ | --- | --- | ------------- |
+| Requires a secret token to be shared with every Node         |     |     | ✅ |
+| Requires attached IAM role on Nodes                          |     | ✅  | |
+| Requires attached IAM role on Auth                           | ✅  |     |
+| Requires IAM role in every Node account which can be assumed by Auth account   | ✅  |     | |
+| Requires IAM role in Auth account which can assume roles in every Node account | ✅  |     | |
+| Could work with Teleport Cloud                               |     | ✅  | ✅ |
+| Nodes can sign a challenge to prevent replays                |     | ✅  | |
+| Requires outbound access to public internet from Auth        | ✅  |  ✅ | |
+| Requires outbound access to public internet from Nodes       |     |     | |
 
 ### Teleport Configuration
 
-Support for new configuration options will be added to Teleport's configuration
-file in order to enable and configure this feature.
+The existing provision token type can be extended to support aws
+authentication. Token "rules" will be added to define which AWS accounts and
+IAM roles to accept nodes from.
+
+Support for `tctl create token.yaml`, `tctl get tokens`, and
+`tctl rm tokens/example_token` will need to be added so that administrators can
+create and modify tokens from a yaml definition.
 
 ```yaml
+kind: token
+version: v2
+metadata:
+  # `name` is currently used for the token value of dynamic tokens. When creating an
+  # AWS token, administrators can set any value for the `name`. The `name` is safe
+  # to share widely, as use of this token will be restricted by the `allow` rules if
+  # any are present.
+  name: example_aws_token
+spec:
+  roles: [Node,Kube,Db]
+  
+  # existing token fields above
+  # new token fields below
+
+  # `allow` is a list of token rules. If any exist, the joining node must match at least one of them.
+  allow:
+  # Each token rule must contain `aws_account`, specifying the account nodes can join from
+  - aws_account: "111111111111"
+    # If the EC2 method is chosen, `aws_role` is necessary and should be the ARN
+    # of the role that the auth server will need to assume in order to call
+    # `ec2:DescribeInstances` for this account. In a single AWS account setup,
+    # this should be the role of the auth server (no other role needs to be
+    # assumed.)
+    # If the IAM method is chosen, `aws_role` would be optional but could be used
+    # to restrict the role of joining nodes.
+    aws_role: "arn:aws:iam::111111111111:role/example-role"
+  # Multiple token rules can be listed
+  - aws_account: "222222222222"
+    aws_role: "arn:aws:iam::222222222222:role/example-role"
+  - aws_account: "333333333333"
+    aws_role: "arn:aws:iam::333333333333:role/other-example-role"
+```
+
+teleport.yaml on the nodes should be configured so that they will use the new aws join token:
+```yaml
 teleport:
-
-  # This section should be used on nodes which will join the cluster with the
-  # new aws join method, in place of auth_token.
+  # `aws_token` should be used on nodes which will join the cluster with the
+  # new aws join method, in place of `auth_token`. It is a dict rather than a 
+  # scalar so that it can be extended in the future (e.g. to choose EC2 or IAM
+  # method if we ever implement both)
   aws_token:
-    enabled: true
-
-auth_service:
-
-  # This section should be used on auth servers which will allow nodes to
-  # join the cluster with the new aws join method.
-  aws_join:
-    # Deny rules will be checked first. If any deny rule matches an incoming
-    # node, it will be rejected.
-    deny:
-    - organization: "" # if organization is empty or omitted it matches any org
-      account: "" # if account is empty or omitted it matches any account
-
-    # Allow rules will be checked after deny rules. Incoming nodes will be
-    # accepted if they match any allow rule.
-    allow:
-    - organization: "" # if organization is empty or omitted it matches any org
-      account: "" # if accounts is empty or omitted it matches any account
-
-    # Example:
-    allow:
-    - account: "2222222222" # allow any node from this account
-    - organization: "o-1111111111" # allow any node in any account this org
-    deny:
-    - account: "3333333333" # this specific account in org "o-1111111111" should be rejected
-
-    # In theory we could add support for more claims, like "role" or "AMI",
-    # to be combined with the initially supported "organization" and "identity" claims
+    name: "example_aws_token" # should match the name of the token on the auth server
 ```
 
-### AWS Configuration
-
-In all AWS accounts where nodes using the new aws join method will be
-deployed, you must create an IAM role with the following attached
-policy. All EC2 instances which will run Teleport nodes using the `ec2`
-credential source must be launched with this IAM role.
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "sts:GetCallerIdentity",
-                "organizations:DescribeOrganization"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
-```
-
-Notably, the credentials need only be accessible from the Teleport nodes, not
-the auth server. All requests will be signed on the nodes and the auth server
-will only forward them to public AWS endpoints. The auth server does not even
-need to run on AWS.
-
-### Alternatives
-
-I originally looked into doing something like Vault's [EC2 auth method](https://www.vaultproject.io/docs/auth/aws#ec2-auth-method).
-
-At a high level, instead of a join token or signed API requests, the node would
-present it's signed AWS Instance Identity Document. We could check the
-signature on this and the instance details to confirm the node's AWS account.
-
-The drawback of this method is that there is no information about the AWS
-Organization in the Identity Document, and being able to accept nodes from a
-given Organization rather than explicitly listing every account is a
-requirement for this feature.
-
-It would be possible to combine the EC2 method with requests to Amazon's API to
-get the Organization for a given Account, but the required endpoints
-(`organizations:DescribeAccount` or `organizations:ListAccounts`) can only be
-called from the organization's management account. At a minimum, this would
-still require creating signed requests on the node and sending them to the auth
-server as the current design does.
-
-## Appendix I - Example Signed Requests and Responses
+## Appendix I - Example Signed `sts:GetCallerIdentity` Request and Response
 
 `sts:GetCallerIdentity` Request
 ```
@@ -235,32 +221,43 @@ Response:
 }
 ```
 
-`organizations:DescribeOrganization` Request:
-```
-Host: organizations.us-east-1.amazonaws.com
-Accept: application/json
-Authorization: AWS4-HMAC-SHA256 Credential=XXXXXXXXXXXXXXXXXXXX/20210614/us-east-1/organizations/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-target, Signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-Content-Length: 2
-Content-Type: application/x-amz-json-1.1
-X-Amz-Date: 20210614T014047Z
-X-Amz-Target: AWSOrganizationsV20161128.DescribeOrganization
-```
-Response:
-```
+## Appendix II - Example Instance Identity Document
+
+```json
 {
-    "Organization": {
-        "Arn":"arn:aws:organizations::222222222222:organization/o-1111111111",
-        "AvailablePolicyTypes":[
-            {
-                "Status":"ENABLED",
-                "Type":"SERVICE_CONTROL_POLICY"
-            }
-        ],
-        "FeatureSet":"ALL",
-        "Id":"o-1111111111",
-        "MasterAccountArn":"arn:aws:organizations::222222222222:account/o-1111111111/222222222222",
-        "MasterAccountEmail":"ops@example.com",
-        "MasterAccountId":"222222222222"
-    }
+  "accountId" : "111111111111",
+  "architecture" : "x86_64",
+  "availabilityZone" : "us-west-2a",
+  "billingProducts" : null,
+  "devpayProductCodes" : null,
+  "marketplaceProductCodes" : null,
+  "imageId" : "ami-00000000000000000",
+  "instanceId" : "i-01111111111111111",
+  "instanceType" : "t2.micro",
+  "kernelId" : null,
+  "pendingTime" : "2021-06-11T00:08:27Z",
+  "privateIp" : "10.0.0.56",
+  "ramdiskId" : null,
+  "region" : "us-west-2",
+  "version" : "2017-09-30"
 }
+```
+
+The pkcs7 signature is seperate from the document and looks like:
+```
+MIAGCSqGSIb3DQEHAqCAMIACAQExCzAJBgUrDgMCGgUAMIAGCSqGSIb3DQEHAaCAJIAEggHZewog
+ICJhY2NvdW50SWQiIDogIjI3ODU3NjIyMDQ1MyIsCiAgImFyY2hpdGVjdHVyZSIgOiAieDg2XzY0
+IiwKICAiYXZhaWxhYmlsaXR5Wm9uZSIgOiAidXMtd2VzdC0yYSIsCiAgImJpbGxpbmdQcm9kdWN0
+cyIgOiBudWxsLAogICJkZXZwYXlQcm9kdWN0Q29kZXMiIDogbnVsbCwKICAibWFya2V0cGxhY2VQ
+cm9kdWN0Q29kZXMiIDogbnVsbCwKICAiaW1hZ2VJZCIgOiAiYW1pLTA4MDBmYzBmYTcxNWZkY2Zl
+IiwKICAiaW5zdGFuY2VJZCIgOiAiaS0wMjg1Yjc2ZGJjOGY3NWNlNiIsCiAgImluc3RhbmNlVHlw
+ZSIgOiAidDIubWljcm8iLAogICJrZXJuZWxJZCIgOiBudWxsLAogICJwZW5kaW5nVGltZSIgOiAi
+MjAyMS0wNi0xMVQwMDowODoyN1oiLAogICJwcml2YXRlSXAiIDogIjEwLjAuMC41NiIsCiAgInJh
+bWRpc2tJZCIgOiBudWxsLAogICJyZWdpb24iIDogInVzLXdlc3QtMiIsCiAgInZlcnNpb24iIDog
+IjIwMTctMDktMzAiCn0AAAAAAAAxggEXMIIBEwIBATBpMFwxCzAJBgNVBAYTAlVTMRkwFwYDVQQI
+ExBXYXNoaW5ndG9uIFN0YXRlMRAwDgYDVQQHEwdTZWF0dGxlMSAwHgYDVQQKExdBbWF6b24gV2Vi
+IFNlcnZpY2VzIExMQwIJAJa6SNnlXhpnMAkGBSsOAwIaBQCgXTAYBgkqhkiG9w0BCQMxCwYJKoZI
+hvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yMTA2MTEwMDA4MzBaMCMGCSqGSIb3DQEJBDEWBBSj4yyW
+kvOVpx656w8wuhjUyH9dWjAJBgcqhkjOOAQDBC4wLAIUBOSAnp6M57kAXXJoj2s8cb32AXwCFFHm
+egSjvG+KBmmOgUyS15ZzFJJTAAAAAAAA
 ```
