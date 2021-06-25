@@ -70,6 +70,6 @@ func EnhancedEvents() []string {
 }
 
 const (
-	// DefaultLimit is the default pagination limit.
-	DefaultLimit = 20
+	// DefaultPageLimit is the default page limit for paginated endpoints.
+	DefaultPageLimit = 100
 )

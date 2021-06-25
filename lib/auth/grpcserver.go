@@ -2429,7 +2429,7 @@ func (g *GRPCServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ns, lastKey, err := auth.ServerWithRoles.ListNodes(ctx, req.Namespace, int(req.Limit), req.StartKey)
+	ns, nextKey, err := auth.ServerWithRoles.ListNodes(ctx, req.Namespace, int(req.Limit), req.StartKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2442,7 +2442,7 @@ func (g *GRPCServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest)
 	}
 	return &proto.ListNodesResponse{
 		Servers: serversV2,
-		LastKey: lastKey,
+		NextKey: nextKey,
 	}, nil
 }
 

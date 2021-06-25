@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -191,9 +192,6 @@ func (s *PresenceService) upsertServer(ctx context.Context, prefix string, serve
 
 // DeleteAllNodes deletes all nodes in a namespace
 func (s *PresenceService) DeleteAllNodes(ctx context.Context, namespace string) error {
-	if namespace == "" {
-		return trace.BadParameter("missing nodes namespace")
-	}
 	startKey := backend.Key(nodesPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
@@ -261,12 +259,15 @@ func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit
 	}
 
 	keyPrefix := backend.Key(nodesPrefix, namespace)
+	rangeStart := keyPrefix
+	if startKey != "" {
+		if !strings.HasPrefix(startKey+"/", string(keyPrefix)) {
+			return nil, "", trace.BadParameter("provided startkey has incorrect key prefix")
+		}
+		rangeStart = []byte(startKey)
 
-	rangeEnd := backend.RangeEnd(keyPrefix)
-	rangeStart := []byte(startKey)
-	if startKey == "" {
-		rangeStart = keyPrefix
 	}
+	rangeEnd := backend.RangeEnd(keyPrefix)
 
 	// Get all items in the bucket within the given range.
 	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)

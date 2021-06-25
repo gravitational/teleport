@@ -668,7 +668,7 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 
 	// Fetch full list of nodes in the backend.
 	startFetch := time.Now()
-	nodes, lastKey, err := a.authServer.ListNodes(ctx, namespace, limit, startKey)
+	nodes, nextKey, err := a.authServer.ListNodes(ctx, namespace, limit, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -687,12 +687,12 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 		"elapsed_fetch":  elapsedFetch,
 		"elapsed_filter": elapsedFilter,
 	}).Debugf(
-		"GetServers(%v->%v) in %v.",
+		"ListNodes(%v->%v) in %v.",
 		len(nodes), len(filteredNodes), elapsedFetch+elapsedFilter)
 
-	// TODO (Joerger) encrypt lastKey to avoid leaking details,
-	// especially if the key in question was filtered out above.
-	return filteredNodes, lastKey, nil
+	// TODO (Joerger) encrypt nextKey to avoid leaking details,
+	// especially if the last node was filtered out above.
+	return filteredNodes, nextKey, nil
 }
 
 func (a *ServerWithRoles) UpsertAuthServer(s types.Server) error {

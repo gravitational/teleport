@@ -1261,19 +1261,19 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 	return resp, nil
 }
 
-// GetNodes returns a list of nodes that the user has access to in the given namespace.
+// GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
 
-	// Retrieve list of nodes in chunks
+	// Retrieve the complete list of nodes in chunks
 	var nodes []types.Server
 	var startKey string
 	for {
 		resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
 			Namespace: namespace,
-			Limit:     defaults.DefaultLimit,
+			Limit:     defaults.DefaultPageLimit,
 			StartKey:  startKey,
 		}, c.callOpts...)
 		if err != nil {
@@ -1283,21 +1283,21 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 			nodes = append(nodes, node)
 		}
 
-		// If resp.LastKey is empty, then the full list has been retrieved.
-		if startKey = resp.LastKey; startKey == "" {
+		// If resp.NextKey is empty, then the complete list has been retrieved.
+		if startKey = resp.NextKey; startKey == "" {
 			return nodes, nil
 		}
 	}
 }
 
 // ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
-// lastKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
-func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, lastKey string, err error) {
+// nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
+func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error) {
 	if namespace == "" {
 		return nil, "", trace.BadParameter("missing parameter namespace")
 	}
 	if limit == 0 {
-		limit = defaults.DefaultLimit
+		limit = defaults.DefaultPageLimit
 	}
 
 	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
@@ -1314,7 +1314,7 @@ func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, sta
 		nodes[i] = node
 	}
 
-	return nodes, resp.LastKey, nil
+	return nodes, resp.NextKey, nil
 }
 
 // UpsertNode is used by SSH servers to report their presence

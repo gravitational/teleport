@@ -194,12 +194,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 
 func TestNodeCRUD(t *testing.T) {
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
-		Clock: clock,
-	})
+	backend, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
 	require.NoError(t, err)
 
 	presence := NewPresenceService(backend)
@@ -228,24 +223,37 @@ func TestNodeCRUD(t *testing.T) {
 	require.EqualValues(t, len(nodes), 2)
 
 	// list nodes one at a time, last page should be empty
-	nodes, lastKey, err := presence.ListNodes(ctx, apidefaults.Namespace, 1, "")
+	nodes, nextKey, err := presence.ListNodes(ctx, apidefaults.Namespace, 1, "")
 	require.NoError(t, err)
 	require.EqualValues(t, len(nodes), 1)
+	require.EqualValues(t, nextKey, "/nodes/default/node2")
 	node1.SetResourceID(nodes[0].GetResourceID())
 	require.EqualValues(t, []types.Server{node1}, nodes)
-	require.NotEqualValues(t, lastKey, "")
 
-	nodes, lastKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, lastKey)
+	nodes, nextKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
 	require.NoError(t, err)
 	require.EqualValues(t, len(nodes), 1)
+	require.EqualValues(t, nextKey, "/nodes/default/node3")
 	node2.SetResourceID(nodes[0].GetResourceID())
 	require.EqualValues(t, []types.Server{node2}, nodes)
-	require.NotEqualValues(t, lastKey, "")
 
-	nodes, lastKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, lastKey)
+	nodes, nextKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
 	require.NoError(t, err)
 	require.EqualValues(t, len(nodes), 0)
-	require.EqualValues(t, lastKey, "")
+	require.EqualValues(t, nextKey, "")
+
+	// list nodes should fail with an improper startKey
+	_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, "/random/other/key")
+	require.Error(t, err)
+	require.IsType(t, trace.BadParameter(""), err)
+
+	_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, "/nodes")
+	require.Error(t, err)
+	require.IsType(t, trace.BadParameter(""), err)
+
+	_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, "/")
+	require.Error(t, err)
+	require.IsType(t, trace.BadParameter(""), err)
 
 	// get node1
 	node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
@@ -253,29 +261,24 @@ func TestNodeCRUD(t *testing.T) {
 	require.EqualValues(t, node1, node)
 
 	// Make sure can't delete with empty namespace or name.
-	err = presence.DeleteNode(ctx, node1.GetNamespace(), "")
+	err = presence.DeleteNode(ctx, apidefaults.Namespace, "")
 	require.Error(t, err)
 	require.IsType(t, trace.BadParameter(""), err)
 	err = presence.DeleteNode(ctx, "", node1.GetName())
 	require.Error(t, err)
 	require.IsType(t, trace.BadParameter(""), err)
 
-	// Make sure can't delete all with empty namespace.
-	err = presence.DeleteAllNodes(ctx, "")
-	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
-
-	// Delete all.
-	err = presence.DeleteAllNodes(ctx, node1.GetNamespace())
+	// Remove a node.
+	err = presence.DeleteNode(ctx, apidefaults.Namespace, node1.GetName())
 	require.NoError(t, err)
 
-	// Now expect no nodes to be returned.
+	// Now expect one nodes to be returned.
 	nodes, err = presence.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(nodes))
+	require.Equal(t, 1, len(nodes))
 
-	// Remove the node.
-	err = presence.DeleteNode(ctx, node1.GetNamespace(), node1.GetName())
+	// Delete all.
+	err = presence.DeleteAllNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	// Now expect no nodes to be returned.
