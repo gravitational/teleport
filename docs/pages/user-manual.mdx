@@ -21,6 +21,8 @@ terminal for the [CLI reference](cli-docs.mdx).
 
 ## Introduction
 
+(!docs/pages/includes/permission-warning.mdx!)
+
 For the impatient, here's an example of how a user would typically use
 [`tsh`](cli-docs.mdx#tsh):
 
@@ -340,9 +342,9 @@ tsh ssh -L 5000:google.com:80 --local node curl http://localhost:5000
 
 This command:
 
-1. Connects to `node`
-2. Binds the local port `5000` to port `80` on `google.com`
-3. Executes `curl` command locally, which results in `curl` hitting `google.com:80` via `node`
+1. Connects to `node`.
+2. Binds the local port `5000` to port `80` on `google.com`.
+3. Executes `curl` command locally, which results in `curl` hitting `google.com:80` via `node`.
 
 ### SSH jumphost
 
@@ -505,9 +507,8 @@ see recorded sessions, and replay them. You can also join other users in active 
 There are a few differences between Teleport's `tsh` and OpenSSH's `ssh` but
 most of them can be mitigated.
 
-1. `tsh` always requires the `--proxy` flag because `tsh` needs to know which cluster you are connecting to. But if you execute `tsh --proxy=xxx login`,
-   the current proxy will be saved in your `~/.tsh` profile and won't be needed for other `tsh` commands.
-2. `tsh ssh` operates *two* usernames: one for the cluster and another for the node you are trying to log into. See [User Identities](#user-identities)
+1. `tsh` always requires the `--proxy` flag because `tsh` needs to know which cluster you are connecting to. But if you execute `tsh --proxy=xxx login`, the current proxy will be saved in your `~/.tsh` profile and won't be needed for other `tsh` commands.
+2. `tsh ssh` operates *two* usernames: one for the cluster and another for the node you are trying to log into. See [User Identities](#user-identities) section below. For convenience, `tsh` assumes `$USER` for both by default. But again, if you use `tsh login` before `tsh ssh`, your Teleport username will be stored in `~/.tsh`.
 
 If you'd like to set the login name that should be used by default on the remote host, you can set the `TELEPORT_LOGIN` environment variable.
 

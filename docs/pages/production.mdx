@@ -51,6 +51,8 @@ Teleport services listen on several ports. This table shows the default port num
 
 We have a detailed [installation guide](installation.mdx) which shows how to install all available binaries or [install from source](installation.mdx#installing-from-source). Reference that guide to learn the best way to install Teleport for your system, then return to finish your production install.
 
+(!docs/pages/includes/permission-warning.mdx!)
+
 ### Filesystem layout
 
 By default, a Teleport node has the following files present. The location of all
@@ -68,16 +70,12 @@ of them is configurable.
 
 ### Systemd unit file
 
-In production, we recommend starting teleport daemon via an init system like
-`systemd`. If systemd and unit files are new to you, check out [this helpful guide](https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files). Here's an example systemd unit file for the Teleport [Proxy, Node, and Auth Service](https://github.com/gravitational/teleport/tree/master/examples/systemd/production).
+In production, we recommend starting teleport daemon via an init system like `systemd`. If `systemd` and unit files are new to you, check out [this helpful guide](https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files). Here's an example systemd unit file for the Teleport [Proxy, Node, and Auth Service](https://github.com/gravitational/teleport/tree/master/examples/systemd/production).
 
 There are a couple of important things to notice about this file:
 
-1. The start command in the unit file specifies `--config` as a file and there are very few flags passed to the `teleport` binary. Most of the configuration
-2. The **ExecReload** command allows admins to run `systemctl reload teleport`.
-   This will attempt to perform a graceful restart of Teleport **but it only works if
-   network-based backend storage like [DynamoDB](admin-guide.mdx#using-dynamodb) or
-   [etc 3.3](admin-guide.mdx#using-etcd) is configured**. Graceful Restarts will fork a new process to handle new incoming requests and leave the old daemon process running until existing clients disconnect.
+1. The start command in the unit file specifies `--config` as a file and there are very few flags passed to the `teleport` binary. Most of the configuration for Teleport should be done in the [configuration file](admin-guide.mdx#configuration).
+2. The **ExecReload** command allows admins to run `systemctl reload teleport`. This will attempt to perform a graceful restart of Teleport **but it only works if network-based backend storage like [DynamoDB](admin-guide.mdx#using-dynamodb) or [etc 3.3](admin-guide.mdx#using-etcd) is configured**. Graceful Restarts will fork a new process to handle new incoming requests and leave the old daemon process running until existing clients disconnect.
 
 ### Start the Teleport service
 
@@ -194,7 +192,7 @@ setting up the proxy nodes start Teleport with:
 
 `teleport start --insecure --roles=proxy --config=/etc/teleport.yaml`
 
-See [Teleport Proxy HA](admin-guide.mdx#teleport-proxy-high-availability) for more info.
+See [Teleport Proxy High Availability](admin-guide.mdx#teleport-proxy-high-availability) for more info.
 
 {
   /* TODO SSL for Webproxy & Auth Section */

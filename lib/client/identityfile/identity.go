@@ -57,12 +57,16 @@ const (
 	// database instance for mutual TLS.
 	FormatDatabase Format = "db"
 
+	// FormatMongo produces CA and key pair in the format suitable for
+	// configuring a MongoDB database for mutual TLS authentication.
+	FormatMongo Format = "mongodb"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
 
 // KnownFormats is a list of all above formats.
-var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase}
+var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo}
 
 // WriteConfig holds the necessary information to write an identity file.
 type WriteConfig struct {
@@ -158,6 +162,30 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var caCerts []byte
+		for _, ca := range cfg.Key.TrustedCA {
+			for _, cert := range ca.TLSCertificates {
+				caCerts = append(caCerts, cert...)
+			}
+		}
+		err = ioutil.WriteFile(casPath, caCerts, identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	// FormatMongo is the same as FormatTLS or FormatDatabase certificate and
+	// key are concatenated in the same .crt file which is what Mongo expects.
+	case FormatMongo:
+		certPath := cfg.OutputPath + ".crt"
+		casPath := cfg.OutputPath + ".cas"
+		filesWritten = append(filesWritten, certPath, casPath)
+		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = ioutil.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.Priv...), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -60,7 +60,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
@@ -554,7 +554,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			Facets: []string{"teleport"},
 		}})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -584,12 +584,14 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	err = srv.Auth().UpsertKubeService(ctx, k8sSrv)
 	require.NoError(t, err)
 	// Register a database.
-	db := types.NewDatabaseServerV3("db-a", nil, types.DatabaseServerSpecV3{
+	db, err := types.NewDatabaseServerV3("db-a", nil, types.DatabaseServerSpecV3{
 		Protocol: "postgres",
 		URI:      "localhost",
 		Hostname: "localhost",
 		HostID:   "localhost",
 	})
+	require.NoError(t, err)
+
 	_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
 	require.NoError(t, err)
 
@@ -880,7 +882,7 @@ func TestIsMFARequired(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -939,7 +941,7 @@ func TestDeleteLastMFADevice(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
@@ -1156,15 +1158,16 @@ func TestRoleVersions(t *testing.T) {
 
 func TestAuthPreferenceOriginDynamic(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	setWithOrigin := func(cl *Client, origin string) error {
 		authPref := types.DefaultAuthPreference()
 		authPref.SetOrigin(origin)
-		return cl.SetAuthPreference(authPref)
+		return cl.SetAuthPreference(ctx, authPref)
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
-		return asrv.GetAuthPreference()
+		return asrv.GetAuthPreference(ctx)
 	}
 
 	testOriginDynamicStored(t, setWithOrigin, getStored)

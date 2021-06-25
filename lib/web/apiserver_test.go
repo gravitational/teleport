@@ -346,6 +346,7 @@ type authPack struct {
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
 func (s *WebSuite) authPack(c *C, user string) *authPack {
+	ctx := context.TODO()
 	login := s.user
 	pass := "abc123"
 	rawSecret := "def456"
@@ -356,7 +357,7 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(ap)
+	err = s.server.Auth().SetAuthPreference(ctx, ap)
 	c.Assert(err, IsNil)
 
 	s.createUser(c, user, login, pass, otpSecret)
@@ -1238,12 +1239,13 @@ func (s *WebSuite) TestPlayback(c *C) {
 }
 
 func (s *WebSuite) TestLogin(c *C) {
+	ctx := context.Background()
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(ap)
+	err = s.server.Auth().SetAuthPreference(ctx, ap)
 	c.Assert(err, IsNil)
 
 	// create user
@@ -1305,12 +1307,13 @@ func (s *WebSuite) TestLogin(c *C) {
 }
 
 func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
+	ctx := context.Background()
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(ap)
+	err = s.server.Auth().SetAuthPreference(ctx, ap)
 	c.Assert(err, IsNil)
 
 	// create user
@@ -1365,6 +1368,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 }
 
 func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
+	ctx := context.Background()
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorU2F,
@@ -1374,7 +1378,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(ap)
+	err = s.server.Auth().SetAuthPreference(ctx, ap)
 	c.Assert(err, IsNil)
 
 	s.createUser(c, "user2", "root", "password", "")
@@ -1436,6 +1440,7 @@ func TestU2FLogin(t *testing.T) {
 }
 
 func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 
 	// configure cluster authentication preferences
@@ -1448,11 +1453,10 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 		},
 	})
 	require.NoError(t, err)
-	err = env.server.Auth().SetAuthPreference(cap)
+	err = env.server.Auth().SetAuthPreference(ctx, cap)
 	require.NoError(t, err)
 
 	// create user
-	ctx := context.TODO()
 	env.proxies[0].createUser(ctx, t, "bob", "root", "password", "")
 
 	// create password change token
@@ -1559,15 +1563,16 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 // TestPing ensures that a response is returned by /webapi/ping
 // and that that response body contains authentication information.
 func (s *WebSuite) TestPing(c *C) {
+	ctx := context.Background()
 	wc := s.client()
 
-	re, err := wc.Get(context.Background(), wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err := wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 
 	var out *webclient.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
-	preference, err := s.server.Auth().GetAuthPreference()
+	preference, err := s.server.Auth().GetAuthPreference(ctx)
 	c.Assert(err, IsNil)
 
 	c.Assert(out.Auth.Type, Equals, preference.GetType())
@@ -1594,9 +1599,13 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 			},
 		},
 	}
-	err := s.server.Auth().UpsertOIDCConnector(ctx, types.NewOIDCConnector("foo", oidcConnectorSpec))
+	o, err := types.NewOIDCConnector("foo", oidcConnectorSpec)
 	c.Assert(err, IsNil)
-	err = s.server.Auth().UpsertOIDCConnector(ctx, types.NewOIDCConnector("bar", oidcConnectorSpec))
+	err = s.server.Auth().UpsertOIDCConnector(ctx, o)
+	c.Assert(err, IsNil)
+	o2, err := types.NewOIDCConnector("bar", oidcConnectorSpec)
+	c.Assert(err, IsNil)
+	err = s.server.Auth().UpsertOIDCConnector(ctx, o2)
 	c.Assert(err, IsNil)
 
 	// set the auth preferences to oidc with no connector name
@@ -1604,7 +1613,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 		Type: "oidc",
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(authPreference)
+	err = s.server.Auth().SetAuthPreference(ctx, authPreference)
 	c.Assert(err, IsNil)
 
 	// hit the ping endpoint to get the auth type and connector name
@@ -1625,7 +1634,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 		ConnectorName: "foo",
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(authPreference)
+	err = s.server.Auth().SetAuthPreference(ctx, authPreference)
 	c.Assert(err, IsNil)
 
 	// hit the ping endpoing to get the auth type and connector name
@@ -1886,13 +1895,14 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.Len(t, dbs, 0)
 
 	// Register a database.
-	db := types.NewDatabaseServerV3("test-db-name", map[string]string{"test-field": "test-value"}, types.DatabaseServerSpecV3{
+	db, err := types.NewDatabaseServerV3("test-db-name", map[string]string{"test-field": "test-value"}, types.DatabaseServerSpecV3{
 		Description: "test-description",
 		Protocol:    "test-protocol",
 		URI:         "test-uri",
 		Hostname:    "test-hostname",
 		HostID:      "test-hostID",
 	})
+	require.NoError(t, err)
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
 	require.NoError(t, err)
@@ -2000,7 +2010,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 		ClusterName: "localhost",
 	})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "this Teleport cluster doesn't support application access")
+	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
 // TestCreateAppSession verifies that an existing session to the Web UI can
@@ -2673,16 +2683,17 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
-		Proxy:        revTunServer,
-		AuthServers:  utils.FromAddr(authServer.Addr()),
-		DomainName:   authServer.ClusterName(),
-		ProxyClient:  client,
-		CipherSuites: utils.DefaultCipherSuites(),
-		AccessPoint:  client,
-		Context:      context.Background(),
-		HostUUID:     proxyID,
-		Emitter:      client,
-		StaticFS:     fs,
+		Proxy:            revTunServer,
+		AuthServers:      utils.FromAddr(authServer.Addr()),
+		DomainName:       authServer.ClusterName(),
+		ProxyClient:      client,
+		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
+		CipherSuites:     utils.DefaultCipherSuites(),
+		AccessPoint:      client,
+		Context:          context.Background(),
+		HostUUID:         proxyID,
+		Emitter:          client,
+		StaticFS:         fs,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -2740,6 +2751,7 @@ type proxy struct {
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
 func (r *proxy) authPack(t *testing.T, user string) *authPack {
+	ctx := context.Background()
 	const (
 		loginUser = "user"
 		pass      = "abc123"
@@ -2753,7 +2765,7 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 	})
 	require.NoError(t, err)
 
-	err = r.auth.Auth().SetAuthPreference(ap)
+	err = r.auth.Auth().SetAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
 	r.createUser(context.TODO(), t, user, loginUser, pass, otpSecret)
@@ -2932,4 +2944,20 @@ func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
 
 	err = waitForOutput(stream, "foo")
 	require.NoError(t, err)
+}
+
+// TestProxyMultiAddr makes sure ping endpoint can be called over any of
+// the proxy's configured public addresses.
+func TestProxyMultiAddr(t *testing.T) {
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	req, err := http.NewRequest(http.MethodGet, proxy.newClient(t).Endpoint("webapi", "ping"), nil)
+	require.NoError(t, err)
+	// Make sure ping endpoint can be reached over all proxy public addrs.
+	for _, proxyAddr := range proxy.handler.handler.cfg.ProxyPublicAddrs {
+		req.Host = proxyAddr.Host()
+		resp, err := client.NewInsecureWebClient().Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+	}
 }

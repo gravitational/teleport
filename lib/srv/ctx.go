@@ -277,6 +277,11 @@ type ServerContext struct {
 	// port to connect to in a "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	DstAddr string
+
+	// Monitor is a handle to the idle timeout monitor that is watching this
+	// session context. May be nil if there is no set idle timeout or we are
+	// not monitoring certificate expiry.
+	Monitor *Monitor
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -311,7 +316,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		cancel:                 cancel,
 	}
 
-	authPref, err := srv.GetAccessPoint().GetAuthPreference()
+	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -340,7 +345,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	})
 
 	if !child.disconnectExpiredCert.IsZero() || child.clientIdleTimeout != 0 {
-		mon, err := NewMonitor(MonitorConfig{
+		child.Monitor, err = NewMonitor(MonitorConfig{
 			DisconnectExpiredCert: child.disconnectExpiredCert,
 			ClientIdleTimeout:     child.clientIdleTimeout,
 			Clock:                 child.srv.GetClock(),
@@ -357,7 +362,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 			child.Close()
 			return nil, nil, trace.Wrap(err)
 		}
-		go mon.Start()
+		go child.Monitor.Start()
 	}
 
 	// Create pipe used to send command to child process.

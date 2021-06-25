@@ -636,7 +636,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	// if user did not provide auth domain name, use this host's name
 	if cfg.Auth.Enabled && cfg.Auth.ClusterName == nil {
-		cfg.Auth.ClusterName, err = types.NewClusterName(types.ClusterNameSpecV2{
+		cfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 			ClusterName: cfg.Hostname,
 		})
 		if err != nil {
@@ -1766,6 +1766,7 @@ func (process *TeleportProcess) initSSH() error {
 					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode})
 				}
 			}),
+			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2226,17 +2227,49 @@ func (process *TeleportProcess) initProxy() error {
 
 type proxyListeners struct {
 	mux           *multiplexer.Mux
+	tls           *multiplexer.TLSListener
 	ssh           net.Listener
 	web           net.Listener
 	reverseTunnel net.Listener
 	kube          net.Listener
-	db            net.Listener
-	mysql         net.Listener
+	db            dbListeners
 }
 
+// dbListeners groups database access listeners.
+type dbListeners struct {
+	// postgres serves Postgres clients.
+	postgres net.Listener
+	// mysql serves MySQL clients.
+	mysql net.Listener
+	// tls serves database clients that use plain TLS handshake.
+	tls net.Listener
+}
+
+// Empty returns true if no database access listeners are initialized.
+func (l *dbListeners) Empty() bool {
+	return l.postgres == nil && l.mysql == nil && l.tls == nil
+}
+
+// Close closes all database access listeners.
+func (l *dbListeners) Close() {
+	if l.postgres != nil {
+		l.postgres.Close()
+	}
+	if l.mysql != nil {
+		l.mysql.Close()
+	}
+	if l.tls != nil {
+		l.tls.Close()
+	}
+}
+
+// Close closes all proxy listeners.
 func (l *proxyListeners) Close() {
 	if l.mux != nil {
 		l.mux.Close()
+	}
+	if l.tls != nil {
+		l.tls.Close()
 	}
 	if l.web != nil {
 		l.web.Close()
@@ -2247,11 +2280,8 @@ func (l *proxyListeners) Close() {
 	if l.kube != nil {
 		l.kube.Close()
 	}
-	if l.db != nil {
+	if !l.db.Empty() {
 		l.db.Close()
-	}
-	if l.mysql != nil {
-		l.mysql.Close()
 	}
 }
 
@@ -2282,7 +2312,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		listeners.mysql = listener
+		listeners.db.mysql = listener
 	}
 
 	switch {
@@ -2308,7 +2338,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		listeners.db = listeners.mux.DB()
+		listeners.db.postgres = listeners.mux.DB()
 		listeners.reverseTunnel = listeners.mux.SSH()
 		go listeners.mux.Serve()
 		return &listeners, nil
@@ -2331,7 +2361,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		listeners.db = listeners.mux.DB()
+		listeners.db.postgres = listeners.mux.DB()
 		listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		if err != nil {
 			listener.Close()
@@ -2374,7 +2404,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 					return nil, trace.Wrap(err)
 				}
 				listeners.web = listeners.mux.TLS()
-				listeners.db = listeners.mux.DB()
+				listeners.db.postgres = listeners.mux.DB()
 				go listeners.mux.Serve()
 			} else {
 				process.log.Debug("Setup Proxy: TLS is disabled, multiplexing is off.")
@@ -2549,22 +2579,23 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:           tsrv,
-				AuthServers:     cfg.AuthServers[0],
-				DomainName:      cfg.Hostname,
-				ProxyClient:     conn.Client,
-				ProxySSHAddr:    proxySSHAddr,
-				ProxyWebAddr:    cfg.Proxy.WebAddr,
-				ProxySettings:   proxySettings,
-				CipherSuites:    cfg.CipherSuites,
-				FIPS:            cfg.FIPS,
-				AccessPoint:     accessPoint,
-				Emitter:         streamEmitter,
-				PluginRegistry:  process.PluginRegistry,
-				HostUUID:        process.Config.HostUUID,
-				Context:         process.ExitContext(),
-				StaticFS:        fs,
-				ClusterFeatures: process.getClusterFeatures(),
+				Proxy:            tsrv,
+				AuthServers:      cfg.AuthServers[0],
+				DomainName:       cfg.Hostname,
+				ProxyClient:      conn.Client,
+				ProxySSHAddr:     proxySSHAddr,
+				ProxyWebAddr:     cfg.Proxy.WebAddr,
+				ProxyPublicAddrs: cfg.Proxy.PublicAddrs,
+				ProxySettings:    proxySettings,
+				CipherSuites:     cfg.CipherSuites,
+				FIPS:             cfg.FIPS,
+				AccessPoint:      accessPoint,
+				Emitter:          streamEmitter,
+				PluginRegistry:   process.PluginRegistry,
+				HostUUID:         process.Config.HostUUID,
+				Context:          process.ExitContext(),
+				StaticFS:         fs,
+				ClusterFeatures:  process.getClusterFeatures(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2639,7 +2670,29 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return tlsClone, nil
 			}
 
-			listeners.web = tls.NewListener(listeners.web, tlsConfig)
+			// Setup a listener that will multiplex TLS connections between
+			// those that will be served by a web server (such as connections
+			// to web UI or application access) and those served by a database
+			// access for databases that use plain TLS handshake (such as
+			// MongoDB).
+			listeners.tls, err = multiplexer.NewTLSListener(multiplexer.TLSListenerConfig{
+				ID:       teleport.Component(teleport.ComponentProxy, "web", process.id),
+				Listener: tls.NewListener(listeners.web, tlsConfig),
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			listeners.web = listeners.tls.HTTP()
+			listeners.db.tls = listeners.tls.DB()
+
+			process.RegisterCriticalFunc("proxy.tls", func() error {
+				log.Infof("TLS multiplexer is starting on %v.", cfg.Proxy.WebAddr.Addr)
+				if err := listeners.tls.Serve(); !trace.IsConnectionProblem(err) {
+					log.WithError(err).Warn("TLS multiplexer error.")
+				}
+				log.Info("TLS multiplexer exited.")
+				return nil
+			})
 		}
 		webServer = &http.Server{
 			Handler:           proxyLimiter,
@@ -2794,7 +2847,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// the database clients (such as psql or mysql), authenticating them, and
 	// then routing them to a respective database server over the reverse tunnel
 	// framework.
-	if (listeners.db != nil || listeners.mysql != nil) && !process.Config.Proxy.DisableReverseTunnel {
+	if !listeners.db.Empty() && !process.Config.Proxy.DisableReverseTunnel {
 		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2818,20 +2871,29 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentDatabase))
-		if listeners.db != nil {
-			process.RegisterCriticalFunc("proxy.db", func() error {
+		if listeners.db.postgres != nil {
+			process.RegisterCriticalFunc("proxy.db.db", func() error {
 				log.Infof("Starting Database proxy server on %v.", cfg.Proxy.WebAddr.Addr)
-				if err := dbProxyServer.Serve(listeners.db); err != nil {
+				if err := dbProxyServer.Serve(listeners.db.postgres); err != nil {
 					log.WithError(err).Warn("Database proxy server exited with error.")
 				}
 				return nil
 			})
 		}
-		if listeners.mysql != nil {
-			process.RegisterCriticalFunc("proxy.mysql", func() error {
+		if listeners.db.mysql != nil {
+			process.RegisterCriticalFunc("proxy.db.mysql", func() error {
 				log.Infof("Starting MySQL proxy server on %v.", cfg.Proxy.MySQLAddr.Addr)
-				if err := dbProxyServer.ServeMySQL(listeners.mysql); err != nil {
+				if err := dbProxyServer.ServeMySQL(listeners.db.mysql); err != nil {
 					log.WithError(err).Warn("MySQL proxy server exited with error.")
+				}
+				return nil
+			})
+		}
+		if listeners.db.tls != nil {
+			process.RegisterCriticalFunc("proxy.db.tls", func() error {
+				log.Infof("Starting Database TLS proxy server on %v.", cfg.Proxy.WebAddr.Addr)
+				if err := dbProxyServer.ServeTLS(listeners.db.tls); err != nil {
+					log.WithError(err).Warn("Database TLS proxy server exited with error.")
 				}
 				return nil
 			})

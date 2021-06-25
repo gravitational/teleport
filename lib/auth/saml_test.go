@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"net/url"
 	"testing"
 	"time"
 
@@ -40,7 +41,7 @@ func TestCreateSAMLUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
@@ -103,8 +104,8 @@ func TestEncryptedSAML(t *testing.T) {
 	</md:EntityDescriptor>`
 
 	signingKeypair := &types.AsymmetricKeyPair{
-		Cert:       fixtures.SigningCertPEM,
-		PrivateKey: fixtures.SigningKeyPEM,
+		Cert:       fixtures.TLSCACertPEM,
+		PrivateKey: fixtures.TLSCAKeyPEM,
 	}
 
 	encryptionKeypair := &types.AsymmetricKeyPair{
@@ -112,14 +113,15 @@ func TestEncryptedSAML(t *testing.T) {
 		PrivateKey: fixtures.EncryptionKeyPEM,
 	}
 
-	connector := types.NewSAMLConnector("spongebob", types.SAMLConnectorSpecV2{
-		Cert: signingKeypair.Cert,
+	connector, err := types.NewSAMLConnector("spongebob", types.SAMLConnectorSpecV2{
+		Cert:                     signingKeypair.Cert,
+		Issuer:                   "http://idp.example.com/metadata.php",
+		SSO:                      "nil",
+		AssertionConsumerService: "http://sp.example.com/demo1/index.php?acs",
+		EntityDescriptor:         EntityDescriptor,
 	})
+	require.NoError(t, err)
 
-	connector.SetEntityDescriptor(EntityDescriptor)
-	connector.SetIssuer("http://idp.example.com/metadata.php")
-	connector.SetSSO("nil")
-	connector.SetAssertionConsumerService("http://sp.example.com/demo1/index.php?acs")
 	connector.SetSigningKeyPair(signingKeypair)
 	connector.SetEncryptionKeyPair(encryptionKeypair)
 
@@ -129,4 +131,93 @@ func TestEncryptedSAML(t *testing.T) {
 	assertionInfo, err := provider.RetrieveAssertionInfo(EncryptedResponse)
 	require.NoError(t, err)
 	require.NotEmpty(t, assertionInfo.Assertions)
+}
+
+// TestPingSAMLWorkaround ensures we provide required additional authn query
+// parameters for Ping backends (PingOne, PingFederate, etc) when
+// `provider: ping` is set.
+func TestPingSAMLWorkaround(t *testing.T) {
+	// Create a Server instance for testing.
+	c := clockwork.NewFakeClockAt(time.Now())
+	b, err := lite.NewWithConfig(context.Background(), lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            c,
+	})
+	require.NoError(t, err)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	require.NoError(t, err)
+
+	authConfig := &InitConfig{
+		ClusterName:            clusterName,
+		Backend:                b,
+		Authority:              authority.New(),
+		SkipPeriodicOperations: true,
+	}
+
+	a, err := NewServer(authConfig)
+	require.NoError(t, err)
+
+	// Create a new SAML connector for Ping.
+	const entityDescriptor = `<md:EntityDescriptor entityID="https://auth.pingone.com/8be7412d-7d2f-4392-90a4-07458d3dee78" ID="DUp57Bcq-y4RtkrRLyYj2fYxtqR" xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
+	<md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+		<md:KeyDescriptor use="signing">
+		<ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+			<ds:X509Data>
+			<ds:X509Certificate>MIIDejCCAmKgAwIBAgIGAXnsYbiQMA0GCSqGSIb3DQEBCwUAMH4xCzAJBgNVBAYTAlVTMRYwFAYDVQQKDA1QaW5nIElkZW50aXR5MRYwFAYDVQQLDA1QaW5nIElkZW50aXR5MT8wPQYDVQQDDDZQaW5nT25lIFNTTyBDZXJ0aWZpY2F0ZSBmb3IgQWRtaW5pc3RyYXRvcnMgZW52aXJvbm1lbnQwHhcNMjEwNjA4MTYwODE3WhcNMjIwNjA4MTYwODE3WjB+MQswCQYDVQQGEwJVUzEWMBQGA1UECgwNUGluZyBJZGVudGl0eTEWMBQGA1UECwwNUGluZyBJZGVudGl0eTE/MD0GA1UEAww2UGluZ09uZSBTU08gQ2VydGlmaWNhdGUgZm9yIEFkbWluaXN0cmF0b3JzIGVudmlyb25tZW50MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArqJP+9QA8rzt9lLrKQigkT1HxCP5qIQH9vKgIhCDx5q7eSHOlxQ7MMa+1v1WQq1y5mgNG1zxe+cEaJ646JHQLoa0yj+rXsfCsUsKG7qceHzMR8p4y74x77PHTBJEviS9g/+fMGq7eaSK/F8ksPBfBjHnWv+lvnzrAGhxEuBXfFPf5Gb2Vr5LYurZEu9lIdFtSnFCVjzUIC1SMyovl92K4WdJpZ60N8FUSR6Jb7b8gWjnNHNc1iwr5C2b8+HUuWhqCIc0TQygEilZAdJhpYkeCQMiSqySsV+cmJ1vdjsV0HXX0YREDq6koklnw1hyTe1AckcH6qfWyBcoG2VYORjZPQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQA0eVvkB+/RSIEs7CXje7KKFGO99X7nIBNcpztp6kevxTDFHKsVlGFfl/mkksw9SjzdWSMDgGxxy6riYnScQD0FdyxaKzM0CRFfqdHf2+qVnK4GbiodqLOVp1dDE6CSQuPp7inQr+JDO/xD1WUAyMSC+ouFRdHq2O7MCYolEcyWiZoTTcch8RhLo5nqueKQfP0vaJwzAPgpXxAuabVuyrtN0BZHixO/sjjg9yup8/esCMBB/RR90PxzbI+8ZX5g1MxZZwSaXauQFyOjm5/t+JEisZf8rzrrhDd2GzWrYngB8DJLxCUK1JTM5SO/k3TqeDHLHi202P7AN2S/1CqzCaGb</ds:X509Certificate>
+			</ds:X509Data>
+		</ds:KeyInfo>
+		</md:KeyDescriptor>
+		<md:SingleLogoutService Location="https://auth.pingone.com/8be7412d-7d2f-4392-90a4-07458d3dee78/saml20/idp/slo" Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"/>
+		<md:SingleLogoutService Location="https://auth.pingone.com/8be7412d-7d2f-4392-90a4-07458d3dee78/saml20/idp/slo" Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"/>
+		<md:SingleSignOnService Location="https://auth.pingone.com/8be7412d-7d2f-4392-90a4-07458d3dee78/saml20/idp/sso" Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"/>
+		<md:SingleSignOnService Location="https://auth.pingone.com/8be7412d-7d2f-4392-90a4-07458d3dee78/saml20/idp/sso" Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"/>
+	</md:IDPSSODescriptor>
+	</md:EntityDescriptor>`
+
+	signingKeypair := &types.AsymmetricKeyPair{
+		Cert:       fixtures.TLSCACertPEM,
+		PrivateKey: fixtures.TLSCAKeyPEM,
+	}
+
+	encryptionKeypair := &types.AsymmetricKeyPair{
+		Cert:       fixtures.EncryptionCertPEM,
+		PrivateKey: fixtures.EncryptionKeyPEM,
+	}
+
+	connector, err := types.NewSAMLConnector("ping", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://proxy.example.com:3080/v1/webapi/saml/acs",
+		Provider:                 "ping",
+		Display:                  "Ping",
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "groups", Value: "ping-admin", Roles: []string{"admin"}},
+		},
+		EntityDescriptor:  entityDescriptor,
+		SigningKeyPair:    signingKeypair,
+		EncryptionKeyPair: encryptionKeypair,
+	})
+	require.NoError(t, err)
+
+	err = a.UpsertSAMLConnector(context.Background(), connector)
+	require.NoError(t, err)
+
+	// Create an auth request that we can inspect.
+	req, err := a.CreateSAMLAuthRequest(services.SAMLAuthRequest{
+		ConnectorID: "ping",
+	})
+	require.NoError(t, err)
+
+	// Parse the generated redirection URL.
+	parsed, err := url.Parse(req.RedirectURL)
+	require.NoError(t, err)
+
+	require.Equal(t, "auth.pingone.com", parsed.Host)
+	require.Equal(t, "/8be7412d-7d2f-4392-90a4-07458d3dee78/saml20/idp/sso", parsed.Path)
+
+	// SigAlg and Signature must be added when `provider: ping`.
+	require.NotEmpty(t, parsed.Query().Get("SigAlg"), "SigAlg is required for provider: ping")
+	require.NotEmpty(t, parsed.Query().Get("Signature"), "Signature is required for provider: ping")
 }

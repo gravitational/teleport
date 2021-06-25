@@ -75,6 +75,29 @@ func TestProxyProtocolMySQL(t *testing.T) {
 	require.NoError(t, mysql.Close())
 }
 
+// TestProxyProtocolMongo ensures that clients can successfully connect to a
+// Mongo database when Teleport is running behind a proxy that sends a proxy
+// line.
+func TestProxyProtocolMongo(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
+
+	// Point our proxy to the Teleport's TLS listener.
+	proxy, err := multiplexer.NewTestProxy(testCtx.tlsListener.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { proxy.Close() })
+	go proxy.Serve()
+
+	// Connect to the proxy instead of directly to Teleport listener and make
+	// sure the connection succeeds.
+	mongo, err := testCtx.mongoClientWithAddr(ctx, proxy.Address(), "alice", "mongo", "admin")
+	require.NoError(t, err)
+	require.NoError(t, mongo.Disconnect(ctx))
+}
+
 // TestProxyClientDisconnectDueToIdleConnection ensures that idle clients will be disconnected.
 func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
 	const (
@@ -130,10 +153,10 @@ func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
 }
 
 func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *testing.T, auth *auth.Server, timeout time.Duration) {
-	authPref, err := auth.GetAuthPreference()
+	authPref, err := auth.GetAuthPreference(ctx)
 	require.NoError(t, err)
 	authPref.SetDisconnectExpiredCert(true)
-	err = auth.SetAuthPreference(authPref)
+	err = auth.SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	netConfig, err := auth.GetClusterNetworkingConfig(ctx)
