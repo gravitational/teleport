@@ -1,13 +1,8 @@
 ---
 title: Teleport Configuration Reference
-description: The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.
+description: The detailed guide and reference documentation for Teleport YAML Configuration.
+h1: Teleport YAML Configuration
 ---
-
-## teleport.yaml
-
-Teleport uses the YAML file format for configuration. A full configuration reference
-file is shown below, this provides comments and all available options for `teleport.yaml`
-By default, it is stored in `/etc/teleport.yaml`.
 
 (!docs/pages/includes/backup-warning.mdx!)
 
@@ -417,30 +412,7 @@ proxy_service:
     #  enabled: yes
     #  email: "user@example.com"
 
-# This section configures the 'application service'
-app_service:
-    # Turns 'app' role on. Default is 'no'
-    enabled: yes
-    # Teleport contains a small debug app that can be used to make sure Application
-    # Access is working correctly. The app outputs JWTs so it can be useful
-    # when extending your application.
-    debug_app: true
-    apps:
-    - name: "kubernetes-dashboard"
-      # URI and Port of Application.
-      uri: "http://10.0.1.27:8000"
-      # Optional Public Addr
-      public_addr: "example.com"
-      # Optional Label: These can be used in combination with RBAC rules
-      # to limit access to applications
-      labels:
-         env: "prod"
-      # Optional Dynamic Labels
-      commands:
-      - name: "os"
-        command: ["/usr/bin/uname"]
-        period: "5s"
-
+(!docs/pages/includes/app-config.yaml!)
 
 ## This section configures the 'kubernetes service'
 kubernetes_service:
@@ -478,43 +450,5 @@ kubernetes_service:
       command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
       period: 1m0s
 
-# This section configures the database service.
-db_service:
-  # Enables the database service. Default is "no".
-  enabled: "yes"
-  # This section contains definitions of all databases proxied by this
-  # service, it can contain multiple database instances.
-  databases:
-    # Name of the database proxy instance used to reference in CLI.
-  - name: "prod"
-    # Free-form description of the database proxy instance.
-    description: "Production database"
-    # Database protocol. Can be "postgres" or "mysql".
-    protocol: "postgres"
-    # Database connection endpoint. Must be reachable from Database Service.
-    uri: "postgres.example.com:5432"
-    # Optional path to the CA used to validate the database certificate.
-    ca_cert_file: /path/to/ca.pem
-    # AWS specific configuration, only required for RDS/Aurora/Redshift.
-    aws:
-      # Region the database is deployed in.
-      region: "us-east-1"
-      # Redshift specific configuration.
-      redshift:
-        # Redshift cluster identifier.
-        cluster_id: "redshift-cluster-1"
-    # GCP specific configuration for Cloud SQL databases.
-    gcp:
-      # GCP project ID.
-      project_id: "xxx-1234"
-      # Cloud SQL instance ID.
-      instance_id: "example"
-    # Static labels to assign to the database. Used in RBAC.
-    static_labels:
-      env: "prod"
-    # Dynamic labels ("commands"). Used in RBAC.
-    dynamic_labels:
-    - name: "hostname"
-      command: ["hostname"]
-      period: 1m0s
+(!docs/pages/includes/db-config.yaml!)
 ```

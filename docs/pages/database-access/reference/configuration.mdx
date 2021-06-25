@@ -3,52 +3,13 @@ title: Database Access Configuration Reference
 description: Configuration reference for Teleport Database Access
 ---
 
-# Database Access Configuration Reference
-
 ## Database Service Configuration
 
 The following snippet shows full YAML configuration of a Database Service
 appearing in `teleport.yaml` configuration file:
 
 ```yaml
-db_service:
-  # Enables the Database Service.
-  enabled: "yes"
-  # This section contains definitions of all databases proxied by this
-  # service, it can contain multiple database instances.
-  databases:
-    # Name of the database proxy instance, used to reference in CLI.
-  - name: "prod"
-    # Free-form description of the database proxy instance.
-    description: "Production database"
-    # Database protocol. Can be "postgres" or "mysql".
-    protocol: "postgres"
-    # Database connection endpoint. Must be reachable from Database Service.
-    uri: "postgres.example.com:5432"
-    # Optional path to the CA used to validate the database certificate.
-    ca_cert_file: /path/to/ca.pem
-    # AWS specific configuration, only required for RDS/Aurora/Redshift.
-    aws:
-      # Region the database is deployed in.
-      region: "us-east-1"
-      # Redshift specific configuration.
-      redshift:
-        # Redshift cluster identifier.
-        cluster_id: "redshift-cluster-1"
-    # GCP specific configuration for Cloud SQL databases.
-    gcp:
-      # GCP project ID.
-      project_id: "xxx-1234"
-      # Cloud SQL instance ID.
-      instance_id: "example"
-    # Static labels to assign to the database. Used in RBAC.
-    static_labels:
-      env: "prod"
-    # Dynamic labels ("commands"). Used in RBAC.
-    dynamic_labels:
-    - name: "hostname"
-      command: ["hostname"]
-      period: 1m0s
+(!docs/pages/includes/db-config.yaml!)
 ```
 
 ## Proxy Configuration

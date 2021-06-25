@@ -226,24 +226,34 @@
       "icon": "list",
       "title": "Reference",
       "entries": [
-        { "title": "YAML", "slug": "/config-reference/" },
         {
-          "title": "CLI",
-          "slug": "/reference/cli-docs/",
+          "title": "Configuration",
+          "slug": "/reference/configuration/",
           "entries": [
             {"title": "Teleport", "slug": "/reference/cli/teleport/"},
             {"title": "tsh", "slug": "/reference/cli/tsh/"},
             {"title": "tctl", "slug": "/reference/cli/tctl/"}
           ]
         },
+        {
+          "title": "CLI",
+          "slug": "/reference/cli-docs/",
+          "entries": [
+            {"title": "Teleport", "slug": "/reference/configuration/teleport/"},
+            {"title": "Roles", "slug": "/reference/configuration/roles/"},
+            {"title": "Plugins", "slug": "/reference/configuration/plugins/"},
+            {"title": "Database", "slug": "/database-access/reference/configuration/"},
+            {"title": "", "slug": "/reference/configuration//"}
+          ]
+        },
         { "title": "Cheatsheet", "slug": "/reference/cheatsheet/" },
         {
           "title": "API",
-          "slug": "/reference/api/",
+          "slug": "/reference/api/introduction/",
           "entries": [
-            {"title": "Introduction", "slug": "/reference/api/introduction/"},
             {"title": "Getting Started", "slug": "/reference/api/getting-started/"},
-            {"title": "Architecture", "slug": "/reference/api/architecture/"}
+            {"title": "Architecture", "slug": "/reference/api/architecture/"},
+            {"title": "Reference (pkg.go.dev)", "slug": "https://pkg.go.dev/github.com/gravitational/teleport/api"}
           ]
         },
         { "title": "Metrics", "slug": "/metrics-logs-reference/" }
@@ -347,6 +357,16 @@
     {
       "source": "/cli-docs/",
       "destination": "/reference/cli-docs/",
+      "permanent": true
+    },
+    { 
+      "source": "/config-reference/",
+      "destination": "/reference/configuration/",
+      "permanent": true
+    },
+    { 
+      "source": "/reference/api/",
+      "destination": "/reference/api/introduction/",
       "permanent": true
     }
   ]

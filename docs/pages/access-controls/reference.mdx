@@ -278,36 +278,5 @@ you don't want regular users editing SSO (`auth_connector`) or creating and edit
 List of all rule options defined below.
 
 ```yaml
-  allow:
-    rules:
-    # Role: CRUD options for managing Teleport Roles
-    - resources:
-      - role
-      verbs: [list, create, read, update, delete]
-    # Auth Connectors: CRUD options for managing SSO connectors
-    - resources:
-      - auth_connector
-      verbs:  [list, create, read, update, delete]
-    # Session: Provides access to Session Recordings.
-    # e.g If session read is false, users can't play the recordings
-    # It is possible to restrict "list" but to allow "read" (in this case a user will
-    # be able to replay a session using `tsh play` if they know the session ID)
-    - resources:
-      - session
-      verbs:  [list,read]
-    # Trusted Clusters:  CRUD options for managing Trusted Clusters
-    - resources:
-      - trusted_cluster
-      verbs: [list, create, read, update, delete]
-    # Events: Can view the audit log and session recordings.
-    - resources:
-      - event
-      verbs:  [list, read]
-    # User: CRUD options for managing Teleport local users
-    - resources: [user]
-      verbs: [list,create,read,update,delete]
-    # Tokens: CRUD options for managing tokens
-    # Enterprise customer can enable app and node wizard enabling this resource
-    - resources: [token]
-      verbs: [list,create,read,update,delete]
+(!docs/pages/includes/roles-config.yaml!)
 ```
