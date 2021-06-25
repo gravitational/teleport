@@ -690,8 +690,8 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 		"ListNodes(%v->%v) in %v.",
 		len(nodes), len(filteredNodes), elapsedFetch+elapsedFilter)
 
-	// TODO (Joerger) encrypt nextKey to avoid leaking details,
-	// especially if the last node was filtered out above.
+	// TODO (Joerger) encrypt nextKey to avoid leaking details
+	// in case the last node was filtered out above.
 	return filteredNodes, nextKey, nil
 }
 

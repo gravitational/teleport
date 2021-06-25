@@ -1267,14 +1267,19 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
 
-	// Retrieve the complete list of nodes in chunks
+	// Retrieve the complete list of nodes in chunks.
 	var nodes []types.Server
 	var startKey string
 	for {
 		resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
 			Namespace: namespace,
-			Limit:     defaults.DefaultPageLimit,
-			StartKey:  startKey,
+			// TODO (Joerger) Rather than arbitrarily assigning a max chunk size, paginated
+			// gRPC endpoints should dynamically reduce the returned message size to a
+			// reasonable default. This is already being done by GetSessionEvents with
+			// a chunk size of 1 MiB, but this needs to be refactored for more general
+			// use by gRPC endpoints.
+			Limit:    defaults.DefaultChunkSize,
+			StartKey: startKey,
 		}, c.callOpts...)
 		if err != nil {
 			return nil, trail.FromGRPC(err)
@@ -1297,7 +1302,12 @@ func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, sta
 		return nil, "", trace.BadParameter("missing parameter namespace")
 	}
 	if limit == 0 {
-		limit = defaults.DefaultPageLimit
+		// TODO (Joerger) Rather than arbitrarily assigning a max chunk size, paginated
+		// gRPC endpoints should dynamically reduce the returned message size to a
+		// reasonable default. This is already being done by GetSessionEvents with
+		// a chunk size of 1 MiB, but this needs to be refactored for more general
+		// use by gRPC endpoints.
+		limit = defaults.DefaultChunkSize
 	}
 
 	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{

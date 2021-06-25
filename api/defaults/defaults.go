@@ -70,6 +70,11 @@ func EnhancedEvents() []string {
 }
 
 const (
-	// DefaultPageLimit is the default page limit for paginated endpoints.
-	DefaultPageLimit = 100
+	// DefaultChunkSize is the default chunk size for paginated endpoints.
+	// TODO (Joerger) Rather than arbitrarily assigning a chunk size, paginated
+	// gRPC endpoints should dynamically reduce the returned message size to a
+	// reasonable default. This is already being done by GetSessionEvents with
+	// a chunk size of 1 MiB, but this needs to be refactored for more general
+	// use by gRPC endpoints.
+	DefaultChunkSize = 500
 )
