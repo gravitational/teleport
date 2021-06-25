@@ -45,7 +45,7 @@ message SessionLockTarget {
     string User;
     
     // Role specifies the name of an RBAC role known to the root cluster.
-    // In remote clusters, this contraint is evaluated before translating to local roles.
+    // In remote clusters, this constraint is evaluated before translating to local roles.
     string Role;
     
     // Cluster specifies the name of a leaf Teleport cluster.
@@ -115,7 +115,7 @@ spec:
    options: 
        # In strict mode, if the session locks are not up to date the session will be terminated.
        # In best_effort mode, the most recent view of the locks will remain to be used.
-       session_lock_fallback: strict | best_effort
+       session_lock_fallback: [strict|best_effort]
 ```
 
 2. A `SessionLockFallback` field is added to the `ClusterAuthPreference` resource. The new field configures the cluster-wide fallback mode that applies when a more specific hint is not available. It defaults to `strict`.
