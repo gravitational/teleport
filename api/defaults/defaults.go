@@ -74,7 +74,6 @@ const (
 	// TODO (Joerger) Rather than arbitrarily assigning a chunk size, paginated
 	// gRPC endpoints should dynamically reduce the returned message size to a
 	// reasonable default. This is already being done by GetSessionEvents with
-	// a chunk size of 1 MiB, but this needs to be refactored for more general
-	// use by gRPC endpoints.
+	// a chunk size of 1 MiB, but this needs to be refactored for general use.
 	DefaultChunkSize = 500
 )
