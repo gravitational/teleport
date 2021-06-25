@@ -204,6 +204,16 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 	// messages b/w server and client e.g. to get client's password.
 	conn, err := pgconn.ConnectConfig(ctx, connectConfig)
 	if err != nil {
+		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Server.IsRDS() {
+			return nil, nil, trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure Teleport db service's IAM policy allows it to connect to the RDS instance:
+
+%v
+`, common.ConvertError(err), common.GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
+		}
 		return nil, nil, trace.Wrap(err)
 	}
 	// Hijacked connection exposes some internal connection data, such as
