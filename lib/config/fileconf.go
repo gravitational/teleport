@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -175,7 +176,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		p.ACME.Email = flags.ACMEEmail
 		// ACME uses TLS-ALPN-01 challenge that requires port 443
 		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
-		p.PublicAddr = utils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
+		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
 		p.WebAddr = fmt.Sprintf(":%d", teleport.StandardHTTPSPort)
 	}
 
@@ -210,21 +211,21 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	sc.SetDefaults()
 
 	for _, c := range conf.Ciphers {
-		if !utils.SliceContainsStr(sc.Ciphers, c) {
+		if !apiutils.SliceContainsStr(sc.Ciphers, c) {
 			return trace.BadParameter("cipher algorithm %q is not supported; supported algorithms: %q", c, sc.Ciphers)
 		}
 	}
 	for _, k := range conf.KEXAlgorithms {
-		if !utils.SliceContainsStr(sc.KeyExchanges, k) {
+		if !apiutils.SliceContainsStr(sc.KeyExchanges, k) {
 			return trace.BadParameter("KEX algorithm %q is not supported; supported algorithms: %q", k, sc.KeyExchanges)
 		}
 	}
 	for _, m := range conf.MACAlgorithms {
-		if !utils.SliceContainsStr(sc.MACs, m) {
+		if !apiutils.SliceContainsStr(sc.MACs, m) {
 			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
 	}
-	if conf.CASignatureAlgorithm != nil && !utils.SliceContainsStr(validCASigAlgos, *conf.CASignatureAlgorithm) {
+	if conf.CASignatureAlgorithm != nil && !apiutils.SliceContainsStr(validCASigAlgos, *conf.CASignatureAlgorithm) {
 		return trace.BadParameter("CA signature algorithm %q is not supported; supported algorithms: %q", *conf.CASignatureAlgorithm, validCASigAlgos)
 	}
 
@@ -318,7 +319,7 @@ func (c *CachePolicy) Enabled() bool {
 	if c.EnabledFlag == "" {
 		return true
 	}
-	enabled, _ := utils.ParseBool(c.EnabledFlag)
+	enabled, _ := apiutils.ParseBool(c.EnabledFlag)
 	return enabled
 }
 
@@ -366,7 +367,7 @@ func (s *Service) Enabled() bool {
 	if !s.Configured() {
 		return s.defaultEnabled
 	}
-	v, err := utils.ParseBool(s.EnabledFlag)
+	v, err := apiutils.ParseBool(s.EnabledFlag)
 	if err != nil {
 		return false
 	}
@@ -417,10 +418,6 @@ type Auth struct {
 	LicenseFile string `yaml:"license_file,omitempty"`
 
 	// FOR INTERNAL USE:
-	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
-	Authorities []Authority `yaml:"authorities,omitempty"`
-
-	// FOR INTERNAL USE:
 	// ReverseTunnels is a list of SSH tunnels to 3rd party proxy services (used to talk
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
@@ -441,18 +438,18 @@ type Auth struct {
 
 	// PublicAddr sets SSH host principals and TLS DNS names to auth
 	// server certificates
-	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 
 	// ClientIdleTimeout sets global cluster default setting for client idle timeouts
-	ClientIdleTimeout services.Duration `yaml:"client_idle_timeout,omitempty"`
+	ClientIdleTimeout types.Duration `yaml:"client_idle_timeout,omitempty"`
 
 	// DisconnectExpiredCert provides disconnect expired certificate setting -
 	// if true, connections with expired client certificates will get disconnected
-	DisconnectExpiredCert services.Bool `yaml:"disconnect_expired_cert,omitempty"`
+	DisconnectExpiredCert *types.BoolOption `yaml:"disconnect_expired_cert,omitempty"`
 
 	// SessionControlTimeout specifies the maximum amount of time a node can be out
 	// of contact with the auth server before it starts terminating controlled sessions.
-	SessionControlTimeout services.Duration `yaml:"session_control_timeout,omitempty"`
+	SessionControlTimeout types.Duration `yaml:"session_control_timeout,omitempty"`
 
 	// KubeconfigFile is an optional path to kubeconfig file,
 	// if specified, teleport will use API server address and
@@ -461,11 +458,16 @@ type Auth struct {
 
 	// KeepAliveInterval set the keep-alive interval for server to client
 	// connections.
-	KeepAliveInterval services.Duration `yaml:"keep_alive_interval,omitempty"`
+	KeepAliveInterval types.Duration `yaml:"keep_alive_interval,omitempty"`
 
 	// KeepAliveCountMax set the number of keep-alive messages that can be
 	// missed before the server disconnects the client.
 	KeepAliveCountMax int64 `yaml:"keep_alive_count_max,omitempty"`
+
+	// ClientIdleTimeoutMessage is sent to the client when the inactivity timeout
+	// expires. The empty string implies no message should be sent prior to
+	// disconnection.
+	ClientIdleTimeoutMessage string `yaml:"client_idle_timeout_message,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -481,19 +483,19 @@ type TrustedCluster struct {
 
 type ClusterName string
 
-func (c ClusterName) Parse() (services.ClusterName, error) {
+func (c ClusterName) Parse() (types.ClusterName, error) {
 	if string(c) == "" {
 		return nil, nil
 	}
-	return services.NewClusterName(services.ClusterNameSpecV2{
+	return services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: string(c),
 	})
 }
 
 type StaticTokens []StaticToken
 
-func (t StaticTokens) Parse() (services.StaticTokens, error) {
-	staticTokens := []services.ProvisionTokenV1{}
+func (t StaticTokens) Parse() (types.StaticTokens, error) {
+	staticTokens := []types.ProvisionTokenV1{}
 
 	for _, token := range t {
 		st, err := token.Parse()
@@ -503,7 +505,7 @@ func (t StaticTokens) Parse() (services.StaticTokens, error) {
 		staticTokens = append(staticTokens, *st)
 	}
 
-	return services.NewStaticTokens(services.StaticTokensSpecV2{
+	return types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: staticTokens,
 	})
 }
@@ -513,13 +515,13 @@ type StaticToken string
 // Parse is applied to a string in "role,role,role:token" format. It breaks it
 // apart and constructs a services.ProvisionToken which contains the token,
 // role, and expiry (infinite).
-func (t StaticToken) Parse() (*services.ProvisionTokenV1, error) {
+func (t StaticToken) Parse() (*types.ProvisionTokenV1, error) {
 	parts := strings.Split(string(t), ":")
 	if len(parts) != 2 {
 		return nil, trace.BadParameter("invalid static token spec: %q", t)
 	}
 
-	roles, err := teleport.ParseRoles(parts[0])
+	roles, err := types.ParseTeleportRoles(parts[0])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -529,7 +531,7 @@ func (t StaticToken) Parse() (*services.ProvisionTokenV1, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &services.ProvisionTokenV1{
+	return &types.ProvisionTokenV1{
 		Token:   token,
 		Roles:   roles,
 		Expires: time.Unix(0, 0).UTC(),
@@ -545,14 +547,14 @@ type AuthenticationConfig struct {
 	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
-	LocalAuth *services.Bool `yaml:"local_auth"`
+	LocalAuth *types.BoolOption `yaml:"local_auth"`
 }
 
-// Parse returns a services.AuthPreference (type, second factor, U2F).
-func (a *AuthenticationConfig) Parse() (services.AuthPreference, error) {
+// Parse returns a types.AuthPreference (type, second factor, U2F).
+func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	var err error
 
-	var u services.U2F
+	var u types.U2F
 	if a.U2F != nil {
 		u, err = a.U2F.Parse()
 		if err != nil {
@@ -560,23 +562,14 @@ func (a *AuthenticationConfig) Parse() (services.AuthPreference, error) {
 		}
 	}
 
-	ap, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
+	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
 		U2F:               &u,
 		RequireSessionMFA: a.RequireSessionMFA,
+		AllowLocalAuth:    a.LocalAuth,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// check to make sure the configuration is valid
-	err = ap.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ap, nil
 }
 
 type UniversalSecondFactor struct {
@@ -585,8 +578,8 @@ type UniversalSecondFactor struct {
 	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
 
-func (u *UniversalSecondFactor) Parse() (services.U2F, error) {
-	res := services.U2F{
+func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
+	res := types.U2F{
 		AppID:  u.AppID,
 		Facets: u.Facets,
 	}
@@ -622,10 +615,27 @@ type SSH struct {
 	PermitUserEnvironment bool              `yaml:"permit_user_env,omitempty"`
 	PAM                   *PAM              `yaml:"pam,omitempty"`
 	// PublicAddr sets SSH host principals for SSH service
-	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 
 	// BPF is used to configure BPF-based auditing for this node.
 	BPF *BPF `yaml:"enhanced_recording,omitempty"`
+
+	// MaybeAllowTCPForwarding enables or disables TCP port forwarding. We're
+	// using a pointer-to-bool here because the system default is to allow TCP
+	// forwarding, we need to distinguish between an unset value and a false
+	// value so we can an override unset value with `true`.
+	//
+	// Don't read this value directly: call the AllowTCPForwarding method
+	// instead.
+	MaybeAllowTCPForwarding *bool `yaml:"port_forwarding,omitempty"`
+}
+
+// AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
+func (ssh *SSH) AllowTCPForwarding() bool {
+	if ssh.MaybeAllowTCPForwarding == nil {
+		return true
+	}
+	return *ssh.MaybeAllowTCPForwarding
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -658,7 +668,7 @@ func (p *PAM) Parse() *pam.Config {
 	if serviceName == "" {
 		serviceName = defaults.ServiceName
 	}
-	enabled, _ := utils.ParseBool(p.Enabled)
+	enabled, _ := apiutils.ParseBool(p.Enabled)
 	return &pam.Config{
 		Enabled:     enabled,
 		ServiceName: serviceName,
@@ -687,7 +697,7 @@ type BPF struct {
 
 // Parse will parse the enhanced session recording configuration.
 func (b *BPF) Parse() *bpf.Config {
-	enabled, _ := utils.ParseBool(b.Enabled)
+	enabled, _ := apiutils.ParseBool(b.Enabled)
 	return &bpf.Config{
 		Enabled:           enabled,
 		CommandBufferSize: b.CommandBufferSize,
@@ -826,22 +836,22 @@ type Proxy struct {
 	// local Kubernetes cluster.
 	KubeAddr string `yaml:"kube_listen_addr,omitempty"`
 	// KubePublicAddr is a public address of the kubernetes endpoint.
-	KubePublicAddr utils.Strings `yaml:"kube_public_addr,omitempty"`
+	KubePublicAddr apiutils.Strings `yaml:"kube_public_addr,omitempty"`
 
 	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
 	// The hosts in PublicAddr are included in the list of host principals
 	// on the SSH certificate.
-	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 
 	// SSHPublicAddr sets the hostport the proxy advertises for the SSH endpoint.
 	// The hosts in PublicAddr are included in the list of host principals
 	// on the SSH certificate.
-	SSHPublicAddr utils.Strings `yaml:"ssh_public_addr,omitempty"`
+	SSHPublicAddr apiutils.Strings `yaml:"ssh_public_addr,omitempty"`
 
 	// TunnelPublicAddr sets the hostport the proxy advertises for the tunnel
 	// endpoint. The hosts in PublicAddr are included in the list of host
 	// principals on the SSH certificate.
-	TunnelPublicAddr utils.Strings `yaml:"tunnel_public_addr,omitempty"`
+	TunnelPublicAddr apiutils.Strings `yaml:"tunnel_public_addr,omitempty"`
 
 	// KeyPairs is a list of x509 key pairs the proxy will load.
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
@@ -853,10 +863,10 @@ type Proxy struct {
 	MySQLAddr string `yaml:"mysql_listen_addr,omitempty"`
 	// MySQLPublicAddr is the hostport the proxy advertises for MySQL
 	// client connections.
-	MySQLPublicAddr utils.Strings `yaml:"mysql_public_addr,omitempty"`
+	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
 	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
 	// client connections.
-	PostgresPublicAddr utils.Strings `yaml:"postgres_public_addr,omitempty"`
+	PostgresPublicAddr apiutils.Strings `yaml:"postgres_public_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
@@ -878,7 +888,7 @@ func (a ACME) Parse() (*service.ACME, error) {
 	}
 
 	var err error
-	out.Enabled, err = utils.ParseBool(a.EnabledFlag)
+	out.Enabled, err = apiutils.ParseBool(a.EnabledFlag)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -907,7 +917,7 @@ type KubeProxy struct {
 	// Service is a generic service configuration section
 	Service `yaml:",inline"`
 	// PublicAddr is a publicly advertised address of the kubernetes proxy
-	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// KubeconfigFile is an optional path to kubeconfig file,
 	// if specified, teleport will use API server address and
 	// trusted certificate authority information from it
@@ -922,7 +932,7 @@ type Kube struct {
 	// Service is a generic service configuration section
 	Service `yaml:",inline"`
 	// PublicAddr is a publicly advertised address of the kubernetes service
-	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// KubeconfigFile is an optional path to kubeconfig file,
 	// if specified, teleport will use API server address and
 	// trusted certificate authority information from it
@@ -944,7 +954,7 @@ type ReverseTunnel struct {
 }
 
 // ConvertAndValidate returns validated services.ReverseTunnel or nil and error otherwize
-func (t *ReverseTunnel) ConvertAndValidate() (services.ReverseTunnel, error) {
+func (t *ReverseTunnel) ConvertAndValidate() (types.ReverseTunnel, error) {
 	for i := range t.Addresses {
 		addr, err := utils.ParseHostPortAddr(t.Addresses[i], defaults.SSHProxyTunnelListenPort)
 		if err != nil {
@@ -953,73 +963,14 @@ func (t *ReverseTunnel) ConvertAndValidate() (services.ReverseTunnel, error) {
 		t.Addresses[i] = addr.String()
 	}
 
-	out := services.NewReverseTunnel(t.DomainName, t.Addresses)
+	out, err := types.NewReverseTunnel(t.DomainName, t.Addresses)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := services.ValidateReverseTunnel(out); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
-}
-
-// Authority is a host or user certificate authority that
-// can check and if it has private key stored as well, sign it too
-type Authority struct {
-	// Type is either user or host certificate authority
-	Type services.CertAuthType `yaml:"type"`
-	// DomainName identifies domain name this authority serves,
-	// for host authorities that means base hostname of all servers,
-	// for user authorities that means organization name
-	DomainName string `yaml:"domain_name"`
-	// Checkers is a list of SSH public keys that can be used to check
-	// certificate signatures in OpenSSH authorized keys format
-	CheckingKeys []string `yaml:"checking_keys"`
-	// CheckingKeyFiles is a list of files
-	CheckingKeyFiles []string `yaml:"checking_key_files"`
-	// SigningKeys is a list of PEM-encoded private keys used for signing
-	SigningKeys []string `yaml:"signing_keys"`
-	// SigningKeyFiles is a list of paths to PEM encoded private keys used for signing
-	SigningKeyFiles []string `yaml:"signing_key_files"`
-	// AllowedLogins is a list of allowed logins for users within
-	// this certificate authority
-	AllowedLogins []string `yaml:"allowed_logins"`
-}
-
-// Parse reads values and returns parsed CertAuthority
-func (a *Authority) Parse() (services.CertAuthority, services.Role, error) {
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        a.Type,
-		ClusterName: a.DomainName,
-	})
-
-	// transform old allowed logins into roles
-	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(services.Allow, a.AllowedLogins)
-	ca.AddRole(role.GetName())
-
-	for _, path := range a.CheckingKeyFiles {
-		keyBytes, err := utils.ReadPath(path)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		ca.SetCheckingKeys(append(ca.GetCheckingKeys(), keyBytes))
-	}
-
-	for _, val := range a.CheckingKeys {
-		ca.SetCheckingKeys(append(ca.GetCheckingKeys(), []byte(val)))
-	}
-
-	for _, path := range a.SigningKeyFiles {
-		keyBytes, err := utils.ReadPath(path)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		ca.SetSigningKeys(append(ca.GetSigningKeys(), keyBytes))
-	}
-
-	for _, val := range a.SigningKeys {
-		ca.SetSigningKeys(append(ca.GetSigningKeys(), []byte(val)))
-	}
-
-	return ca, role, nil
 }
 
 // ClaimMapping is OIDC claim mapping that maps
@@ -1064,26 +1015,26 @@ type OIDCConnector struct {
 }
 
 // Parse parses config struct into services connector and checks if it's valid
-func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
+func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 	if o.Display == "" {
 		o.Display = o.ID
 	}
 
-	var mappings []services.ClaimMapping
+	var mappings []types.ClaimMapping
 	for _, c := range o.ClaimsToRoles {
 		var roles []string
 		if len(c.Roles) > 0 {
 			roles = append(roles, c.Roles...)
 		}
 
-		mappings = append(mappings, services.ClaimMapping{
+		mappings = append(mappings, types.ClaimMapping{
 			Claim: c.Claim,
 			Value: c.Value,
 			Roles: roles,
 		})
 	}
 
-	v2 := services.NewOIDCConnector(o.ID, services.OIDCConnectorSpecV2{
+	v2, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
@@ -1092,10 +1043,13 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 		Scope:         o.Scope,
 		ClaimsToRoles: mappings,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	v2.SetACR(o.ACR)
 	v2.SetProvider(o.Provider)
-	if err := v2.Check(); err != nil {
+	if err := v2.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return v2, nil

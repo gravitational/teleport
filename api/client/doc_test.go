@@ -34,7 +34,7 @@ func ExampleClient_roleCRUD() {
 	defer clt.Close()
 
 	// Resource Spec structs reflect their Resource's yaml definition.
-	roleSpec := types.RoleSpecV3{
+	roleSpec := types.RoleSpecV4{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},

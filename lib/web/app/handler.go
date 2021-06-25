@@ -26,9 +26,9 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -152,7 +152,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
-	ws, err := h.c.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{
+	ws, err := h.c.AccessPoint.GetAppSession(ctx, types.GetAppSessionRequest{
 		SessionID: sessionID,
 	})
 	if err != nil {
@@ -199,7 +199,7 @@ func (h *Handler) extractSessionID(r *http.Request) (sessionID string, err error
 // getSession returns a request session used to proxy the request to the
 // application service. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
-func (h *Handler) getSession(ctx context.Context, ws services.WebSession) (*session, error) {
+func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session, error) {
 	// If a cached session exists, return it right away.
 	session, err := h.cache.get(ws.GetName())
 	if err == nil {
@@ -254,36 +254,35 @@ func HasClientCert(r *http.Request) bool {
 // HasName checks if the client is attempting to connect to a
 // host that is different than the public address of the proxy. If it is, it
 // redirects back to the application launcher in the Web UI.
-func HasName(r *http.Request, proxyPublicAddr string) (string, bool) {
+func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 	raddr, err := utils.ParseAddr(r.Host)
 	if err != nil {
 		return "", false
 	}
-	paddr, err := utils.ParseAddr(proxyPublicAddr)
-	if err != nil {
+	for _, paddr := range proxyPublicAddrs {
+		// The following requests can not be for an application:
+		//
+		//  * The request is for localhost or loopback.
+		//  * The request is for an IP address.
+		//  * The request is for the public address of the proxy.
+		if utils.IsLocalhost(raddr.Host()) {
+			return "", false
+		}
+		if net.ParseIP(raddr.Host()) != nil {
+			return "", false
+		}
+		if raddr.Host() == paddr.Host() {
+			return "", false
+		}
+	}
+	if len(proxyPublicAddrs) == 0 {
 		return "", false
 	}
-
-	// The following requests can not be for an application:
-	//
-	//  * The request is for localhost or loopback.
-	//  * The request is for an IP address.
-	//  * The request is for the public address of the proxy.
-	if utils.IsLocalhost(raddr.Host()) {
-		return "", false
-	}
-	if net.ParseIP(raddr.Host()) != nil {
-		return "", false
-	}
-	if raddr.Host() == paddr.Host() {
-		return "", false
-	}
-
 	// At this point, it is assumed the caller is requesting an application and
 	// not the proxy, redirect the caller to the application launcher.
 	u := url.URL{
 		Scheme: "https",
-		Host:   proxyPublicAddr,
+		Host:   proxyPublicAddrs[0].String(),
 		Path:   fmt.Sprintf("/web/launch/%v", raddr.Host()),
 	}
 	return u.String(), true

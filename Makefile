@@ -17,6 +17,9 @@ DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
 # These are standard autotools variables, don't change them please
+ifneq ("$(wildcard /bin/bash)","")
+SHELL := /bin/bash
+endif
 BUILDDIR ?= build
 ASSETS_BUILDDIR ?= lib/web/build
 BINDIR ?= /usr/local/bin
@@ -75,10 +78,12 @@ endif
 # BPF support will only be built into Teleport if headers exist at build time.
 BPF_MESSAGE := "without BPF support"
 
-# BPF cannot currently be compiled on ARMv7 due to this bug: https://github.com/iovisor/gobpf/issues/272
-# ARM64 builds are not affected.
+# We don't compile BPF for anything except regular non-FIPS linux/amd64 for now, as other builds
+# have compilation issues that require fixing.
 with_bpf := no
-ifneq ("$(ARCH)","arm")
+ifeq ("$(OS)","linux")
+ifeq ("$(ARCH)","amd64")
+ifeq ("$(FIPS)","")
 ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
@@ -104,6 +109,8 @@ CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -Wl,-Bdynamic"
 endif
 endif
+endif
+endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
@@ -113,7 +120,7 @@ ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
 
-VERSRC = version.go gitref.go
+VERSRC = version.go gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
@@ -127,7 +134,7 @@ export
 #            This is the default build target for convenience of working on
 #            a web UI.
 .PHONY: all
-all: $(VERSRC)
+all: version
 	@echo "---> Building OSS binaries."
 	$(MAKE) $(BINARIES)
 
@@ -450,7 +457,11 @@ lint-helm:
 		fi; \
 	done
 
-# This rule triggers re-generation of version.go and gitref.go if Makefile changes
+# This rule triggers re-generation of version files if Makefile changes.
+.PHONY: version
+version: $(VERSRC)
+
+# This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 

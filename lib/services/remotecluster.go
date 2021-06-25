@@ -19,17 +19,18 @@ package services
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UnmarshalRemoteCluster unmarshals the RemoteCluster resource from JSON.
-func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster, error) {
+func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (types.RemoteCluster, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var cluster RemoteClusterV3
+	var cluster types.RemoteClusterV3
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -55,17 +56,18 @@ func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster,
 }
 
 // MarshalRemoteCluster marshals the RemoteCluster resource to JSON.
-func MarshalRemoteCluster(remoteCluster RemoteCluster, opts ...MarshalOption) ([]byte, error) {
+func MarshalRemoteCluster(remoteCluster types.RemoteCluster, opts ...MarshalOption) ([]byte, error) {
+	if err := remoteCluster.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch remoteCluster := remoteCluster.(type) {
-	case *RemoteClusterV3:
-		if version := remoteCluster.GetVersion(); version != V3 {
-			return nil, trace.BadParameter("mismatched remote cluster version %v and type %T", version, remoteCluster)
-		}
+	case *types.RemoteClusterV3:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

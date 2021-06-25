@@ -19,10 +19,12 @@ package srv
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 
 	"github.com/gravitational/trace"
@@ -74,9 +76,11 @@ type MonitorConfig struct {
 	// ServerID is a session server ID
 	ServerID string
 	// Emitter is events emitter
-	Emitter events.Emitter
+	Emitter apievents.Emitter
 	// Entry is a logging entry
 	Entry log.FieldLogger
+	// A message sent to the client when the idle timeout expires
+	IdleTimeoutMessage string
 }
 
 // CheckAndSetDefaults checks values and sets defaults
@@ -115,12 +119,16 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 	}, nil
 }
 
-// Monitor monitors connection activity
-// and disconnects connections with expired certificates
-// or with periods of inactivity
+// Monitor monitors the activity on a single connection and disconnects
+// that connection if the certificate expires or after
+// periods of inactivity
 type Monitor struct {
 	// MonitorConfig is a connection monitor configuration
 	MonitorConfig
+
+	// MessageWriter wraps a channel to send text messages to the client. Use
+	// for disconnection messages, etc.
+	MessageWriter io.StringWriter
 }
 
 // Start starts monitoring connection
@@ -141,20 +149,20 @@ func (w *Monitor) Start() {
 		select {
 		// certificate has expired, disconnect
 		case <-certTime:
-			event := &events.ClientDisconnect{
-				Metadata: events.Metadata{
+			event := &apievents.ClientDisconnect{
+				Metadata: apievents.Metadata{
 					Type: events.ClientDisconnectEvent,
 					Code: events.ClientDisconnectCode,
 				},
-				UserMetadata: events.UserMetadata{
+				UserMetadata: apievents.UserMetadata{
 					Login: w.Login,
 					User:  w.TeleportUser,
 				},
-				ConnectionMetadata: events.ConnectionMetadata{
+				ConnectionMetadata: apievents.ConnectionMetadata{
 					LocalAddr:  w.Conn.LocalAddr().String(),
 					RemoteAddr: w.Conn.RemoteAddr().String(),
 				},
-				ServerMetadata: events.ServerMetadata{
+				ServerMetadata: apievents.ServerMetadata{
 					ServerID: w.ServerID,
 				},
 				Reason: fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC()),
@@ -169,20 +177,20 @@ func (w *Monitor) Start() {
 			now := w.Clock.Now().UTC()
 			clientLastActive := w.Tracker.GetClientLastActive()
 			if now.Sub(clientLastActive) >= w.ClientIdleTimeout {
-				event := &events.ClientDisconnect{
-					Metadata: events.Metadata{
+				event := &apievents.ClientDisconnect{
+					Metadata: apievents.Metadata{
 						Type: events.ClientDisconnectEvent,
 						Code: events.ClientDisconnectCode,
 					},
-					UserMetadata: events.UserMetadata{
+					UserMetadata: apievents.UserMetadata{
 						Login: w.Login,
 						User:  w.TeleportUser,
 					},
-					ConnectionMetadata: events.ConnectionMetadata{
+					ConnectionMetadata: apievents.ConnectionMetadata{
 						LocalAddr:  w.Conn.LocalAddr().String(),
 						RemoteAddr: w.Conn.RemoteAddr().String(),
 					},
-					ServerMetadata: events.ServerMetadata{
+					ServerMetadata: apievents.ServerMetadata{
 						ServerID: w.ServerID,
 					},
 				}
@@ -193,6 +201,12 @@ func (w *Monitor) Start() {
 						now.Sub(clientLastActive), w.ClientIdleTimeout)
 				}
 				w.Entry.Debugf("Disconnecting client: %v", event.Reason)
+
+				if w.MessageWriter != nil && w.IdleTimeoutMessage != "" {
+					if _, err := w.MessageWriter.WriteString(w.IdleTimeoutMessage); err != nil {
+						w.Entry.WithError(err).Warn("Failed to send idle timeout message.")
+					}
+				}
 				w.Conn.Close()
 
 				if err := w.Emitter.EmitAuditEvent(w.Context, event); err != nil {
