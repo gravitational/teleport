@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -732,6 +733,9 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 			return common.NewAudit(common.AuditConfig{
 				Emitter: c.emitter,
 			})
+		},
+		CADownloader: &fakeDownloader{
+			cert: []byte(fixtures.TLSCACertPEM),
 		},
 	})
 	require.NoError(t, err)

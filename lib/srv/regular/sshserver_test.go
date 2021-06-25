@@ -257,6 +257,80 @@ func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string
 
 const hostID = "00000000-0000-0000-0000-000000000000"
 
+func startReadAll(r io.Reader) <-chan []byte {
+	ch := make(chan []byte)
+	go func() {
+		data, _ := ioutil.ReadAll(r)
+		ch <- data
+	}()
+	return ch
+}
+
+func waitForBytes(ch <-chan []byte) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	select {
+	case data := <-ch:
+		return data, nil
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func TestInactivityTimeout(t *testing.T) {
+	const timeoutMessage = "You snooze, you loose."
+
+	// Given
+	//  * a running auth server configured with a 5s inactivity timeout,
+	//  * a running SSH server configured with a given disconnection message
+	//  * a client connected to the SSH server,
+	//  * an SSH session running over the client connection
+	mutateCfg := func(cfg *auth.TestServerConfig) {
+		networkCfg := types.DefaultClusterNetworkingConfig()
+		networkCfg.SetClientIdleTimeout(5 * time.Second)
+		networkCfg.SetClientIdleTimeoutMessage(timeoutMessage)
+
+		cfg.Auth.ClusterNetworkingConfig = networkCfg
+	}
+	f := newCustomFixture(t, mutateCfg)
+
+	// If all goes well, the client will be closed by the time cleanup happens,
+	// so change the assertion on closing the client to expect it to fail
+	f.ssh.assertCltClose = require.Error
+
+	se, err := f.ssh.clt.NewSession()
+	require.NoError(t, err)
+	defer se.Close()
+
+	stderr, err := se.StderrPipe()
+	require.NoError(t, err)
+	stdErrCh := startReadAll(stderr)
+
+	endCh := make(chan error)
+	go func() { endCh <- f.ssh.clt.Wait() }()
+
+	// When I let the session idle (with the clock running at approx 10x speed)...
+	sessionHasFinished := func() bool {
+		f.clock.Advance(1 * time.Second)
+		select {
+		case <-endCh:
+			return true
+
+		default:
+			return false
+		}
+	}
+	require.Eventually(t, sessionHasFinished, 6*time.Second, 100*time.Millisecond,
+		"Timed out waiting for session to finish")
+
+	// Expect that the idle timeout has been delivered via stderr
+	text, err := waitForBytes(stdErrCh)
+	require.NoError(t, err)
+	require.Equal(t, timeoutMessage, string(text))
+}
+
 // TestDirectTCPIP ensures that the server can create a "direct-tcpip"
 // channel to the target address. The "direct-tcpip" channel is what port
 // forwarding is built upon.
