@@ -1,4 +1,4 @@
-{{- if .Values.podDisruptionBudget.enabled }}
+{{- if .Values.highAvailability.podDisruptionBudget.enabled }}
 {{- if .Capabilities.APIVersions.Has "policy/v1" }}
 apiVersion: policy/v1
 {{- else }}
@@ -11,7 +11,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}
 spec:
-  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.highAvailability.podDisruptionBudget.minAvailable }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
