@@ -18,6 +18,7 @@ OS ?= linux
 ARCH ?= amd64
 RUNTIME ?= go1.16.2
 BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
+LIBBPF_VERSION ?= 0.3
 
 UID := $$(id -u)
 GID := $$(id -g)
@@ -110,6 +111,7 @@ buildbox:
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg PROTOC_PLATFORM=$(PROTOC_PLATFORM) \
+			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi
@@ -125,6 +127,7 @@ buildbox-fips:
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
+			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
 	fi
