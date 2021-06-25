@@ -543,6 +543,11 @@ type SSHConfig struct {
 
 	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
 	AllowTCPForwarding bool
+
+	// IdleTimeoutMessage is sent to the client when a session expires due to
+	// the inactivity timeout expiring. The empty string indicates that no
+	// timeout message will be sent.
+	IdleTimeoutMessage string
 }
 
 // KubeConfig specifies configuration for kubernetes service
