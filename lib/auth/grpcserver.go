@@ -2423,13 +2423,13 @@ func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespace
 	return serverV2, nil
 }
 
-// GetNodes retrieves all nodes in the given namespace.
-func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
+// ListNodes returns a paginated list of nodes in the given namespace.
+func (g *GRPCServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest) (*proto.ListNodesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ns, err := auth.ServerWithRoles.GetNodes(ctx, req.Namespace)
+	ns, lastKey, err := auth.ServerWithRoles.ListNodes(ctx, req.Namespace, int(req.Limit), req.StartKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2440,8 +2440,9 @@ func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespa
 			return nil, trace.Errorf("encountered unexpected node type: %T", t)
 		}
 	}
-	return &types.ServerV2List{
+	return &proto.ListNodesResponse{
 		Servers: serversV2,
+		LastKey: lastKey,
 	}, nil
 }
 

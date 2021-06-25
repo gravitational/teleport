@@ -1261,21 +1261,60 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 	return resp, nil
 }
 
-// GetNodes returns a list of nodes by namespace.
-// Nodes that the user doesn't have access to are filtered out.
+// GetNodes returns a list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
-	resp, err := c.grpc.GetNodes(ctx, &types.ResourcesInNamespaceRequest{Namespace: namespace}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
+
+	// Retrieve list of nodes in chunks
+	var nodes []types.Server
+	var startKey string
+	for {
+		resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
+			Namespace: namespace,
+			Limit:     defaults.DefaultLimit,
+			StartKey:  startKey,
+		}, c.callOpts...)
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		for _, node := range resp.Servers {
+			nodes = append(nodes, node)
+		}
+
+		// If resp.LastKey is empty, then the full list has been retrieved.
+		if startKey = resp.LastKey; startKey == "" {
+			return nodes, nil
+		}
 	}
-	nodes := make([]types.Server, len(resp.Servers))
+}
+
+// ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
+// lastKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
+func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, lastKey string, err error) {
+	if namespace == "" {
+		return nil, "", trace.BadParameter("missing parameter namespace")
+	}
+	if limit == 0 {
+		limit = defaults.DefaultLimit
+	}
+
+	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
+		Namespace: namespace,
+		Limit:     int32(limit),
+		StartKey:  startKey,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	nodes = make([]types.Server, len(resp.Servers))
 	for i, node := range resp.Servers {
 		nodes[i] = node
 	}
-	return nodes, nil
+
+	return nodes, resp.LastKey, nil
 }
 
 // UpsertNode is used by SSH servers to report their presence

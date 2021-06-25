@@ -68,3 +68,8 @@ func EnhancedEvents() []string {
 		constants.EnhancedRecordingNetwork,
 	}
 }
+
+const (
+	// DefaultLimit is the default pagination limit.
+	DefaultLimit = 20
+)

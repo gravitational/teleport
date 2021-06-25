@@ -216,12 +216,6 @@ message ServerV2 {
     ServerSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-// ServerV2List is a list of servers.
-message ServerV2List {
-    // Servers is a list of servers.
-    repeated ServerV2 Servers = 1;
-}
-
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
     reserved 8;

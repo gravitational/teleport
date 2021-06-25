@@ -661,6 +661,40 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 	return filteredNodes, nil
 }
 
+func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
+	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Fetch full list of nodes in the backend.
+	startFetch := time.Now()
+	nodes, lastKey, err := a.authServer.ListNodes(ctx, namespace, limit, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	elapsedFetch := time.Since(startFetch)
+
+	// Filter nodes to return the ones for the connected identity.
+	startFilter := time.Now()
+	filteredNodes, err := a.filterNodes(nodes)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	elapsedFilter := time.Since(startFilter)
+
+	log.WithFields(logrus.Fields{
+		"user":           a.context.User.GetName(),
+		"elapsed_fetch":  elapsedFetch,
+		"elapsed_filter": elapsedFilter,
+	}).Debugf(
+		"GetServers(%v->%v) in %v.",
+		len(nodes), len(filteredNodes), elapsedFetch+elapsedFilter)
+
+	// TODO (Joerger) encrypt lastKey to avoid leaking details,
+	// especially if the key in question was filtered out above.
+	return filteredNodes, lastKey, nil
+}
+
 func (a *ServerWithRoles) UpsertAuthServer(s types.Server) error {
 	if err := a.action(apidefaults.Namespace, types.KindAuthServer, types.VerbCreate); err != nil {
 		return trace.Wrap(err)

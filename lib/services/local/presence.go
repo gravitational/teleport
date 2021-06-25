@@ -251,6 +251,47 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 	return servers, nil
 }
 
+// ListNodes returns a paginated list of registered servers
+func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
+	if namespace == "" {
+		return nil, "", trace.BadParameter("missing namespace value")
+	}
+
+	rangeStart := []byte(startKey)
+	if startKey == "" {
+		rangeStart = backend.Key(nodesPrefix, namespace)
+	}
+
+	// Get all items in the bucket within the given range.
+	result, err := s.GetRange(ctx, rangeStart, backend.RangeEnd(rangeStart), limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Marshal values into a []services.Server slice.
+	servers := make([]types.Server, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.UnmarshalServer(
+			item.Value,
+			types.KindNode,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		servers[i] = server
+	}
+
+	// If there are more nodes to retrieve, return the lastKey to the caller.
+	lastKey := ""
+	if limit != 0 && len(result.Items) == limit {
+		lastKey = string(result.Items[len(result.Items)-1].Key)
+	}
+
+	return servers, lastKey, nil
+}
+
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
 // specified duration with second resolution if it's >= 1 second.
 func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
