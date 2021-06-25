@@ -191,6 +191,9 @@ func (s *PresenceService) upsertServer(ctx context.Context, prefix string, serve
 
 // DeleteAllNodes deletes all nodes in a namespace
 func (s *PresenceService) DeleteAllNodes(ctx context.Context, namespace string) error {
+	if namespace == "" {
+		return trace.BadParameter("missing nodes namespace")
+	}
 	startKey := backend.Key(nodesPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
@@ -257,13 +260,16 @@ func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit
 		return nil, "", trace.BadParameter("missing namespace value")
 	}
 
+	keyPrefix := backend.Key(nodesPrefix, namespace)
+
+	rangeEnd := backend.RangeEnd(keyPrefix)
 	rangeStart := []byte(startKey)
 	if startKey == "" {
-		rangeStart = backend.Key(nodesPrefix, namespace)
+		rangeStart = keyPrefix
 	}
 
 	// Get all items in the bucket within the given range.
-	result, err := s.GetRange(ctx, rangeStart, backend.RangeEnd(rangeStart), limit)
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -284,12 +290,13 @@ func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit
 	}
 
 	// If there are more nodes to retrieve, return the lastKey to the caller.
-	lastKey := ""
+	nextKey := ""
 	if limit != 0 && len(result.Items) == limit {
-		lastKey = string(result.Items[len(result.Items)-1].Key)
+		lastKey := result.Items[len(result.Items)-1].Key
+		nextKey = string(backend.RangeEnd(lastKey))
 	}
 
-	return servers, lastKey, nil
+	return servers, nextKey, nil
 }
 
 // UpsertNode registers node presence, permanently if TTL is 0 or for the

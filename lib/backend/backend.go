@@ -212,7 +212,9 @@ func (p Params) GetString(key string) string {
 // NoLimit specifies no limits
 const NoLimit = 0
 
-// RangeEnd returns end of the range for given key
+// RangeEnd returns the very next possible key.
+// If used with a key prefix, this will return
+// the end of the range for that key prefix.
 func RangeEnd(key []byte) []byte {
 	end := make([]byte, len(key))
 	copy(end, key)

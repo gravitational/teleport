@@ -191,3 +191,95 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 }
+
+func TestNodeCRUD(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	backend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+
+	presence := NewPresenceService(backend)
+
+	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	node2, err := types.NewServerWithLabels("node2", types.KindNode, types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	// Initially expect no nodes to be returned.
+	nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(nodes))
+
+	// create nodes
+	_, err = presence.UpsertNode(ctx, node1)
+	require.NoError(t, err)
+
+	_, err = presence.UpsertNode(ctx, node2)
+	require.NoError(t, err)
+
+	// get all nodes
+	nodes, err = presence.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(nodes), 2)
+
+	// list nodes one at a time, last page should be empty
+	nodes, lastKey, err := presence.ListNodes(ctx, apidefaults.Namespace, 1, "")
+	require.NoError(t, err)
+	require.EqualValues(t, len(nodes), 1)
+	node1.SetResourceID(nodes[0].GetResourceID())
+	require.EqualValues(t, []types.Server{node1}, nodes)
+	require.NotEqualValues(t, lastKey, "")
+
+	nodes, lastKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, lastKey)
+	require.NoError(t, err)
+	require.EqualValues(t, len(nodes), 1)
+	node2.SetResourceID(nodes[0].GetResourceID())
+	require.EqualValues(t, []types.Server{node2}, nodes)
+	require.NotEqualValues(t, lastKey, "")
+
+	nodes, lastKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, lastKey)
+	require.NoError(t, err)
+	require.EqualValues(t, len(nodes), 0)
+	require.EqualValues(t, lastKey, "")
+
+	// get node1
+	node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
+	require.NoError(t, err)
+	require.EqualValues(t, node1, node)
+
+	// Make sure can't delete with empty namespace or name.
+	err = presence.DeleteNode(ctx, node1.GetNamespace(), "")
+	require.Error(t, err)
+	require.IsType(t, trace.BadParameter(""), err)
+	err = presence.DeleteNode(ctx, "", node1.GetName())
+	require.Error(t, err)
+	require.IsType(t, trace.BadParameter(""), err)
+
+	// Make sure can't delete all with empty namespace.
+	err = presence.DeleteAllNodes(ctx, "")
+	require.Error(t, err)
+	require.IsType(t, trace.BadParameter(""), err)
+
+	// Delete all.
+	err = presence.DeleteAllNodes(ctx, node1.GetNamespace())
+	require.NoError(t, err)
+
+	// Now expect no nodes to be returned.
+	nodes, err = presence.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(nodes))
+
+	// Remove the node.
+	err = presence.DeleteNode(ctx, node1.GetNamespace(), node1.GetName())
+	require.NoError(t, err)
+
+	// Now expect no nodes to be returned.
+	nodes, err = presence.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(nodes))
+}
