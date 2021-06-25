@@ -1097,6 +1097,17 @@ func (s *Server) canPortForward(scx *srv.ServerContext, channel ssh.Channel) err
 	return nil
 }
 
+// stderrWriter wraps an ssh.Channel in an implementation of io.StringWriter
+// that sends anything written back the client over its stderr stream
+type stderrWriter struct {
+	channel ssh.Channel
+}
+
+func (w *stderrWriter) WriteString(s string) (int, error) {
+	writeStderr(w.channel, s)
+	return len(s), nil
+}
+
 // handleDirectTCPIPRequest handles port forwarding requests.
 func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, channel ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
@@ -1248,6 +1259,11 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 		log.Errorf("Unable to fetch cluster networking config: %v.", err)
 		writeStderr(ch, "Unable to fetch cluster networking configuration.")
 		return
+	}
+
+	if scx.Monitor != nil {
+		scx.Monitor.IdleTimeoutMessage = netConfig.GetClientIdleTimeoutMessage()
+		scx.Monitor.MessageWriter = &stderrWriter{channel: ch}
 	}
 
 	// The keep-alive loop will keep pinging the remote server and after it has
