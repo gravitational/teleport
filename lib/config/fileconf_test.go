@@ -115,6 +115,12 @@ fake certificate
 // mutated programatically by test cases and then re-serialised to test the
 // config file loader
 const minimalConfigFile string = `
+teleport:
+  nodename: testing
+
+auth_service:
+  enabled: yes
+
 ssh_service:
   enabled: yes
 `
@@ -136,6 +142,73 @@ func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
 	require.NoError(t, err)
 
 	return text
+}
+
+// requireEqual creates an assertion function with a bound `expected` value
+// for use with table-driven tests
+func requireEqual(expected interface{}) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
+		require.Equal(t, expected, actual, msgAndArgs...)
+	}
+}
+
+// TestAuthSection tests the config parser for the `auth_service` config block
+func TestAuthSection(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		desc          string
+		mutate        func(cfgMap)
+		expectError   require.ErrorAssertionFunc
+		expectEnabled require.BoolAssertionFunc
+		expectIdleMsg require.ValueAssertionFunc
+	}{
+		{
+			desc:          "Default",
+			mutate:        func(cfg cfgMap) {},
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			expectIdleMsg: require.Empty,
+		}, {
+			desc: "Enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["enabled"] = "yes"
+			},
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+		}, {
+			desc: "Disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["enabled"] = "no"
+			},
+			expectError:   require.NoError,
+			expectEnabled: require.False,
+		}, {
+			desc: "Idle timeout message",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["client_idle_timeout_message"] = "Are you pondering what I'm pondering?"
+			},
+			expectError:   require.NoError,
+			expectIdleMsg: requireEqual("Are you pondering what I'm pondering?"),
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tt.mutate))
+
+			cfg, err := ReadConfig(text)
+			tt.expectError(t, err)
+
+			if tt.expectEnabled != nil {
+				tt.expectEnabled(t, cfg.Auth.Enabled())
+			}
+
+			if tt.expectIdleMsg != nil {
+				tt.expectIdleMsg(t, cfg.Auth.ClientIdleTimeoutMessage)
+			}
+		})
+	}
 }
 
 // TestSSHSection tests the config parser for the SSH config block
