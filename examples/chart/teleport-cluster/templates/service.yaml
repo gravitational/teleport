@@ -13,7 +13,7 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-type: nlb
     {{- end }}
     {{- if .Values.annotations.service }}
-      {{- toYaml .Values.annotations.service | nindent 4 }}
+      {{- toYaml .Values.annotations.service | nindent 4 }} 
     {{- end }}
   {{- end }}
 spec:
