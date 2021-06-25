@@ -1,75 +1,102 @@
 
 ---
-author: jane quintero (jane@goteleport.com)   
+author: jane quintero (jane@goteleport.com) Russell Jones (rjones@goteleport.com)
 state: draft
 ---
 
+# Use GitHub Actions for CI and Automation
 
-# Bot 
+## What/Why
 
-## What 
+This RFD proposes using Github Actions for CI and automation purposes to improve the development process and velocity of Teleport. This includes, but is not limited to the following:
 
-This RFD proposes the implementation of using Github Actions to better manage the Teleport repository's pull requests. The first iteration of this implementation will include:  
-- Auto assigning reviewers to pull requests. 
-- Checking approvals for pull requests. 
+* Adding bots to automate parts of the development process.
+* Running unit and integration tests on internal and external PRs.
+* Running sanity tests against `master`.
+* Tracking and reporting test failures.
+* Tracking and reporting regressions.
 
-## Why 
-
-To improve speed and quality of the current pull request process.
+The first iteration will lay out the security properties that we will maintained as well as two initial workflows (review assignment and approval).
 
 ## Details
 
-This project will use the [go-github](https://github.com/google/go-github) client library to access the Github API to assign and check reviewers. 
+### Security Properties
 
-Information about the pull request needs to be obtained in order to authenticate and use the client library to make API calls. Github actions allows you to [access execution context information](https://docs.github.com/en/enterprise-server@3.0/actions/reference/context-and-expression-syntax-for-github-actions). One of the default environment variables provided by Github actions is  `GITHUB_EVENT_PATH`, which is the path to file with the complete event payload. With this, we can gather information about the pull requests to make the necessary API calls. 
+The following properties should be maintained.
 
-### Assigning Reviewers 
+* We need support internal and external contributors.
+* Automation failures should support an override method for break-glass scenarios.
+* Changes to workflows should require repository administrator approval.
 
-Reviewers will be assigned when a pull request is opened, ready for review, or reopened. 
+To maintain these properties, the following is proposed.
+
+* The `.github/workflows` directory should be [protected by `CODEROWNERS`](https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/about-code-owners) requiring approval by repository administrator (like @klizhentas, @russjones, or @r0mant) before merge. This is to prevent an attacker from exploiting a bug in a approval workflow itself and using that to change the approval workflow and then make malicious commits to the repository.
+* [Branch protection rules](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/) should be used to dismiss approvals on a PR when new changes are pushed to a PR after it has been approved. This is to prevent a user from submitting a non-malicious PR, waiting for approval, then updating it before merge.
+* [PRs from an external fork should never have access to repository secrets](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/). This is to prevent an external user from submitting a malicous PR that ex-filtrates secrets.
+
+### Workflows
+
+Two initial workflows are proposed: automated assignment of reviewers and automated approval of PRs. Both will be paired with a small Go program with minimal external dependencies. This approach is taken as it's something we have a lot of (Go developers) as well as allowing us to write unit tests.
+
+### Assign Reviewer
+
+A assign reviewer workflow will be created to automatically assign reviewers to all PRs.
+
+The initial version of the assign reviewer workflow will use a hard coded list of reviewers that are stored as a [repository secret](https://docs.github.com/en/actions/reference/encrypted-secrets). 
+
+#### Workflow
 
 ```yaml
-# Example workflow configuration 
-on: pull_request_target
+# This workflow is run whenever a Pull Request is opened, re-opened, or taken
+# out of draft (ready for review).
+#
+# NOTE: Due to the sensitive nature of this workflow, it must always be run
+# against master AND with minimal permissions. These properties must always
+# be maintained!
+# 
+# While it's tempting to use "pull_request_target" which automatically runs
+# on the base of the PR, that target also grants the GITHUB_TOKEN write access
+# to the repository.
+on: pull_request
   
 jobs:
   auto-request-review:
     name: Auto Request Review
     runs-on: ubuntu-latest
+
     steps:
-        # Install Go  
-      - uses: actions/setup-go@v1
+      # Checkout master branch of Teleport repository. This is to prevent an
+      # attacker from submitting their own review assignment logic.
+      - uses: actions/checkout@v2
         with:
-          go-version: '1.16.5'
-        # Run command
-      - name: Assigning reviewers 
+          ref: master
+      
+      # Install the latest version of Go.
+      - uses: actions/setup-go@v2
+      
+      # Run "assign-reviewers" subcommand on bot.
+      - name: Assign Reviews 
         run: go run .github/workflows/bot.go assign-reviewers
         env: 
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          REVIEWERS: ${{ secrets.REVIEWERS }}
 ```
 
-#### Workflow 
+#### Implementation
 
-To know which reviewers to assign, a hardcoded JSON object will be used as a Github secret. Usernames will be the the name of the key and the value will be a list of required reviewers usernames. 
+The Go program will have a `assign-reviewers` subcommand that reads in the `REVIEWERS` environment variable. This variable will be a JSON object with a hard coded list of reviewers. An example `REVIEWERS` object is below.
 
 ```json
- // Example json object 
- {
-    "russjones: ["quinqu", "r0mant"],  
-    "r0mant": ["awly", "webvictim"],
- }
+{
+   "russjones: ["quinqu", "r0mant"],  
+   "r0mant": ["quinqu", "russjones"],
+   "quinqu": ["russjones", "r0mant"]
+}
 ```
-To access this, we can use the `secrets` context to store the assignments in an environment variable.
 
-```yaml
- // Store in environment variable
- env: 
-  ASSIGNMENTS: ${{ secrets.assignments }}
-```
-[Creating repository secrets](https://docs.github.com/en/actions/reference/encrypted-secrets#creating-encrypted-secrets-for-a-repository)
+If the PR author is not in listed in the JSON object (for example, a new team member or external contributor), the PR will be assigned to @russjones, @r0mant, and @awly.
 
-
-The reviewers will be obatined from the secrets and use this Github API endpoint to [request reviewers for the pull request](https://docs.github.com/en/rest/reference/pulls#request-reviewers-for-a-pull-request).
+The [Request reviewers for a pull request](https://docs.github.com/en/rest/reference/pulls#request-reviewers-for-a-pull-request) API will be used to assign reviewers to the Pull Request.
 
 ### Checking Reviews 
 
@@ -97,6 +124,26 @@ jobs:
         env: 
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+
+
+
+
+
+###
+
+
+
+
+  * Auto assigning reviewers to pull requests. 
+  * Checking approvals for pull requests. 
+
+
+This project will use the [go-github](https://github.com/google/go-github) client library to access the Github API to assign and check reviewers. 
+
+Information about the pull request needs to be obtained in order to authenticate and use the client library to make API calls. Github actions allows you to [access execution context information](https://docs.github.com/en/enterprise-server@3.0/actions/reference/context-and-expression-syntax-for-github-actions). One of the default environment variables provided by Github actions is  `GITHUB_EVENT_PATH`, which is the path to file with the complete event payload. With this, we can gather information about the pull requests to make the necessary API calls. 
+
+
 
 #### Workflow
 
