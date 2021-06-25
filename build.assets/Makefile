@@ -29,7 +29,6 @@ GOGO_PROTO_TAG ?= v1.3.2
 BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
 BUILDBOX_FIPS=quay.io/gravitational/teleport-buildbox-fips:$(RUNTIME)
 BUILDBOX_CENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
-BUILDBOX_CENTOS6_FIPS=quay.io/gravitational/teleport-buildbox-centos6-fips:$(RUNTIME)
 BUILDBOX_ARM=quay.io/gravitational/teleport-buildbox-arm:$(RUNTIME)
 BUILDBOX_ARM_FIPS=quay.io/gravitational/teleport-buildbox-arm-fips:$(RUNTIME)
 
@@ -142,17 +141,8 @@ buildbox-centos6:
 		--cache-from $(BUILDBOX_CENTOS6) \
 		--tag $(BUILDBOX_CENTOS6) -f Dockerfile-centos6 .
 
-#
-# Builds a Docker buildbox for CentOS 6 FIPS builds
-# Teleport FIPS builds fail on CentOS 6 builds as of Go 1.16, so have been disabled for Teleport 7.0+
-# This is due to the lower glibc version used with CentOS 6 not supporting the 'getauxval' syscall,
-# preventing Go's boringcrypto fork being compiled from source.
+# CentOS 6 FIPS builds were removed in Teleport 7.0
 # https://github.com/gravitational/teleport/issues/7207
-#
-.PHONY:buildbox-centos6-fips
-buildbox-centos6-fips:
-	@echo "Teleport FIPS builds fail on CentOS 6 as of Go 1.16, so have been disabled for Teleport 7.0+."
-	@exit 1
 
 #
 # Builds a Docker buildbox for ARMv7/ARM64 builds
@@ -290,10 +280,6 @@ release-arm64: buildbox-arm
 release-amd64-centos6: buildbox-centos6
 	$(MAKE) release-centos6 ARCH=amd64
 
-.PHONY: release-amd64-centos6-fips
-release-amd64-centos6-fips: buildbox-centos6-fips
-	$(MAKE) release-centos6-fips ARCH=amd64 FIPS=yes
-
 #
 # Create a Teleport FIPS package using the build container.
 # This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
@@ -312,15 +298,6 @@ release-fips: buildbox-fips
 release-centos6: buildbox-centos6
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS6) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
-
-#
-# Create a Teleport FIPS package for CentOS 6 using the build container.
-#
-.PHONY:release-centos6-fips
-release-centos6-fips: buildbox-centos6-fips
-	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS6_FIPS) \
-		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
 
 #
 # Create a Windows Teleport package using the build container.
