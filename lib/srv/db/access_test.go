@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -388,7 +389,7 @@ func TestAccessDisabled(t *testing.T) {
 	// Try to connect to the database as this user.
 	_, err := testCtx.postgresClient(ctx, userName, "postgres", dbUser, dbName)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "this Teleport cluster doesn't support database access")
+	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for database access")
 }
 
 type testContext struct {
@@ -732,6 +733,9 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 			return common.NewAudit(common.AuditConfig{
 				Emitter: c.emitter,
 			})
+		},
+		CADownloader: &fakeDownloader{
+			cert: []byte(fixtures.TLSCACertPEM),
 		},
 	})
 	require.NoError(t, err)

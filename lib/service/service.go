@@ -2512,6 +2512,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				PollingPeriod: process.Config.PollingPeriod,
 				FIPS:          cfg.FIPS,
 				Emitter:       streamEmitter,
+				Log:           process.log,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2579,22 +2580,23 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:           tsrv,
-				AuthServers:     cfg.AuthServers[0],
-				DomainName:      cfg.Hostname,
-				ProxyClient:     conn.Client,
-				ProxySSHAddr:    proxySSHAddr,
-				ProxyWebAddr:    cfg.Proxy.WebAddr,
-				ProxySettings:   proxySettings,
-				CipherSuites:    cfg.CipherSuites,
-				FIPS:            cfg.FIPS,
-				AccessPoint:     accessPoint,
-				Emitter:         streamEmitter,
-				PluginRegistry:  process.PluginRegistry,
-				HostUUID:        process.Config.HostUUID,
-				Context:         process.ExitContext(),
-				StaticFS:        fs,
-				ClusterFeatures: process.getClusterFeatures(),
+				Proxy:            tsrv,
+				AuthServers:      cfg.AuthServers[0],
+				DomainName:       cfg.Hostname,
+				ProxyClient:      conn.Client,
+				ProxySSHAddr:     proxySSHAddr,
+				ProxyWebAddr:     cfg.Proxy.WebAddr,
+				ProxyPublicAddrs: cfg.Proxy.PublicAddrs,
+				ProxySettings:    proxySettings,
+				CipherSuites:     cfg.CipherSuites,
+				FIPS:             cfg.FIPS,
+				AccessPoint:      accessPoint,
+				Emitter:          streamEmitter,
+				PluginRegistry:   process.PluginRegistry,
+				HostUUID:         process.Config.HostUUID,
+				Context:          process.ExitContext(),
+				StaticFS:         fs,
+				ClusterFeatures:  process.getClusterFeatures(),
 			})
 		if err != nil {
 			return trace.Wrap(err)

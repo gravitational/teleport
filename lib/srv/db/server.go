@@ -68,6 +68,8 @@ type Config struct {
 	OnHeartbeat func(error)
 	// Auth is responsible for generating database auth tokens.
 	Auth common.Auth
+	// CADownloader automatically downloads root certs for cloud hosted databases.
+	CADownloader CADownloader
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -114,6 +116,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if len(c.Servers) == 0 {
 		return trace.BadParameter("missing Servers")
+	}
+	if c.CADownloader == nil {
+		c.CADownloader = NewRealDownloader(c.DataDir)
 	}
 	return nil
 }
@@ -169,7 +174,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// starting up dynamic labels and loading root certs for RDS dbs.
 	for _, db := range server.cfg.Servers {
 		if err := server.initDatabaseServer(ctx, db); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "failed to initialize %v", server)
 		}
 	}
 
@@ -186,6 +191,7 @@ func (s *Server) initDatabaseServer(ctx context.Context, server types.DatabaseSe
 	if err := s.initCACert(ctx, server); err != nil {
 		return trace.Wrap(err)
 	}
+	s.log.Debugf("Initialized %v.", server)
 	return nil
 }
 
