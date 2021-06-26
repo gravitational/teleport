@@ -639,6 +639,18 @@ func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (typ
 	return token, nil
 }
 
+// GetRecoveryToken returns a recovery token for the specified tokenID.
+func (c *Client) GetRecoveryToken(ctx context.Context, tokenID string) (types.UserToken, error) {
+	token, err := c.grpc.GetRecoveryToken(ctx, &proto.GetRecoveryTokenRequest{
+		TokenID: tokenID,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return token, nil
+}
+
 // CreateResetPasswordToken creates reset password token.
 func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (types.UserToken, error) {
 	token, err := c.grpc.CreateResetPasswordToken(ctx, req, c.callOpts...)
@@ -647,6 +659,55 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	}
 
 	return token, nil
+}
+
+// ChangePasswordWithToken changes user password with a reset password token.
+func (c *Client) ChangePasswordWithToken(ctx context.Context, req *proto.ChangePasswordWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
+	res, err := c.grpc.ChangePasswordWithToken(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+// CreateRecoveryStartToken creates a recovery start token after successful verification of username and recovery code.
+func (c *Client) CreateRecoveryStartToken(ctx context.Context, req *proto.CreateRecoveryStartTokenRequest) (types.UserToken, error) {
+	res, err := c.grpc.CreateRecoveryStartToken(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+// AuthenticateUserWithRecoveryToken authenticates user defined in token with either password or second factor.
+func (c *Client) AuthenticateUserWithRecoveryToken(ctx context.Context, req *proto.AuthenticateUserWithRecoveryTokenRequest) (types.UserToken, error) {
+	res, err := c.grpc.AuthenticateUserWithRecoveryToken(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+// SetNewAuthCredWithRecoveryToken either changes a user password or adds a new mfa device depending on the request.
+func (c *Client) SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto.SetNewAuthCredWithRecoveryTokenRequest) error {
+	if _, err := c.grpc.SetNewAuthCredWithRecoveryToken(ctx, req, c.callOpts...); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// CreateRecoveryCodesWithToken creates and returns new recovery codes for the user defined in the token.
+func (c *Client) CreateRecoveryCodesWithToken(ctx context.Context, req *proto.CreateRecoveryCodesWithTokenRequest) (*proto.CreateRecoveryCodesWithTokenResponse, error) {
+	res, err := c.grpc.CreateRecoveryCodesWithToken(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
 }
 
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
@@ -1074,6 +1135,32 @@ func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesReque
 		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
+}
+
+func (c *Client) GetMFAAuthenticateChallengeWithToken(ctx context.Context, in *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
+	resp, err := c.grpc.GetMFAAuthenticateChallengeWithToken(ctx, in, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
+}
+
+func (c *Client) GetMFADevicesWithToken(ctx context.Context, in *proto.GetMFADevicesWithTokenRequest) (*proto.GetMFADevicesResponse, error) {
+	resp, err := c.grpc.GetMFADevicesWithToken(ctx, in, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
+}
+
+func (c *Client) DeleteMFADeviceWithToken(ctx context.Context, in *proto.DeleteMFADeviceWithTokenRequest) error {
+	if _, err := c.grpc.DeleteMFADeviceWithToken(ctx, in, c.callOpts...); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
 }
 
 func (c *Client) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {

@@ -23,7 +23,9 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -747,4 +749,51 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services
 	}
 
 	return cfg.GetSessionRecordingConfig()
+}
+
+// ChangePasswordWithToken changes user password with a user reset token and starts a web session.
+//
+// Returns recovery tokens for cloud users with second factors turned on.
+func (c *Client) ChangePasswordWithToken(ctx context.Context, req *proto.ChangePasswordWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
+	if resp, err := c.APIClient.ChangePasswordWithToken(ctx, req); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// Convert request back to fallback compatible object.
+	httpReq := ChangePasswordWithTokenRequest{
+		SecondFactorToken: req.GetSecondFactorToken(),
+		TokenID:           req.GetTokenID(),
+		Password:          req.GetPassword(),
+	}
+
+	if req.GetU2FRegisterResponse() != nil {
+		httpReq.U2FRegisterResponse = &u2f.RegisterChallengeResponse{
+			RegistrationData: req.GetU2FRegisterResponse().GetRegistrationData(),
+			ClientData:       req.GetU2FRegisterResponse().GetClientData(),
+		}
+	}
+
+	// Fallback will not return recovery tokens.
+	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), httpReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	webSession, err := services.UnmarshalWebSession(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, ok := webSession.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected WebSessionV2 type %T", sess)
+	}
+
+	return &proto.ChangePasswordWithTokenResponse{
+		WebSession: sess,
+	}, nil
 }

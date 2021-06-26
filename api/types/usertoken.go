@@ -39,6 +39,10 @@ type UserToken interface {
 	GetURL() string
 	// SetURL returns URL
 	SetURL(string)
+	// SetRecoverType sets recovery type.
+	SetRecoverType(RecoverType)
+	// GetRecoverType returns recovery type.
+	GetRecoverType() RecoverType
 }
 
 // NewUserToken creates an instance of UserToken.
@@ -154,7 +158,17 @@ func (u *UserTokenV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// // String represents a human readable version of the token
+// String represents a human readable version of the token
 func (u *UserTokenV3) String() string {
 	return fmt.Sprintf("UserTokenV3(tokenID=%v, type=%v user=%v, expires at %v)", u.GetName(), u.GetSubKind(), u.Spec.User, u.Expiry())
+}
+
+// SetRecoverType sets recovery type.
+func (u *UserTokenV3) SetRecoverType(r RecoverType) {
+	u.Spec.RecoverType = r
+}
+
+// GetRecoverType returns recovery type.
+func (u *UserTokenV3) GetRecoverType() RecoverType {
+	return u.Spec.RecoverType
 }

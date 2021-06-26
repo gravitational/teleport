@@ -33,6 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -1147,19 +1148,46 @@ func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *htt
 	return localCA, nil
 }
 
+// ChangePasswordWithTokenRequest defines a request to change user password
+// DELETE IN 10.0.0 with changePasswordWithToken api endpoint.
+type ChangePasswordWithTokenRequest struct {
+	// SecondFactorToken is 2nd factor token value
+	SecondFactorToken string `json:"second_factor_token"`
+	// TokenID is this token ID
+	TokenID string `json:"token"`
+	// Password is user password
+	Password []byte `json:"password"`
+	// U2FRegisterResponse is U2F registration challenge response.
+	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
+}
+
+// DELETE IN 10.0.0: defined in grpcserver, kept for fallback.
 func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req ChangePasswordWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	webSession, err := auth.ChangePasswordWithToken(r.Context(), req)
+	var u2f *proto.U2FRegisterResponse
+	if req.U2FRegisterResponse != nil {
+		u2f = &proto.U2FRegisterResponse{
+			RegistrationData: req.U2FRegisterResponse.RegistrationData,
+			ClientData:       req.U2FRegisterResponse.ClientData,
+		}
+	}
+
+	res, err := auth.ChangePasswordWithToken(r.Context(), &proto.ChangePasswordWithTokenRequest{
+		SecondFactorToken:   req.SecondFactorToken,
+		TokenID:             req.TokenID,
+		Password:            req.Password,
+		U2FRegisterResponse: u2f,
+	})
 	if err != nil {
 		log.Debugf("Failed to change user password with token: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.MarshalWebSession(webSession, services.WithVersion(version)))
+	return rawMessage(services.MarshalWebSession(res.WebSession, services.WithVersion(version)))
 }
 
 // getU2FAppID returns the U2F AppID in the auth configuration

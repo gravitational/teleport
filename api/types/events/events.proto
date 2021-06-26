@@ -628,6 +628,30 @@ message UserPasswordChange {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// RecoveryCodeGenerate is emitted when a user's recovery codes are generated.
+message RecoveryCodeGenerate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// RecoveryCodeUsed is emitted when a user's recovery code was used successfully or
+// unsuccessfully.
+message RecoveryCodeUsed {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Status contains fields to indicate whether attempt was successful or not.
+    Status Status = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // AccessRequestCreate is emitted when access request has been created or updated
 message AccessRequestCreate {
     // Metadata is a common event metadata
@@ -1379,6 +1403,8 @@ message OneOf {
         events.BillingCardDelete BillingCardDelete = 48;
         events.LockCreate LockCreate = 49;
         events.LockDelete LockDelete = 50;
+        events.RecoveryCodeGenerate RecoveryCodeGenerate = 51;
+        events.RecoveryCodeUsed RecoveryCodeUsed = 52;
     }
 }
 

@@ -1146,15 +1146,6 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallen
 	return &u2fRegReq, nil
 }
 
-// ChangePasswordWithToken changes user password with ResetPasswordToken
-func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
-}
-
 // CreateOIDCAuthRequest creates OIDCAuthRequest
 func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
 	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
@@ -1828,6 +1819,16 @@ type IdentityService interface {
 	// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
 	GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error)
 
+	// GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user
+	// defined in the token.
+	GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error)
+
+	// GetMFADevicesWithToken returns all mfa devices for the user defined in the token.
+	GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADevicesWithTokenRequest) (*proto.GetMFADevicesResponse, error)
+
+	// DeleteMFADeviceWithToken deletes a mfa device for the user defined in the token.
+	DeleteMFADeviceWithToken(ctx context.Context, req *proto.DeleteMFADeviceWithTokenRequest) error
+
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
 	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
 
@@ -1896,10 +1897,28 @@ type IdentityService interface {
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
 	// ChangePasswordWithToken changes password with token
-	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error)
+	ChangePasswordWithToken(ctx context.Context, req *proto.ChangePasswordWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error)
+
+	// CreateRecoveryStartToken creates a recovery start token after successful verification of
+	// username and recovery code.
+	CreateRecoveryStartToken(ctx context.Context, req *proto.CreateRecoveryStartTokenRequest) (types.UserToken, error)
+
+	// AuthenticateUserWithRecoveryToken authenticates user defined in token with either password or
+	// second factor.
+	AuthenticateUserWithRecoveryToken(ctx context.Context, req *proto.AuthenticateUserWithRecoveryTokenRequest) (types.UserToken, error)
+
+	// SetNewAuthCredWithRecoveryToken either changes a user password or adds a new mfa device
+	// depending on the request.
+	SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto.SetNewAuthCredWithRecoveryTokenRequest) error
+
+	// CreateRecoveryCodesWithToken creates and returns new recovery codes for the user defined in the token.
+	CreateRecoveryCodesWithToken(ctx context.Context, req *proto.CreateRecoveryCodesWithTokenRequest) (*proto.CreateRecoveryCodesWithTokenResponse, error)
 
 	// GetResetPasswordToken returns a reset password token.
-	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
+	GetResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error)
+
+	// GetRecoveryToken returns a reset password token.
+	GetRecoveryToken(ctx context.Context, tokenID string) (types.UserToken, error)
 
 	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
 	RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)

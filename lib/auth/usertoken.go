@@ -43,6 +43,15 @@ const (
 	// UserTokenTypeResetPassword is a token type used for the UI flow where user
 	// re-sets their password and second factor (if enabled).
 	UserTokenTypeResetPassword = "password"
+	// UserTokenTypeRecoveryStart describes a recovery token issued to users who
+	// successfully verified their recovery code and can now start the recovery flow process.
+	UserTokenTypeRecoveryStart = "recovery_start"
+	// UserTokenTypeRecoveryApproved describes a recovery token issued to users who
+	// successfully verified their second auth credential (either password or a second factor) and
+	// can now start changing their password or add a new second factor device.
+	// This token is also used to allow users to delete exisiting second factor devices
+	// and retrieve their new set of recovery codes as part of the recovery flow.
+	UserTokenTypeRecoveryApproved = "recovery_approved"
 )
 
 // CreateUserTokenRequest is a request to create a new user token.
@@ -91,6 +100,12 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 				"failed to create user token for reset password: maximum token TTL is %v hours",
 				defaults.MaxChangePasswordTokenTTL)
 		}
+
+	case UserTokenTypeRecoveryStart:
+		r.TTL = defaults.MaxRecoveryStartTokenTTL
+
+	case UserTokenTypeRecoveryApproved:
+		r.TTL = defaults.MaxRecoveryApprovedTokenTTL
 
 	default:
 		return trace.BadParameter("unknown user token request type(%v)", r.Type)
@@ -285,7 +300,12 @@ func (s *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, erro
 	var err error
 	var proxyHost string
 
-	tokenID, err := utils.CryptoRandomHex(TokenLenBytes)
+	tokenLenBytes := TokenLenBytes
+	if req.Type == UserTokenTypeRecoveryStart || req.Type == UserTokenTypeRecoveryApproved {
+		tokenLenBytes = RecoveryTokenLenBytes
+	}
+
+	tokenID, err := utils.CryptoRandomHex(tokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -333,8 +353,12 @@ func formatUserTokenURL(proxyHost string, tokenID string, reqType string) (strin
 	switch reqType {
 	case UserTokenTypeResetPasswordInvite:
 		u.Path = fmt.Sprintf("/web/invite/%v", tokenID)
+
 	case UserTokenTypeResetPassword:
 		u.Path = fmt.Sprintf("/web/reset/%v", tokenID)
+
+	case UserTokenTypeRecoveryStart, UserTokenTypeRecoveryApproved:
+		u.Path = fmt.Sprintf("/web/recovery/%v", tokenID)
 	}
 
 	return u.String(), nil
@@ -372,6 +396,107 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 	// DELETE IN 9.0.0: remove checking for empty string.
 	if token.GetSubKind() != "" && token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
 		return nil, trace.BadParameter("invalid token")
+	}
+
+	if token.Expiry().Before(s.clock.Now().UTC()) {
+		return nil, trace.BadParameter("expired token")
+	}
+
+	return token, nil
+}
+
+// createRecoveryToken creates a user token for account recovery.
+func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType string, recoverType types.RecoverType) (types.UserToken, error) {
+	req := CreateUserTokenRequest{
+		Name: username,
+		Type: tokenType,
+	}
+
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newToken, err := s.newUserToken(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Marks what recover type user requested.
+	newToken.SetRecoverType(recoverType)
+
+	if _, err := s.Identity.CreateUserToken(ctx, newToken); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
+		Metadata: apievents.Metadata{
+			Type: events.RecoveryTokenCreateEvent,
+			Code: events.RecoveryTokenCreateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: username,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    req.Name,
+			TTL:     req.TTL.String(),
+			Expires: s.GetClock().Now().UTC().Add(req.TTL),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit create recovery token event.")
+	}
+
+	return s.getRecoveryToken(ctx, newToken.GetName())
+}
+
+// getRecoveryToken returns user token with subkind set to either recovery start or approved token.
+func (s *Server) getRecoveryToken(ctx context.Context, tokenID string) (types.UserToken, error) {
+	token, err := s.GetUserToken(ctx, tokenID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if token.GetSubKind() != UserTokenTypeRecoveryStart && token.GetSubKind() != UserTokenTypeRecoveryApproved {
+		return nil, trace.BadParameter("invalid token")
+	}
+
+	if token.Expiry().Before(s.clock.Now().UTC()) {
+		return nil, trace.BadParameter("expired token")
+	}
+
+	return token, nil
+}
+
+// getRecoveryApprovedToken returns user token with subkind set to recovery approved token.
+func (s *Server) getRecoveryApprovedToken(ctx context.Context, tokenID string) (types.UserToken, error) {
+	token, err := s.GetUserToken(ctx, tokenID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if token.GetSubKind() != UserTokenTypeRecoveryApproved {
+		return nil, trace.BadParameter("invalid token")
+	}
+
+	if token.Expiry().Before(s.clock.Now().UTC()) {
+		return nil, trace.BadParameter("expired token")
+	}
+
+	return token, nil
+}
+
+// getRecoveryStartToken returns user token with subkind set to recovery start token.
+func (s *Server) getRecoveryStartToken(ctx context.Context, tokenID string) (types.UserToken, error) {
+	token, err := s.GetUserToken(ctx, tokenID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if token.GetSubKind() != UserTokenTypeRecoveryStart {
+		return nil, trace.BadParameter("invalid token")
+	}
+
+	if token.Expiry().Before(s.clock.Now().UTC()) {
+		return nil, trace.BadParameter("expired token")
 	}
 
 	return token, nil

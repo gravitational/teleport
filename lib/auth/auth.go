@@ -1004,9 +1004,15 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		return trace.Wrap(err)
 	}
 	status := user.GetStatus()
-	if status.IsLocked && status.LockExpires.After(a.clock.Now().UTC()) {
-		return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
-			user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+	if status.IsLocked {
+		if status.RecoveryAttemptLockExpires.After(a.clock.Now().UTC()) {
+			return trace.AccessDenied("%v exceeds %v failed account recovery attempts, locked until %v",
+				user.GetName(), defaults.MaxRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
+		}
+		if status.LockExpires.After(a.clock.Now().UTC()) {
+			return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
+				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+		}
 	}
 	fnErr := authenticateFn()
 	if fnErr == nil {
@@ -1019,7 +1025,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		return nil
 	}
 	// do not lock user in case if DB is flaky or down
-	if trace.IsConnectionProblem(err) {
+	if trace.IsConnectionProblem(fnErr) {
 		return trace.Wrap(fnErr)
 	}
 	// log failed attempt and possibly lock user
@@ -1120,6 +1126,92 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	}
 
 	return chal, nil
+}
+
+// GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user defined in the token.
+func (a *Server) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
+	token, err := a.GetUserToken(ctx, req.GetTokenID())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Restrict to certain kinds of user token.
+	if token.GetSubKind() != UserTokenTypeRecoveryStart {
+		return nil, trace.BadParameter("invalid token")
+	}
+
+	if token.Expiry().Before(a.clock.Now().UTC()) {
+		return nil, trace.BadParameter("expired token")
+	}
+
+	return a.mfaAuthChallenge(ctx, token.GetUser(), a.Identity)
+}
+
+// GetMFADevicesWithToken returns all mfa devices for the user defined in the token.
+func (a *Server) GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADevicesWithTokenRequest) (*proto.GetMFADevicesResponse, error) {
+	token, err := a.GetUserToken(ctx, req.GetTokenID())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Restrict to certain kinds of user token.
+	if token.GetSubKind() != UserTokenTypeRecoveryApproved {
+		return nil, trace.BadParameter("invalid token")
+	}
+
+	if token.Expiry().Before(a.clock.Now().UTC()) {
+		return nil, trace.BadParameter("expired token")
+	}
+
+	devs, err := a.GetMFADevices(ctx, token.GetUser())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.GetMFADevicesResponse{
+		Devices: devs,
+	}, nil
+}
+
+// DeleteMFADeviceWithToken deletes a mfa device.
+func (a *Server) DeleteMFADeviceWithToken(ctx context.Context, req *proto.DeleteMFADeviceWithTokenRequest) error {
+	token, err := a.GetUserToken(ctx, req.GetTokenID())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Restrict to certain kinds of user token.
+	if token.GetSubKind() != UserTokenTypeRecoveryApproved {
+		return trace.BadParameter("invalid token")
+	}
+
+	if token.Expiry().Before(a.clock.Now().UTC()) {
+		return trace.BadParameter("expired token")
+	}
+
+	device, err := a.GetMFADevice(ctx, token.GetUser(), req.GetDeviceID())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.DeleteMFADevice(ctx, token.GetUser(), req.GetDeviceID()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceDelete{
+		Metadata: apievents.Metadata{
+			Type: events.MFADeviceDeleteEvent,
+			Code: events.MFADeviceDeleteEventCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: token.GetUser(),
+		},
+		MFADeviceMetadata: mfaDeviceEventMetadata(device),
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit delete mfa device event.")
+	}
+
+	return nil
 }
 
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
@@ -2607,6 +2699,9 @@ const (
 
 	// TokenLenBytes is len in bytes of the invite token
 	TokenLenBytes = 16
+
+	// RecoveryTokenLenBytes is len in bytes of a user token for recovery.
+	RecoveryTokenLenBytes = 32
 
 	// SessionTokenBytes is the number of bytes of a web or application session.
 	SessionTokenBytes = 32
