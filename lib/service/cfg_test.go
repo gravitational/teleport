@@ -270,31 +270,13 @@ func TestCheckDatabase(t *testing.T) {
 			outErr: true,
 		},
 		{
-			desc: "GCP root cert missing",
+			desc: "MongoDB connection string",
 			inDatabase: Database{
 				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-				GCP: DatabaseGCP{
-					ProjectID:  "project-1",
-					InstanceID: "instance-1",
-				},
+				Protocol: defaults.ProtocolMongoDB,
+				URI:      "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
 			},
-			outErr: true,
-		},
-		{
-			desc: "Redshift region not set",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "redshift-cluster-1.aaa.us-east-1.redshift.amazonaws.com:5439",
-				AWS: DatabaseAWS{
-					Redshift: DatabaseAWSRedshift{
-						ClusterID: "redshift-cluster-1",
-					},
-				},
-			},
-			outErr: true,
+			outErr: false,
 		},
 	}
 	for _, test := range tests {

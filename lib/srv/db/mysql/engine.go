@@ -225,7 +225,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		}
 		switch pkt := packet.(type) {
 		case *protocol.Query:
-			e.Audit.OnQuery(e.Context, sessionCtx, pkt.Query())
+			e.Audit.OnQuery(e.Context, sessionCtx, common.Query{Query: pkt.Query()})
 		case *protocol.Quit:
 			return
 		}
