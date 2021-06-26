@@ -88,8 +88,9 @@ type Handler struct {
 	// from configuration
 	sshPort string
 
-	// clusterFeatures contain flags for supported and unsupported features.
-	clusterFeatures proto.Features
+	// ClusterFeatures contain flags for supported and unsupported features.
+	ClusterFeatures proto.Features
+	webIdleTimeout  time.Duration
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -208,7 +209,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		cfg:             cfg,
 		log:             newPackageLogger(),
 		clock:           clockwork.NewRealClock(),
-		clusterFeatures: cfg.ClusterFeatures,
+		ClusterFeatures: cfg.ClusterFeatures,
+		webIdleTimeout:  cfg.WebIdleTimeout,
 	}
 
 	for _, o := range opts {
@@ -524,7 +526,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext, err := ui.NewUserContext(user, roleset, h.clusterFeatures)
+	userContext, err := ui.NewUserContext(user, roleset, h.ClusterFeatures)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -834,6 +836,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	webCfg := ui.WebConfig{
 		Auth:            authSettings,
 		CanJoinSessions: canJoinSessions,
+		IsCloud:         h.ClusterFeatures.GetCloud(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -1421,25 +1424,57 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 	return res, nil
 }
 
+type changePasswordWithTokenRequest struct {
+	// SecondFactorToken is 2nd factor token value
+	SecondFactorToken string `json:"second_factor_token"`
+	// TokenID is this token ID
+	TokenID string `json:"token"`
+	// Password is user password
+	Password []byte `json:"password"`
+	// U2FRegisterResponse is U2F registration challenge response.
+	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
+}
+
 func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req auth.ChangePasswordWithTokenRequest
+	var req changePasswordWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := h.auth.proxyClient.ChangePasswordWithToken(r.Context(), req)
+	var u2f *proto.U2FRegisterResponse
+	if req.U2FRegisterResponse != nil {
+		u2f = &proto.U2FRegisterResponse{
+			RegistrationData: req.U2FRegisterResponse.RegistrationData,
+			ClientData:       req.U2FRegisterResponse.ClientData,
+		}
+	}
+
+	res, err := h.auth.proxyClient.ChangePasswordWithToken(r.Context(), &proto.ChangePasswordWithTokenRequest{
+		SecondFactorToken:   req.SecondFactorToken,
+		TokenID:             req.TokenID,
+		Password:            req.Password,
+		U2FRegisterResponse: u2f,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	sess := res.WebSession
 	ctx, err := h.auth.newSessionContext(sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := SetSessionCookie(w, sess.GetUser(), sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return newSessionResponse(ctx)
+	// Checks for at least one valid login.
+	if _, err := newSessionResponse(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res.RecoveryCodes, nil
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.

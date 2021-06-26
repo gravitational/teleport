@@ -294,6 +294,14 @@ const (
 	MFADeviceAddEventCode = "T1006I"
 	// MFADeviceDeleteEventCode is an event code for users deleting MFA devices.
 	MFADeviceDeleteEventCode = "T1007I"
+	// RecoveryCodesGeneratedCode is an event code for generation of recovery codes.
+	RecoveryCodesGeneratedCode = "T1008I"
+	// RecoveryCodeUsedCode is an event code for when a
+	// recovery code was used successfully.
+	RecoveryCodeUsedCode = "T1009I"
+	// RecoveryCodeUsedFailureCode is an event code for when a
+	// recovery code was not used successfully.
+	RecoveryCodeUsedFailureCode = "T1009W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"
@@ -389,8 +397,10 @@ const (
 	// AccessRequestReviewCode is the access review application code.
 	AccessRequestReviewCode = "T5002I"
 
-	// ResetPasswordTokenCreateCode is the token create event code.
+	// ResetPasswordTokenCreateCode is the reset password token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
+	// RecoveryTokenCreateCode is the recovery token create event code.
+	RecoveryTokenCreateCode = "T6001I"
 
 	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
 	TrustedClusterCreateCode = "T7000I"

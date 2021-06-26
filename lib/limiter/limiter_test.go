@@ -22,6 +22,7 @@ import (
 
 	"github.com/mailgun/timetools"
 
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
@@ -117,31 +118,31 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 	c.Assert(err, IsNil)
 
 	for i := 0; i < 20; i++ {
-		c.Assert(limiter.RegisterRequest("token1"), IsNil)
+		c.Assert(limiter.RegisterRequest("token1", nil), IsNil)
 	}
 	for i := 0; i < 20; i++ {
-		c.Assert(limiter.RegisterRequest("token2"), IsNil)
+		c.Assert(limiter.RegisterRequest("token2", nil), IsNil)
 	}
 
-	c.Assert(limiter.RegisterRequest("token1"), NotNil)
-
-	clock.Sleep(10 * time.Millisecond)
-	for i := 0; i < 10; i++ {
-		c.Assert(limiter.RegisterRequest("token1"), IsNil)
-	}
-	c.Assert(limiter.RegisterRequest("token1"), NotNil)
+	c.Assert(limiter.RegisterRequest("token1", nil), NotNil)
 
 	clock.Sleep(10 * time.Millisecond)
 	for i := 0; i < 10; i++ {
-		c.Assert(limiter.RegisterRequest("token1"), IsNil)
+		c.Assert(limiter.RegisterRequest("token1", nil), IsNil)
 	}
-	c.Assert(limiter.RegisterRequest("token1"), NotNil)
+	c.Assert(limiter.RegisterRequest("token1", nil), NotNil)
+
+	clock.Sleep(10 * time.Millisecond)
+	for i := 0; i < 10; i++ {
+		c.Assert(limiter.RegisterRequest("token1", nil), IsNil)
+	}
+	c.Assert(limiter.RegisterRequest("token1", nil), NotNil)
 
 	clock.Sleep(10 * time.Millisecond)
 	// the second rate is full
 	err = nil
 	for i := 0; i < 10; i++ {
-		err = limiter.RegisterRequest("token1")
+		err = limiter.RegisterRequest("token1", nil)
 		if err != nil {
 			break
 		}
@@ -150,13 +151,50 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 
 	clock.Sleep(10 * time.Millisecond)
 	// Now the second rate has free space
-	c.Assert(limiter.RegisterRequest("token1"), IsNil)
+	c.Assert(limiter.RegisterRequest("token1", nil), IsNil)
 	err = nil
 	for i := 0; i < 15; i++ {
-		err = limiter.RegisterRequest("token1")
+		err = limiter.RegisterRequest("token1", nil)
 		if err != nil {
 			break
 		}
 	}
 	c.Assert(err, NotNil)
+}
+
+func (s *LimiterSuite) TestCustomRate(c *C) {
+	clock := &timetools.FreezedTime{
+		CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
+	}
+
+	limiter, err := NewLimiter(
+		Config{
+			Clock: clock,
+			Rates: []Rate{
+				// Default rate
+				{
+					Period:  10 * time.Millisecond,
+					Average: 10,
+					Burst:   20,
+				},
+			},
+		})
+	c.Assert(err, IsNil)
+
+	customRate := ratelimit.NewRateSet()
+	err = customRate.Add(time.Minute, 1, 5)
+	c.Assert(err, IsNil)
+
+	// Max out custom rate.
+	for i := 0; i < 5; i++ {
+		c.Assert(limiter.RegisterRequest("token1", customRate), IsNil)
+	}
+
+	// Test rate limit exceeded with custom rate.
+	c.Assert(limiter.RegisterRequest("token1", customRate), NotNil)
+
+	// Test default rate still works.
+	for i := 0; i < 20; i++ {
+		c.Assert(limiter.RegisterRequest("token1", nil), IsNil)
+	}
 }

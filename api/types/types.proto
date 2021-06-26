@@ -919,11 +919,23 @@ message UserTokenV3 {
     UserTokenSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
+// RecoverType represents the types of auth credential a user can recover.
+enum RecoverType {
+    // RECOVER_TOTP indicates user wants to recover a totp device.
+    RECOVER_TOTP = 0;
+    // RECOVER_U2F indicates user wants to recover a u2f device.
+    RECOVER_U2F = 1;
+    // RECOVER_PASSWORD indicates user wants to recovery their password.
+    RECOVER_PASSWORD = 2;
+}
+
 message UserTokenSpecV3 {
     // User is user name associated with this token
     string User = 1 [ (gogoproto.jsontag) = "user" ];
     // URL is this token URL
     string URL = 2 [ (gogoproto.jsontag) = "url" ];
+    // RecoverType is the requested recover type.
+    RecoverType RecoverType = 3 [ (gogoproto.jsontag) = "recover_type,omitempty" ];
     // Created holds information about when the token was created
     google.protobuf.Timestamp Created = 4 [
         (gogoproto.stdtime) = true,
@@ -1608,6 +1620,14 @@ message LoginStatus {
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "lock_expires,omitempty"
+    ];
+    // RecoveryAttemptLockExpires contains the time when this lock will expire
+    // from maxed failed recovery attempts. This field is used to determine
+    // if a user got locked from recovery attempts.
+    google.protobuf.Timestamp RecoveryAttemptLockExpires = 5 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "recovery_attempt_lock_expires,omitempty"
     ];
 }
 
@@ -2392,4 +2412,34 @@ message WindowsDesktopV3 {
 message WindowsDesktopSpecV3 {
     // Addr is the address that this host can be reached at.
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
+}
+
+// RecoveryCodes holds a user's recovery code information.
+message RecoveryCodesV1 {
+    // Kind is the resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the resource spec.
+    RecoveryCodesSpecV1 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+// RecoveryCodesSpecV1 is the recovery codes spec.
+message RecoveryCodesSpecV1 {
+    // Codes hold a list of recovery codes.
+    repeated RecoveryCode Codes = 1 [ (gogoproto.nullable) = false ];
+    // Created is when the recovery codes were generated.
+    google.protobuf.Timestamp Created = 2
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+}
+
+// RecoveryCode describes a recovery code.
+message RecoveryCode {
+    // Value is the recovery code value.
+    bytes Value = 1;
+    // IsUsed determines if the recovery code was used.
+    bool IsUsed = 2;
 }

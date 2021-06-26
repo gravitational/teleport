@@ -126,6 +126,9 @@ type Identity interface {
 	// GetMFADevices gets all MFA devices for the user.
 	GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error)
 
+	// GetMFADevice gets a MFA device by user and id.
+	GetMFADevice(ctx context.Context, user, id string) (*types.MFADevice, error)
+
 	// DeleteMFADevice deletes an MFA device for the user by ID.
 	DeleteMFADevice(ctx context.Context, user, id string) error
 
@@ -206,6 +209,21 @@ type Identity interface {
 
 	// GetUserTokenSecrets returns a user token secrets.
 	GetUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
+
+	// UpsertRecoveryCodes upserts a user's recovery tokens.
+	UpsertRecoveryCodes(ctx context.Context, user string, recovery types.RecoveryCodesV1) error
+
+	// GetRecoveryCodes gets a user's recovery codes.
+	GetRecoveryCodes(ctx context.Context, user string) (*types.RecoveryCodesV1, error)
+
+	// CreateUserRecoveryAttempt logs user recovery attempt.
+	CreateUserRecoveryAttempt(ctx context.Context, user string, attempt types.RecoveryAttempt) error
+
+	// GetUserRecoveryAttempts returns user recovery attempts.
+	GetUserRecoveryAttempts(ctx context.Context, user string) ([]types.RecoveryAttempt, error)
+
+	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
+	DeleteUserRecoveryAttempts(ctx context.Context, user string) error
 
 	types.WebSessionsGetter
 	types.WebTokensGetter

@@ -713,6 +713,26 @@ func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *proto.GetRe
 	return r, nil
 }
 
+func (g *GRPCServer) GetRecoveryToken(ctx context.Context, req *proto.GetRecoveryTokenRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := auth.GetRecoveryToken(ctx, req.GetTokenID())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := token.(*types.UserTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected UserToken type %T", token)
+		return nil, trace.Wrap(err)
+	}
+
+	return r, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (g *GRPCServer) GetPluginData(ctx context.Context, filter *types.PluginDataFilter) (*proto.PluginDataSeq, error) {
 	// TODO(fspmarshall): Implement rate-limiting to prevent misbehaving plugins from
@@ -1954,6 +1974,50 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 	}, nil
 }
 
+// GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user defined in the token.
+func (g *GRPCServer) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := actx.ServerWithRoles.GetMFAAuthenticateChallengeWithToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
+// GetMFADevicesWithToken returns all mfa devices for the user defined in the token.
+func (g *GRPCServer) GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADevicesWithTokenRequest) (*proto.GetMFADevicesResponse, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := actx.ServerWithRoles.GetMFADevicesWithToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
+// DeleteMFADeviceWithToken deletes a mfa device for the user defined in the token.
+func (g *GRPCServer) DeleteMFADeviceWithToken(ctx context.Context, req *proto.DeleteMFADeviceWithTokenRequest) (*empty.Empty, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := actx.ServerWithRoles.DeleteMFADeviceWithToken(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_GenerateUserSingleUseCertsServer) error {
 	ctx := stream.Context()
 	actx, err := g.authenticate(ctx)
@@ -3179,6 +3243,90 @@ func (g *GRPCServer) DeleteAllWindowsDesktops(ctx context.Context, _ *empty.Empt
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil
+}
+
+// ChangePasswordWithToken changes password with a password reset token.
+func (g *GRPCServer) ChangePasswordWithToken(ctx context.Context, req *proto.ChangePasswordWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := auth.ServerWithRoles.ChangePasswordWithToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
+// CreateRecoveryStartToken creates a recovery start token after successful verification of
+// username and recovery code.
+func (g *GRPCServer) CreateRecoveryStartToken(ctx context.Context, req *proto.CreateRecoveryStartTokenRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resetToken, err := auth.ServerWithRoles.CreateRecoveryStartToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := resetToken.(*types.UserTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected ResetPasswordToken type %T", resetToken)
+		return nil, trace.Wrap(err)
+	}
+
+	return r, nil
+}
+
+// AuthenticateUserWithRecoveryToken authenticates user defined in token with either password or
+// second factor.
+func (g *GRPCServer) AuthenticateUserWithRecoveryToken(ctx context.Context, req *proto.AuthenticateUserWithRecoveryTokenRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resetToken, err := auth.ServerWithRoles.AuthenticateUserWithRecoveryToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := resetToken.(*types.UserTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected ResetPasswordToken type %T", resetToken)
+		return nil, trace.Wrap(err)
+	}
+
+	return r, nil
+}
+
+// SetNewAuthCredWithRecoveryToken is the last step in the recovery flow that either changes a user
+// password or adds a new mfa device depending on the request.
+func (g *GRPCServer) SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto.SetNewAuthCredWithRecoveryTokenRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.ServerWithRoles.SetNewAuthCredWithRecoveryToken(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// CreateRecoveryCodesWithToken creates and returns new recovery codes for the user defined in the token.
+func (g *GRPCServer) CreateRecoveryCodesWithToken(ctx context.Context, req *proto.CreateRecoveryCodesWithTokenRequest) (*proto.CreateRecoveryCodesWithTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.ServerWithRoles.CreateRecoveryCodesWithToken(ctx, req)
 }
 
 // GRPCServerConfig specifies GRPC server configuration

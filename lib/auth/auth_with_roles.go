@@ -140,12 +140,12 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 // hasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
 func (a *ServerWithRoles) hasBuiltinRole(name string) bool {
-	return hasBuiltinRole(a.context.Checker, name)
+	return HasBuiltinRole(a.context.Checker, name)
 }
 
-// hasBuiltinRole checks the type of the role set returned and the name.
+// HasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
-func hasBuiltinRole(checker services.AccessChecker, name string) bool {
+func HasBuiltinRole(checker services.AccessChecker, name string) bool {
 	if _, ok := checker.(BuiltinRoleSet); !ok {
 		return false
 	}
@@ -866,6 +866,25 @@ func (a *ServerWithRoles) GetMFAAuthenticateChallenge(user string, password []by
 	return a.authServer.GetMFAAuthenticateChallenge(user, password)
 }
 
+// GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user
+// defined in the token.
+func (a *ServerWithRoles) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.GetMFAAuthenticateChallengeWithToken(ctx, req)
+}
+
+// GetMFADevicesWithToken retrieves challenges for all mfa devices for the user defined in the token.
+func (a *ServerWithRoles) GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADevicesWithTokenRequest) (*proto.GetMFADevicesResponse, error) {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.GetMFADevicesWithToken(ctx, req)
+}
+
+// DeleteMFADeviceWithToken deletes a mfa device for the user defined in the token.
+func (a *ServerWithRoles) DeleteMFADeviceWithToken(ctx context.Context, req *proto.DeleteMFADeviceWithTokenRequest) error {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.DeleteMFADeviceWithToken(ctx, req)
+}
+
 // CreateWebSession creates a new web session for the specified user
 func (a *ServerWithRoles) CreateWebSession(user string) (types.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
@@ -1574,14 +1593,46 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 	return a.authServer.getResetPasswordToken(ctx, tokenID)
 }
 
+func (a *ServerWithRoles) GetRecoveryToken(ctx context.Context, tokenID string) (types.UserToken, error) {
+	// tokens are their own authz mechanism, no need to double check
+	return a.authServer.getRecoveryToken(ctx, tokenID)
+}
+
 func (a *ServerWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
 	// tokens are their own authz mechanism, no need to double check
 	return a.authServer.RotateUserTokenSecrets(ctx, tokenID)
 }
 
-func (a *ServerWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
+// ChangePasswordWithToken changes password with a password reset token.
+func (a *ServerWithRoles) ChangePasswordWithToken(ctx context.Context, req *proto.ChangePasswordWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
 	// Token is it's own authentication, no need to double check.
 	return a.authServer.ChangePasswordWithToken(ctx, req)
+}
+
+// CreateRecoveryStartToken creates a recovery start token after successful verification of
+// username and recovery code.
+func (a *ServerWithRoles) CreateRecoveryStartToken(ctx context.Context, req *proto.CreateRecoveryStartTokenRequest) (types.UserToken, error) {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.CreateRecoveryStartToken(ctx, req)
+}
+
+// AuthenticateUserWithRecoveryToken authenticates user defined in token with either password or
+// second factor.
+func (a *ServerWithRoles) AuthenticateUserWithRecoveryToken(ctx context.Context, req *proto.AuthenticateUserWithRecoveryTokenRequest) (types.UserToken, error) {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.AuthenticateUserWithRecoveryToken(ctx, req)
+}
+
+// SetNewAuthCredWithRecoveryToken either changes a user password or adds a new mfa device depending on the request.
+func (a *ServerWithRoles) SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto.SetNewAuthCredWithRecoveryTokenRequest) error {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.SetNewAuthCredWithRecoveryToken(ctx, req)
+}
+
+// CreateRecoveryCodesWithToken creates and returns new recovery codes for the user defined in the token.
+func (a *ServerWithRoles) CreateRecoveryCodesWithToken(ctx context.Context, req *proto.CreateRecoveryCodesWithTokenRequest) (*proto.CreateRecoveryCodesWithTokenResponse, error) {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.CreateRecoveryCodesWithToken(ctx, req)
 }
 
 // CreateUser inserts a new user entry in a backend.

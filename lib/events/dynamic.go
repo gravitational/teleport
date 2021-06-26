@@ -120,6 +120,18 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
+	case RecoveryCodeGeneratedEvent:
+		var e events.RecoveryCodeGenerate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case RecoveryCodeUsedEvent:
+		var e events.RecoveryCodeUsed
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
 	case AccessRequestCreateEvent:
 		var e events.AccessRequestCreate
 		if err := utils.FastUnmarshal(data, &e); err != nil {

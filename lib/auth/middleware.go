@@ -23,7 +23,9 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"time"
 
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -334,7 +336,7 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 		log.WithError(err).Debugf("Failed to get client IP.")
 		return nil, trace.BadParameter("missing client IP")
 	}
-	if err := a.Limiter.RegisterRequest(clientIP); err != nil {
+	if err := a.Limiter.RegisterRequest(clientIP, a.getCustomRate(info.FullMethod)); err != nil {
 		return nil, trace.LimitExceeded("rate limit exceeded")
 	}
 	if err := a.Limiter.ConnLimiter.Acquire(clientIP, 1); err != nil {
@@ -354,6 +356,28 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 	return handler(context.WithValue(ctx, ContextUser, user), req)
 }
 
+func (a *Middleware) getCustomRate(endpoint string) *ratelimit.RateSet {
+	switch endpoint {
+	case
+		"/proto.AuthService/ChangePasswordWithToken",
+		"/proto.AuthService/CreateRecoveryStartToken",
+		"/proto.AuthService/AuthenticateUserWithRecoveryToken",
+		"/proto.AuthService/SetNewAuthCredWithRecoveryToken",
+		"/proto.AuthService/CreateRecoveryCodesWithToken",
+		"/proto.AuthService/GetMFAAuthenticateChallengeWithToken",
+		"/proto.AuthService/GetMFADevicesWithToken",
+		"/proto.AuthService/DeleteMFADeviceWithToken":
+		rates := ratelimit.NewRateSet()
+		if err := rates.Add(time.Minute, 1, 10); err != nil {
+			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)
+			return nil
+		}
+		return rates
+	}
+
+	return nil
+}
+
 // StreamInterceptor is GPRC unary interceptor that authenticates requests
 // and passes the user information as context metadata
 func (a *Middleware) StreamInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
@@ -367,7 +391,7 @@ func (a *Middleware) StreamInterceptor(srv interface{}, serverStream grpc.Server
 		log.WithError(err).Debugf("Failed to get client IP.")
 		return trace.BadParameter("missing client IP")
 	}
-	if err := a.Limiter.RegisterRequest(clientIP); err != nil {
+	if err := a.Limiter.RegisterRequest(clientIP, nil); err != nil {
 		return trace.LimitExceeded("rate limit exceeded")
 	}
 	if err := a.Limiter.ConnLimiter.Acquire(clientIP, 1); err != nil {
