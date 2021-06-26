@@ -807,6 +807,7 @@ func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.T
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = randomLocalAddr
 	cfg.Proxy.Enabled = false
+	cfg.Log = utils.NewLoggerForTests()
 
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -844,6 +845,7 @@ func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.T
 	cfg.Proxy.SSHAddr = randomLocalAddr
 	cfg.Proxy.ReverseTunnelListenAddr = randomLocalAddr
 	cfg.Proxy.DisableWebInterface = true
+	cfg.Log = utils.NewLoggerForTests()
 
 	proxy, err = service.NewTeleport(cfg)
 	require.NoError(t, err)

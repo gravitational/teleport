@@ -2010,7 +2010,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 		ClusterName: "localhost",
 	})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "this Teleport cluster doesn't support application access")
+	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
 // TestCreateAppSession verifies that an existing session to the Web UI can
@@ -2683,16 +2683,17 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
-		Proxy:        revTunServer,
-		AuthServers:  utils.FromAddr(authServer.Addr()),
-		DomainName:   authServer.ClusterName(),
-		ProxyClient:  client,
-		CipherSuites: utils.DefaultCipherSuites(),
-		AccessPoint:  client,
-		Context:      context.Background(),
-		HostUUID:     proxyID,
-		Emitter:      client,
-		StaticFS:     fs,
+		Proxy:            revTunServer,
+		AuthServers:      utils.FromAddr(authServer.Addr()),
+		DomainName:       authServer.ClusterName(),
+		ProxyClient:      client,
+		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
+		CipherSuites:     utils.DefaultCipherSuites(),
+		AccessPoint:      client,
+		Context:          context.Background(),
+		HostUUID:         proxyID,
+		Emitter:          client,
+		StaticFS:         fs,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -2943,4 +2944,20 @@ func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
 
 	err = waitForOutput(stream, "foo")
 	require.NoError(t, err)
+}
+
+// TestProxyMultiAddr makes sure ping endpoint can be called over any of
+// the proxy's configured public addresses.
+func TestProxyMultiAddr(t *testing.T) {
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	req, err := http.NewRequest(http.MethodGet, proxy.newClient(t).Endpoint("webapi", "ping"), nil)
+	require.NoError(t, err)
+	// Make sure ping endpoint can be reached over all proxy public addrs.
+	for _, proxyAddr := range proxy.handler.handler.cfg.ProxyPublicAddrs {
+		req.Host = proxyAddr.Host()
+		resp, err := client.NewInsecureWebClient().Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+	}
 }
