@@ -259,6 +259,11 @@
   },
   "redirects": [
     {
+      "source": "/api-reference/",
+      "destination": "/reference/api/",
+      "permanent": true
+    },
+    {
       "source": "/cloud/",
       "destination": "/cloud/introduction/",
       "permanent": true
