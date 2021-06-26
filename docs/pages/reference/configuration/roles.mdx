@@ -6,7 +6,11 @@ h1: Role YAML Configuration
 
 (!docs/pages/includes/backup-warning.mdx!)
 
+## Example Role YAML
+
 ```yaml
+# role.yaml
+
 kind: role
 version: v3
 metadata:
@@ -14,3 +18,44 @@ metadata:
 spec:
 (!docs/pages/includes/roles-config.yaml!)
 ```
+
+## YAML Table
+
+| Attribute | Parent Field | Required | Description | Default Value | Accepted Values |
+| --- | --- |  --- | --- |  --- | --- |
+| kind | | | | |
+| version | | | | |
+| metadata | | | | |
+| name | metadata | | | | 
+| spec |  | | | | 
+
+## Example Role impersonation YAML
+
+Two roles can be combined into one YAML file. 
+
+The example below shows on role that [impersonates](../../access-controls/guides/impersonation.mdx) the other.
+
+```yaml
+# role-impersonation.yaml
+
+kind: role
+version: v3
+metadata:
+  name: testrole
+spec:
+  allow:
+    logins: ['access']
+---
+kind: role
+version: v3
+metadata:
+  name: imperole
+spec:
+  allow:
+    impersonate:
+      roles: ['testrole']
+```
+
+## Additional resources
+
+- Check out our [Access Controls Documentation](../../access-controls/introduction.mdx)
