@@ -77,12 +77,12 @@ func TestFileLogPagination(t *testing.T) {
 
 	from := clock.Now().Add(-time.Hour).UTC()
 	to := clock.Now().Add(time.Hour).UTC()
-	eventArr, checkpoint, err := log.SearchEvents(from, to, apidefaults.Namespace, nil, 2, types.EventOrderDescending, "")
+	eventArr, checkpoint, err := log.SearchEvents(from, to, apidefaults.Namespace, nil, 2, types.EventOrderAscending, "")
 	require.Nil(t, err)
 	require.Len(t, eventArr, 2)
 	require.NotEqual(t, checkpoint, "")
 
-	eventArr, checkpoint, err = log.SearchEvents(from, to, apidefaults.Namespace, nil, 2, types.EventOrderDescending, checkpoint)
+	eventArr, checkpoint, err = log.SearchEvents(from, to, apidefaults.Namespace, nil, 2, types.EventOrderAscending, checkpoint)
 	require.Nil(t, err)
 	require.Len(t, eventArr, 1)
 	require.Equal(t, checkpoint, "")
