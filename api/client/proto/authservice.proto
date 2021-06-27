@@ -843,6 +843,9 @@ message GetEventsRequest {
     // If the previous response had LastKey set then this should be
     // set to its value. Otherwise leave empty.
     string StartKey = 6;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    int32 Order = 7;
 }
 
 message GetSessionEventsRequest {
@@ -858,6 +861,9 @@ message GetSessionEventsRequest {
     // If the previous response had LastKey set then this should be
     // set to its value. Otherwise leave empty.
     string StartKey = 4;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    int32 Order = 7;
 }
 
 message Events {

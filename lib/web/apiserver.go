@@ -1893,7 +1893,8 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 //               empty string means start search from beginning
 //   "include" : optional comma-separated list of event names to return e.g.
 //               include=session.start,session.end, all are returned if empty
-//
+//   "order":    optional ordering of events. Can be either "asc" or "desc"
+//               for ascending and descending respectively.
 func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
 
@@ -1912,6 +1913,11 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
+	order, err := queryOrder(values, "order")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1923,7 +1929,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	startKey := values.Get("startKey")
-	rawEvents, lastKey, err := clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, startKey)
+	rawEvents, lastKey, err := clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, order, startKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1966,6 +1972,21 @@ func queryLimit(query url.Values, name string, def int) (int, error) {
 		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
 	}
 	return limit, nil
+}
+
+// queryOrder returns the order parameter with the specified name from the
+// query string.
+//
+// If there's no such parameter, descending is returned as the default order.
+func queryOrder(query url.Values, name string) (types.EventOrder, error) {
+	switch query.Get(name) {
+	case "asc":
+		return types.EventOrderAscending, nil
+	case "desc":
+		fallthrough
+	default:
+		return types.EventOrderDescending, nil
+	}
 }
 
 // siteSessionStreamGet returns a byte array from a session's stream

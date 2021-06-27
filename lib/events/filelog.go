@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
@@ -197,7 +198,7 @@ func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	return nil
 }
 
-func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startAfter string) ([]apievents.AuditEvent, string, error) {
+func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startAfter string) ([]apievents.AuditEvent, string, error) {
 	l.Debugf("SearchEvents(%v, %v, namespace=%v, eventType=%v, limit=%v)", fromUTC, toUTC, namespace, eventTypes, limit)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
@@ -320,8 +321,8 @@ func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 	return event.GetID(), nil
 }
 
-func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
-	l.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
+func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	l.Debugf("SearchSessionEvents(%v, %v, %v, %v)", fromUTC, toUTC, order, limit)
 
 	// only search for specific event types
 	eventTypes := []string{SessionStartEvent, SessionEndEvent}
@@ -330,7 +331,7 @@ func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, start
 	// logs, some events can be fetched with session end event and without
 	// session start event. to fix this, the code below filters out the events without
 	// start event to guarantee that all events in the range will get fetched
-	events, lastKey, err := l.SearchEvents(fromUTC, toUTC, "default", eventTypes, limit, startKey)
+	events, lastKey, err := l.SearchEvents(fromUTC, toUTC, "default", eventTypes, limit, order, startKey)
 	if err != nil {
 		return nil, lastKey, trace.Wrap(err)
 	}
