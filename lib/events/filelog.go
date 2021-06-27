@@ -212,7 +212,7 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	if days < 0 {
 		return nil, "", trace.BadParameter("invalid days")
 	}
-	filesToSearch, err := l.matchingFiles(fromUTC, toUTC)
+	filesToSearch, err := l.matchingFiles(fromUTC, toUTC, order)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -233,7 +233,16 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	// in case if events are associated with the same session, to make
 	// sure that events are not displayed out of order in case of multiple
 	// auth servers.
-	sort.Sort(ByTimeAndIndex(dynamicEvents))
+	var toSort sort.Interface
+	switch order {
+	case types.EventOrderAscending:
+		toSort = ByTimeAndIndex(dynamicEvents)
+	case types.EventOrderDescending:
+		toSort = sort.Reverse(ByTimeAndIndex(dynamicEvents))
+	default:
+		return nil, "", trace.BadParameter("invalid event order")
+	}
+	sort.Sort(toSort)
 
 	events := make([]apievents.AuditEvent, 0, len(dynamicEvents))
 
@@ -489,7 +498,7 @@ func (l *FileLog) rotateLog() (err error) {
 
 // matchingFiles returns files matching the time restrictions of the query
 // across multiple auth servers, returns a list of file names
-func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time) ([]eventFile, error) {
+func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time, order types.EventOrder) ([]eventFile, error) {
 	var dirs []string
 	var err error
 	if l.SearchDirs != nil {
@@ -539,7 +548,16 @@ func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time) ([]eventFile, error) {
 		}
 	}
 	// sort all accepted files by date
-	sort.Sort(byDate(filtered))
+	var toSort sort.Interface
+	switch order {
+	case types.EventOrderAscending:
+		toSort = byDate(filtered)
+	case types.EventOrderDescending:
+		toSort = sort.Reverse(byDate(filtered))
+	default:
+		return nil, trace.BadParameter("invalid event order")
+	}
+	sort.Sort(toSort)
 	return filtered, nil
 }
 
