@@ -146,6 +146,21 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 		c.Assert(arr, check.HasLen, 0)
 	}
 	c.Assert(checkpoint, check.Equals, "")
+
+	for i := len(names) - 1; i >= 0; i-- {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderDescending, checkpoint)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 1)
+		event, ok := arr[0].(*apievents.UserLogin)
+		c.Assert(ok, check.Equals, true)
+		c.Assert(names[i], check.Equals, event.User)
+	}
+	if checkpoint != "" {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderDescending, checkpoint)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 0)
+	}
+	c.Assert(checkpoint, check.Equals, "")
 }
 
 // SessionEventsCRUD covers session events
