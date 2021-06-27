@@ -710,7 +710,17 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		eventArr = append(eventArr, event)
 	}
 
-	sort.Sort(byTimeAndIndex(eventArr))
+	var toSort sort.Interface
+	switch order {
+	case types.EventOrderAscending:
+		toSort = byTimeAndIndex(eventArr)
+	case types.EventOrderDescending:
+		toSort = sort.Reverse(byTimeAndIndex(eventArr))
+	default:
+		return nil, "", trace.BadParameter("invalid event order")
+	}
+
+	sort.Sort(toSort)
 	return eventArr, lastKey, nil
 }
 
@@ -806,6 +816,16 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 	hasLeft := false
 	foundStart := checkpoint.EventKey == ""
 
+	var forward bool
+	switch order {
+	case types.EventOrderAscending:
+		forward = true
+	case types.EventOrderDescending:
+		forward = false
+	default:
+		return nil, "", trace.BadParameter("invalid event order")
+	}
+
 	// This is the main query loop, here we send individual queries for each date and
 	// we stop if we hit `limit` or process all dates, whichever comes first.
 dateLoop:
@@ -836,6 +856,7 @@ dateLoop:
 				ExclusiveStartKey:         checkpoint.Iterator,
 				Limit:                     aws.Int64(left),
 				FilterExpression:          typeFilter,
+				ScanIndexForward:          aws.Bool(forward),
 			}
 
 			start := time.Now()
