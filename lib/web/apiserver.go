@@ -1977,15 +1977,15 @@ func queryLimit(query url.Values, name string, def int) (int, error) {
 // queryOrder returns the order parameter with the specified name from the
 // query string.
 //
-// If there's no such parameter, descending is returned as the default order.
+// If there's no such parameter, ascending is returned as the default order.
 func queryOrder(query url.Values, name string) (types.EventOrder, error) {
 	switch query.Get(name) {
-	case "asc":
-		return types.EventOrderAscending, nil
 	case "desc":
+		return types.EventOrderDescending, nil
+	case "asc":
 		fallthrough
 	default:
-		return types.EventOrderDescending, nil
+		return types.EventOrderAscending, nil
 	}
 }
 

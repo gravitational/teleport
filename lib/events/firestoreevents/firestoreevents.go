@@ -489,12 +489,22 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		return query
 	}
 
+	var firestoreOrdering firestore.Direction
+	switch order {
+	case types.EventOrderAscending:
+		firestoreOrdering = firestore.Asc
+	case types.EventOrderDescending:
+		firestoreOrdering = firestore.Desc
+	default:
+		return nil, "", trace.BadParameter("invalid event order")
+	}
+
 	start := time.Now()
 	docSnaps, err := modifyquery(l.svc.Collection(l.CollectionName).
 		Where(eventNamespaceDocProperty, "==", apidefaults.Namespace).
 		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
 		Where(createdAtDocProperty, "<=", toUTC.Unix()).
-		OrderBy(createdAtDocProperty, firestore.Asc)).
+		OrderBy(createdAtDocProperty, firestoreOrdering)).
 		Limit(limit).
 		Documents(l.svcContext).GetAll()
 	batchReadLatencies.Observe(time.Since(start).Seconds())
@@ -545,7 +555,18 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 			}
 		}
 	}
-	sort.Sort(events.ByTimeAndIndex(values))
+
+	var toSort sort.Interface
+	switch order {
+	case types.EventOrderAscending:
+		toSort = events.ByTimeAndIndex(values)
+	case types.EventOrderDescending:
+		toSort = sort.Reverse(events.ByTimeAndIndex(values))
+	default:
+		return nil, "", trace.BadParameter("invalid event order")
+	}
+
+	sort.Sort(toSort)
 
 	eventArr := make([]apievents.AuditEvent, 0, len(values))
 	for _, fields := range values {

@@ -21,8 +21,8 @@ type EventOrder int
 
 // EventOrderDescending is an descending event order.
 // In this ordering events go from newest to oldest.
-const EventOrderDescending = 0
+const EventOrderDescending = 1
 
 // EventOrderAscending is an ascending event order.
 // In essence, events go from oldest to newest.
-const EventOrderAscending = 1
+const EventOrderAscending = 0
