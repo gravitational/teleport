@@ -414,7 +414,7 @@ proxy_service:
     #  enabled: yes
     #  email: "user@example.com"
 
-(!docs/pages/includes/app-config.yaml!)
+(!docs/pages/includes/app_config.yaml!)
 
 ## This section configures the 'kubernetes service'
 kubernetes_service:
@@ -452,8 +452,35 @@ kubernetes_service:
       command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
       period: 1m0s
 
-(!docs/pages/includes/db-config.yaml!)
+(!docs/pages/includes/db_config.yaml!)
 ```
 
-## Teleport YAML attributes
+## Teleport YAML Table
+
+| Attribute | Parent Field | Required | Description | Default Value | Accepted Values |
+| --- | --- |  --- | --- |  --- | --- |
+| kind | | | | |
+| version | | | | |
+| metadata | | | | |
+| name | metadata | | | | 
+| spec |  | | | | 
+| roles | spec | | | | 
+
+## Application Access
+
+```yaml
+(!docs/pages/includes/app_config.yaml!)
+```
+
+## Database Access
+
+```yaml
+(!docs/pages/includes/db_config.yaml!)
+```
+
+## Additional resources
+
+- Check out our [Application Access Documentation](../../application-access/introduction.mdx).
+- Check out our [Kubernetes Access Documentation](../../kubernetes-access/introduction.mdx).
+- Check out our [Database Access Documentation](../../database-access/introduction.mdx).
 

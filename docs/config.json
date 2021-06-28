@@ -227,26 +227,36 @@
       "title": "Reference",
       "entries": [
         {
-          "title": "Configuration",
-          "slug": "/reference/configuration/",
+          "title": "CLI",
+          "slug": "/reference/cli-docs/",
           "entries": [
             {"title": "Teleport", "slug": "/reference/cli/teleport/"},
             {"title": "tsh", "slug": "/reference/cli/tsh/"},
             {"title": "tctl", "slug": "/reference/cli/tctl/"}
           ]
         },
+        { "title": "Cheatsheet", "slug": "/reference/cheatsheet/" },
         {
-          "title": "CLI",
-          "slug": "/reference/cli-docs/",
+          "title": "Teleport YAML",
+          "slug": "/reference/product-config/",
           "entries": [
-            {"title": "Teleport", "slug": "/reference/configuration/teleport/"},
-            {"title": "Roles", "slug": "/reference/configuration/roles/"},
-            {"title": "Plugins", "slug": "/reference/configuration/plugins/"},
-            {"title": "Database", "slug": "/database-access/reference/configuration/"},
-            {"title": "", "slug": "/reference/configuration//"}
+            {"title": "Teleport", "slug": "/reference/product-config/teleport/"},
+            {"title": "Application", "slug": "/reference/product-config/teleport/#application-access"},
+            {"title": "Kubernetes", "slug": "/reference/product-config/kubernetes/"},
+            {"title": "Database", "slug": "/reference/product-config/teleport/#database-access"},
+            {"title": "Trusted Cluster", "slug": "/reference/product-config/trusted-cluster/"}
           ]
         },
-        { "title": "Cheatsheet", "slug": "/reference/cheatsheet/" },
+        {
+          "title": "Access Controls",
+          "slug": "/reference/access-controls/",
+          "entries": [
+            {"title": "Roles", "slug": "/reference/access-controls/roles/"},
+            {"title": "Users", "slug": "/reference/access-controls/users/"},
+            {"title": "Single Sign-On", "slug": "/reference/access-controls/single-sign-on/"}
+          ]
+        },
+        { "title": "Plugins", "slug": "/reference/configuration/plugins/" },
         {
           "title": "API",
           "slug": "/reference/api/introduction/",
