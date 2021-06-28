@@ -23,6 +23,23 @@ sudo teleport configure \
 sudo teleport start
 ```
 
+## Add a Teleport Node
+
+Run the first command on the same server your Teleport Auth node is running on. 
+
+Run the second on the server you want to connect to the existing Teleport Cluster.
+
+```bash
+# Add a Teleport Node in SSH mode and save the token to a file 'token.file'
+tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
+
+# Use 'token.file' to join the cluster
+sudo teleport start \
+  --roles=node \
+  --token=/path/to/token.file \
+  --auth-server=tele.example.com:443
+```
+
 ## Add a user with roles and logins
 
 Create a user `teleport-admin` with `editor,access` roles and `root,ubuntu,ec2-user` logins:
