@@ -83,7 +83,13 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "identity output").Short('o').Required().StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q, %q or %q", identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatTLS, identityfile.FormatKubernetes, identityfile.FormatDatabase)).
+	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q, %q, %q or %q",
+		identityfile.FormatFile,
+		identityfile.FormatOpenSSH,
+		identityfile.FormatTLS,
+		identityfile.FormatKubernetes,
+		identityfile.FormatDatabase,
+		identityfile.FormatMongo)).
 		Default(string(identityfile.DefaultFormat)).
 		StringVar((*string)(&a.outputFormat))
 	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").
@@ -270,7 +276,7 @@ func (a *AuthCommand) GenerateKeys() error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(clusterAPI auth.ClientI) error {
 	switch {
-	case a.outputFormat == identityfile.FormatDatabase:
+	case a.outputFormat == identityfile.FormatDatabase || a.outputFormat == identityfile.FormatMongo:
 		return a.generateDatabaseKeys(clusterAPI)
 	case a.genUser != "" && a.genHost == "":
 		return a.generateUserKeys(clusterAPI)

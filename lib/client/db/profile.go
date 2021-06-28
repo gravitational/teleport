@@ -26,7 +26,6 @@ package db
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
@@ -39,23 +38,21 @@ import (
 )
 
 // Add updates database connection profile file.
-func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, quiet bool) error {
+func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus) error {
+	// Out of supported databases, only Postgres and MySQL have a concept
+	// of the connection options file.
+	switch db.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolMySQL:
+	default:
+		return nil
+	}
 	profileFile, err := load(db)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	connectProfile, err := add(tc, db, clientProfile, profileFile)
+	_, err = add(tc, db, clientProfile, profileFile)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if quiet {
-		return nil
-	}
-	switch db.Protocol {
-	case defaults.ProtocolPostgres:
-		return postgres.Message.Execute(os.Stdout, connectProfile)
-	case defaults.ProtocolMySQL:
-		return mysql.Message.Execute(os.Stdout, connectProfile)
 	}
 	return nil
 }
@@ -104,6 +101,13 @@ func Env(tc *client.TeleportClient, db tlsca.RouteToDatabase) (map[string]string
 
 // Delete removes the specified database connection profile.
 func Delete(tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
+	// Out of supported databases, only Postgres and MySQL have a concept
+	// of the connection options file.
+	switch db.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolMySQL:
+	default:
+		return nil
+	}
 	profileFile, err := load(db)
 	if err != nil {
 		return trace.Wrap(err)

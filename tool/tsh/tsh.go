@@ -382,9 +382,18 @@ func Run(args []string, opts ...cliOption) error {
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbEnv := db.Command("env", "Print environment variables for the configured database.")
-	dbEnv.Flag("db", "Print environment for the specified database.").StringVar(&cf.DatabaseService)
+	dbEnv.Arg("db", "Print environment for the specified database").StringVar(&cf.DatabaseService)
+	// --db flag is deprecated in favor of positional argument for consistency with other commands.
+	dbEnv.Flag("db", "Print environment for the specified database.").Hidden().StringVar(&cf.DatabaseService)
 	dbConfig := db.Command("config", "Print database connection information. Useful when configuring GUI clients.")
-	dbConfig.Flag("db", "Print information for the specified database.").StringVar(&cf.DatabaseService)
+	dbConfig.Arg("db", "Print information for the specified database.").StringVar(&cf.DatabaseService)
+	// --db flag is deprecated in favor of positional argument for consistency with other commands.
+	dbConfig.Flag("db", "Print information for the specified database.").Hidden().StringVar(&cf.DatabaseService)
+	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command.", dbFormatText, dbFormatCommand)).StringVar(&cf.Format)
+	dbConnect := db.Command("connect", "Connect to a database.")
+	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
+	dbConnect.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
+	dbConnect.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
 
 	// join
 	join := app.Command("join", "Join the active SSH session")
@@ -605,6 +614,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onDatabaseEnv(&cf)
 	case dbConfig.FullCommand():
 		err = onDatabaseConfig(&cf)
+	case dbConnect.FullCommand():
+		err = onDatabaseConnect(&cf)
 	case environment.FullCommand():
 		err = onEnvironment(&cf)
 	case mfa.ls.FullCommand():
@@ -1325,30 +1336,15 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 // formatConnectCommand formats an appropriate database connection command
 // for a user based on the provided database parameters.
 func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
-	service := fmt.Sprintf("%v-%v", cluster, active.ServiceName)
-	switch active.Protocol {
-	case defaults.ProtocolPostgres:
-		switch {
-		case active.Username != "" && active.Database != "":
-			return fmt.Sprintf(`psql "service=%v"`, service)
-		case active.Username != "":
-			return fmt.Sprintf(`psql "service=%v dbname=<database>"`, service)
-		case active.Database != "":
-			return fmt.Sprintf(`psql "service=%v user=<user>"`, service)
-		}
-		return fmt.Sprintf(`psql "service=%v user=<user> dbname=<database>"`, service)
-	case defaults.ProtocolMySQL:
-		switch {
-		case active.Username != "" && active.Database != "":
-			return fmt.Sprintf("mysql --defaults-group-suffix=_%v", service)
-		case active.Username != "":
-			return fmt.Sprintf("mysql --defaults-group-suffix=_%v --database=<database>", service)
-		case active.Database != "":
-			return fmt.Sprintf("mysql --defaults-group-suffix=_%v --user=<user>", service)
-		}
-		return fmt.Sprintf("mysql --defaults-group-suffix=_%v --user=<user> --database=<database>", service)
+	switch {
+	case active.Username != "" && active.Database != "":
+		return fmt.Sprintf("tsh db connect %v", active.ServiceName)
+	case active.Username != "":
+		return fmt.Sprintf("tsh db connect --db-name=<name> %v", active.ServiceName)
+	case active.Database != "":
+		return fmt.Sprintf("tsh db connect --db-user=<user> %v", active.ServiceName)
 	}
-	return ""
+	return fmt.Sprintf("tsh db connect --db-user=<user> --db-name=<name> %v", active.ServiceName)
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {
