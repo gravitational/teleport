@@ -117,7 +117,7 @@ spec:
        lock: [strict|best_effort]
 ```
 
-2. A `LockFallback` field is added to the `ClusterAuthPreference` resource. The new field configures the cluster-wide fallback mode that applies when a more specific hint is not available. It defaults to `best_effort`.
+2. A `LockFallback` field is added to the `ClusterAuthPreference` resource. The new field configures the cluster-wide fallback mode that applies when a more specific hint is not available. It defaults to `best_effort` to retain backward compatibility with HA deployments.
 
 ### Disable generating new certificates
 
