@@ -1,0 +1,27 @@
+{{- if eq .Values.authenticationType "github" -}}
+kind: github
+version: v3
+metadata:
+  # connector name that will be used with `tsh --auth=github login`
+  name: github
+spec:
+  # Client ID of Github OAuth app
+  client_id: {{ .Values.githubClientID }}
+  # Client secret of Github OAuth app
+  client_secret: {{ .Values.githubClientSecret }}
+  # Connector display name that will be shown on web UI login screen
+  display: Github
+  # Callback URL that will be called after successful authentication
+  # Ex: https://<proxy-address>/v1/webapi/github/callback
+  redirect_url: {{ .Values.githubRedirectURL }}
+  # Mapping of org/team memberships onto allowed logins and roles
+  teams_to_logins:
+    - organization: octocats # Github organization name
+      team: admins # Github team name within that organization
+      # Allowed logins for users in this org/team
+      logins:
+        - access
+      # List of Kubernetes groups this Github team is allowed to connect to
+      # (see Kubernetes integration for more information)
+      kubernetes_groups: ["system:masters"]
+{{- end -}}

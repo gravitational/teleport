@@ -38,6 +38,9 @@ podSecurityPolicy:
 # Labels is a map of key-value pairs about this cluster
 labels: {}
 
+# SSO provider to use. See https://goteleport.com/docs/admin-guide/#github-oauth-20 for an example
+authenticationType: ""
+
 # Mode to deploy the chart in. The default is "standalone". Options:
 # - "standalone": will deploy a Teleport container running auth and proxy services with a PersistentVolumeClaim for storage.
 # - "aws": will deploy a Teleport container running auth and proxy services using DynamoDB for backend/audit log storage and S3 for session recordings. (1)

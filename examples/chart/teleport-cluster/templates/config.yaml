@@ -37,10 +37,10 @@ data:
   {{- if .Values.enterprise }}
       license_file: '/var/lib/license/license.pem'
   {{- end }}
-  {{- if .Values.authentication.type }}
+  {{- if .Values.authenticationType }}
       authentication:
         type:
-          {{ .Values.authentication.type }}
+          {{ .Values.authenticationType }}
   {{- end }}
     kubernetes_service:
       enabled: true
