@@ -27,7 +27,7 @@ A new resource named `Lock` with the following specification is introduced:
 
 ```proto
 message LockSpecV2 {
-    // Target describes the set of interactions that the lock applies.
+    // Target describes the set of interactions that the lock applies to.
     LockTarget Target;
 
     // Message is the message displayed to locked-out users.
