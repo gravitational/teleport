@@ -19,11 +19,13 @@ package auth
 import (
 	"context"
 	"crypto/x509/pkix"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -238,4 +240,53 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 		cmpopts.EquateEmpty())
+}
+
+// TestListNodes users can retrieve nodes with the appropriate permissions.
+func TestListNodes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	var err error
+	testNodes := make([]types.Server, 10)
+	for i := 0; i < 10; i++ {
+		testNodes[i], err = types.NewServerWithLabels(
+			"node"+fmt.Sprint(i),
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{fmt.Sprint(i): fmt.Sprint(i)},
+		)
+		require.NoError(t, err)
+		testNodes[i].SetResourceID(int64(i))
+		_, err = srv.Auth().UpsertNode(ctx, testNodes[i])
+		require.NoError(t, err)
+	}
+
+	// create user and role
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// user should be able to list all nodes permitted.
+	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	nodes, _, err := clt.ListNodes(ctx, apidefaults.Namespace, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(testNodes, nodes, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// unpermitted nodes should be replaced with the next permitted node.
+	role.SetNodeLabels(types.Deny, types.Labels{"3": {"3"}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	nodes, nextKey, err := clt.ListNodes(ctx, apidefaults.Namespace, 5, "")
+	require.NoError(t, err)
+	expectedNodes := append(testNodes[:3], testNodes[4:6]...)
+	require.Empty(t, cmp.Diff(expectedNodes, nodes, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	require.EqualValues(t, "/nodes/default/node6", nextKey)
 }

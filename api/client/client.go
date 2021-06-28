@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1275,8 +1276,10 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	)
 	for {
 		resp, nextKey, err := c.ListNodes(ctx, namespace, chunkSize, startKey)
-		if trace.IsLimitExceeded(err) {
+		if trace.IsLimitExceeded(err) && strings.Contains(err.Error(), "grpc: received message larger than max") {
+			// Cut chunkSize in half if gRPC message limit is exceeded.
 			if chunkSize = chunkSize / 2; chunkSize == 0 {
+				// This is an extremely unlikely scenario, but better to cover it anyways.
 				return nil, trace.Wrap(trail.FromGRPC(err), "Node is too large to retrieve over gRPC (over 4MB).")
 			}
 			continue
@@ -1294,6 +1297,7 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 
 // ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
 // nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
+// ListNodes will return a trace.LimitExceeded error if the next page of nodes exceeds 4MB.
 func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error) {
 	if namespace == "" {
 		return nil, "", trace.BadParameter("missing parameter namespace")

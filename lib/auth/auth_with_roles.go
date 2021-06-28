@@ -666,32 +666,41 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 		return nil, "", trace.Wrap(err)
 	}
 
+	nodes, nextKey, err := a.listAndFilterNodes(ctx, namespace, limit, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Retrieve more nodes refill the page after filtering.
+	nodesRemaining := limit - len(nodes)
+	for nodesRemaining != 0 && nextKey != "" {
+		var extraNodes []types.Server
+		extraNodes, nextKey, err = a.listAndFilterNodes(ctx, namespace, nodesRemaining, nextKey)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		nodes = append(nodes, extraNodes...)
+		nodesRemaining = limit - len(nodes)
+	}
+
+	return nodes, nextKey, nil
+}
+
+func (a *ServerWithRoles) listAndFilterNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
 	// Fetch full list of nodes in the backend.
-	startFetch := time.Now()
 	nodes, nextKey, err := a.authServer.ListNodes(ctx, namespace, limit, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	elapsedFetch := time.Since(startFetch)
 
-	// Filter nodes to return the ones for the connected identity.
-	startFilter := time.Now()
+	// Filter nodes to return the ones for the connected identity. Since ListNodes
+	// is paginated, refill list with additional nodes after filtering.
 	filteredNodes, err := a.filterNodes(nodes)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	elapsedFilter := time.Since(startFilter)
 
-	log.WithFields(logrus.Fields{
-		"user":           a.context.User.GetName(),
-		"elapsed_fetch":  elapsedFetch,
-		"elapsed_filter": elapsedFilter,
-	}).Debugf(
-		"ListNodes(%v->%v) in %v.",
-		len(nodes), len(filteredNodes), elapsedFetch+elapsedFilter)
-
-	// TODO (Joerger) encrypt nextKey to avoid leaking details
-	// in case the last node was filtered out above.
 	return filteredNodes, nextKey, nil
 }
 
