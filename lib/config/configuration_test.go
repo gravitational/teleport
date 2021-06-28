@@ -382,11 +382,11 @@ func TestTrustedClusters(t *testing.T) {
 	require.Len(t, authorities, 2)
 	require.Equal(t, "cluster-a", authorities[0].GetClusterName())
 	require.Equal(t, types.HostCA, authorities[0].GetType())
-	require.Len(t, authorities[0].GetCheckingKeys(), 1)
+	require.Len(t, authorities[0].GetActiveKeys().SSH, 1)
 	require.Equal(t, "cluster-a", authorities[1].GetClusterName())
 	require.Equal(t, types.UserCA, authorities[1].GetType())
-	require.Len(t, authorities[1].GetCheckingKeys(), 1)
-	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetCheckingKeys()[0])
+	require.Len(t, authorities[1].GetActiveKeys().SSH, 1)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetActiveKeys().SSH[0].PublicKey)
 	require.NoError(t, err)
 
 	tunnels := conf.ReverseTunnels
@@ -822,14 +822,6 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			EnabledFlag:    "yes",
 			ListenAddress:  "auth:3025",
 		},
-		Authorities: []Authority{{
-			Type:             types.HostCA,
-			DomainName:       "example.com",
-			CheckingKeys:     []string{"checking key 1"},
-			CheckingKeyFiles: []string{"/ca.checking.key"},
-			SigningKeys:      []string{"signing key 1"},
-			SigningKeyFiles:  []string{"/ca.signing.key"},
-		}},
 		ReverseTunnels: []ReverseTunnel{
 			{
 				DomainName: "tunnel.example.com",
@@ -1410,21 +1402,6 @@ db_service:
     uri: 192.168.1.1
 `,
 			outError: `invalid database "foo" address`,
-		},
-		{
-			desc: "missing Redshift region",
-			inConfigString: `
-db_service:
-  enabled: true
-  databases:
-  - name: foo
-    protocol: postgres
-    uri: 192.168.1.1:5438
-    aws:
-      redshift:
-        cluster_id: cluster-1
-`,
-			outError: `missing AWS region for Redshift database "foo"`,
 		},
 	}
 	for _, tt := range tests {

@@ -706,10 +706,10 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 		Type:       types.JWTSigner,
 	}, true)
 	c.Assert(err, check.IsNil)
-	c.Assert(oldCA.GetJWTKeyPairs(), check.HasLen, 1)
+	c.Assert(oldCA.GetTrustedJWTKeyPairs(), check.HasLen, 1)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), oldCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
 
 	// Start rotation and move to initial phase. A new CA will be added (for
@@ -730,10 +730,10 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	}, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(oldCA.GetRotation().Phase, check.Equals, types.RotationPhaseInit)
-	c.Assert(oldCA.GetJWTKeyPairs(), check.HasLen, 2)
+	c.Assert(oldCA.GetTrustedJWTKeyPairs(), check.HasLen, 2)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), oldCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
 
 	// Move rotation into the update client phase. In this phase, requests will
@@ -762,13 +762,13 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 		Type:       types.JWTSigner,
 	}, true)
 	c.Assert(err, check.IsNil)
-	c.Assert(newCA.GetJWTKeyPairs(), check.HasLen, 2)
 	c.Assert(newCA.GetRotation().Phase, check.Equals, types.RotationPhaseUpdateClients)
+	c.Assert(newCA.GetTrustedJWTKeyPairs(), check.HasLen, 2)
 
 	// Both JWT should now validate.
-	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
-	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
 	c.Assert(err, check.IsNil)
 
 	// Move rotation into update servers phase.
@@ -786,13 +786,13 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 		Type:       types.JWTSigner,
 	}, true)
 	c.Assert(err, check.IsNil)
-	c.Assert(newCA.GetJWTKeyPairs(), check.HasLen, 2)
 	c.Assert(newCA.GetRotation().Phase, check.Equals, types.RotationPhaseUpdateServers)
+	c.Assert(newCA.GetTrustedJWTKeyPairs(), check.HasLen, 2)
 
 	// Both JWT should continue to validate.
-	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
-	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
 	c.Assert(err, check.IsNil)
 
 	// Complete rotation. The old CA will be removed.
@@ -810,13 +810,13 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 		Type:       types.JWTSigner,
 	}, true)
 	c.Assert(err, check.IsNil)
-	c.Assert(newCA.GetJWTKeyPairs(), check.HasLen, 1)
 	c.Assert(newCA.GetRotation().Phase, check.Equals, types.RotationPhaseStandby)
+	c.Assert(newCA.GetTrustedJWTKeyPairs(), check.HasLen, 1)
 
 	// Old token should no longer validate.
-	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.NotNil)
-	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
 	c.Assert(err, check.IsNil)
 }
 
@@ -1589,11 +1589,12 @@ func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	for _, keyPair := range ca.GetTLSKeyPairs() {
+	for _, keyPair := range ca.GetActiveKeys().TLS {
 		c.Assert(keyPair.Key, check.IsNil)
 	}
-	keys := ca.GetSigningKeys()
-	c.Assert(keys, check.HasLen, 0)
+	for _, keyPair := range ca.GetActiveKeys().SSH {
+		c.Assert(keyPair.PrivateKey, check.IsNil)
+	}
 
 	// node is not authorized to fetch CA with secrets
 	_, err = nodeClt.GetCertAuthority(types.CertAuthID{
@@ -2412,6 +2413,7 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 
 // TestAuthenticateWebUserOTP tests web authentication flow for password + OTP
 func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
+	ctx := context.Background()
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
@@ -2428,7 +2430,6 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
 	c.Assert(err, check.IsNil)
-	ctx := context.Background()
 	err = s.server.Auth().UpsertMFADevice(ctx, user, dev)
 	c.Assert(err, check.IsNil)
 
@@ -2444,7 +2445,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, check.IsNil)
-	err = s.server.Auth().SetAuthPreference(authPreference)
+	err = s.server.Auth().SetAuthPreference(ctx, authPreference)
 	c.Assert(err, check.IsNil)
 
 	// authentication attempt fails with wrong passwrod
@@ -2535,12 +2536,13 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 }
 
 func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
+	ctx := context.Background()
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		AllowLocalAuth: types.NewBoolOption(true),
 	})
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().SetAuthPreference(authPref)
+	err = s.server.Auth().SetAuthPreference(ctx, authPref)
 	c.Assert(err, check.IsNil)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2549,7 +2551,7 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().SetAuthPreference(authPreference)
+	err = s.server.Auth().SetAuthPreference(ctx, authPreference)
 	c.Assert(err, check.IsNil)
 
 	username := "user1"
@@ -2583,6 +2585,7 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 // TestLoginNoLocalAuth makes sure that logins for local accounts can not be
 // performed when local auth is disabled.
 func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
+	ctx := context.Background()
 	user := "foo"
 	pass := []byte("barbaz")
 
@@ -2599,7 +2602,7 @@ func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 		AllowLocalAuth: types.NewBoolOption(false),
 	})
 	c.Assert(err, check.IsNil)
-	err = s.server.Auth().SetAuthPreference(authPref)
+	err = s.server.Auth().SetAuthPreference(ctx, authPref)
 	c.Assert(err, check.IsNil)
 
 	// Make sure access is denied for web login.
@@ -3034,7 +3037,7 @@ func (s *TLSSuite) TestEvents(c *check.C) {
 	suite.Events(c)
 }
 
-// TestEventsClusterConifg test cluster configuration
+// TestEventsClusterConfig test cluster configuration
 func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	clt, err := s.server.NewClient(TestBuiltin(types.RoleAdmin))
 	c.Assert(err, check.IsNil)
@@ -3120,17 +3123,15 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 		},
 	})
 
-	// update cluster config
-	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-		Audit: types.AuditConfig{
-			AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
-		},
+	// update audit config
+	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 	})
 	c.Assert(err, check.IsNil)
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetClusterAuditConfig(ctx, auditConfig)
 	c.Assert(err, check.IsNil)
 
-	clusterConfig, err = s.server.Auth().GetClusterConfig()
+	clusterConfig, err := s.server.Auth().GetClusterConfig()
 	c.Assert(err, check.IsNil)
 	suite.ExpectResource(c, w, 3*time.Second, clusterConfig)
 
@@ -3149,9 +3150,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 				"key": "val",
 			},
 		},
-		Spec: types.ClusterNameSpecV2{
-			ClusterName: clusterNameResource.GetClusterName(),
-		},
+		Spec: clusterNameResource.(*types.ClusterNameV2).Spec,
 	}
 
 	err = s.server.Auth().DeleteClusterName()
@@ -3165,7 +3164,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 }
 
 // verifyJWT verifies that the token was signed by one the passed in key pair.
-func (s *TLSSuite) verifyJWT(clock clockwork.Clock, clusterName string, pairs []types.JWTKeyPair, token string) (*jwt.Claims, error) {
+func (s *TLSSuite) verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
 	errs := []error{}
 	for _, pair := range pairs {
 		publicKey, err := utils.ParsePublicKey(pair.PublicKey)

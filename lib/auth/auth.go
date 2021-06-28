@@ -379,9 +379,29 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
 }
 
+// GetAuthPreference gets AuthPreference from the backend.
+func (a *Server) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	return a.GetCache().GetAuthPreference(ctx)
+}
+
 // GetClusterConfig gets ClusterConfig from the backend.
 func (a *Server) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
 	return a.GetCache().GetClusterConfig(opts...)
+}
+
+// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
+func (a *Server) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	return a.GetCache().GetClusterAuditConfig(ctx, opts...)
+}
+
+// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
+func (a *Server) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	return a.GetCache().GetClusterNetworkingConfig(ctx, opts...)
+}
+
+// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
+func (a *Server) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	return a.GetCache().GetSessionRecordingConfig(ctx, opts...)
 }
 
 // GetClusterName returns the domain name that identifies this authority server.
@@ -450,11 +470,11 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		DomainName: domainName,
 	}, true)
 	if err != nil {
-		return nil, trace.BadParameter("failed to load host CA for '%s': %v", domainName, err)
+		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
 	// get the private key of the certificate authority
-	caPrivateKey, err := ca.FirstSigningKey()
+	caPrivateKey, err := sshPrivateKey(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -471,6 +491,21 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		Roles:               roles,
 		TTL:                 ttl,
 	})
+}
+
+func sshPrivateKey(ca types.CertAuthority) ([]byte, error) {
+	keyPairs := ca.GetActiveKeys().SSH
+	if len(keyPairs) == 0 {
+		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
+	}
+	// TODO(awly): update after PKCS#11 keys are supported.
+	for _, kp := range keyPairs {
+		if kp.PrivateKeyType != types.PrivateKeyType_RAW {
+			continue
+		}
+		return kp.PrivateKey, nil
+	}
+	return nil, trace.NotFound("no raw SSH private key found in CA for %q", ca.GetClusterName())
 }
 
 // certs is a pair of SSH and TLS certificates
@@ -541,6 +576,19 @@ type certRequest struct {
 	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
+}
+
+// check verifies the cert request is valid.
+func (r *certRequest) check() error {
+	// When generating certificate for MongoDB access, database username must
+	// be encoded into it. This is required to be able to tell which database
+	// user to authenticate the connection as.
+	if r.dbProtocol == defaults.ProtocolMongoDB {
+		if r.dbUser == "" {
+			return trace.BadParameter("must provide database user name to generate certificate for database %q", r.dbService)
+		}
+	}
+	return nil
 }
 
 type certRequestOption func(*certRequest)
@@ -679,6 +727,11 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 
 // generateUserCert generates user certificates
 func (a *Server) generateUserCert(req certRequest) (*certs, error) {
+	err := req.check()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// reuse the same RSA keys for SSH and TLS keys
 	cryptoPubKey, err := sshutils.CryptoPublicKey(req.publicKey)
 	if err != nil {
@@ -752,7 +805,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := ca.FirstSigningKey()
+	privateKey, err := sshPrivateKey(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -995,7 +1048,7 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
 	// before trying to register a user, see U2F is actually setup on the backend
-	cap, err := a.GetAuthPreference()
+	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1393,7 +1446,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	}
 
 	// get the private key of the certificate authority
-	caPrivateKey, err := ca.FirstSigningKey()
+	caPrivateKey, err := sshPrivateKey(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1448,7 +1501,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		Cert:       hostSSHCert,
 		TLSCert:    hostTLSCert,
 		TLSCACerts: services.GetTLSCerts(ca),
-		SSHCACerts: ca.GetCheckingKeys(),
+		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
 }
 
@@ -1711,7 +1764,12 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		LoginTime:          req.LoginTime,
 	}
 	UserLoginCount.Inc()
-	return types.NewWebSession(token, types.KindWebSession, types.KindWebSession, sessionSpec), nil
+
+	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
 }
 
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.
@@ -2150,7 +2208,7 @@ func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts 
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-	pref, err := a.GetAuthPreference()
+	pref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2286,7 +2344,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 // registered by the user.
 func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u2f.AuthenticationStorage) (*proto.MFAAuthenticateChallenge, error) {
 	// Check what kind of MFA is enabled.
-	apref, err := a.GetAuthPreference()
+	apref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2415,10 +2473,13 @@ func (a *Server) upsertWebSession(ctx context.Context, user string, session type
 	if err := a.WebSessions().Upsert(ctx, session); err != nil {
 		return trace.Wrap(err)
 	}
-	token := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
+	token, err := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
 		User:  session.GetUser(),
 		Token: session.GetBearerToken(),
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.WebTokens().Upsert(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}

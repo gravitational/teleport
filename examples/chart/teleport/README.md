@@ -23,7 +23,7 @@ The `values.yaml` is configurable for multiple options including:
 - Using the Community edition of Teleport (Set license.enabled to false)
 - Using self-signed TLS certificates (Set proxy.tls.usetlssecret to false)
 - Using a specific version of Teleport (See image.tag)
-- Using persistent or high availability storage (See below example).  Persistent or high availability storage is recommended for production usage.
+- Using persistent or High Availability storage (See below example).  Persistent or High Availability storage is recommended for production usage.
 - Increasing the replica count for multiple instances (Using High Availability configuration)
 
 See the comments in the default `values.yaml` and also the [Teleport documentation](https://gravitational.com/teleport/docs/) for more options.

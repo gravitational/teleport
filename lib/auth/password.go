@@ -83,7 +83,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 
 	}
 
-	authPreference, err := s.GetAuthPreference()
+	authPreference, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -312,7 +312,8 @@ func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *type
 // CreateSignupU2FRegisterRequest initiates registration for a new U2F token.
 // The returned challenge should be sent to the client to sign.
 func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (*u2f.RegisterChallenge, error) {
-	cap, err := s.GetAuthPreference()
+	ctx := context.TODO()
+	cap, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -349,7 +350,7 @@ func (s *Server) getOTPType(user string) (teleport.OTPType, error) {
 
 func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.User, error) {
 	// Get cluster configuration and check if local auth is allowed.
-	authPref, err := s.GetAuthPreference()
+	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -400,13 +401,13 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 }
 
 func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, token types.ResetPasswordToken) error {
+	ctx := context.TODO()
 	username := token.GetUser()
-	cap, err := s.GetAuthPreference()
+	cap, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	ctx := context.TODO()
 	secondFactor := cap.GetSecondFactor()
 	if secondFactor == constants.SecondFactorOff {
 		return nil
