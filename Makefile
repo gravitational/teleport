@@ -200,7 +200,7 @@ endif
 # only tsh is built.
 #
 .PHONY:full
-full: $(ASSETS_BUILDDIR)/webassets.zip
+full: $(ASSETS_BUILDDIR)/webassets
 ifneq ("$(OS)", "windows")
 	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
@@ -212,7 +212,7 @@ endif
 full-ent:
 ifneq ("$(OS)", "windows")
 	@if [ -f e/Makefile ]; then \
-	rm $(ASSETS_BUILDDIR)/webassets.zip; \
+	rm $(ASSETS_BUILDDIR)/webassets; \
 	$(MAKE) -C e full; fi
 endif
 
@@ -277,11 +277,11 @@ release-unix: clean full
 		CHANGELOG.md \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
-	tar -czf $(RELEASE).tar.gz teleport
+	tar --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 	@if [ -f e/Makefile ]; then \
-		rm -fr $(ASSETS_BUILDDIR)/webassets.zip; \
+		rm -fr $(ASSETS_BUILDDIR)/webassets; \
 		$(MAKE) -C e release; \
 	fi
 
@@ -493,13 +493,14 @@ update-tag:
 	git tag api/$(GITTAG)
 	git push origin $(GITTAG) && git push origin api/$(GITTAG)
 
-# build/webassets.zip archive contains the web assets (UI) which gets
-# appended to teleport binary
-$(ASSETS_BUILDDIR)/webassets.zip: ensure-webassets $(ASSETS_BUILDDIR)
+# build/webassets directory contains the web assets (UI) which get
+# embedded in the teleport binary
+$(ASSETS_BUILDDIR)/webassets: ensure-webassets $(ASSETS_BUILDDIR)
 ifneq ("$(OS)", "windows")
-	@echo "---> Building OSS web assets."; \
-	rm $(ASSETS_BUILDDIR)/webassets.zip; \
-	cd webassets/teleport/ ; zip -qr ../../$@ .
+	@echo "---> Copying OSS web assets."; \
+	rm -rf $(ASSETS_BUILDDIR)/webassets; \
+	mkdir $(ASSETS_BUILDDIR)/webassets; \
+	cd webassets/teleport/ ; cp -r . ../../$@
 endif
 
 $(ASSETS_BUILDDIR):
