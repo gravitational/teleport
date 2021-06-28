@@ -56,6 +56,15 @@ type ClusterNetworkingConfig interface {
 
 	// SetSessionControlTimeout sets the session control timeout.
 	SetSessionControlTimeout(t time.Duration)
+
+	// GetClientIdleTimeoutMessage fetches the message to be sent to the client in
+	// the event of an idle timeout. An empty string implies no message should
+	// be sent.
+	GetClientIdleTimeoutMessage() string
+
+	// SetClientIdleTimeoutMessage sets the inactivity timeout disconnection message
+	// to be sent to the user.
+	SetClientIdleTimeoutMessage(string)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -194,6 +203,14 @@ func (c *ClusterNetworkingConfigV2) GetSessionControlTimeout() time.Duration {
 // SetSessionControlTimeout sets the session control timeout.
 func (c *ClusterNetworkingConfigV2) SetSessionControlTimeout(d time.Duration) {
 	c.Spec.SessionControlTimeout = Duration(d)
+}
+
+func (c *ClusterNetworkingConfigV2) GetClientIdleTimeoutMessage() string {
+	return c.Spec.ClientIdleTimeoutMessage
+}
+
+func (c *ClusterNetworkingConfigV2) SetClientIdleTimeoutMessage(msg string) {
+	c.Spec.ClientIdleTimeoutMessage = msg
 }
 
 // setStaticFields sets static resource header and metadata fields.
