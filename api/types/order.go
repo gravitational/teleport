@@ -19,10 +19,10 @@ package types
 // EventOrder is an ordering of events, either ascending or descending.
 type EventOrder int
 
-// EventOrderDescending is an descending event order.
-// In this ordering events go from newest to oldest.
-const EventOrderDescending = 1
-
 // EventOrderAscending is an ascending event order.
 // In essence, events go from oldest to newest.
 const EventOrderAscending = 0
+
+// EventOrderDescending is an descending event order.
+// In this ordering events go from newest to oldest.
+const EventOrderDescending = 1
