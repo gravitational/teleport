@@ -117,7 +117,7 @@ spec:
        lock: [strict|best_effort]
 ```
 
-2. A `LockFallback` field is added to the `ClusterAuthPreference` resource. The new field configures the cluster-wide fallback mode that applies when a more specific hint is not available. It defaults to `strict`.
+2. A `LockFallback` field is added to the `ClusterAuthPreference` resource. The new field configures the cluster-wide fallback mode that applies when a more specific hint is not available. It defaults to `best_effort`.
 
 ### Disable generating new certificates
 
@@ -167,11 +167,10 @@ The goal should be achieved by introducing a routine similar to
 the default period of 10 minutes defined in `defaults.LowResPollingPeriod`)
 a `types.Watcher`-based algorithm should be preferred.
 
-To be able to distinguish locks received from the root cluster,
-the root cluster should send the `Lock` resource a resource label of the
-form:
+`Lock` resources received from the root cluster should be stored under
+a separate backend key namespace:
 ```
-teleport.dev/replicated-from: <root-cluster-name>
+/locks/remote/<clustername>/<lockname>
 ```
 
 A tolerance interval similar to the case of intra-cluster propagation should be used.
