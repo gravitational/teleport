@@ -165,21 +165,22 @@ release-unix: clean full
 	echo $(GITTAG) > $(BUILDDIR)/VERSION
 	cp -rf $(BUILDDIR) teleport-ent
 	cp -rf ../examples teleport-ent/
-	tar -czf $(RELEASE_ENT).tar.gz teleport-ent
+	tar --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu -c teleport-ent | gzip -n > $(RELEASE_ENT).tar.gz
 	rm -rf teleport-ent
 	@echo "---> Created $(RELEASE_ENT).tar.gz."
 
 # make full - produces a teleport binary with the web assets built-in
 .PHONY:full
-full: check-build-vars $(WEBASSETS_BUILDDIR)/webassets.zip
+full: check-build-vars $(WEBASSETS_BUILDDIR)/webassets
 	@echo "---> Attaching Enterprise web assets."
 	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # embedded into teleport binary
-$(WEBASSETS_BUILDDIR)/webassets.zip: | $(WEBASSETS_BUILDDIR)
-	@echo "---> Building Enterprise web assets."
-	cd ../webassets/e/teleport/ ; zip -qr $@ .
+$(WEBASSETS_BUILDDIR)/webassets: | $(WEBASSETS_BUILDDIR)
+	@echo "---> Copying Enterprise web assets."
+	mkdir -p $(WEBASSETS_BUILDDIR)/webassets
+	cd ../webassets/e/teleport/ ; cp -r . $@
 
 $(WEBASSETS_BUILDDIR):
 	mkdir -p $@
