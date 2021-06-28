@@ -33,8 +33,8 @@ message LockSpecV2 {
     // Message is the message displayed to locked-out users.
     string Message;
 
-    // Expires if set specifies TTL for the lock.
-    google.protobuf.Timestamp Expires;
+    // InForceUntil specifies the time when the lock ceases to be in force.
+    google.protobuf.Timestamp InForceUntil;
 }
 
 // LockTarget lists the attributes all of which (when set)
