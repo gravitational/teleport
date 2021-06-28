@@ -8,7 +8,7 @@ h1: Common Teleport Commands Reference
 
 ## Configure and start Teleport with Acme
 
-`--cluster-name` should be set be the same as the cluster name. 
+`--cluster-name` should be set to the same as the cluster name. 
 
 Make sure to leave port `443` open:
 
@@ -53,7 +53,7 @@ tsh status
 
 ## Create dependent roles
 
-Create a role with another role that request it:
+Create a role with another role that can request it:
 
 ```bash
 # Create YAML file
@@ -82,13 +82,30 @@ tctl create -f roles.yaml
 
 ## Request roles with tsh
 
-```bash
-# Make a request for a permitted role
-tsh login --request-roles=slackdev
-```
-## Approve or deny roles with tsh
+User requests a role through `tsh` client:
 
 ```bash
+# Request a permitted role
+tsh login --request-roles=slackdev
+
+# Alternative syntax
+tsh request create --roles=access
+
+# Alternative syntax
+tsh request new --roles=access,admin
+```
+
+## Approve or deny roles with tsh
+
+Approve or deny role requests as a user logged in through the `tsh` client:
+
+```bash
+# Display requests
+tsh request ls
+
+# Show request details
+tsh request show b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+
 # Approve the request
 tsh request review --approve b8fa34de-3822-48aa-86f1-1865f9c7c4b9
 
@@ -97,6 +114,8 @@ tsh request review --deny b8fa34de-3822-48aa-86f1-1865f9c7c4b9
 ```
 
 ## Approve or deny roles with tctl
+
+Approve or deny role requests as a teleport admin using `tctl`:
 
 ```bash
 # Display all active requests

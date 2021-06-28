@@ -2,7 +2,7 @@
 
 Lists available databases and their connection information.
 
-```shell
+```bash
 tsh db ls
 ```
 
@@ -12,7 +12,7 @@ Displays only the databases a user has access to (see [RBAC](../database-access/
 
 Retrieves database credentials.
 
-```shell
+```bash
 tsh db login example
 tsh db login --db-user=postgres --db-name=postgres example
 ```
@@ -40,7 +40,7 @@ tsh db login --db-user=postgres --db-name=postgres example
 
 Removes database credentials.
 
-```shell
+```bash
 tsh db logout example
 tsh db logout
 ```
@@ -49,7 +49,7 @@ tsh db logout
 
 Outputs environment variables for a particular database.
 
-```shell
+```bash
 tsh db env
 tsh db env --db=example
 eval $(tsh db env)
@@ -74,7 +74,7 @@ eval $(tsh db env)
 
 Prints database connection information. Useful when configuring GUI clients.
 
-```shell
+```bash
 tsh db config
 tsh db config --db=example
 ```
