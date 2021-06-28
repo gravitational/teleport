@@ -278,15 +278,29 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 		}
 
 		// Skip until we've found the first event within the desired timeframe.
-		if event.GetTime().Before(fromUTC) {
-			continue
+		switch order {
+		case types.EventOrderAscending:
+			if event.GetTime().Before(fromUTC) {
+				continue
+			}
+		case types.EventOrderDescending:
+			if event.GetTime().After(toUTC) {
+				break
+			}
 		}
 
 		// If we've found an event after the desired timeframe, all events from here
 		// on out will also be after the desired timeframe due
 		// to the sort so we just break out here and consider the query as finished.
-		if event.GetTime().After(toUTC) {
-			break
+		switch order {
+		case types.EventOrderAscending:
+			if event.GetTime().After(toUTC) {
+				break
+			}
+		case types.EventOrderDescending:
+			if event.GetTime().Before(fromUTC) {
+				break
+			}
 		}
 
 		if totalSize+size >= MaxEventBytesInResponse {
