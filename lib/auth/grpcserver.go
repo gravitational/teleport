@@ -2440,6 +2440,7 @@ func (g *GRPCServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest)
 			return nil, trace.Errorf("encountered unexpected node type: %T", t)
 		}
 	}
+
 	return &proto.ListNodesResponse{
 		Servers: serversV2,
 		NextKey: nextKey,

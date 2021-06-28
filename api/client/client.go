@@ -1268,27 +1268,25 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	}
 
 	// Retrieve the complete list of nodes in chunks.
-	var nodes []types.Server
-	var startKey string
+	var (
+		nodes     []types.Server
+		startKey  string
+		chunkSize = defaults.DefaultChunkSize
+	)
 	for {
-		resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
-			Namespace: namespace,
-			// TODO (Joerger) Rather than arbitrarily assigning a max chunk size, paginated
-			// gRPC endpoints should dynamically reduce the returned message size to a
-			// reasonable default. This is already being done by GetSessionEvents with
-			// a chunk size of 1 MiB, but this needs to be refactored for for general use.
-			Limit:    defaults.DefaultChunkSize,
-			StartKey: startKey,
-		}, c.callOpts...)
-		if err != nil {
+		resp, nextKey, err := c.ListNodes(ctx, namespace, chunkSize, startKey)
+		if trace.IsLimitExceeded(err) {
+			if chunkSize = chunkSize / 2; chunkSize == 0 {
+				return nil, trace.Wrap(trail.FromGRPC(err), "Node is too large to retrieve over gRPC (over 4MB).")
+			}
+			continue
+		} else if err != nil {
 			return nil, trail.FromGRPC(err)
 		}
-		for _, node := range resp.Servers {
-			nodes = append(nodes, node)
-		}
 
-		// If resp.NextKey is empty, then the complete list has been retrieved.
-		if startKey = resp.NextKey; startKey == "" {
+		nodes = append(nodes, resp...)
+		startKey = nextKey
+		if startKey == "" {
 			return nodes, nil
 		}
 	}
@@ -1301,10 +1299,6 @@ func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, sta
 		return nil, "", trace.BadParameter("missing parameter namespace")
 	}
 	if limit == 0 {
-		// TODO (Joerger) Rather than arbitrarily assigning a max chunk size, paginated
-		// gRPC endpoints should dynamically reduce the returned message size to a
-		// reasonable default. This is already being done by GetSessionEvents with
-		// a chunk size of 1 MiB, but this needs to be refactored for general use.
 		limit = defaults.DefaultChunkSize
 	}
 

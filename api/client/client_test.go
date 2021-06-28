@@ -57,7 +57,7 @@ func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 }
 
 func (m *mockServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest) (*proto.ListNodesResponse, error) {
-	testNodes, err := testNodes()
+	nodes, err := testNodes(req.Namespace)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -73,10 +73,10 @@ func (m *mockServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest)
 	}
 
 	// retrieve nodes starting at startKey until we reach the limit or run out of nodes.
-	for i := startKeyInt; i < startKeyInt+int(req.Limit) && i < len(testNodes); i++ {
-		node, ok := testNodes[i].(*types.ServerV2)
+	for i := startKeyInt; i < startKeyInt+int(req.Limit) && i < len(nodes); i++ {
+		node, ok := nodes[i].(*types.ServerV2)
 		if !ok {
-			return nil, trail.ToGRPC(trace.Errorf("Unexpected type: %T", testNodes[i]))
+			return nil, trail.ToGRPC(trace.Errorf("Unexpected type: %T", nodes[i]))
 		}
 		resp.Servers = append(resp.Servers, node)
 	}
@@ -89,13 +89,47 @@ func (m *mockServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest)
 	return resp, nil
 }
 
-func testNodes() ([]types.Server, error) {
+const largeNodesNamespace = "large_nodes"
+const veryLargeNodeNamespace = "very_large_node"
+
+func testNodes(namespace string) ([]types.Server, error) {
+	if namespace == veryLargeNodeNamespace {
+		node, err := types.NewServerWithLabels(
+			"the big one",
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{
+				// Artificially make a node ~ 5mb to force ListNodes
+				// to fail regardless of chunk size.
+				"label": string(make([]byte, 5000000)),
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []types.Server{node}, nil
+	}
+
 	var err error
 	nodes := make([]types.Server, 1000)
 	for i := 0; i < 1000; i++ {
-		nodes[i], err = types.NewServer("node"+strconv.Itoa(i), types.KindNode, types.ServerSpecV2{})
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if namespace == largeNodesNamespace {
+			if nodes[i], err = types.NewServerWithLabels(
+				"node"+strconv.Itoa(i),
+				types.KindNode,
+				types.ServerSpecV2{},
+				map[string]string{
+					// Artificially make each node ~ 50kb This will force
+					// `ListNodes` with default chunk size of 100 to fail.
+					"label": string(make([]byte, 50000)),
+				},
+			); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else if namespace == defaults.Namespace {
+			if nodes[i], err = types.NewServer("node"+strconv.Itoa(i), types.KindNode, types.ServerSpecV2{}); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 	return nodes, nil
@@ -284,51 +318,75 @@ func TestEndpoints(t *testing.T) {
 	t.Run("ListNodes", func(t *testing.T) { testListNodes(ctx, t, clt) })
 }
 
+func testGetNodes(ctx context.Context, t *testing.T, clt *Client) {
+	// retrieve expected data set
+	nodes, err := testNodes(defaults.Namespace)
+	require.NoError(t, err)
+
+	// GetNodes should retrieve all nodes
+	resp, err := clt.GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(nodes, resp,
+		cmpopts.IgnoreFields(types.Metadata{}, "Labels"),
+	))
+
+	// GetNodes should transparently handle limit exceeded errors...
+	largeNodes, err := testNodes(largeNodesNamespace)
+	require.NoError(t, err)
+
+	resp, err = clt.GetNodes(ctx, largeNodesNamespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(largeNodes, resp,
+		cmpopts.IgnoreFields(types.Metadata{}, "Labels"),
+	))
+
+	// ...unless a single node is too big to retrieve (over 4MB).
+	_, err = clt.GetNodes(ctx, veryLargeNodeNamespace)
+	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+
+	// GetNodes should fail on empty namespace
+	_, err = clt.GetNodes(ctx, "")
+	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+}
+
 func testListNodes(ctx context.Context, t *testing.T, clt *Client) {
 	// retrieve expected data set
-	testNodes, err := testNodes()
+	nodes, err := testNodes(defaults.Namespace)
 	require.NoError(t, err)
 
 	// GetNodes should retrieve nodes in pages
 	resp, nextKey, err := clt.ListNodes(ctx, defaults.Namespace, 700, "")
 	require.NoError(t, err)
 	require.EqualValues(t, "700", nextKey)
-	require.Empty(t, cmp.Diff(resp, testNodes[0:700],
+	require.Empty(t, cmp.Diff(resp, nodes[0:700],
 		cmpopts.IgnoreFields(types.Metadata{}, "Labels"),
 	))
 
 	resp, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 301, nextKey)
 	require.NoError(t, err)
 	require.EqualValues(t, "", nextKey)
-	require.Empty(t, cmp.Diff(resp, testNodes[700:1000],
+	require.Empty(t, cmp.Diff(resp, nodes[700:1000],
 		cmpopts.IgnoreFields(types.Metadata{}, "Labels"),
 	))
 
+	// ListNodes should return a limit exceeded error when exceeding gRPC message size limit.
+	largeNodes, err := testNodes(largeNodesNamespace)
+	require.NoError(t, err)
+
+	_, _, err = clt.ListNodes(ctx, largeNodesNamespace, 100, "20")
+	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+
+	resp, nextKey, err = clt.ListNodes(ctx, largeNodesNamespace, 50, "20")
+	require.NoError(t, err)
+	require.EqualValues(t, "70", nextKey)
+	require.Empty(t, cmp.Diff(resp, largeNodes[20:70]))
+
 	// ListNodes should fail on empty namespace
 	_, _, err = clt.ListNodes(ctx, "", defaults.DefaultChunkSize, "")
-	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
 	// ListNodes should default limit to 500
 	resp, _, err = clt.ListNodes(ctx, defaults.Namespace, 0, "")
 	require.NoError(t, err)
 	require.True(t, len(resp) == defaults.DefaultChunkSize)
-}
-
-func testGetNodes(ctx context.Context, t *testing.T, clt *Client) {
-	// retrieve expected data set
-	testNodes, err := testNodes()
-	require.NoError(t, err)
-
-	// GetNodes should retrieve all nodes
-	resp, err := clt.GetNodes(ctx, defaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(testNodes, resp,
-		cmpopts.IgnoreFields(types.Metadata{}, "Labels"),
-	))
-
-	// GetNodes should fail on empty namespace
-	_, err = clt.GetNodes(ctx, "")
-	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
 }
