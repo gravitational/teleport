@@ -242,7 +242,8 @@
           "entries": [
             {"title": "Teleport", "slug": "/reference/product-config/teleport/"},
             {"title": "Application", "slug": "/reference/product-config/teleport/#application-access"},
-            {"title": "Kubernetes", "slug": "/reference/product-config/kubernetes/"},
+            {"title": "Kubernetes", "slug": "/reference/product-config/teleport/#kubernetes-access"},
+            {"title": "Kubernetes Helm Chart", "slug": "/reference/product-config/kubernetes/"},
             {"title": "Database", "slug": "/reference/product-config/teleport/#database-access"},
             {"title": "Trusted Cluster", "slug": "/reference/product-config/trusted-cluster/"}
           ]
