@@ -74,6 +74,7 @@ These flags are available for all commands `--debug, --config`. Run
 # Adds teleport user "joe" with mappings to
 # OS users "joe" and "root"
 tctl users add joe joe,root
+
 # Adds teleport user "joe" with mappings to
 # OS users "joe" only
 tctl users add joe
@@ -123,7 +124,8 @@ Reset local user account password and any associated second factor with expiring
 ### Examples
 
 ```bash
-# tctl users reset jeff
+tctl users reset jeff
+
 User jeff has been reset. Share this URL with the user to complete password reset, the link is valid for 8h0m0s:
 https://teleport.example.com:3080/web/reset/8a4a40bec3a31a28db44fa64c0c70ca3
 # Resets jeff's password and any associated second factor.  Jeff populates the password and confirms the token with the link.
@@ -287,6 +289,7 @@ These flags are available for all commands `--debug, --config`. Run
 ```bash
 # Generates a token that can be used by a node to join the cluster, default ttl is 30 minutes
 tctl nodes add
+
 # Generates a token that can be used to add an SSH node to the cluster.
 # The node will run both the proxy service and the node (ssh) service.
 # This token can be used within an hour.
@@ -338,13 +341,17 @@ These flags are available for all commands `--debug, --config` . Run
 ```bash
 # Generate an invite token for a trusted_cluster
 tctl tokens add --type=trusted_cluster --ttl=5m
+
 # Generate an invite token for a trusted_cluster with labels
 tctl tokens add --type=trusted_cluster --labels=env=prod
+
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
 tctl tokens add --type=node
+
 # Generate an invite token for a kubernetes_service
 tctl tokens add --type=kube
+
 # Generate an invite token for an app_service
 tctl tokens add --type=app
 ```
@@ -415,8 +422,10 @@ or see the [Global Flags Section](#tctl-global-flags).
 ```bash
 # Export all keys
 tctl auth export
+
 # Filter by fingerprint
 tctl auth export --fingerprint=SHA256:8xu5kh1CbHCZRrGuitbQd4hM+d9V+I7YA1mUwA/2tAo
+
 # Export tls certs only
 tctl auth export --type tls
 ```
@@ -456,23 +465,30 @@ These flags are available for all commands `--debug, --config`. Run
 # Export identity file to teleport_id.pem
 # for user `teleport` with a ttl set to 5m
 tctl auth sign --format file --ttl=5m --user teleport -o teleport_id.pem
+
 # Export identity formatted for openssh to teleport_id.pem
 tctl auth sign --format openssh --user teleport -o teleport_id.pem
+
 # Export host identity, `--format openssh` must be set with `--host`
 # Generates grav-01 (private key) and grav-01-cert.pub in the current directory
 tctl auth sign --format openssh --host grav-00
+
 # Invalid command, only one of --user or --host should be set
 tctl auth sign --format openssh --host grav-00 --user teleport -o grav_host
-# error: --user or --host must be specified
+
+# Error: --user or --host must be specified
 # create a certificate with a TTL of 24 hours for the jenkins user
 # the jenkins.pem file can later be used with `tsh`
 tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
-# create a certificate with a TTL of 3 months for the jenkins user
+
+# Create a certificate with a TTL of 3 months for the jenkins user
 # the jenkins.pem file can later be used with `tsh`
 tctl auth sign --ttl=2190h --user=jenkins --out=jenkins.pem
-# create a certificate with a TTL of 1 day for the jenkins user
+
+# Create a certificate with a TTL of 1 day for the jenkins user
 # The kubeconfig file can later be used with `kubectl` or compatible tooling.
 tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
+
 # Exports an identity from the Auth Server in preparation for remote
 # tctl execution.
 tctl auth sign --user=admin --out=identity.pem
@@ -541,8 +557,10 @@ These flags are available for all commands `--debug, --config`. Run
 ```bash
 # Update a user record
 tctl create -f joe.yaml
+
 # Add a trusted cluster
 tctl create cluster.yaml
+
 # Update a trusted cluster
 tctl create -f cluster.yaml
 ```
@@ -622,12 +640,16 @@ These flags are available for all commands `--debug, --config` . Run
 
 ```bash
 tctl get users
-# dump the user definition into a file:
+
+# Dump the user definition into a file:
 tctl get user/joe > joe.yaml
-# prints the trusted cluster 'east'
+
+# Prints the trusted cluster 'east'
 tctl get cluster/east
-# prints all trusted clusters and all users
+
+# Prints all trusted clusters and all users
 tctl get clusters,users
+
 # Dump all resources for backup into state.yaml
 tctl get all > state.yaml
 ```
@@ -646,6 +668,7 @@ tctl status
 # Checks status of cluster.
 tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
 pin   sha256:1146cdd2b887772dcc2e879232c8f60012a839f7958724ce5744005474b15b9d
+
 # Checks remote auth status using exported identity.
 tctl status \
     --auth-server=192.168.99.102:3025 \
@@ -671,6 +694,7 @@ tctl top [<diag-addr>] [<refresh>]
 
 ```bash
 sudo teleport start --diag-addr=127.0.0.1:3000
+
 # View stats with a refresh period of 5 seconds
 tctl top http://127.0.0.1:3000 5s
 ```

@@ -87,6 +87,7 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 ```bash
 # Log in to node `grav-00` as OS User `root` with Teleport User `teleport`
 tsh ssh --proxy proxy.example.com --user teleport -d root@grav-00
+
 # `tsh ssh` takes the same arguments as OpenSSH client:
 tsh ssh -o ForwardAgent=yes root@grav-00
 tsh ssh -o AddKeysToAgent=yes root@grav-00
@@ -224,7 +225,6 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 ```bash
 tsh ls
-
 # Output
 Node Name Address            Labels
 --------- ------------------ ------
@@ -233,7 +233,6 @@ grav-01   10.156.0.2:3022    os:linux
 grav-02   10.156.0.7:3022    os:osx
 
 tsh ls -v
-
 # Output
 Node Name Node ID                              Address            Labels
 --------- ------------------------------------ ------------------ ------
@@ -243,7 +242,6 @@ grav-02  24503590-e8ae-4a0a-ad7a-dd1865c04e30 10.156.0.7:3022     os:osx
 
 # Only show nodes with os label set to 'osx':
 tsh ls os=osx
-
 # Output
 Node Name Address            Labels
 --------- ------------------ ------
@@ -293,7 +291,6 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 ```bash
 tsh clusters
-
 # Output
 Cluster Name Status
 ------------ ------
@@ -301,7 +298,6 @@ staging          online
 production       offline
 
 tsh clusters --quiet
-
 # Output
 staging online
 production offline
