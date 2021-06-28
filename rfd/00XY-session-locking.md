@@ -8,8 +8,8 @@ state: draft
 ## What
 
 This RFD provides a locking mechanism to restrict access to a Teleport
-environment.  When such a lock is in force, all interactions involving
-identities described by the lock are either terminated or prevented.
+environment.  When such a lock is in force, all interactions matching
+the lock's conditions are either terminated or prevented.
 
 ## Why
 
@@ -27,7 +27,7 @@ A new resource named `Lock` with the following specification is introduced:
 
 ```proto
 message LockSpecV2 {
-    // Target describes the identities that the lock applies to.
+    // Target describes the set of interactions that the lock applies.
     LockTarget Target;
 
     // Message is the message displayed to locked-out users.
@@ -37,8 +37,7 @@ message LockSpecV2 {
     google.protobuf.Timestamp InForceUntil;
 }
 
-// LockTarget lists the attributes all of which (when set)
-// must match for the lock to disable their interactions.
+// LockTarget lists the attributes of interactions to be disabled.
 // The attributes are interpreted/matched qua simple names,
 // with no support for wildcards or regular expressions.
 message LockTarget {
