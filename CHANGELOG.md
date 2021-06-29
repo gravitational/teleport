@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.2.6
+
+This release of Teleport contains new features and improvements.
+
+* Added ability to disable port forwarding on a per-node basis. [#6989](https://github.com/gravitational/teleport/pull/6989)
+* Updated `api` client to support additional endpoints. [#7220](https://github.com/gravitational/teleport/pull/7220)
+* Improved performance of DynamoDB events filtering. [#7231](https://github.com/gravitational/teleport/pull/7231)
+
 ## 6.2.5
 
 This release of Teleport contains new features, bug fixes, and multiple improvements.
