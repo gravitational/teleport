@@ -33,6 +33,7 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -2120,6 +2121,34 @@ func (a *Server) GetNamespaces() ([]types.Namespace, error) {
 // GetNodes is a part of auth.AccessPoint implementation
 func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	return a.GetCache().GetNodes(ctx, namespace, opts...)
+}
+
+// ListNodes returns a paginated list of nodes.
+func (a *Server) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+	nodes, err := a.GetCache().GetNodes(ctx, namespace)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Find startKey
+	startIndex := sort.Search(len(nodes), func(i int) bool {
+		return nodes[i].GetName() >= startKey
+	})
+
+	// There are no more nodes to list, the last page has 0 items and empty nextKey.
+	if startIndex == len(nodes) {
+		return []types.Server{}, "", nil
+	}
+
+	// This is the last page, return empty nextKey.
+	if startIndex+limit > len(nodes) {
+		return nodes[startIndex:], "", nil
+	}
+
+	page = nodes[startIndex : startIndex+limit]
+	lastKey := page[len(page)-1].GetName()
+	nextKey = backend.NextKeyString(lastKey)
+	return page, nextKey, nil
 }
 
 // GetReverseTunnels is a part of auth.AccessPoint implementation

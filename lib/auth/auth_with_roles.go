@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"net/url"
-	"sort"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -669,30 +668,37 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 		return nil, "", trace.Wrap(err)
 	}
 
-	// Get all nodes from cache.
-	nodes, err := a.GetNodes(ctx, namespace)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
+	// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
+	page = make([]types.Server, 0, limit)
+	nextKey = startKey
+	for len(page) != limit {
+		var nextPage []types.Server
+		nextPage, nextKey, err = a.authServer.ListNodes(ctx, namespace, limit, nextKey)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		filteredPage, err := a.filterNodes(nextPage)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		// We have more than enough nodes to fill a page,
+		// append some of the nodes and reset the nextKey.
+		if len(filteredPage) > limit-len(page) {
+			page = append(page, filteredPage[:limit-len(page)]...)
+			lastKey := page[len(page)-1].GetName()
+			nextKey = backend.NextKeyString(lastKey)
+			return page, nextKey, nil
+		}
+
+		page = append(page, filteredPage...)
+		// No more pages left, return partial page.
+		if nextKey == "" {
+			return page, nextKey, nil
+		}
 	}
 
-	// Find startKey
-	startIndex := sort.Search(len(nodes), func(i int) bool {
-		return nodes[i].GetName() >= startKey
-	})
-
-	// There are no more nodes to list, the last page has 0 items and empty nextKey.
-	if startIndex == len(nodes) {
-		return []types.Server{}, "", nil
-	}
-
-	// This is the last page, return empty nextKey.
-	if startIndex+limit > len(nodes) {
-		return nodes[startIndex:], "", nil
-	}
-
-	page = nodes[startIndex : startIndex+limit]
-	lastKey := page[len(page)-1].GetName()
-	nextKey = backend.NextKeyString(lastKey)
 	return page, nextKey, nil
 }
 

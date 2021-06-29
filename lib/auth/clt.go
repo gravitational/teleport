@@ -1940,7 +1940,6 @@ type ClientI interface {
 	events.IAuditLog
 	events.Streamer
 	apievents.Emitter
-	services.Presence
 	services.Access
 	services.DynamicAccess
 	services.DynamicAccessOracle
@@ -1951,6 +1950,10 @@ type ClientI interface {
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
+
+	services.Presence
+	// ListNodes returns a paginated list of registered servers.
+	ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error)
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
