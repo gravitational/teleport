@@ -66,32 +66,36 @@ func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 const largeNodeNamespace = "large_node"
 
 func (m *mockServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest) (*proto.ListNodesResponse, error) {
-	var err error
-	var nodes []types.Server
-
+	// Used for special case in testGetNodes.
 	if req.Namespace == largeNodeNamespace {
 		node, err := types.NewServerWithLabels(
 			"the big one",
 			types.KindNode,
 			types.ServerSpecV2{},
 			map[string]string{
-				// Artificially make a node ~ 5mb to force ListNodes
-				// to fail regardless of chunk size.
+				// Artificially make a node ~ 5MB to force
+				// ListNodes to fail regardless of chunk size.
 				"label": string(make([]byte, 5000000)),
 			},
 		)
 		if err != nil {
 			return nil, trail.ToGRPC(err)
 		}
-		nodes = []types.Server{node}
-	} else {
-		nodes, err = testNodes()
-		if err != nil {
-			return nil, trail.ToGRPC(err)
+		v2, ok := node.(*types.ServerV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.Errorf("Unexpected type: %T", node))
 		}
+		return &proto.ListNodesResponse{
+			Servers: []*types.ServerV2{v2},
+		}, nil
 	}
 
-	// Implement simple pagination uses StartKey as an index of the test nodes.
+	nodes, err := testNodes()
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	// Implement simple pagination using StartKey as an index of nodes.
 	resp := &proto.ListNodesResponse{}
 	var startKeyInt int
 	if req.StartKey != "" {
@@ -127,8 +131,8 @@ func testNodes() ([]types.Server, error) {
 			types.KindNode,
 			types.ServerSpecV2{},
 			map[string]string{
-				// Artificially make each node ~ 100kb This will force
-				// `ListNodes` to fail with chunks of >= 40.
+				// Artificially make each node ~ 100KB to force
+				// ListNodes to fail with chunks of >= 40.
 				"label": string(make([]byte, 100000)),
 			},
 		); err != nil {
@@ -343,21 +347,26 @@ func testListNodes(ctx context.Context, t *testing.T, clt *Client) {
 	require.EqualValues(t, "25", nextKey)
 	require.EqualValues(t, resp, expectedNodes[:25])
 
+	resp, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 25, nextKey)
+	require.NoError(t, err)
+	require.EqualValues(t, "50", nextKey)
+	require.EqualValues(t, resp, expectedNodes[25:])
+
 	// return empty nextKey when no pages are left.
-	resp, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 50, nextKey)
+	resp, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 25, nextKey)
 	require.NoError(t, err)
 	require.EqualValues(t, "", nextKey)
-	require.EqualValues(t, resp, expectedNodes[25:])
+	require.EqualValues(t, 0, len(resp))
 
 	// ListNodes should return a limit exceeded error when exceeding gRPC message size limit.
 	_, _, err = clt.ListNodes(ctx, defaults.Namespace, 50, "")
 	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
 
-	// ListNodes should fail with a limit of 0
+	// ListNodes should return a bad parameter error when given a limit of 0
 	_, _, err = clt.ListNodes(ctx, defaults.Namespace, 0, "")
 	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
-	// ListNodes should fail on empty namespace
+	// ListNodes should return a bad parameter error when given an empty namespace
 	_, _, err = clt.ListNodes(ctx, "", 100, "")
 	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 }

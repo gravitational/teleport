@@ -6179,10 +6179,10 @@ func (m *Events) GetLastKey() string {
 type ListNodesRequest struct {
 	// Namespace is the namespace of resources.
 	Namespace string `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"Namespace,omitempty"`
-	// Limit is the maximum amount of events to retrieve.
+	// Limit is the maximum amount of nodes to retrieve.
 	Limit int32 `protobuf:"varint,2,opt,name=Limit,proto3" json:"Limit,omitempty"`
 	// StartKey is used to start listing nodes from a specific spot. This should
-	// be set to the previous LastKey value if using pagination, or left empty.
+	// be set to the previous NextKey value if using pagination, or left empty.
 	StartKey             string   `protobuf:"bytes,3,opt,name=StartKey,proto3" json:"StartKey,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -6784,7 +6784,7 @@ type AuthServiceClient interface {
 	WatchEvents(ctx context.Context, in *Watch, opts ...grpc.CallOption) (AuthService_WatchEventsClient, error)
 	// GetNode retrieves a node described by the given request.
 	GetNode(ctx context.Context, in *types.ResourceInNamespaceRequest, opts ...grpc.CallOption) (*types.ServerV2, error)
-	// ListNodes retrieves all nodes.
+	// ListNodes retrieves a paginated list of nodes.
 	ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error)
 	// UpsertNode upserts a node in a backend.
 	UpsertNode(ctx context.Context, in *types.ServerV2, opts ...grpc.CallOption) (*types.KeepAlive, error)
@@ -8112,7 +8112,7 @@ type AuthServiceServer interface {
 	WatchEvents(*Watch, AuthService_WatchEventsServer) error
 	// GetNode retrieves a node described by the given request.
 	GetNode(context.Context, *types.ResourceInNamespaceRequest) (*types.ServerV2, error)
-	// ListNodes retrieves all nodes.
+	// ListNodes retrieves a paginated list of nodes.
 	ListNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error)
 	// UpsertNode upserts a node in a backend.
 	UpsertNode(context.Context, *types.ServerV2) (*types.KeepAlive, error)

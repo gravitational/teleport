@@ -670,10 +670,8 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 
 	// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
 	page = make([]types.Server, 0, limit)
-	nextKey = startKey
 	for len(page) != limit {
-		var nextPage []types.Server
-		nextPage, nextKey, err = a.authServer.ListNodes(ctx, namespace, limit, nextKey)
+		nextPage, nextKey, err := a.authServer.ListNodes(ctx, namespace, limit, startKey)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -693,13 +691,14 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 		}
 
 		page = append(page, filteredPage...)
+
 		// No more pages left, return partial page.
-		if nextKey == "" {
+		if startKey = nextKey; startKey == "" {
 			return page, nextKey, nil
 		}
 	}
 
-	return page, nextKey, nil
+	return page, startKey, nil
 }
 
 func (a *ServerWithRoles) UpsertAuthServer(s types.Server) error {

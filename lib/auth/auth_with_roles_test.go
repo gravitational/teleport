@@ -24,14 +24,14 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/pborman/uuid"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -264,7 +264,7 @@ func TestListNodes(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
 	// create user and role
@@ -280,7 +280,7 @@ func TestListNodes(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// list nodes one at a time, last page should be empty
-	nodes, nextKey, err := clt.ListNodes(ctx, apidefaults.Namespace, 5, "")
+	nodes, nextKey, err := clt.ListNodes(ctx, defaults.Namespace, 5, "")
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes := testNodes[:5]
@@ -288,7 +288,7 @@ func TestListNodes(t *testing.T) {
 	expectedNextKey := backend.NextKeyString(testNodes[4].GetName())
 	require.EqualValues(t, expectedNextKey, nextKey)
 
-	nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 5, nextKey)
+	nodes, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 5, nextKey)
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = testNodes[5:]
@@ -296,7 +296,7 @@ func TestListNodes(t *testing.T) {
 	expectedNextKey = backend.NextKeyString(testNodes[9].GetName())
 	require.EqualValues(t, expectedNextKey, nextKey)
 
-	nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 5, nextKey)
+	nodes, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 5, nextKey)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, len(nodes))
 	require.EqualValues(t, "", nextKey)
@@ -306,7 +306,7 @@ func TestListNodes(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// listing nodes 0-4 should skip the third node and add the fifth to the end.
-	nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 5, "")
+	nodes, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 5, "")
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = append(testNodes[:3], testNodes[4:6]...)

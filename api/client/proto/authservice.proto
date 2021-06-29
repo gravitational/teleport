@@ -870,10 +870,10 @@ message Events {
 message ListNodesRequest {
     // Namespace is the namespace of resources.
     string Namespace = 1;
-    // Limit is the maximum amount of events to retrieve.
+    // Limit is the maximum amount of nodes to retrieve.
     int32 Limit = 2;
     // StartKey is used to start listing nodes from a specific spot. This should
-    // be set to the previous LastKey value if using pagination, or left empty.
+    // be set to the previous NextKey value if using pagination, or left empty.
     string StartKey = 3;
 }
 
@@ -894,7 +894,7 @@ service AuthService {
 
     // GetNode retrieves a node described by the given request.
     rpc GetNode(types.ResourceInNamespaceRequest) returns (types.ServerV2);
-    // ListNodes retrieves all nodes.
+    // ListNodes retrieves a paginated list of nodes.
     rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
     // UpsertNode upserts a node in a backend.
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
