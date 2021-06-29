@@ -225,6 +225,7 @@ func TestNodeCRUD(t *testing.T) {
 	// get node1
 	node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
 	require.NoError(t, err)
+	node1.SetResourceID(node.GetResourceID())
 	require.EqualValues(t, node1, node)
 
 	// Make sure can't delete with empty namespace or name.
