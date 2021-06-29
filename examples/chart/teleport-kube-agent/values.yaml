@@ -61,6 +61,23 @@ podSecurityPolicy:
 # Labels is a map of key values pairs about this cluster
 labels: {}
 
+# Settings for high availability. These are not used in "standalone" mode.
+# When using "custom" mode, you must use highly-available storage (etcd, DynamoDB or Firestore) for multiple replicas to be supported.
+# Manually configuring NFS-based storage or ReadWriteMany volume claims is NOT supported and will result in errors.
+highAvailability:
+  # Set to >1 for a high availability mode where multiple Teleport pods will be deployed and connections will be load balanced between them.
+  replicaCount: 1
+  # Setting 'requireAntiAffinity' to true will use 'requiredDuringSchedulingIgnoredDuringExecution' to require that multiple Teleport pods must not be scheduled on the
+  # same physical host. This will result in Teleport pods failing to be scheduled in very small clusters or during node downtime, so should be used with caution.
+  # Setting 'requireAntiAffinity' to false (the default) uses 'preferredDuringSchedulingIgnoredDuringExecution' to make this a soft requirement.
+  # This setting only has any effect when replicaCount is greater than 1.
+  requireAntiAffinity: false
+  # If enabled will create a Pod Disruption Budget
+  # https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
 ################################################################
 # Values that must be provided if using persistent storage for Teleport state.
 #

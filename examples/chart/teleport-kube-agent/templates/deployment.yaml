@@ -35,9 +35,37 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
-      {{- if .Values.affinity }}
+      {{- if or .Values.affinity (gt (int .Values.highAvailability.replicaCount) 1) }}
       affinity:
-        {{- toYaml .Values.affinity | nindent 8 }}
+        {{- if .Values.affinity }}
+          {{- if .Values.highAvailability.requireAntiAffinity }}
+            {{- fail "Cannot use highAvailability.requireAntiAffinity when affinity is also set in chart values - unset one or the other" }}
+          {{- end }}
+          {{- toYaml .Values.affinity | nindent 8 }}
+        {{- else }}
+        podAntiAffinity:
+        {{- if .Values.highAvailability.requireAntiAffinity }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+        {{- else if gt (int .Values.highAvailability.replicaCount) 1 }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+        {{- end }}
+        {{- end }}
       {{- end }}
       {{- if .Values.tolerations }}
       tolerations:
