@@ -270,7 +270,7 @@ principal listed in your Teleport profile:
 ssh user@node1.root.example.com
 ```
 
-If any [trusted clusters](trustedclusters.mdx) exist, they are also configured:
+If any [trusted clusters](../../trustedclusters.mdx) exist, they are also configured:
 ```bash
 ssh user@node2.leaf.example.com
 ```
@@ -288,7 +288,7 @@ ssh -p 4022 user@node3.leaf.example.com
   If you switch between multiple Teleport proxy servers, you'll need to re-run 
   `tsh config ssh` for each to generate the cluster-specific configuration.
 
-  Similarly, if [trusted clusters](trustedclusters.mdx) are added or removed, be
+  Similarly, if [trusted clusters](../../trustedclusters.mdx) are added or removed, be
   sure to re-run the above command and replace the previous configuration.
 </Admonition>
 
