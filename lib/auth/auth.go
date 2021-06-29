@@ -473,37 +473,41 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
-	// get the private key of the certificate authority
-	caPrivateKey, err := sshPrivateKey(ca)
+	caSigner, err := sshSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// create and sign!
 	return a.Authority.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: caPrivateKey,
-		CASigningAlg:        sshutils.GetSigningAlgName(ca),
-		PublicHostKey:       hostPublicKey,
-		HostID:              hostID,
-		NodeName:            nodeName,
-		Principals:          principals,
-		ClusterName:         clusterName,
-		Roles:               roles,
-		TTL:                 ttl,
+		CASigner:      caSigner,
+		CASigningAlg:  sshutils.GetSigningAlgName(ca),
+		PublicHostKey: hostPublicKey,
+		HostID:        hostID,
+		NodeName:      nodeName,
+		Principals:    principals,
+		ClusterName:   clusterName,
+		Roles:         roles,
+		TTL:           ttl,
 	})
 }
 
-func sshPrivateKey(ca types.CertAuthority) ([]byte, error) {
+func sshSigner(ca types.CertAuthority) (ssh.Signer, error) {
 	keyPairs := ca.GetActiveKeys().SSH
 	if len(keyPairs) == 0 {
 		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
 	}
-	// TODO(awly): update after PKCS#11 keys are supported.
+	// TODO(nic): update after PKCS#11 keys are supported.
 	for _, kp := range keyPairs {
 		if kp.PrivateKeyType != types.PrivateKeyType_RAW {
 			continue
 		}
-		return kp.PrivateKey, nil
+		signer, err := ssh.ParsePrivateKey(kp.PrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signer = sshutils.AlgSigner(signer, sshutils.GetSigningAlgName(ca))
+		return signer, nil
 	}
 	return nil, trace.NotFound("no raw SSH private key found in CA for %q", ca.GetClusterName())
 }
@@ -805,12 +809,13 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := sshPrivateKey(ca)
+	caSigner, err := sshSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	params := services.UserCertParams{
-		PrivateCASigningKey:   privateKey,
+		CASigner:              caSigner,
 		CASigningAlg:          sshutils.GetSigningAlgName(ca),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
@@ -1445,21 +1450,20 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		return nil, trace.Wrap(err)
 	}
 
-	// get the private key of the certificate authority
-	caPrivateKey, err := sshPrivateKey(ca)
+	caSigner, err := sshSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// generate hostSSH certificate
 	hostSSHCert, err := a.Authority.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: caPrivateKey,
-		CASigningAlg:        sshutils.GetSigningAlgName(ca),
-		PublicHostKey:       pubSSHKey,
-		HostID:              req.HostID,
-		NodeName:            req.NodeName,
-		ClusterName:         clusterName.GetClusterName(),
-		Roles:               req.Roles,
-		Principals:          req.AdditionalPrincipals,
+		CASigner:      caSigner,
+		CASigningAlg:  sshutils.GetSigningAlgName(ca),
+		PublicHostKey: pubSSHKey,
+		HostID:        req.HostID,
+		NodeName:      req.NodeName,
+		ClusterName:   clusterName.GetClusterName(),
+		Roles:         req.Roles,
+		Principals:    req.AdditionalPrincipals,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
