@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"net/url"
+	"sort"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -661,47 +663,37 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 	return filteredNodes, nil
 }
 
-func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
+// ListNodes returns a paginated list of nodes filtered by user access.
+func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
 	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	nodes, nextKey, err := a.listAndFilterNodes(ctx, namespace, limit, startKey)
+	// Get all nodes from cache.
+	nodes, err := a.GetNodes(ctx, namespace)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	// Retrieve more nodes to refill the page after filtering.
-	nodesRemaining := limit - len(nodes)
-	for nodesRemaining != 0 && nextKey != "" {
-		var extraNodes []types.Server
-		extraNodes, nextKey, err = a.listAndFilterNodes(ctx, namespace, nodesRemaining, nextKey)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
+	// Find startKey
+	startIndex := sort.Search(len(nodes), func(i int) bool {
+		return nodes[i].GetName() >= startKey
+	})
 
-		nodes = append(nodes, extraNodes...)
-		nodesRemaining = limit - len(nodes)
+	// There are no more nodes to list, the last page has 0 items and empty nextKey.
+	if startIndex == len(nodes) {
+		return []types.Server{}, "", nil
 	}
 
-	return nodes, nextKey, nil
-}
-
-func (a *ServerWithRoles) listAndFilterNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
-	// Fetch full list of nodes in the backend.
-	nodes, nextKey, err := a.authServer.ListNodes(ctx, namespace, limit, startKey)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
+	// This is the last page, return empty nextKey.
+	if startIndex+limit > len(nodes) {
+		return nodes[startIndex:], "", nil
 	}
 
-	// Filter nodes to return the ones for the connected identity. Since ListNodes
-	// is paginated, refill list with additional nodes after filtering.
-	filteredNodes, err := a.filterNodes(nodes)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return filteredNodes, nextKey, nil
+	page = nodes[startIndex : startIndex+limit]
+	lastKey := page[len(page)-1].GetName()
+	nextKey = backend.NextKeyString(lastKey)
+	return page, nextKey, nil
 }
 
 func (a *ServerWithRoles) UpsertAuthServer(s types.Server) error {

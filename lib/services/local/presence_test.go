@@ -222,39 +222,6 @@ func TestNodeCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, len(nodes), 2)
 
-	// list nodes one at a time, last page should be empty
-	nodes, nextKey, err := presence.ListNodes(ctx, apidefaults.Namespace, 1, "")
-	require.NoError(t, err)
-	require.EqualValues(t, len(nodes), 1)
-	require.EqualValues(t, nextKey, "/nodes/default/node2")
-	node1.SetResourceID(nodes[0].GetResourceID())
-	require.EqualValues(t, []types.Server{node1}, nodes)
-
-	nodes, nextKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
-	require.NoError(t, err)
-	require.EqualValues(t, len(nodes), 1)
-	require.EqualValues(t, nextKey, "/nodes/default/node3")
-	node2.SetResourceID(nodes[0].GetResourceID())
-	require.EqualValues(t, []types.Server{node2}, nodes)
-
-	nodes, nextKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
-	require.NoError(t, err)
-	require.EqualValues(t, len(nodes), 0)
-	require.EqualValues(t, nextKey, "")
-
-	// list nodes should fail with an improper startKey
-	_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, "/random/other/key")
-	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
-
-	_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, "/nodes")
-	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
-
-	_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, "/")
-	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
-
 	// get node1
 	node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
 	require.NoError(t, err)

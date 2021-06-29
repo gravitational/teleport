@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"crypto/x509/pkix"
-	"fmt"
 	"testing"
 	"time"
 
@@ -27,7 +26,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/pborman/uuid"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -249,20 +250,22 @@ func TestListNodes(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test nodes.
-	testNodes := make([]types.Server, 10)
 	for i := 0; i < 10; i++ {
+		name := uuid.New()
 		node, err := types.NewServerWithLabels(
-			fmt.Sprintf("node%v", i),
+			name,
 			types.KindNode,
 			types.ServerSpecV2{},
-			map[string]string{fmt.Sprint(i): fmt.Sprint(i)},
+			map[string]string{"name": name},
 		)
 		require.NoError(t, err)
-		testNodes[i] = node
 
 		_, err = srv.Auth().UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
 
 	// create user and role
 	username := "user"
@@ -272,21 +275,42 @@ func TestListNodes(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	// user should be able to list all nodes permitted.
+	// permit user to list all nodes
 	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
-	nodes, _, err := clt.ListNodes(ctx, apidefaults.Namespace, 100, "")
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(testNodes, nodes, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// unpermitted nodes should be replaced with the next permitted node.
-	role.SetNodeLabels(types.Deny, types.Labels{"3": {"3"}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-
+	// list nodes one at a time, last page should be empty
 	nodes, nextKey, err := clt.ListNodes(ctx, apidefaults.Namespace, 5, "")
 	require.NoError(t, err)
-	expectedNodes := append(testNodes[:3], testNodes[4:6]...)
-	require.Empty(t, cmp.Diff(expectedNodes, nodes, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-	require.EqualValues(t, fmt.Sprintf("/nodes/default/%v", testNodes[6].GetName()), nextKey)
+	require.EqualValues(t, 5, len(nodes))
+	expectedNodes := testNodes[:5]
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+	expectedNextKey := backend.NextKeyString(testNodes[4].GetName())
+	require.EqualValues(t, expectedNextKey, nextKey)
+
+	nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 5, nextKey)
+	require.NoError(t, err)
+	require.EqualValues(t, 5, len(nodes))
+	expectedNodes = testNodes[5:]
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+	expectedNextKey = backend.NextKeyString(testNodes[9].GetName())
+	require.EqualValues(t, expectedNextKey, nextKey)
+
+	nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 5, nextKey)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, len(nodes))
+	require.EqualValues(t, "", nextKey)
+
+	// remove permission for third node
+	role.SetNodeLabels(types.Deny, types.Labels{"name": {testNodes[3].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// listing nodes 0-4 should skip the third node and add the fifth to the end.
+	nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 5, "")
+	require.NoError(t, err)
+	require.EqualValues(t, 5, len(nodes))
+	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+	expectedNextKey = backend.NextKeyString(testNodes[5].GetName())
+	require.EqualValues(t, expectedNextKey, nextKey)
 }

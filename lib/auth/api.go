@@ -98,9 +98,6 @@ type ReadAccessPoint interface {
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
 
-	// ListNodes returns a paginated list of registered servers.
-	ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error)
-
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 

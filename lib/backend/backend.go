@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/jonboulle/clockwork"
 )
 
@@ -212,10 +213,10 @@ func (p Params) GetString(key string) string {
 // NoLimit specifies no limits
 const NoLimit = 0
 
-// RangeEnd returns the very next possible key.
+// NextKey returns the very next possible key.
 // If used with a key prefix, this will return
 // the end of the range for that key prefix.
-func RangeEnd(key []byte) []byte {
+func NextKey(key []byte) []byte {
 	end := make([]byte, len(key))
 	copy(end, key)
 	for i := len(end) - 1; i >= 0; i-- {
@@ -232,6 +233,16 @@ func RangeEnd(key []byte) []byte {
 var (
 	noEnd = []byte{0}
 )
+
+// RangeEnd returns end of the range for given key.
+func RangeEnd(key []byte) []byte {
+	return NextKey(key)
+}
+
+// NextKey returns the very next possible key as a string.
+func NextKeyString(key string) string {
+	return string(NextKey([]byte(key)))
+}
 
 // Items is a sortable list of backend items
 type Items []Item

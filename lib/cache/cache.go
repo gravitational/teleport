@@ -1148,16 +1148,6 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	return rg.presence.GetNodes(ctx, namespace, opts...)
 }
 
-// ListNodes is a part of auth.AccessPoint implementation
-func (c *Cache) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.presence.ListNodes(ctx, namespace, limit, startKey)
-}
-
 // GetAuthServers returns a list of registered servers
 func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	rg, err := c.read()

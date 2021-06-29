@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -250,54 +249,6 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 	}
 
 	return servers, nil
-}
-
-// ListNodes returns a paginated list of registered servers
-func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
-	if namespace == "" {
-		return nil, "", trace.BadParameter("missing namespace value")
-	}
-
-	keyPrefix := backend.Key(nodesPrefix, namespace)
-	rangeStart := keyPrefix
-	if startKey != "" {
-		if !strings.HasPrefix(startKey+"/", string(keyPrefix)) {
-			return nil, "", trace.BadParameter("provided startkey has incorrect key prefix")
-		}
-		rangeStart = []byte(startKey)
-
-	}
-	rangeEnd := backend.RangeEnd(keyPrefix)
-
-	// Get all items in the bucket within the given range.
-	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	// Marshal values into a []services.Server slice.
-	servers := make([]types.Server, len(result.Items))
-	for i, item := range result.Items {
-		server, err := services.UnmarshalServer(
-			item.Value,
-			types.KindNode,
-			services.WithResourceID(item.ID),
-			services.WithExpires(item.Expires),
-		)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		servers[i] = server
-	}
-
-	// If there are more nodes to retrieve, return the lastKey to the caller.
-	nextKey := ""
-	if limit != 0 && len(result.Items) == limit {
-		lastKey := result.Items[len(result.Items)-1].Key
-		nextKey = string(backend.RangeEnd(lastKey))
-	}
-
-	return servers, nextKey, nil
 }
 
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
