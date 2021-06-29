@@ -1,15 +1,19 @@
 # example slack plugin configuration TOML file
 
 [teleport]
-auth_server = "0.0.0.0:3025"           # Teleport Auth Server GRPC API address
-client_key = "/var/lib/teleport/plugins/slack/auth.key" # Teleport GRPC client secret key
-client_crt = "/var/lib/teleport/plugins/slack/auth.crt" # Teleport GRPC client certificate
-root_cas = "/var/lib/teleport/plugins/slack/auth.cas"   # Teleport cluster CA certs
+auth_server = "0.0.0.0:3025"                              # Teleport Auth Server GRPC API address
+
+# tctl auth sign --format=file --auth-server=auth.example.com:3025 --user=access-plugin --out=auth --ttl=1h
+identity = "/var/lib/teleport/plugins/slack/auth"         # Teleport certificate ("file" format)
+
+# tctl auth sign --format=tls --auth-server=auth.example.com:3025 --user=access-plugin --out=auth --ttl=1h
+# client_key = "/var/lib/teleport/plugins/slack/auth.key" # Teleport GRPC client secret key ("tls" format")
+# client_crt = "/var/lib/teleport/plugins/slack/auth.crt" # Teleport GRPC client certificate ("tls" format")
+# root_cas = "/var/lib/teleport/plugins/slack/auth.cas"   # Teleport cluster CA certs ("tls" format")
 
 [slack]
-token = "xoxb-11xx"             # Slack Bot OAuth token
-# Optional Slack Rooms
-recipients = ["person@email.com","YYYYYYY"]
+token = "xoxb-11xx"                                # Slack Bot OAuth token
+recipients = ["person@email.com","YYYYYYY"]        # Optional Slack Rooms
 
 [log]
 output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/slack.log"
