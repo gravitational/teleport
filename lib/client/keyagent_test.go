@@ -247,7 +247,7 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	c.Assert(err, check.IsNil)
 	caPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
 	c.Assert(err, check.IsNil)
-	err = lka.keyStore.AddKnownHostKeys("example.com", []ssh.PublicKey{caPublicKey})
+	err = lka.keyStore.AddKnownHostKeys("example.com", s.hostname, []ssh.PublicKey{caPublicKey})
 	c.Assert(err, check.IsNil)
 
 	// Generate a host certificate for node with role "node".

@@ -162,11 +162,11 @@ func TestKnownHosts(t *testing.T) {
 	_, p2, _ := s.keygen.GenerateKeyPair("")
 	pub2, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
-	err = s.store.AddKnownHostKeys("example.com", []ssh.PublicKey{pub})
+	err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub})
 	require.NoError(t, err)
-	err = s.store.AddKnownHostKeys("example.com", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub2})
 	require.NoError(t, err)
-	err = s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
 	require.NoError(t, err)
 
 	keys, err := s.store.GetKnownHostKeys("")
@@ -176,9 +176,9 @@ func TestKnownHosts(t *testing.T) {
 
 	// check against dupes:
 	before, _ := s.store.GetKnownHostKeys("")
-	err = s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
 	require.NoError(t, err)
-	err = s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
 	require.NoError(t, err)
 	after, _ := s.store.GetKnownHostKeys("")
 	require.Equal(t, len(before), len(after))
@@ -188,6 +188,14 @@ func TestKnownHosts(t *testing.T) {
 	require.Equal(t, len(keys), 0)
 	keys, _ = s.store.GetKnownHostKeys("example.org")
 	require.Equal(t, len(keys), 1)
+	require.True(t, apisshutils.KeysEqual(keys[0], pub2))
+
+	// check for proxy and wildcard as well:
+	keys, _ = s.store.GetKnownHostKeys("proxy.example.org")
+	require.Equal(t, 1, len(keys))
+	require.True(t, apisshutils.KeysEqual(keys[0], pub2))
+	keys, _ = s.store.GetKnownHostKeys("*.example.org")
+	require.Equal(t, 1, len(keys))
 	require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 }
 
@@ -224,7 +232,7 @@ func TestProxySSHConfig(t *testing.T) {
 	caPub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 	require.NoError(t, err)
 
-	err = s.store.AddKnownHostKeys("127.0.0.1", []ssh.PublicKey{caPub})
+	err = s.store.AddKnownHostKeys("127.0.0.1", idx.ProxyHost, []ssh.PublicKey{caPub})
 	require.NoError(t, err)
 
 	clientConfig, err := key.ProxyClientSSHConfig(s.store)
@@ -509,4 +517,20 @@ func TestMemLocalKeyStore(t *testing.T) {
 	retrievedKey, err = keystore.GetKey(idx)
 	require.Error(t, err)
 	require.Nil(t, retrievedKey)
+}
+
+func TestMatchesWildcard(t *testing.T) {
+	// Not a wildcard pattern.
+	require.False(t, matchesWildcard("foo.example.com", "example.com"))
+
+	// Not a match.
+	require.False(t, matchesWildcard("foo.example.org", "*.example.com"))
+
+	// Too many levels deep.
+	require.False(t, matchesWildcard("a.b.example.com", "*.example.com"))
+
+	// Valid wildcard matches.
+	require.True(t, matchesWildcard("foo.example.com", "*.example.com"))
+	require.True(t, matchesWildcard("bar.example.com", "*.example.com"))
+	require.True(t, matchesWildcard("bar.foo", "*.foo"))
 }
