@@ -1091,4 +1091,9 @@ service AuthService {
     rpc GetEvents(GetEventsRequest) returns (Events);
     // In-session request for audit events.
     rpc GetSessionEvents(GetSessionEventsRequest) returns (Events);
+
+    // GetAuthPreference gets cluster auth preference.
+    rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2);
+    // SetAuthPreference sets cluster auth preference.
+    rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty);
 }
