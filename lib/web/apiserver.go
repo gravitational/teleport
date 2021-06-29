@@ -1914,10 +1914,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	order, err := queryOrder(values, "order")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	order := queryOrder(values, "order", types.EventOrderAscending)
 
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
@@ -1976,17 +1973,15 @@ func queryLimit(query url.Values, name string, def int) (int, error) {
 }
 
 // queryOrder returns the order parameter with the specified name from the
-// query string.
-//
-// If there's no such parameter, ascending is returned as the default order.
-func queryOrder(query url.Values, name string) (types.EventOrder, error) {
+// query string or a default if the parameter is not provided.
+func queryOrder(query url.Values, name string, def types.EventOrder) types.EventOrder {
 	switch query.Get(name) {
 	case "desc":
-		return types.EventOrderDescending, nil
+		return types.EventOrderDescending
 	case "asc":
-		fallthrough
+		return types.EventOrderAscending
 	default:
-		return types.EventOrderAscending, nil
+		return def
 	}
 }
 
