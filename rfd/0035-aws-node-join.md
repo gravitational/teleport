@@ -42,13 +42,18 @@ pass it to the auth server.
 In place of a join token, nodes will present an EC2 IID (Instance Identity
 Document) to the auth server, with a corresponding PKCS7 signature.
 
+The IID and signature will be fetched on the nodes from the IMDSv2.
+
 This will be sent along with the other existing parameters in a
 [RegisterUsingTokenRequest](
 https://github.com/gravitational/teleport/blob/d4247cb150d720be97521347b74bf9c526ae869f/lib/auth/auth.go#L1538-L1563).
 
 The auth server will then:
 1. Use the AWS DSA public certificate to check that the PKCS7 signature for the
-   IID is valid (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/verify-pkcs7.html).
+   IID is valid.
+   - The `region` field of the IID will be used to select the correct public
+     certificate
+     (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/verify-pkcs7.html).
 2. Check that the `pendingTime` of the IID, which is the time the instance was
    launched, is within a 5 minute TTL.
    - if the node fails to join the cluster during this window, the user can
@@ -60,7 +65,9 @@ The auth server will then:
    - The node name will be set to `<aws_account_id>-<aws_instance_id>` so that
      the auth server can efficiently check the backend to see whether this
      instance has already joined.
-   - This is to prevent replay attacks with the IID
+   - This is to prevent replay attacks with the IID, any attempt by the same
+     instance to join the cluster more than once will be blocked and logged in
+     detail.
 5. Check that the EC2 instance is currently running. \*
 
 \* Step 5 requires AWS credentials on the Auth server with permissions for
@@ -115,10 +122,19 @@ implement the following flow at a new `RegisterWithAWSToken` gRPC endpoint:
    join request.
 9. The auth server sends credentials to join the cluster.
 
+The above steps all occur within a single streaming gRPC request and only 1
+attempt with a given challenge will be allowed.
+
 In order to create the signed requests, the node will need to have access to
 AWS credentials. As the `sts:GetCallerIdentity` request does not require any
 explicit permissions, it is sufficient to attach *any* IAM policy to the EC2
 instance.
+
+Note that cross-account `sts:AssumeRole` access should be restricted for all
+IAM roles in the AWS account to prevent possible attackers in other accounts
+from pretending they are in the configured AWS account. To mitigate this,
+administrators can restrict access to only a (set of) IAM roles(s) which cannot
+be assumed from other accounts, see #Teleport Configuration.
 
 ### Comparison of EC2 and IAM methods
 
