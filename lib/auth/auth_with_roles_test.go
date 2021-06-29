@@ -249,18 +249,18 @@ func TestListNodes(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test nodes.
-	var err error
 	testNodes := make([]types.Server, 10)
 	for i := 0; i < 10; i++ {
-		testNodes[i], err = types.NewServerWithLabels(
-			"node"+fmt.Sprint(i),
+		node, err := types.NewServerWithLabels(
+			fmt.Sprintf("node%v", i),
 			types.KindNode,
 			types.ServerSpecV2{},
 			map[string]string{fmt.Sprint(i): fmt.Sprint(i)},
 		)
 		require.NoError(t, err)
-		testNodes[i].SetResourceID(int64(i))
-		_, err = srv.Auth().UpsertNode(ctx, testNodes[i])
+		testNodes[i] = node
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
 
@@ -276,7 +276,7 @@ func TestListNodes(t *testing.T) {
 	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
-	nodes, _, err := clt.ListNodes(ctx, apidefaults.Namespace, 0, "")
+	nodes, _, err := clt.ListNodes(ctx, apidefaults.Namespace, 100, "")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(testNodes, nodes, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
@@ -288,5 +288,5 @@ func TestListNodes(t *testing.T) {
 	require.NoError(t, err)
 	expectedNodes := append(testNodes[:3], testNodes[4:6]...)
 	require.Empty(t, cmp.Diff(expectedNodes, nodes, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-	require.EqualValues(t, "/nodes/default/node6", nextKey)
+	require.EqualValues(t, fmt.Sprintf("/nodes/default/%v", testNodes[6].GetName()), nextKey)
 }

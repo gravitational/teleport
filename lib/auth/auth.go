@@ -410,8 +410,7 @@ func (a *Server) GetClusterName(opts ...services.MarshalOption) (types.ClusterNa
 	return a.GetCache().GetClusterName(opts...)
 }
 
-// ListNodes returns the domain name that identifies this authority server.
-// Also known as "cluster name"
+// ListNodes returns a paginated list of registered servers.
 func (a *Server) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
 	return a.GetCache().ListNodes(ctx, namespace, limit, startKey)
 }

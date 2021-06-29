@@ -29,8 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/stretchr/testify/require"
@@ -53,14 +51,44 @@ func newMockServer() *mockServer {
 	return m
 }
 
+// startMockServer starts a new mock server. Parallel tests cannot use the same addr.
+func startMockServer(t *testing.T, addr string) {
+	l, err := net.Listen("tcp", addr)
+	require.NoError(t, err)
+	go newMockServer().grpc.Serve(l)
+	t.Cleanup(func() { require.NoError(t, l.Close()) })
+}
+
 func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
 	return &proto.PingResponse{}, nil
 }
 
+const largeNodeNamespace = "large_node"
+
 func (m *mockServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest) (*proto.ListNodesResponse, error) {
-	nodes, err := testNodes(req.Namespace)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
+	var err error
+	var nodes []types.Server
+
+	if req.Namespace == largeNodeNamespace {
+		node, err := types.NewServerWithLabels(
+			"the big one",
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{
+				// Artificially make a node ~ 5mb to force ListNodes
+				// to fail regardless of chunk size.
+				"label": string(make([]byte, 5000000)),
+			},
+		)
+		if err != nil {
+			return nil, trail.ToGRPC(err)
+		}
+		nodes = []types.Server{node}
+	} else {
+		nodes, err = testNodes()
+		if err != nil {
+			return nil, trail.ToGRPC(err)
+		}
 	}
 
 	// Implement simple pagination uses StartKey as an index of the test nodes.
@@ -90,46 +118,21 @@ func (m *mockServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest)
 	return resp, nil
 }
 
-const largeNodesNamespace = "large_nodes"
-const veryLargeNodeNamespace = "very_large_node"
-
-func testNodes(namespace string) ([]types.Server, error) {
+func testNodes() ([]types.Server, error) {
 	var err error
-	nodes := make([]types.Server, 100)
-	for i := 0; i < 100; i++ {
-		switch namespace {
-		case defaults.Namespace:
-			if nodes[i], err = types.NewServer(fmt.Sprintf("node%v", i), types.KindNode, types.ServerSpecV2{}); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case largeNodesNamespace:
-			if nodes[i], err = types.NewServerWithLabels(
-				fmt.Sprintf("node%v", i),
-				types.KindNode,
-				types.ServerSpecV2{},
-				map[string]string{
-					// Artificially make each node ~ 100kb This will force
-					// `ListNodes` to fail with chunks of >= 40.
-					"label": string(make([]byte, 100000)),
-				},
-			); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case veryLargeNodeNamespace:
-			node, err := types.NewServerWithLabels(
-				"the big one",
-				types.KindNode,
-				types.ServerSpecV2{},
-				map[string]string{
-					// Artificially make a node ~ 5mb to force ListNodes
-					// to fail regardless of chunk size.
-					"label": string(make([]byte, 5000000)),
-				},
-			)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return []types.Server{node}, nil
+	nodes := make([]types.Server, 50)
+	for i := 0; i < 50; i++ {
+		if nodes[i], err = types.NewServerWithLabels(
+			fmt.Sprintf("node%v", i),
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{
+				// Artificially make each node ~ 100kb This will force
+				// `ListNodes` to fail with chunks of >= 40.
+				"label": string(make([]byte, 100000)),
+			},
+		); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -151,14 +154,6 @@ func (mc *mockInsecureTLSCredentials) TLSConfig() (*tls.Config, error) {
 
 func (mc *mockInsecureTLSCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
-}
-
-// startMockServer starts a new mock server. Parallel tests cannot use the same addr.
-func startMockServer(t *testing.T, addr string) {
-	l, err := net.Listen("tcp", addr)
-	require.NoError(t, err)
-	go newMockServer().grpc.Serve(l)
-	t.Cleanup(func() { require.NoError(t, l.Close()) })
 }
 
 func TestNew(t *testing.T) {
@@ -320,26 +315,17 @@ func TestEndpoints(t *testing.T) {
 }
 
 func testGetNodes(ctx context.Context, t *testing.T, clt *Client) {
-	// retrieve expected data set
-	nodes, err := testNodes(defaults.Namespace)
+	// GetNodes should retrieve all nodes and transparently handle limit exceeded errors
+	expectedNodes, err := testNodes()
 	require.NoError(t, err)
 
-	// GetNodes should retrieve all nodes
 	resp, err := clt.GetNodes(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(nodes, resp, cmpopts.IgnoreFields(types.Metadata{}, "Labels")))
-
-	// GetNodes should transparently handle limit exceeded errors
-	largeNodes, err := testNodes(largeNodesNamespace)
-	require.NoError(t, err)
-
-	resp, err = clt.GetNodes(ctx, largeNodesNamespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(largeNodes, resp, cmpopts.IgnoreFields(types.Metadata{}, "Labels")))
+	require.EqualValues(t, expectedNodes, resp)
 
 	// GetNodes should fail with a limit exceeded error if a
 	// single node is too big to send over gRPC (over 4MB).
-	_, err = clt.GetNodes(ctx, veryLargeNodeNamespace)
+	_, err = clt.GetNodes(ctx, largeNodeNamespace)
 	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
 
 	// GetNodes should fail on empty namespace
@@ -349,37 +335,29 @@ func testGetNodes(ctx context.Context, t *testing.T, clt *Client) {
 
 func testListNodes(ctx context.Context, t *testing.T, clt *Client) {
 	// ListNodes should retrieve nodes in pages and
+	expectedNodes, err := testNodes()
+	require.NoError(t, err)
+
+	resp, nextKey, err := clt.ListNodes(ctx, defaults.Namespace, 25, "")
+	require.NoError(t, err)
+	require.EqualValues(t, "25", nextKey)
+	require.EqualValues(t, resp, expectedNodes[:25])
+
 	// return empty nextKey when no pages are left.
-	nodes, err := testNodes(defaults.Namespace)
-	require.NoError(t, err)
-
-	resp, nextKey, err := clt.ListNodes(ctx, defaults.Namespace, 75, "")
-	require.NoError(t, err)
-	require.EqualValues(t, "75", nextKey)
-	require.Empty(t, cmp.Diff(resp, nodes[:75], cmpopts.IgnoreFields(types.Metadata{}, "Labels")))
-
-	resp, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 75, nextKey)
+	resp, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 50, nextKey)
 	require.NoError(t, err)
 	require.EqualValues(t, "", nextKey)
-	require.Empty(t, cmp.Diff(resp, nodes[75:], cmpopts.IgnoreFields(types.Metadata{}, "Labels")))
+	require.EqualValues(t, resp, expectedNodes[25:])
 
 	// ListNodes should return a limit exceeded error when exceeding gRPC message size limit.
-	largeNodes, err := testNodes(largeNodesNamespace)
-	require.NoError(t, err)
-
-	_, _, err = clt.ListNodes(ctx, largeNodesNamespace, 50, "")
+	_, _, err = clt.ListNodes(ctx, defaults.Namespace, 50, "")
 	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
 
-	resp, _, err = clt.ListNodes(ctx, largeNodesNamespace, 25, "")
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(resp, largeNodes[:25]))
-
-	// ListNodes should default limit to defaults.DefaultChunkSize
-	resp, _, err = clt.ListNodes(ctx, defaults.Namespace, 0, "")
-	require.NoError(t, err)
-	require.True(t, len(resp) == defaults.DefaultChunkSize)
+	// ListNodes should fail with a limit of 0
+	_, _, err = clt.ListNodes(ctx, defaults.Namespace, 0, "")
+	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
 	// ListNodes should fail on empty namespace
-	_, _, err = clt.ListNodes(ctx, "", 0, "")
+	_, _, err = clt.ListNodes(ctx, "", 100, "")
 	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 }

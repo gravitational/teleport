@@ -671,7 +671,7 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 		return nil, "", trace.Wrap(err)
 	}
 
-	// Retrieve more nodes refill the page after filtering.
+	// Retrieve more nodes to refill the page after filtering.
 	nodesRemaining := limit - len(nodes)
 	for nodesRemaining != 0 && nextKey != "" {
 		var extraNodes []types.Server

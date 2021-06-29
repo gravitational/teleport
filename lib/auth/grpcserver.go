@@ -2423,7 +2423,7 @@ func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespace
 	return serverV2, nil
 }
 
-// ListNodes returns a paginated list of nodes in the given namespace.
+// ListNodes retrieves a paginated list of nodes in the given namespace.
 func (g *GRPCServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest) (*proto.ListNodesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
