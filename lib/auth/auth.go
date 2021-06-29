@@ -361,6 +361,11 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
 }
 
+// GetAuthPreference gets AuthPreference from the backend.
+func (a *Server) GetAuthPreference() (types.AuthPreference, error) {
+	return a.GetCache().GetAuthPreference()
+}
+
 // GetClusterConfig gets ClusterConfig from the backend.
 func (a *Server) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
 	return a.GetCache().GetClusterConfig(opts...)
