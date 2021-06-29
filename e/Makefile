@@ -49,13 +49,32 @@ endif
 BPF_ENT_MESSAGE := "without BPF support"
 # We don't compile BPF for anything except regular non-FIPS linux/amd64 for now, as other builds
 # have compilation issues that require fixing.
+with_bpf := no
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
-ifeq ("$(FIPS)","")
 ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
+with_bpf := yes
 BPF_TAG := bpf
 BPF_ENT_MESSAGE := "with BPF support"
-endif
+CLANG ?= $(shell which clang || which clang-10)
+CLANG_FORMAT ?= $(shell which clang-format || which clang-format-10)
+LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
+KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/')
+INCLUDES :=
+BPF_ENT_BUILDDIR := ../lib/bpf/bytecode
+
+# Get Clang's default includes on this system. We'll explicitly add these dirs
+# to the includes list when compiling with `-target bpf` because otherwise some
+# architecture-specific dirs will be "missing" on some architectures/distros -
+# headers such as asm/types.h, asm/byteorder.h, asm/socket.h, asm/sockios.h,
+# sys/cdefs.h etc. might be missing.
+#
+# Use '-idirafter': Don't interfere with include mechanics except where the
+# build would have failed anyways.
+CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
+	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
+
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -Wl,-Bdynamic"
 endif
 endif
 endif
@@ -79,12 +98,38 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets-e teleport-fips-check
+$(BUILDDIR)/teleport: ensure-webassets-e bpf-bytecode teleport-fips-check
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
+
+#
+# BPF support (IF ENABLED)
+# Requires a recent version of clang and libbpf installed.
+#
+ifeq ("$(with_bpf)","yes")
+$(BPF_ENT_BUILDDIR):
+	mkdir -p $(BPF_ENT_BUILDDIR)
+
+# Build BPF code
+$(BPF_ENT_BUILDDIR)/%.bpf.o: ../bpf/%.bpf.c $(wildcard ../bpf/*.h) | $(BPF_ENT_BUILDDIR)
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(LLVM_STRIP) -g $@ # strip useless DWARF info
+
+.PHONY: bpf-bytecode
+bpf-bytecode: $(BPF_ENT_BUILDDIR)/command.bpf.o $(BPF_ENT_BUILDDIR)/disk.bpf.o $(BPF_ENT_BUILDDIR)/network.bpf.o $(BPF_ENT_BUILDDIR)/counter_test.bpf.o
+
+# Generate vmlinux.h based on the installed kernel
+.PHONY: update-vmlinux-h
+update-vmlinux-h:
+	bpftool btf dump file /sys/kernel/btf/vmlinux format c >bpf/vmlinux.h
+
+else
+.PHONY: bpf-bytecode
+bpf-bytecode:
+endif
 
 # If FIPS mode was requested, first compile an extra Teleport binary with symbols included and check that it contains BoringCrypto references.
 .PHONY: teleport-fips-check
