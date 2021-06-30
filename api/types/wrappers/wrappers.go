@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package wrappers provides protobuf wrappers for common teleport map and list types.
 package wrappers
 
 import (
