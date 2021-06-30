@@ -668,21 +668,24 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 		return nil, "", trace.Wrap(err)
 	}
 
+	return a.filterAndListNodes(ctx, namespace, limit, startKey)
+}
+
+func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
 	page = make([]types.Server, 0, limit)
-	nextKey, err = a.authServer.IterateNodePages(ctx, namespace, limit, startKey, func(next []types.Server) (bool, error) {
+	nextKey, err = a.authServer.IterateNodePages(ctx, namespace, limit, startKey, func(nextPage []types.Server) (bool, error) {
 		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
-		filteredPage, err := a.filterNodes(next)
+		filteredPage, err := a.filterNodes(nextPage)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 
-		// We have more than enough nodes to fill a page
-		// append some of the nodes and break out of iterator
+		// We have more than enough nodes to fill the page, cut it to size.
 		if len(filteredPage) > limit-len(page) {
-			page = append(page, filteredPage[:limit-len(page)]...)
-			return true, nil
+			filteredPage = filteredPage[:limit-len(page)]
 		}
 
+		// Add filteredPage and break out of iterator if the page is now full.
 		page = append(page, filteredPage...)
 		return len(page) == limit, nil
 	})
@@ -690,8 +693,7 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 		return nil, "", trace.Wrap(err)
 	}
 
-	// Filled a page, reset nextKey in case the
-	// last node wasn't included after filtering.
+	// Filled a page, reset nextKey in case the last node was cut out.
 	if len(page) == limit {
 		lastKey := page[len(page)-1].GetName()
 		nextKey = backend.NextKeyString(lastKey)

@@ -2134,18 +2134,18 @@ func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit i
 		return "", trace.BadParameter("nonpositive parameter limit")
 	}
 
-	// Get all nodes
-	nodes, err := a.GetCache().GetNodes(ctx, namespace)
+	// Get all nodes.
+	nodes, err := a.GetNodes(ctx, namespace)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	// Find startIndex
+	// Find startIndex.
 	startIndex := sort.Search(len(nodes), func(i int) bool {
 		return nodes[i].GetName() >= startKey
 	})
 
-	// Iterate over pages
+	// Iterate over pages.
 	for nextIndex := startIndex; nextIndex != len(nodes); nextIndex += limit {
 		// This is the last page, return empty nextKey.
 		if nextIndex+limit > len(nodes) {
