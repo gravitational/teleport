@@ -49,18 +49,18 @@ This will be sent along with the other existing parameters in a
 https://github.com/gravitational/teleport/blob/d4247cb150d720be97521347b74bf9c526ae869f/lib/auth/auth.go#L1538-L1563).
 
 The auth server will then:
-1. Use the AWS DSA public certificate to check that the PKCS7 signature for the
-   IID is valid.
-   - The `region` field of the IID will be used to select the correct public
-     certificate
-     (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/verify-pkcs7.html).
-2. Check that the `pendingTime` of the IID, which is the time the instance was
+1. Check that the `pendingTime` of the IID, which is the time the instance was
    launched, is within a 5 minute TTL.
    - if the node fails to join the cluster during this window, the user can
      stop and restart the EC2 instance to reset the `pendingTime` (and
      effectively create a new IID with a new signature)
-3. Check that the AWS join token matches the AWS account in the IID, and the
-   requested Teleport service role.
+2. Check that the AWS join token matches the AWS `account` and `region` in the
+   IID, and the requested Teleport service role.
+3. Use the AWS DSA public certificate to check that the PKCS7 signature for the
+   IID is valid.
+   - The `region` field of the IID will be used to select the correct public
+     certificate
+     (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/verify-pkcs7.html).
 4. Check that this EC2 instance has not already joined the cluster.
    - The node name will be set to `<aws_account_id>-<aws_instance_id>` so that
      the auth server can efficiently check the backend to see whether this
@@ -79,7 +79,7 @@ server is running, there are a few extra required steps:
    needs permissions for `ec2:DescribeInstances`.
 2. The IAM role of the Auth server needs permissions to `sts:AssumeRole` for
    the ARN of every foreign IAM role from step 1. These ARNs will need to be
-   configured in the AWS join token.
+   configured in the `aws_role` field of the AWS join token.
 
 ### IAM Method
 
@@ -187,9 +187,14 @@ spec:
     # If the IAM method is chosen, `aws_role` would be optional but could be used
     # to restrict the role of joining nodes.
     aws_role: "arn:aws:iam::111111111111:role/example-role"
+    # `aws_regions` is only applicable for the EC2 method, and restricts the
+    # regions from which a node can join. An empty or omitted list will allow
+    # any region
+    aws_regions: ["us-west-2", "us-east-1"]
   # Multiple token rules can be listed
   - aws_account: "222222222222"
     aws_role: "arn:aws:iam::222222222222:role/example-role"
+    aws_regions: ["us-gov-east-1"]
   - aws_account: "333333333333"
     aws_role: "arn:aws:iam::333333333333:role/other-example-role"
 ```
