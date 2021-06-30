@@ -668,39 +668,36 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 		return nil, "", trace.Wrap(err)
 	}
 
-	// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
 	page = make([]types.Server, 0, limit)
-	for len(page) != limit {
-		// TODO (Joerger): Each call to ListNodes reloads all nodes. Ideally, this function
-		// could iterate over an abstracted page iterator that only loads nodes once.
-		nextPage, nextKey, err := a.authServer.ListNodes(ctx, namespace, limit, startKey)
+	nextKey, err = a.authServer.IterateNodePages(ctx, namespace, limit, startKey, func(next []types.Server) (bool, error) {
+		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
+		filteredPage, err := a.filterNodes(next)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return false, trace.Wrap(err)
 		}
 
-		filteredPage, err := a.filterNodes(nextPage)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-
-		// We have more than enough nodes to fill a page,
-		// append some of the nodes and reset the nextKey.
+		// We have more than enough nodes to fill a page
+		// append some of the nodes and break out of iterator
 		if len(filteredPage) > limit-len(page) {
 			page = append(page, filteredPage[:limit-len(page)]...)
-			lastKey := page[len(page)-1].GetName()
-			nextKey = backend.NextKeyString(lastKey)
-			return page, nextKey, nil
+			return true, nil
 		}
 
 		page = append(page, filteredPage...)
-
-		// No more pages left, return partial page.
-		if startKey = nextKey; startKey == "" {
-			return page, nextKey, nil
-		}
+		return len(page) == limit, nil
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
-	return page, startKey, nil
+	// Filled a page, reset nextKey in case the
+	// last node wasn't included after filtering.
+	if len(page) == limit {
+		lastKey := page[len(page)-1].GetName()
+		nextKey = backend.NextKeyString(lastKey)
+	}
+
+	return page, nextKey, nil
 }
 
 func (a *ServerWithRoles) UpsertAuthServer(s types.Server) error {
