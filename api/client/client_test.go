@@ -362,8 +362,11 @@ func testListNodes(ctx context.Context, t *testing.T, clt *Client) {
 	_, _, err = clt.ListNodes(ctx, defaults.Namespace, 50, "")
 	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
 
-	// ListNodes should return a bad parameter error when given a limit of 0
+	// ListNodes should return a bad parameter error when given a nonpositive limit
 	_, _, err = clt.ListNodes(ctx, defaults.Namespace, 0, "")
+	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+	_, _, err = clt.ListNodes(ctx, defaults.Namespace, -1, "")
 	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
 	// ListNodes should return a bad parameter error when given an empty namespace

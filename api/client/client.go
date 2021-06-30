@@ -1277,8 +1277,9 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 		resp, nextKey, err := c.ListNodes(ctx, namespace, chunkSize, startKey)
 		if trace.IsLimitExceeded(err) {
 			// Cut chunkSize in half if gRPC max message size is exceeded.
-			if chunkSize = chunkSize / 2; chunkSize == 0 {
-				// This is an extremely unlikely scenario, but better to cover it anyways.
+			chunkSize = chunkSize / 2
+			// This is an extremely unlikely scenario, but better to cover it anyways.
+			if chunkSize == 0 {
 				return nil, trace.Wrap(trail.FromGRPC(err), "Node is too large to retrieve over gRPC (over 4MiB).")
 			}
 			continue
@@ -1301,13 +1302,13 @@ func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, sta
 	if namespace == "" {
 		return nil, "", trace.BadParameter("missing parameter namespace")
 	}
-	if limit == 0 {
-		return nil, "", trace.BadParameter("missing parameter limit")
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive parameter limit")
 	}
 
 	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
 		Namespace: namespace,
-		Limit:     int32(limit),
+		Limit:     uint32(limit),
 		StartKey:  startKey,
 	}, c.callOpts...)
 	if err != nil {

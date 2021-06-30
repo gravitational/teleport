@@ -871,7 +871,7 @@ message ListNodesRequest {
     // Namespace is the namespace of resources.
     string Namespace = 1;
     // Limit is the maximum amount of nodes to retrieve.
-    int32 Limit = 2;
+    uint32 Limit = 2;
     // StartKey is used to start listing nodes from a specific spot. This should
     // be set to the previous NextKey value if using pagination, or left empty.
     string StartKey = 3;

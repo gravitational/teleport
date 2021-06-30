@@ -2125,6 +2125,13 @@ func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...service
 
 // ListNodes returns a paginated list of nodes.
 func (a *Server) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+	if namespace == "" {
+		return nil, "", trace.BadParameter("missing parameter namespace")
+	}
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive parameter limit")
+	}
+
 	nodes, err := a.GetCache().GetNodes(ctx, namespace)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
