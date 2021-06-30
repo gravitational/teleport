@@ -12,14 +12,14 @@ cd teleport
 # generate a ServiceAccount using the get-kubeconfig script
 TELEPORT_NAMESPACE="ci-teleport" examples/k8s-auth/get-kubeconfig.sh
 
-# copy the generated kubeconfig and add to CI as a secret
-mv kubeconfig INTEGRATION_TEST_KUBECONFIG
+# copy the generated kubeconfig, then add it to CI as a secret (out of band)
+mv kubeconfig INTEGRATION_CI_KUBECONFIG
 
-# add additional required RBAC fixtures
+# add the additional required RBAC fixtures
 kubectl create -f fixtures/ci-teleport-rbac/ci-teleport.yaml
 
 # remove the additional teleport permissions that were added by the get-kubeconfig script
-# (these are not needed for CI)
+# (as these are not needed for CI, we can remove them for greater security)
 kubectl delete clusterrole/teleport-role
 kubectl delete clusterrolebinding/teleport-crb
 ```
