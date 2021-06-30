@@ -1,4 +1,5 @@
 clusterName: helm-lint
+chartMode: custom
 highAvailability:
   replicaCount: 3
   podDisruptionBudget:
