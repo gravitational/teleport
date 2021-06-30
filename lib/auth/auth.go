@@ -33,7 +33,6 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -2123,46 +2122,39 @@ func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...service
 	return a.GetCache().GetNodes(ctx, namespace, opts...)
 }
 
+// ListNodes is a part of auth.AccessPoint implementation
+func (a *Server) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
+	return a.GetCache().ListNodes(ctx, namespace, limit, startKey)
+}
+
 // NodePageFunc is a function to run on each page iterated over.
 type NodePageFunc func(next []types.Server) (stop bool, err error)
 
+// IterateNodePages can be used to iterate over pages of nodes.
 func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit int, startKey string, f NodePageFunc) (string, error) {
 	if namespace == "" {
 		return "", trace.BadParameter("missing parameter namespace")
 	}
-	if limit <= 0 {
-		return "", trace.BadParameter("nonpositive parameter limit")
-	}
 
-	// Get all nodes.
-	nodes, err := a.GetNodes(ctx, namespace)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// Find startIndex.
-	startIndex := sort.Search(len(nodes), func(i int) bool {
-		return nodes[i].GetName() >= startKey
-	})
-
-	// Iterate over pages.
-	for nextIndex := startIndex; nextIndex != len(nodes); nextIndex += limit {
-		// This is the last page, return empty nextKey.
-		if nextIndex+limit > len(nodes) {
-			_, err := f(nodes[nextIndex:])
+	for {
+		nextPage, nextKey, err := a.ListNodes(ctx, namespace, limit, startKey)
+		if err != nil {
 			return "", trace.Wrap(err)
 		}
 
-		if stop, err := f(nodes[nextIndex : nextIndex+limit]); err != nil {
+		stop, err := f(nextPage)
+		if err != nil {
 			return "", trace.Wrap(err)
-		} else if stop {
-			// Iterator stopped before end of pages, return nextKey
-			lastKey := nodes[nextIndex+limit-1].GetName()
-			return backend.NextKeyString(lastKey), nil
 		}
+
+		// Iterator stopped before end of pages or
+		// there are no more pages, return nextKey
+		if stop || nextKey == "" {
+			return nextKey, nil
+		}
+
+		startKey = nextKey
 	}
-	// There are no more nodes to list, return empty nextKey.
-	return "", nil
 }
 
 // GetReverseTunnels is a part of auth.AccessPoint implementation

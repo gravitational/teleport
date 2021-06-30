@@ -285,7 +285,7 @@ func TestListNodes(t *testing.T) {
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes := testNodes[:5]
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
-	expectedNextKey := backend.NextKeyString(testNodes[4].GetName())
+	expectedNextKey := backend.NextResourceKey(testNodes[4])
 	require.EqualValues(t, expectedNextKey, nextKey)
 
 	nodes, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 5, nextKey)
@@ -293,7 +293,7 @@ func TestListNodes(t *testing.T) {
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = testNodes[5:]
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
-	expectedNextKey = backend.NextKeyString(testNodes[9].GetName())
+	expectedNextKey = backend.NextResourceKey(testNodes[9])
 	require.EqualValues(t, expectedNextKey, nextKey)
 
 	nodes, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 5, nextKey)
@@ -311,6 +311,6 @@ func TestListNodes(t *testing.T) {
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
-	expectedNextKey = backend.NextKeyString(testNodes[5].GetName())
+	expectedNextKey = backend.NextResourceKey(testNodes[5])
 	require.EqualValues(t, expectedNextKey, nextKey)
 }

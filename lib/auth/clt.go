@@ -1952,8 +1952,6 @@ type ClientI interface {
 	types.WebTokensGetter
 
 	services.Presence
-	// ListNodes returns a paginated list of registered servers.
-	ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error)
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)

@@ -244,6 +244,11 @@ func NextKeyString(key string) string {
 	return string(NextKey([]byte(key)))
 }
 
+// NextResourceKey returns the very next possible resource key as a string.
+func NextResourceKey(r types.Resource) string {
+	return NextKeyString(r.GetName())
+}
+
 // Items is a sortable list of backend items
 type Items []Item
 

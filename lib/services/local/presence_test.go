@@ -222,6 +222,33 @@ func TestNodeCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, len(nodes), 2)
 
+	// list nodes one at a time, last page should be empty
+	nodes, lastKey, err := presence.ListNodes(ctx, apidefaults.Namespace, 1, "")
+	require.NoError(t, err)
+	require.EqualValues(t, len(nodes), 1)
+	node1.SetResourceID(nodes[0].GetResourceID())
+	require.EqualValues(t, []types.Server{node1}, nodes)
+	require.NotEqualValues(t, lastKey, "")
+
+	nodes, lastKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, lastKey)
+	require.NoError(t, err)
+	require.EqualValues(t, len(nodes), 1)
+	node2.SetResourceID(nodes[0].GetResourceID())
+	require.EqualValues(t, []types.Server{node2}, nodes)
+	require.NotEqualValues(t, lastKey, "")
+
+	nodes, lastKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, lastKey)
+	require.NoError(t, err)
+	require.EqualValues(t, len(nodes), 0)
+	require.EqualValues(t, lastKey, "")
+
+	// GetNodes and ListNodes should fail if namespace isn't provided
+	_, err = presence.GetNodes(ctx, "")
+	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+	_, _, err = presence.ListNodes(ctx, "", 100, "")
+	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
 	// get node1
 	node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
 	require.NoError(t, err)
