@@ -1,4 +1,10 @@
 # defines the permissions needed for Teleport k8s integration tests to run in a cluster
+# namespace for teleport tests
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: teletest
+---
 # clusterrole granting overarching privileges
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -82,3 +88,17 @@ roleRef:
 subjects:
 - kind: Group
   name: teleport-ci-test-group
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+  namespace: teletest
+spec:
+  containers:
+  - image: nginx:alpine
+    imagePullPolicy: IfNotPresent
+    name: nginx
+  nodeSelector:
+    drone: worker
+  restartPolicy: Always
