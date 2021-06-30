@@ -1,3 +1,6 @@
+{{- if and (eq .Values.chartMode "aws") ( not .Values.aws.defaultServiceAnnotations ) (not .Values.annotations.service)}}
+{{- fail "AWS mode requires either the default AWS service annotations or define your own in .annotations.service" }}
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -10,7 +13,7 @@ metadata:
     {{- if .Values.annotations.service }}
       {{- toYaml .Values.annotations.service | nindent 4 }}
     {{- end }}
-    {{- if eq .Values.chartMode "aws" }}
+    {{- if and (eq .Values.chartMode "aws")  (.Values.aws.defaultServiceAnnotations) }}
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
     service.beta.kubernetes.io/aws-load-balancer-type: nlb

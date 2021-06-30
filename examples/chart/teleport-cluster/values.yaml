@@ -77,6 +77,10 @@ aws:
   # The S3 bucket name to use for recorded session storage. Teleport will attempt to create this bucket automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create S3 buckets.
   sessionRecordingBucket: ""
+  # If true, use the default AWS service annotations
+  # If using a different controller for your services (i.e. AWS Load Balancer Controller)
+  #   set to false and define your own in annotations -> service
+  defaultServiceAnnotations: true
 
 ##################################################
 # GCP-specific settings (only used in "gcp" mode)

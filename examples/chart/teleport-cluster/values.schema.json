@@ -118,6 +118,11 @@
                     "$id": "#/properties/aws/properties/sessionRecordingBucket",
                     "type": "string",
                     "default": ""
+                },
+                "defaultServiceAnnotations": {
+                    "$id": "#/properties/aws/properties/defaultServiceAnnotations",
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },

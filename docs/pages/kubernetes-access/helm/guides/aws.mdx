@@ -235,6 +235,7 @@ The `--set` CLI method is more appropriate for quick test deployments.
     backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
     auditLogTable: teleport-helm-events             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
     sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
+    defaultServiceAnnotations: true                 # Use the default service annotations
   highAvailability:
     replicaCount: 2                                 # Number of replicas to configure
     certManager:
@@ -265,6 +266,7 @@ The `--set` CLI method is more appropriate for quick test deployments.
     --set aws.backendTable=teleport-helm-backend                          `# DynamoDB table to use for the Teleport backend` \
     --set aws.auditLogTable=teleport-helm-events                          `# DynamoDB table to use for the Teleport audit log (must be different to the backend table)` \
     --set aws.sessionRecordingBucket=teleport-helm-sessions               `# S3 bucket to use for Teleport session recordings` \
+    --set aws.defaultServiceAnnotations=true                              `# Use the default service annotations` \
     --set highAvailability.replicaCount=2                                 `# Number of replicas to configure` \
     --set highAvailability.certManager.enabled=true                       `# Enable cert-manager support to get TLS certificates` \
     --set highAvailability.certManager.issuerName=letsencrypt-production  `# Name of the cert-manager Issuer to use`
