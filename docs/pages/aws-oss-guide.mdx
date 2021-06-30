@@ -104,9 +104,9 @@ DynamoDB Table B - Teleport Cluster Events:
 | Primary partition key | SessionID (String) |
 | Primary sort key | EventIndex (Number) |
 
-| Indexes - `timesearch` | teleport-cluster-name-events |
+| Indexes - `timesearchV2` | teleport-cluster-name-events |
 | - | - |
-| Primary partition key | EventNamespace (String) |
+| Primary partition key | CreatedAtDate (String) |
 | Primary sort key | CreatedAt (Number) |
 | Attributes | ALL |
 
@@ -141,7 +141,7 @@ proxy and provides the TCP connections needed for Teleport proxy SSH connections
 
 ### IAM
 
-IAM is the recommended tool for creating service access. 
+IAM is the recommended tool for creating service access.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -532,7 +532,7 @@ aws eks update-kubeconfig --name [teleport-cluster] --region us-west-2
 
 #### Creating TLS certificate for Teleport
 
-This section walks through configuring Teleport to acquire a TLS (SSL) certificate for HTTPS. 
+This section walks through configuring Teleport to acquire a TLS (SSL) certificate for HTTPS.
 
 <Admonition type="warning" title="Warning">
   It's essential to properly configure TLS (SSL) to secure your production resources!
