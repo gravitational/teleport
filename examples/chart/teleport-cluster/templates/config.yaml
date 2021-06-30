@@ -38,6 +38,8 @@ data:
   {{- if .Values.enterprise }}
       license_file: '/var/lib/license/license.pem'
   {{- end }}
+      authentication:
+        type: {{ required "authenticationType is required in chart values" .Values.authenticationType }}
     kubernetes_service:
       enabled: true
       listen_addr: 0.0.0.0:3027
