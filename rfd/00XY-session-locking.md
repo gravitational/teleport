@@ -33,8 +33,8 @@ message LockSpecV2 {
     // Message is the message displayed to locked-out users.
     string Message;
 
-    // InForceUntil specifies the time when the lock ceases to be in force.
-    google.protobuf.Timestamp InForceUntil;
+    // Expires if set specifies TTL for the lock.
+    google.protobuf.Timestamp Expires;
 }
 
 // LockTarget lists the attributes of interactions to be disabled.
@@ -209,7 +209,7 @@ The showed YAML would also correspond to the output of `tctl get lock/dc7cee9d-f
 #### Creating a lock with expiry
 
 ```
-$ tctl lock --role=developers --message="Cluster maintenance." --in-force-for=10h
+$ tctl lock --role=developers --message="Cluster maintenance." --expires-in=10h
 Created a lock with ID "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
 ```
 
@@ -226,13 +226,13 @@ spec:
   target:
     role: developers
   message: "Cluster maintenance."
-  in_force_until: "2021-06-14T22:27:00Z"   # RFC3339
+  expires: "2021-06-14T22:27:00Z"   # RFC3339
 version: v2
 EOF
 ```
 and
 ```sh
-tctl lock --role=developers --message="Cluster maintenance." --in-force-until="2021-06-14T22:27:00Z"
+tctl lock --role=developers --message="Cluster maintenance." --expires="2021-06-14T22:27:00Z"
 ```
 
 #### Generation of new user certificates prevented
