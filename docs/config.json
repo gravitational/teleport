@@ -167,7 +167,6 @@
       "icon": "book",
       "title": "Infrastructure Guides",
       "entries": [
-        { "title": "AWS", "slug": "/aws-oss-guide/" },
         { "title": "GCP", "slug": "/gcp-guide/" },
         { "title": "IBM", "slug": "/ibm-cloud-guide/" }
       ]
