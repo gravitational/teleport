@@ -1940,6 +1940,7 @@ type ClientI interface {
 	events.IAuditLog
 	events.Streamer
 	apievents.Emitter
+	services.Presence
 	services.Access
 	services.DynamicAccess
 	services.DynamicAccessOracle
@@ -1950,8 +1951,6 @@ type ClientI interface {
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
-
-	services.Presence
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)

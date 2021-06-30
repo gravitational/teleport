@@ -213,10 +213,10 @@ func (p Params) GetString(key string) string {
 // NoLimit specifies no limits
 const NoLimit = 0
 
-// NextKey returns the very next possible key.
+// nextKey returns the next possible key.
 // If used with a key prefix, this will return
 // the end of the range for that key prefix.
-func NextKey(key []byte) []byte {
+func nextKey(key []byte) []byte {
 	end := make([]byte, len(key))
 	copy(end, key)
 	for i := len(end) - 1; i >= 0; i-- {
@@ -236,17 +236,12 @@ var (
 
 // RangeEnd returns end of the range for given key.
 func RangeEnd(key []byte) []byte {
-	return NextKey(key)
+	return nextKey(key)
 }
 
-// NextKey returns the very next possible key as a string.
-func NextKeyString(key string) string {
-	return string(NextKey([]byte(key)))
-}
-
-// NextResourceKey returns the very next possible resource key as a string.
+// NextResourceKey returns the next possible resource key as a string.
 func NextResourceKey(r types.Resource) string {
-	return NextKeyString(r.GetName())
+	return string(nextKey([]byte(r.GetName())))
 }
 
 // Items is a sortable list of backend items

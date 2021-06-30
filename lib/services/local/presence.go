@@ -256,6 +256,9 @@ func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit
 	if namespace == "" {
 		return nil, "", trace.BadParameter("missing namespace value")
 	}
+	if limit < 0 {
+		return nil, "", trace.BadParameter("negative limit value")
+	}
 
 	// Get all items in the bucket within the given range.
 	rangeStart := backend.Key(nodesPrefix, namespace, startKey)

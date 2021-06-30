@@ -2132,10 +2132,6 @@ type NodePageFunc func(next []types.Server) (stop bool, err error)
 
 // IterateNodePages can be used to iterate over pages of nodes.
 func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit int, startKey string, f NodePageFunc) (string, error) {
-	if namespace == "" {
-		return "", trace.BadParameter("missing parameter namespace")
-	}
-
 	for {
 		nextPage, nextKey, err := a.ListNodes(ctx, namespace, limit, startKey)
 		if err != nil {
