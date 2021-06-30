@@ -469,6 +469,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	var values []events.EventFields
 	var parsedStartKey int64
 	var err error
+	reachedEnd := false
 	totalSize := 0
 
 	if startKey != "" {
@@ -498,6 +499,10 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	batchReadRequests.Inc()
 	if err != nil {
 		return nil, "", firestorebk.ConvertGRPCError(err)
+	}
+
+	if len(docSnaps) < limit {
+		reachedEnd = true
 	}
 
 	g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
@@ -545,7 +550,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	}
 
 	var lastKeyString string
-	if lastKey != 0 {
+	if lastKey != 0 && !reachedEnd {
 		lastKeyString = fmt.Sprintf("%d", lastKey)
 	}
 
