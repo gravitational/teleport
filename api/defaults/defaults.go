@@ -71,5 +71,5 @@ func EnhancedEvents() []string {
 
 const (
 	// DefaultChunkSize is the default chunk size for paginated endpoints.
-	DefaultChunkSize = 100
+	DefaultChunkSize = 1000
 )

@@ -671,6 +671,8 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 	// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
 	page = make([]types.Server, 0, limit)
 	for len(page) != limit {
+		// TODO (Joerger): Each call to ListNodes reloads all nodes. Ideally, this function
+		// could iterate over an abstracted page iterator that only loads nodes once.
 		nextPage, nextKey, err := a.authServer.ListNodes(ctx, namespace, limit, startKey)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
