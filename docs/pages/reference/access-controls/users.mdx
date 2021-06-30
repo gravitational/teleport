@@ -1,0 +1,40 @@
+---
+title: Teleport Users Configuration Reference
+description: The detailed guide and reference documentation for Teleport User YAML Configuration.
+h1: User YAML Configuration
+---
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+## Example User YAML
+
+Minimum example:
+
+```yaml
+# user.yaml
+
+(!docs/pages/includes/users_config.yaml!)
+````
+
+Detailed example:
+
+```yaml
+# user.yaml
+
+(!examples/resources/user.yaml!)
+````
+
+## YAML Table
+
+| Attribute | Parent Field | Required | Description | Default Value | Accepted Values |
+| --- | --- |  --- | --- |  --- | --- |
+| kind | | | | |
+| version | | | | |
+| metadata | | | | |
+| name | metadata | | | | 
+| spec |  | | | | 
+| roles | spec | | | | 
+
+## Additional resources
+
+- Check out our [Admin Guide](../../admin-guide.mdx).

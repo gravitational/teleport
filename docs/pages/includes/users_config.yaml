@@ -1,0 +1,6 @@
+kind: user
+metadata:
+  name: tele-admin
+spec:
+  roles: ['access','editor']
+version: v2

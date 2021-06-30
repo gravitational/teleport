@@ -226,7 +226,6 @@
       "icon": "list",
       "title": "Reference",
       "entries": [
-        { "title": "YAML", "slug": "/config-reference/" },
         {
           "title": "CLI",
           "slug": "/reference/cli-docs/",
@@ -238,12 +237,34 @@
         },
         { "title": "Cheatsheet", "slug": "/reference/cheatsheet/" },
         {
-          "title": "API",
-          "slug": "/reference/api/",
+          "title": "Teleport YAML",
+          "slug": "/reference/product-config/",
           "entries": [
-            {"title": "Introduction", "slug": "/reference/api/introduction/"},
+            {"title": "Teleport", "slug": "/reference/product-config/teleport/"},
+            {"title": "Application", "slug": "/reference/product-config/teleport/#application-access"},
+            {"title": "Kubernetes", "slug": "/reference/product-config/teleport/#kubernetes-access"},
+            {"title": "Kubernetes Helm Chart", "slug": "/reference/product-config/kubernetes/"},
+            {"title": "Database", "slug": "/reference/product-config/teleport/#database-access"},
+            {"title": "Trusted Cluster", "slug": "/reference/product-config/trusted-cluster/"}
+          ]
+        },
+        {
+          "title": "Access Controls",
+          "slug": "/reference/access-controls/",
+          "entries": [
+            {"title": "Roles", "slug": "/reference/access-controls/roles/"},
+            {"title": "Users", "slug": "/reference/access-controls/users/"},
+            {"title": "Single Sign-On", "slug": "/reference/access-controls/single-sign-on/"}
+          ]
+        },
+        { "title": "Plugins", "slug": "/reference/configuration/plugins/" },
+        {
+          "title": "API",
+          "slug": "/reference/api/introduction/",
+          "entries": [
             {"title": "Getting Started", "slug": "/reference/api/getting-started/"},
-            {"title": "Architecture", "slug": "/reference/api/architecture/"}
+            {"title": "Architecture", "slug": "/reference/api/architecture/"},
+            {"title": "Reference (pkg.go.dev)", "slug": "https://pkg.go.dev/github.com/gravitational/teleport/api"}
           ]
         },
         { "title": "Metrics", "slug": "/metrics-logs-reference/" }
@@ -347,6 +368,16 @@
     {
       "source": "/cli-docs/",
       "destination": "/reference/cli-docs/",
+      "permanent": true
+    },
+    { 
+      "source": "/config-reference/",
+      "destination": "/reference/configuration/",
+      "permanent": true
+    },
+    { 
+      "source": "/reference/api/",
+      "destination": "/reference/api/introduction/",
       "permanent": true
     }
   ]
