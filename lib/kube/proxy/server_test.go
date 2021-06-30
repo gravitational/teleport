@@ -48,7 +48,7 @@ func TestMTLSClientCAs(t *testing.T) {
 	addCA := func(t *testing.T, name string) (key, cert []byte) {
 		key, cert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(caKey, pkix.Name{CommonName: name}, nil, time.Minute)
 		require.NoError(t, err)
-		ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 			Type:        types.HostCA,
 			ClusterName: name,
 			ActiveKeys: types.CAKeySet{
@@ -58,6 +58,7 @@ func TestMTLSClientCAs(t *testing.T) {
 				}},
 			},
 		})
+		require.NoError(t, err)
 		ap.cas[name] = ca
 		return key, cert
 	}

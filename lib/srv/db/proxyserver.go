@@ -24,12 +24,10 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -150,7 +148,7 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 		// The connection is expected to come through via multiplexer.
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection) || trace.IsConnectionProblem(err) {
+			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -182,7 +180,7 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 		// Accept the connection from a MySQL client.
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection) {
+			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -196,6 +194,50 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 			}
 		}()
 	}
+}
+
+// ServeTLS starts accepting database connections that use plain TLS connection.
+func (s *ProxyServer) ServeTLS(listener net.Listener) error {
+	s.log.Debug("Started database TLS proxy.")
+	defer s.log.Debug("Database TLS proxy exited.")
+	for {
+		clientConn, err := listener.Accept()
+		if err != nil {
+			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		go func() {
+			defer clientConn.Close()
+			err := s.handleConnection(clientConn)
+			if err != nil {
+				s.log.WithError(err).Error("Failed to handle database TLS connection.")
+			}
+		}()
+	}
+}
+
+func (s *ProxyServer) handleConnection(conn net.Conn) error {
+	s.log.Debugf("Accepted TLS database connection from %v.", conn.RemoteAddr())
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		return trace.BadParameter("expected *tls.Conn, got %T", conn)
+	}
+	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, tlsConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	serviceConn, authContext, err := s.Connect(ctx, "", "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer serviceConn.Close()
+	err = s.Proxy(ctx, authContext, tlsConn, serviceConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // dispatch dispatches the connection to appropriate database proxy.
@@ -351,7 +393,7 @@ type monitorConnConfig struct {
 // configured, and unmodified client connection otherwise.
 func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	certExpires := cfg.identity.Expires
-	authPref, err := cfg.authClient.GetAuthPreference()
+	authPref, err := cfg.authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -415,8 +457,12 @@ func (s *ProxyServer) authorize(ctx context.Context, user, database string) (*pr
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
-	identity.RouteToDatabase.Username = user
-	identity.RouteToDatabase.Database = database
+	if user != "" {
+		identity.RouteToDatabase.Username = user
+	}
+	if database != "" {
+		identity.RouteToDatabase.Database = database
+	}
 	cluster, servers, err := s.getDatabaseServers(ctx, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)

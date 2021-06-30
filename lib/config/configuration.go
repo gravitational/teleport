@@ -315,6 +315,16 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.CAPin = fc.CAPin
 	}
 
+	// Set diagnostic address
+	if fc.DiagAddr != "" {
+		// Validate address
+		parsed, err := utils.ParseAddr(fc.DiagAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.DiagnosticAddr = *parsed
+	}
+
 	// apply connection throttling:
 	limiters := []*limiter.Config{
 		&cfg.SSH.Limiter,
@@ -502,10 +512,11 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Set cluster networking configuration from file configuration.
 	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
-		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
-		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
-		SessionControlTimeout: fc.Auth.SessionControlTimeout,
+		ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
+		ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
+		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
+		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
+		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -980,7 +991,7 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 	}
 
 	// create a new certificate authority
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.UserCA,
 		ClusterName: clusterName,
 		ActiveKeys: types.CAKeySet{
@@ -991,6 +1002,9 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 		Roles:      nil,
 		SigningAlg: types.CertAuthoritySpecV2_UNKNOWN,
 	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -1024,7 +1038,7 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority,
 	const prefix = "*."
 	domainName := strings.TrimPrefix(options[0], prefix)
 
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        authType,
 		ClusterName: domainName,
 		ActiveKeys: types.CAKeySet{
@@ -1033,6 +1047,9 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority,
 			}},
 		},
 	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -1135,7 +1152,11 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 			tunnelAddresses = append(tunnelAddresses, addr.FullAddress())
 		}
 		if len(tunnelAddresses) > 0 {
-			conf.ReverseTunnels = append(conf.ReverseTunnels, types.NewReverseTunnel(clusterName, tunnelAddresses))
+			rt, err := types.NewReverseTunnel(clusterName, tunnelAddresses)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			conf.ReverseTunnels = append(conf.ReverseTunnels, rt)
 		}
 	}
 	return nil

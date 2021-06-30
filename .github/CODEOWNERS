@@ -3,7 +3,9 @@
 
 # Documentation.
 /docs/ @inertial-frame @klizhentas
+/docs/pages/application-access/ @inertial-frame @klizhentas @r0mant
+/docs/pages/database-access/ @inertial-frame @klizhentas @r0mant
 
 # Frontend Engineering.
-/lib/web/ @alex-kovoy @russjones  @r0mant
-/webassets/ @alex-kovoy @russjones  @r0mant
+/lib/web/ @alex-kovoy @russjones @r0mant
+/webassets/ @alex-kovoy @russjones @r0mant

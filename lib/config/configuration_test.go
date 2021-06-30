@@ -523,6 +523,8 @@ func TestApplyConfig(t *testing.T) {
 	require.Len(t, cfg.Proxy.MySQLPublicAddrs, 1)
 	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
 
+	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
+
 	u2fCAFromFile, err := ioutil.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cfg.Auth.Preference, &types.AuthPreferenceV2{
@@ -1402,21 +1404,6 @@ db_service:
     uri: 192.168.1.1
 `,
 			outError: `invalid database "foo" address`,
-		},
-		{
-			desc: "missing Redshift region",
-			inConfigString: `
-db_service:
-  enabled: true
-  databases:
-  - name: foo
-    protocol: postgres
-    uri: 192.168.1.1:5438
-    aws:
-      redshift:
-        cluster_id: cluster-1
-`,
-			outError: `missing AWS region for Redshift database "foo"`,
 		},
 	}
 	for _, tt := range tests {

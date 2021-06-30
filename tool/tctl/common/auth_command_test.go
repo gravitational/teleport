@@ -30,7 +30,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
 	if err != nil {
@@ -42,7 +42,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "example.com",
 		ActiveKeys: types.CAKeySet{
@@ -52,6 +52,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		Roles:      nil,
 		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
+	require.NoError(t, err)
 
 	client := mockClient{
 		clusterName:    clusterName,
@@ -236,7 +237,7 @@ func (c mockClient) GenerateDatabaseCert(context.Context, *proto.DatabaseCertReq
 
 func TestCheckKubeCluster(t *testing.T) {
 	const teleportCluster = "local-teleport"
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: teleportCluster,
 	})
 	require.NoError(t, err)

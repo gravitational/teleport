@@ -257,6 +257,80 @@ func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string
 
 const hostID = "00000000-0000-0000-0000-000000000000"
 
+func startReadAll(r io.Reader) <-chan []byte {
+	ch := make(chan []byte)
+	go func() {
+		data, _ := ioutil.ReadAll(r)
+		ch <- data
+	}()
+	return ch
+}
+
+func waitForBytes(ch <-chan []byte) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	select {
+	case data := <-ch:
+		return data, nil
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func TestInactivityTimeout(t *testing.T) {
+	const timeoutMessage = "You snooze, you loose."
+
+	// Given
+	//  * a running auth server configured with a 5s inactivity timeout,
+	//  * a running SSH server configured with a given disconnection message
+	//  * a client connected to the SSH server,
+	//  * an SSH session running over the client connection
+	mutateCfg := func(cfg *auth.TestServerConfig) {
+		networkCfg := types.DefaultClusterNetworkingConfig()
+		networkCfg.SetClientIdleTimeout(5 * time.Second)
+		networkCfg.SetClientIdleTimeoutMessage(timeoutMessage)
+
+		cfg.Auth.ClusterNetworkingConfig = networkCfg
+	}
+	f := newCustomFixture(t, mutateCfg)
+
+	// If all goes well, the client will be closed by the time cleanup happens,
+	// so change the assertion on closing the client to expect it to fail
+	f.ssh.assertCltClose = require.Error
+
+	se, err := f.ssh.clt.NewSession()
+	require.NoError(t, err)
+	defer se.Close()
+
+	stderr, err := se.StderrPipe()
+	require.NoError(t, err)
+	stdErrCh := startReadAll(stderr)
+
+	endCh := make(chan error)
+	go func() { endCh <- f.ssh.clt.Wait() }()
+
+	// When I let the session idle (with the clock running at approx 10x speed)...
+	sessionHasFinished := func() bool {
+		f.clock.Advance(1 * time.Second)
+		select {
+		case <-endCh:
+			return true
+
+		default:
+			return false
+		}
+	}
+	require.Eventually(t, sessionHasFinished, 6*time.Second, 100*time.Millisecond,
+		"Timed out waiting for session to finish")
+
+	// Expect that the idle timeout has been delivered via stderr
+	text, err := waitForBytes(stdErrCh)
+	require.NoError(t, err)
+	require.Equal(t, timeoutMessage, string(text))
+}
+
 // TestDirectTCPIP ensures that the server can create a "direct-tcpip"
 // channel to the target address. The "direct-tcpip" channel is what port
 // forwarding is built upon.
@@ -451,13 +525,15 @@ func TestAgentForward(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait for the output
-	var output []byte
-	for i := 0; i < 100 && len(output) == 0; i++ {
-		time.Sleep(10 * time.Millisecond)
-		output, _ = ioutil.ReadFile(tmpFile.Name())
-	}
-	require.NotEmpty(t, output)
-	socketPath := strings.TrimSpace(string(output))
+	var socketPath string
+	require.Eventually(t, func() bool {
+		output, err := ioutil.ReadFile(tmpFile.Name())
+		if err == nil && len(output) != 0 {
+			socketPath = strings.TrimSpace(string(output))
+			return true
+		}
+		return false
+	}, 5*time.Second, 10*time.Millisecond, "failed to read socket path")
 
 	// try dialing the ssh agent socket:
 	file, err := net.Dial("unix", socketPath)
@@ -838,8 +914,9 @@ func TestProxyReverseTunnel(t *testing.T) {
 
 	// Create a reverse tunnel and remote cluster simulating what the trusted
 	// cluster exchange does.
-	err = f.testSrv.Auth().UpsertReverseTunnel(
-		types.NewReverseTunnel(f.testSrv.ClusterName(), []string{reverseTunnelAddress.String()}))
+	rt, err := types.NewReverseTunnel(f.testSrv.ClusterName(), []string{reverseTunnelAddress.String()})
+	require.NoError(t, err)
+	err = f.testSrv.Auth().UpsertReverseTunnel(rt)
 	require.NoError(t, err)
 	remoteCluster, err := types.NewRemoteCluster("localhost")
 	require.NoError(t, err)

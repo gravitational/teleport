@@ -28,7 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -111,33 +111,25 @@ func RoleNameForCertAuthority(name string) string {
 // is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() types.Role {
 	adminRules := getExtendedAdminUserRules(modules.GetModules().Features())
-	role := &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:      teleport.AdminRoleName,
-			Namespace: apidefaults.Namespace,
+	role, _ := types.NewRole(teleport.AdminRoleName, types.RoleSpecV4{
+		Options: types.RoleOptions{
+			CertificateFormat: constants.CertificateFormatStandard,
+			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+			PortForwarding:    types.NewBoolOption(true),
+			ForwardAgent:      types.NewBool(true),
+			BPF:               defaults.EnhancedEvents(),
 		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-				PortForwarding:    types.NewBoolOption(true),
-				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
-			},
-			Allow: types.RoleConditions{
-				Namespaces:       []string{apidefaults.Namespace},
-				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
-				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-				Rules:            adminRules,
-			},
+		Allow: types.RoleConditions{
+			Namespaces:       []string{defaults.Namespace},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
+			DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
+			Rules:            adminRules,
 		},
-	}
+	})
 	role.SetLogins(Allow, []string{teleport.TraitInternalLoginsVariable, teleport.Root})
 	role.SetKubeUsers(Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(Allow, []string{teleport.TraitInternalKubeGroupsVariable})
@@ -147,65 +139,51 @@ func NewAdminRole() types.Role {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
-	return &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:      constants.DefaultImplicitRole,
-			Namespace: apidefaults.Namespace,
+	role, _ := types.NewRole(constants.DefaultImplicitRole, types.RoleSpecV4{
+		Options: types.RoleOptions{
+			MaxSessionTTL: types.MaxDuration(),
+			// PortForwarding has to be set to false in the default-implicit-role
+			// otherwise all roles will be allowed to forward ports (since we default
+			// to true in the check).
+			PortForwarding: types.NewBoolOption(false),
 		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				MaxSessionTTL: types.MaxDuration(),
-				// PortForwarding has to be set to false in the default-implicit-role
-				// otherwise all roles will be allowed to forward ports (since we default
-				// to true in the check).
-				PortForwarding: types.NewBoolOption(false),
-			},
-			Allow: types.RoleConditions{
-				Namespaces: []string{apidefaults.Namespace},
-				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
-			},
+		Allow: types.RoleConditions{
+			Namespaces: []string{defaults.Namespace},
+			Rules:      types.CopyRulesSlice(DefaultImplicitRules),
 		},
-	}
+	})
+	return role
 }
 
 // RoleForUser creates an admin role for a services.User.
 func RoleForUser(u types.User) types.Role {
-	return &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:      RoleNameForUser(u.GetName()),
-			Namespace: apidefaults.Namespace,
+	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV4{
+		Options: types.RoleOptions{
+			CertificateFormat: constants.CertificateFormatStandard,
+			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+			PortForwarding:    types.NewBoolOption(true),
+			ForwardAgent:      types.NewBool(true),
+			BPF:               defaults.EnhancedEvents(),
 		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-				PortForwarding:    types.NewBoolOption(true),
-				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
-			},
-			Allow: types.RoleConditions{
-				Namespaces:       []string{apidefaults.Namespace},
-				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-				Rules: []types.Rule{
-					types.NewRule(types.KindRole, RW()),
-					types.NewRule(types.KindAuthConnector, RW()),
-					types.NewRule(types.KindSession, RO()),
-					types.NewRule(types.KindTrustedCluster, RW()),
-					types.NewRule(types.KindEvent, RO()),
-					types.NewRule(types.KindClusterAuthPreference, RW()),
-					types.NewRule(types.KindClusterNetworkingConfig, RW()),
-					types.NewRule(types.KindSessionRecordingConfig, RW()),
-				},
+		Allow: types.RoleConditions{
+			Namespaces:       []string{defaults.Namespace},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Rules: []types.Rule{
+				types.NewRule(types.KindRole, RW()),
+				types.NewRule(types.KindAuthConnector, RW()),
+				types.NewRule(types.KindSession, RO()),
+				types.NewRule(types.KindTrustedCluster, RW()),
+				types.NewRule(types.KindEvent, RO()),
+				types.NewRule(types.KindClusterAuthPreference, RW()),
+				types.NewRule(types.KindClusterNetworkingConfig, RW()),
+				types.NewRule(types.KindSessionRecordingConfig, RW()),
 			},
 		},
-	}
+	})
+	return role
 }
 
 // NewDowngradedOSSAdminRole is a role for enabling RBAC for open source users.
@@ -217,19 +195,19 @@ func NewDowngradedOSSAdminRole() types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      teleport.AdminRoleName,
-			Namespace: apidefaults.Namespace,
+			Namespace: defaults.Namespace,
 			Labels:    map[string]string{teleport.OSSMigratedV6: types.True},
 		},
 		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
+				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{apidefaults.Namespace},
+				Namespaces:       []string{defaults.Namespace},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -251,35 +229,27 @@ func NewDowngradedOSSAdminRole() types.Role {
 
 // NewOSSGithubRole creates a role for enabling RBAC for open source Github users
 func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) types.Role {
-	role := &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:      "github-" + uuid.New(),
-			Namespace: apidefaults.Namespace,
+	role, _ := types.NewRole("github-"+uuid.New(), types.RoleSpecV4{
+		Options: types.RoleOptions{
+			CertificateFormat: constants.CertificateFormatStandard,
+			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+			PortForwarding:    types.NewBoolOption(true),
+			ForwardAgent:      types.NewBool(true),
+			BPF:               defaults.EnhancedEvents(),
 		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-				PortForwarding:    types.NewBoolOption(true),
-				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
-			},
-			Allow: types.RoleConditions{
-				Namespaces:       []string{apidefaults.Namespace},
-				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
-				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-				Rules: []types.Rule{
-					types.NewRule(types.KindEvent, RO()),
-				},
+		Allow: types.RoleConditions{
+			Namespaces:       []string{defaults.Namespace},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
+			DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
+			Rules: []types.Rule{
+				types.NewRule(types.KindEvent, RO()),
 			},
 		},
-	}
+	})
 	role.SetLogins(Allow, logins)
 	role.SetKubeUsers(Allow, kubeUsers)
 	role.SetKubeGroups(Allow, kubeGroups)
@@ -288,27 +258,20 @@ func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) 
 
 // RoleForCertAuthority creates role using types.CertAuthority.
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
-	return &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:      RoleNameForCertAuthority(ca.GetClusterName()),
-			Namespace: apidefaults.Namespace,
+	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV4{
+		Options: types.RoleOptions{
+			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
 		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
-			},
-			Allow: types.RoleConditions{
-				Namespaces:       []string{apidefaults.Namespace},
-				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-				Rules:            types.CopyRulesSlice(DefaultCertAuthorityRules),
-			},
+		Allow: types.RoleConditions{
+			Namespaces:       []string{defaults.Namespace},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Rules:            types.CopyRulesSlice(DefaultCertAuthorityRules),
 		},
-	}
+	})
+	return role
 }
 
 // Access service manages roles and permissions
@@ -2191,6 +2154,10 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 
 // MarshalRole marshals the Role resource to JSON.
 func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidateRole(role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2198,10 +2165,6 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 
 	switch role := role.(type) {
 	case *types.RoleV4:
-		// V4 role version is compatible with V3
-		if version := role.GetVersion(); version != types.V3 && version != types.V4 {
-			return nil, trace.BadParameter("mismatched role version %v and type %T", version, role)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
