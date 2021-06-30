@@ -123,7 +123,8 @@ implement the following flow at a new `RegisterWithAWSToken` gRPC endpoint:
 9. The auth server sends credentials to join the cluster.
 
 The above steps all occur within a single streaming gRPC request and only 1
-attempt with a given challenge will be allowed.
+attempt with a given challenge will be allowed. The complete request will have
+a 1 minute timeout.
 
 In order to create the signed requests, the node will need to have access to
 AWS credentials. As the `sts:GetCallerIdentity` request does not require any
