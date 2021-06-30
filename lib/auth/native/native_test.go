@@ -30,9 +30,9 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
 
