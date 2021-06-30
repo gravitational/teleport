@@ -20,36 +20,51 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"text/template"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/trace"
 )
 
-func writeSSHConfig(sb *strings.Builder, clusterName string, knownHostsPath string, proxyHost string, proxyPort string, leaf bool) {
-	// Generate configuration for all Teleport targets.
-	fmt.Fprintf(sb, "# Common flags for all %s hosts\n", clusterName)
-	fmt.Fprintf(sb, "Host *.%s %s\n", clusterName, proxyHost)
-	fmt.Fprintf(sb, "    UserKnownHostsFile \"%s\"\n\n", knownHostsPath)
+const sshConfigTemplate = `
+# Common flags for all {{ .clusterName }} hosts
+Host *.{{ .clusterName }} {{ .proxyHost }}
+    UserKnownHostsFile "{{ .knownHostsPath }}"
 
-	fmt.Fprintf(sb, "# Flags for all %s hosts except the proxy\n", clusterName)
-	fmt.Fprintf(sb, "Host *.%s !%s\n", clusterName, proxyHost)
-	fmt.Fprintf(sb, "    Port 3022\n")
+# Flags for all {{ .clusterName }} hosts except the proxy
+Host *.{{ .clusterName }} !{{ .proxyHost }}
+    Port 3022
+    {{- if .leaf }}
+    ProxyCommand ssh -p {{ .proxyPort }} {{ .proxyHost }} -s proxy:$(echo %h | cut -d '.' -f 1):%p@{{ .clusterName }}	
+    {{- else }}
+    ProxyCommand ssh -p {{ .proxyPort }} {{ .proxyHost }} -s proxy:$(echo %h | cut -d '.' -f 1):%p
+    {{- end }}
+`
 
-	// Note: This hard-codes port 3022. No single port can be guaranteed to
-	// work for all hosts in a cluster and we'd need a custom proxy command to
-	// look up the true value on demand.
-	// Note: This relies on bash subshells and availability of the `cut`
-	// command, and as such is not expected to work on Windows.
-	var subsystem string
-	if leaf {
-		// For leaf clusters, append the cluster name per parseProxySubsysRequest().
-		subsystem = fmt.Sprintf("proxy:$(echo %%h | cut -d '.' -f 1):%%p@%s", clusterName)
-	} else {
-		subsystem = fmt.Sprintf("proxy:$(echo %%h | cut -d '.' -f 1):%%p")
+// writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
+// template string.
+func writeSSHConfig(
+	sb *strings.Builder, clusterName string, knownHostsPath string,
+	proxyHost string, proxyPort string, leaf bool,
+) error {
+	t, err := template.New("ssh-config").Parse(sshConfigTemplate)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(sb, "    ProxyCommand ssh -p %s %s -s %s\n\n", proxyPort, proxyHost, subsystem)
+	err = t.Execute(sb, map[string]interface{}{
+		"clusterName":    clusterName,
+		"proxyPort":      proxyPort,
+		"proxyHost":      proxyHost,
+		"knownHostsPath": knownHostsPath,
+		"leaf":           leaf,
+	})
+	if err != nil {
+		return trace.WrapWithMessage(err, "Error generating SSH configuration from template")
+	}
+
+	return nil
 }
 
 // onConfigSSH handles the `tsh config ssh` command
@@ -63,7 +78,7 @@ func onConfigSSH(cf *CLIConf) error {
 	// JumpHosts are in use, which this does not currently implement.
 	proxyHost, proxyPort, err := net.SplitHostPort(tc.Config.SSHProxyAddr)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	// Note: We explicitly opt not to use RetryWithRelogin here as it will write
@@ -73,7 +88,7 @@ func onConfigSSH(cf *CLIConf) error {
 	// sent to stderr) and expect the user to log in manually.
 	proxyClient, err := tc.ConnectToProxy(cf.Context)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
@@ -91,15 +106,21 @@ func onConfigSSH(cf *CLIConf) error {
 	// Start with a newline in case an existing config file does not end with
 	// one.
 	fmt.Fprintln(&sb)
-	fmt.Fprintf(&sb, "#\n# Begin generated Teleport configuration for %s from `tsh config`\n#\n\n", tc.Config.WebProxyAddr)
+	fmt.Fprintf(&sb, "#\n# Begin generated Teleport configuration for %s from `tsh config`\n#\n", tc.Config.WebProxyAddr)
 
-	writeSSHConfig(&sb, rootClusterName, knownHostsPath, proxyHost, proxyPort, false)
-
-	for _, leafCluster := range leafClusters {
-		writeSSHConfig(&sb, leafCluster.GetName(), knownHostsPath, proxyHost, proxyPort, true)
+	err = writeSSHConfig(&sb, rootClusterName, knownHostsPath, proxyHost, proxyPort, false)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(&sb, "# End generated Teleport configuration\n")
+	for _, leafCluster := range leafClusters {
+		err = writeSSHConfig(&sb, leafCluster.GetName(), knownHostsPath, proxyHost, proxyPort, true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Fprintf(&sb, "\n# End generated Teleport configuration\n")
 	fmt.Print(sb.String())
 	return nil
 }
