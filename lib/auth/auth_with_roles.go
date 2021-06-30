@@ -695,7 +695,7 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, namespace stri
 
 	// Filled a page, reset nextKey in case the last node was cut out.
 	if len(page) == limit {
-		nextKey = backend.NextResourceKey(page[len(page)-1])
+		nextKey = backend.NextPaginationKey(page[len(page)-1])
 	}
 
 	return page, nextKey, nil

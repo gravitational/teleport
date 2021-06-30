@@ -286,7 +286,7 @@ func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit
 
 	// If a full page was filled, set nextKey using the last node.
 	if len(result.Items) == limit {
-		nextKey = backend.NextResourceKey(servers[len(servers)-1])
+		nextKey = backend.NextPaginationKey(servers[len(servers)-1])
 	}
 
 	return servers, nextKey, nil
