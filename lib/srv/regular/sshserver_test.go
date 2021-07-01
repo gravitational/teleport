@@ -28,9 +28,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/user"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -354,6 +356,31 @@ func (s *SrvSuite) TestMaxSessions(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(clt.Close(), IsNil)
 	}
+}
+
+// TestExecLongCommand makes sure that commands that are longer than the
+// maximum pipe size on the OS can still be started. This tests the reexec
+// functionality of Teleport as Teleport will reexec itself when launching a
+// command and send the command to then launch through a pipe.
+func (s *SrvSuite) TestExecLongCommand(c *C) {
+	// Get the path to where the "echo" command is on disk.
+	echoPath, err := exec.LookPath("echo")
+	c.Assert(err, IsNil)
+
+	// Find out how much can be written to a pipe before it starts blocking until
+	// you read from the other end. See the below for details.
+	//
+	//   https://man7.org/linux/man-pages/man7/pipe.7.html
+	pipeSize, err := getMaxPipeSize()
+	c.Assert(err, IsNil)
+
+	se, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+	defer se.Close()
+
+	// Write a message that 1 larger than the maximum pipe size.
+	_, err = se.Output(fmt.Sprintf("%v %v", echoPath, strings.Repeat("a", pipeSize+1)))
+	c.Assert(err, IsNil)
 }
 
 // TestOpenExecSessionSetsSession tests that OpenExecSession()
@@ -1562,4 +1589,21 @@ func waitForSites(s reversetunnel.Tunnel, count int) error {
 			return trace.BadParameter("timed out waiting for clusters")
 		}
 	}
+}
+
+// getMaxPipeSize returns the maximum size of the pipe buffer.
+func getMaxPipeSize() (int, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer r.Close()
+	defer w.Close()
+
+	r1, _, errno := syscall.Syscall(syscall.SYS_FCNTL, uintptr(w.Fd()), uintptr(syscall.F_GETPIPE_SZ), uintptr(0))
+	if errno != 0 {
+		return 0, trace.Wrap(err)
+	}
+
+	return int(r1), nil
 }
