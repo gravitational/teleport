@@ -253,7 +253,6 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 
 // ListNodes returns a paginated list of registered servers.
 // StartKey is a resource name, which is the suffix of its key.
-// If limit is set to zero, ListNodes has no limit.
 func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
 	if namespace == "" {
 		return nil, "", trace.BadParameter("missing namespace value")
