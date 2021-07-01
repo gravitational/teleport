@@ -20,6 +20,7 @@ data:
         table_name: {{ required "aws.backendTable is required in chart values" .Values.aws.backendTable }}
         audit_events_uri: ['dynamodb://{{ required "aws.auditLogTable is required in chart values" .Values.aws.auditLogTable }}']
         audit_sessions_uri: s3://{{ required "aws.sessionRecordingBucket is required in chart values" .Values.aws.sessionRecordingBucket }}
+        continuous_backups: {{ required "aws.backups is required in chart values" .Values.aws.backups }}
   {{- else if eq .Values.chartMode "gcp" }}
       storage:
         type: firestore
