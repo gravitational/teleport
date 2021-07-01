@@ -2122,6 +2122,37 @@ func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...service
 	return a.GetCache().GetNodes(ctx, namespace, opts...)
 }
 
+// ListNodes is a part of auth.AccessPoint implementation
+func (a *Server) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
+	return a.GetCache().ListNodes(ctx, namespace, limit, startKey)
+}
+
+// NodePageFunc is a function to run on each page iterated over.
+type NodePageFunc func(next []types.Server) (stop bool, err error)
+
+// IterateNodePages can be used to iterate over pages of nodes.
+func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit int, startKey string, f NodePageFunc) (string, error) {
+	for {
+		nextPage, nextKey, err := a.ListNodes(ctx, namespace, limit, startKey)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		stop, err := f(nextPage)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// Iterator stopped before end of pages or
+		// there are no more pages, return nextKey
+		if stop || nextKey == "" {
+			return nextKey, nil
+		}
+
+		startKey = nextKey
+	}
+}
+
 // GetReverseTunnels is a part of auth.AccessPoint implementation
 func (a *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	return a.GetCache().GetReverseTunnels(opts...)

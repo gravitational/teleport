@@ -40,6 +40,9 @@ type Presence interface {
 	// GetNodes returns a list of registered servers.
 	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.Server, error)
 
+	// ListNodes returns a paginated list of registered servers.
+	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
+
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error
 
