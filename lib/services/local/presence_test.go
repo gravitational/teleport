@@ -222,11 +222,6 @@ func TestNodeCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, len(nodes), 2)
 
-	// list all nodes with 0 limit
-	nodes, _, err = presence.ListNodes(ctx, apidefaults.Namespace, 0, "")
-	require.NoError(t, err)
-	require.EqualValues(t, len(nodes), 2)
-
 	// list nodes one at a time, last page should be empty
 	nodes, lastKey, err := presence.ListNodes(ctx, apidefaults.Namespace, 1, "")
 	require.NoError(t, err)
@@ -251,11 +246,11 @@ func TestNodeCRUD(t *testing.T) {
 	_, err = presence.GetNodes(ctx, "")
 	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
-	_, _, err = presence.ListNodes(ctx, "", 0, "")
+	// ListNodes should fail if limit is nonpositive
+	_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, 0, "")
 	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
-	// ListNodes should fail if limit is negative
-	_, _, err = presence.ListNodes(ctx, "", -1, "")
+	_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, -1, "")
 	require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
 	// get node1

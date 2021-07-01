@@ -1308,7 +1308,7 @@ func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, sta
 
 	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
 		Namespace: namespace,
-		Limit:     uint32(limit),
+		Limit:     int32(limit),
 		StartKey:  startKey,
 	}, c.callOpts...)
 	if err != nil {

@@ -239,7 +239,7 @@ func RangeEnd(key []byte) []byte {
 	return nextKey(key)
 }
 
-// NextPaginationKey returns the next possible resource key as a string.
+// NextPaginationKey returns the next pagination key.
 func NextPaginationKey(r types.Resource) string {
 	return string(nextKey([]byte(r.GetName())))
 }

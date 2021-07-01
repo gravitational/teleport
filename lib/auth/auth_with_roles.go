@@ -672,6 +672,10 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit
 }
 
 func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive parameter limit")
+	}
+
 	page = make([]types.Server, 0, limit)
 	nextKey, err = a.authServer.IterateNodePages(ctx, namespace, limit, startKey, func(nextPage []types.Server) (bool, error) {
 		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
@@ -681,7 +685,7 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, namespace stri
 		}
 
 		// We have more than enough nodes to fill the page, cut it to size.
-		if len(filteredPage) > limit-len(page) && limit != 0 {
+		if len(filteredPage) > limit-len(page) {
 			filteredPage = filteredPage[:limit-len(page)]
 		}
 
