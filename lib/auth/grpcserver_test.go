@@ -36,13 +36,17 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 )
 
 func TestMFADeviceManagement(t *testing.T) {
@@ -1129,4 +1133,166 @@ func TestRoleVersions(t *testing.T) {
 			}
 		})
 	}
+}
+func TestNodesCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// node1 and node2 will be added to default namespace
+	node1 := &types.ServerV2{
+		Version: types.V2,
+		Kind:    types.KindNode,
+		Metadata: types.Metadata{
+			Name:      "node1",
+			Namespace: defaults.Namespace,
+			// Artificially make a node ~ 3MB to force ListNodes
+			// to fail when retrieving more than one at a time.
+			Labels: map[string]string{"label": string(make([]byte, 3000000))},
+		},
+	}
+
+	node2 := &types.ServerV2{
+		Version: types.V2,
+		Kind:    types.KindNode,
+		Metadata: types.Metadata{
+			Name:      "node2",
+			Namespace: defaults.Namespace,
+			// Artificially make a node ~ 3MB to force ListNodes
+			// to fail when retrieving more than one at a time.
+			Labels: map[string]string{"label": string(make([]byte, 3000000))},
+		},
+	}
+
+	// add largeNode to special namespace. largeNode is too big to send over gRPC.
+	largeNodeNamespace := "the_big_one"
+	largeNode := &types.ServerV2{
+		Version: types.V2,
+		Kind:    types.KindNode,
+		Metadata: types.Metadata{
+			Name:      "the_big_one",
+			Namespace: largeNodeNamespace,
+			// Artificially make a node ~ 5MB to force
+			// ListNodes to fail regardless of chunk size.
+			Labels: map[string]string{"label": string(make([]byte, 5000000))},
+		},
+	}
+	_, err = srv.Auth().UpsertNode(ctx, largeNode)
+	require.NoError(t, err)
+
+	t.Run("CreateNode", func(t *testing.T) {
+		// Initially expect no nodes to be returned.
+		nodes, err := clt.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Equal(t, 0, len(nodes))
+
+		// Create nodes
+		_, err = clt.UpsertNode(ctx, node1)
+		require.NoError(t, err)
+
+		_, err = clt.UpsertNode(ctx, node2)
+		require.NoError(t, err)
+
+		// Fail to create largeNode
+		_, err = clt.UpsertNode(ctx, largeNode)
+		require.IsType(t, &trace.LimitExceededError{}, err)
+	})
+
+	// Run NodeGetters in nested subtests to allow parallelization.
+	t.Run("NodeGetters", func(t *testing.T) {
+		t.Run("List Nodes", func(t *testing.T) {
+			t.Parallel()
+			// list nodes one at a time, last page should be empty
+			nodes, nextKey, err := clt.ListNodes(ctx, apidefaults.Namespace, 1, "")
+			require.NoError(t, err)
+			require.EqualValues(t, 1, len(nodes))
+			require.Empty(t, cmp.Diff([]types.Server{node1}, nodes,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			require.EqualValues(t, backend.NextPaginationKey(node1), nextKey)
+
+			nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			require.NoError(t, err)
+			require.EqualValues(t, 1, len(nodes))
+			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			require.EqualValues(t, backend.NextPaginationKey(node2), nextKey)
+
+			nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			require.NoError(t, err)
+			require.EqualValues(t, 0, len(nodes))
+			require.EqualValues(t, "", nextKey)
+
+			// ListNodes should fail if namespace isn't provided
+			_, _, err = clt.ListNodes(ctx, "", 1, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+			// ListNodes should fail if limit is nonpositive
+			_, _, err = clt.ListNodes(ctx, apidefaults.Namespace, 0, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+			_, _, err = clt.ListNodes(ctx, apidefaults.Namespace, -1, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+			// ListNodes should return a limit exceeded error when exceeding gRPC message size limit.
+			_, _, err = clt.ListNodes(ctx, defaults.Namespace, 2, "")
+			require.IsType(t, &trace.LimitExceededError{}, err)
+		})
+		t.Run("GetNodes", func(t *testing.T) {
+			t.Parallel()
+			// Get all nodes, transparently handle limit exceeded errors
+			nodes, err := clt.GetNodes(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			require.EqualValues(t, len(nodes), 2)
+			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+			// GetNodes should fail if namespace isn't provided
+			_, err = clt.GetNodes(ctx, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+			// GetNodes should return a limit exceeded error when a single
+			// node is larger than the gRPC message size limit.
+			_, err = clt.GetNodes(ctx, largeNodeNamespace)
+			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+		})
+	})
+
+	t.Run("DeleteNode", func(t *testing.T) {
+		// Make sure can't delete with empty namespace or name.
+		err = clt.DeleteNode(ctx, apidefaults.Namespace, "")
+		require.Error(t, err)
+		require.IsType(t, trace.BadParameter(""), err)
+
+		err = clt.DeleteNode(ctx, "", node1.GetName())
+		require.Error(t, err)
+		require.IsType(t, trace.BadParameter(""), err)
+
+		// Delete node.
+		err = clt.DeleteNode(ctx, apidefaults.Namespace, node1.GetName())
+		require.NoError(t, err)
+
+		// Now expect one node to be returned.
+		nodes, err := clt.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(nodes))
+	})
+
+	t.Run("DeleteAllNodes", func(t *testing.T) {
+		// Make sure can't delete with empty namespace.
+		err = clt.DeleteAllNodes(ctx, "")
+		require.Error(t, err)
+		require.IsType(t, trace.BadParameter(""), err)
+
+		// Delete nodes
+		err = clt.DeleteAllNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+
+		// Now expect no nodes to be returned.
+		nodes, err := clt.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Equal(t, 0, len(nodes))
+	})
 }
