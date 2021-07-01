@@ -343,6 +343,9 @@ type Global struct {
 
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
 	CAPin string `yaml:"ca_pin"`
+
+	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
+	DiagAddr string `yaml:"diag_addr"`
 }
 
 // CachePolicy is used to control  local cache

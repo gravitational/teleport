@@ -758,6 +758,33 @@ A list of extra arguments to pass to the `teleport start` command when running a
   </TabItem>
 </Tabs>
 
+## `extraEnv`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/)
+
+A list of extra environment variables to be set on the main Teleport container.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraEnv:
+  - name: MY_ENV
+    value: my-value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "extraEnv[0].name=MY_ENV" \
+  --set "extraEnv[0].value=my-value"
+  ```
+  </TabItem>
+</Tabs>
+
+
 ## `extraVolumes`
 
 | Type | Default value | Can be used in `custom` mode? |
