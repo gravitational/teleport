@@ -1226,21 +1226,66 @@ func (c *Client) DeleteToken(ctx context.Context, name string) error {
 	return trail.FromGRPC(err)
 }
 
-// GetNodes returns a list of nodes by namespace.
-// Nodes that the user doesn't have access to are filtered out.
+// GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
-	resp, err := c.grpc.GetNodes(ctx, &types.ResourcesInNamespaceRequest{Namespace: namespace}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
+
+	// Retrieve the complete list of nodes in chunks.
+	var (
+		nodes     []types.Server
+		startKey  string
+		chunkSize = defaults.DefaultChunkSize
+	)
+	for {
+		resp, nextKey, err := c.ListNodes(ctx, namespace, chunkSize, startKey)
+		if trace.IsLimitExceeded(err) {
+			// Cut chunkSize in half if gRPC max message size is exceeded.
+			chunkSize = chunkSize / 2
+			// This is an extremely unlikely scenario, but better to cover it anyways.
+			if chunkSize == 0 {
+				return nil, trace.Wrap(err, "Node is too large to retrieve over gRPC (over 4MiB).")
+			}
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+
+		nodes = append(nodes, resp...)
+		startKey = nextKey
+		if startKey == "" {
+			return nodes, nil
+		}
 	}
-	nodes := make([]types.Server, len(resp.Servers))
+}
+
+// ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
+// nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
+// ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
+func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error) {
+	if namespace == "" {
+		return nil, "", trace.BadParameter("missing parameter namespace")
+	}
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive parameter limit")
+	}
+
+	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
+		Namespace: namespace,
+		Limit:     int32(limit),
+		StartKey:  startKey,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	nodes = make([]types.Server, len(resp.Servers))
 	for i, node := range resp.Servers {
 		nodes[i] = node
 	}
-	return nodes, nil
+
+	return nodes, resp.NextKey, nil
 }
 
 // UpsertNode is used by SSH servers to report their presence
