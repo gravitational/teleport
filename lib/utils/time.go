@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"sync"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -29,4 +30,33 @@ func ToTTL(c clockwork.Clock, tm time.Time) time.Duration {
 		return 0
 	}
 	return tm.Sub(now)
+}
+
+// TimeUnderLock is a time.Time protected by a sync.RWMutex.
+type TimeUnderLock struct {
+	sync.RWMutex
+	t time.Time
+}
+
+// Get returns the stored time.Time value.
+func (s *TimeUnderLock) Get() time.Time {
+	s.RLock()
+	defer s.RUnlock()
+	return s.t
+}
+
+// SetIfZero updates the stored time.Time value if it is zero.
+func (s *TimeUnderLock) SetIfZero(t time.Time) {
+	s.Lock()
+	defer s.Unlock()
+	if s.t.IsZero() {
+		s.t = t
+	}
+}
+
+// Clear sets the stored time.Time value to zero.
+func (s *TimeUnderLock) Clear() {
+	s.Lock()
+	defer s.Unlock()
+	s.t = time.Time{}
 }

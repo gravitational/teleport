@@ -173,6 +173,12 @@ type Services struct {
 	events.IAuditLog
 }
 
+// WithFreshnessGuarantee returns an access point that puts a bound on maximum
+// acceptable staleness of the returned data.
+func (r Services) WithFreshnessGuarantee(time.Duration) (ReadAccessPoint, error) {
+	return Services{}, trace.NotImplemented("does not support WithFreshnessGuarantee")
+}
+
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
 func (r Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {

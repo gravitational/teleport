@@ -108,6 +108,12 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	}, nil
 }
 
+// WithFreshnessGuarantee returns an access point that puts a bound on maximum
+// acceptable staleness of the returned data.
+func (c *Client) WithFreshnessGuarantee(time.Duration) (ReadAccessPoint, error) {
+	return Services{}, trace.NotImplemented("does not support WithFreshnessGuarantee")
+}
+
 // APIClient is aliased here so that it can be embedded in Client.
 type APIClient = client.Client
 
@@ -1934,6 +1940,10 @@ type ProvisioningService interface {
 
 // ClientI is a client to Auth service
 type ClientI interface {
+	// WithFreshnessGuarantee returns an access point that puts a bound on maximum
+	// acceptable staleness of the returned data.
+	WithFreshnessGuarantee(time.Duration) (ReadAccessPoint, error)
+
 	IdentityService
 	ProvisioningService
 	services.Trust

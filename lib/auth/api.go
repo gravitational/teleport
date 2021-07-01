@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -59,6 +60,10 @@ type Announcer interface {
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
 type ReadAccessPoint interface {
+	// WithFreshnessGuarantee returns an access point that puts a bound on maximum
+	// acceptable staleness of the returned data.
+	WithFreshnessGuarantee(time.Duration) (ReadAccessPoint, error)
+
 	// Closer closes all the resources
 	io.Closer
 
@@ -218,9 +223,6 @@ type Cache interface {
 
 	// GetToken finds and returns token by ID
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
-
-	// NewWatcher returns a new event watcher
-	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 }
 
 // NewWrapper returns new access point wrapper

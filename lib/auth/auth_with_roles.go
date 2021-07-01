@@ -53,6 +53,12 @@ type ServerWithRoles struct {
 	context Context
 }
 
+// WithFreshnessGuarantee returns an access point that puts a bound on maximum
+// acceptable staleness of the returned data.
+func (a *ServerWithRoles) WithFreshnessGuarantee(time.Duration) (ReadAccessPoint, error) {
+	return Services{}, trace.NotImplemented("does not support WithFreshnessGuarantee")
+}
+
 // CloseContext is closed when the auth server shuts down
 func (a *ServerWithRoles) CloseContext() context.Context {
 	return a.authServer.closeCtx

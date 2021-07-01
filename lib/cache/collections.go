@@ -43,7 +43,7 @@ type collection interface {
 }
 
 // setupCollections returns a mapping of collections
-func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]collection, error) {
+func setupCollections(c *cacheStore, watches []types.WatchKind) (map[resourceKind]collection, error) {
 	collections := make(map[resourceKind]collection, len(watches))
 	for _, watch := range watches {
 		resourceKind := resourceKindFromWatchKind(watch)
@@ -52,135 +52,135 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			if c.Trust == nil {
 				return nil, trace.BadParameter("missing parameter Trust")
 			}
-			collections[resourceKind] = &certAuthority{watch: watch, Cache: c}
+			collections[resourceKind] = &certAuthority{watch: watch, cacheStore: c}
 		case types.KindStaticTokens:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &staticTokens{watch: watch, Cache: c}
+			collections[resourceKind] = &staticTokens{watch: watch, cacheStore: c}
 		case types.KindToken:
 			if c.Provisioner == nil {
 				return nil, trace.BadParameter("missing parameter Provisioner")
 			}
-			collections[resourceKind] = &provisionToken{watch: watch, Cache: c}
+			collections[resourceKind] = &provisionToken{watch: watch, cacheStore: c}
 		case types.KindClusterName:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &clusterName{watch: watch, Cache: c}
+			collections[resourceKind] = &clusterName{watch: watch, cacheStore: c}
 		case types.KindClusterConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &clusterConfig{watch: watch, Cache: c}
+			collections[resourceKind] = &clusterConfig{watch: watch, cacheStore: c}
 		case types.KindClusterAuditConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &clusterAuditConfig{watch: watch, Cache: c}
+			collections[resourceKind] = &clusterAuditConfig{watch: watch, cacheStore: c}
 		case types.KindClusterNetworkingConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &clusterNetworkingConfig{watch: watch, Cache: c}
+			collections[resourceKind] = &clusterNetworkingConfig{watch: watch, cacheStore: c}
 		case types.KindClusterAuthPreference:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &authPreference{watch: watch, Cache: c}
+			collections[resourceKind] = &authPreference{watch: watch, cacheStore: c}
 		case types.KindSessionRecordingConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &sessionRecordingConfig{watch: watch, Cache: c}
+			collections[resourceKind] = &sessionRecordingConfig{watch: watch, cacheStore: c}
 		case types.KindUser:
 			if c.Users == nil {
 				return nil, trace.BadParameter("missing parameter Users")
 			}
-			collections[resourceKind] = &user{watch: watch, Cache: c}
+			collections[resourceKind] = &user{watch: watch, cacheStore: c}
 		case types.KindRole:
 			if c.Access == nil {
 				return nil, trace.BadParameter("missing parameter Access")
 			}
-			collections[resourceKind] = &role{watch: watch, Cache: c}
+			collections[resourceKind] = &role{watch: watch, cacheStore: c}
 		case types.KindNamespace:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &namespace{watch: watch, Cache: c}
+			collections[resourceKind] = &namespace{watch: watch, cacheStore: c}
 		case types.KindNode:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &node{watch: watch, Cache: c}
+			collections[resourceKind] = &node{watch: watch, cacheStore: c}
 		case types.KindProxy:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &proxy{watch: watch, Cache: c}
+			collections[resourceKind] = &proxy{watch: watch, cacheStore: c}
 		case types.KindAuthServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &authServer{watch: watch, Cache: c}
+			collections[resourceKind] = &authServer{watch: watch, cacheStore: c}
 		case types.KindReverseTunnel:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &reverseTunnel{watch: watch, Cache: c}
+			collections[resourceKind] = &reverseTunnel{watch: watch, cacheStore: c}
 		case types.KindTunnelConnection:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &tunnelConnection{watch: watch, Cache: c}
+			collections[resourceKind] = &tunnelConnection{watch: watch, cacheStore: c}
 		case types.KindRemoteCluster:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &remoteCluster{watch: watch, Cache: c}
+			collections[resourceKind] = &remoteCluster{watch: watch, cacheStore: c}
 		case types.KindAccessRequest:
 			if c.DynamicAccess == nil {
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
-			collections[resourceKind] = &accessRequest{watch: watch, Cache: c}
+			collections[resourceKind] = &accessRequest{watch: watch, cacheStore: c}
 		case types.KindAppServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &appServer{watch: watch, Cache: c}
+			collections[resourceKind] = &appServer{watch: watch, cacheStore: c}
 		case types.KindWebSession:
 			switch watch.SubKind {
 			case types.KindAppSession:
 				if c.AppSession == nil {
 					return nil, trace.BadParameter("missing parameter AppSession")
 				}
-				collections[resourceKind] = &appSession{watch: watch, Cache: c}
+				collections[resourceKind] = &appSession{watch: watch, cacheStore: c}
 			case types.KindWebSession:
 				if c.WebSession == nil {
 					return nil, trace.BadParameter("missing parameter WebSession")
 				}
-				collections[resourceKind] = &webSession{watch: watch, Cache: c}
+				collections[resourceKind] = &webSession{watch: watch, cacheStore: c}
 			}
 		case types.KindWebToken:
 			if c.WebToken == nil {
 				return nil, trace.BadParameter("missing parameter WebToken")
 			}
-			collections[resourceKind] = &webToken{watch: watch, Cache: c}
+			collections[resourceKind] = &webToken{watch: watch, cacheStore: c}
 		case types.KindKubeService:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &kubeService{watch: watch, Cache: c}
+			collections[resourceKind] = &kubeService{watch: watch, cacheStore: c}
 		case types.KindDatabaseServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &databaseServer{watch: watch, Cache: c}
+			collections[resourceKind] = &databaseServer{watch: watch, cacheStore: c}
 		case types.KindLock:
 			if c.Access == nil {
 				return nil, trace.BadParameter("missing parameter Access")
 			}
-			collections[resourceKind] = &lock{watch: watch, Cache: c}
+			collections[resourceKind] = &lock{watch: watch, cacheStore: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -224,7 +224,7 @@ type resourceKind struct {
 }
 
 type accessRequest struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -289,7 +289,7 @@ func (r *accessRequest) watchKind() types.WatchKind {
 }
 
 type tunnelConnection struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -354,7 +354,7 @@ func (c *tunnelConnection) watchKind() types.WatchKind {
 }
 
 type remoteCluster struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -426,7 +426,7 @@ func (c *remoteCluster) watchKind() types.WatchKind {
 }
 
 type reverseTunnel struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -492,7 +492,7 @@ func (c *reverseTunnel) watchKind() types.WatchKind {
 }
 
 type proxy struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -560,7 +560,7 @@ func (c *proxy) watchKind() types.WatchKind {
 }
 
 type authServer struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -628,7 +628,7 @@ func (c *authServer) watchKind() types.WatchKind {
 }
 
 type node struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -694,7 +694,7 @@ func (c *node) watchKind() types.WatchKind {
 }
 
 type namespace struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -760,7 +760,7 @@ func (c *namespace) watchKind() types.WatchKind {
 }
 
 type certAuthority struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -874,7 +874,7 @@ func (c *certAuthority) watchKind() types.WatchKind {
 }
 
 type staticTokens struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -949,7 +949,7 @@ func (c *staticTokens) watchKind() types.WatchKind {
 }
 
 type provisionToken struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1015,7 +1015,7 @@ func (c *provisionToken) watchKind() types.WatchKind {
 }
 
 type clusterConfig struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1103,7 +1103,7 @@ func (c *clusterConfig) watchKind() types.WatchKind {
 }
 
 type clusterName struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1179,7 +1179,7 @@ func (c *clusterName) watchKind() types.WatchKind {
 }
 
 type user struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1246,7 +1246,7 @@ func (c *user) watchKind() types.WatchKind {
 }
 
 type role struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1312,7 +1312,7 @@ func (c *role) watchKind() types.WatchKind {
 }
 
 type databaseServer struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1378,7 +1378,7 @@ func (s *databaseServer) watchKind() types.WatchKind {
 }
 
 type appServer struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1443,7 +1443,7 @@ func (a *appServer) watchKind() types.WatchKind {
 }
 
 type appSession struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1509,7 +1509,7 @@ func (a *appSession) watchKind() types.WatchKind {
 }
 
 type webSession struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1574,7 +1574,7 @@ func (r *webSession) watchKind() types.WatchKind {
 }
 
 type webToken struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1639,7 +1639,7 @@ func (r *webToken) watchKind() types.WatchKind {
 }
 
 type kubeService struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1702,7 +1702,7 @@ func (c *kubeService) watchKind() types.WatchKind {
 }
 
 type authPreference struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1772,7 +1772,7 @@ func (c *authPreference) watchKind() types.WatchKind {
 }
 
 type clusterAuditConfig struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1842,7 +1842,7 @@ func (c *clusterAuditConfig) watchKind() types.WatchKind {
 }
 
 type clusterNetworkingConfig struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1912,7 +1912,7 @@ func (c *clusterNetworkingConfig) watchKind() types.WatchKind {
 }
 
 type sessionRecordingConfig struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 
@@ -1982,7 +1982,7 @@ func (c *sessionRecordingConfig) watchKind() types.WatchKind {
 }
 
 type lock struct {
-	*Cache
+	*cacheStore
 	watch types.WatchKind
 }
 

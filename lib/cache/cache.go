@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -254,11 +255,8 @@ func ForDatabases(cfg Config) Config {
 // for cache
 type SetupConfigFn func(c Config) Config
 
-// Cache implements auth.AccessPoint interface and remembers
-// the previously returned upstream value for each API call.
-//
-// This which can be used if the upstream AccessPoint goes offline
-type Cache struct {
+// cacheStore stores and maintains a view of an upstream auth.AccessPoint.
+type cacheStore struct {
 	Config
 
 	// Entry is a logging entry
@@ -319,9 +317,13 @@ type Cache struct {
 
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
+
+	// failureStartedAt records when the current sync failures were first
+	// detected, zero if there are no failures present.
+	failureStartedAt utils.TimeUnderLock
 }
 
-func (c *Cache) setInitError(err error) {
+func (c *cacheStore) setInitError(err error) {
 	c.initOnce.Do(func() {
 		c.initErr = err
 		close(c.initC)
@@ -330,7 +332,7 @@ func (c *Cache) setInitError(err error) {
 
 // setReadOK updates Cache.ok, which determines whether the
 // cache is accessible for reads.
-func (c *Cache) setReadOK(ok bool) {
+func (c *cacheStore) setReadOK(ok bool) {
 	if ok == c.getReadOK() {
 		return
 	}
@@ -339,82 +341,10 @@ func (c *Cache) setReadOK(ok bool) {
 	c.ok = ok
 }
 
-func (c *Cache) getReadOK() (ok bool) {
+func (c *cacheStore) getReadOK() (ok bool) {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 	return c.ok
-}
-
-// read acquires the cache read lock and selects the appropriate
-// target for read operations.  The returned guard *must* be
-// released to prevent deadlocks.
-func (c *Cache) read() (readGuard, error) {
-	if c.closed.Load() {
-		return readGuard{}, trace.Errorf("cache is closed")
-	}
-	c.rw.RLock()
-	if c.ok {
-		return readGuard{
-			trust:         c.trustCache,
-			clusterConfig: c.clusterConfigCache,
-			provisioner:   c.provisionerCache,
-			users:         c.usersCache,
-			access:        c.accessCache,
-			dynamicAccess: c.dynamicAccessCache,
-			presence:      c.presenceCache,
-			appSession:    c.appSessionCache,
-			webSession:    c.webSessionCache,
-			webToken:      c.webTokenCache,
-			release:       c.rw.RUnlock,
-		}, nil
-	}
-	c.rw.RUnlock()
-	return readGuard{
-		trust:         c.Config.Trust,
-		clusterConfig: c.Config.ClusterConfig,
-		provisioner:   c.Config.Provisioner,
-		users:         c.Config.Users,
-		access:        c.Config.Access,
-		dynamicAccess: c.Config.DynamicAccess,
-		presence:      c.Config.Presence,
-		appSession:    c.Config.AppSession,
-		webSession:    c.Config.WebSession,
-		webToken:      c.Config.WebToken,
-		release:       nil,
-	}, nil
-}
-
-// readGuard holds references to a "backend".  if the referenced
-// backed is the cache, then readGuard also holds the release
-// function for the read lock, and ensures that it is not
-// double-called.
-type readGuard struct {
-	trust         services.Trust
-	clusterConfig services.ClusterConfiguration
-	provisioner   services.Provisioner
-	users         services.UsersService
-	access        services.Access
-	dynamicAccess services.DynamicAccessCore
-	presence      services.Presence
-	appSession    services.AppSession
-	webSession    types.WebSessionInterface
-	webToken      types.WebTokenInterface
-	release       func()
-	released      bool
-}
-
-// Release releases the read lock if it is held.  This method
-// can be called multiple times, but is not thread-safe.
-func (r *readGuard) Release() {
-	if r.release != nil && !r.released {
-		r.release()
-		r.released = true
-	}
-}
-
-// IsCacheRead checks if this readGuard holds a cache reference.
-func (r *readGuard) IsCacheRead() bool {
-	return r.release != nil
 }
 
 // Config defines cache configuration parameters
@@ -570,7 +500,17 @@ const (
 	TombstoneWritten = "tombstone_written"
 )
 
-// New creates a new instance of Cache
+// Cache is a staleness-aware implementation of auth.ReadAccessPoint
+// that returns data stored in the cacheStore.
+type Cache struct {
+	*cacheStore
+
+	// maxStaleness specifies a maximum acceptable staleness.  If non-zero and
+	// exceeded, the data read requests are redirected to the upstream backend.
+	maxStaleness time.Duration
+}
+
+// New creates a new instance of Cache.
 func New(config Config) (*Cache, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -584,7 +524,7 @@ func New(config Config) (*Cache, error) {
 	}
 
 	ctx, cancel := context.WithCancel(config.Context)
-	cs := &Cache{
+	cs := &cacheStore{
 		wrapper:            wrapper,
 		ctx:                ctx,
 		cancel:             cancel,
@@ -670,28 +610,10 @@ func New(config Config) (*Cache, error) {
 		}
 		cs.Warningf("Cache init is taking too long, will continue in background.")
 	}
-	return cs, nil
+	return &Cache{cacheStore: cs}, nil
 }
 
-// NewWatcher returns a new event watcher. In case of a cache
-// this watcher will return events as seen by the cache,
-// not the backend. This feature allows auth server
-// to handle subscribers connected to the in-memory caches
-// instead of reading from the backend.
-func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-Outer:
-	for _, requested := range watch.Kinds {
-		for _, configured := range c.Config.Watches {
-			if requested.Kind == configured.Kind {
-				continue Outer
-			}
-		}
-		return nil, trace.BadParameter("cache %q does not support watching resource %q", c.Config.target, requested.Kind)
-	}
-	return c.eventsFanout.NewWatcher(ctx, watch)
-}
-
-func (c *Cache) update(ctx context.Context, retry utils.Retry) {
+func (c *cacheStore) update(ctx context.Context, retry utils.Retry) {
 	defer func() {
 		c.Debugf("Cache is closing, returning from update loop.")
 		// ensure that close operations have been run
@@ -713,6 +635,7 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 			if c.OnlyRecent.Enabled {
 				c.setReadOK(false)
 			}
+			c.failureStartedAt.SetIfZero(c.Clock.Now())
 		}
 		// events cache should be closed as well
 		c.Debugf("Reloading %v.", retry)
@@ -726,7 +649,7 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 }
 
 // writeTombstone writes the cache tombstone.
-func (c *Cache) writeTombstone(ctx context.Context) {
+func (c *cacheStore) writeTombstone(ctx context.Context) {
 	if !c.getReadOK() || c.generation.Load() == 0 {
 		// state is unhealthy or was loaded from a previously
 		// entombed state; do nothing.
@@ -748,7 +671,7 @@ func (c *Cache) writeTombstone(ctx context.Context) {
 // - for "only recent", does nothing
 // - for "prefer recent", honors TTL set on the resource, otherwise
 //   sets TTL to max TTL
-func (c *Cache) setTTL(r types.Resource) {
+func (c *cacheStore) setTTL(r types.Resource) {
 	if c.OnlyRecent.Enabled || (c.PreferRecent.Enabled && c.PreferRecent.NeverExpires) {
 		return
 	}
@@ -760,7 +683,7 @@ func (c *Cache) setTTL(r types.Resource) {
 	r.SetExpiry(c.Clock.Now().UTC().Add(c.PreferRecent.MaxTTL))
 }
 
-func (c *Cache) notify(ctx context.Context, event Event) {
+func (c *cacheStore) notify(ctx context.Context, event Event) {
 	if c.EventsC == nil {
 		return
 	}
@@ -807,7 +730,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //   we assume that this cache will eventually end up in a correct state
 //   potentially lagging behind the state of the database.
 //
-func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *time.Timer) error {
+func (c *cacheStore) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *time.Timer) error {
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		QueueSize:       c.QueueSize,
 		Name:            c.Component,
@@ -872,6 +795,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	c.generation.Inc()
 	c.setReadOK(true)
 	c.setInitError(nil)
+	c.failureStartedAt.Clear()
 
 	// watchers have been queuing up since the last time
 	// the cache was in a healthy state; broadcast OpInit.
@@ -901,7 +825,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	}
 }
 
-func (c *Cache) watchKinds() []types.WatchKind {
+func (c *cacheStore) watchKinds() []types.WatchKind {
 	out := make([]types.WatchKind, 0, len(c.collections))
 	for _, collection := range c.collections {
 		out = append(out, collection.watchKind())
@@ -910,7 +834,7 @@ func (c *Cache) watchKinds() []types.WatchKind {
 }
 
 // isClosing checks if the cache has begun closing.
-func (c *Cache) isClosing() bool {
+func (c *cacheStore) isClosing() bool {
 	if c.closed.Load() {
 		// closing due to Close being called
 		return true
@@ -927,14 +851,14 @@ func (c *Cache) isClosing() bool {
 }
 
 // Close closes all outstanding and active cache operations
-func (c *Cache) Close() error {
+func (c *cacheStore) Close() error {
 	c.closed.Store(true)
 	c.cancel()
 	c.eventsFanout.Close()
 	return nil
 }
 
-func (c *Cache) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+func (c *cacheStore) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
 	applyfns := make([]func(ctx context.Context) error, 0, len(c.collections))
 	for _, collection := range c.collections {
 		applyfn, err := collection.fetch(ctx)
@@ -953,7 +877,7 @@ func (c *Cache) fetch(ctx context.Context) (apply func(ctx context.Context) erro
 	}, nil
 }
 
-func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
+func (c *cacheStore) processEvent(ctx context.Context, event types.Event) error {
 	resourceKind := resourceKindFromResource(event.Resource)
 	collection, ok := c.collections[resourceKind]
 	if !ok {
@@ -966,6 +890,113 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	}
 	c.eventsFanout.Emit(event)
 	return nil
+}
+
+func (c *Cache) isFresh() bool {
+	failStart := c.failureStartedAt.Get()
+	if failStart.IsZero() || c.maxStaleness == 0 {
+		return true
+	}
+	return c.Clock.Since(failStart) <= c.maxStaleness
+}
+
+// WithFreshnessGuarantee returns an access point that puts a bound on maximum
+// acceptable staleness of the returned data.
+func (c *Cache) WithFreshnessGuarantee(bound time.Duration) (auth.ReadAccessPoint, error) {
+	return &Cache{
+		cacheStore:   c.cacheStore,
+		maxStaleness: bound,
+	}, nil
+}
+
+// NewWatcher returns a new event watcher. In case of a cache
+// this watcher will return events as seen by the cache,
+// not the backend. This feature allows auth server
+// to handle subscribers connected to the in-memory caches
+// instead of reading from the backend.
+func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+Outer:
+	for _, requested := range watch.Kinds {
+		for _, configured := range c.Config.Watches {
+			if requested.Kind == configured.Kind {
+				continue Outer
+			}
+		}
+		return nil, trace.BadParameter("cache %q does not support watching resource %q", c.Config.target, requested.Kind)
+	}
+	return c.eventsFanout.NewWatcher(ctx, watch)
+}
+
+// read acquires the cache read lock and selects the appropriate
+// target for read operations.  The returned guard *must* be
+// released to prevent deadlocks.
+func (c *Cache) read() (readGuard, error) {
+	if c.closed.Load() {
+		return readGuard{}, trace.Errorf("cache is closed")
+	}
+	c.rw.RLock()
+	if c.ok && c.isFresh() {
+		return readGuard{
+			trust:         c.trustCache,
+			clusterConfig: c.clusterConfigCache,
+			provisioner:   c.provisionerCache,
+			users:         c.usersCache,
+			access:        c.accessCache,
+			dynamicAccess: c.dynamicAccessCache,
+			presence:      c.presenceCache,
+			appSession:    c.appSessionCache,
+			webSession:    c.webSessionCache,
+			webToken:      c.webTokenCache,
+			release:       c.rw.RUnlock,
+		}, nil
+	}
+	c.rw.RUnlock()
+	return readGuard{
+		trust:         c.Config.Trust,
+		clusterConfig: c.Config.ClusterConfig,
+		provisioner:   c.Config.Provisioner,
+		users:         c.Config.Users,
+		access:        c.Config.Access,
+		dynamicAccess: c.Config.DynamicAccess,
+		presence:      c.Config.Presence,
+		appSession:    c.Config.AppSession,
+		webSession:    c.Config.WebSession,
+		webToken:      c.Config.WebToken,
+		release:       nil,
+	}, nil
+}
+
+// readGuard holds references to a "backend".  If the referenced
+// backend is the cache, then readGuard also holds the release
+// function for the read lock, and ensures that it is not
+// double-called.
+type readGuard struct {
+	trust         services.Trust
+	clusterConfig services.ClusterConfiguration
+	provisioner   services.Provisioner
+	users         services.UsersService
+	access        services.Access
+	dynamicAccess services.DynamicAccessCore
+	presence      services.Presence
+	appSession    services.AppSession
+	webSession    types.WebSessionInterface
+	webToken      types.WebTokenInterface
+	release       func()
+	released      bool
+}
+
+// Release releases the read lock if it is held.  This method
+// can be called multiple times, but is not thread-safe.
+func (r *readGuard) Release() {
+	if r.release != nil && !r.released {
+		r.release()
+		r.released = true
+	}
+}
+
+// IsCacheRead checks if this readGuard holds a cache reference.
+func (r *readGuard) IsCacheRead() bool {
+	return r.release != nil
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
@@ -1354,6 +1385,9 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 
 // GetLock gets a lock by name.
 func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	if c.maxStaleness == 0 {
+		return nil, trace.BadParameter("cannot get locks without freshness guarantee (staleness bound unset)")
+	}
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1375,6 +1409,9 @@ func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
 
 // GetLocks gets all locks, matching at least one of the targets when specified.
 func (c *Cache) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+	if c.maxStaleness == 0 {
+		return nil, trace.BadParameter("cannot get locks without freshness guarantee (staleness bound unset)")
+	}
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)

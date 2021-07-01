@@ -39,6 +39,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -67,6 +68,7 @@ type testPack struct {
 	eventsC      chan Event
 	cache        *Cache
 	cacheBackend backend.Backend
+	clock        clockwork.FakeClock
 
 	eventsS        *proxyEvents
 	trustS         services.Trust
@@ -124,10 +126,12 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	ctx := context.Background()
 	p := &testPack{
 		dataDir: dir,
+		clock:   clockwork.NewFakeClock(),
 	}
 	bk, err := lite.NewWithConfig(ctx, lite.Config{
 		Path:             p.dataDir,
 		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            p.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -175,6 +179,7 @@ func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
 
 	p.cache, err = New(setupConfig(Config{
 		Context:       ctx,
+		Clock:         p.clock,
 		Backend:       p.cacheBackend,
 		Events:        p.eventsS,
 		ClusterConfig: p.clusterConfigS,
@@ -1737,6 +1742,71 @@ func TestDatabaseServers(t *testing.T) {
 	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
+}
+
+// TestFreshnessGuarantee tests a cache with freshness guarantee.
+func TestFreshnessGuarantee(t *testing.T) {
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	ctx := context.Background()
+
+	// Set cluster networking config as a sample resource for testing purposes.
+	err = p.clusterConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// The resource should be available from the cache.
+	_, err = p.cache.GetClusterNetworkingConfig(ctx)
+	require.NoError(t, err)
+
+	// Simulate bad connection to auth server.
+	backendFailure := trace.ConnectionProblem(nil, "backend is unavailable")
+	p.backend.SetReadError(backendFailure)
+	p.eventsS.closeWatchers()
+
+	// Wait until the backend watcher registers the failure.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, WatcherFailed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	p.clock.Advance(6 * time.Second)
+	freshCache, err := p.cache.WithFreshnessGuarantee(5 * time.Second)
+	require.NoError(t, err)
+
+	// The cache's data are stale so the Get method should query the upstream
+	// backend and report the underlying failure.
+	require.False(t, freshCache.(*Cache).isFresh())
+	_, err = freshCache.GetClusterNetworkingConfig(ctx)
+	require.Error(t, err)
+	require.ErrorIs(t, err, backendFailure)
+
+	// Now recover the backend and make sure the service is back.
+	p.backend.SetReadError(nil)
+
+	// Wait until the backend watcher restarts.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, WatcherStarted, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// The cache should be online again.
+	require.True(t, freshCache.(*Cache).isFresh())
+	_, err = freshCache.GetClusterNetworkingConfig(ctx)
+	require.NoError(t, err)
 }
 
 type proxyEvents struct {
