@@ -235,6 +235,7 @@ The `--set` CLI method is more appropriate for quick test deployments.
     backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
     auditLogTable: teleport-helm-events             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
     sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
+    backups: true                                   # Whether or not to turn on DynamoDB backups
   highAvailability:
     replicaCount: 2                                 # Number of replicas to configure
     certManager:
@@ -263,6 +264,7 @@ The `--set` CLI method is more appropriate for quick test deployments.
     --set clusterName=teleport.example.com                                `# Name of your cluster. Use the FQDN you intend to configure in DNS below.` \
     --set aws.region=us-west-2                                            `# AWS region` \
     --set aws.backendTable=teleport-helm-backend                          `# DynamoDB table to use for the Teleport backend` \
+    --set aws.backups=true                                                `# Whether or not to turn on DynamoDB backups` \
     --set aws.auditLogTable=teleport-helm-events                          `# DynamoDB table to use for the Teleport audit log (must be different to the backend table)` \
     --set aws.sessionRecordingBucket=teleport-helm-sessions               `# S3 bucket to use for Teleport session recordings` \
     --set highAvailability.replicaCount=2                                 `# Number of replicas to configure` \

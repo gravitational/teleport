@@ -2647,6 +2647,12 @@ steps:
     environment:
       OS: darwin
       ARCH: amd64
+      APPLE_USERNAME:
+        from_secret: APPLE_USERNAME
+      APPLE_PASSWORD:
+        from_secret: APPLE_PASSWORD
+      BUILDBOX_PASSWORD:
+        from_secret: BUILDBOX_PASSWORD
       OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
       ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
       WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
@@ -2654,6 +2660,13 @@ steps:
       - set -u
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+      # set HOME explicitly (as Drone overrides it normally)
+      - export HOME=/Users/build
+      # unlock login keychain
+      - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+      # show available certificates
+      - security find-identity -v
+      # build teleport pkg
       - make pkg OS=$OS ARCH=$ARCH
 
   - name: Copy Mac pkg artifacts
@@ -2797,7 +2810,7 @@ steps:
       - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
       # show available certificates
       - security find-identity -v
-      # build pkg
+      # build tsh pkg
       - make pkg-tsh OS=$OS ARCH=$ARCH
 
   - name: Copy Mac tsh pkg artifacts
@@ -4386,6 +4399,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 6fb06de638133160c0989682a9034201405e43ee5b74f6f263cca7b0f69651c6
+hmac: a6eb9db27be4297501980988a17b963076717be5b64fe774bb47f742d5c8b493
 
 ...

@@ -54,8 +54,8 @@ resource "aws_dynamodb_table" "teleport_events" {
   }
 
   global_secondary_index {
-    name            = "timesearch"
-    hash_key        = "EventNamespace"
+    name            = "timesearchV2"
+    hash_key        = "CreatedAtDate"
     range_key       = "CreatedAt"
     write_capacity  = 20
     read_capacity   = 20
@@ -63,10 +63,7 @@ resource "aws_dynamodb_table" "teleport_events" {
   }
 
   lifecycle {
-    ignore_changes = [
-      read_capacity,
-      write_capacity,
-    ]
+    ignore_changes = all
   }
 
   attribute {
@@ -80,7 +77,7 @@ resource "aws_dynamodb_table" "teleport_events" {
   }
 
   attribute {
-    name = "EventNamespace"
+    name = "CreatedAtDate"
     type = "S"
   }
 

@@ -525,13 +525,15 @@ func TestAgentForward(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait for the output
-	var output []byte
-	for i := 0; i < 100 && len(output) == 0; i++ {
-		time.Sleep(10 * time.Millisecond)
-		output, _ = ioutil.ReadFile(tmpFile.Name())
-	}
-	require.NotEmpty(t, output)
-	socketPath := strings.TrimSpace(string(output))
+	var socketPath string
+	require.Eventually(t, func() bool {
+		output, err := ioutil.ReadFile(tmpFile.Name())
+		if err == nil && len(output) != 0 {
+			socketPath = strings.TrimSpace(string(output))
+			return true
+		}
+		return false
+	}, 5*time.Second, 10*time.Millisecond, "failed to read socket path")
 
 	// try dialing the ssh agent socket:
 	file, err := net.Dial("unix", socketPath)
