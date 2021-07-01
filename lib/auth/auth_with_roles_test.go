@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
@@ -267,7 +266,7 @@ func TestListNodes(t *testing.T) {
 	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
-	// create user and role
+	// create user, role, and client
 	username := "user"
 	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
 	require.NoError(t, err)
@@ -279,38 +278,21 @@ func TestListNodes(t *testing.T) {
 	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
-	// list nodes one at a time, last page should be empty
-	nodes, nextKey, err := clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	// listing nodes 0-4 should list first 5 nodes
+	nodes, _, err := clt.ListNodes(ctx, defaults.Namespace, 5, "")
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes := testNodes[:5]
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
-	expectedNextKey := backend.NextPaginationKey(testNodes[4])
-	require.EqualValues(t, expectedNextKey, nextKey)
-
-	nodes, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 5, nextKey)
-	require.NoError(t, err)
-	require.EqualValues(t, 5, len(nodes))
-	expectedNodes = testNodes[5:]
-	require.Empty(t, cmp.Diff(expectedNodes, nodes))
-	expectedNextKey = backend.NextPaginationKey(testNodes[9])
-	require.EqualValues(t, expectedNextKey, nextKey)
-
-	nodes, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 5, nextKey)
-	require.NoError(t, err)
-	require.EqualValues(t, 0, len(nodes))
-	require.EqualValues(t, "", nextKey)
 
 	// remove permission for third node
 	role.SetNodeLabels(types.Deny, types.Labels{"name": {testNodes[3].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// listing nodes 0-4 should skip the third node and add the fifth to the end.
-	nodes, nextKey, err = clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	nodes, _, err = clt.ListNodes(ctx, defaults.Namespace, 5, "")
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
-	expectedNextKey = backend.NextPaginationKey(testNodes[5])
-	require.EqualValues(t, expectedNextKey, nextKey)
 }
