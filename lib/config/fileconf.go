@@ -438,10 +438,9 @@ func (s *Service) Disabled() bool {
 type Auth struct {
 	Service `yaml:",inline"`
 
-	// ProxyProtocol turns on support for HAProxy proxy protocol
-	// this is the option that has be turned on only by administrator,
-	// as only admin knows whether service is in front of trusted load balancer
-	// or not.
+	// ProxyProtocol enables support for HAProxy proxy protocol version 1 when it is turned 'on'.
+	// Verify whether the service is in front of a trusted load balancer.
+	// The default value is 'on'.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 
 	// ClusterName is the name of the CA who manages this cluster

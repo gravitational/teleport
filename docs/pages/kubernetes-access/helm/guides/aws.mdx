@@ -211,6 +211,7 @@ EOF
 After you have created the `Issuer` and updated the values, add it to your cluster using `kubectl`:
 
 ```bash
+kubectl create namespace teleport
 kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
