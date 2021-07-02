@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -1149,9 +1148,6 @@ func TestNodesCRUD(t *testing.T) {
 		Metadata: types.Metadata{
 			Name:      "node1",
 			Namespace: defaults.Namespace,
-			// Artificially make a node ~ 3MB to force ListNodes
-			// to fail when retrieving more than one at a time.
-			Labels: map[string]string{"label": string(make([]byte, 3000000))},
 		},
 	}
 
@@ -1161,27 +1157,8 @@ func TestNodesCRUD(t *testing.T) {
 		Metadata: types.Metadata{
 			Name:      "node2",
 			Namespace: defaults.Namespace,
-			// Artificially make a node ~ 3MB to force ListNodes
-			// to fail when retrieving more than one at a time.
-			Labels: map[string]string{"label": string(make([]byte, 3000000))},
 		},
 	}
-
-	// add largeNode to special namespace. largeNode is too big to send over gRPC.
-	largeNodeNamespace := "the_big_one"
-	largeNode := &types.ServerV2{
-		Version: types.V2,
-		Kind:    types.KindNode,
-		Metadata: types.Metadata{
-			Name:      "the_big_one",
-			Namespace: largeNodeNamespace,
-			// Artificially make a node ~ 5MB to force
-			// ListNodes to fail regardless of chunk size.
-			Labels: map[string]string{"label": string(make([]byte, 5000000))},
-		},
-	}
-	_, err = srv.Auth().UpsertNode(ctx, largeNode)
-	require.NoError(t, err)
 
 	t.Run("CreateNode", func(t *testing.T) {
 		// Initially expect no nodes to be returned.
@@ -1195,10 +1172,6 @@ func TestNodesCRUD(t *testing.T) {
 
 		_, err = clt.UpsertNode(ctx, node2)
 		require.NoError(t, err)
-
-		// Fail to create largeNode
-		_, err = clt.UpsertNode(ctx, largeNode)
-		require.IsType(t, &trace.LimitExceededError{}, err)
 	})
 
 	// Run NodeGetters in nested subtests to allow parallelization.
@@ -1235,14 +1208,10 @@ func TestNodesCRUD(t *testing.T) {
 
 			_, _, err = clt.ListNodes(ctx, apidefaults.Namespace, -1, "")
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
-
-			// ListNodes should return a limit exceeded error when exceeding gRPC message size limit.
-			_, _, err = clt.ListNodes(ctx, defaults.Namespace, 2, "")
-			require.IsType(t, &trace.LimitExceededError{}, err)
 		})
 		t.Run("GetNodes", func(t *testing.T) {
 			t.Parallel()
-			// Get all nodes, transparently handle limit exceeded errors
+			// Get all nodes
 			nodes, err := clt.GetNodes(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
 			require.EqualValues(t, len(nodes), 2)
@@ -1252,11 +1221,6 @@ func TestNodesCRUD(t *testing.T) {
 			// GetNodes should fail if namespace isn't provided
 			_, err = clt.GetNodes(ctx, "")
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
-
-			// GetNodes should return a limit exceeded error when a single
-			// node is larger than the gRPC message size limit.
-			_, err = clt.GetNodes(ctx, largeNodeNamespace)
-			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
 		})
 	})
 
