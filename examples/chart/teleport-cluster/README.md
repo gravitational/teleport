@@ -10,7 +10,7 @@ Install Teleport in a separate namespace and provision a web certificate using
 Let's Encrypt:
 
 ```bash
-$ helm install teleport/teleport-cluster \
+$ helm install teleport-cluster \
     --set acme=true \
     --set acmeEmail=alice@example.com \
     --set clusterName=teleport.example.com\
