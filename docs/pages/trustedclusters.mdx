@@ -274,7 +274,7 @@ spec:
       'environment': 'production'
 ```
 
-Now, we need to establish trust between roles "root:admin" and "leaf:access". This is
+Now, we need to establish trust between roles "root:admin" and "leaf:local-admin". This is
 done by creating a trusted cluster [resource](admin-guide.mdx#resources) on "leaf"
 which looks like this:
 
@@ -291,7 +291,7 @@ spec:
     - remote: admin
       # admin <-> admin works for the Open Source Edition. Enterprise users
       # have great control over RBAC.
-      local: [access]
+      local: [local-admin]
   token: "join-token-from-root"
   tunnel_addr: root.example.com:3024
   web_proxy_addr: root.example.com:3080
