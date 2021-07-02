@@ -219,61 +219,6 @@ func (o *SAMLConnectorV2) SetAssertionConsumerService(v string) {
 	o.Spec.AssertionConsumerService = v
 }
 
-<<<<<<< HEAD
-=======
-// Equals returns true if the connectors are identical
-func (o *SAMLConnectorV2) Equals(other SAMLConnector) bool {
-	if o.GetName() != other.GetName() {
-		return false
-	}
-	if o.GetCert() != other.GetCert() {
-		return false
-	}
-	if o.GetAudience() != other.GetAudience() {
-		return false
-	}
-	if o.GetEntityDescriptor() != other.GetEntityDescriptor() {
-		return false
-	}
-	if o.Expiry() != other.Expiry() {
-		return false
-	}
-	if o.GetIssuer() != other.GetIssuer() {
-		return false
-	}
-	if (o.GetSigningKeyPair() == nil && other.GetSigningKeyPair() != nil) || (o.GetSigningKeyPair() != nil && other.GetSigningKeyPair() == nil) {
-		return false
-	}
-	if o.GetSigningKeyPair() != nil {
-		a, b := o.GetSigningKeyPair(), other.GetSigningKeyPair()
-		if a.Cert != b.Cert || a.PrivateKey != b.PrivateKey {
-			return false
-		}
-	}
-	if (o.GetEncryptionKeyPair() == nil && other.GetEncryptionKeyPair() != nil) || (o.GetEncryptionKeyPair() != nil && other.GetEncryptionKeyPair() == nil) {
-		return false
-	}
-	if o.GetEncryptionKeyPair() != nil {
-		a, b := o.GetEncryptionKeyPair(), other.GetEncryptionKeyPair()
-		if a.Cert != b.Cert || a.PrivateKey != b.PrivateKey {
-			return false
-		}
-	}
-	mappings := o.GetAttributesToRoles()
-	otherMappings := other.GetAttributesToRoles()
-	if len(mappings) != len(otherMappings) {
-		return false
-	}
-	for i := range mappings {
-		a, b := mappings[i], otherMappings[i]
-		if a.Name != b.Name || a.Value != b.Value || !utils.StringSlicesEqual(a.Roles, b.Roles) {
-			return false
-		}
-	}
-	return o.GetSSO() == other.GetSSO()
-}
-
->>>>>>> 218958534 (various fixes)
 // SetDisplay sets friendly name for this provider.
 func (o *SAMLConnectorV2) SetDisplay(display string) {
 	o.Spec.Display = display
