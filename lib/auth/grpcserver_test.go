@@ -1147,7 +1147,7 @@ func TestNodesCRUD(t *testing.T) {
 		Kind:    types.KindNode,
 		Metadata: types.Metadata{
 			Name:      "node1",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 	}
 
@@ -1156,7 +1156,7 @@ func TestNodesCRUD(t *testing.T) {
 		Kind:    types.KindNode,
 		Metadata: types.Metadata{
 			Name:      "node2",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 	}
 
