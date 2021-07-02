@@ -602,7 +602,7 @@ func (c *Client) DeleteNode(ctx context.Context, namespace string, name string) 
 func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if resp, err := c.APIClient.GetNodes(ctx, namespace); err != nil {
 		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
+			return nil, err
 		}
 	} else {
 		return resp, nil
