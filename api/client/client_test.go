@@ -19,11 +19,16 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -56,6 +61,80 @@ func startMockServer(t *testing.T, addr string) {
 
 func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
 	return &proto.PingResponse{}, nil
+}
+
+// Implement ListNodes handling of limit exceeded errors.
+func (m *mockServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest) (*proto.ListNodesResponse, error) {
+	nodes, err := testNodes(req.Namespace)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	// Implement simple pagination using StartKey as an index of nodes.
+	resp := &proto.ListNodesResponse{}
+	var startKeyInt int
+	if req.StartKey != "" {
+		startKeyInt, err = strconv.Atoi(req.StartKey)
+		if err != nil {
+			return nil, trail.ToGRPC(err)
+		}
+	}
+
+	// retrieve nodes starting at startKey until we reach the limit or run out of nodes.
+	for i := startKeyInt; i < startKeyInt+int(req.Limit) && i < len(nodes); i++ {
+		node, ok := nodes[i].(*types.ServerV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.Errorf("Unexpected type: %T", nodes[i]))
+		}
+		resp.Servers = append(resp.Servers, node)
+	}
+
+	// Set NextKey to LastKey+1 if there are any pages remaining.
+	if len(resp.Servers) == int(req.Limit) {
+		resp.NextKey = fmt.Sprint(startKeyInt + int(req.Limit))
+	}
+
+	return resp, nil
+}
+
+const fiveMBNode = "fiveMBNode"
+
+func testNodes(namespace string) ([]types.Server, error) {
+	switch namespace {
+	case fiveMBNode:
+		node, err := types.NewServerWithLabels(
+			"fiveMBNode",
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{
+				// Artificially make a node ~ 5MB to force
+				// ListNodes to fail regardless of chunk size.
+				"label": string(make([]byte, 5000000)),
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []types.Server{node}, nil
+	default:
+		var err error
+		nodes := make([]types.Server, 50)
+		for i := 0; i < 50; i++ {
+			if nodes[i], err = types.NewServerWithLabels(
+				fmt.Sprintf("node%v", i),
+				types.KindNode,
+				types.ServerSpecV2{},
+				map[string]string{
+					// Artificially make each node ~ 100KB to force
+					// ListNodes to fail with chunks of >= 40.
+					"label": string(make([]byte, 100000)),
+				},
+			); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return nodes, nil
+	}
 }
 
 // mockInsecureCredentials mocks insecure Client credentials.
@@ -209,4 +288,40 @@ func TestWaitForConnectionReady(t *testing.T) {
 	// WaitForConnectionReady should return an error if the grpc connection is closed.
 	require.NoError(t, clt.GetConnection().Close())
 	require.Error(t, clt.waitForConnectionReady(ctx))
+}
+
+func TestLimitExceeded(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	addr := "localhost:6025"
+	startMockServer(t, addr)
+
+	// Create client
+	clt, err := New(ctx, Config{
+		Addrs: []string{addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+		},
+	})
+	require.NoError(t, err)
+
+	// ListNodes should return a limit exceeded error when exceeding gRPC message size limit.
+	_, _, err = clt.ListNodes(ctx, defaults.Namespace, 50, "")
+	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+
+	// GetNodes should retrieve all nodes and transparently handle limit exceeded errors.
+	expectedNodes, err := testNodes(defaults.Namespace)
+	require.NoError(t, err)
+
+	resp, err := clt.GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, expectedNodes, resp)
+
+	// GetNodes should fail with a limit exceeded error if a
+	// single node is too big to send over gRPC (over 4MB).
+	_, err = clt.GetNodes(ctx, fiveMBNode)
+	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
 }
