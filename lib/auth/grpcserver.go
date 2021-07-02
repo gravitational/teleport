@@ -2533,18 +2533,6 @@ func (g *GRPCServer) GetClusterAuditConfig(ctx context.Context, _ *empty.Empty) 
 	return auditConfigV2, nil
 }
 
-// SetClusterAuditConfig sets cluster audit configuration.
-func (g *GRPCServer) SetClusterAuditConfig(ctx context.Context, auditConfig *types.ClusterAuditConfigV2) (*empty.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = auth.ServerWithRoles.SetClusterAuditConfig(ctx, auditConfig); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &empty.Empty{}, nil
-}
-
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *empty.Empty) (*types.ClusterNetworkingConfigV2, error) {
 	auth, err := g.authenticate(ctx)
