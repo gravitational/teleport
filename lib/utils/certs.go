@@ -34,7 +34,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ParseKeyStore parses signing key store from PEM encoded key pair
+// ParseKeyStorePEM parses signing key store from PEM encoded key pair
 func ParseKeyStorePEM(keyPEM, certPEM string) (*KeyStore, error) {
 	_, err := tlsutils.ParseCertificatePEM([]byte(certPEM))
 	if err != nil {
@@ -55,7 +55,7 @@ func ParseKeyStorePEM(keyPEM, certPEM string) (*KeyStore, error) {
 	return &KeyStore{privateKey: rsaKey, cert: certASN.Bytes}, nil
 }
 
-// To sign and decrypt data using X509 digital signatures
+// KeyStore is used to sign and decrypt data using X509 digital signatures.
 type KeyStore struct {
 	privateKey *rsa.PrivateKey
 	cert       []byte
