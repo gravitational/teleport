@@ -182,7 +182,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		}
 	} else {
 		// Case 2: An encryption keypair is configured. This means that encrypted SAML responses are expected.
-		// Since gosaml2 always uses the main key for encryption, we set it to assrtion_key_pair.
+		// Since gosaml2 always uses the main key for encryption, we set it to assertion_key_pair.
 		// To handle signing correctly, we now instead set the optional signing key in gosaml2 to signing_key_pair.
 		log.Info("Detected assertion_key_pair and configured it to decrypt SAML responses.")
 		keyStore, err = utils.ParseKeyStorePEM(encryptionKeyPair.PrivateKey, encryptionKeyPair.Cert)
