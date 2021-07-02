@@ -39,7 +39,14 @@ By default, SSH clients can connect to a Teleport cluster through the following 
 | - | - | - |
 | 3023 | Proxy | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination Node. |
 
-Teleport allows for complex, multi-client, arrangments as well as unified solutions (using Teleport alone in both a dedicated SSH server and as a client through `tsh`). For example, one cluster may be accessible through OpenSSH, another through Teleport `tsh`, and another through Putty.
+Teleport allows multi-client arrangments as well as unified solutions (using Teleport alone in both a dedicated SSH server and as a client through `tsh`). For example, one cluster may be accessible through OpenSSH, another through Teleport `tsh`, and another through, say, Putty CAC.
+
+| Client | OS | Supported | Comments | 
+| - | - | - | - |
+| tsh | macOS, Linux, Windows | Yes | Teleport's ssh client. Support for Windows is available from v3.0.1+. |
+| OpenSSH | macOS, Linux, Windows Linux Subsystem 2, Cygwin on Windows | Yes | A popular SSH client with native support for SSH certificates. |
+| Putty | Windows (All) | No | Lacks out-of-the-box support for SSH certificates. |
+| Putty CAC | Windows 7+ | Yes | Fork of Putty. Support for SSH certificates through the Windows Certificate API. May require additional tooling. |
   
 ### Servers
 
