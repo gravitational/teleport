@@ -55,8 +55,7 @@ func (c *AccessCommand) Initialize(app *kingpin.Application, config *service.Con
 func (c *AccessCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.accessList.FullCommand():
-		var access datalog.Access
-		access = &datalog.AccessRequest{Username: c.user, Login: c.login, Node: c.node, Namespace: c.namespace}
+		access := &datalog.AccessRequest{Username: c.user, Login: c.login, Node: c.node, Namespace: c.namespace}
 		resp, err := access.QueryAccess(client)
 		if err != nil {
 			return false, trace.Wrap(err)

@@ -1,3 +1,5 @@
+// +build roletester
+
 /*
 Copyright 2021 Gravitational, Inc.
 
@@ -19,7 +21,6 @@ package datalog
 //#cgo LDFLAGS: -Lroletester/target/release -lrole_tester
 //#include <stdio.h>
 //extern char * process_access(const char *str);
-//extern void test();
 import "C"
 import (
 	"context"
@@ -311,7 +312,7 @@ func (r *AccessResponse) BuildStringOutput() string {
 		})
 	}
 
-	denyTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Denying Roles"})
+	denyTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Denying Role"})
 	for _, pred := range r.Accesses[denyRoles] {
 		user := r.reverseMappings[pred.Atoms[0]]
 		login := r.reverseMappings[pred.Atoms[1]]
