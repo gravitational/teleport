@@ -226,6 +226,9 @@ func TestConfigReading(t *testing.T) {
 			Logger: Log{
 				Output:   "stderr",
 				Severity: "INFO",
+				Format: LogFormat{
+					Output: "text",
+				},
 			},
 			Storage: backend.Config{
 				Type: "bolt",
@@ -898,6 +901,7 @@ func makeConfigFixture() string {
 	conf.Limits.Rates = ConnectionRates
 	conf.Logger.Output = "stderr"
 	conf.Logger.Severity = "INFO"
+	conf.Logger.Format = LogFormat{Output: "text"}
 	conf.Storage.Type = "bolt"
 
 	// auth service:
@@ -1584,11 +1588,37 @@ func TestTextFormatter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
 			formatter := &textFormatter{
-				LogFormat: tt.formatConfig,
+				ExtraFields: tt.formatConfig,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
-
 		})
 	}
+}
 
+func TestJSONFormatter(t *testing.T) {
+	tests := []struct {
+		comment     string
+		extraFields []string
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			comment:     "invalid key (does not exist)",
+			extraFields: []string{"level", "invalid key"},
+			assertErr:   require.Error,
+		},
+		{
+			comment:     "valid keys and formatting",
+			extraFields: []string{"level", "caller", "component", "timestamp"},
+			assertErr:   require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.comment, func(t *testing.T) {
+			formatter := &jsonFormatter{
+				extraFields: tt.extraFields,
+			}
+			tt.assertErr(t, formatter.CheckAndSetDefaults())
+		})
+	}
 }
