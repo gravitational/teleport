@@ -248,7 +248,7 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	case types.EventOrderDescending:
 		toSort = sort.Reverse(ByTimeAndIndex(dynamicEvents))
 	default:
-		return nil, "", trace.BadParameter("invalid event order")
+		return nil, "", trace.BadParameter("invalid event order: %s", order)
 	}
 	sort.Sort(toSort)
 
@@ -577,7 +577,7 @@ func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time, order types.EventOrder
 	case types.EventOrderDescending:
 		toSort = sort.Reverse(byDate(filtered))
 	default:
-		return nil, trace.BadParameter("invalid event order")
+		return nil, trace.BadParameter("invalid event order: %s", order)
 	}
 	sort.Sort(toSort)
 	return filtered, nil

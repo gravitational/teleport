@@ -504,7 +504,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	case types.EventOrderDescending:
 		firestoreOrdering = firestore.Desc
 	default:
-		return nil, "", trace.BadParameter("invalid event order")
+		return nil, "", trace.BadParameter("invalid event order: %s", order)
 	}
 
 	start := time.Now()
@@ -571,7 +571,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	case types.EventOrderDescending:
 		toSort = sort.Reverse(events.ByTimeAndIndex(values))
 	default:
-		return nil, "", trace.BadParameter("invalid event order")
+		return nil, "", trace.BadParameter("invalid event order: %s", order)
 	}
 	sort.Sort(toSort)
 
