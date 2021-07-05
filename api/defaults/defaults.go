@@ -68,3 +68,8 @@ func EnhancedEvents() []string {
 		constants.EnhancedRecordingNetwork,
 	}
 }
+
+const (
+	// DefaultChunkSize is the default chunk size for paginated endpoints.
+	DefaultChunkSize = 1000
+)
