@@ -6,10 +6,9 @@ use std::ffi::CStr;
 use serde::{Deserialize, Serialize};
 
 crepe! {
+    // Input from EDB
     @input
     struct HasRole(u32, u32);
-    @input
-    struct HasLoginTrait(u32);
     @input
     struct HasTrait(u32, u32, u32);
     @input
@@ -23,31 +22,44 @@ crepe! {
     @input
     struct RoleDeniesLogin(u32, u32);
 
+    // Intermediate rules
     struct HasAllowNodeLabel(u32, u32, u32, u32);
     struct HasDenyNodeLabel(u32, u32, u32, u32);
-
     struct HasAllowRole(u32, u32, u32);
     struct HasDenyRole(u32, u32);
+    struct HasDeniedLogin(u32, u32);
+
+    // Output for IDB
     @output
     struct HasAccess(u32, u32, u32);
-
     @output
-    struct AllowRoles(u32, u32, u32);
+    struct AllowRoles(u32, u32, u32, u32);
     @output
-    struct DenyRoles(u32, u32, u32);
+    struct DenyRoles(u32, u32, u32, u32);
 
+    // Intermediate rules to help determine access
     HasAllowNodeLabel(role, node, key, value) <- RoleAllowsNodeLabel(role, key, value), NodeHasLabel(node, key, value);
     HasDenyNodeLabel(role, node, key, value) <- RoleDeniesNodeLabel(role, key, value), NodeHasLabel(node, key, value);
-
     HasAllowRole(user, login, node) <- HasRole(user, role), HasAllowNodeLabel(role, node, _, _), RoleAllowsLogin(role, login),
-        !RoleDeniesLogin(role, login), !HasLoginTrait(user);
+        !RoleDeniesLogin(role, login);
     HasAllowRole(user, login, node) <- HasRole(user, role), HasAllowNodeLabel(role, node, _, _), HasTrait(user, 0, login),
         !RoleDeniesLogin(role, login);
     HasDenyRole(user, node) <- HasRole(user, role), HasDenyNodeLabel(role, node, _, _);
-    HasAccess(user, login, node) <- HasAllowRole(user, login, node), !HasDenyRole(user, node);
+    HasDeniedLogin(user, login) <- HasRole(user, role), RoleDeniesLogin(role, login);
 
-    AllowRoles(user, role, node) <- HasRole(user, role), HasAllowNodeLabel(role, node, _, _);
-    DenyRoles(user, role, node) <- HasRole(user, role), HasDenyNodeLabel(role, node, _, _);
+    // HasAccess rule determines each access for a specified user, login and node
+    HasAccess(user, login, node) <- HasAllowRole(user, login, node), !HasDenyRole(user, node), !HasDeniedLogin(user, login);
+
+    // AllowRoles rule determines each role that allows a user access with a given login to node
+    AllowRoles(user, login, role, node) <- HasRole(user, role), HasAllowNodeLabel(role, node, _, _), RoleAllowsLogin(role, login),
+    !RoleDeniesLogin(role, login);
+    AllowRoles(user, login, role, node) <- HasRole(user, role), HasAllowNodeLabel(role, node, _, _), HasTrait(user, 0, login),
+    !RoleDeniesLogin(role, login);
+
+    // DenyRoles rule determines each denied access given a user, login, and node. The role that denies the access is also provided
+    DenyRoles(user, login, role, node) <- HasRole(user, role), HasDenyNodeLabel(role, node, _, _), RoleAllowsLogin(role, login);
+    DenyRoles(user, login, role, node) <- HasRole(user, role), HasDenyNodeLabel(role, node, _, _), RoleDeniesLogin(role, login);
+    DenyRoles(user, login, role, node) <- HasRole(user, role), HasDenyNodeLabel(role, node, _, _), HasTrait(user, 0, login);
 }
 
 #[derive(Serialize, Deserialize)]
@@ -84,6 +96,7 @@ pub extern "C" fn process_access(s: *const c_char) -> *mut c_char {
     let r_str = c_str.to_str().unwrap();
     let edb: EDB = serde_json::from_str(r_str).unwrap();
     
+    // Create each predicate
     match edb.has_role {
         Some(x) => {
             x.into_iter()
@@ -100,14 +113,6 @@ pub extern "C" fn process_access(s: *const c_char) -> *mut c_char {
         None => {}
     }
     
-    match edb.has_login_trait {
-        Some(x) => {
-            x.into_iter()
-             .for_each(|Predicate{Atoms}| runtime.extend(&[HasLoginTrait(Atoms[0])]));
-        },
-        None => {}
-    }
-
     match edb.role_allows_login {
         Some(x) => {
             x.into_iter()
@@ -148,20 +153,21 @@ pub extern "C" fn process_access(s: *const c_char) -> *mut c_char {
         None => {}
     }
 
+    // Format output into JSON
     let (accesses, allow_roles, deny_roles) = runtime.run();
     let mut accesses = accesses.into_iter().collect::<Vec<_>>();
     accesses.sort_by(|HasAccess(a, _, _), HasAccess(b, _, _)| a.cmp(b));
 
     let mut allow_roles = allow_roles.into_iter().collect::<Vec<_>>();
-    allow_roles.sort_by(|AllowRoles(a, _, _), AllowRoles(b, _, _)| a.cmp(b));
+    allow_roles.sort_by(|AllowRoles(a, _, _, _), AllowRoles(b, _, _, _)| a.cmp(b));
 
     let mut deny_roles = deny_roles.into_iter().collect::<Vec<_>>();
-    deny_roles.sort_by(|DenyRoles(a, _, _), DenyRoles(b, _, _)| a.cmp(b));
+    deny_roles.sort_by(|DenyRoles(a, _, _, _), DenyRoles(b, _, _, _)| a.cmp(b));
 
     let idb = IDB {
         accesses: accesses.into_iter().map(|HasAccess(a, b, c)| Predicate{Atoms: vec![a, b, c]}).collect(),
-        allow_roles: allow_roles.into_iter().map(|AllowRoles(a, b, c)| Predicate{Atoms: vec![a, b, c]}).collect(),
-        deny_roles: deny_roles.into_iter().map(|DenyRoles(a, b, c)| Predicate{Atoms: vec![a, b, c]}).collect()
+        allow_roles: allow_roles.into_iter().map(|AllowRoles(a, b, c, d)| Predicate{Atoms: vec![a, b, c, d]}).collect(),
+        deny_roles: deny_roles.into_iter().map(|DenyRoles(a, b, c, d)| Predicate{Atoms: vec![a, b, c, d]}).collect()
     };
 
     let c_str_song = CString::new(serde_json::to_string(&idb).unwrap()).unwrap();
