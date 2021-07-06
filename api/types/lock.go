@@ -25,6 +25,7 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
+// Lock configures locking out of a particular access vector.
 type Lock interface {
 	Resource
 
