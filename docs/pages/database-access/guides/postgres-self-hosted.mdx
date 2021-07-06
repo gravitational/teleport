@@ -12,7 +12,7 @@ This Guide describes how to configure Teleport Database Access for self-hosted P
 To create these secrets, use `tctl auth sign` command. It can be run either
 [locally](../../architecture/overview.mdx#tctl) on the auth server, or from the
 client machine after logging in with `tsh login` (for example, when using
-[Teleport Cloud](../../cloud/introduction.mdx)).
+[Teleport Pro](../../pro/introduction.mdx)).
 
 In the latter case, user must be allowed to impersonate the system role `Db` in
 order to be able to generate the database certificate, by having the following
