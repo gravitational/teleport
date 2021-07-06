@@ -826,7 +826,7 @@ func checkResourceConsistency(clusterName string, resources ...types.Resource) e
 			// all CAs for this cluster do having signing keys.
 			seemsLocal := r.GetClusterName() == clusterName
 			var hasKeys bool
-			_, err := sshPrivateKey(r)
+			_, err := sshSigner(r)
 			switch {
 			case err == nil:
 				hasKeys = true
