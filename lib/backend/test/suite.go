@@ -523,11 +523,30 @@ func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
 	tok2 := "token2"
 	ttl := 5 * time.Second
 
-	// If all this takes more than a minute then something external to the test has probably
-	// gone bad (e.g. db server has ceased to exist), so it's probably best to bail out with
-	// a sensible error rather than wait for the test to time out
+	// If all this takes more than a minute then something external to the test
+	// has probably gone bad (e.g. db server has ceased to exist), so it's
+	// probably best to bail out with a sensible error (& call stack) rather
+	// than wait for the test to time out
 	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Minute)
 	defer cancel()
+
+	// Manually drive the clock at ~10x speed to make sure anyone waiting on it
+	// will eventually be woken. This will automatically be stopped when the
+	// test exits thanks to the deferred cancel above.
+	go func() {
+		t := time.NewTicker(100 * time.Millisecond)
+		defer t.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+
+			case <-t.C:
+				s.Clock.Advance(1 * time.Second)
+			}
+		}
+	}()
 
 	lock, err := backend.AcquireLock(ctx, bk, tok1, ttl)
 	c.Assert(err, check.IsNil)
@@ -536,8 +555,6 @@ func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
 	go func() {
 		atomic.StoreInt32(&x, 9)
 		c.Assert(lock.Release(ctx, bk), check.IsNil)
-		// Force the clock to periodically move after release so waiters can be awoken
-		s.Clock.Advance(1 * time.Second)
 	}()
 	lock, err = backend.AcquireLock(ctx, bk, tok1, ttl)
 	c.Assert(err, check.IsNil)
@@ -552,8 +569,6 @@ func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
 	go func() {
 		atomic.StoreInt32(&x, 9)
 		c.Assert(lock.Release(ctx, bk), check.IsNil)
-		// Force the clock to periodically move after release so waiters can be awoken
-		s.Clock.Advance(1 * time.Second)
 	}()
 	lock, err = backend.AcquireLock(ctx, bk, tok1, ttl)
 	c.Assert(err, check.IsNil)
@@ -570,8 +585,6 @@ func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
 		atomic.StoreInt32(&y, 15)
 		c.Assert(lock1.Release(ctx, bk), check.IsNil)
 		c.Assert(lock2.Release(ctx, bk), check.IsNil)
-		// Force the clock to periodically move after release so waiters can be awoken
-		s.Clock.Advance(1 * time.Second)
 	}()
 
 	lock, err = backend.AcquireLock(ctx, bk, tok1, ttl)
