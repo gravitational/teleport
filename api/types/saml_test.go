@@ -27,15 +27,15 @@ func TestSAMLSecretsStrip(t *testing.T) {
 	connector, err := NewSAMLConnector("test", SAMLConnectorSpecV2{
 		AssertionConsumerService: "test",
 		SSO:                      "test",
-		EntityDescriptor:         "",
-		SigningKeyPair:           &AsymmetricKeyPair{},
-		EncryptionKeyPair:        &AsymmetricKeyPair{},
+		EntityDescriptor:         "test",
+		SigningKeyPair:           &AsymmetricKeyPair{PrivateKey: "test"},
+		EncryptionKeyPair:        &AsymmetricKeyPair{PrivateKey: "test"},
 	})
 	require.Nil(t, err)
-	require.NotNil(t, connector.GetSigningKeyPair())
-	require.NotNil(t, connector.GetEncryptionKeyPair())
+	require.Equal(t, connector.GetSigningKeyPair().PrivateKey, "test")
+	require.Equal(t, connector.GetEncryptionKeyPair().PrivateKey, "test")
 
 	withoutSecrets := connector.WithoutSecrets().(*SAMLConnectorV2)
-	require.Nil(t, withoutSecrets.GetSigningKeyPair())
-	require.Nil(t, withoutSecrets.GetEncryptionKeyPair())
+	require.Equal(t, withoutSecrets.GetSigningKeyPair().PrivateKey, "")
+	require.Equal(t, withoutSecrets.GetEncryptionKeyPair().PrivateKey, "")
 }
