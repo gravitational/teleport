@@ -17,7 +17,7 @@ If a workaround exists, please include it.
 
 ### Which platform(s)
 - [ ] Teleport Open Source
-- [ ] Teleport Cloud
+- [ ] Teleport Pro
 - [x] Teleport Enterprise
 - [ ] Other
 

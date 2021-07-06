@@ -38,7 +38,7 @@ Please include or attach debug logs, when appropriate. Obfuscate sensitive infor
 
 ### Which platform(s)
 - [ ] Teleport Open Source
-- [ ] Teleport Cloud
+- [ ] Teleport Pro
 - [x] Teleport Enterprise
 - [ ] Other
 

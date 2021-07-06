@@ -13,7 +13,7 @@ Describe the documentation improvements you wish to see.
 
 ### Which platform(s)
 - [ ] Teleport Open Source
-- [ ] Teleport Cloud
+- [ ] Teleport Pro
 - [x] Teleport Enterprise
 - [ ] Other
 
