@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -601,7 +602,7 @@ func (c *Client) DeleteNode(ctx context.Context, namespace string, name string) 
 func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if resp, err := c.APIClient.GetNodes(ctx, namespace); err != nil {
 		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
+			return nil, err
 		}
 	} else {
 		return resp, nil
@@ -742,4 +743,48 @@ func (c *Client) unmarshalEventsResponse(response *roundtrip.Response) ([]events
 	}
 
 	return eventArr, nil
+}
+
+// GetAuthPreference gets cluster auth preference.
+func (c *Client) GetAuthPreference() (types.AuthPreference, error) {
+	if resp, err := c.APIClient.GetAuthPreference(); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+	out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cap, err := services.UnmarshalAuthPreference(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cap, nil
+}
+
+// SetAuthPreference sets cluster auth preference.
+func (c *Client) SetAuthPreference(cap types.AuthPreference) error {
+	if err := c.APIClient.SetAuthPreference(cap); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+	data, err := services.MarshalAuthPreference(cap)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = c.PostJSON(c.Endpoint("authentication", "preference"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

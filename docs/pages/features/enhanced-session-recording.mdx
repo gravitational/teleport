@@ -4,37 +4,35 @@ description: How to record your SSH and Kubernetes sessions into the audit log.
 h1: Enhanced Session Recording
 ---
 
-Teleport [SSH and Kubernetes session recording](../architecture/nodes.mdx#session-recording)
+Teleport's (default) [SSH and Kubernetes session recording](../architecture/nodes.mdx#session-recording)
 feature captures what is echoed to a terminal.
 
-This has inherent advantages, for example because no input is captured, Teleport
+This has inherent advantages, for example, because no input is captured, Teleport
 session recordings typically do not contain passwords that were entered into a terminal.
 
-The disadvantage is that session recordings can by bypassed using several techniques:
+The disadvantage is that session recordings can be bypassed using several techniques:
 
 - **Obfuscation**. For example, even though the command
   `echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
   `curl http://www.example.com`, when decoded, that is what is run.
-- **Shell scripts**. For example, if a user uploads and executes a script, the commands
-  run within the script are not captured, simply the output.
-- **Terminal controls**. Terminals support a wide variety of controls including the
-  ability for users to disable terminal echo. This is frequently used when requesting
-  credentials. Disabling terminal echo allows commands to be run without being captured.
+- **Shell scripts**. For example, if a user uploads and executes a script, the commands run within the script are not captured, simply the output.
+- **Terminal controls**. Terminals support a wide variety of controls including the ability for users to disable terminal echo. This is frequently used when requesting credentials. Disabling terminal echo allows commands to be run without being captured.
 
 Furthermore, due to their unstructured nature, session recordings are difficult to
 ingest and perform monitoring/alerting on.
+
+Teleport Enhanced Session Recording mitigates all three concerns by providing advanced security, greater logging capabilities, and better correlates a user with their activities.
 
 <Admonition type="note">
   Enhanced Session Recording requires all parts of the Teleport system to be running
   4.2+.
 </Admonition>
 
-# Requirements
+## Requirements
 
-## 1. Check / Patch Kernel
+## Step 1/5. Check / Patch kernel
 
-Teleport 4.2+ with Enhanced Session Recording requires Linux kernel 4.18 (or above) as
-well as kernel headers.
+Teleport with Enhanced Session Recording requires Linux kernel 4.18+ as well as kernel headers.
 
 <Admonition type="tip">
   Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/authentication.mdx#audit-log) for more details.
@@ -44,11 +42,11 @@ You can check your kernel version using the `uname` command. The output should l
 something like the following.
 
 ```bash
-$ uname -a
-Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86_64 GNU/Linux
+uname -a
+# Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86_64 GNU/Linux
 ```
 
-### Operating System and Kernel Status table
+### Operating System and kernel status table
 
 <Tabs>
   <TabItem label="Ubuntu">
@@ -136,30 +134,29 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
   </TabItem>
 </Tabs>
 
-## 2. Install BCC Tools
+## Step 2/5. Install BCC tools
 
 We recommend installing BCC tools using your distribution's package manager wherever possible.
 
 <Tabs>
   <TabItem label="Ubuntu/Debian 18.04+">
-    ```sh
+    ```bash
     apt -y install bpfcc-tools
     ```
   </TabItem>
 
   <TabItem label="CentOS/RHEL 8+">
-    \`\`sh
+    ```bash
     yum -y install bcc-tools
-
-    ````
+    ```
     </TabItem>
 
     <TabItem label="Amazon Linux 2+">
     **Example Script to install relevant bcc packages for Amazon 2 Linux**
 
-    Make sure the the machine is at Kernel 4.19+/5+ (`uname -r`). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install required `kernel-devel` package for the Kernel version and install the BCC tools.
+    Make sure the machine is at Kernel 4.19+/5+ (`uname -r`). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install the required `kernel-devel` package for the Kernel version and install the BCC tools.
 
-    ```sh
+    ```bash
     #!/bin/bash
     # Enable BCC within the Amazon Linux Extras
     sudo amazon-linux-extras enable BCC
@@ -172,7 +169,7 @@ We recommend installing BCC tools using your distribution's package manager wher
 
     You should see output similar to below:
 
-    ```
+    ```bash
     Installed:
     bcc.x86_64 0:0.10.0-1.amzn2.0.1
 
@@ -189,7 +186,7 @@ We recommend installing BCC tools using your distribution's package manager wher
       Compiling from source can take a long time and may break if your kernel version changes.
     </Admonition>
 
-    ```sh
+    ```bash
     #!/bin/bash
 
     # Download LLVM and Clang from the Trusty Repos.
@@ -231,7 +228,7 @@ We recommend installing BCC tools using your distribution's package manager wher
       Compiling from source can take a long time and may break if your kernel version changes.
     </Admonition>
 
-    ```sh
+    ```bash
     #!/bin/bash
 
     set -e
@@ -295,7 +292,7 @@ We recommend installing BCC tools using your distribution's package manager wher
   </TabItem>
 </Tabs>
 
-## 3. Install & Configure Teleport Node
+## Step 3/5. Install and configure Teleport Node
 
 Follow our [installation instructions](../installation.mdx) to install Teleport Auth, Proxy
 and Nodes.
@@ -335,7 +332,7 @@ ssh_service:
     cgroup_path: /cgroup2
 ```
 
-## 4. Test by logging into node via Teleport
+## Step 4/5. Test by logging into node via Teleport
 
 **Session with Enhanced Session Recording will be marked as 'true' in the logs.**
 
@@ -358,29 +355,30 @@ ssh_service:
 }
 ```
 
-## 5. Inspect Logs
+## Step 5/5. Inspect logs
 
 The resulting enhanced session recording will be shown in [Teleport's Audit Log](../architecture/authentication.mdx#audit-log).
 
 ```bash
-$ teleport-auth ~:  tree /var/lib/teleport/log
-/var/lib/teleport/log
-├── 1048a649-8f3f-4431-9529-0c53339b65a5
-│   ├── 2020-01-13.00:00:00.log
-│   └── sessions
-│       └── default
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.chunks.gz
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.events.gz
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.command-events.gz
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.network-events.gz
-│           └── fad07202-35bb-11ea-83aa-125400432324.index
-├── events.log -> /var/lib/teleport/log/1048a649-8f3f-4431-9529-0c53339b65a5/2020-01-13.00:00:00.log
-├── playbacks
-│   └── sessions
-│       └── default
-└── upload
-    └── sessions
-        └── default
+teleport-auth ~:  tree /var/lib/teleport/log
+
+# /var/lib/teleport/log
+# ├── 1048a649-8f3f-4431-9529-0c53339b65a5
+# │   ├── 2020-01-13.00:00:00.log
+# │   └── sessions
+# │       └── default
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.chunks.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.events.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.command-events.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.network-events.gz
+# │           └── fad07202-35bb-11ea-83aa-125400432324.index
+# ├── events.log -> /var/lib/teleport/log/1048a649-8f3f-4431-9529-0c53339b65a5/2020-01-13.00:00:00.log
+# ├── playbacks
+# │   └── sessions
+# │       └── default
+# └── upload
+#     └── sessions
+#         └── default
 ```
 
 To quickly check the status of the audit log, you can simply tail the logs with
@@ -388,14 +386,14 @@ To quickly check the status of the audit log, you can simply tail the logs with
 be a JSON log for each command and network request.
 
 <Tabs>
-  <TabItem label="json">
-    ```json
+  <TabItem label="JSON">
+    ```JSON
     {"argv":["google.com"],"cgroup_id":4294968064,"code":"T4000I","ei":5,"event":"session.command","login":"root","namespace":"default","path":"/bin/ping","pid":2653,"ppid":2660,"program":"ping","return_code":0,"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644","sid":"44c6cea8-362f-11ea-83aa-125400432324","time":"2020-01-13T18:05:53.919Z","uid":"734930bb-00e6-4ee6-8798-37f1e9473fac","user":"benarent"}
     ```
   </TabItem>
 
-  <TabItem label="json formatted">
-    ```json
+  <TabItem label="JSON formatted">
+    ```JSON
     {
       "argv":[
         "google.com"

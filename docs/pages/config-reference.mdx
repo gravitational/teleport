@@ -9,6 +9,8 @@ Teleport uses the YAML file format for configuration. A full configuration refer
 file is shown below, this provides comments and all available options for `teleport.yaml`
 By default, it is stored in `/etc/teleport.yaml`.
 
+(!docs/pages/includes/backup-warning.mdx!)
+
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
 
@@ -153,6 +155,11 @@ auth_service:
     # IMPORTANT: if you change cluster_name, it will invalidate all generated
     # certificates and keys (may need to wipe out /var/lib/teleport directory)
     cluster_name: "main"
+
+    # ProxyProtocol enables support for HAProxy proxy protocol version 1 when it is turned 'on'.
+    # Verify whether the service is in front of a trusted load balancer.
+    # The default value is 'on'.
+    proxy_protocol: on
 
     authentication:
         # default authentication type. possible values are 'local' and 'github' for OSS
@@ -333,10 +340,18 @@ ssh_service:
         enabled: no
         service_name: teleport
 
+    # Enables/disables TCP forwarding. Default is 'true'
+    port_forwarding: true
+
 # This section configures the 'proxy service'
 proxy_service:
     # Turns 'proxy' role on. Default is 'yes'
     enabled: yes
+
+    # ProxyProtocol enables support for HAProxy proxy protocol version 1 when it is turned 'on'.
+    # Verify whether the service is in front of a trusted load balancer.
+    # The default value is 'on'.
+    proxy_protocol: on
 
     # SSH forwarding/proxy address. Command line (CLI) clients always begin their
     # SSH sessions by connecting to this port

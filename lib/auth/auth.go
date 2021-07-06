@@ -361,6 +361,11 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
 }
 
+// GetAuthPreference gets AuthPreference from the backend.
+func (a *Server) GetAuthPreference() (types.AuthPreference, error) {
+	return a.GetCache().GetAuthPreference()
+}
+
 // GetClusterConfig gets ClusterConfig from the backend.
 func (a *Server) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
 	return a.GetCache().GetClusterConfig(opts...)
@@ -1867,7 +1872,8 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 }
 
 func (a *Server) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
-	if err := a.DynamicAccessExt.SetAccessRequestState(ctx, params); err != nil {
+	req, err := a.DynamicAccessExt.SetAccessRequestState(ctx, params)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	event := &events.AccessRequestCreate{
@@ -1877,6 +1883,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			UpdatedBy: ClientUsername(ctx),
+			Expires:   req.GetAccessExpiry(),
 		},
 		RequestID:    params.RequestID,
 		RequestState: params.State.String(),
@@ -1896,7 +1903,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 			event.Annotations = annotations
 		}
 	}
-	err := a.emitter.EmitAuditEvent(a.closeCtx, event)
+	err = a.emitter.EmitAuditEvent(a.closeCtx, event)
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request update event.")
 	}
@@ -2042,6 +2049,37 @@ func (a *Server) GetNamespaces() ([]services.Namespace, error) {
 // GetNodes is a part of auth.AccessPoint implementation
 func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	return a.GetCache().GetNodes(ctx, namespace, opts...)
+}
+
+// ListNodes is a part of auth.AccessPoint implementation
+func (a *Server) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
+	return a.GetCache().ListNodes(ctx, namespace, limit, startKey)
+}
+
+// NodePageFunc is a function to run on each page iterated over.
+type NodePageFunc func(next []types.Server) (stop bool, err error)
+
+// IterateNodePages can be used to iterate over pages of nodes.
+func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit int, startKey string, f NodePageFunc) (string, error) {
+	for {
+		nextPage, nextKey, err := a.ListNodes(ctx, namespace, limit, startKey)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		stop, err := f(nextPage)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// Iterator stopped before end of pages or
+		// there are no more pages, return nextKey
+		if stop || nextKey == "" {
+			return nextKey, nil
+		}
+
+		startKey = nextKey
+	}
 }
 
 // GetReverseTunnels is a part of auth.AccessPoint implementation

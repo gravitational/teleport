@@ -23,7 +23,9 @@
           "title": "Guides",
           "slug": "/setup/guides/",
           "entries": [
-            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" }
+            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
+            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" },
+            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" }
           ]
         }
       ]
@@ -76,7 +78,8 @@
             { "title": "Multiple Clusters", "slug": "/kubernetes-access/guides/multiple-clusters/" },
             { "title": "CI/CD", "slug": "/kubernetes-access/guides/cicd/" },
             { "title": "Federation", "slug": "/kubernetes-access/guides/federation/" },
-            { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" }
+            { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" },
+            { "title": "Standalone", "slug": "/kubernetes-access/guides/standalone-teleport/" }
           ]
         },
         {
@@ -85,11 +88,11 @@
           "entries": [
             { "title": "AWS EKS Cluster", "slug": "/kubernetes-access/helm/guides/aws/" },
             { "title": "Google Cloud GKE Cluster", "slug": "/kubernetes-access/helm/guides/gcp/" },
-            { "title": "Customize Deployment config", "slug": "/kubernetes-access/helm/guides/custom/" },
-            { "title": "Migrating from older charts", "slug": "/kubernetes-access/helm/guides/migration/" }
+            { "title": "Customize Deployment Config", "slug": "/kubernetes-access/helm/guides/custom/" },
+            { "title": "Migrating From Older Charts", "slug": "/kubernetes-access/helm/guides/migration/" }
           ]
         },
-        { "title": "Helm Chart reference", "slug": "/kubernetes-access/helm/reference/" },
+        { "title": "Helm Chart Reference", "slug": "/kubernetes-access/helm/reference/" },
         { "title": "Access Controls", "slug": "/kubernetes-access/controls/" }
       ]
     },
@@ -240,15 +243,21 @@
     "terraform": {
       "version": "0.12.0"
     },
+    "fluentd": {
+      "version": "1.12.4"
+    },
+    "docker": {
+      "version": "20.10.7"
+    },
     "kubernetes": {
       "major_version": "1",
       "minor_version": "17"
     },
     "teleport": {
-      "version": "6.2.1",
+      "version": "6.2.7",
       "golang": "1.16",
       "plugin": {
-        "version": "6.2.1"
+        "version": "6.2.7"
       },
       "latest_oss_docker_image": "quay.io/gravitational/teleport:6",
       "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6",
@@ -256,6 +265,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/api-reference/",
+      "destination": "/reference/api/",
+      "permanent": true
+    },
     {
       "source": "/cloud/",
       "destination": "/cloud/introduction/",
@@ -314,6 +328,11 @@
     {
       "source": "/enterprise/sso/ssh-gsuite/",
       "destination": "/enterprise/sso/ssh-google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/quickstart-docker/",
+      "destination": "/setup/guides/docker-compose/",
       "permanent": true
     }
   ]

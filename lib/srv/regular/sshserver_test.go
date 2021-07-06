@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/user"
 	"strconv"
 	"strings"
@@ -354,6 +355,24 @@ func (s *SrvSuite) TestMaxSessions(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(clt.Close(), IsNil)
 	}
+}
+
+// TestExecLongCommand makes sure that commands that are longer than the
+// maximum pipe size on the OS can still be started. This tests the reexec
+// functionality of Teleport as Teleport will reexec itself when launching a
+// command and send the command to then launch through a pipe.
+func (s *SrvSuite) TestExecLongCommand(c *C) {
+	// Get the path to where the "echo" command is on disk.
+	echoPath, err := exec.LookPath("echo")
+	c.Assert(err, IsNil)
+
+	se, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+	defer se.Close()
+
+	// Write a message that larger than the maximum pipe size.
+	_, err = se.Output(fmt.Sprintf("%v %v", echoPath, strings.Repeat("a", maxPipeSize)))
+	c.Assert(err, IsNil)
 }
 
 // TestOpenExecSessionSetsSession tests that OpenExecSession()
@@ -1563,3 +1582,17 @@ func waitForSites(s reversetunnel.Tunnel, count int) error {
 		}
 	}
 }
+
+// maxPipeSize is one larger than the maximum pipe size for most operating
+// systems which appears to be 65536 bytes.
+//
+// The maximum pipe size for Linux could potentially be obtained, however
+// getting it for macOS is much harder, and unclear if even possible. Therefor
+// just hard code it.
+//
+// See the following links for more details.
+//
+//   https://man7.org/linux/man-pages/man7/pipe.7.html
+//   https://github.com/afborchert/pipebuf
+//   https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
+const maxPipeSize = 65536 + 1

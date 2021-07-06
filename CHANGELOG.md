@@ -1,5 +1,31 @@
 # Changelog
 
+## 6.2.7
+
+This release of Teleport contains multiple fixes.
+
+* Fixed issue that could cause `GetNodes` to fail on large clusters. [#7415](https://github.com/gravitational/teleport/pull/7415)
+* Fixed issue that could cause long commands to hang. [#7449](https://github.com/gravitational/teleport/pull/7449)
+
+## 6.2.6
+
+This release of Teleport contains new features and improvements.
+
+* Added ability to disable port forwarding on a per-node basis. [#6989](https://github.com/gravitational/teleport/pull/6989)
+* Updated `api` client to support additional endpoints. [#7220](https://github.com/gravitational/teleport/pull/7220)
+* Improved performance of DynamoDB events filtering. [#7231](https://github.com/gravitational/teleport/pull/7231)
+
+## 6.2.5
+
+This release of Teleport contains new features, bug fixes, and multiple improvements.
+
+* Added support for `regexp.replace` in role templates. [#7152](https://github.com/gravitational/teleport/pull/7152)
+* Added `RoleV4` with stricter default allow labels. `RoleV4` is backward-compatible with `RoleV3` and is completely opt-in. [#7132](https://github.com/gravitational/teleport/pull/7132) [#7118](https://github.com/gravitational/teleport/pull/7118)
+* Updated OIDC connector to gracefully degrade UserInfo endpoint. [#7333](https://github.com/gravitational/teleport/pull/7333)
+* Improved Access Requests events to allow easier correlation between access requests and `session.start` events. [#6863](https://github.com/gravitational/teleport/pull/6863)
+* Fixed an issue that could cause upgrade from Teleport 5.x to 6.x to fail. [#7310](https://github.com/gravitational/teleport/pull/7310)
+* Fixed multiple issues with events subsystem. [#7303](https://github.com/gravitational/teleport/pull/7303) [#7266](https://github.com/gravitational/teleport/pull/7266)
+
 ## 6.2.3
 
 This release of Teleport contains multiple improvements.

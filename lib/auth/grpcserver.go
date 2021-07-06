@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
@@ -301,7 +303,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		case <-watcher.Done():
 			return trail.ToGRPC(watcher.Error())
 		case event := <-watcher.Events():
-			out, err := eventToGRPC(event)
+			out, err := eventToGRPC(stream.Context(), event)
 			if err != nil {
 				return trail.ToGRPC(err)
 			}
@@ -313,7 +315,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 }
 
 // eventToGRPC converts a types.Event to an proto.Event
-func eventToGRPC(in types.Event) (*proto.Event, error) {
+func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 	eventType, err := eventTypeToGRPC(in.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -353,9 +355,13 @@ func eventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_User{
 			User: r,
 		}
-	case *types.RoleV3:
+	case *types.RoleV4:
+		downgraded, err := downgradeRole(ctx, r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		out.Resource = &proto.Event_Role{
-			Role: r,
+			Role: downgraded,
 		}
 	case *types.Namespace:
 		out.Resource = &proto.Event_Namespace{
@@ -1373,8 +1379,40 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 	return &empty.Empty{}, nil
 }
 
+// downgradeRole tests the client version passed through the GRPC metadata, and
+// if the client version is unknown or less than the minimum supported version
+// for V4 roles returns a shallow copy of the given role downgraded to V3. If
+// the passed in role is already V3, it is returned unmodified.
+func downgradeRole(ctx context.Context, role *types.RoleV4) (*types.RoleV4, error) {
+	if role.Version == types.V3 {
+		// role is already V3, no need to downgrade
+		return role, nil
+	}
+
+	var clientVersion *semver.Version
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if ok {
+		var err error
+		clientVersion, err = semver.NewVersion(clientVersionString)
+		if err != nil {
+			return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
+		}
+	}
+
+	minSupportedVersionForV4Roles := semver.New("6.2.4-aa") // "aa" is included so that this compares before v6.2.4-alpha
+	if clientVersion == nil || clientVersion.LessThan(*minSupportedVersionForV4Roles) {
+		log.Debugf(`Client version "%s" is unknown or less than 6.2.4, converting role to v3`, clientVersionString)
+		downgraded, err := services.DowngradeRoleToV3(role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return downgraded, nil
+	}
+	return role, nil
+}
+
 // GetRole retrieves a role by name.
-func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV3, error) {
+func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV4, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -1383,11 +1421,15 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	roleV3, ok := role.(*types.RoleV3)
+	roleV4, ok := role.(*types.RoleV4)
 	if !ok {
 		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected role type"))
 	}
-	return roleV3, nil
+	downgraded, err := downgradeRole(ctx, roleV4)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return downgraded, nil
 }
 
 // GetRoles retrieves all roles.
@@ -1400,21 +1442,25 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	var rolesV3 []*types.RoleV3
+	var rolesV4 []*types.RoleV4
 	for _, r := range roles {
-		role, ok := r.(*types.RoleV3)
+		role, ok := r.(*types.RoleV4)
 		if !ok {
 			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", r))
 		}
-		rolesV3 = append(rolesV3, role)
+		downgraded, err := downgradeRole(ctx, role)
+		if err != nil {
+			return nil, trail.ToGRPC(err)
+		}
+		rolesV4 = append(rolesV4, downgraded)
 	}
 	return &proto.GetRolesResponse{
-		Roles: rolesV3,
+		Roles: rolesV4,
 	}, nil
 }
 
 // UpsertRole upserts a role.
-func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV3) (*empty.Empty, error) {
+func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV4) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -2363,6 +2409,7 @@ func (g *GRPCServer) IsMFARequired(ctx context.Context, req *proto.IsMFARequired
 }
 
 // GetNodes retrieves all nodes in the given namespace.
+// DELETE IN 8.0.0 in favor of ListNodes
 func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2381,6 +2428,29 @@ func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespa
 	}
 	return &types.ServerV2List{
 		Servers: serversV2,
+	}, nil
+}
+
+// ListNodes retrieves a paginated list of nodes in the given namespace.
+func (g *GRPCServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest) (*proto.ListNodesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	ns, nextKey, err := auth.ServerWithRoles.ListNodes(ctx, req.Namespace, int(req.Limit), req.StartKey)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	serversV2 := make([]*types.ServerV2, len(ns))
+	for i, t := range ns {
+		var ok bool
+		if serversV2[i], ok = t.(*types.ServerV2); !ok {
+			return nil, trace.Errorf("encountered unexpected node type: %T", t)
+		}
+	}
+	return &proto.ListNodesResponse{
+		Servers: serversV2,
+		NextKey: nextKey,
 	}, nil
 }
 
@@ -2523,6 +2593,36 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 	res.Items = encodedEvents
 	res.LastKey = lastkey
 	return res, nil
+}
+
+// GetAuthPreference gets cluster auth preference.
+func (g *GRPCServer) GetAuthPreference(ctx context.Context, _ *empty.Empty) (*types.AuthPreferenceV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPref, err := auth.ServerWithRoles.GetAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected type %T", authPref))
+	}
+	return authPrefV2, nil
+}
+
+// SetAuthPreference sets cluster auth preference.
+func (g *GRPCServer) SetAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPref.SetOrigin(types.OriginDynamic)
+	if err = auth.ServerWithRoles.SetAuthPreference(authPref); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration
