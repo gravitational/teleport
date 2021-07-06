@@ -523,7 +523,11 @@ func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
 	tok2 := "token2"
 	ttl := 5 * time.Second
 
-	ctx := context.TODO()
+	// If all this takes more than a minute then something external to the test has probably
+	// gone bad (e.g. db server has ceased to exist), so it's probably best to bail out with
+	// a sensible error rather than wait for the test to time out
+	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Minute)
+	defer cancel()
 
 	lock, err := backend.AcquireLock(ctx, bk, tok1, ttl)
 	c.Assert(err, check.IsNil)

@@ -19,4 +19,6 @@ etcd --name teleportstorage \
      --trusted-ca-file certs/ca-cert.pem \
      --advertise-client-urls=https://127.0.0.1:2379 \
      --listen-client-urls=https://127.0.0.1:2379 \
-     --client-cert-auth
+     --client-cert-auth 
+
+echo ">>> etcd exited with $?"
