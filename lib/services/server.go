@@ -316,3 +316,23 @@ func NodeHasMissedKeepAlives(s types.Server) bool {
 	serverExpiry := s.Expiry()
 	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL * 2)))
 }
+
+func ServersToResources(servers []types.Server) []types.Resource {
+	resources := make([]types.Resource, 0, len(servers))
+	for _, server := range servers {
+		resources = append(resources, server)
+	}
+	return resources
+}
+
+func ResourcesToServers(resources []types.Resource) ([]types.Server, error) {
+	servers := make([]types.Server, 0, len(resources))
+	for _, res := range resources {
+		server, ok := res.(types.Server)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", res)
+		}
+		servers = append(servers, server)
+	}
+	return servers, nil
+}

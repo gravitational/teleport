@@ -135,6 +135,10 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	return ca
 }
 
+// NewProxyWatcherFunc creates a new instance of proxy watcher,
+// used in tests
+type NewProxyWatcherFunc func() (*services.ProxyWatcher, error)
+
 // ServicesTestSuite is an acceptance test suite
 // for services. It is used for local implementations and implementations
 // using GRPC to guarantee consistency between local and remote services
@@ -149,7 +153,7 @@ type ServicesTestSuite struct {
 	UsersS          services.UsersService
 	ChangesC        chan interface{}
 	Clock           clockwork.FakeClock
-	NewProxyWatcher services.NewProxyWatcherFunc
+	NewProxyWatcher NewProxyWatcherFunc
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
