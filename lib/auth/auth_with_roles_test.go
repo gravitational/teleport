@@ -25,11 +25,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -238,4 +240,61 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 		cmpopts.EquateEmpty())
+}
+
+// TestListNodes users can retrieve nodes with the appropriate permissions.
+func TestListNodes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	for i := 0; i < 10; i++ {
+		name := uuid.New()
+		node := &types.ServerV2{
+			Version: types.V2,
+			Kind:    types.KindNode,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: defaults.Namespace,
+				Labels:    map[string]string{"name": name},
+			},
+		}
+
+		_, err := srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to list all nodes
+	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// listing nodes 0-4 should list first 5 nodes
+	nodes, _, err := clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	require.NoError(t, err)
+	require.EqualValues(t, 5, len(nodes))
+	expectedNodes := testNodes[:5]
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+
+	// remove permission for third node
+	role.SetNodeLabels(types.Deny, types.Labels{"name": {testNodes[3].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// listing nodes 0-4 should skip the third node and add the fifth to the end.
+	nodes, _, err = clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	require.NoError(t, err)
+	require.EqualValues(t, 5, len(nodes))
+	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
 }

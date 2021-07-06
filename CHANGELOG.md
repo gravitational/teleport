@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.2.7
+
+This release of Teleport contains multiple fixes.
+
+* Fixed issue that could cause `GetNodes` to fail on large clusters. [#7415](https://github.com/gravitational/teleport/pull/7415)
+* Fixed issue that could cause long commands to hang. [#7449](https://github.com/gravitational/teleport/pull/7449)
+
 ## 6.2.6
 
 This release of Teleport contains new features and improvements.
