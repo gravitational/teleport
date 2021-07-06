@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -136,18 +136,17 @@ func (o *SAMLConnectorV2) SetResourceID(id int64) {
 func (o *SAMLConnectorV2) WithoutSecrets() Resource {
 	k1 := o.GetSigningKeyPair()
 	k2 := o.GetEncryptionKeyPair()
-	var q1, q2 *AsymmetricKeyPair
+	o2 := *o
 	if k1 != nil {
-		*q1 = *k1
+		q1 := *k1
 		q1.PrivateKey = ""
+		o2.SetSigningKeyPair(&q1)
 	}
 	if k2 != nil {
-		*q2 = *k2
+		q2 := *k2
 		q2.PrivateKey = ""
+		o2.SetEncryptionKeyPair(&q2)
 	}
-	o2 := *o
-	o2.SetSigningKeyPair(q1)
-	o2.SetEncryptionKeyPair(q2)
 	return &o2
 }
 
