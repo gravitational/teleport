@@ -136,16 +136,18 @@ func (o *SAMLConnectorV2) SetResourceID(id int64) {
 func (o *SAMLConnectorV2) WithoutSecrets() Resource {
 	k1 := o.GetSigningKeyPair()
 	k2 := o.GetEncryptionKeyPair()
-	if k1 == nil && k2 == nil {
-		return o
+	var q1, q2 *AsymmetricKeyPair
+	if k1 != nil {
+		*q1 = *k1
+		q1.PrivateKey = ""
 	}
-	q1 := *k1
-	q2 := *k2
-	q1.PrivateKey = ""
-	q2.PrivateKey = ""
+	if k2 != nil {
+		*q2 = *k2
+		q2.PrivateKey = ""
+	}
 	o2 := *o
-	o2.SetSigningKeyPair(&q1)
-	o2.SetEncryptionKeyPair(&q2)
+	o2.SetSigningKeyPair(q1)
+	o2.SetEncryptionKeyPair(q2)
 	return &o2
 }
 
