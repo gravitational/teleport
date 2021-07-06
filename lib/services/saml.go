@@ -168,7 +168,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 	var signingKeyStore *utils.KeyStore
 	var err error
 
-	// Due to some wierd design choices with how gosaml2 keys are configured we have to do some trickery
+	// Due to some weird design choices with how gosaml2 keys are configured we have to do some trickery
 	// in order to default properly when SAML assertion encryption is turned off.
 	// Below are the different possible cases.
 	if encryptionKeyPair == nil {
