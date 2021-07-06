@@ -36,14 +36,14 @@ type resourceCollector interface {
 	// WatchKinds specifies the resource kinds to watch.
 	WatchKinds() []types.WatchKind
 
-	// getResourcesAndUpdateCurrent is called when the resources are (re-)fetched
-	// directly from the backend.
+	// getResourcesAndUpdateCurrent is called when the resources should be
+	// (re-)fetched directly from the backend.
 	getResourcesAndUpdateCurrent(context.Context, logrus.FieldLogger) error
 	// processEventAndUpdateCurrent is called when a watcher event is received.
 	processEventAndUpdateCurrent(context.Context, logrus.FieldLogger, types.Event) error
 }
 
-// ResourceWatcherConfig configures proxy watcher
+// ResourceWatcherConfig configures resource watcher.
 type ResourceWatcherConfig struct {
 	parentCtx context.Context
 	// Component is a component used in logs.
@@ -101,7 +101,7 @@ func newResourceWatcher(parentCtx context.Context, collector resourceCollector, 
 		ctx:                   ctx,
 		cancel:                cancel,
 		retry:                 retry,
-		resetC:                make(chan struct{}),
+		ResetC:                make(chan struct{}),
 	}
 	go p.watchResources()
 	return p, nil
@@ -119,14 +119,8 @@ type resourceWatcher struct {
 	// retry is used to manage backoff logic for watchers.
 	retry utils.Retry
 
-	// resetC is a channel to notify of internal watcher reset (used in tests).
-	resetC chan struct{}
-}
-
-// Reset returns a channel which notifies of internal
-// watcher resets (used in tests).
-func (p *resourceWatcher) Reset() <-chan struct{} {
-	return p.resetC
+	// ResetC is a channel to notify of internal watcher reset (used in tests).
+	ResetC chan struct{}
 }
 
 // Done returns a channel that signals
@@ -153,7 +147,7 @@ func (p *resourceWatcher) watchResources() {
 			p.Log.WithError(err).Warning("Restart watch on error.")
 		}
 		select {
-		case p.resetC <- struct{}{}:
+		case p.ResetC <- struct{}{}:
 		default:
 		}
 		select {
@@ -229,6 +223,7 @@ func (p *resourceWatcher) watch() error {
 	}
 }
 
+// ProxyWatcherConfig configures proxy watcher.
 type ProxyWatcherConfig struct {
 	ResourceWatcherConfig
 	// ProxyGetter is used to directly fetch the list of active proxies.
@@ -239,6 +234,7 @@ type ProxyWatcherConfig struct {
 	ProxiesC chan []types.Server
 }
 
+// CheckAndSetDefaults checks parameters and sets default values.
 func (cfg *ProxyWatcherConfig) CheckAndSetDefaults() error {
 	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -256,7 +252,7 @@ func (cfg *ProxyWatcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewProxyWatcher returns a resourceWatcher accompanied by a proxyCollector.
+// NewProxyWatcher returns a new instance of ProxyWatcher.
 func NewProxyWatcher(parentCtx context.Context, cfg ProxyWatcherConfig) (*ProxyWatcher, error) {
 	cfg.parentCtx = parentCtx
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -275,12 +271,14 @@ func NewProxyWatcher(parentCtx context.Context, cfg ProxyWatcherConfig) (*ProxyW
 	return &ProxyWatcher{watcher, collector}, nil
 }
 
+// ProxyWatcher is built on top of resourceWatcher to monitor additions
+// and deletions to the set of proxies.
 type ProxyWatcher struct {
 	*resourceWatcher
 	*proxyCollector
 }
 
-// proxyCollector accompanies resourceWatcher in order to monitor proxies.
+// proxyCollector accompanies resourceWatcher when monitoring proxies.
 type proxyCollector struct {
 	ProxyWatcherConfig
 	// current holds a map of the currently known proxies (keyed by server name,
@@ -305,6 +303,8 @@ func (p *proxyCollector) WatchKinds() []types.WatchKind {
 	}
 }
 
+// getResourcesAndUpdateCurrent is called when the resources should be
+// (re-)fetched directly from the backend.
 func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context, log logrus.FieldLogger) error {
 	proxies, err := p.GetProxies()
 	if err != nil {
@@ -321,6 +321,7 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context, log l
 	return p.updateCurrent(ctx, log, func() { p.current = newCurrent }, true)
 }
 
+// processEventAndUpdateCurrent is called when a watcher event is received.
 func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, log logrus.FieldLogger, event types.Event) error {
 	if event.Resource == nil || event.Resource.GetKind() != types.KindProxy {
 		log.Warningf("Unexpected event: %v.", event)

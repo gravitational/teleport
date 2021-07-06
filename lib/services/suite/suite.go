@@ -1954,7 +1954,7 @@ func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
 	// since no proxy is yet present, the ProxyWatcher should immediately
 	// yield back to its retry loop.
 	select {
-	case <-w.Reset():
+	case <-w.ResetC:
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for ProxyWatcher reset")
 	}
