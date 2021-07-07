@@ -38,6 +38,8 @@ func TestServerKeyAuth(t *testing.T) {
 	ta := testauthority.New()
 	priv, pub, err := ta.GenerateKeyPair("")
 	require.NoError(t, err)
+	caSigner, err := ssh.ParsePrivateKey(priv)
+	require.NoError(t, err)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
@@ -71,13 +73,13 @@ func TestServerKeyAuth(t *testing.T) {
 			desc: "host cert",
 			key: func() ssh.PublicKey {
 				rawCert, err := ta.GenerateHostCert(services.HostCertParams{
-					PrivateCASigningKey: priv,
-					CASigningAlg:        defaults.CASignatureAlgorithm,
-					PublicHostKey:       pub,
-					HostID:              "host-id",
-					NodeName:            con.User(),
-					ClusterName:         "host-cluster-name",
-					Roles:               types.SystemRoles{types.RoleNode},
+					CASigner:      caSigner,
+					CASigningAlg:  defaults.CASignatureAlgorithm,
+					PublicHostKey: pub,
+					HostID:        "host-id",
+					NodeName:      con.User(),
+					ClusterName:   "host-cluster-name",
+					Roles:         types.SystemRoles{types.RoleNode},
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
@@ -96,15 +98,15 @@ func TestServerKeyAuth(t *testing.T) {
 			desc: "user cert",
 			key: func() ssh.PublicKey {
 				rawCert, err := ta.GenerateUserCert(services.UserCertParams{
-					PrivateCASigningKey: priv,
-					CASigningAlg:        defaults.CASignatureAlgorithm,
-					PublicUserKey:       pub,
-					Username:            con.User(),
-					AllowedLogins:       []string{con.User()},
-					Roles:               []string{"dev", "admin"},
-					RouteToCluster:      "user-cluster-name",
-					CertificateFormat:   constants.CertificateFormatStandard,
-					TTL:                 time.Minute,
+					CASigner:          caSigner,
+					CASigningAlg:      defaults.CASignatureAlgorithm,
+					PublicUserKey:     pub,
+					Username:          con.User(),
+					AllowedLogins:     []string{con.User()},
+					Roles:             []string{"dev", "admin"},
+					RouteToCluster:    "user-cluster-name",
+					CertificateFormat: constants.CertificateFormatStandard,
+					TTL:               time.Minute,
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
