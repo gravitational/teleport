@@ -132,6 +132,8 @@ type ForwarderConfig struct {
 	// DynamicLabels is map of dynamic labels associated with this cluster.
 	// Used for RBAC.
 	DynamicLabels *labels.Dynamic
+	// LockWatcher is a lock watcher.
+	LockWatcher *services.LockWatcher
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -1315,9 +1317,16 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if s.disconnectExpiredCert.IsZero() && s.clientIdleTimeout == 0 {
-		return conn, nil
+
+	clusterName, err := s.parent.cfg.CachingAuthClient.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	lockTargets := append(
+		services.LockTargetsFromTLSIdentity(s.UnmappedIdentity.GetIdentity()),
+		types.LockTarget{Cluster: clusterName.GetClusterName()},
+	)
+
 	ctx, cancel := context.WithCancel(s.parent.ctx)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
@@ -1329,7 +1338,9 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		return nil, trace.Wrap(err)
 	}
 
-	mon, err := srv.NewMonitor(srv.MonitorConfig{
+	err = srv.StartMonitor(srv.MonitorConfig{
+		LockWatcher:           s.parent.cfg.LockWatcher,
+		LockTargets:           lockTargets,
 		DisconnectExpiredCert: s.disconnectExpiredCert,
 		ClientIdleTimeout:     s.clientIdleTimeout,
 		Clock:                 s.parent.cfg.Clock,
@@ -1345,7 +1356,6 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		tc.Close()
 		return nil, trace.Wrap(err)
 	}
-	go mon.Start()
 	return tc, nil
 }
 

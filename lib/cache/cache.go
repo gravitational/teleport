@@ -70,6 +70,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindNetworkRestrictions},
+		{Kind: types.KindLock},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
