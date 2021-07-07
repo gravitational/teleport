@@ -488,7 +488,10 @@ $(VERSRC): Makefile
 # 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
 .PHONY: tag
 tag:
-	@echo "Run this:\n> git tag $(GITTAG)\n> git push --tags"
+	@echo 'Run this: \
+	> git tag $(GITTAG) && \
+	  git tag api/$(GITTAG) && \
+	  git push --tags'
 
 
 # build/webassets.zip archive contains the web assets (UI) which gets
