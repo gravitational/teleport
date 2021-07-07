@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -235,7 +236,18 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 		defer f.Close()
 		reader = f
 	}
-	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
+	return rc.DecodeResources(client, reader)
+}
+
+func (rc *ResourceCommand) DecodeResources(client auth.ClientI, reader io.Reader) (err error) {
+	trimbuf := new(strings.Builder)
+	_, err = io.Copy(trimbuf, reader)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	trimmed := trimbuf.String()
+	trimmed = strings.TrimSpace(trimmed)
+	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(trimmed), defaults.LookaheadBufSize)
 	count := 0
 	for {
 		var raw services.UnknownResource
