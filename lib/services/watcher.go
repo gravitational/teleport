@@ -284,7 +284,7 @@ type proxyCollector struct {
 func (p *proxyCollector) GetCurrent() []types.Server {
 	p.rw.RLock()
 	defer p.rw.RUnlock()
-	return mapValues(p.current)
+	return serverMapValues(p.current)
 }
 
 // WatchKinds specifies the resource kinds to watch.
@@ -356,7 +356,7 @@ func (p *proxyCollector) updateCurrent(ctx context.Context, log logrus.FieldLogg
 
 	if broadcast {
 		select {
-		case p.ProxiesC <- mapValues(p.current):
+		case p.ProxiesC <- serverMapValues(p.current):
 		case <-ctx.Done():
 			return trace.ConnectionProblem(ctx.Err(), "context is closing")
 		}
@@ -364,10 +364,10 @@ func (p *proxyCollector) updateCurrent(ctx context.Context, log logrus.FieldLogg
 	return nil
 }
 
-func mapValues(serverMap map[string]types.Server) []types.Server {
-	servers := make([]types.Server, 0, len(serverMap))
-	for _, server := range serverMap {
-		servers = append(servers, server)
+func serverMapValues(m map[string]types.Server) []types.Server {
+	servers := make([]types.Server, 0, len(m))
+	for _, s := range m {
+		servers = append(servers, s)
 	}
 	return servers
 }

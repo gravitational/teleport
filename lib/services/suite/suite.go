@@ -135,8 +135,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	return ca
 }
 
-// NewProxyWatcherFunc creates a new instance of proxy watcher,
-// used in tests
+// NewProxyWatcherFunc creates a new services.ProxyWatcher.
 type NewProxyWatcherFunc func() (*services.ProxyWatcher, error)
 
 // ServicesTestSuite is an acceptance test suite
