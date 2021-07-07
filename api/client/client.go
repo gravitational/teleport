@@ -1517,14 +1517,9 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
-// SetClusterAuditConfig sets cluster audit configuration.
+// SetClusterAuditConfig not implemented: can only be called locally.
 func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
-	auditConfigV2, ok := auditConfig.(*types.ClusterAuditConfigV2)
-	if !ok {
-		return trace.BadParameter("invalid type %T", auditConfig)
-	}
-	_, err := c.grpc.SetClusterAuditConfig(ctx, auditConfigV2, c.callOpts...)
-	return trail.FromGRPC(err)
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteClusterAuditConfig not implemented: can only be called locally.
