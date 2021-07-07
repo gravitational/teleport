@@ -36,7 +36,7 @@ type resourceCollector interface {
 	WatchKinds() []types.WatchKind
 
 	// getResourcesAndUpdateCurrent is called when the resources should be
-	// (re-)fetched directly from the backend.
+	// (re-)fetched directly from the auth server.
 	getResourcesAndUpdateCurrent(context.Context, logrus.FieldLogger) error
 	// processEventAndUpdateCurrent is called when a watcher event is received.
 	processEventAndUpdateCurrent(context.Context, logrus.FieldLogger, types.Event) error
@@ -123,21 +123,18 @@ type resourceWatcher struct {
 	ResetC chan struct{}
 }
 
-// Done returns a channel that signals
-// proxy watcher closure
+// Done returns a channel that signals resource watcher closure.
 func (p *resourceWatcher) Done() <-chan struct{} {
 	return p.ctx.Done()
 }
 
-// Close closes proxy watcher and cancels all the functions
+// Close closes resource watcher and cancels all the functions.
 func (p *resourceWatcher) Close() error {
 	p.cancel()
 	return nil
 }
 
-// watchResources watches new resources added and removed to the cluster
-// and when this happens, notifies all connected agents
-// about the proxy set change via discovery requests
+// watchResources runs a watch loop.
 func (p *resourceWatcher) watchResources() {
 	for {
 		p.Log.WithField("retry", p.retry).Debug("Starting watch.")
@@ -159,7 +156,8 @@ func (p *resourceWatcher) watchResources() {
 	}
 }
 
-// watch sets up the watch on resources
+// watch monitors new resource updates, maintains a local view and broadcasts
+// notifications to connected agents.
 func (p *resourceWatcher) watch() error {
 	watcher, err := p.Client.NewWatcher(p.ctx, types.Watch{
 		Name:            p.Component,
@@ -222,7 +220,7 @@ func (p *resourceWatcher) watch() error {
 	}
 }
 
-// ProxyWatcherConfig configures proxy watcher.
+// ProxyWatcherConfig is a ProxyWatcher configuration.
 type ProxyWatcherConfig struct {
 	ResourceWatcherConfig
 	// ProxyGetter is used to directly fetch the list of active proxies.
@@ -299,7 +297,7 @@ func (p *proxyCollector) WatchKinds() []types.WatchKind {
 }
 
 // getResourcesAndUpdateCurrent is called when the resources should be
-// (re-)fetched directly from the backend.
+// (re-)fetched directly from the auth server.
 func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context, log logrus.FieldLogger) error {
 	proxies, err := p.GetProxies()
 	if err != nil {
