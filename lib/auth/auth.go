@@ -379,27 +379,27 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
 }
 
-// GetAuthPreference gets AuthPreference from the backend.
+// GetAuthPreference gets AuthPreference from the cache.
 func (a *Server) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return a.GetCache().GetAuthPreference(ctx)
 }
 
-// GetClusterConfig gets ClusterConfig from the backend.
+// GetClusterConfig gets ClusterConfig from the cache.
 func (a *Server) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
 	return a.GetCache().GetClusterConfig(opts...)
 }
 
-// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
+// GetClusterAuditConfig gets ClusterAuditConfig from the cache.
 func (a *Server) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
 	return a.GetCache().GetClusterAuditConfig(ctx, opts...)
 }
 
-// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
+// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the cache.
 func (a *Server) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
 	return a.GetCache().GetClusterNetworkingConfig(ctx, opts...)
 }
 
-// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
+// GetSessionRecordingConfig gets SessionRecordingConfig from the cache.
 func (a *Server) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
 	return a.GetCache().GetSessionRecordingConfig(ctx, opts...)
 }
@@ -473,37 +473,41 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
-	// get the private key of the certificate authority
-	caPrivateKey, err := sshPrivateKey(ca)
+	caSigner, err := sshSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// create and sign!
 	return a.Authority.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: caPrivateKey,
-		CASigningAlg:        sshutils.GetSigningAlgName(ca),
-		PublicHostKey:       hostPublicKey,
-		HostID:              hostID,
-		NodeName:            nodeName,
-		Principals:          principals,
-		ClusterName:         clusterName,
-		Roles:               roles,
-		TTL:                 ttl,
+		CASigner:      caSigner,
+		CASigningAlg:  sshutils.GetSigningAlgName(ca),
+		PublicHostKey: hostPublicKey,
+		HostID:        hostID,
+		NodeName:      nodeName,
+		Principals:    principals,
+		ClusterName:   clusterName,
+		Roles:         roles,
+		TTL:           ttl,
 	})
 }
 
-func sshPrivateKey(ca types.CertAuthority) ([]byte, error) {
+func sshSigner(ca types.CertAuthority) (ssh.Signer, error) {
 	keyPairs := ca.GetActiveKeys().SSH
 	if len(keyPairs) == 0 {
 		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
 	}
-	// TODO(awly): update after PKCS#11 keys are supported.
+	// TODO(nic): update after PKCS#11 keys are supported.
 	for _, kp := range keyPairs {
 		if kp.PrivateKeyType != types.PrivateKeyType_RAW {
 			continue
 		}
-		return kp.PrivateKey, nil
+		signer, err := ssh.ParsePrivateKey(kp.PrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signer = sshutils.AlgSigner(signer, sshutils.GetSigningAlgName(ca))
+		return signer, nil
 	}
 	return nil, trace.NotFound("no raw SSH private key found in CA for %q", ca.GetClusterName())
 }
@@ -805,12 +809,13 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := sshPrivateKey(ca)
+	caSigner, err := sshSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	params := services.UserCertParams{
-		PrivateCASigningKey:   privateKey,
+		CASigner:              caSigner,
 		CASigningAlg:          sshutils.GetSigningAlgName(ca),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
@@ -1445,21 +1450,20 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		return nil, trace.Wrap(err)
 	}
 
-	// get the private key of the certificate authority
-	caPrivateKey, err := sshPrivateKey(ca)
+	caSigner, err := sshSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// generate hostSSH certificate
 	hostSSHCert, err := a.Authority.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: caPrivateKey,
-		CASigningAlg:        sshutils.GetSigningAlgName(ca),
-		PublicHostKey:       pubSSHKey,
-		HostID:              req.HostID,
-		NodeName:            req.NodeName,
-		ClusterName:         clusterName.GetClusterName(),
-		Roles:               req.Roles,
-		Principals:          req.AdditionalPrincipals,
+		CASigner:      caSigner,
+		CASigningAlg:  sshutils.GetSigningAlgName(ca),
+		PublicHostKey: pubSSHKey,
+		HostID:        req.HostID,
+		NodeName:      req.NodeName,
+		ClusterName:   clusterName.GetClusterName(),
+		Roles:         req.Roles,
+		Principals:    req.AdditionalPrincipals,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2236,6 +2240,16 @@ func (a *Server) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 // GetDatabaseServers returns all registers database proxy servers.
 func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
+}
+
+// GetLock gets a lock by name.
+func (a *Server) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	return a.GetCache().GetLock(ctx, name)
+}
+
+// GetLocks gets all matching locks from the cache.
+func (a *Server) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+	return a.GetCache().GetLocks(ctx, targets...)
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {

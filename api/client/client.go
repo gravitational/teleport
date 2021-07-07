@@ -1526,3 +1526,58 @@ func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.Cl
 func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
+
+// GetLock gets a lock by name.
+func (c *Client) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing lock name")
+	}
+	resp, err := c.grpc.GetLock(ctx, &proto.GetLockRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetLocks gets all locks, matching at least one of the targets when specified.
+func (c *Client) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+	targetPtrs := make([]*types.LockTarget, len(targets))
+	for i := range targets {
+		targetPtrs[i] = &targets[i]
+	}
+	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
+		Targets: targetPtrs,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	locks := make([]types.Lock, 0, len(resp.Locks))
+	for _, lock := range resp.Locks {
+		locks = append(locks, lock)
+	}
+	return locks, nil
+}
+
+// UpsertLock upserts a lock.
+func (c *Client) UpsertLock(ctx context.Context, lock types.Lock) error {
+	lockV2, ok := lock.(*types.LockV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", lock)
+	}
+	_, err := c.grpc.UpsertLock(ctx, lockV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteLock deletes a lock.
+func (c *Client) DeleteLock(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing lock name")
+	}
+	_, err := c.grpc.DeleteLock(ctx, &proto.DeleteLockRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllLocks not implemented: can only be called locally.
+func (c *Client) DeleteAllLocks(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
