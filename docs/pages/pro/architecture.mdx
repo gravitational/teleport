@@ -1,0 +1,37 @@
+---
+title: Teleport Pro Architecture
+description: Teleport Pro security, availability, and networking details.
+---
+
+## Security
+
+We have designed the Teleport Pro environment to be secure; and, security is an ongoing process of improvement.
+
+Our team routinely scrutinizes, reviews, updates, improves upon, and executes our security roadmap by working with independent security auditors to identify any gaps.
+
+Teleport Pro only gets the green light for use in strict compliance use-cases only when the team has full confidence that all security gaps or vulnerabilities have been identified and resolved.
+
+## Compliance
+
+(!docs/pages/includes/soc2.mdx!)
+
+## Managed Teleport settings
+
+SSH sessions are recorded [on nodes](../architecture/nodes.mdx#session-recording).
+
+Teleport Pro Proxy does not terminate SSH sessions when using OpenSSH and `tsh` sessions. The Cloud Proxy terminates TLS for Application, Database, and Kubernetes sessions.
+
+## Data retention
+
+The session recordings are stored in S3 using at-rest encryption. We have yet to define specific retention policies.
+
+Customer data, including audit logging, is backed up using the DynamoDB "point in time recovery" system. Data can be recovered for up to 35 days. This retention period is not configurable.
+
+## High Availability
+
+Clusters are deployed in a single AWS region in 2 availability zones.
+AWS guarantees [99.99%](https://aws.amazon.com/compute/sla/) of monthly uptime percentage.
+
+Teleport Pro preview version does not commit to any SLA. It sets the availability objective to 99.7% of the monthly uptime percentage (a maximum of two hours of downtime per month).
+
+Our goal is to achieve 99.99% uptime once Teleport Pro graduates preview.

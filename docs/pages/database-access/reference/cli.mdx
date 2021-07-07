@@ -1,16 +1,20 @@
 ---
 title: Database Access CLI Reference
-description: CLI reference for Teleport Database Access
+description: CLI reference documentation for Teleport Database Access.
 ---
 
 # Database Access CLI Reference
+
+This document lists Command Line Interface (CLI) commands and parameters for Teleport Database Access.
 
 ## teleport db start
 
 Starts Teleport Database Service agent.
 
-```shell
-$ teleport db start \
+(!docs/pages/includes/permission-warning.mdx!)
+
+```bash
+sudo teleport db start \
     --token=/path/to/token \
     --auth-server=proxy.example.com:3080 \
     --name=example \
@@ -40,9 +44,7 @@ $ teleport db start \
 
 ## tctl auth sign
 
-When invoked with a `--format=db` flag, produces a CA certificate, a client
-certificate and a private key file used for configuring Database Access with
-self-hosted database instances.
+When invoked with a `--format=db` flag, produces a CA certificate, a client certificate and a private key file used for configuring Database Access with self-hosted database instances.
 
 ```shell
 tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
@@ -59,9 +61,9 @@ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 
 Administrative command to list all databases registered with the cluster.
 
-```shell
-$ tctl db ls
-$ tctl db ls --format=yaml
+```bash
+tctl db ls
+tctl db ls --format=yaml
 ```
 
 | Flag | Description |
@@ -72,8 +74,8 @@ $ tctl db ls --format=yaml
 
 Lists available databases and their connection information.
 
-```shell
-$ tsh db ls
+```bash
+tsh db ls
 ```
 
 Displays only the databases a user has access to (see [RBAC](../rbac.mdx)).
@@ -82,9 +84,9 @@ Displays only the databases a user has access to (see [RBAC](../rbac.mdx)).
 
 Retrieves database credentials.
 
-```shell
-$ tsh db login example
-$ tsh db login --db-user=postgres --db-name=postgres example
+```bash
+tsh db login example
+tsh db login --db-user=postgres --db-name=postgres example
 ```
 
 | Flag | Description |
@@ -96,19 +98,19 @@ $ tsh db login --db-user=postgres --db-name=postgres example
 
 Removes database credentials.
 
-```shell
-$ tsh db logout example
-$ tsh db logout
+```bash
+tsh db logout example
+tsh db logout
 ```
 
 ## tsh db env
 
 Outputs environment variables for a particular database.
 
-```shell
-$ tsh db env
-$ tsh db env --db=example
-$ eval $(tsh db env)
+```bash
+tsh db env
+tsh db env --db=example
+eval $(tsh db env)
 ```
 
 | Flag | Description |
@@ -119,9 +121,9 @@ $ eval $(tsh db env)
 
 Prints database connection information. Useful when configuring GUI clients.
 
-```shell
-$ tsh db config
-$ tsh db config --db=example
+```bash
+tsh db config
+tsh db config --db=example
 ```
 
 | Flag | Description |
