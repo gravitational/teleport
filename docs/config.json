@@ -186,12 +186,12 @@
     },
     {
       "icon": "cloud",
-      "title": "Cloud",
+      "title": "Pro",
       "entries": [
-        { "title": "Introduction", "slug": "/cloud/introduction/" },
-        { "title": "Getting Started", "slug": "/cloud/getting-started/" },
-        { "title": "Architecture", "slug": "/cloud/architecture/" },
-        { "title": "FAQ", "slug": "/cloud/faq/" }
+        { "title": "Introduction", "slug": "/pro/introduction/" },
+        { "title": "Getting Started", "slug": "/pro/getting-started/" },
+        { "title": "Architecture", "slug": "/pro/architecture/" },
+        { "title": "FAQ", "slug": "/pro/faq/" }
       ]
     },
     {
@@ -271,8 +271,8 @@
       "permanent": true
     },
     {
-      "source": "/cloud/",
-      "destination": "/cloud/introduction/",
+      "source": "/pro/",
+      "destination": "/pro/introduction/",
       "permanent": true
     },
     {
@@ -306,8 +306,8 @@
       "permanent": true
     },
     {
-      "source": "/preview/cloud/",
-      "destination": "/cloud/",
+      "source": "/preview/pro/",
+      "destination": "/pro/",
       "permanent": true
     },
     {
@@ -333,6 +333,31 @@
     {
       "source": "/quickstart-docker/",
       "destination": "/setup/guides/docker-compose/",
+      "permanent": true
+    },
+    {
+      "source": "/cloud/",
+      "destination": "/pro/",
+      "permanent": true
+    },
+    {
+      "source": "/cloud/getting-started/",
+      "destination": "/pro/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/cloud/introduction/",
+      "destination": "/pro/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/cloud/architecture/",
+      "destination": "/pro/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/cloud/faq/",
+      "destination": "/pro/faq/",
       "permanent": true
     }
   ]
