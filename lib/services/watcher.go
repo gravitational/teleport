@@ -37,9 +37,9 @@ type resourceCollector interface {
 
 	// getResourcesAndUpdateCurrent is called when the resources should be
 	// (re-)fetched directly.
-	getResourcesAndUpdateCurrent(context.Context, logrus.FieldLogger) error
+	getResourcesAndUpdateCurrent(context.Context) error
 	// processEventAndUpdateCurrent is called when a watcher event is received.
-	processEventAndUpdateCurrent(context.Context, logrus.FieldLogger, types.Event) error
+	processEventAndUpdateCurrent(context.Context, types.Event) error
 }
 
 // ResourceWatcherConfig configures resource watcher.
@@ -198,7 +198,7 @@ func (p *resourceWatcher) watch() error {
 		}
 	}
 
-	if err := p.getResourcesAndUpdateCurrent(p.ctx, p.Log); err != nil {
+	if err := p.getResourcesAndUpdateCurrent(p.ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	p.retry.Reset()
@@ -213,7 +213,7 @@ func (p *resourceWatcher) watch() error {
 		case <-p.ctx.Done():
 			return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
-			if err := p.processEventAndUpdateCurrent(p.ctx, p.Log, event); err != nil {
+			if err := p.processEventAndUpdateCurrent(p.ctx, event); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -298,7 +298,7 @@ func (p *proxyCollector) WatchKinds() []types.WatchKind {
 
 // getResourcesAndUpdateCurrent is called when the resources should be
 // (re-)fetched directly.
-func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context, log logrus.FieldLogger) error {
+func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	proxies, err := p.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
@@ -311,38 +311,38 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context, log l
 	for _, proxy := range proxies {
 		newCurrent[proxy.GetName()] = proxy
 	}
-	return p.updateCurrent(ctx, log, func() { p.current = newCurrent }, true)
+	return p.updateCurrent(ctx, func() { p.current = newCurrent }, true)
 }
 
 // processEventAndUpdateCurrent is called when a watcher event is received.
-func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, log logrus.FieldLogger, event types.Event) error {
+func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) error {
 	if event.Resource == nil || event.Resource.GetKind() != types.KindProxy {
-		log.Warningf("Unexpected event: %v.", event)
+		p.Log.Warningf("Unexpected event: %v.", event)
 		return nil
 	}
 
 	switch event.Type {
 	case types.OpDelete:
 		// Always broadcast when a proxy is deleted.
-		return p.updateCurrent(ctx, log, func() { delete(p.current, event.Resource.GetName()) }, true)
+		return p.updateCurrent(ctx, func() { delete(p.current, event.Resource.GetName()) }, true)
 	case types.OpPut:
 		_, known := p.current[event.Resource.GetName()]
 		server, ok := event.Resource.(types.Server)
 		if !ok {
-			log.Warningf("Unexpected type %T.", event.Resource)
+			p.Log.Warningf("Unexpected type %T.", event.Resource)
 			return nil
 		}
 		// Broadcast only creation of new proxies (not known before).
-		return p.updateCurrent(ctx, log, func() { p.current[event.Resource.GetName()] = server }, !known)
+		return p.updateCurrent(ctx, func() { p.current[event.Resource.GetName()] = server }, !known)
 	default:
-		log.Warningf("Skipping unsupported event type %v.", event.Type)
+		p.Log.Warningf("Skipping unsupported event type %v.", event.Type)
 		return nil
 	}
 }
 
 // updateCurrent updates the currently stored proxy set by executing the given
 // function under the mutex.
-func (p *proxyCollector) updateCurrent(ctx context.Context, log logrus.FieldLogger, do func(), broadcast bool) error {
+func (p *proxyCollector) updateCurrent(ctx context.Context, do func(), broadcast bool) error {
 	p.rw.Lock()
 	defer p.rw.Unlock()
 
@@ -352,7 +352,7 @@ func (p *proxyCollector) updateCurrent(ctx context.Context, log logrus.FieldLogg
 	for k := range p.current {
 		names = append(names, k)
 	}
-	log.Debugf("List of known proxies updated: %q.", names)
+	p.Log.Debugf("List of known proxies updated: %q.", names)
 
 	if broadcast {
 		select {
