@@ -79,10 +79,11 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		ConfigS:       configService,
 		Clock:         clock,
 		NewProxyWatcher: func() (*services.ProxyWatcher, error) {
-			return services.NewProxyWatcher(context.TODO(), services.ProxyWatcherConfig{
+			return services.NewProxyWatcher(services.ProxyWatcherConfig{
 				ResourceWatcherConfig: services.ResourceWatcherConfig{
-					Component:   "test",
-					RetryPeriod: 200 * time.Millisecond,
+					ParentContext: context.TODO(),
+					Component:     "test",
+					RetryPeriod:   200 * time.Millisecond,
 					Client: &client{
 						PresenceService: presenceService,
 						EventsService:   eventsService,

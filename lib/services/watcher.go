@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -45,7 +44,8 @@ type resourceCollector interface {
 
 // ResourceWatcherConfig configures resource watcher.
 type ResourceWatcherConfig struct {
-	parentCtx context.Context
+	// ParentContext is a parent context.
+	ParentContext context.Context
 	// Component is a component used in logs.
 	Component string
 	// Log is a logger.
@@ -61,8 +61,8 @@ type ResourceWatcherConfig struct {
 
 // CheckAndSetDefaults checks parameters and sets default values.
 func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
-	if cfg.parentCtx == nil {
-		return trace.BadParameter("missing parameter parentCtx")
+	if cfg.ParentContext == nil {
+		return trace.BadParameter("missing parameter ParentContext")
 	}
 	if cfg.Component == "" {
 		return trace.BadParameter("missing parameter Component")
@@ -85,7 +85,7 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // newResourceWatcher returns a new instance of resourceWatcher.
 // It is the caller's responsibility to verify the inputs' validity
 // incl. cfg.CheckAndSetDefaults.
-func newResourceWatcher(parentCtx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
+func newResourceWatcher(collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Step: cfg.RetryPeriod / 10,
 		Max:  cfg.RetryPeriod,
@@ -94,7 +94,7 @@ func newResourceWatcher(parentCtx context.Context, collector resourceCollector, 
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(parentCtx)
+	ctx, cancel := context.WithCancel(cfg.ParentContext)
 	p := &resourceWatcher{
 		resourceCollector:     collector,
 		ResourceWatcherConfig: cfg,
@@ -140,7 +140,6 @@ func (p *resourceWatcher) Close() error {
 // about the proxy set change via discovery requests
 func (p *resourceWatcher) watchResources() {
 	for {
-		fmt.Println(p.Log, p.retry)
 		p.Log.WithField("retry", p.retry).Debug("Starting watch.")
 		err := p.watch()
 		if err != nil {
@@ -253,21 +252,17 @@ func (cfg *ProxyWatcherConfig) CheckAndSetDefaults() error {
 }
 
 // NewProxyWatcher returns a new instance of ProxyWatcher.
-func NewProxyWatcher(parentCtx context.Context, cfg ProxyWatcherConfig) (*ProxyWatcher, error) {
-	cfg.parentCtx = parentCtx
+func NewProxyWatcher(cfg ProxyWatcherConfig) (*ProxyWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	collector := &proxyCollector{
 		ProxyWatcherConfig: cfg,
 	}
-
-	watcher, err := newResourceWatcher(parentCtx, collector, cfg.ResourceWatcherConfig)
+	watcher, err := newResourceWatcher(collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &ProxyWatcher{watcher, collector}, nil
 }
 

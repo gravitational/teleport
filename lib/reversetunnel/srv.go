@@ -270,11 +270,12 @@ func NewServer(cfg Config) (Server, error) {
 
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	proxyWatcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+	proxyWatcher, err := services.NewProxyWatcher(services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: cfg.Component,
-			Client:    cfg.LocalAuthClient,
-			Log:       cfg.Log,
+			ParentContext: ctx,
+			Component:     cfg.Component,
+			Client:        cfg.LocalAuthClient,
+			Log:           cfg.Log,
 		},
 		ProxiesC: make(chan []types.Server, 10),
 	})
