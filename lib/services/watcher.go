@@ -36,7 +36,7 @@ type resourceCollector interface {
 	WatchKinds() []types.WatchKind
 
 	// getResourcesAndUpdateCurrent is called when the resources should be
-	// (re-)fetched directly from the auth server.
+	// (re-)fetched directly.
 	getResourcesAndUpdateCurrent(context.Context, logrus.FieldLogger) error
 	// processEventAndUpdateCurrent is called when a watcher event is received.
 	processEventAndUpdateCurrent(context.Context, logrus.FieldLogger, types.Event) error
@@ -297,7 +297,7 @@ func (p *proxyCollector) WatchKinds() []types.WatchKind {
 }
 
 // getResourcesAndUpdateCurrent is called when the resources should be
-// (re-)fetched directly from the auth server.
+// (re-)fetched directly.
 func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context, log logrus.FieldLogger) error {
 	proxies, err := p.GetProxies()
 	if err != nil {
