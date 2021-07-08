@@ -15,10 +15,6 @@ This section will cover:
 - Fluentd version v(=fluentd.version=).
 - Docker version v(=docker.version=).
 
-```bash
-terraform version
-Terraform v(=terraform.version=)
-```
 
 ```bash
 tctl version
@@ -78,7 +74,7 @@ Teleport event handler 0.0.1 07617b0ad0829db043fe779faf1669defdc8d84e
 
 Follow-along with our getting started guide:
 
-https://goteleport.com/setup/guides/fluentd
+https://goteleport.com/docs/setup/guides/fluentd/
 ```
 
 Plugin has generated several setup files:
@@ -185,7 +181,7 @@ tctl create teleport-event-handler-impersonator.yaml
 ```
 
 Assign this role to the current user. Re-login to assume the new role and try
-to issue certificate for terraform user again.
+to issue certificate for `teleport-event-handler` user again.
 
 </Admonition>
 
