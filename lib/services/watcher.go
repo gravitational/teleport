@@ -314,7 +314,7 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error
 	p.rw.Lock()
 	defer p.rw.Unlock()
 	p.current = newCurrent
-	return trace.Wrap(p.postUpdate(ctx, true))
+	return trace.Wrap(p.broadcastUpdate(ctx))
 }
 
 // processEventAndUpdateCurrent is called when a watcher event is received.
@@ -331,7 +331,7 @@ func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, event
 	case types.OpDelete:
 		delete(p.current, event.Resource.GetName())
 		// Always broadcast when a proxy is deleted.
-		return trace.Wrap(p.postUpdate(ctx, true))
+		return trace.Wrap(p.broadcastUpdate(ctx))
 	case types.OpPut:
 		server, ok := event.Resource.(types.Server)
 		if !ok {
@@ -341,27 +341,28 @@ func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, event
 		_, known := p.current[server.GetName()]
 		p.current[server.GetName()] = server
 		// Broadcast only creation of new proxies (not known before).
-		return trace.Wrap(p.postUpdate(ctx, !known))
+		if !known {
+			return trace.Wrap(p.broadcastUpdate(ctx))
+		}
+		return nil
 	default:
 		p.Log.Warningf("Skipping unsupported event type %v.", event.Type)
 		return nil
 	}
 }
 
-// postUpdate performs logging and broadcasting after an update.
-func (p *proxyCollector) postUpdate(ctx context.Context, broadcast bool) error {
+// broadcastUpdate broadcasts information about updating the proxy set.
+func (p *proxyCollector) broadcastUpdate(ctx context.Context) error {
 	names := make([]string, 0, len(p.current))
 	for k := range p.current {
 		names = append(names, k)
 	}
 	p.Log.Debugf("List of known proxies updated: %q.", names)
 
-	if broadcast {
-		select {
-		case p.ProxiesC <- serverMapValues(p.current):
-		case <-ctx.Done():
-			return trace.ConnectionProblem(ctx.Err(), "context is closing")
-		}
+	select {
+	case p.ProxiesC <- serverMapValues(p.current):
+	case <-ctx.Done():
+		return trace.ConnectionProblem(ctx.Err(), "context is closing")
 	}
 	return nil
 }
