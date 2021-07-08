@@ -303,7 +303,7 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err == nil && len(proxies) == 0 {
+	if len(proxies) == 0 {
 		// At least one proxy ought to exist.
 		return trace.NotFound("empty proxy list")
 	}
