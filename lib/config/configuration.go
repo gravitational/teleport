@@ -1006,10 +1006,10 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 		// Check that the certificate exists on disk. This exists to provide the
 		// user a sensible error message.
 		if !utils.FileExists(p.PrivateKey) {
-			return trace.Errorf("metrics service private key does not exist: %s", p.PrivateKey)
+			return trace.NotFound("metrics service private key does not exist: %s", p.PrivateKey)
 		}
 		if !utils.FileExists(p.Certificate) {
-			return trace.Errorf("metrics service cert does not exist: %s", p.Certificate)
+			return trace.NotFound("metrics service cert does not exist: %s", p.Certificate)
 		}
 
 		certificateChainBytes, err := utils.ReadPath(p.Certificate)
@@ -1040,10 +1040,20 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 		// Check that the certificate exists on disk. This exists to provide the
 		// user a sensible error message.
 		if !utils.FileExists(caCert) {
-			return trace.Errorf("metrics service ca cert does not exist: %s", caCert)
+			return trace.NotFound("metrics service ca cert does not exist: %s", caCert)
 		}
 
 		cfg.Metrics.CACerts = append(cfg.Metrics.CACerts, caCert)
+	}
+
+	if cfg.Metrics.MTLS {
+		if len(cfg.Metrics.KeyPairs) == 0 {
+			return trace.BadParameter("At least one keypair shoud be provided when mtls is enabled in the metrics config")
+		}
+
+		if len(cfg.Metrics.CACerts) == 0 {
+			return trace.BadParameter("At least one CA cert shoud be provided when mtls is enabled in the metrics config")
+		}
 	}
 
 	return nil

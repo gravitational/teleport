@@ -1114,15 +1114,16 @@ type Metrics struct {
 	// or if metrics should be shipped in clear text
 	MTLSFlag string `yaml:"mtls,omitempty"`
 
-	// KeyPairs is a list of x509 key pairs used for securing the metrics endpoint wihth mTLS.
+	// KeyPairs is a list of x509 serving key pairs used for securing the metrics endpoint with mTLS.
 	// It should be used alongside MTLS = true
 	KeyPairs []KeyPair `yaml:"keypairs,omitempty"`
 
-	// CACerts is a list of prometheus CA certificates.
+	// CACerts is a list of prometheus CA certificates to validate clients against.
 	// It should be used alongside MTLS = true
 	CACerts []string `yaml:"ca_certs,omitempty"`
 }
 
+// MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
 func (m *Metrics) MTLSEnabled() bool {
 	if m.MTLSFlag == "" {
 		return false

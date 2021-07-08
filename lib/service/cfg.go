@@ -619,6 +619,7 @@ type DatabaseGCP struct {
 	InstanceID string
 }
 
+// Check validates the database proxy configuration.
 func (d *Database) Check() error {
 	if d.Name == "" {
 		return trace.BadParameter("empty database name")
@@ -914,7 +915,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// Metrics service defaults.
 	cfg.Metrics.Enabled = false
-	cfg.Metrics.ListenAddr = defaults.MetricsServiceListenAddr()
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

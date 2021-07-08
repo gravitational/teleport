@@ -2034,29 +2034,29 @@ func (process *TeleportProcess) initMetricsService() error {
 		for _, pair := range process.Config.Metrics.KeyPairs {
 			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
 			if err != nil {
-				return trace.Wrap(err, "failed to read keypair")
+				return trace.Wrap(err, "failed to read keypair: %+v", err)
 			}
 			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
 		}
 
 		if len(tlsConfig.Certificates) == 0 {
-			return trace.Wrap(nil, "no keypairs were provided for the metrics service with mtls enabled")
+			return trace.BadParameter("no keypairs were provided for the metrics service with mtls enabled")
 		}
 
 		pool := x509.NewCertPool()
 		for _, caCertPath := range process.Config.Metrics.CACerts {
 			caCert, err := ioutil.ReadFile(caCertPath)
 			if err != nil {
-				return trace.Wrap(err, "failed to read prometheus ca cert")
+				return trace.Wrap(err, "failed to read prometheus CA certificate %+v", caCertPath)
 			}
 
 			if !pool.AppendCertsFromPEM(caCert) {
-				return trace.Wrap(nil, "failed to parse prometheus ca cert")
+				return trace.BadParameter("failed to parse prometheus CA certificate: %+v", caCertPath)
 			}
 		}
 
 		if len(pool.Subjects()) == 0 {
-			return trace.Wrap(nil, "no prometheus ca certs were provided for the metrics service with mtls enabled")
+			return trace.BadParameter("no prometheus ca certs were provided for the metrics service with mtls enabled")
 		}
 
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
