@@ -30,6 +30,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -243,7 +245,7 @@ func CreateFirestoreClients(ctx context.Context, projectID string, endPoint stri
 func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
 	var cfg *backendConfig
-	err := utils.ObjectToStruct(params, &cfg)
+	err := apiutils.ObjectToStruct(params, &cfg)
 	if err != nil {
 		return nil, trace.BadParameter("firestore: configuration is invalid: %v", err)
 	}
@@ -635,12 +637,12 @@ func (b *Backend) watchCollection() error {
 			switch change.Kind {
 			case firestore.DocumentAdded, firestore.DocumentModified:
 				e = backend.Event{
-					Type: backend.OpPut,
+					Type: types.OpPut,
 					Item: r.backendItem(),
 				}
 			case firestore.DocumentRemoved:
 				e = backend.Event{
-					Type: backend.OpDelete,
+					Type: types.OpDelete,
 					Item: backend.Item{
 						Key: r.Key,
 					},

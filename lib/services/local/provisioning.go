@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -38,7 +39,7 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 }
 
 // UpsertToken adds provisioning tokens for the auth server
-func (s *ProvisioningService) UpsertToken(ctx context.Context, p services.ProvisionToken) error {
+func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.ProvisionToken) error {
 	if err := p.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -69,7 +70,7 @@ func (s *ProvisioningService) DeleteAllTokens() error {
 }
 
 // GetToken finds and returns token by ID
-func (s *ProvisioningService) GetToken(ctx context.Context, token string) (services.ProvisionToken, error) {
+func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
 	if token == "" {
 		return nil, trace.BadParameter("missing parameter token")
 	}
@@ -77,8 +78,7 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalProvisionToken(item.Value, services.SkipValidation(),
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
 func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) error {
@@ -90,17 +90,16 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (s *ProvisioningService) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
+func (s *ProvisioningService) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
 	startKey := backend.Key(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tokens := make([]services.ProvisionToken, len(result.Items))
+	tokens := make([]types.ProvisionToken, len(result.Items))
 	for i, item := range result.Items {
 		t, err := services.UnmarshalProvisionToken(item.Value,
-			services.AddOptions(opts, services.SkipValidation(),
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+			services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -21,7 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -58,14 +59,13 @@ func (s *ServicesSuite) TestOptions(c *check.C) {
 	c.Assert(cfg.ID, check.Equals, int64(1))
 
 	// Add a couple of other parameters
-	out = AddOptions(in, WithResourceID(2), SkipValidation(), WithVersion(V2))
-	c.Assert(out, check.HasLen, 3)
+	out = AddOptions(in, WithResourceID(2), WithVersion(types.V2))
+	c.Assert(out, check.HasLen, 2)
 	c.Assert(in, check.HasLen, 0)
 	cfg, err = CollectOptions(out)
 	c.Assert(err, check.IsNil)
 	c.Assert(cfg.ID, check.Equals, int64(2))
-	c.Assert(cfg.SkipValidation, check.Equals, true)
-	c.Assert(cfg.Version, check.Equals, V2)
+	c.Assert(cfg.Version, check.Equals, types.V2)
 }
 
 // TestCommandLabels tests command labels
@@ -74,7 +74,7 @@ func (s *ServicesSuite) TestCommandLabels(c *check.C) {
 	out := l.Clone()
 	c.Assert(out, check.HasLen, 0)
 
-	label := &CommandLabelV2{Command: []string{"ls", "-l"}, Period: Duration(time.Second)}
+	label := &types.CommandLabelV2{Command: []string{"ls", "-l"}, Period: types.Duration(time.Second)}
 	l = CommandLabels{"a": label}
 	out = l.Clone()
 
@@ -101,7 +101,7 @@ func (s *ServicesSuite) TestLabelKeyValidation(c *check.C) {
 		{label: "wut?", ok: false},
 	}
 	for _, tt := range tts {
-		c.Assert(IsValidLabelKey(tt.label), check.Equals, tt.ok, check.Commentf("tt=%+v", tt))
+		c.Assert(types.IsValidLabelKey(tt.label), check.Equals, tt.ok, check.Commentf("tt=%+v", tt))
 	}
 }
 
@@ -110,51 +110,51 @@ func TestServerDeepCopy(t *testing.T) {
 	// setup
 	now := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
 	expires := now.Add(1 * time.Hour)
-	srv := &ServerV2{
-		Kind:    KindNode,
-		Version: V2,
-		Metadata: Metadata{
+	srv := &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
 			Name:      "a",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Labels:    map[string]string{"label": "value"},
 			Expires:   &expires,
 		},
-		Spec: ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr:     "127.0.0.1:0",
 			Hostname: "hostname",
-			CmdLabels: map[string]CommandLabelV2{
+			CmdLabels: map[string]types.CommandLabelV2{
 				"srv-cmd": {
-					Period:  Duration(2 * time.Second),
+					Period:  types.Duration(2 * time.Second),
 					Command: []string{"srv-cmd", "--switch"},
 				},
 			},
-			Rotation: Rotation{
+			Rotation: types.Rotation{
 				Started:     now,
-				GracePeriod: Duration(1 * time.Minute),
+				GracePeriod: types.Duration(1 * time.Minute),
 				LastRotated: now.Add(-1 * time.Minute),
 			},
-			Apps: []*App{
+			Apps: []*types.App{
 				{
 					Name:         "app",
 					StaticLabels: map[string]string{"label": "value"},
-					DynamicLabels: map[string]CommandLabelV2{
+					DynamicLabels: map[string]types.CommandLabelV2{
 						"app-cmd": {
-							Period:  Duration(1 * time.Second),
+							Period:  types.Duration(1 * time.Second),
 							Command: []string{"app-cmd", "--app-flag"},
 						},
 					},
-					Rewrite: &Rewrite{
+					Rewrite: &types.Rewrite{
 						Redirect: []string{"host1", "host2"},
 					},
 				},
 			},
-			KubernetesClusters: []*KubernetesCluster{
+			KubernetesClusters: []*types.KubernetesCluster{
 				{
 					Name:         "cluster",
 					StaticLabels: map[string]string{"label": "value"},
-					DynamicLabels: map[string]CommandLabelV2{
+					DynamicLabels: map[string]types.CommandLabelV2{
 						"cmd": {
-							Period:  Duration(1 * time.Second),
+							Period:  types.Duration(1 * time.Second),
 							Command: []string{"cmd", "--flag"},
 						},
 					},
@@ -168,18 +168,18 @@ func TestServerDeepCopy(t *testing.T) {
 
 	// verify
 	require.Empty(t, cmp.Diff(srv, srv2))
-	require.IsType(t, srv2, &ServerV2{})
+	require.IsType(t, srv2, &types.ServerV2{})
 
 	// Mutate the second value but expect the original to be unaffected
-	srv2.(*ServerV2).Metadata.Labels["foo"] = "bar"
-	srv2.(*ServerV2).Spec.CmdLabels = map[string]CommandLabelV2{
+	srv2.(*types.ServerV2).Metadata.Labels["foo"] = "bar"
+	srv2.(*types.ServerV2).Spec.CmdLabels = map[string]types.CommandLabelV2{
 		"srv-cmd": {
-			Period:  Duration(3 * time.Second),
+			Period:  types.Duration(3 * time.Second),
 			Command: []string{"cmd", "--flag=value"},
 		},
 	}
 	expires2 := now.Add(10 * time.Minute)
-	srv2.(*ServerV2).Metadata.Expires = &expires2
+	srv2.(*types.ServerV2).Metadata.Expires = &expires2
 
 	// exercise
 	srv3 := srv.DeepCopy()

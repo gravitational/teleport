@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -239,14 +239,17 @@ func TestProxySSHConfig(t *testing.T) {
 	hostPriv, hostPub, err := s.keygen.GenerateKeyPair("")
 	require.NoError(t, err)
 
+	caSigner, err := ssh.ParsePrivateKey(CAPriv)
+	require.NoError(t, err)
+
 	hostCert, err := s.keygen.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: CAPriv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       hostPub,
-		HostID:              "127.0.0.1",
-		NodeName:            "127.0.0.1",
-		ClusterName:         "host-cluster-name",
-		Roles:               teleport.Roles{teleport.RoleNode},
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: hostPub,
+		HostID:        "127.0.0.1",
+		NodeName:      "127.0.0.1",
+		ClusterName:   "host-cluster-name",
+		Roles:         types.SystemRoles{types.RoleNode},
 	})
 	require.NoError(t, err)
 
@@ -360,8 +363,11 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	})
 	require.NoError(t, err)
 
+	caSigner, err := ssh.ParsePrivateKey(CAPriv)
+	require.NoError(t, err)
+
 	cert, err = s.keygen.GenerateUserCert(services.UserCertParams{
-		PrivateCASigningKey:   CAPriv,
+		CASigner:              caSigner,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              idx.Username,

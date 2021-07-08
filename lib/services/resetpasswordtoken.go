@@ -17,46 +17,33 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ResetPasswordTokenSpecV3Template is a template for V3 ResetPasswordToken JSON schema
-const ResetPasswordTokenSpecV3Template = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "user": {
-		"type": ["string"]
-	  },
-	  "created": {
-		"type": ["string"]
-	  },
-	  "url": {
-		"type": ["string"]
-	  }
-	}
-  }`
-
 // UnmarshalResetPasswordToken unmarshals the ResetPasswordToken resource from JSON.
-func UnmarshalResetPasswordToken(bytes []byte, opts ...MarshalOption) (ResetPasswordToken, error) {
+func UnmarshalResetPasswordToken(bytes []byte, opts ...MarshalOption) (types.ResetPasswordToken, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	var token ResetPasswordTokenV3
-	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ResetPasswordTokenSpecV3Template, DefaultDefinitions)
-	err := utils.UnmarshalWithSchema(schema, &token, bytes)
-	if err != nil {
+	var token types.ResetPasswordTokenV3
+	if err := utils.FastUnmarshal(bytes, &token); err != nil {
 		return nil, trace.BadParameter(err.Error())
+	}
+	if err := token.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &token, nil
 }
 
 // MarshalResetPasswordToken marshals the ResetPasswordToken resource to JSON.
-func MarshalResetPasswordToken(token ResetPasswordToken, opts ...MarshalOption) ([]byte, error) {
+func MarshalResetPasswordToken(token types.ResetPasswordToken, opts ...MarshalOption) ([]byte, error) {
+	if err := token.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return utils.FastMarshal(token)
 }

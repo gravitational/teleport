@@ -121,7 +121,7 @@ usePSP: false
 #           values:
 #           - teleport
 #
-## For high availability, distribute teleport pods to nodes as evenly as possible
+## For High Availability, distribute teleport pods to nodes as evenly as possible
 #   podAntiAffinity:
 #     preferredDuringSchedulingIgnoredDuringExecution:
 #     - podAffinityTerm:

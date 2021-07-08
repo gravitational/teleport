@@ -27,10 +27,6 @@ const (
 	// Namespace is default namespace
 	Namespace = "default"
 
-	// ServerKeepAliveTTL is a period between server keep-alives,
-	// when servers announce only presence without sending full data
-	ServerKeepAliveTTL = 60 * time.Second
-
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
 	DefaultDialTimeout = 30 * time.Second
@@ -46,17 +42,23 @@ const (
 	// CertDuration is a default certificate duration.
 	CertDuration = 12 * time.Hour
 
-	// KeepAliveInterval is interval at which Teleport will send keep-alive
-	// messages to the client. The default interval of 5 minutes (300 seconds) is
-	// set to help keep connections alive when using AWS NLBs (which have a default
-	// timeout of 350 seconds)
-	KeepAliveInterval = 5 * time.Minute
-
 	// ServerAnnounceTTL is a period between heartbeats
 	// Median sleep time between node pings is this value / 2 + random
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
 	ServerAnnounceTTL = 600 * time.Second
+)
+
+var (
+	// ServerKeepAliveTTL is a period between server keep-alives,
+	// when servers announce only presence without sending full data
+	ServerKeepAliveTTL = 60 * time.Second
+
+	// KeepAliveInterval is interval at which Teleport will send keep-alive
+	// messages to the client. The default interval of 5 minutes (300 seconds) is
+	// set to help keep connections alive when using AWS NLBs (which have a default
+	// timeout of 350 seconds)
+	KeepAliveInterval = 5 * time.Minute
 )
 
 // EnhancedEvents returns the default list of enhanced events.
@@ -66,3 +68,8 @@ func EnhancedEvents() []string {
 		constants.EnhancedRecordingNetwork,
 	}
 }
+
+const (
+	// DefaultChunkSize is the default chunk size for paginated endpoints.
+	DefaultChunkSize = 1000
+)

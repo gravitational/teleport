@@ -57,17 +57,6 @@ auth_service:
   tokens:
   - "proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   - "auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-  authorities:
-  - type: host
-    domain_name: example.com
-    checking_keys:
-      - checking key 1
-    checking_key_files:
-      - /ca.checking.key
-    signing_keys:
-      - !!binary c2lnbmluZyBrZXkgMQ==
-    signing_key_files:
-      - /ca.signing.key
   reverse_tunnels:
       - domain_name: tunnel.example.com
         addresses: ["com-1", "com-2"]
@@ -115,6 +104,7 @@ teleport:
     - period: 10m10s
       average: 170
       burst: 171
+  diag_addr: 127.0.0.1:3000
 auth_service:
   enabled: yes
   listen_addr: 10.5.5.1:3025

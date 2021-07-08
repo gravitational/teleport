@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -56,14 +57,75 @@ func (s *ClusterConfigurationSuite) TestAuthPreference(c *check.C) {
 	suite.AuthPreference(c)
 }
 
+// DELETE IN 8.0.0: Remove ClusterConfig and related tests
+// and test only the individual resources.
 func (s *ClusterConfigurationSuite) TestClusterConfig(c *check.C) {
+	ctx := context.Background()
+
 	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
+
+	// DELETE IN 8.0.0
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "example.com",
+	})
+	c.Assert(err, check.IsNil)
+	err = clusterConfig.SetClusterName(clusterName)
+	c.Assert(err, check.IsNil)
+
+	// DELETE IN 8.0.0
+	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+		Region:           "us-west-1",
+		Type:             "dynamodb",
+		AuditSessionsURI: "file:///home/log",
+		AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
+	})
+	c.Assert(err, check.IsNil)
+	err = clusterConfig.SetClusterAuditConfig(context.TODO(), auditConfig)
+	c.Assert(err, check.IsNil)
+
+	// DELETE IN 8.0.0
+	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout: types.NewDuration(17 * time.Second),
+	})
+	c.Assert(err, check.IsNil)
+	err = clusterConfig.SetClusterNetworkingConfig(ctx, netConfig)
+	c.Assert(err, check.IsNil)
+
+	// DELETE IN 8.0.0
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtProxy,
+	})
+	c.Assert(err, check.IsNil)
+	err = clusterConfig.SetSessionRecordingConfig(ctx, recConfig)
+	c.Assert(err, check.IsNil)
+
+	// DELETE IN 8.0.0
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		DisconnectExpiredCert: types.NewBoolOption(true),
+	})
+	c.Assert(err, check.IsNil)
+	err = clusterConfig.SetAuthPreference(ctx, authPref)
+	c.Assert(err, check.IsNil)
+
+	// DELETE IN 8.0.0
+	err = clusterConfig.SetClusterAuditConfig(context.TODO(), types.DefaultClusterAuditConfig())
 	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
 	suite.ClusterConfig(c)
+}
+
+func (s *ClusterConfigurationSuite) TestClusterName(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
+
+	suite := &suite.ServicesTestSuite{
+		ConfigS: clusterConfig,
+	}
+	suite.ClusterName(c)
 }
 
 func (s *ClusterConfigurationSuite) TestClusterNetworkingConfig(c *check.C) {
@@ -74,6 +136,16 @@ func (s *ClusterConfigurationSuite) TestClusterNetworkingConfig(c *check.C) {
 		ConfigS: clusterConfig,
 	}
 	suite.ClusterNetworkingConfig(c)
+}
+
+func (s *ClusterConfigurationSuite) TestSessionRecordingConfig(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
+
+	suite := &suite.ServicesTestSuite{
+		ConfigS: clusterConfig,
+	}
+	suite.SessionRecordingConfig(c)
 }
 
 func (s *ClusterConfigurationSuite) TestStaticTokens(c *check.C) {
@@ -88,116 +160,103 @@ func (s *ClusterConfigurationSuite) TestStaticTokens(c *check.C) {
 
 func (s *ClusterConfigurationSuite) TestSessionRecording(c *check.C) {
 	// don't allow invalid session recording values
-	_, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+	_, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: "foo",
 	})
 	c.Assert(err, check.NotNil)
 
 	// default is to record at the node
-	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{})
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{})
 	c.Assert(err, check.IsNil)
-	c.Assert(recConfig.GetMode(), check.Equals, services.RecordAtNode)
+	c.Assert(recConfig.GetMode(), check.Equals, types.RecordAtNode)
 
 	// update sessions to be recorded at the proxy and check again
-	recConfig.SetMode(services.RecordAtProxy)
-	c.Assert(recConfig.GetMode(), check.Equals, services.RecordAtProxy)
+	recConfig.SetMode(types.RecordAtProxy)
+	c.Assert(recConfig.GetMode(), check.Equals, types.RecordAtProxy)
 }
 
 func (s *ClusterConfigurationSuite) TestAuditConfig(c *check.C) {
-	// default is to record at the node
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{})
-	c.Assert(err, check.IsNil)
-
-	cfg := clusterConfig.GetAuditConfig()
-	c.Assert(cfg, check.DeepEquals, services.AuditConfig{})
-
-	// update sessions to be recorded at the proxy and check again
-	in := services.AuditConfig{
-		Region:           "us-west-1",
-		Type:             "dynamodb",
-		AuditSessionsURI: "file:///home/log",
-		AuditTableName:   "audit_table_name",
-		AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
-	}
-	clusterConfig.SetAuditConfig(in)
-	out := clusterConfig.GetAuditConfig()
-	fixtures.DeepCompare(c, out, in)
-
-	config := `
+	testCases := []struct {
+		spec   types.ClusterAuditConfigSpecV2
+		config string
+	}{
+		{
+			spec: types.ClusterAuditConfigSpecV2{
+				Region:           "us-west-1",
+				Type:             "dynamodb",
+				AuditSessionsURI: "file:///home/log",
+				AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
+			},
+			config: `
 region: 'us-west-1'
 type: 'dynamodb'
 audit_sessions_uri: file:///home/log
-audit_table_name: audit_table_name
 audit_events_uri: ['dynamodb://audit_table_name', 'file:///home/log']
-`
-	var data map[string]interface{}
-	err = yaml.Unmarshal([]byte(config), &data)
-	c.Assert(err, check.IsNil)
-
-	out2, err := services.AuditConfigFromObject(data)
-	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, *out2, in)
-
-	config = `
+`,
+		},
+		{
+			spec: types.ClusterAuditConfigSpecV2{
+				Region:           "us-west-1",
+				Type:             "dir",
+				AuditSessionsURI: "file:///home/log",
+				AuditEventsURI:   []string{"dynamodb://audit_table_name"},
+			},
+			config: `
 region: 'us-west-1'
 type: 'dir'
 audit_sessions_uri: file:///home/log
 audit_events_uri: 'dynamodb://audit_table_name'
-`
-	data = nil
-	err = yaml.Unmarshal([]byte(config), &data)
-	c.Assert(err, check.IsNil)
+`,
+		},
+	}
 
-	out2, err = services.AuditConfigFromObject(data)
-	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, *out2, services.AuditConfig{
+	for _, tc := range testCases {
+		in, err := types.NewClusterAuditConfig(tc.spec)
+		c.Assert(err, check.IsNil)
+
+		var data map[string]interface{}
+		err = yaml.Unmarshal([]byte(tc.config), &data)
+		c.Assert(err, check.IsNil)
+
+		configSpec, err := services.ClusterAuditConfigSpecFromObject(data)
+		c.Assert(err, check.IsNil)
+
+		out, err := types.NewClusterAuditConfig(*configSpec)
+		c.Assert(err, check.IsNil)
+		fixtures.DeepCompare(c, out, in)
+	}
+}
+
+func (s *ClusterConfigurationSuite) TestAuditConfigMarshal(c *check.C) {
+	// single audit_events uri value
+	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		Region:           "us-west-1",
-		Type:             "dir",
+		Type:             "dynamodb",
 		AuditSessionsURI: "file:///home/log",
 		AuditEventsURI:   []string{"dynamodb://audit_table_name"},
 	})
-}
-
-func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
-	// signle audit_events uri value
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		DisconnectExpiredCert: services.NewBool(true),
-		ClusterID:             "27",
-		Audit: services.AuditConfig{
-			Region:           "us-west-1",
-			Type:             "dynamodb",
-			AuditSessionsURI: "file:///home/log",
-			AuditTableName:   "audit_table_name",
-			AuditEventsURI:   []string{"dynamodb://audit_table_name"},
-		},
-	})
 	c.Assert(err, check.IsNil)
 
-	data, err := services.MarshalClusterConfig(clusterConfig)
+	data, err := services.MarshalClusterAuditConfig(auditConfig)
 	c.Assert(err, check.IsNil)
 
-	out, err := services.UnmarshalClusterConfig(data)
+	out, err := services.UnmarshalClusterAuditConfig(data)
 	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, clusterConfig, out)
+	fixtures.DeepCompare(c, auditConfig, out)
 
 	// multiple events uri values
-	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
-		DisconnectExpiredCert: services.NewBool(true),
-		ClusterID:             "27",
-		Audit: services.AuditConfig{
-			Region:           "us-west-1",
-			Type:             "dynamodb",
-			AuditSessionsURI: "file:///home/log",
-			AuditTableName:   "audit_table_name",
-			AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/test/log"},
-		},
+	auditConfig, err = types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+		Region:           "us-west-1",
+		Type:             "dynamodb",
+		AuditSessionsURI: "file:///home/log",
+		AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/test/log"},
 	})
 	c.Assert(err, check.IsNil)
 
-	data, err = services.MarshalClusterConfig(clusterConfig)
+	data, err = services.MarshalClusterAuditConfig(auditConfig)
 	c.Assert(err, check.IsNil)
 
-	out, err = services.UnmarshalClusterConfig(data)
+	out, err = services.UnmarshalClusterAuditConfig(data)
 	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, clusterConfig, out)
+	fixtures.DeepCompare(c, auditConfig, out)
 }
