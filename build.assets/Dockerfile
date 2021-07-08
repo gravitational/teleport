@@ -77,8 +77,9 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNT
     chmod a-w /
 
 # Install libbpf
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v0.3.tar.gz | tar xz && \
-    cd /opt/libbpf-0.3/src && \
+ARG LIBBPF_VERSION
+RUN mkdir -p /opt && cd /opt && curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
     make install
 

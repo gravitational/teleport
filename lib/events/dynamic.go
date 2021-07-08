@@ -19,6 +19,7 @@ package events
 import (
 	"github.com/gravitational/teleport/api/types/events"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -377,7 +378,7 @@ func GetSessionID(event apievents.AuditEvent) string {
 // with existing public API routes when the backend is updated with the typed events.
 func ToEventFields(event apievents.AuditEvent) (EventFields, error) {
 	var fields EventFields
-	if err := utils.ObjectToStruct(event, &fields); err != nil {
+	if err := apiutils.ObjectToStruct(event, &fields); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

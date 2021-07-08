@@ -21,6 +21,11 @@ func buildboxPipelineSteps() []step {
 			if name == "buildbox-arm" && fips {
 				continue
 			}
+			// FIPS is unsupported on CentOS 6 as of Teleport 7.0
+			// https://github.com/gravitational/teleport/issues/7207
+			if name == "buildbox-centos6" && fips {
+				continue
+			}
 			steps = append(steps, buildboxPipelineStep(name, fips))
 		}
 	}
@@ -38,10 +43,6 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 			"QUAYIO_DOCKER_USERNAME": {fromSecret: "QUAYIO_DOCKER_USERNAME"},
 			"QUAYIO_DOCKER_PASSWORD": {fromSecret: "QUAYIO_DOCKER_PASSWORD"},
 		},
-		// Buildbox builds run sequentially, so any failure of an earlier step will prevent later steps from running.
-		// The CentOS 6 FIPS buildbox is currently failing to build, so we ignore this to prevent pushes to
-		// master from being unnecessarily marked as failures. The underlying issue will be fixed soon.
-		Failure: "ignore",
 		Volumes: dockerVolumeRefs(),
 		Commands: []string{
 			`apk add --no-cache make`,
