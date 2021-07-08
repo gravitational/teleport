@@ -59,7 +59,7 @@ provider "teleport" {
 ```
 
 
-## teleport_user
+## <a name="teleport_user"></a>teleport_user
 
 The user resource allows to manage local non-interactive Teleport users: CI/CD bots and plugins.
 
@@ -151,7 +151,7 @@ resource "teleport_user" "example" {
 ```
 
 
-## teleport_role
+## <a name="teleport_role"></a>teleport_role
 
 The role resource specifies a set of permissions assigned to local and SSO users.
 
@@ -259,7 +259,7 @@ Options specify session, connection and auditing permissions of the role.
 | `request_prompt`          | string      | An optional message which tells users what they aught to |
 | `require_session_mfa`     | bool        | Specifies whether a user is required to do an MFA  check for every session |
 
-## teleport_provision_token
+## <a name="teleport_provision_token"></a>teleport_provision_token
 
 Provision tokens authenticate teleport nodes and proxies when they first join the cluster.
 
@@ -280,7 +280,7 @@ Metadata specifies a resource name, description, labels and optional expiry date
 Spec contains parameters of a resource. It has a single field: `roles`, a list of roles associated with a token.
 It will be converted to metadata in the SSH and X509 certificates issued to the user of the token.
 
-## teleport_github_connector
+## <a name="teleport_github_connector"></a>teleport_github_connector
 
 **metadata**
 
@@ -311,7 +311,7 @@ Spec contains parameters of a resource.
 | `teams_to_logins.organization`| string      | Github organization a user belongs to                           |
 | `teams_to_logins.team`        | string      | Team within the organization a user belongs to                  |
 
-## teleport_oidc_connector
+## <a name="teleport_oidc_connector"></a>teleport_oidc_connector
 
 An OIDC connector resource specifies OpenID Connect identity provider for Teleport.
 
@@ -350,7 +350,7 @@ Spec contains parameters of a resource.
 | `claims_to_roles.roles`   | string list | List of static Teleport roles to match                          |
 | `claims_to_roles.value`   |      string | Claim value to match                                            |
 
-## teleport_saml_connector
+## <a name="teleport_saml_connector"></a>teleport_saml_connector
 
 An OIDC connector resource specifies SAML identity provider for Teleport.
 
@@ -393,7 +393,7 @@ Spec contains parameters of a resource.
 | `signing_key_pair.cert`   | string      | PEM-encoded x509 certificate |
 | `signing_key_pair.private_key` | string | PEM-encoded x509 private key |
 
-## teleport_trusted_cluster
+## <a name="teleport_trusted_cluster"></a>teleport_trusted_cluster
 
 A trusted cluster resource connects dials and connects this cluster to another, root cluster.
 
@@ -424,7 +424,7 @@ Spec contains parameters of a resource.
 | `role_map.local`             | string list | Local roles to map to |
 | `role_map.remote`            | string      | Remote role name to map from |
 
-## teleport_auth_preference
+## <a name="teleport_auth_preference"></a>teleport_auth_preference
 
 The auth preferenfce resource defines cluster auth preference for the Teleport cluster. This resource is a singleton. It gots reset on deletion.
 
