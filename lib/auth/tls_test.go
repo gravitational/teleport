@@ -1255,7 +1255,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
 		RecordSessions: true,
-		ForwardTo:      clt,
+		IAuditLog:      clt,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -1288,7 +1288,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
 		RecordSessions: true,
-		ForwardTo:      clt,
+		IAuditLog:      clt,
 	})
 	c.Assert(err, check.IsNil)
 	err = clt.PostSessionSlice(events.SessionSlice{
@@ -1299,13 +1299,13 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  events.SessionStartEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "alice", "val": "three"}),
+				Data:       marshal(events.EventFields{events.EventLogin: "alice"}),
 			},
 			{
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				EventType:  events.SessionEndEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "alice", "val": "three"}),
+				Data:       marshal(events.EventFields{events.EventLogin: "alice"}),
 			},
 		},
 		Version: events.V3,
@@ -1347,23 +1347,24 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	// try searching for events with no filter (empty query) - should get all 3 events:
 	to := time.Now().In(time.UTC).Add(time.Hour)
 	from := to.Add(-time.Hour * 2)
-	history, err := clt.SearchEvents(from, to, "", 0)
+	history, _, err := clt.SearchEvents(from, to, defaults.Namespace, nil, 0, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	// Extra event is the upload event
 	c.Assert(len(history), check.Equals, 5)
 
 	// try searching for only "session.end" events (real query)
-	history, err = clt.SearchEvents(from, to,
-		fmt.Sprintf("%s=%s", events.EventType, events.SessionEndEvent), 0)
+	history, _, err = clt.SearchEvents(from, to, defaults.Namespace, []string{events.SessionEndEvent}, 0, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	c.Assert(len(history), check.Equals, 2)
 	var found bool
 	for _, event := range history {
-		if event.GetString(events.SessionEventID) == string(anotherSessionID) {
+		realEvent, ok := event.(*events.SessionEnd)
+		c.Assert(ok, check.Equals, true)
+		if realEvent.GetSessionID() == string(anotherSessionID) {
 			found = true
-			c.Assert(event.GetString("val"), check.Equals, "three")
+			c.Assert(realEvent.Login, check.Equals, "alice")
 		}
 	}
 	c.Assert(found, check.Equals, true)
@@ -1982,7 +1983,7 @@ func TestGenerateCerts(t *testing.T) {
 	t.Run("ImpersonateAllow", func(t *testing.T) {
 		// Super impersonator impersonate anyone and login as root
 		maxSessionTTL := 300 * time.Hour
-		superImpersonatorRole, err := services.NewRole("superimpersonator", types.RoleSpecV3{
+		superImpersonatorRole, err := services.NewRole("superimpersonator", types.RoleSpecV4{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(maxSessionTTL),
 			},
@@ -2000,7 +2001,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Impersonator can generate certificates for super impersonator
-		role, err := services.NewRole("impersonate", types.RoleSpecV3{
+		role, err := services.NewRole("impersonate", types.RoleSpecV4{
 			Allow: types.RoleConditions{
 				Logins: []string{superImpersonator.GetName()},
 				Impersonate: &types.ImpersonateConditions{

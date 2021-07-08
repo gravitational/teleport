@@ -1819,12 +1819,9 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 			return nil, trace.BadParameter("failed to parse limit: %q", limit)
 		}
 	}
-	// remove 'to', 'from' and 'limit' fields, passing the rest of the query unmodified
-	// to whatever pluggable search is implemented by the backend
-	query.Del("to")
-	query.Del("from")
-	query.Del("limit")
-	eventsList, err := auth.SearchEvents(from, to, query.Encode(), limit)
+
+	eventTypes := query[events.EventType]
+	eventsList, _, err := auth.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1864,7 +1861,7 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, err := auth.SearchSessionEvents(from, to, limit)
+	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2131,6 +2128,7 @@ type upsertRoleRawReq struct {
 	Role json.RawMessage `json:"role"`
 }
 
+// DELETE IN 7.0
 func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertRoleRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -2150,14 +2148,24 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	return message(fmt.Sprintf("'%v' role upserted", role.GetName())), nil
 }
 
+// DELETE IN 7.0
 func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	role, err := auth.GetRole(r.Context(), p.ByName("role"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID()))
+	roleV4, ok := role.(*types.RoleV4)
+	if !ok {
+		return nil, trace.BadParameter("unrecognized role version")
+	}
+	downgraded, err := downgradeRole(context.Background(), roleV4)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rawMessage(services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID()))
 }
 
+// DELETE IN 7.0
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	roles, err := auth.GetRoles(r.Context())
 	if err != nil {
@@ -2165,7 +2173,15 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	}
 	out := make([]json.RawMessage, len(roles))
 	for i, role := range roles {
-		raw, err := services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID())
+		roleV4, ok := role.(*types.RoleV4)
+		if !ok {
+			return nil, trace.BadParameter("unrecognized role version")
+		}
+		downgraded, err := downgradeRole(context.Background(), roleV4)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw, err := services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2174,6 +2190,7 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	return out, nil
 }
 
+// DELETE IN 7.0
 func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	role := p.ByName("role")
 	if err := auth.DeleteRole(r.Context(), role); err != nil {

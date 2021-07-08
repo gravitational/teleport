@@ -929,7 +929,7 @@ func initUploadHandler(auditConfig services.AuditConfig, dataDir string) (events
 
 // initExternalLog initializes external storage, if the storage is not
 // setup, returns (nil, nil).
-func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log logrus.FieldLogger) (events.IAuditLog, error) {
+func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log logrus.FieldLogger, backend backend.Backend) (events.IAuditLog, error) {
 	//
 	// DELETE IN: 5.0
 	// We could probably just remove AuditTableName now (its been deprecated for a while), but
@@ -981,7 +981,7 @@ func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log 
 				return nil, trace.Wrap(err)
 			}
 
-			logger, err := dynamoevents.New(ctx, cfg)
+			logger, err := dynamoevents.New(ctx, cfg, backend)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1086,7 +1086,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initExternalLog(process.ExitContext(), auditConfig, process.log)
+		externalLog, err := initExternalLog(process.ExitContext(), auditConfig, process.log, process.backend)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1771,6 +1771,7 @@ func (process *TeleportProcess) initSSH() error {
 					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode})
 				}
 			}),
+			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 		)
 		if err != nil {
 			return trace.Wrap(err)

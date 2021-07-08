@@ -1,0 +1,21 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-staging
+  namespace: teleport
+spec:
+  acme:
+    email: gus+helm@goteleport.com
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    solvers:
+    - selector:
+        dnsZones:
+          - "practice.io"
+      dns01:
+        cloudDNS:
+          project: bens-demos
+          serviceAccountSecretRef:
+            name: teleport-gcp-credentials
+            key: gcp-credentials.json

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
@@ -278,6 +279,8 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		c.c.DialOpts,
 		grpc.WithContextDialer(c.grpcDialer()),
 		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)),
+		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 	)
 
 	var err error
@@ -935,11 +938,11 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
-	roleV3, ok := role.(*types.RoleV3)
+	roleV4, ok := role.(*types.RoleV4)
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}
-	_, err := c.grpc.UpsertRole(ctx, roleV3, c.callOpts...)
+	_, err := c.grpc.UpsertRole(ctx, roleV4, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -1223,21 +1226,66 @@ func (c *Client) DeleteToken(ctx context.Context, name string) error {
 	return trail.FromGRPC(err)
 }
 
-// GetNodes returns a list of nodes by namespace.
-// Nodes that the user doesn't have access to are filtered out.
+// GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
-	resp, err := c.grpc.GetNodes(ctx, &types.ResourcesInNamespaceRequest{Namespace: namespace}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
+
+	// Retrieve the complete list of nodes in chunks.
+	var (
+		nodes     []types.Server
+		startKey  string
+		chunkSize = defaults.DefaultChunkSize
+	)
+	for {
+		resp, nextKey, err := c.ListNodes(ctx, namespace, chunkSize, startKey)
+		if trace.IsLimitExceeded(err) {
+			// Cut chunkSize in half if gRPC max message size is exceeded.
+			chunkSize = chunkSize / 2
+			// This is an extremely unlikely scenario, but better to cover it anyways.
+			if chunkSize == 0 {
+				return nil, trace.Wrap(err, "Node is too large to retrieve over gRPC (over 4MiB).")
+			}
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+
+		nodes = append(nodes, resp...)
+		startKey = nextKey
+		if startKey == "" {
+			return nodes, nil
+		}
 	}
-	nodes := make([]types.Server, len(resp.Servers))
+}
+
+// ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
+// nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
+// ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
+func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error) {
+	if namespace == "" {
+		return nil, "", trace.BadParameter("missing parameter namespace")
+	}
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive parameter limit")
+	}
+
+	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
+		Namespace: namespace,
+		Limit:     int32(limit),
+		StartKey:  startKey,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	nodes = make([]types.Server, len(resp.Servers))
 	for i, node := range resp.Servers {
 		nodes[i] = node
 	}
-	return nodes, nil
+
+	return nodes, resp.NextKey, nil
 }
 
 // UpsertNode is used by SSH servers to report their presence
@@ -1279,4 +1327,84 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 	}
 	_, err := c.grpc.DeleteAllNodes(ctx, &types.ResourcesInNamespaceRequest{Namespace: namespace}, c.callOpts...)
 	return trail.FromGRPC(err)
+}
+
+// SearchEvents allows searching for events with a full pagination support.
+func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	request := &proto.GetEventsRequest{
+		Namespace:  namespace,
+		StartDate:  fromUTC,
+		EndDate:    toUTC,
+		EventTypes: eventTypes,
+		Limit:      int32(limit),
+		StartKey:   startKey,
+	}
+
+	response, err := c.grpc.GetEvents(ctx, request)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	decodedEvents := make([]events.AuditEvent, 0, len(response.Items))
+	for _, rawEvent := range response.Items {
+		event, err := events.FromOneOf(*rawEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		decodedEvents = append(decodedEvents, event)
+	}
+
+	return decodedEvents, response.LastKey, nil
+}
+
+// SearchSessionEvents allows searching for session events with a full pagination support.
+func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	request := &proto.GetSessionEventsRequest{
+		StartDate: fromUTC,
+		EndDate:   toUTC,
+		Limit:     int32(limit),
+		StartKey:  startKey,
+	}
+
+	response, err := c.grpc.GetSessionEvents(ctx, request)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	decodedEvents := make([]events.AuditEvent, 0, len(response.Items))
+	for _, rawEvent := range response.Items {
+		event, err := events.FromOneOf(*rawEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		decodedEvents = append(decodedEvents, event)
+	}
+
+	return decodedEvents, response.LastKey, nil
+}
+
+// GetAuthPreference gets cluster auth preference.
+func (c *Client) GetAuthPreference() (types.AuthPreference, error) {
+	ctx := context.TODO()
+	resp, err := c.grpc.GetAuthPreference(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// SetAuthPreference sets cluster auth preference.
+func (c *Client) SetAuthPreference(authPref types.AuthPreference) error {
+	ctx := context.TODO()
+	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", authPref)
+	}
+	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAuthPreference not implemented: can only be called locally.
+func (c *Client) DeleteAuthPreference(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
 }

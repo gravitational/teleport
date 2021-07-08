@@ -615,10 +615,6 @@ func Run(args []string, opts ...cliOption) error {
 func onPlay(cf *CLIConf) error {
 	switch cf.Format {
 	case teleport.PTY:
-		tc, err := makeClient(cf, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		switch {
 		case path.Ext(cf.SessionID) == ".tar":
 			sid := sessionIDFromPath(cf.SessionID)
@@ -627,10 +623,14 @@ func onPlay(cf *CLIConf) error {
 			if err != nil {
 				return trace.ConvertSystemError(err)
 			}
-			if err := tc.PlayFile(context.TODO(), tarFile, sid); err != nil {
+			if err := client.PlayFile(context.TODO(), tarFile, sid); err != nil {
 				return trace.Wrap(err)
 			}
 		default:
+			tc, err := makeClient(cf, true)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
 				return trace.Wrap(err)
 			}

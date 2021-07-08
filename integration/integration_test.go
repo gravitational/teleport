@@ -45,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -682,6 +683,162 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 	}
 }
 
+func (s *IntSuite) TestSessionContainsAccessRequest(c *check.C) {
+	accessRequestsKey := "access_requests"
+	requestedRoleName := "requested-role"
+	userRoleName := "user-role"
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	lsPath, err := exec.LookPath("ls")
+	c.Assert(err, check.IsNil)
+
+	// Creates new teleport cluster
+	main := s.newTeleport(c, nil, true)
+	defer main.StopAll()
+
+	ctx := context.Background()
+	// Get auth server
+	authServer := main.Process.GetAuthServer()
+
+	// Create new request role
+	requestedRole, err := services.NewRole(requestedRoleName, types.RoleSpecV4{
+		Options: services.RoleOptions{},
+		Allow:   services.RoleConditions{},
+	})
+	c.Assert(err, check.IsNil)
+
+	err = authServer.UpsertRole(ctx, requestedRole)
+	c.Assert(err, check.IsNil)
+
+	// Create user role with ability to request role
+	userRole, err := services.NewRole(userRoleName, types.RoleSpecV4{
+		Options: services.RoleOptions{},
+		Allow: services.RoleConditions{
+			Request: &services.AccessRequestConditions{
+				Roles: []string{requestedRoleName},
+			},
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	err = authServer.UpsertRole(ctx, userRole)
+	c.Assert(err, check.IsNil)
+
+	user, err := services.NewUser(s.me.Username)
+	user.AddRole(userRole.GetName())
+	c.Assert(err, check.IsNil)
+
+	watcher, err := authServer.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: types.KindUser},
+		},
+	})
+	c.Assert(err, check.IsNil)
+	defer watcher.Close()
+
+	select {
+	case <-time.After(time.Second * 30):
+		c.Fatalf("Timeout waiting for event.")
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			c.Fatalf("Unexpected event type.")
+		}
+		c.Assert(event.Type, check.Equals, types.OpInit)
+	case <-watcher.Done():
+		c.Fatal(watcher.Error())
+	}
+
+	// Update user
+	err = authServer.UpsertUser(user)
+	c.Assert(err, check.IsNil)
+
+	WaitForResource(c, watcher, user.GetKind(), user.GetName())
+
+	req, err := services.NewAccessRequest(s.me.Username, requestedRole.GetMetadata().Name)
+	c.Assert(err, check.IsNil)
+
+	accessRequestID := req.GetName()
+
+	err = authServer.CreateAccessRequest(context.TODO(), req)
+	c.Assert(err, check.IsNil)
+
+	err = authServer.SetAccessRequestState(context.TODO(), types.AccessRequestUpdate{
+		RequestID: accessRequestID,
+		State:     types.RequestState_APPROVED,
+	})
+	c.Assert(err, check.IsNil)
+
+	clientConfig := ClientConfig{
+		Login:       s.me.Username,
+		Cluster:     Site,
+		Host:        Host,
+		Port:        main.GetPortSSHInt(),
+		Interactive: false,
+	}
+
+	clientReissueParams := client.ReissueParams{
+		AccessRequests: []string{accessRequestID},
+	}
+	err = runCommandWithCertReissue(main, []string{lsPath}, clientReissueParams, client.CertCacheDrop, clientConfig)
+	c.Assert(err, check.IsNil)
+
+	// Get session start event
+	sessionStart, err := findEventInLog(main, events.SessionStartEvent)
+	c.Assert(err, check.IsNil)
+	c.Assert(sessionStart.GetCode(), check.Equals, events.SessionStartCode)
+	c.Assert(sessionStart.HasField(accessRequestsKey), check.Equals, true)
+
+	val, found := sessionStart[accessRequestsKey]
+	c.Assert(found, check.Equals, true)
+
+	result := strings.Contains(fmt.Sprintf("%v", val), accessRequestID)
+	c.Assert(result, check.Equals, true)
+}
+
+func WaitForResource(c *check.C, watcher types.Watcher, kind, name string) {
+	timeout := time.After(time.Second * 15)
+	for {
+		select {
+		case <-timeout:
+			c.Fatalf("Timeout waiting for event.")
+		case event := <-watcher.Events():
+			if event.Type != types.OpPut {
+				continue
+			}
+			if event.Resource.GetKind() == kind && event.Resource.GetMetadata().Name == name {
+				return
+			}
+		case <-watcher.Done():
+			c.Fatalf("Watcher error %s.", watcher.Error())
+		}
+	}
+}
+
+// runCommandWithCertReissue runs an SSH command and generates certificates for the user
+func runCommandWithCertReissue(instance *TeleInstance, cmd []string, reissueParams client.ReissueParams, cachePolicy client.CertCachePolicy, cfg ClientConfig) error {
+	tc, err := instance.NewClient(cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = tc.ReissueUserCerts(context.Background(), cachePolicy, reissueParams)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	out := &bytes.Buffer{}
+	tc.Stdout = out
+
+	err = tc.SSH(context.TODO(), cmd, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // TestUUIDBasedProxy verifies that attempts to proxy to nodes using ambiguous
 // hostnames fails with the correct error, and that proxying by UUID succeeds.
 func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
@@ -1146,7 +1303,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	comment := check.Commentf(tc.comment)
 
 	username := s.me.Username
-	role, err := services.NewRole("devs", services.RoleSpecV3{
+	role, err := services.NewRole("devs", types.RoleSpecV4{
 		Options: tc.options,
 		Allow: services.RoleConditions{
 			Logins: []string{username},
@@ -1503,12 +1660,12 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 		stopCh := time.After(5 * time.Second)
 
 		// only look for exec events
-		execQuery := fmt.Sprintf("%s=%s", events.EventType, events.ExecEvent)
+		eventTypes := []string{events.ExecEvent}
 
 		for {
 			select {
 			case <-tickCh:
-				eventsInSite, err := site.SearchEvents(now, now.Add(1*time.Hour), execQuery, 0)
+				eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), defaults.Namespace, eventTypes, 0, "")
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -1699,7 +1856,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
+	role, err := services.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -1727,7 +1884,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
+	role, err = services.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -1998,7 +2155,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	devsRole, err := services.NewRole(mainDevs, services.RoleSpecV3{
+	devsRole, err := services.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2013,7 +2170,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 
 	mainAdmins := "main-admins"
-	adminsRole, err := services.NewRole(mainAdmins, services.RoleSpecV3{
+	adminsRole, err := services.NewRole(mainAdmins, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{"superuser"},
 		},
@@ -2024,7 +2181,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// Ops users can only access remote clusters with label 'access': 'ops'
 	mainOps := "main-ops"
-	mainOpsRole, err := services.NewRole(mainOps, services.RoleSpecV3{
+	mainOpsRole, err := services.NewRole(mainOps, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins:        []string{username},
 			ClusterLabels: services.Labels{"access": []string{"ops"}},
@@ -2053,7 +2210,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	auxRole, err := services.NewRole(auxDevs, services.RoleSpecV3{
+	auxRole, err := services.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2240,7 +2397,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
+	role, err := services.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2268,7 +2425,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
+	role, err = services.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 		},
@@ -3752,7 +3909,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
+	role, err := services.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{s.me.Username},
 		},
@@ -3770,7 +3927,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
+	role, err = services.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{s.me.Username},
 		},
@@ -4416,7 +4573,7 @@ func (s *IntSuite) TestList(c *check.C) {
 
 	for _, tt := range tests {
 		// Create role with logins and labels for this test.
-		role, err := services.NewRole(tt.inRoleName, services.RoleSpecV3{
+		role, err := services.NewRole(tt.inRoleName, types.RoleSpecV4{
 			Allow: services.RoleConditions{
 				Logins:     []string{tt.inLogin},
 				NodeLabels: tt.inLabels,

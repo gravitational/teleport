@@ -433,7 +433,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
-	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{
+	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV4{
 		Options: services.RoleOptions{
 			MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
 		},
@@ -1704,9 +1704,13 @@ func (s *WebSuite) TestConstructSSHResponseLegacy(c *C) {
 
 // TestSearchClusterEvents makes sure web API allows querying events by type.
 func (s *WebSuite) TestSearchClusterEvents(c *C) {
+	// We need a clock that uses the current time here to work around
+	// the fact that filelog doesn't support emitting past events.
+	clock := clockwork.NewRealClock()
+
 	sessionEvents := events.GenerateTestSession(events.SessionParams{
 		PrintEvents: 3,
-		Clock:       s.clock,
+		Clock:       clock,
 		ServerID:    s.proxy.ID(),
 	})
 
@@ -1718,6 +1722,9 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 	sessionPrint := sessionEvents[1]
 	sessionEnd := sessionEvents[4]
 
+	fromTime := []string{clock.Now().AddDate(0, -1, 0).UTC().Format(time.RFC3339)}
+	toTime := []string{clock.Now().AddDate(0, 1, 0).UTC().Format(time.RFC3339)}
+
 	testCases := []struct {
 		// Comment is the test case description.
 		Comment string
@@ -1725,54 +1732,97 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		Query url.Values
 		// Result is the expected returned list of events.
 		Result []events.AuditEvent
+		// TestStartKey is a flag to test start key value.
+		TestStartKey bool
+		// StartKeyValue is the value of start key to expect.
+		StartKeyValue string
 	}{
 		{
 			Comment: "Empty query",
-			Query:   url.Values{},
-			Result:  sessionEvents,
+			Query: url.Values{
+				"from": fromTime,
+				"to":   toTime,
+			},
+			Result: sessionEvents,
 		},
 		{
 			Comment: "Query by session start event",
-			Query:   url.Values{"include": []string{sessionStart.GetType()}},
-			Result:  sessionEvents[:1],
+			Query: url.Values{
+				"include": []string{sessionStart.GetType()},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result: sessionEvents[:1],
 		},
 		{
 			Comment: "Query session start and session end events",
-			Query:   url.Values{"include": []string{sessionEnd.GetType() + ";" + sessionStart.GetType()}},
-			Result:  []events.AuditEvent{sessionStart, sessionEnd},
+			Query: url.Values{
+				"include": []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result: []events.AuditEvent{sessionStart, sessionEnd},
 		},
 		{
 			Comment: "Query events with filter by type and limit",
 			Query: url.Values{
-				"include": []string{sessionPrint.GetType() + ";" + sessionEnd.GetType()},
+				"include": []string{sessionPrint.GetType() + "," + sessionEnd.GetType()},
 				"limit":   []string{"1"},
+				"from":    fromTime,
+				"to":      toTime,
 			},
 			Result: []events.AuditEvent{sessionPrint},
+		},
+		{
+			Comment: "Query session start and session end events with limit and test returned start key",
+			Query: url.Values{
+				"include": []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"limit":   []string{"1"},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result:        []events.AuditEvent{sessionStart},
+			TestStartKey:  true,
+			StartKeyValue: sessionStart.GetID(),
+		},
+		{
+			Comment: "Query session start and session end events with limit and given start key",
+			Query: url.Values{
+				"include":  []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"startKey": []string{sessionStart.GetID()},
+				"from":     fromTime,
+				"to":       toTime,
+			},
+			Result:        []events.AuditEvent{sessionEnd},
+			TestStartKey:  true,
+			StartKeyValue: "",
 		},
 	}
 
 	pack := s.authPack(c, "foo")
+	// var sessionStartKey string
 	for _, tc := range testCases {
 		result := s.searchEvents(c, pack.clt, tc.Query, []string{sessionStart.GetType(), sessionPrint.GetType(), sessionEnd.GetType()})
-		c.Assert(result, HasLen, len(tc.Result), Commentf(tc.Comment))
-		for i, resultEvent := range result {
+		c.Assert(result.Events, HasLen, len(tc.Result), Commentf(tc.Comment))
+		for i, resultEvent := range result.Events {
 			c.Assert(resultEvent.GetType(), Equals, tc.Result[i].GetType(), Commentf(tc.Comment))
 			c.Assert(resultEvent.GetID(), Equals, tc.Result[i].GetID(), Commentf(tc.Comment))
+		}
+
+		// Session prints do not have ID's, only sessionStart and sessionEnd.
+		// When retrieving events for sessionStart and sessionEnd, sessionStart is returned first.
+		if tc.TestStartKey {
+			c.Assert(result.StartKey, Equals, tc.StartKeyValue, Commentf(tc.Comment))
 		}
 	}
 }
 
-func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) (result []events.EventFields) {
+func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) eventsListGetResponse {
 	response, err := clt.Get(context.Background(), clt.Endpoint("webapi", "sites", s.server.ClusterName(), "events", "search"), query)
 	c.Assert(err, IsNil)
 	var out eventsListGetResponse
 	c.Assert(json.Unmarshal(response.Bytes(), &out), IsNil)
-	for _, event := range out.Events {
-		if utils.SliceContainsStr(filter, event.GetType()) {
-			result = append(result, event)
-		}
-	}
-	return result
+	return out
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
@@ -1869,10 +1919,16 @@ func TestClusterKubesGet(t *testing.T) {
 		Kind:     services.KindKubeService,
 		Version:  services.V2,
 		Spec: services.ServerSpecV2{
-			KubernetesClusters: []*services.KubernetesCluster{{
-				Name:         "test-kube-name",
-				StaticLabels: map[string]string{"test-field": "test-value"},
-			}},
+			KubernetesClusters: []*services.KubernetesCluster{
+				{
+					Name:         "test-kube-name",
+					StaticLabels: map[string]string{"test-field": "test-value"},
+				},
+				// tests for de-duplication
+				{
+					Name:         "test-kube-name",
+					StaticLabels: map[string]string{"test-field": "test-value"},
+				}},
 		},
 	})
 	require.NoError(t, err)

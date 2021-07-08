@@ -17,14 +17,21 @@ ENV LANGUAGE="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     DEBIAN_FRONTEND="noninteractive"
 
+# Install packages.
+# We install curl first to allow setting up the Google SDK as part of the same layer.
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
-    apt-get install -q -y \
-        apt-utils \
-        curl \
+    apt-get install -y --no-install-recommends apt-utils ca-certificates curl gnupg && \
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
+    apt-get -y update && \
+    apt-get install -q -y --no-install-recommends \
+        clang-format \
         gcc \
         gcc-multilib \
         git \
+        google-cloud-sdk \
+        google-cloud-sdk-firestore-emulator \
         gzip \
         libbpfcc-dev \
         libc6-dev \
@@ -34,13 +41,17 @@ RUN apt-get update -y --fix-missing && \
         make \
         mingw-w64 \
         net-tools \
+        openssh-client \
+        python-pip \
         shellcheck \
         tar \
         tree \
         zip \
         && \
+    pip --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
-    apt-get -y autoclean && apt-get -y clean
+    apt-get -y clean && \
+    rm -rf /var/lib/apt/lists/*
 
 ARG UID
 ARG GID
