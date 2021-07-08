@@ -311,7 +311,10 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error
 	for _, proxy := range proxies {
 		newCurrent[proxy.GetName()] = proxy
 	}
-	return p.updateCurrent(ctx, func() { p.current = newCurrent }, true)
+	p.rw.Lock()
+	defer p.rw.Unlock()
+	p.current = newCurrent
+	return trace.Wrap(p.postUpdate(ctx, true))
 }
 
 // processEventAndUpdateCurrent is called when a watcher event is received.
@@ -321,33 +324,32 @@ func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, event
 		return nil
 	}
 
+	p.rw.Lock()
+	defer p.rw.Unlock()
+
 	switch event.Type {
 	case types.OpDelete:
+		delete(p.current, event.Resource.GetName())
 		// Always broadcast when a proxy is deleted.
-		return p.updateCurrent(ctx, func() { delete(p.current, event.Resource.GetName()) }, true)
+		return trace.Wrap(p.postUpdate(ctx, true))
 	case types.OpPut:
-		_, known := p.current[event.Resource.GetName()]
 		server, ok := event.Resource.(types.Server)
 		if !ok {
 			p.Log.Warningf("Unexpected type %T.", event.Resource)
 			return nil
 		}
+		_, known := p.current[server.GetName()]
+		p.current[server.GetName()] = server
 		// Broadcast only creation of new proxies (not known before).
-		return p.updateCurrent(ctx, func() { p.current[event.Resource.GetName()] = server }, !known)
+		return trace.Wrap(p.postUpdate(ctx, !known))
 	default:
 		p.Log.Warningf("Skipping unsupported event type %v.", event.Type)
 		return nil
 	}
 }
 
-// updateCurrent updates the currently stored proxy set by executing the given
-// function under the mutex.
-func (p *proxyCollector) updateCurrent(ctx context.Context, do func(), broadcast bool) error {
-	p.rw.Lock()
-	defer p.rw.Unlock()
-
-	do()
-
+// postUpdate performs logging and broadcasting after an update.
+func (p *proxyCollector) postUpdate(ctx context.Context, broadcast bool) error {
 	names := make([]string, 0, len(p.current))
 	for k := range p.current {
 		names = append(names, k)
