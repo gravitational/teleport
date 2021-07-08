@@ -256,7 +256,7 @@ connect using the standard OpenSSH client:
 
 ```bash
 # on the machine where you want to run the ssh client
-$ tsh --proxy=root.example.com config ssh
+$ tsh --proxy=root.example.com config
 ```
 
 This will generate an OpenSSH client configuration block for the root cluster
@@ -286,10 +286,11 @@ ssh -p 4022 user@node3.leaf.example.com
   title="Automatic OpenSSH and Multiple Clusters"
 >
   If you switch between multiple Teleport proxy servers, you'll need to re-run 
-  `tsh config ssh` for each to generate the cluster-specific configuration.
+  `tsh config` for each to generate the cluster-specific configuration.
 
-  Similarly, if [trusted clusters](../../trustedclusters.mdx) are added or removed, be
-  sure to re-run the above command and replace the previous configuration.
+  Similarly, if [trusted clusters](../../trustedclusters.mdx) are added or
+  removed, be sure to re-run the above command and replace the previous
+  configuration.
 </Admonition>
 
 ### Manual Setup

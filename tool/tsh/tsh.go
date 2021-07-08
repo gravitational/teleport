@@ -499,16 +499,7 @@ func Run(args []string, opts ...cliOption) error {
 	// MFA subcommands.
 	mfa := newMFACommand(app)
 
-	config := app.Command("config", "Manage application configuration")
-
-	// TODO: Consider migrating existing config sub-commands for consistency.
-	// (Alternatively, use `tsh config` directly to generate ssh config, per
-	// @r0mant's suggestion.)
-
-	// configApp := config.Command("app", "Print app connection information.")
-	// configDB := config.Command("db", "Print database connection information. Useful when configuring GUI clients.")
-
-	configSSH := config.Command("ssh", "Print OpenSSH configuration information.")
+	config := app.Command("config", "Print OpenSSH configuration details")
 
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
@@ -519,8 +510,8 @@ func Run(args []string, opts ...cliOption) error {
 		scp.Hidden()
 		bench.Hidden()
 
-		// Similarly, `config ssh` depends on bash.
-		configSSH.Hidden()
+		// Similarly, `config` for ssh depends on bash.
+		config.Hidden()
 	}
 
 	// parse CLI commands+flags:
@@ -646,8 +637,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onRequestCreate(&cf)
 	case reqReview.FullCommand():
 		err = onRequestReview(&cf)
-	case configSSH.FullCommand():
-		err = onConfigSSH(&cf)
+	case config.FullCommand():
+		err = onConfig(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)

@@ -67,8 +67,8 @@ func writeSSHConfig(
 	return nil
 }
 
-// onConfigSSH handles the `tsh config ssh` command
-func onConfigSSH(cf *CLIConf) error {
+// onConfig handles the `tsh config` command
+func onConfig(cf *CLIConf) error {
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
