@@ -2061,7 +2061,7 @@ func (process *TeleportProcess) initMetricsService() error {
 
 	server := &http.Server{
 		Handler:           mux,
-		ReadHeaderTimeout: defaults.DefaultDialTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentMetrics),
 		TLSConfig:         tlsConfig,
 	}

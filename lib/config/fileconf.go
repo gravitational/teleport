@@ -1134,7 +1134,7 @@ func (m *Metrics) MTLSEnabled() bool {
 		return false
 	}
 
-	v, err := utils.ParseBool(m.MTLSFlag)
+	v, err := apiutils.ParseBool(m.MTLSFlag)
 	if err != nil {
 		return false
 	}
