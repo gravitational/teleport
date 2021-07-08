@@ -186,7 +186,7 @@
     },
     {
       "icon": "cloud",
-      "title": "Pro",
+      "title": "Teleport Pro",
       "entries": [
         { "title": "Introduction", "slug": "/pro/introduction/" },
         { "title": "Getting Started", "slug": "/pro/getting-started/" },
