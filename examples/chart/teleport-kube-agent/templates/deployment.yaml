@@ -8,6 +8,11 @@
 {{- else }}
   {{- $_ := set . "teleportVersion" .Chart.Version }}
 {{- end }}
+{{- if .Values.replicaCount }}
+  {{- $_ := set . "replicaCount" .Values.replicaCount }}
+{{- else }}
+  {{- $_ := set . "replicaCount" .Values.highAvailability.replicaCount }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,7 +25,7 @@ metadata:
     {{- toYaml .Values.annotations.deployment | nindent 4 }}
   {{- end }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .replicaCount }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
