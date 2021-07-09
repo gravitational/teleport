@@ -553,14 +553,14 @@ echo $TELEPORT_PUBLIC_DNS_NAME
 export EMAIL=[email-for-letsencrypt]
 
 sudo certbot certonly --standalone \
-             --preferred-challenges http \
-                      -d $TELEPORT_PUBLIC_DNS_NAME \
-                      -n \
-                      --agree-tos \
-                      --email=$EMAIL
+  --preferred-challenges http \
+  -d $TELEPORT_PUBLIC_DNS_NAME \
+  -n \
+  --agree-tos \
+  --email=$EMAIL
 ```
 
-#### Setup Github auth
+#### Setup login through Github
 
 Run this on the Teleport EC2 Host, see [Github authentication](admin-guide.mdx#github-oauth-20) for more info.
 
