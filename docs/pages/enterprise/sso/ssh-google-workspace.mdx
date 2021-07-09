@@ -124,10 +124,8 @@ https://www.googleapis.com/auth/admin.directory.group.member.readonly, https://w
 
 Now, create a OIDC connector [resource](../../admin-guide.mdx#resources).
 There are two options for setting the `google_service_account` value.  You can set the JSON file in the auth server and give a URI to the file.
-The second is populating the contents via inline.  Inline is required for Teleport Cloud.
+The second is populating the contents via inline.  Inline is required for Teleport Pro.
 Write down this template as `gsuite-connector.yaml`:
-
-
 
 <Tabs>
   <TabItem label="Google Service Account via URI">
@@ -136,7 +134,7 @@ Write down this template as `gsuite-connector.yaml`:
     ```
   </TabItem>
 
-  <TabItem label="Google Service Account via inline (required for Teleport Cloud)">
+  <TabItem label="Google Service Account via inline (required for Teleport Pro)">
     ```yaml
     (!examples/resources/gworkspace-connector-inline.yaml!)
     ```
