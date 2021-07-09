@@ -30,6 +30,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -187,7 +188,7 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 
 	// convert generic backend parameters structure to etcd config:
 	var cfg *Config
-	if err = utils.ObjectToStruct(params, &cfg); err != nil {
+	if err = apiutils.ObjectToStruct(params, &cfg); err != nil {
 		return nil, trace.BadParameter("invalid etcd configuration: %v", err)
 	}
 	if err = cfg.Validate(); err != nil {

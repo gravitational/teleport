@@ -19,7 +19,6 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/gravitational/trace"
 )
@@ -53,10 +52,10 @@ import (
 func ObjectToStruct(in interface{}, out interface{}) error {
 	bytes, err := json.Marshal(in)
 	if err != nil {
-		return trace.Wrap(err, fmt.Sprintf("failed to marshal %v, %v", in, err))
+		return trace.Wrap(err, "failed to marshal %v, %v", in, err)
 	}
 	if err := json.Unmarshal(bytes, out); err != nil {
-		return trace.Wrap(err, fmt.Sprintf("failed to unmarshal %v into %T, %v", in, out, err))
+		return trace.Wrap(err, "failed to unmarshal %v into %T, %v", in, out, err)
 	}
 	return nil
 }

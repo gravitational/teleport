@@ -24,7 +24,8 @@
           "slug": "/setup/guides/",
           "entries": [
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
-            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" }
+            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" },
+            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" }
           ]
         },
         {
@@ -239,15 +240,21 @@
     "terraform": {
       "version": "0.12.0"
     },
+    "fluentd": {
+      "version": "1.12.4"
+    },
+    "docker": {
+      "version": "20.10.7"
+    },
     "kubernetes": {
       "major_version": "1",
       "minor_version": "17"
     },
     "teleport": {
-      "version": "6.2.1",
+      "version": "6.2.7",
       "golang": "1.16",
       "plugin": {
-        "version": "6.2.1"
+        "version": "6.2.7"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "quay.io/gravitational/teleport:7",
