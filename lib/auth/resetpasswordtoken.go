@@ -38,10 +38,15 @@ import (
 )
 
 const (
-	// ResetPasswordTokenTypeInvite indicates invite UI flow
-	ResetPasswordTokenTypeInvite = "invite"
-	// ResetPasswordTokenTypePassword indicates set new password UI flow
-	ResetPasswordTokenTypePassword = "password"
+	// ResetPasswordTokenInvite indicates invite UI flow.
+	ResetPasswordTokenInvite = "invite"
+	// ResetPasswordTokenPassword indicates set new password UI flow.
+	ResetPasswordTokenPassword = "password"
+	// ResetPasswordTokenRecoveryStart indicates start recovery UI flow.
+	ResetPasswordTokenRecoveryStart = "recovery_start"
+	// ResetPasswordTokenRecoveryApproved indicates the last step of recovery flow where user
+	// changes password or adds a new second factor.
+	ResetPasswordTokenRecoveryApproved = "recovery_approved"
 )
 
 // CreateResetPasswordTokenRequest is a request to create a new reset password token
@@ -64,14 +69,14 @@ func (r *CreateResetPasswordTokenRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.Type == "" {
-		r.Type = ResetPasswordTokenTypePassword
+		r.Type = ResetPasswordTokenPassword
 	}
 
 	// We use the same mechanism to handle invites and password resets
 	// as both allow setting up a new password based on auth preferences.
 	// The only difference is default TTL values and URLs to web UI.
 	switch r.Type {
-	case ResetPasswordTokenTypeInvite:
+	case ResetPasswordTokenInvite:
 		if r.TTL == 0 {
 			r.TTL = defaults.SignupTokenTTL
 		}
@@ -81,7 +86,7 @@ func (r *CreateResetPasswordTokenRequest) CheckAndSetDefaults() error {
 				"failed to create user invite token: maximum token TTL is %v hours",
 				defaults.MaxSignupTokenTTL)
 		}
-	case ResetPasswordTokenTypePassword:
+	case ResetPasswordTokenPassword:
 		if r.TTL == 0 {
 			r.TTL = defaults.ChangePasswordTokenTTL
 		}
@@ -90,6 +95,9 @@ func (r *CreateResetPasswordTokenRequest) CheckAndSetDefaults() error {
 				"failed to create reset password token: maximum token TTL is %v hours",
 				defaults.MaxChangePasswordTokenTTL)
 		}
+	case ResetPasswordTokenRecoveryStart, ResetPasswordTokenRecoveryApproved:
+		r.TTL = defaults.MaxRecoveryTokenTTL
+
 	default:
 		return trace.BadParameter("unknown reset password token request type(%v)", r.Type)
 	}
@@ -278,7 +286,12 @@ func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (typ
 	var err error
 	var proxyHost string
 
-	tokenID, err := utils.CryptoRandomHex(TokenLenBytes)
+	tokenLenBytes := TokenLenBytes
+	if req.Type == ResetPasswordTokenRecoveryStart || req.Type == ResetPasswordTokenRecoveryApproved {
+		tokenLenBytes = RecoveryTokenLenBytes
+	}
+
+	tokenID, err := utils.CryptoRandomHex(tokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -308,6 +321,7 @@ func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (typ
 		return nil, trace.Wrap(err)
 	}
 
+	token.SetSubKind(req.Type)
 	token.SetExpiry(s.clock.Now().UTC().Add(req.TTL))
 	token.SetUser(req.Name)
 	token.SetCreated(s.clock.Now().UTC())
@@ -321,11 +335,14 @@ func formatResetPasswordTokenURL(proxyHost string, tokenID string, reqType strin
 		Host:   proxyHost,
 	}
 
-	// We have 2 different UI flows to process password reset tokens
-	if reqType == ResetPasswordTokenTypeInvite {
+	// We have 3 different UI flows to process a user token
+	switch reqType {
+	case ResetPasswordTokenInvite:
 		u.Path = fmt.Sprintf("/web/invite/%v", tokenID)
-	} else if reqType == ResetPasswordTokenTypePassword {
+	case ResetPasswordTokenPassword:
 		u.Path = fmt.Sprintf("/web/reset/%v", tokenID)
+	case ResetPasswordTokenRecoveryStart, ResetPasswordTokenRecoveryApproved:
+		u.Path = fmt.Sprintf("/web/recovery/%v", tokenID)
 	}
 
 	return u.String(), nil

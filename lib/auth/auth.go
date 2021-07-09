@@ -933,9 +933,15 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		return trace.Wrap(err)
 	}
 	status := user.GetStatus()
-	if status.IsLocked && status.LockExpires.After(a.clock.Now().UTC()) {
-		return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
-			user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+	if status.IsLocked {
+		if status.RecoveryAttemptLockExpires.After(a.clock.Now().UTC()) {
+			return trace.AccessDenied("%v exceeds %v failed account recovery attempts, locked until %v",
+				user.GetName(), defaults.MaxRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
+		}
+		if status.LockExpires.After(a.clock.Now().UTC()) {
+			return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
+				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+		}
 	}
 	fnErr := authenticateFn()
 	if fnErr == nil {
@@ -948,7 +954,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		return nil
 	}
 	// do not lock user in case if DB is flaky or down
-	if trace.IsConnectionProblem(err) {
+	if trace.IsConnectionProblem(fnErr) {
 		return trace.Wrap(fnErr)
 	}
 	// log failed attempt and possibly lock user
@@ -1049,6 +1055,25 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	}
 
 	return chal, nil
+}
+
+// GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user
+// defined in the token.
+func (a *Server) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
+	if req.GetTokenID() == "" {
+		return nil, trace.BadParameter("missing tokenID")
+	}
+
+	token, err := a.GetResetPasswordToken(ctx, req.GetTokenID())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if token.Expiry().Before(a.clock.Now().UTC()) {
+		return nil, trace.BadParameter("expired token")
+	}
+
+	return a.mfaAuthChallenge(ctx, token.GetUser(), a.Identity)
 }
 
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
@@ -2598,6 +2623,9 @@ const (
 
 	// TokenLenBytes is len in bytes of the invite token
 	TokenLenBytes = 16
+
+	// RecoveryTokenLenBytes is len in bytes of a user token for recovery.
+	RecoveryTokenLenBytes = 32
 
 	// SessionTokenBytes is the number of bytes of a web or application session.
 	SessionTokenBytes = 32

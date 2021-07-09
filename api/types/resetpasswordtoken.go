@@ -39,6 +39,10 @@ type ResetPasswordToken interface {
 	GetURL() string
 	// SetURL returns URL
 	SetURL(string)
+	// SetRecoverType sets recovery type.
+	SetRecoverType(RecoverType)
+	// GetRecoverType returns recovery type.
+	GetRecoverType() RecoverType
 }
 
 // NewResetPasswordToken creates an instance of ResetPasswordToken.
@@ -146,7 +150,7 @@ func (u *ResetPasswordTokenV3) setStaticFields() {
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
-func (u ResetPasswordTokenV3) CheckAndSetDefaults() error {
+func (u *ResetPasswordTokenV3) CheckAndSetDefaults() error {
 	u.setStaticFields()
 	if err := u.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -157,4 +161,14 @@ func (u ResetPasswordTokenV3) CheckAndSetDefaults() error {
 // // String represents a human readable version of the token
 func (u *ResetPasswordTokenV3) String() string {
 	return fmt.Sprintf("ResetPasswordTokenV3(tokenID=%v, user=%v, expires at %v)", u.GetName(), u.Spec.User, u.Expiry())
+}
+
+// SetRecoverType sets recovery type.
+func (u *ResetPasswordTokenV3) SetRecoverType(r RecoverType) {
+	u.Spec.RecoverType = r
+}
+
+// GetRecoverType returns recovery type.
+func (u *ResetPasswordTokenV3) GetRecoverType() RecoverType {
+	return u.Spec.RecoverType
 }

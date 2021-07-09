@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"net/mail"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -1911,6 +1912,22 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 	}, nil
 }
 
+// GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user
+// defined in the token.
+func (g *GRPCServer) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := actx.ServerWithRoles.GetMFAAuthenticateChallengeWithToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
 func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_GenerateUserSingleUseCertsServer) error {
 	ctx := stream.Context()
 	actx, err := g.authenticate(ctx)
@@ -2787,6 +2804,113 @@ func (g *GRPCServer) DeleteLock(ctx context.Context, req *proto.DeleteLockReques
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil
+}
+
+// ChangePasswordWithToken changes password with a password reset token.
+func (g *GRPCServer) ChangePasswordWithToken(ctx context.Context, req *proto.NewUserAuthCredWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := auth.ServerWithRoles.ChangePasswordWithToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
+// VerifyRecoveryCode verifies a given recovery code.
+func (g *GRPCServer) VerifyRecoveryCode(ctx context.Context, req *proto.VerifyRecoveryCodeRequest) (*types.ResetPasswordTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetUsername() == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+
+	if req.GetRecoveryCode() == nil {
+		return nil, trace.BadParameter("missing recovery code")
+	}
+
+	// Only user's with email as their username can receive/use recovery codes.
+	if _, err := mail.ParseAddress(req.GetUsername()); err != nil {
+		return nil, trace.Wrap(err, "invalid email address: %q", req.GetUsername())
+	}
+
+	resetToken, err := auth.ServerWithRoles.VerifyRecoveryCode(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := resetToken.(*types.ResetPasswordTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected ResetPasswordToken type %T", resetToken)
+		return nil, trace.Wrap(err)
+	}
+
+	return r, nil
+}
+
+// AuthenticateUserWithRecoveryToken authenticates user defined in token with either password or
+// second factor.
+func (g *GRPCServer) AuthenticateUserWithRecoveryToken(ctx context.Context, req *proto.AuthenticateUserWithRecoveryTokenRequest) (*types.ResetPasswordTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetTokenID() == "" {
+		return nil, trace.BadParameter("missing tokenId")
+	}
+
+	if req.GetUsername() == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+
+	if req.GetPassword() == nil && req.GetSecondFactorToken() == "" && req.GetU2FSignResponse() == nil {
+		return nil, trace.BadParameter("at least one authentication method is required")
+	}
+
+	resetToken, err := auth.ServerWithRoles.AuthenticateUserWithRecoveryToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := resetToken.(*types.ResetPasswordTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected ResetPasswordToken type %T", resetToken)
+		return nil, trace.Wrap(err)
+	}
+
+	return r, nil
+}
+
+// RecoverAccountWithToken is the last step in the recovery flow that either changes a user
+// password or adds a new mfa device depending on the request.
+func (g *GRPCServer) RecoverAccountWithToken(ctx context.Context, req *proto.NewUserAuthCredWithTokenRequest) (*proto.RecoverAccountWithTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetTokenID() == "" {
+		return nil, trace.BadParameter("missing token")
+	}
+
+	if req.GetPassword() == nil && req.GetSecondFactorToken() == "" && req.GetU2FRegisterResponse() == nil {
+		return nil, trace.BadParameter("missing new authentication cred")
+	}
+
+	res, err := auth.ServerWithRoles.RecoverAccountWithToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration

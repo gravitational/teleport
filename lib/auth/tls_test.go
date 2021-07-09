@@ -2562,19 +2562,19 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 	_, _, err = CreateUserAndRole(clt, username, []string{"role1"})
 	c.Assert(err, check.IsNil)
 
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(ctx, CreateResetPasswordTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
 	})
 	c.Assert(err, check.IsNil)
 
-	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
+	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.server.Clock().Now())
 	c.Assert(err, check.IsNil)
 
-	_, err = s.server.Auth().ChangePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
+	_, err = s.server.Auth().ChangePasswordWithToken(ctx, &proto.NewUserAuthCredWithTokenRequest{
 		TokenID:           token.GetName(),
 		Password:          []byte("qweqweqwe"),
 		SecondFactorToken: otpToken,

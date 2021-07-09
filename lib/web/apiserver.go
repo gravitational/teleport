@@ -88,8 +88,8 @@ type Handler struct {
 	// from configuration
 	sshPort string
 
-	// clusterFeatures contain flags for supported and unsupported features.
-	clusterFeatures proto.Features
+	// ClusterFeatures contain flags for supported and unsupported features.
+	ClusterFeatures proto.Features
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -208,7 +208,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		cfg:             cfg,
 		log:             newPackageLogger(),
 		clock:           clockwork.NewRealClock(),
-		clusterFeatures: cfg.ClusterFeatures,
+		ClusterFeatures: cfg.ClusterFeatures,
 	}
 
 	for _, o := range opts {
@@ -338,6 +338,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
 	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.u2fChangePasswordRequest))
 	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.mfaChallengeRequest))
+	h.POST("/webapi/u2f/signrequestwithtoken", httplib.MakeHandler(h.mfaChallengeRequestWithToken))
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithMFAChallengeResponse))
 
@@ -514,7 +515,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext, err := ui.NewUserContext(user, roleset, h.clusterFeatures)
+	userContext, err := ui.NewUserContext(user, roleset, h.ClusterFeatures)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -822,6 +823,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	webCfg := ui.WebConfig{
 		Auth:            authSettings,
 		CanJoinSessions: canJoinSessions,
+		IsCloud:         h.ClusterFeatures.GetCloud(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -1412,19 +1414,40 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := h.auth.proxyClient.ChangePasswordWithToken(r.Context(), req)
+	var u2f *proto.U2FRegisterResponse
+	if req.U2FRegisterResponse != nil {
+		u2f = &proto.U2FRegisterResponse{
+			RegistrationData: req.U2FRegisterResponse.RegistrationData,
+			ClientData:       req.U2FRegisterResponse.ClientData,
+		}
+	}
+
+	res, err := h.auth.proxyClient.ChangePasswordWithToken(r.Context(), &proto.NewUserAuthCredWithTokenRequest{
+		SecondFactorToken:   req.SecondFactorToken,
+		TokenID:             req.TokenID,
+		Password:            req.Password,
+		U2FRegisterResponse: u2f,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	sess := res.WebSession
 	ctx, err := h.auth.newSessionContext(sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := SetSessionCookie(w, sess.GetUser(), sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return newSessionResponse(ctx)
+	// Checks for at least one valid login.
+	if _, err := newSessionResponse(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res.RecoveryCodes, nil
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
@@ -1529,6 +1552,42 @@ func (h *Handler) mfaChallengeRequest(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return mfaChallenge, nil
+}
+
+type mfaChallengeRequestWithTokenRequest struct {
+	TokenID string `json:"tokenId"`
+}
+
+// mfaChallengeRequestWithToken is called to get mfa challenges from all mfa devices with a reset token as auth.
+func (h *Handler) mfaChallengeRequestWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req mfaChallengeRequestWithTokenRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := h.GetProxyClient().GetMFAAuthenticateChallengeWithToken(r.Context(), &proto.GetMFAAuthenticateChallengeWithTokenRequest{
+		TokenID: req.TokenID,
+	})
+	if err != nil {
+		return nil, trace.AccessDenied("bad or expired token")
+	}
+
+	// Convert from proto to JSON format.
+	chal := &auth.MFAAuthenticateChallenge{
+		TOTPChallenge: res.TOTP != nil,
+	}
+
+	for _, u2fChal := range res.U2F {
+		ch := u2f.AuthenticateChallenge{
+			Version:   u2fChal.Version,
+			Challenge: u2fChal.Challenge,
+			KeyHandle: u2fChal.KeyHandle,
+			AppID:     u2fChal.AppID,
+		}
+		chal.U2FChallenges = append(chal.U2FChallenges, ch)
+	}
+
+	return chal, nil
 }
 
 // A request from the client to send the signature from the U2F key

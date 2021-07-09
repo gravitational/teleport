@@ -44,6 +44,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
+	apiProto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -1362,9 +1363,10 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var rawSess *CreateSessionResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
-	c.Assert(rawSess.Token != "", Equals, true)
+	// Test that no recovery codes are returned b/c cloud is not turned on.
+	var recoveryCodes []string
+	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
+	c.Assert(recoveryCodes, HasLen, 0)
 }
 
 func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
@@ -1419,9 +1421,10 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var rawSess *CreateSessionResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
-	c.Assert(rawSess.Token != "", Equals, true)
+	// Test that no recovery codes are returned b/c cloud is not turned on.
+	var recoveryCodes []string
+	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
+	c.Assert(recoveryCodes, HasLen, 0)
 }
 
 func TestU2FLogin(t *testing.T) {
@@ -1460,7 +1463,7 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 	env.proxies[0].createUser(ctx, t, "bob", "root", "password", "")
 
 	// create password change token
-	token, err := env.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateResetPasswordTokenRequest{
 		Name: "bob",
 	})
 	require.NoError(t, err)
@@ -1474,10 +1477,13 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 	require.NoError(t, err)
 
 	tempPass := []byte("abc123")
-	_, err = env.proxies[0].client.ChangePasswordWithToken(context.TODO(), auth.ChangePasswordWithTokenRequest{
-		TokenID:             token.GetName(),
-		U2FRegisterResponse: u2fRegResp,
-		Password:            tempPass,
+	_, err = env.proxies[0].client.ChangePasswordWithToken(ctx, &apiProto.NewUserAuthCredWithTokenRequest{
+		TokenID: token.GetName(),
+		U2FRegisterResponse: &apiProto.U2FRegisterResponse{
+			RegistrationData: u2fRegResp.RegistrationData,
+			ClientData:       u2fRegResp.ClientData,
+		},
+		Password: tempPass,
 	})
 	require.NoError(t, err)
 

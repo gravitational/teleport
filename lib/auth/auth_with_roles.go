@@ -109,12 +109,12 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 // hasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
 func (a *ServerWithRoles) hasBuiltinRole(name string) bool {
-	return hasBuiltinRole(a.context.Checker, name)
+	return HasBuiltinRole(a.context.Checker, name)
 }
 
-// hasBuiltinRole checks the type of the role set returned and the name.
+// HasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
-func hasBuiltinRole(checker services.AccessChecker, name string) bool {
+func HasBuiltinRole(checker services.AccessChecker, name string) bool {
 	if _, ok := checker.(BuiltinRoleSet); !ok {
 		return false
 	}
@@ -881,6 +881,13 @@ func (a *ServerWithRoles) GetMFAAuthenticateChallenge(user string, password []by
 	return a.authServer.GetMFAAuthenticateChallenge(user, password)
 }
 
+// GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user
+// defined in the token.
+func (a *ServerWithRoles) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.GetMFAAuthenticateChallengeWithToken(ctx, req)
+}
+
 // CreateWebSession creates a new web session for the specified user
 func (a *ServerWithRoles) CreateWebSession(user string) (types.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
@@ -1600,9 +1607,30 @@ func (a *ServerWithRoles) RotateResetPasswordTokenSecrets(ctx context.Context, t
 	return a.authServer.RotateResetPasswordTokenSecrets(ctx, tokenID)
 }
 
-func (a *ServerWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
+// ChangePasswordWithToken changes password with a password reset token.
+func (a *ServerWithRoles) ChangePasswordWithToken(ctx context.Context, req *proto.NewUserAuthCredWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
 	// Token is it's own authentication, no need to double check.
 	return a.authServer.ChangePasswordWithToken(ctx, req)
+}
+
+// VerifyRecoveryCode verifies a given recovery code.
+func (a *ServerWithRoles) VerifyRecoveryCode(ctx context.Context, req *proto.VerifyRecoveryCodeRequest) (types.ResetPasswordToken, error) {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.VerifyRecoveryCode(ctx, req)
+}
+
+// AuthenticateUserWithRecoveryToken authenticates user defined in token with either password or
+// second factor.
+func (a *ServerWithRoles) AuthenticateUserWithRecoveryToken(ctx context.Context, req *proto.AuthenticateUserWithRecoveryTokenRequest) (types.ResetPasswordToken, error) {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.AuthenticateUserWithRecoveryToken(ctx, req)
+}
+
+// RecoverAccountWithToken is the last step in the recovery flow that either changes a user
+// password or adds a new mfa device depending on the request.
+func (a *ServerWithRoles) RecoverAccountWithToken(ctx context.Context, req *proto.NewUserAuthCredWithTokenRequest) (*proto.RecoverAccountWithTokenResponse, error) {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.RecoverAccountWithToken(ctx, req)
 }
 
 // CreateUser inserts a new user entry in a backend.

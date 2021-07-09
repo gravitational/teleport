@@ -143,7 +143,7 @@ func (u *UserCommand) ResetPassword(client auth.ClientI) error {
 	req := auth.CreateResetPasswordTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.ResetPasswordTokenTypePassword,
+		Type: auth.ResetPasswordTokenPassword,
 	}
 	token, err := client.CreateResetPasswordToken(context.TODO(), req)
 	if err != nil {
@@ -265,7 +265,7 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.ResetPasswordTokenTypeInvite,
+		Type: auth.ResetPasswordTokenInvite,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -323,7 +323,7 @@ Meanwhile we are going to assign user %q to role %q created during migration.
 	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.ResetPasswordTokenTypeInvite,
+		Type: auth.ResetPasswordTokenInvite,
 	})
 	if err != nil {
 		return err

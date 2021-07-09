@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"encoding/hex"
 	"testing"
 	"time"
 
@@ -134,7 +135,7 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 			req: CreateResetPasswordTokenRequest{
 				Name: username,
 				TTL:  defaults.MaxSignupTokenTTL + time.Hour,
-				Type: ResetPasswordTokenTypeInvite,
+				Type: ResetPasswordTokenInvite,
 			},
 		},
 	}
@@ -216,6 +217,43 @@ func TestFormatAccountName(t *testing.T) {
 			require.Equal(t, accountName, tt.outAccountName)
 		})
 	}
+}
+
+func TestCreateResetPasswordTokenTypeRecovery(t *testing.T) {
+	srv := newTestTLSServer(t)
+
+	username := "joe@example.com"
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	req := CreateResetPasswordTokenRequest{
+		Name: username,
+		Type: ResetPasswordTokenRecoveryStart,
+	}
+
+	startToken, err := srv.Auth().CreateResetPasswordToken(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, startToken.GetURL(), "https://<proxyhost>:3080/web/recovery/"+startToken.GetName())
+
+	// Test token uses correct byte length.
+	bytes, err := hex.DecodeString(startToken.GetName())
+	require.NoError(t, err)
+	require.Len(t, bytes, RecoveryTokenLenBytes)
+
+	req = CreateResetPasswordTokenRequest{
+		Name: username,
+		Type: ResetPasswordTokenRecoveryApproved,
+	}
+
+	approvedToken, err := srv.Auth().CreateResetPasswordToken(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, approvedToken.GetURL(), "https://<proxyhost>:3080/web/recovery/"+approvedToken.GetName())
+
+	bytes, err = hex.DecodeString(approvedToken.GetName())
+	require.NoError(t, err)
+	require.Len(t, bytes, RecoveryTokenLenBytes)
 }
 
 type debugAuth struct {

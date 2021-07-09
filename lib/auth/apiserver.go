@@ -1153,13 +1153,26 @@ func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	webSession, err := auth.ChangePasswordWithToken(r.Context(), req)
+	var u2f *proto.U2FRegisterResponse
+	if req.U2FRegisterResponse != nil {
+		u2f = &proto.U2FRegisterResponse{
+			RegistrationData: req.U2FRegisterResponse.RegistrationData,
+			ClientData:       req.U2FRegisterResponse.ClientData,
+		}
+	}
+
+	res, err := auth.ChangePasswordWithToken(r.Context(), &proto.NewUserAuthCredWithTokenRequest{
+		SecondFactorToken:   req.SecondFactorToken,
+		TokenID:             req.TokenID,
+		Password:            req.Password,
+		U2FRegisterResponse: u2f,
+	})
 	if err != nil {
 		log.Debugf("Failed to change user password with token: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.MarshalWebSession(webSession, services.WithVersion(version)))
+	return rawMessage(services.MarshalWebSession(res.WebSession, services.WithVersion(version)))
 }
 
 // getU2FAppID returns the U2F AppID in the auth configuration

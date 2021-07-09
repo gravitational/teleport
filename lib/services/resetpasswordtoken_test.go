@@ -20,6 +20,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
@@ -59,7 +60,8 @@ func (r *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 				Kind:    types.KindResetPasswordToken,
 				Version: types.V3,
 				Metadata: types.Metadata{
-					Name: "tokenId",
+					Name:      "tokenId",
+					Namespace: defaults.Namespace,
 				},
 				Spec: types.ResetPasswordTokenSpecV3{
 					Created: created,

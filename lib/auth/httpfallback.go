@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -671,4 +672,36 @@ func (c *Client) SetAuthPreference(ctx context.Context, cap types.AuthPreference
 	}
 
 	return nil
+}
+
+// ChangePasswordWithToken changes user password with ResetPasswordToken and returns recovery tokens
+// for cloud users with second factors.
+func (c *Client) ChangePasswordWithToken(ctx context.Context, req *proto.NewUserAuthCredWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
+	if resp, err := c.APIClient.ChangePasswordWithToken(ctx, req); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// Fallback will not return recovery tokens.
+	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	webSession, err := services.UnmarshalWebSession(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, ok := webSession.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected WebSessionV2 type %T", sess)
+	}
+
+	return &proto.ChangePasswordWithTokenResponse{
+		WebSession: sess,
+	}, nil
 }

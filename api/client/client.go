@@ -576,6 +576,48 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	return token, nil
 }
 
+// ChangePasswordWithToken changes user password with a reset password token.
+func (c *Client) ChangePasswordWithToken(ctx context.Context, req *proto.NewUserAuthCredWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
+	res, err := c.grpc.ChangePasswordWithToken(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+// VerifyRecoveryCode verifies a given recovery code.
+func (c *Client) VerifyRecoveryCode(ctx context.Context, req *proto.VerifyRecoveryCodeRequest) (types.ResetPasswordToken, error) {
+	res, err := c.grpc.VerifyRecoveryCode(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+// AuthenticateUserWithRecoveryToken authenticates user defined in token with either password or
+// second factor.
+func (c *Client) AuthenticateUserWithRecoveryToken(ctx context.Context, req *proto.AuthenticateUserWithRecoveryTokenRequest) (types.ResetPasswordToken, error) {
+	res, err := c.grpc.AuthenticateUserWithRecoveryToken(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+// RecoverAccountWithToken is the last step in the recovery flow that either changes a user
+// password or adds a new mfa device depending on the request.
+func (c *Client) RecoverAccountWithToken(ctx context.Context, req *proto.NewUserAuthCredWithTokenRequest) (*proto.RecoverAccountWithTokenResponse, error) {
+	res, err := c.grpc.RecoverAccountWithToken(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
 func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	rsp, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
@@ -999,6 +1041,15 @@ func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesReque
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
+	return resp, nil
+}
+
+func (c *Client) GetMFAAuthenticateChallengeWithToken(ctx context.Context, in *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
+	resp, err := c.grpc.GetMFAAuthenticateChallengeWithToken(ctx, in, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
 	return resp, nil
 }
 

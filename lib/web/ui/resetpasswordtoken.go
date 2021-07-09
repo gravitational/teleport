@@ -28,4 +28,6 @@ type ResetPasswordToken struct {
 	QRCode []byte `json:"qrCode,omitempty"`
 	// Expiry is token expiration time
 	Expiry time.Time `json:"expiry,omitempty"`
+	// RecoveryType is the recover type user requested upon starting recovery.
+	RecoveryType string `json:"recoveryType,omitempty"`
 }

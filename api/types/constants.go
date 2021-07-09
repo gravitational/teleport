@@ -221,6 +221,9 @@ const (
 	// KindLock is a lock resource.
 	KindLock = "lock"
 
+	// KindRecoveryCodes is a resource that holds users recovery codes.
+	KindRecoveryCodes = "recovery_codes"
+
 	// V4 is the fourth version of resources.
 	V4 = "v4"
 

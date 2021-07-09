@@ -149,6 +149,9 @@ const (
 	// ChangePasswordTokenTTL is a default password change token expiry time
 	ChangePasswordTokenTTL = 8 * time.Hour
 
+	// MaxRecoveryTokenTTL is a default expiry time for a recovery token.
+	MaxRecoveryTokenTTL = 3 * time.Hour
+
 	// ResetPasswordLength is the length of the reset user password
 	ResetPasswordLength = 16
 
@@ -213,6 +216,10 @@ const (
 	// MaxLoginAttempts sets the max. number of allowed failed login attempts
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5
+
+	// MaxRecoveryAttempts sets the max number of allowed failed recovery attempts
+	// before a user is locked from login and further recovery attempts.
+	MaxRecoveryAttempts = 3
 
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts
