@@ -42,7 +42,7 @@ Here are definitions of the key concepts you will use in Teleport.
 | Node | A node is a "server", "host" or "computer". Users can create shell sessions to access nodes remotely. |
 | User | A user represents someone (a person) or something (a machine) who can perform a set of operations on a node. |
 | Cluster | A cluster is a group of nodes that work together and can be considered a single system. Cluster nodes can create connections to each other, often over a private network. Cluster nodes often require TLS authentication to ensure that communication between nodes remains secure and comes from a trusted source. |
-| Certificate Authority (CA) | A Certificate Authority issues SSL certificates in the form of public/private keypairs. |
+| Certificate Authority (CA) | A Certificate Authority issues SSL certificates in the form of public/private key-pairs. |
 | [Teleport Node](nodes.mdx) | A Teleport Node is a regular node that is running the Teleport Node service. Teleport Nodes can be accessed by authorized Teleport Users. A Teleport Node is always considered a member of a Teleport Cluster, even if it's a single-node cluster. |
 | [Teleport User](users.mdx) | A Teleport User represents someone who needs access to a Teleport Cluster. Users have stored usernames and passwords, and are mapped to OS users on each node. User data is stored locally or in an external store. |
 | Teleport Cluster | A Teleport Cluster is comprised of one or more nodes, each of which holds certificates signed by the same [Auth Server CA](authentication.mdx). The CA cryptographically signs the certificate of a node, establishing cluster membership. |

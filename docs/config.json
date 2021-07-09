@@ -162,6 +162,7 @@
       "title": "Infrastructure Guides",
       "entries": [
         { "title": "AWS", "slug": "/aws-oss-guide/" },
+        { "title": "AWS Terraform", "slug": "/aws-terraform-guide/" },
         { "title": "GCP", "slug": "/gcp-guide/" },
         { "title": "IBM", "slug": "/ibm-cloud-guide/" }
       ]
@@ -181,7 +182,7 @@
           "title": "FedRAMP for SSH & K8s",
           "slug": "/enterprise/ssh-kubernetes-fedramp/"
         },
-        { "title": "RBAC", "slug": "/enterprise/ssh-rbac/" }
+        { "title": "Role-Based Access Control", "slug": "/enterprise/ssh-rbac/" }
       ]
     },
     {
@@ -306,7 +307,7 @@
       "permanent": true
     },
     {
-      "source": "/preview/pro/",
+      "source": "/preview/cloud/",
       "destination": "/pro/",
       "permanent": true
     },

@@ -3,9 +3,9 @@ title: Running Teleport on IBM Cloud
 description: How to install and configure Gravitational Teleport on IBM cloud for SSH and Kubernetes access.
 ---
 
-We've created this guide to give customers a high level overview of how to use Teleport
-on the [IBM Cloud](https://www.ibm.com/cloud). This guide provides a high level
-introduction leading to a deep dive into how to setup and run Teleport in production.
+We've created this guide to give customers a high-level overview of how to use Teleport
+on the [IBM Cloud](https://www.ibm.com/cloud). This guide provides a high-level
+introduction leading to a deep dive into how to set up and run Teleport in production.
 
 We have split this guide into:
 
@@ -31,9 +31,9 @@ focused on IBM Cloud.
 
 We plan on expanding our guide to eventually include using Teleport with IBM Cloud Kubernetes Service.
 
-## IBM Teleport Introduction
+## IBM Teleport introduction
 
-This guide will cover how to setup, configure and run Teleport on IBM Cloud.
+This guide will cover how to set up, configure and run Teleport on IBM Cloud.
 
 IBM Services required to run Teleport in High Availability:
 
@@ -57,7 +57,7 @@ stores the audit logs.
 We recommend Gen 2 Cloud IBM [Virtual Servers](https://www.ibm.com/cloud/virtual-servers) and [Auto Scaling](https://cloud.ibm.com/docs/vpc?topic=vpc-faqs-auto-scale)
 
 - For Staging and POCs we recommend using `bx2-2x8` machines with 2 vCPUs, 4GB RAM, 4 Gbps.
-- For Production we would recommend `cx2-4x8` with 4 vCPUs, 8 GB RAM, 8 Gbps.
+- For Production, we would recommend `cx2-4x8` with 4 vCPUs, 8 GB RAM, 8 Gbps.
 
 ### Storage: Database for etcd
 
@@ -76,7 +76,7 @@ cluster.
 
 ![Creating IBM Server](../img/IBM/cloud.ibm.com_catalog_services_databases-for-etcd.png)
 
-#### Saving Credentials
+#### Saving credentials
 
 ![Creating IBM Server](../img/IBM/etcd-pass.png)
 ![etcd cert and host](../img/IBM/etcd-cert-and-host.png)
@@ -164,12 +164,13 @@ storage:
 ```
 
 <Admonition type="tip">
-  When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the
-  bucket has been created.
+  When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the bucket has been created.
 </Admonition>
 
 ```bash
 root@teleport:~# teleport start --config=/etc/teleport.yaml -d
+
+# Output
 DEBU [SQLITE]    Connected to: file:/var/lib/teleport/proc/sqlite.db?_busy_timeout=10000&_sync=OFF, poll stream period: 1s lite/lite.go:173
 DEBU [SQLITE]    Synchronous: 0, busy timeout: 10000 lite/lite.go:220
 DEBU [KEYGEN]    SSH cert authority is going to pre-compute 25 keys. native/native.go:104
@@ -177,6 +178,7 @@ DEBU [PROC:1]    Using etcd backend. service/service.go:2309
 INFO [S3]        Setting up bucket "ben-teleport-test-cos-standard-b98", sessions path "/readonly/records" in region "ibm". s3sessions/s3handler.go:143
 INFO [S3]        Setup bucket "ben-teleport-test-cos-standard-b98" completed. duration:356.958618ms s3sessions/s3handler.go:147
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### Network: IBM Cloud DNS Services
 
@@ -185,7 +187,7 @@ the Teleport Proxy public address.  See the [Admin Guide](admin-guide.mdx) for m
 information.
 
 ```yaml
-    # The DNS name the proxy HTTPS endpoint as accessible by cluster users.
+    # The DNS name, the proxy HTTPS endpoint as accessible by cluster users.
     # Defaults to the proxy's hostname if not specified. If running multiple
     # proxies behind a load balancer, this name must point to the load balancer
     # (see public_addr section below)
