@@ -1,0 +1,99 @@
+---
+title: Teleport Pro FAQ
+description: Teleport Pro frequently asked questions.
+---
+
+### Can I use Teleport Pro Preview in production?
+
+We expect Teleport Pro to be suitable to use in non-mission-critical systems that do not require 24/7 access or a guaranteed SLA. 
+
+We recommend a fallback option be available in the event of error or outage.
+
+### Are you using AWS-managed encryption keys, or CMKs via KMS?
+
+We use AWS-managed keys. 
+
+Currently, there is no option to provide your own key.
+
+### Is this Teleport's S3 bucket or my bucket based on my AWS credentials?
+
+It's a Teleport-managed S3 bucket with AWS-managed keys.
+
+Currently, there is no way to provide your own bucket.
+
+### How do I add nodes to Teleport Pro?
+
+You can connect servers, kubernetes clusters, databases and applications using [reverse tunnels](../admin-guide.mdx#adding-a-node-located-behind-nat).
+
+There is no need to open any ports on your infrastructure for inbound traffic.
+
+### How can I access the tctl admin tool?
+
+We have made changes to allow you to log into your cluster using `tsh`, then use `tctl` remotely:
+
+```bash
+tsh login --proxy=myinstance.teleport.sh:443
+# tctl (Enterprise edition) can use tsh credentials as of version 5.0
+tctl status
+```
+
+### Why am I getting `permission denied` errors when using `tctl`?
+
+If you have a local file `/etc/teleport.yaml` on your machine `tctl` will attempt to use the local cluster. Set the environment variable `TELEPORT_CONFIG_FILE` to `""` so it will not attempt to use that Teleport configuration file.
+
+```bash
+$ export TELEPORT_CONFIG_FILE=""
+$ tctl tokens add --type=node
+```
+
+### Are dynamic node tokens available?
+
+After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Pro, users can generate
+[dynamic tokens](../admin-guide.mdx#short-lived-dynamic-tokens):
+
+```bash
+tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
+```
+
+### When will a security audit be available?
+
+The Teleport Pro security audit starts in January.
+
+We'll work on fixing any security issues that are identified and publish them in Q1 2021.
+
+### What does Teleport Pro run in?
+
+Teleport Pro is deployed using a [Gravity](https://github.com/gravitational/gravity)
+cluster on AWS.
+
+### Will Teleport be automatically upgraded with each release?
+
+We will be upgrading the preview version of Teleport Pro automatically.
+
+We will add an option to trigger upgrades manually and automatically within a configurable maintenance window.
+
+### Does your SOC2 report include Teleport Pro?
+
+(!docs/pages/includes/soc2.mdx!)
+
+### Can a customer deploy multiple clusters in Teleport Pro?
+
+Not at this time.
+
+### Is FIPS mode an option?
+
+FIPS is not currently an option for Teleport Pro clusters.
+
+### How do you store passwords?
+
+Password hashes are generated using [Golang's bcrypt](https://pkg.go.dev/golang.org/x/crypto/bcrypt).
+
+### How does Teleport manage web certificates? Can I upload my own?
+
+Teleport uses [letsencrypt.org](https://letsencrypt.org/) to issue certificates for every customer. 
+
+It's not possible to upload a custom certificate or use a custom domain name.
+
+### Do you encrypt data at rest?
+
+Each deployment is using at-rest encryption using AWS DynamoDB and S3 at-rest encryption for customer data including session recordings and user records.

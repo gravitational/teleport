@@ -1,6 +1,6 @@
 ---
 title: Migrating from a legacy version of the teleport Helm chart
-description: How to migrate a Teleport cluster using the legacy teleport helm chart to the teleport-cluster Helm chart
+description: How to migrate a Teleport cluster using the legacy teleport helm chart to the teleport-cluster Helm chart.
 ---
 
 In this guide, we'll detail a way to migrate an existing Teleport cluster using the legacy `teleport` Helm chart
@@ -39,6 +39,7 @@ Firstly, check that the `ConfigMap` is present:
 
 ```bash
 kubectl --namespace teleport get configmap/teleport -o yaml
+
 # apiVersion: v1
 # data:
 #  teleport.yaml: |

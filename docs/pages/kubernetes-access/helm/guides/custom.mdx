@@ -1,6 +1,6 @@
 ---
 title: Running a Teleport cluster with a custom configuration using Helm
-description: Install and configure a Teleport cluster with a custom configuration using Helm
+description: Install and configure a Teleport cluster with a custom configuration using Helm.
 ---
 
 In this guide, we'll go through how to set up a Teleport cluster in Kubernetes using a custom [`teleport.yaml`](../../../config-reference.mdx)
@@ -143,7 +143,7 @@ $ kubectl --namespace teleport exec deploy/teleport -- tctl users add test --rol
 User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 https://custom.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
-NOTE: Make sure custom.example.com:443 points at a Teleport proxy that users can access.
+# NOTE: Make sure custom.example.com:443 points at a Teleport proxy that users can access.
 ```
 
 <Admonition type="note">

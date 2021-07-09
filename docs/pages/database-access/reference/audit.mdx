@@ -1,18 +1,19 @@
 ---
 title: Database Access Audit Events Reference
-description: Audit events reference for Teleport Database Access
+description: Event auditing reference documentation for Teleport Database Access.
 ---
 
 # Database Access Audit Events Reference
 
+This document describes the expected Teleport Database Access Event object schema in common scenarios.
+
 ## db.session.start (TDB00I/W)
 
-Emitted when a client successfully connects to a database, or when a connection
-attempt fails due to access denied.
+Emitted when a client successfully connects to a database, or when a connection attempt fails due to access denied.
 
 Successful connection event:
 
-```json
+```JSON
 {
   "cluster_name": "root", // Teleport cluster name.
   "code": "TDB00I", // Event code.
@@ -35,7 +36,7 @@ Successful connection event:
 
 Access denied event:
 
-```json
+```JSON
 {
   "cluster_name": "root", // Teleport cluster name.
   "code": "TDB00W", // Event code.
@@ -62,7 +63,7 @@ Access denied event:
 
 Emitted when a client disconnects from the database.
 
-```json
+```JSON
 {
   "cluster_name": "root", // Teleport cluster name.
   "code": "TDB01I", // Event code.
@@ -84,7 +85,7 @@ Emitted when a client disconnects from the database.
 
 Emitted when a client executes a SQL query.
 
-```json
+```JSON
 {
   "cluster_name": "root", // Teleport cluster name.
   "code": "TDB02I", // Event code.
