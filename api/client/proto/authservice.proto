@@ -87,6 +87,8 @@ message Event {
         // ClusterAuditConfig is a resource for cluster audit configuration.
         types.ClusterAuditConfigV2 ClusterAuditConfig = 23
             [ (gogoproto.jsontag) = "cluster_audit_config,omitempty" ];
+        // Lock is a lock resource.
+        types.LockV2 Lock = 24 [ (gogoproto.jsontag) = "lock,omitempty" ];
     }
 }
 
@@ -885,6 +887,27 @@ message ListNodesResponse {
     string NextKey = 2;
 }
 
+message GetLocksRequest {
+    // Targets is a list of targets. Every returned lock must match at least
+    // one of the targets.
+    repeated types.LockTarget Targets = 1;
+}
+
+message GetLocksResponse {
+    // Locks is a list of locks.
+    repeated types.LockV2 Locks = 1;
+}
+
+message GetLockRequest {
+    // Name is the name of the lock to get.
+    string Name = 1;
+}
+
+message DeleteLockRequest {
+    // Name is the name of the lock to delete.
+    string Name = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1125,8 +1148,6 @@ service AuthService {
 
     // GetClusterAuditConfig gets cluster audit configuration.
     rpc GetClusterAuditConfig(google.protobuf.Empty) returns (types.ClusterAuditConfigV2);
-    // SetClusterAuditConfig sets cluster audit configuration.
-    rpc SetClusterAuditConfig(types.ClusterAuditConfigV2) returns (google.protobuf.Empty);
 
     // GetClusterNetworkingConfig gets cluster networking configuration.
     rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
@@ -1153,4 +1174,13 @@ service AuthService {
     rpc GetEvents(GetEventsRequest) returns (Events);
     // In-session request for audit events.
     rpc GetSessionEvents(GetSessionEventsRequest) returns (Events);
+
+    // GetLock gets a lock by name.
+    rpc GetLock(GetLockRequest) returns (types.LockV2);
+    // GetLocks gets all locks, matching at least one of the targets when specified.
+    rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
+    // UpsertLock upserts a lock.
+    rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
+    // DeleteLock deletes a lock.
+    rpc DeleteLock(DeleteLockRequest) returns (google.protobuf.Empty);
 }
