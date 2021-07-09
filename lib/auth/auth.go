@@ -379,27 +379,27 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
 }
 
-// GetAuthPreference gets AuthPreference from the backend.
+// GetAuthPreference gets AuthPreference from the cache.
 func (a *Server) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return a.GetCache().GetAuthPreference(ctx)
 }
 
-// GetClusterConfig gets ClusterConfig from the backend.
+// GetClusterConfig gets ClusterConfig from the cache.
 func (a *Server) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
 	return a.GetCache().GetClusterConfig(opts...)
 }
 
-// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
+// GetClusterAuditConfig gets ClusterAuditConfig from the cache.
 func (a *Server) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
 	return a.GetCache().GetClusterAuditConfig(ctx, opts...)
 }
 
-// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
+// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the cache.
 func (a *Server) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
 	return a.GetCache().GetClusterNetworkingConfig(ctx, opts...)
 }
 
-// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
+// GetSessionRecordingConfig gets SessionRecordingConfig from the cache.
 func (a *Server) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
 	return a.GetCache().GetSessionRecordingConfig(ctx, opts...)
 }
@@ -2240,6 +2240,16 @@ func (a *Server) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 // GetDatabaseServers returns all registers database proxy servers.
 func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
+}
+
+// GetLock gets a lock by name.
+func (a *Server) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	return a.GetCache().GetLock(ctx, name)
+}
+
+// GetLocks gets all matching locks from the cache.
+func (a *Server) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+	return a.GetCache().GetLocks(ctx, targets...)
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
