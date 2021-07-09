@@ -1,15 +1,15 @@
 ---
-title: Getting Started With Teleport Cloud
+title: Getting Started With Teleport Pro
 description: Teleport hosted and managed by the Teleport team.
 ---
 
 Here is a simple set of steps to access your cloud from the command line and easily add your first Server access.
 
-## Step 1/5 Signup
+## Step 1/5. Sign up
 
 Sign up for a cloud account [here](https://goteleport.com/get-started/).
 
-## Step 2/5 Access Web Console
+## Step 2/5. Install your client tools
 
 Access Web Console
 ![Access Web Console](../../img/cloud/homepage-1.png)
@@ -17,7 +17,7 @@ Access Web Console
 Select Add Server and press COPY to copy the script command
 ![Add Server Script](../../img/cloud/addserver-2.png)
 
-## Step 3/5 Install Teleport Agent on Server
+## Step 3/5. Install Teleport Agent on your server
 
 Paste and run script
 
@@ -27,12 +27,12 @@ Teleport Agent Installed
 ![Completed Install](../../img/cloud/completed-script-4.png)
 
 
-## Step 4/5 Access Server
+## Step 4/5. Access your server
 
 Select close and Server can be accessed
 ![Access Server](../../img/cloud/online-session-5.png)
 
-## Step 5/5 Access from Command Line
+## Step 5/5. Access from the Command Line
 
 Install client libraries:
 
@@ -53,17 +53,20 @@ Login into Teleport and test the connection:
 
 ```bash
 # tsh logs you in and receives short-lived certificates
-$ tsh login --proxy=myinstance.teleport.sh:443 --user=email@example.com
-$ tsh ls
+tsh login --proxy=myinstance.teleport.sh:443 --user=email@example.com
+tsh ls
+
+# Output
 Node Name Address    Labels 
 --------- ---------- ------ 
 myserver  ⟵ Tunnel     
-$ tsh ssh root@myserver
+
+tsh ssh root@myserver
 ```
 
-Type exit to end this session.  Happy Teleporting!
+Type exit to end this session. Happy Teleporting!
 
-## Next Steps
+## Next steps
 
 - Explore [cloud architecture](./architecture.mdx).
 - Check out [FAQ](./faq.mdx).
