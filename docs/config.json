@@ -307,7 +307,7 @@
       "permanent": true
     },
     {
-      "source": "/preview/pro/",
+      "source": "/preview/cloud/",
       "destination": "/pro/",
       "permanent": true
     },
