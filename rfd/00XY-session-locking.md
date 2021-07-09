@@ -242,7 +242,14 @@ while a lock targeting role `developers` is in force will result in the
 following error:
 
 ```
-ERROR: lock targeting role "developers" is in force (Cluster maintenance.)
+ERROR: lock targeting Role:"developers" is in force (Cluster maintenance.)
+```
+
+#### SSH session with an already issued certificate prohibited
+
+```
+$ tsh ssh graviton-node
+ERROR: ssh: rejected: administratively prohibited (lock targeting User:"andrej" is in force: Malicious behaviour.)
 ```
 
 #### Live SSH session terminated
@@ -250,7 +257,7 @@ ERROR: lock targeting role "developers" is in force (Cluster maintenance.)
 An informational message is printed before the connection is terminated:
 
 ```
-Lock targeting role "developers" is in force: Cluster maintenance.
+Lock targeting Role:"developers" is in force: Cluster maintenance.
 the connection was closed on the remote side on  15 Jun 21 10:43 CEST
 ```
 
