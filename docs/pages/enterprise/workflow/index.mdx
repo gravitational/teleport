@@ -4,7 +4,7 @@ description: How to customize SSH and Kubernetes access using Teleport.
 h1: Teleport Access Requests
 ---
 
-#### Approving Workflow using an External Integration
+#### Approving Requests using an external integration
 
 - [Integrating Teleport with Slack](ssh-approval-slack.mdx)
 - [Integrating Teleport with Mattermost](ssh-approval-mattermost.mdx)
@@ -12,14 +12,14 @@ h1: Teleport Access Requests
 - [Integrating Teleport with Jira Server](ssh-approval-jira-server.mdx)
 - [Integrating Teleport with PagerDuty](ssh-approval-pagerduty.mdx)
 
-## Access Requests Setup
+## Access Requests setup
 
-Teleport introduced the ability for users to request additional roles. The
-workflow API makes it easy to dynamically approve or deny these requests.
+Teleport has the ability for users to request additional roles. The Access Request API makes it easy to dynamically approve or deny these requests.
 
 ### Setup
 
 **Contractor Role**
+
 This role allows the contractor to request the role DBA.
 
 ```yaml
@@ -38,6 +38,7 @@ spec:
 ```
 
 **DBA Role**
+
 This role allows the contractor to request the role DBA.
 
 ```yaml
@@ -47,7 +48,7 @@ metadata:
 spec:
   options:
     # ...
-    # Only allows the contractor to use this role for 1 hour from time of request.
+    # Only allows the contractor to use this role for 1 hour from the time of the request.
     max_session_ttl: 1h
   allow:
     # ...
@@ -56,6 +57,7 @@ spec:
 ```
 
 **Admin Role**
+
 This role allows the admin to approve the contractor's request.
 
 ```yaml
@@ -69,45 +71,44 @@ spec:
     # ...
   deny:
     # ...
-# list of allow-rules, see
+# List of allow-rules, see
 # https://gravitational.com/teleport/docs/enterprise/ssh-rbac/
 rules:
-    # Access Request were introduced in 4.2
+    # Access Request is part of Access Requests introduced in 4.2
     # `access_request` should only be given to Teleport Admins.
     - resources: [access_request]
       verbs: [list, read, update, delete]
 ```
 
+(!docs/pages/includes/permission-warning.mdx!)
+
 ```bash
-$ tsh login teleport-cluster --request-roles=dba
-Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
+tsh login teleport-cluster --request-roles=dba
+# Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
 ```
 
 As a Teleport Administrator:
 
 ```bash
-$ tctl request ls
+tctl request ls
 Token                                Requestor Metadata       Created At (UTC)    Status
 ------------------------------------ --------- -------------- ------------------- -------
 bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UTC PENDING
 ```
 
 ```bash
-$ tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9
+tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 ```
 
 Assuming access, `tsh` will automatically manage a certificate re-issued with
-the newly requested roles applied. In this case `contractor` will now have have
-the permission of the `dba`.
+the newly requested roles applied. In this case, `contractor` will now have the permission of the `dba`.
 
 <Admonition type="warning">
   Granting a role with administrative abilities could allow a user to **permanently**
-  upgrade their privileges (e.g. if contractor was granted admin for some reason).
-  We recommend only escalating to the next role of least privilege vs jumping directly
-  to "Super Admin" role.
+  upgrade their privileges (e.g. if the contractor was granted the admin role for some reason).
+  We recommend only escalating to the next role of least privilege vs jumping directly to the "Super Admin" role.
 
-  The `deny.request` block can help mitigate the risk of doing this by accident. See
-  Example Below.
+  The `deny.request` block can help mitigate the risk of doing this by accident. See the example below.
 </Admonition>
 
 ```yaml
@@ -126,23 +127,23 @@ deny:
     roles: ['admin']
 ```
 
-## Adding a Reason to Access Requests
+## Adding a reason to Access Requests
 
-Teleport now has the ability for users to request additional roles. `tctl`
-or the Access Requests API makes it easy to dynamically approve or deny these requests.
+Teleport now has the ability for users to request additional roles. `tctl` or the Access Requests API makes it easy to dynamically approve or deny these requests.
 
 By requiring a reason along with an access request, you can provide users with a default
-unprivileged state where they must always go through the Access Requests API in order to
+unprivileged state where they must always go through the Access Requests API to
 gain meaningful privilege.
 
 Teams can leverage claims (traits) provided by external identity providers both when
 determining which roles a user is allowed to request, and if a specific request
 should be approved/denied.
 
-### Example Setup
+### Example setup
 
 **Unprivileged User**<br/>
-In this example we have an employee who isn't able to access any systems. When they
+
+In this example, we have an employee who isn't able to access any systems. When they
 log in, they'll always need to provide a reason for access.
 
 ```yaml
@@ -209,7 +210,7 @@ tsh login --request-reason="..."
   type="tip"
   title="Note"
 >
-  Notice that the above role does not specify any logins. If a users's roles specify no logins, Teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<random-suffix>` (e.g. `-teleport-nologin-1e02dbfd`).
+  Notice that the above role does not specify any logins. If a user's role specifies no logins, Teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<random-suffix>` (e.g. `-teleport-nologin-1e02dbfd`).
 </Admonition>
 
 **Admin Flow: Approve/Deny**<br/>
@@ -217,24 +218,24 @@ tsh login --request-reason="..."
 A number of new parameters are now available that grant the plugin or administrator greater insight into approvals/denials:
 
 ```bash
-$ tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
+tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
-Because automatically generated requests always include all roles that the user is allowed to request, approvers can now specify a smaller subset of the requested roles that should actually be applied, allowing for sub-selection in cases where full escalation is not a desirable default:
+Because automatically generated requests always include all roles that the user is allowed to request, approvers can now specify a smaller subset of the requested roles that should be applied, allowing for sub-selection in cases where full escalation is not a desirable default:
 
 ```bash
-$ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
+tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
 ### Other features of Access Requests
 
 - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
-- Approved requests have no effect on Teleport's behavior outside of allowing additional
+- Approved requests do not affect Teleport's behavior outside of allowing additional
   roles on re-issue. This has the nice effect of making requests "compatible" with
   older versions of Teleport, since only the issuing Auth Server needs any particular
   knowledge of the feature.
 
-## Integrating with an External Tool
+## Integrating with an external tool
 
 | Integration | Feature | Type | Setup Instructions |
 | - | - | - | - |
