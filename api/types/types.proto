@@ -2186,3 +2186,56 @@ message TrustedClusterSpecV2 {
     repeated RoleMapping RoleMap = 6
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "role_map,omitempty" ];
 }
+
+// LockV2 represents a lock.
+message LockV2 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a Lock specification.
+    LockSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// LockSpecV2 is a Lock specification.
+message LockSpecV2 {
+    // Target describes the set of interactions that the lock applies to.
+    LockTarget Target = 1 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "target" ];
+    // Message is the message displayed to locked-out users.
+    string Message = 2 [ (gogoproto.jsontag) = "message,omitempty" ];
+    // Expires if set specifies when the lock ceases to be in force.
+    google.protobuf.Timestamp Expires = 3 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "expires,omitempty"
+    ];
+}
+
+// LockTarget lists the attributes of interactions to be disabled.
+message LockTarget {
+    // User specifies the name of a Teleport user.
+    string User = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
+
+    // Role specifies the name of an RBAC role known to the root cluster.
+    // In remote clusters, this constraint is evaluated before translating to local roles.
+    string Role = 2 [ (gogoproto.jsontag) = "role,omitempty" ];
+
+    // Cluster specifies the name of a leaf Teleport cluster.
+    // This prevents the root cluster's users from connecting to nodes in the leaf cluster
+    // but does not prevent the leaf cluster from heartbeating back to the root cluster.
+    string Cluster = 3 [ (gogoproto.jsontag) = "cluster,omitempty" ];
+
+    // Login specifies the name of a local UNIX user.
+    string Login = 4 [ (gogoproto.jsontag) = "login,omitempty" ];
+
+    // Node specifies the name or UUID of a node.
+    // A matching node is also unregistered and prevented from registering.
+    string Node = 5 [ (gogoproto.jsontag) = "node,omitempty" ];
+
+    // MFADevice specifies the UUID of a user MFA device.
+    string MFADevice = 6 [ (gogoproto.jsontag) = "mfa_device,omitempty" ];
+}

@@ -119,6 +119,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newKubeServiceParser()
 		case types.KindDatabaseServer:
 			parser = newDatabaseServerParser()
+		case types.KindLock:
+			parser = newLockParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -1031,6 +1033,31 @@ func (p *remoteClusterParser) parse(event backend.Event) (types.Resource, error)
 			return nil, trace.Wrap(err)
 		}
 		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newLockParser() *lockParser {
+	return &lockParser{
+		baseParser: newBaseParser(backend.Key(locksPrefix)),
+	}
+}
+
+type lockParser struct {
+	baseParser
+}
+
+func (p *lockParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindLock, types.V2, 0)
+	case types.OpPut:
+		return services.UnmarshalLock(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
