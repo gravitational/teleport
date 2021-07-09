@@ -79,7 +79,7 @@ To enable session recording for `sshd` nodes, the cluster must be switched to
 In this mode, the recording will be done on the proxy level:
 
 ```yaml
-# snippet from /etc/teleport.yaml
+# Snippet from /etc/teleport.yaml
 auth_service:
    # Session Recording must be set to Proxy to work with OpenSSH
    session_recording: "proxy"  # can also be "off" and "node" (default)
@@ -118,7 +118,7 @@ You can disable strict host checks as shown below. However, this opens the
 possibility for Man-in-the-Middle (MITM) attacks and is not recommended.
 
 ```yaml
-# snippet from /etc/teleport.yaml
+# Snippet from /etc/teleport.yaml
 auth_service:
   proxy_checks_host_keys: no
 ```
@@ -139,7 +139,8 @@ sudo tctl auth sign \
 The credentials have been written to api.example.com, api.example.com-cert.pub
 
 # You can use ssh-keygen to verify the contents.
-sudo ssh-keygen -L -f api.example.com-cert.pub
+ssh-keygen -L -f api.example.com-cert.pub
+
 #api.example.com-cert.pub:
 #        Type: ssh-rsa-cert-v01@openssh.com host certificate
 #        Public key: RSA-CERT SHA256:ireEc5HWFjhYPUhmztaFud7EgsopO8l+GpxNMd3wMSk
@@ -184,7 +185,7 @@ terminate the SSH connection to record it:
 # Note that agent forwarding is enabled twice: one from a client to a proxy
 # (mandatory if using a recording proxy), and then optionally from a proxy
 # to the end server if you want your agent running on the end server or not
-sudo ssh -o "ForwardAgent yes" \
+ssh -o "ForwardAgent yes" \
     -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@p.example.com -s proxy:%h:%p" \
     user@host.example.com
 ```
@@ -206,7 +207,7 @@ logging in:
 # Login as Joe
 tsh login --proxy=proxy.example.com --user=joe
 # see if the certificate is present (look for "teleport:joe") at the end of the cert
-sudo ssh-add -L
+ssh-add -L
 ```
 
 <Admonition
@@ -231,11 +232,11 @@ certificate. This will allow your OpenSSH client to verify that host certificate
 are signed by Teleport's trusted host CA:
 
 ```yaml
-# on the Teleport auth server
+# On the Teleport auth server
 sudo tctl auth export --type=host > teleport_host_ca.pub
 
-# on the machine where you want to run the ssh client
-sudo cat teleport_host_ca.pub >> ~/.ssh/known_hosts
+# On the machine where you want to run the ssh client
+cat teleport_host_ca.pub >> ~/.ssh/known_hosts
 ```
 
 If you have multiple Teleport clusters, you have to export and set up these
@@ -258,7 +259,7 @@ Make sure you are running OpenSSH's `ssh-agent`, and have logged in to the
 Teleport proxy:
 
 ```bash
-sudo eval `ssh-agent`
+eval `ssh-agent`
 tsh --proxy=root.example.com login
 ```
 
@@ -279,7 +280,7 @@ Host root.example.com
     HostName 192.168.1.2
     Port 3023
 
-# connect to nodes in the root.example.com cluster through the jump
+# Connect to nodes in the root.example.com cluster through the jump
 # host (proxy) using the same. credentials will be obtained from the
 # openssh agent.
 Host *.root.example.com
@@ -287,7 +288,7 @@ Host *.root.example.com
     Port 3022
     ProxyCommand ssh -p 3023 %r@root.example.com -s proxy:%h:%p
 
-# when connecting to a node within a trusted cluster with the name "leaf1.example.com",
+# When connecting to a node within a trusted cluster with the name "leaf1.example.com",
 # add the name of the cluster to the invocation of the proxy subsystem.
 Host *.leaf1.example.com
    HostName %h
@@ -299,7 +300,7 @@ When everything is configured properly, you can use ssh to connect to any node
 behind `root.example.com` :
 
 ```bash
-sudo ssh root@database.root.example.com
+ssh root@database.root.example.com
 ```
 
 <Admonition
