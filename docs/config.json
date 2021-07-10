@@ -60,7 +60,8 @@
           "slug": "/server-access/guides/",
           "entries": [
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
-            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" }
+            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
+            { "title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/" }
           ]
         }
       ]
@@ -204,26 +205,17 @@
         { "title": "Teleport Nodes", "slug": "/architecture/nodes/" },
         { "title": "Teleport Auth", "slug": "/architecture/authentication/" },
         { "title": "Teleport Proxy", "slug": "/architecture/proxy/" },
-        { "title": "Trusted Clusters", "slug": "/trustedclusters/" }
-      ]
-    },
-    {
-      "icon": "bolt",
-      "title": "Advanced Features",
-      "entries": [
-        {
-          "title": "BPF Session Recording",
-          "slug": "/features/enhanced-session-recording/"
-        }
+        { "title": "Trusted Clusters", "slug": "/architecture/trustedclusters/" }
       ]
     },
     {
       "icon": "list",
       "title": "Reference",
       "entries": [
-        { "title": "YAML", "slug": "/config-reference/" },
-        { "title": "CLI", "slug": "/cli-docs/" },
-        { "title": "Metrics", "slug": "/metrics-logs-reference/" },
+        { "title": "YAML", "slug": "/reference/config-reference/" },
+        { "title": "CLI", "slug": "/reference/cli-docs/" },
+        { "title": "Metrics", "slug": "/reference/metrics-logs-reference/" },
+        { "title": "Glossary", "slug": "/reference/glossary/" },
         {
           "title": "API",
           "slug": "/reference/api/",
@@ -359,6 +351,26 @@
     {
       "source": "/cloud/faq/",
       "destination": "/pro/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/config-reference/",
+      "destination": "/reference/config-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/metrics-logs-reference/",
+      "destination": "/reference/metrics-logs-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/cli-docs/",
+      "destination": "/reference/cli-docs/",
+      "permanent": true
+    },
+    {
+      "source": "/features/enhanced-session-recording/",
+      "destination": "/server-access/guides/bpf-session-recording/",
       "permanent": true
     }
   ]
