@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
@@ -221,17 +220,15 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 				// Connect to proxy.
 				if sshConfig != nil {
-					wg.Add(1)
-					go func(addr string) {
-						defer wg.Done()
-						// Try connecting to web proxy to retrieve tunnel address.
-						if pr, err := webclient.Find(ctx, addr, cfg.InsecureAddressDiscovery, nil); err == nil {
-							addr = pr.Proxy.SSH.TunnelPublicAddr
-						}
-						dialer := newTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
-						clt := newClient(cfg, dialer, tlsConfig)
-						syncConnect(clt, addr)
-					}(addr)
+					// Try connecting as a web proxy.
+					dialer := NewProxyDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout, addr, cfg.InsecureAddressDiscovery)
+					clt := newClient(cfg, dialer, tlsConfig)
+					syncConnect(clt, addr)
+
+					// Try connecting as a reverse tunnel proxy.
+					dialer = newTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
+					clt = newClient(cfg, dialer, tlsConfig)
+					syncConnect(clt, addr)
 				}
 			}
 		}
