@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
@@ -120,22 +121,13 @@ func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	dialer := cfg.Dialer
-	addr := constants.APIDomain
-	if dialer == nil && len(cfg.Addrs) == 0 {
-		return nil, trace.BadParameter("must have a Dialer or Addrs in config")
-	}
-	if dialer == nil {
-		dialer = NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-		addr = cfg.Addrs[0]
+	if cfg.Dialer != nil {
+		return dialerConnect(ctx, cfg, cfg.Dialer, tlsConfig)
+	} else if len(cfg.Addrs) != 0 {
+		return authConnect(ctx, cfg, cfg.Addrs[0], tlsConfig)
 	}
 
-	clt := newClient(cfg, dialer, tlsConfig)
-	if err := clt.dialGRPC(ctx, addr); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clt, nil
+	return nil, trace.BadParameter("must provide Dialer or Addrs in config")
 }
 
 // connect connects the client to the server using the Credentials and
@@ -158,18 +150,19 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 		}
 	}
 
-	// syncConnect is used to concurrently test several connections, and apply
-	// the first successful connection to the client's connection attributes.
-	syncConnect := func(clt *Client, addr string) {
+	type connectFunc func() (*Client, error)
+
+	// syncConnect is used to concurrently create several clients
+	// with the different combination of connection parameters.
+	syncConnect := func(connect connectFunc) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := clt.dialGRPC(ctx, addr); err != nil {
+			clt, err := connect()
+			if err != nil {
 				sendError(trace.Wrap(err))
 				return
 			}
-
-			// If cltChan is empty, send clt.
 			select {
 			case cltChan <- clt:
 			case <-ctx.Done():
@@ -198,37 +191,35 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 			// Connect with dialer provided in config.
 			if cfg.Dialer != nil {
-				clt := newClient(cfg, cfg.Dialer, tlsConfig)
-				syncConnect(clt, constants.APIDomain)
+				syncConnect(func() (*Client, error) {
+					clt, err := dialerConnect(ctx, cfg, cfg.Dialer, tlsConfig)
+					if err != nil {
+						return nil, trace.Wrap(err, "failed to connect using cfg dialer")
+					}
+					return clt, err
+				})
 			}
 
 			// Connect with dialer provided in creds.
 			if dialer, err := creds.Dialer(cfg); err != nil {
 				if !trace.IsNotImplemented(err) {
-					sendError(trace.Wrap(err))
+					sendError(trace.Wrap(err, "failed to retrieve dialer from creds of type %T", creds))
 				}
 			} else {
-				clt := newClient(cfg, dialer, tlsConfig)
-				syncConnect(clt, constants.APIDomain)
+				syncConnect(func() (*Client, error) {
+					clt, err := dialerConnect(ctx, cfg, dialer, tlsConfig)
+					if err != nil {
+						return nil, trace.Wrap(err, "failed to connect using dialer from credentials of type %T", creds)
+					}
+					return clt, err
+				})
 			}
 
 			for _, addr := range cfg.Addrs {
-				// Connect to auth.
-				dialer := NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-				clt := newClient(cfg, dialer, tlsConfig)
-				syncConnect(clt, addr)
-
-				// Connect to proxy.
+				syncConnect(func() (*Client, error) { return authConnect(ctx, cfg, addr, tlsConfig) })
 				if sshConfig != nil {
-					// Try connecting as a web proxy.
-					dialer := NewProxyDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout, addr, cfg.InsecureAddressDiscovery)
-					clt := newClient(cfg, dialer, tlsConfig)
-					syncConnect(clt, addr)
-
-					// Try connecting as a reverse tunnel proxy.
-					dialer = newTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
-					clt = newClient(cfg, dialer, tlsConfig)
-					syncConnect(clt, addr)
+					syncConnect(func() (*Client, error) { return tunnelConnect(ctx, cfg, addr, tlsConfig, sshConfig) })
+					syncConnect(func() (*Client, error) { return proxyConnect(ctx, cfg, addr, tlsConfig, sshConfig) })
 				}
 			}
 		}
@@ -244,6 +235,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	var errs []error
 	for {
 		select {
+		// Use the first client to successfully connect in syncConnect.
 		case clt := <-cltChan:
 			return clt, nil
 		case err, ok := <-errChan:
@@ -255,15 +247,51 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			if len(errs) == 0 {
 				if len(cfg.Addrs) == 0 && cfg.Dialer == nil {
 					// Some credentials don't require these fields. If no errors propagate, then they need to provide these fields.
-					return nil, trace.Errorf("all auth methods failed: try providing Addrs or Dialer in config")
+					return nil, trace.BadParameter("no methods of connection found, try providing Dialer or Addrs in config")
 				}
-				return nil, trace.Errorf("all auth methods failed")
+				// This case should never be reached with config validation and above case.
+				return nil, trace.Errorf("no methods of connection found")
 			}
-			return nil, trace.Wrap(trace.NewAggregate(errs...), "all auth methods failed")
+			return nil, trace.Wrap(trace.NewAggregate(errs...), "all connections methods failed")
 		case <-ctx.Done():
 			return nil, trace.Wrap(ctx.Err())
 		}
 	}
+}
+
+func authConnect(ctx context.Context, cfg Config, addr string, tlsConfig *tls.Config) (*Client, error) {
+	dialer := NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+	clt := newClient(cfg, dialer, tlsConfig)
+	if err := clt.dialGRPC(ctx, addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", addr)
+	}
+	return clt, nil
+}
+
+func tunnelConnect(ctx context.Context, cfg Config, addr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*Client, error) {
+	dialer := newTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
+	clt := newClient(cfg, dialer, tlsConfig)
+	if err := clt.dialGRPC(ctx, addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", addr)
+	}
+	return clt, nil
+}
+
+func proxyConnect(ctx context.Context, cfg Config, addr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*Client, error) {
+	dialer := NewProxyDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout, addr, cfg.InsecureAddressDiscovery)
+	clt := newClient(cfg, dialer, tlsConfig)
+	if err := clt.dialGRPC(ctx, addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", addr)
+	}
+	return clt, nil
+}
+
+func dialerConnect(ctx context.Context, cfg Config, dialer ContextDialer, tlsConfig *tls.Config) (*Client, error) {
+	clt := newClient(cfg, dialer, tlsConfig)
+	if err := clt.dialGRPC(ctx, constants.APIDomain); err != nil {
+		return nil, trace.Wrap(err, "failed to connect using pre-defined dialer")
+	}
+	return clt, nil
 }
 
 // dialGRPC dials a connection between server and client. If withBlock is true,
