@@ -240,7 +240,8 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			return clt, nil
 		case err, ok := <-errChan:
 			if ok {
-				errs = append(errs, err)
+				// Add a new line to make errs human readable.
+				errs = append(errs, trace.Wrap(err, ""))
 				continue
 			}
 			// errChan is closed, return errors.
