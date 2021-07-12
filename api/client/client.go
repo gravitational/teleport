@@ -1373,7 +1373,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 		EventTypes: eventTypes,
 		Limit:      int32(limit),
 		StartKey:   startKey,
-		Order:      int32(order),
+		Order:      proto.Order(order),
 	}
 
 	response, err := c.grpc.GetEvents(ctx, request, c.callOpts...)
@@ -1400,7 +1400,7 @@ func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toU
 		EndDate:   toUTC,
 		Limit:     int32(limit),
 		StartKey:  startKey,
-		Order:     int32(order),
+		Order:     proto.Order(order),
 	}
 
 	response, err := c.grpc.GetSessionEvents(ctx, request, c.callOpts...)
