@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/prometheus/client_golang/prometheus"
@@ -462,7 +463,15 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 	return values, nil
 }
 
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+// SearchEvents is a flexible way to find events.
+//
+// Event types to filter can be specified and pagination is handled by an iterator key that allows
+// a query to be resumed.
+//
+// The only mandatory requirement is a date range (UTC).
+//
+// This function may never return more than 1 MiB of event data.
+func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
 	doFilter := len(eventTypes) > 0
 
@@ -488,12 +497,22 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		return query
 	}
 
+	var firestoreOrdering firestore.Direction
+	switch order {
+	case types.EventOrderAscending:
+		firestoreOrdering = firestore.Asc
+	case types.EventOrderDescending:
+		firestoreOrdering = firestore.Desc
+	default:
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
+	}
+
 	start := time.Now()
 	docSnaps, err := modifyquery(l.svc.Collection(l.CollectionName).
 		Where(eventNamespaceDocProperty, "==", apidefaults.Namespace).
 		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
 		Where(createdAtDocProperty, "<=", toUTC.Unix()).
-		OrderBy(createdAtDocProperty, firestore.Asc)).
+		OrderBy(createdAtDocProperty, firestoreOrdering)).
 		Limit(limit).
 		Documents(l.svcContext).GetAll()
 	batchReadLatencies.Observe(time.Since(start).Seconds())
@@ -544,7 +563,17 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 			}
 		}
 	}
-	sort.Sort(events.ByTimeAndIndex(values))
+
+	var toSort sort.Interface
+	switch order {
+	case types.EventOrderAscending:
+		toSort = events.ByTimeAndIndex(values)
+	case types.EventOrderDescending:
+		toSort = sort.Reverse(events.ByTimeAndIndex(values))
+	default:
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
+	}
+	sort.Sort(toSort)
 
 	eventArr := make([]apievents.AuditEvent, 0, len(values))
 	for _, fields := range values {
@@ -565,13 +594,13 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	// only search for specific event types
 	query := []string{
 		events.SessionStartEvent,
 		events.SessionEndEvent,
 	}
-	return l.SearchEvents(fromUTC, toUTC, apidefaults.Namespace, query, limit, startKey)
+	return l.SearchEvents(fromUTC, toUTC, apidefaults.Namespace, query, limit, order, startKey)
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to
