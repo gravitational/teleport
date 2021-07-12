@@ -44,6 +44,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -1665,7 +1666,7 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 		for {
 			select {
 			case <-tickCh:
-				eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), defaults.Namespace, eventTypes, 0, "")
+				eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), apidefaults.Namespace, eventTypes, 0, types.EventOrderAscending, "")
 				if err != nil {
 					return trace.Wrap(err)
 				}
