@@ -26,6 +26,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport/api/constants"
+
 	"github.com/gravitational/trace"
 )
 
@@ -111,6 +112,9 @@ type ProxySettings struct {
 	SSH SSHProxySettings `json:"ssh"`
 	// DB contains database access specific proxy settings
 	DB DBProxySettings `json:"db"`
+	// ALPNSNIListenerEnabled indicates that proxy supports ALPN and SNI server where
+	// all proxy services are exposed on single TLS listener (Proxy Web Listener).
+	ALPNSNIListenerEnabled bool `json:"alpn_sni_listener_enabled"`
 }
 
 // KubeProxySettings is kubernetes proxy settings

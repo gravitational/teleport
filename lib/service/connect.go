@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/roundtrip"
+
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -837,6 +838,7 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 			logger.WithError(err).Debug("Failed to discover reverse tunnel address.")
 			return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
 		}
+
 	}
 
 	logger = process.log.WithField("proxy-addr", proxyAddr)
@@ -864,7 +866,7 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 			lib.IsInsecureDevMode(),
 			nil)
 		if err == nil {
-			return tunnelAddr(resp.Proxy)
+			return tunnelAddr(resp.Proxy, addr)
 		}
 		errs = append(errs, err)
 	}
@@ -872,11 +874,16 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 }
 
 // tunnelAddr returns the tunnel address in the following preference order:
-//  1. Reverse Tunnel Public Address.
-//  2. SSH Proxy Public Address.
-//  3. HTTP Proxy Public Address.
-//  4. Tunnel Listen Address.
-func tunnelAddr(settings webclient.ProxySettings) (string, error) {
+//  1. If proxy support ALPN listener where all services are expose on single port return proxy address.
+//  2. Reverse Tunnel Public Address.
+//  3. SSH Proxy Public Address.
+//  4. HTTP Proxy Public Address.
+//  5. Tunnel Listen Address.
+func tunnelAddr(settings webclient.ProxySettings, proxyAddr utils.NetAddr) (string, error) {
+	if settings.ALPNSNIListenerEnabled {
+		return proxyAddr.String(), nil
+	}
+
 	// Extract the port the tunnel server is listening on.
 	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
 	if err != nil {

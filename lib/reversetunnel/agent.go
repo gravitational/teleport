@@ -270,8 +270,17 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 			Timeout:         apidefaults.DefaultDialTimeout,
 		})
 		if err != nil {
-			a.log.Debugf("Failed to create client to %v: %v.", a.Addr.Addr, err)
-			continue
+			if isALPNUnsupportedError(err) {
+				// Fallback to TLS dialer with TLS ALPN value.
+				conn, chans, reqs, err = a.connectWithTLSDirectDialer(authMethod)
+				if err != nil {
+					a.log.Debugf("Failed to create direct tls alpn client to %v: %v.", a.Addr.Addr, err)
+					continue
+				}
+			} else {
+				a.log.Debugf("Failed to create client to %v: %v.", a.Addr.Addr, err)
+				continue
+			}
 		}
 
 		// Create an empty channel and close it right away. This will prevent
@@ -287,6 +296,28 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		return client, nil
 	}
 	return nil, trace.BadParameter("failed to dial: all auth methods failed")
+}
+
+func (a *Agent) connectWithTLSDirectDialer(authMethod ssh.AuthMethod) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+	dialer := proxy.NewDirectDialer(proxy.WithTLSDirectDialer())
+	pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	conn, chans, reqs, err := ssh.NewClientConn(pconn, a.Addr.Addr, &ssh.ClientConfig{
+		User:            a.Username,
+		Auth:            []ssh.AuthMethod{authMethod},
+		HostKeyCallback: a.checkHostSignature,
+		Timeout:         apidefaults.DefaultDialTimeout,
+	})
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	return conn, chans, reqs, nil
+}
+
+func isALPNUnsupportedError(err error) bool {
+	return err.Error() == "ssh: handshake failed: EOF"
 }
 
 // handleGlobalRequests processes global requests from the server.

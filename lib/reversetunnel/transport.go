@@ -43,6 +43,7 @@ import (
 type TunnelAuthDialer struct {
 	// ProxyAddr is the address of the proxy
 	ProxyAddr string
+
 	// ClientConfig is SSH tunnel client config
 	ClientConfig *ssh.ClientConfig
 }
@@ -50,7 +51,7 @@ type TunnelAuthDialer struct {
 // DialContext dials auth server via SSH tunnel
 func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	// Connect to the reverse tunnel server.
-	dialer := proxy.DialerFromEnvironment(t.ProxyAddr)
+	dialer := proxy.DialerFromEnvironment(addr)
 	sconn, err := dialer.Dial("tcp", t.ProxyAddr, t.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

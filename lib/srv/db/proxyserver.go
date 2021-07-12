@@ -265,6 +265,14 @@ func (s *ProxyServer) postgresProxy() *postgres.Proxy {
 	}
 }
 
+func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
+	return s.postgresProxy()
+}
+
+func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
+	return s.mysqlProxy()
+}
+
 // mysqlProxy returns a new instance of the MySQL protocol aware proxy.
 func (s *ProxyServer) mysqlProxy() *mysql.Proxy {
 	return &mysql.Proxy{
