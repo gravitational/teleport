@@ -33,11 +33,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -139,10 +139,9 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var wg sync.WaitGroup
-	cltChan := make(chan *Client)
-	errChan := make(chan error)
 
 	// sendError is used to send errors to errChan with context.
+	errChan := make(chan error)
 	sendError := func(err error) {
 		select {
 		case <-ctx.Done():
@@ -150,11 +149,11 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 		}
 	}
 
-	type connectFunc func() (*Client, error)
-
-	// syncConnect is used to concurrently create several clients
+	// syncConnect is used to concurrently create multiple clients
 	// with the different combination of connection parameters.
-	syncConnect := func(connect connectFunc) {
+	// The first successful client to be sent to cltChan will be returned.
+	cltChan := make(chan *Client)
+	syncConnect := func(connect func() (*Client, error)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
