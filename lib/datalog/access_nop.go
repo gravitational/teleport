@@ -15,33 +15,36 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package datalog
 
 import (
 	"github.com/gravitational/teleport/lib/auth"
 )
 
+// Access defines the query interface
 type Access interface {
 	QueryAccess(auth.ClientI) (*AccessResponse, error)
-	BuildStringOutput()
 }
 
-// AccessRequest defines a request for access for a specific user, login, and node
-type AccessRequest struct {
+// NodeAccessRequest defines a request for access for a specific user, login, and node
+type NodeAccessRequest struct {
 	Username  string
 	Login     string
 	Node      string
 	Namespace string
 }
 
-// AccessResponse defines all interpreted facts from rules
+// AccessResponse returns no response
 type AccessResponse struct {
 }
 
-func (c *AccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, error) {
+// QueryAccess returns a list of accesses to Teleport. Note this function does nothing
+func (c *NodeAccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, error) {
 	return &AccessResponse{}, nil
 }
 
+// BuildStringOutput creates the UI for displaying access responses.
 func (r *AccessResponse) BuildStringOutput() string {
-	return ""
+	return "Role tester is not available. Please recompile Teleport with rust and cargo installed."
 }

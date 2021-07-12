@@ -18,9 +18,9 @@ limitations under the License.
 
 package datalog
 
-//#cgo LDFLAGS: -Lroletester/target/release -lrole_tester
-//#include <stdio.h>
-//extern char * process_access(const char *str);
+// #cgo LDFLAGS: -Lroletester/target/release -lrole_tester
+// #include <stdio.h>
+// extern char * process_access(const char *str);
 import "C"
 import (
 	"context"
@@ -52,8 +52,8 @@ type Access interface {
 	QueryAccess(auth.ClientI) (*AccessResponse, error)
 }
 
-// AccessRequest defines a request for access for a specific user, login, and node
-type AccessRequest struct {
+// NodeAccessRequest defines a request for access for a specific user, login, and node
+type NodeAccessRequest struct {
 	Username  string
 	Login     string
 	Node      string
@@ -62,15 +62,14 @@ type AccessRequest struct {
 
 // AccessResponse defines all interpreted facts from rules
 type AccessResponse struct {
-	facts           EDB
 	Accesses        IDB
+	facts           EDB
 	mappings        map[string]uint32
 	reverseMappings map[uint32]string
 }
 
 const (
 	loginTraitHash = 0
-	wildCard       = "*"
 	keyJoin        = "_"
 
 	// Input
@@ -93,27 +92,23 @@ const (
 )
 
 // QueryAccess returns a list of accesses to Teleport
-func (c *AccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, error) {
-	resp := AccessResponse{make(EDB), make(IDB), make(map[string]uint32), make(map[uint32]string)}
+func (c *NodeAccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, error) {
+	resp := AccessResponse{make(IDB), make(EDB), make(map[string]uint32), make(map[uint32]string)}
 	ctx := context.TODO()
-	resp.addToMap(wildCard)
+	resp.addToMap(types.Wildcard)
 
 	if c.Username != "" {
 		u, err := client.GetUser(c.Username, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		resp.createUserMapping(u)
 		resp.createUserPredicates(u, c.Login)
 	} else {
 		us, err := client.GetUsers(false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		for _, u := range us {
-			resp.createUserMapping(u)
 			resp.createUserPredicates(u, c.Login)
 		}
 	}
@@ -123,7 +118,6 @@ func (c *AccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, error
 		return nil, trace.Wrap(err)
 	}
 	for _, r := range rs {
-		resp.createRoleMapping(r)
 		resp.createRolePredicates(r)
 	}
 
@@ -133,7 +127,6 @@ func (c *AccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, error
 	}
 	for _, n := range ns {
 		if len(c.Node) == 0 || n.GetHostname() == c.Node {
-			resp.createNodeMappping(n)
 			resp.createNodePredicates(n)
 		}
 	}
@@ -147,35 +140,17 @@ func (c *AccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp.Accesses[accesses] = filterByLogin(resp.Accesses[accesses], resp.reverseMappings, c.Login)
-	resp.Accesses[allowRoles] = filterByLogin(resp.Accesses[allowRoles], resp.reverseMappings, c.Login)
-	resp.Accesses[denyRoles] = filterByLogin(resp.Accesses[denyRoles], resp.reverseMappings, c.Login)
 
+	for k := range resp.Accesses {
+		resp.Accesses[k] = filterByLogin(resp.Accesses[k], resp.reverseMappings, c.Login)
+	}
 	return &resp, nil
-}
-
-func createUserLoginKey(user string, login string) string {
-	return user + keyJoin + login
 }
 
 func hash(s string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return h.Sum32()
-}
-
-func filterByLogin(accesses []Predicate, mappings map[uint32]string, login string) []Predicate {
-	if len(login) == 0 {
-		return accesses
-	}
-	ret := make([]Predicate, 0)
-	for _, pred := range accesses {
-		if mappings[pred.Atoms[1]] != login {
-			continue
-		}
-		ret = append(ret, pred)
-	}
-	return ret
 }
 
 func (r *AccessResponse) addToMap(value string) {
@@ -222,7 +197,7 @@ func (r *AccessResponse) createRoleMapping(role types.Role) {
 	}
 }
 
-func (r *AccessResponse) createNodeMappping(node types.Server) {
+func (r *AccessResponse) createNodeMapping(node types.Server) {
 	r.addToMap(node.GetHostname())
 	for key, value := range node.GetAllLabels() {
 		r.addToMap(key)
@@ -231,6 +206,7 @@ func (r *AccessResponse) createNodeMappping(node types.Server) {
 }
 
 func (r *AccessResponse) createUserPredicates(user types.User, login string) {
+	r.createUserMapping(user)
 	for _, role := range user.GetRoles() {
 		r.facts[hasRole] = append(r.facts[hasRole], Predicate{
 			[]uint32{r.mappings[user.GetName()], r.mappings[role]},
@@ -244,6 +220,7 @@ func (r *AccessResponse) createUserPredicates(user types.User, login string) {
 }
 
 func (r *AccessResponse) createRolePredicates(role types.Role) {
+	r.createRoleMapping(role)
 	for _, login := range role.GetLogins(types.Allow) {
 		if _, exists := r.mappings[login]; !exists {
 			continue
@@ -277,14 +254,48 @@ func (r *AccessResponse) createRolePredicates(role types.Role) {
 }
 
 func (r *AccessResponse) createNodePredicates(node types.Server) {
+	r.createNodeMapping(node)
 	for key, value := range node.GetAllLabels() {
 		r.facts[nodeHasLabel] = append(r.facts[nodeHasLabel], Predicate{
 			[]uint32{r.mappings[node.GetHostname()], r.mappings[key], r.mappings[value]},
 		})
 	}
 	r.facts[nodeHasLabel] = append(r.facts[nodeHasLabel], Predicate{
-		[]uint32{r.mappings[node.GetHostname()], r.mappings[wildCard], r.mappings[wildCard]},
+		[]uint32{r.mappings[node.GetHostname()], r.mappings[types.Wildcard], r.mappings[types.Wildcard]},
 	})
+}
+
+func filterByLogin(accesses []Predicate, mappings map[uint32]string, login string) []Predicate {
+	if login == "" {
+		return accesses
+	}
+	ret := make([]Predicate, 0)
+	for _, pred := range accesses {
+		if mappings[pred.Atoms[1]] != login {
+			continue
+		}
+		ret = append(ret, pred)
+	}
+	return ret
+}
+
+func createUserLoginKey(atoms []uint32, reverseMappings map[uint32]string) string {
+	return reverseMappings[atoms[0]] + keyJoin + reverseMappings[atoms[1]]
+}
+
+func generateTableString(condition bool, table asciitable.Table, nullString string) string {
+	if condition {
+		return table.AsBuffer().String()
+	}
+	return nullString
+}
+
+func generateAtomStrings(atoms []uint32, reverseMappings map[uint32]string) []string {
+	var ret []string
+	for _, atom := range atoms {
+		ret = append(ret, reverseMappings[atom])
+	}
+	return ret
 }
 
 // BuildStringOutput creates the UI for displaying access responses
@@ -292,47 +303,21 @@ func (r *AccessResponse) BuildStringOutput() string {
 	accessTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
 	allowingRoles := make(map[string][]string)
 	for _, pred := range r.Accesses[allowRoles] {
-		user := r.reverseMappings[pred.Atoms[0]]
-		login := r.reverseMappings[pred.Atoms[1]]
-		allowingRoles[createUserLoginKey(user, login)] = append(
-			allowingRoles[createUserLoginKey(user, login)],
-			r.reverseMappings[pred.Atoms[2]],
+		allowingRoles[createUserLoginKey(pred.Atoms, r.reverseMappings)] = append(
+			allowingRoles[createUserLoginKey(pred.Atoms, r.reverseMappings)],
+			r.reverseMappings[pred.Atoms[3]],
 		)
 	}
 	for _, pred := range r.Accesses[accesses] {
-		user := r.reverseMappings[pred.Atoms[0]]
-		login := r.reverseMappings[pred.Atoms[1]]
-		node := r.reverseMappings[pred.Atoms[2]]
-
-		accessTable.AddRow([]string{
-			user,
-			login,
-			node,
-			strings.Join(allowingRoles[createUserLoginKey(user, login)], ", "),
-		})
+		allowRoles := strings.Join(allowingRoles[createUserLoginKey(pred.Atoms, r.reverseMappings)], ", ")
+		accessTable.AddRow(append(generateAtomStrings(pred.Atoms, r.reverseMappings), allowRoles))
 	}
 
 	denyTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Denying Role"})
 	for _, pred := range r.Accesses[denyRoles] {
-		user := r.reverseMappings[pred.Atoms[0]]
-		login := r.reverseMappings[pred.Atoms[1]]
-		role := r.reverseMappings[pred.Atoms[2]]
-		node := r.reverseMappings[pred.Atoms[3]]
-
-		denyTable.AddRow([]string{
-			user,
-			login,
-			node,
-			role,
-		})
+		denyTable.AddRow(generateAtomStrings(pred.Atoms, r.reverseMappings))
 	}
-	denyOutputString := denyNullString
-	if len(r.Accesses[denyRoles]) > 0 {
-		denyOutputString = denyTable.AsBuffer().String()
-	}
-	accessOutputString := accessNullString
-	if len(r.Accesses[accesses]) > 0 {
-		accessOutputString = accessTable.AsBuffer().String()
-	}
+	denyOutputString := generateTableString(len(r.Accesses[denyRoles]) > 0, denyTable, denyNullString)
+	accessOutputString := generateTableString(len(r.Accesses[accesses]) > 0, accessTable, accessNullString)
 	return accessOutputString + "\n" + denyOutputString
 }

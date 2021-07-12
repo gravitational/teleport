@@ -35,7 +35,7 @@ type AccessCommand struct {
 	node      string
 	namespace string
 
-	// accessList implements the "tctl apps ls" subcommand.
+	// accessList implements the "tctl access ls" subcommand.
 	accessList *kingpin.CmdClause
 }
 
@@ -55,7 +55,7 @@ func (c *AccessCommand) Initialize(app *kingpin.Application, config *service.Con
 func (c *AccessCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.accessList.FullCommand():
-		access := &datalog.AccessRequest{Username: c.user, Login: c.login, Node: c.node, Namespace: c.namespace}
+		access := datalog.NodeAccessRequest{Username: c.user, Login: c.login, Node: c.node, Namespace: c.namespace}
 		resp, err := access.QueryAccess(client)
 		if err != nil {
 			return false, trace.Wrap(err)
