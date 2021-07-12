@@ -718,7 +718,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	case types.EventOrderDescending:
 		toSort = sort.Reverse(byTimeAndIndex(eventArr))
 	default:
-		return nil, "", trace.BadParameter("invalid event order: %s", order)
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
 	sort.Sort(toSort)
@@ -824,7 +824,7 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 	case types.EventOrderDescending:
 		forward = false
 	default:
-		return nil, "", trace.BadParameter("invalid event order: %s", order)
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
 	// This is the main query loop, here we send individual queries for each date and
