@@ -12,6 +12,7 @@ import (
 
 	rclient "github.com/gravitational/reporting/client"
 	"github.com/gravitational/reporting/types"
+	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
@@ -117,13 +118,13 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, after int,
 	return events, trace.Wrap(err)
 }
 
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := l.Inner.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order apitypes.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	events, lastKey, err := l.Inner.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
 	return events, lastKey, trace.Wrap(err)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := l.Inner.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order apitypes.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	events, lastKey, err := l.Inner.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
 	return events, lastKey, trace.Wrap(err)
 }
 
