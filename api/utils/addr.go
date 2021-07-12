@@ -51,6 +51,7 @@ func ParseAddr(addr string) (string, error) {
 	}
 }
 
+// ParseHost strings like "tcp://host:port/path" and returns "host".
 func ParseHost(addr string) (string, error) {
 	parsed, err := ParseAddr(addr)
 	if err != nil {
@@ -63,6 +64,7 @@ func ParseHost(addr string) (string, error) {
 	return host, nil
 }
 
+// ParsePort strings like "tcp://host:port/path" and returns "port".
 func ParsePort(addr string) (string, error) {
 	parsed, err := ParseAddr(addr)
 	if err != nil {

@@ -225,8 +225,8 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					go func(addr string) {
 						defer wg.Done()
 						// Try connecting to web proxy to retrieve tunnel address.
-						if pr, err := webclient.Find(ctx, addr, cfg.InsecureAddressDiscovery, nil); err == nil {
-							addr = pr.Proxy.SSH.TunnelPublicAddr
+						if tunnelAddr, err := webclient.GetTunnelAddr(ctx, addr, cfg.InsecureAddressDiscovery, nil); err == nil {
+							addr = tunnelAddr
 						}
 						dialer := newTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
 						clt := newClient(cfg, dialer, tlsConfig)
