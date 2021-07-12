@@ -129,11 +129,14 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			},
 		},
 	}
-	if err := services.FillOldCertAuthorityKeys(ca); err != nil {
+	if err := services.SyncCertAuthorityKeys(ca); err != nil {
 		panic(err)
 	}
 	return ca
 }
+
+// NewProxyWatcherFunc creates a new services.ProxyWatcher.
+type NewProxyWatcherFunc func() (*services.ProxyWatcher, error)
 
 // ServicesTestSuite is an acceptance test suite
 // for services. It is used for local implementations and implementations
@@ -149,7 +152,7 @@ type ServicesTestSuite struct {
 	UsersS          services.UsersService
 	ChangesC        chan interface{}
 	Clock           clockwork.FakeClock
-	NewProxyWatcher services.NewProxyWatcherFunc
+	NewProxyWatcher NewProxyWatcherFunc
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
@@ -1157,57 +1160,25 @@ func CollectOptions(opts ...Option) Options {
 }
 
 // ClusterConfig tests cluster configuration.
-// DELETE IN 8.0.0: Test only the individual resources.
+// DELETE IN 8.0.0: Remove ClusterConfig and related tests
+// and test only the individual resources.
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	ctx := context.Background()
 
-	// DELETE IN 8.0.0
 	clusterName, err := s.ConfigS.GetClusterName()
-	if trace.IsNotFound(err) {
-		clusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-			ClusterName: "example.com",
-		})
-		c.Assert(err, check.IsNil)
-		err = s.ConfigS.SetClusterName(clusterName)
-		c.Assert(err, check.IsNil)
-	} else {
-		c.Assert(err, check.IsNil)
-	}
+	c.Assert(err, check.IsNil)
 	clusterID := clusterName.GetClusterID()
 
-	// DELETE IN 8.0.0
-	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-		Region:           "us-west-1",
-		Type:             "dynamodb",
-		AuditSessionsURI: "file:///home/log",
-		AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
-	})
-	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetClusterAuditConfig(context.TODO(), auditConfig)
+	auditConfig, err := s.ConfigS.GetClusterAuditConfig(ctx)
 	c.Assert(err, check.IsNil)
 
-	// DELETE IN 8.0.0
-	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout: types.NewDuration(17 * time.Second),
-	})
-	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetClusterNetworkingConfig(ctx, netConfig)
+	netConfig, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
 	c.Assert(err, check.IsNil)
 
-	// DELETE IN 8.0.0
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtProxy,
-	})
-	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetSessionRecordingConfig(ctx, recConfig)
+	recConfig, err := s.ConfigS.GetSessionRecordingConfig(ctx)
 	c.Assert(err, check.IsNil)
 
-	// DELETE IN 8.0.0
-	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		DisconnectExpiredCert: types.NewBoolOption(true),
-	})
-	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetAuthPreference(ctx, authPref)
+	authPref, err := s.ConfigS.GetAuthPreference(ctx)
 	c.Assert(err, check.IsNil)
 
 	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
@@ -1950,7 +1921,7 @@ func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
 	// since no proxy is yet present, the ProxyWatcher should immediately
 	// yield back to its retry loop.
 	select {
-	case <-w.Reset():
+	case <-w.ResetC:
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for ProxyWatcher reset")
 	}

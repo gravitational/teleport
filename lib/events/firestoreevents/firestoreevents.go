@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	firestorebk "github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -155,7 +156,7 @@ type EventsConfig struct {
 
 // SetFromParams establishes values on an EventsConfig from the supplied params
 func (cfg *EventsConfig) SetFromParams(params backend.Params) error {
-	err := utils.ObjectToStruct(params, &cfg)
+	err := apiutils.ObjectToStruct(params, &cfg)
 	if err != nil {
 		return trace.BadParameter("firestore: configuration is invalid: %v", err)
 	}
@@ -469,6 +470,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	var values []events.EventFields
 	var parsedStartKey int64
 	var err error
+	reachedEnd := false
 	totalSize := 0
 
 	if startKey != "" {
@@ -498,6 +500,15 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	batchReadRequests.Inc()
 	if err != nil {
 		return nil, "", firestorebk.ConvertGRPCError(err)
+	}
+
+	// Correctly detecting if you've reached the end of a query in firestore is
+	// tricky since it doesn't set any flag when it finds that there are no further events.
+	// This solution here seems to be the the most common but I haven't been able to find
+	// any documented hard guarantees on firestore not early returning for some reason like response
+	// size like DynamoDB does. In short, this should work in all cases for lack of a better solution.
+	if len(docSnaps) < limit {
+		reachedEnd = true
 	}
 
 	g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
@@ -545,7 +556,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	}
 
 	var lastKeyString string
-	if lastKey != 0 {
+	if lastKey != 0 && !reachedEnd {
 		lastKeyString = fmt.Sprintf("%d", lastKey)
 	}
 

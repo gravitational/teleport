@@ -200,15 +200,18 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	}, nil, defaults.CATTL)
 	fatalIf(err)
 
+	signer, err := ssh.ParsePrivateKey(cfg.Priv)
+	fatalIf(err)
+
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: cfg.Priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       cfg.Pub,
-		HostID:              cfg.HostID,
-		NodeName:            cfg.NodeName,
-		ClusterName:         cfg.ClusterName,
-		Roles:               types.SystemRoles{types.RoleAdmin},
-		TTL:                 24 * time.Hour,
+		CASigner:      signer,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: cfg.Pub,
+		HostID:        cfg.HostID,
+		NodeName:      cfg.NodeName,
+		ClusterName:   cfg.ClusterName,
+		Roles:         types.SystemRoles{types.RoleAdmin},
+		TTL:           24 * time.Hour,
 	})
 	fatalIf(err)
 	tlsCA, err := tlsca.FromKeys(tlsCACert, tlsCAKey)
