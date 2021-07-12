@@ -43,13 +43,16 @@ func generateHostCert(t *testing.T, s *knownHostsMigrateTest, clusterName string
 	_, hostPub, err := s.keygen.GenerateKeyPair("")
 	require.NoError(t, err)
 
+	caSigner, err := ssh.ParsePrivateKey(CAPriv)
+	require.NoError(t, err)
+
 	cert, err := s.keygen.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: CAPriv,
-		HostID:              "127.0.0.1",
-		NodeName:            "127.0.0.1",
-		ClusterName:         clusterName,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       hostPub,
+		CASigner:      caSigner,
+		HostID:        "127.0.0.1",
+		NodeName:      "127.0.0.1",
+		ClusterName:   clusterName,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: hostPub,
 	})
 	require.Nil(t, err)
 
