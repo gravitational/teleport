@@ -1,0 +1,96 @@
+---
+title: Database Access High Availability (HA)
+description: How to configure Teleport Database Access in a Highly Available (HA) configuration.
+---
+
+# Database Access High Availability (HA)
+
+You can deploy Database Access in a Highly Available (HA) configuration in a
+couple of common ways: combined replicas and separate replicas. Both of those
+revolve around pointing multiple Database Services to the same database
+instance.
+
+## Combined replicas
+
+The most common approach is to assign the same `name` to each Database Service
+proxying the database.
+
+If you have two Database Services proxying the same database, configuration for
+both agents would be identical:
+
+```yaml
+# Same config for both agents.
+db_service:
+  enabled: "yes"
+  databases:
+  - name: "postgres"
+    protocol: "postgres"
+    uri: "postgres.example.com:5432"
+```
+
+With this configuration, you will see only a single entry for the database in
+`tsh db ls`:
+
+```bash
+tsh db ls
+Name
+--------
+postgres
+
+tsh db login postgres
+tsh db connect postgres
+```
+
+When connecting, Teleport will randomly pick the service to connect through to
+provide some load balancing. If the selected agent is down (e.g. in case of AZ
+outage), Teleport will try to connect via other agents.
+
+## Separate replicas
+
+With separate replicas, each Database Service agent proxying the database
+assigns it a different name. This allows you to explicitly pick the agent
+you want to connect to the database over:
+
+```yaml
+# Database service agent #1.
+db_service:
+  enabled: "yes"
+  databases:
+  # Note the name is different than agent #2 but URI is the same.
+  - name: "postgres-us-east-1a"
+    protocol: "postgres"
+    uri: "postgres.example.com:5432"
+```
+
+```yaml
+# Database service agent #2.
+db_service:
+  enabled: "yes"
+  databases:
+  # Note the name is different than agent #1 but URI is the same.
+  - name: "postgres-us-east-1b"
+    protocol: "postgres"
+    uri: "postgres.example.com:5432"
+```
+
+With this configuration, both services will appear as two separate entries in
+`tsh db ls` output and you will have to pick one explicitly when connecting:
+
+```bash
+tsh db ls
+Name
+-------------------
+postgres-us-east-1a
+postgres-us-east-1b
+
+tsh db login postgres-us-east-1a
+tsh db connect postgres-us-east-1a
+```
+
+This approach is useful when you want to have control over which replica
+you're using to connect.
+
+## Next steps
+
+- Get started by [connecting](../guides.mdx) your database.
+- Review Database Access [architecture](../architecture.mdx).

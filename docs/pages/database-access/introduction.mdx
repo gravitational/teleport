@@ -1,12 +1,12 @@
 ---
 title: Database Access
-description: Teleport Database Access introduction, demo and resources
+description: Teleport Database Access introduction, demo and resources.
 ---
 
 # Database Access
 
-Teleport can provide secure access to PostgreSQL and MySQL databases, while
-improving both access control and visibility.
+Teleport can provide secure access to PostgreSQL, MySQL and MongoDB databases,
+while improving both access control and visibility.
 
 Some of the things you can do with Database Access:
 
@@ -41,20 +41,58 @@ with Github, execute a few SQL queries and observe them in the audit log:
   Your browser does not support the video tag.
 </video>
 
-## Getting Started
+## Getting started
 
-Configure Database Access in a 10 minute [Getting Started](./getting-started.mdx)
-guide.
+<TileSet>
+  <Tile icon="database" title="Getting started" href="./getting-started.mdx">
+    Connect Aurora PostgreSQL in a 10 minute guide.
+  </Tile>
+</TileSet>
 
-## Guides
+## Cloud-hosted guides
 
-- [AWS RDS/Aurora PostgreSQL](./guides/postgres-aws.mdx)
-- [AWS RDS/Aurora MySQL](./guides/mysql-aws.mdx)
-- [AWS Redshift PostgreSQL](./guides/postgres-redshift.mdx)
-- [GCP Cloud SQL PostgreSQL](./guides/postgres-cloudsql.mdx)
-- [Self-hosted PostgreSQL](./guides/postgres-self-hosted.mdx)
-- [Self-hosted MySQL](./guides/mysql-self-hosted.mdx)
-- [GUI clients](./guides/gui-clients.mdx)
+<TileSet>
+  <Tile icon="cloud" title="AWS RDS PostgreSQL" href="./guides/postgres-aws.mdx">
+    Connect AWS RDS or Aurora PostgreSQL database.
+  </Tile>
+  <Tile icon="cloud" title="AWS RDS MySQL" href="./guides/mysql-aws.mdx">
+    Connect AWS RDS or Aurora MySQL database.
+  </Tile>
+  <Tile icon="cloud" title="AWS Redshift" href="./guides/postgres-redshift.mdx">
+    Connect AWS Redshift database.
+  </Tile>
+  <Tile icon="cloud" title="GCP Cloud SQL PostgreSQL" href="./guides/postgres-cloudsql.mdx">
+    Connect GCP Cloud SQL PostgreSQL database.
+  </Tile>
+  <Tile icon="cloud" title="GCP Cloud SQL MySQL" href="./guides/mysql-cloudsql.mdx">
+    Connect GCP Cloud SQL MySQL database.
+  </Tile>
+</TileSet>
+
+## Self-hosted guides
+
+<TileSet>
+  <Tile icon="database" title="Self-hosted PostgreSQL" href="./guides/postgres-self-hosted.mdx">
+    Connect self-hosted PostgreSQL database.
+  </Tile>
+  <Tile icon="database" title="Self-hosted MySQL" href="./guides/mysql-self-hosted.mdx">
+    Connect self-hosted MySQL database.
+  </Tile>
+  <Tile icon="database" title="Self-hosted MongoDB" href="./guides/mongodb-self-hosted.mdx">
+    Connect self-hosted MongoDB database.
+  </Tile>
+</TileSet>
+
+## General guides
+
+<TileSet>
+  <Tile icon="window" title="GUI clients" href="./guides/gui-clients.mdx">
+    Configure database graphical clients.
+  </Tile>
+  <Tile icon="integrations" title="High Availability" href="./guides/ha.mdx">
+    Deploy database access in HA configuration.
+  </Tile>
+</TileSet>
 
 ## Resources
 
