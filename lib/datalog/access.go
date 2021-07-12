@@ -36,23 +36,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// Predicate struct defines a datalog fact with a variable number of atoms
+// Predicate struct defines a datalog fact with a variable number of atoms.
 type Predicate struct {
 	Atoms []uint32
 }
 
-// EDB (extensional database) types holds the already known facts
+// EDB (extensional database) types holds the already known facts.
 type EDB map[string][]Predicate
 
-// IDB (intensional database) type holds the interpreted facts from rules
+// IDB (intensional database) type holds the interpreted facts from rules.
 type IDB map[string][]Predicate
 
-// Access defines the query interface
-type Access interface {
-	QueryAccess(auth.ClientI) (*AccessResponse, error)
-}
-
-// NodeAccessRequest defines a request for access for a specific user, login, and node
+// NodeAccessRequest defines a request for access for a specific user, login, and node.
 type NodeAccessRequest struct {
 	Username  string
 	Login     string
@@ -60,7 +55,7 @@ type NodeAccessRequest struct {
 	Namespace string
 }
 
-// AccessResponse defines all interpreted facts from rules
+// AccessResponse defines all interpreted facts from rules.
 type AccessResponse struct {
 	Accesses        IDB
 	facts           EDB
@@ -72,7 +67,6 @@ const (
 	loginTraitHash = 0
 	keyJoin        = "_"
 
-	// Input
 	hasRole             = "has_role"
 	hasTrait            = "has_trait"
 	roleAllowsLogin     = "role_allows_login"
@@ -81,17 +75,15 @@ const (
 	roleDeniesNodeLabel = "role_denies_node_label"
 	nodeHasLabel        = "node_has_label"
 
-	// Output
 	accesses   = "accesses"
 	allowRoles = "allow_roles"
 	denyRoles  = "deny_roles"
 
-	// No results
 	denyNullString   = "No denied accesses.\n"
 	accessNullString = "No accesses.\n"
 )
 
-// QueryAccess returns a list of accesses to Teleport
+// QueryAccess returns a list of accesses to Teleport.
 func (c *NodeAccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, error) {
 	resp := AccessResponse{make(IDB), make(EDB), make(map[string]uint32), make(map[uint32]string)}
 	ctx := context.TODO()
@@ -298,7 +290,7 @@ func generateAtomStrings(atoms []uint32, reverseMappings map[uint32]string) []st
 	return ret
 }
 
-// BuildStringOutput creates the UI for displaying access responses
+// BuildStringOutput creates the UI for displaying access responses.
 func (r *AccessResponse) BuildStringOutput() string {
 	accessTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
 	allowingRoles := make(map[string][]string)

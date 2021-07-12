@@ -99,7 +99,6 @@ pub extern "C" fn process_access(s: *const c_char) -> *mut c_char {
     let r_str = c_str.to_str().unwrap();
     let edb: EDB = serde_json::from_str(r_str).unwrap();
     
-    // Create each predicate
     match edb.has_role {
         Some(x) => {
             x.into_iter()

@@ -22,11 +22,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 )
 
-// Access defines the query interface
-type Access interface {
-	QueryAccess(auth.ClientI) (*AccessResponse, error)
-}
-
 // NodeAccessRequest defines a request for access for a specific user, login, and node
 type NodeAccessRequest struct {
 	Username  string
