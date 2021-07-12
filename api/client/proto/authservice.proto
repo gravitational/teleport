@@ -826,6 +826,13 @@ message SingleUseUserCert {
     }
 }
 
+// Order specifies any ordering of some objects as returned in regards to some aspect
+// of said objects which may be trivially ordered such as a timestamp.
+enum Order {
+    DESCENDING = 0;
+    ASCENDING = 1;
+}
+
 message GetEventsRequest {
     // Namespace, if not set, defaults to 'default'
     string Namespace = 1;
@@ -843,6 +850,9 @@ message GetEventsRequest {
     // If the previous response had LastKey set then this should be
     // set to its value. Otherwise leave empty.
     string StartKey = 6;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 7;
 }
 
 message GetSessionEventsRequest {
@@ -858,6 +868,9 @@ message GetSessionEventsRequest {
     // If the previous response had LastKey set then this should be
     // set to its value. Otherwise leave empty.
     string StartKey = 4;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 5;
 }
 
 message Events {
