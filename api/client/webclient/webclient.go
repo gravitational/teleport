@@ -23,9 +23,12 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
 )
 
@@ -88,6 +91,43 @@ func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 	}
 
 	return pr, nil
+}
+
+// GetTunnelAddr returns the tunnel address in the following preference order:
+//  1. Reverse Tunnel Public Address.
+//  2. SSH Proxy Public Address.
+//  3. HTTP Proxy Public Address.
+//  4. Tunnel Listen Address.
+func GetTunnelAddr(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (string, error) {
+	// Ping web proxy to retrieve tunnel proxy address.
+	pr, err := Find(ctx, proxyAddr, insecure, nil)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// If a tunnel public address is set, nothing else has to be done, return it.
+	if pr.Proxy.SSH.TunnelPublicAddr != "" {
+		return pr.Proxy.SSH.TunnelPublicAddr, nil
+	}
+
+	// Extract the port the tunnel server is listening on.
+	tunnelPort := strconv.Itoa(defaults.SSHProxyTunnelListenPort)
+	if _, port, err := net.SplitHostPort(pr.Proxy.SSH.TunnelListenAddr); err == nil {
+		tunnelPort = port
+	}
+
+	// If a tunnel public address has not been set, but a related HTTP or SSH
+	// public address has been set, extract the hostname but use the port from
+	// the tunnel listen address.
+	if host, _, err := net.SplitHostPort(pr.Proxy.SSH.SSHPublicAddr); err == nil {
+		return net.JoinHostPort(host, tunnelPort), nil
+	}
+	if host, _, err := net.SplitHostPort(pr.Proxy.SSH.PublicAddr); err == nil {
+		return net.JoinHostPort(host, tunnelPort), nil
+	}
+
+	// If nothing is set, fallback to the tunnel listen address.
+	return pr.Proxy.SSH.TunnelListenAddr, nil
 }
 
 // PingResponse contains data about the Teleport server like supported
