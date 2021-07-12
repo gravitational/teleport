@@ -12,12 +12,15 @@ set -o pipefail
 TCTL=/usr/local/bin/tctl
 # get the tctl version
 # database service tokens are only supported in Teleport 6+
-TCTL_VERSION=$(${TCTL} version | cut -dv -f2 | cut -d' ' -f1)
-TCTL_MAJOR_VERSION=$(echo ${TCTL_VERSION} | cut -d'.' -f1)
+# if the Teleport version cannot be detected, database service tokens will not be configured.
 DATABASE_TOKEN_ENABLED=false
-if [ ${TCTL_MAJOR_VERSION} -ge 6 ]; then
-    echo "Detected Teleport version 6+, configuring a token for db_service"
-    DATABASE_TOKEN_ENABLED=true
+if [ -f ${TCTL} ]; then
+    TCTL_VERSION=$(${TCTL} version | cut -dv -f2 | cut -d' ' -f1 || true)
+    TCTL_MAJOR_VERSION=$(echo ${TCTL_VERSION} | cut -d'.' -f1 || true)
+    if [ ${TCTL_MAJOR_VERSION:-0} -ge 6 ]; then
+        echo "Detected Teleport version 6+, configuring a token for db_service"
+        DATABASE_TOKEN_ENABLED=true
+    fi
 fi
 
 # Proxy token authenticates proxies joining the cluster
