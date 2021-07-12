@@ -160,24 +160,24 @@ func testDynamicallyConfigurableRBAC(t *testing.T, p testDynamicallyConfigurable
 	// runTestCases generates all non-empty RBAC verb combinations and checks the expected
 	// error for each operation.
 	runTestCases := func(withConfigFile bool) {
-		for i := 1; i < 8; i++ {
+		for i := 0b001; i <= 0b111; i++ {
 			verbs := []string{}
 			expectGetErr, expectSetErr, expectResetErr := true, true, true
-			if (i&1) == 1 || p.alwaysReadable {
+			if (i&0b001) > 0 || p.alwaysReadable {
 				verbs = append(verbs, types.VerbRead)
 				expectGetErr = false
 			}
-			if (i & 2) == 2 {
+			if (i & 0b010) > 0 {
 				verbs = append(verbs, types.VerbUpdate)
 				if !withConfigFile {
 					expectSetErr, expectResetErr = false, false
 				}
 			}
-			if (i & 4) == 4 {
+			if (i & 0b100) > 0 {
 				verbs = append(verbs, types.VerbCreate)
-			}
-			if (i & 6) == 6 {
-				expectSetErr = false
+				if (i & 0b010) > 0 {
+					expectSetErr = false
+				}
 			}
 			allowRules := []types.Rule{
 				{
