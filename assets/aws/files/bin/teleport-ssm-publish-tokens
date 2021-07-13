@@ -24,28 +24,28 @@ if [ -f ${TCTL} ]; then
 fi
 
 # Proxy token authenticates proxies joining the cluster
-PROXY_TOKEN=$(uuid)
+PROXY_TOKEN=$(uuid -v4)
 ${TCTL} nodes add --roles=proxy --ttl=4h --token=${PROXY_TOKEN}
 aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/proxy --region ${EC2_REGION} --type="SecureString" --value="${PROXY_TOKEN}" --overwrite
 
 # Node token authenticates nodes joining the cluster
-NODE_TOKEN=$(uuid)
+NODE_TOKEN=$(uuid -v4)
 ${TCTL} nodes add --roles=node --ttl=4h --token=${NODE_TOKEN}
 aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/node --region ${EC2_REGION} --type="SecureString" --value="${NODE_TOKEN}" --overwrite
 
 # Kubernetes token authenticates kubernetes clusters joining the cluster
-KUBE_TOKEN=$(uuid)
+KUBE_TOKEN=$(uuid -v4)
 ${TCTL} nodes add --roles=kube --ttl=4h --token=${KUBE_TOKEN}
 aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/kube --region ${EC2_REGION} --type="SecureString" --value="${KUBE_TOKEN}" --overwrite
 
 # App token authenticates app services joining the cluster
-APP_TOKEN=$(uuid)
+APP_TOKEN=$(uuid -v4)
 ${TCTL} nodes add --roles=app --ttl=4h --token=${APP_TOKEN}
 aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/app --region ${EC2_REGION} --type="SecureString" --value="${APP_TOKEN}" --overwrite
 
 if [[ ${DATABASE_TOKEN_ENABLED} == "true" ]]; then
     # Database token authenticates app services joining the cluster
-    DATABASE_TOKEN=$(uuid)
+    DATABASE_TOKEN=$(uuid -v4)
     ${TCTL} nodes add --roles=db --ttl=4h --token=${DATABASE_TOKEN}
     aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/db --region ${EC2_REGION} --type="SecureString" --value="${DATABASE_TOKEN}" --overwrite
 fi
