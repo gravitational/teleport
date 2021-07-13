@@ -571,8 +571,8 @@ Host teleport.proxy
 ### Passing Teleport SSH certificate to OpenSSH client
 
 If a user does not want to use an SSH agent or if the agent is not available,
-the certificate must be passed to `ssh` via `IdentityFile` option (see `man
-ssh_config`). Consider this example: the Teleport user `joe` wants to login into
+the certificate must be passed to `ssh` via `IdentityFile` and `CertificateFile` options
+(see `man ssh_config`). Consider this example: the Teleport user `joe` wants to login into
 the proxy named `lab.example.com`.
 
 He executes the [`tsh login`](cli-docs.mdx#tsh-login) command:
@@ -588,6 +588,7 @@ His identity is now stored in `~/.tsh/keys/lab.example.com`, so his `~/.ssh/conf
 Host *.lab.example.com
     Port 3022
     IdentityFile ~/.tsh/keys/lab.example.com/joe
+    CertificateFile ~/.tsh/keys/lab.example.com/joe-ssh/lab.example.com-cert.pub
     ProxyCommand ssh -i ~/.tsh/keys/lab.example.com/joe -p 3023 %r@lab.example.com -s proxy:%h:%p
 ```
 
