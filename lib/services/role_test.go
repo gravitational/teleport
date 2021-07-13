@@ -1570,7 +1570,6 @@ func TestApplyTraits(t *testing.T) {
 		allow    rule
 		deny     rule
 	}{
-
 		{
 			comment: "logins substitute in allow rule",
 			inTraits: map[string][]string{
@@ -1902,7 +1901,6 @@ func TestApplyTraits(t *testing.T) {
 				outDBLabels: types.Labels{`key`: []string{"bar", "baz"}},
 			},
 		},
-
 		{
 			comment: "impersonate roles",
 			inTraits: map[string][]string{
@@ -1936,70 +1934,67 @@ func TestApplyTraits(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tests {
-		comment := fmt.Sprintf("Test %v %v", i, tt.comment)
-
-		role := &types.RoleV4{
-			Kind:    types.KindRole,
-			Version: types.V3,
-			Metadata: types.Metadata{
-				Name:      "name1",
-				Namespace: apidefaults.Namespace,
-			},
-			Spec: types.RoleSpecV4{
-				Allow: types.RoleConditions{
-					Logins:           tt.allow.inLogins,
-					NodeLabels:       tt.allow.inLabels,
-					ClusterLabels:    tt.allow.inLabels,
-					KubernetesLabels: tt.allow.inKubeLabels,
-					KubeGroups:       tt.allow.inKubeGroups,
-					KubeUsers:        tt.allow.inKubeUsers,
-					AppLabels:        tt.allow.inAppLabels,
-					DatabaseLabels:   tt.allow.inDBLabels,
-					DatabaseNames:    tt.allow.inDBNames,
-					DatabaseUsers:    tt.allow.inDBUsers,
-					Impersonate:      &tt.allow.inImpersonate,
+	for _, tt := range tests {
+		t.Run(tt.comment, func(t *testing.T) {
+			role := &types.RoleV4{
+				Kind:    types.KindRole,
+				Version: types.V3,
+				Metadata: types.Metadata{
+					Name:      "name1",
+					Namespace: apidefaults.Namespace,
 				},
-				Deny: types.RoleConditions{
-					Logins:           tt.deny.inLogins,
-					NodeLabels:       tt.deny.inLabels,
-					ClusterLabels:    tt.deny.inLabels,
-					KubernetesLabels: tt.deny.inKubeLabels,
-					KubeGroups:       tt.deny.inKubeGroups,
-					KubeUsers:        tt.deny.inKubeUsers,
-					AppLabels:        tt.deny.inAppLabels,
-					DatabaseLabels:   tt.deny.inDBLabels,
-					DatabaseNames:    tt.deny.inDBNames,
-					DatabaseUsers:    tt.deny.inDBUsers,
-					Impersonate:      &tt.deny.inImpersonate,
+				Spec: types.RoleSpecV4{
+					Allow: types.RoleConditions{
+						Logins:           tt.allow.inLogins,
+						NodeLabels:       tt.allow.inLabels,
+						ClusterLabels:    tt.allow.inLabels,
+						KubernetesLabels: tt.allow.inKubeLabels,
+						KubeGroups:       tt.allow.inKubeGroups,
+						KubeUsers:        tt.allow.inKubeUsers,
+						AppLabels:        tt.allow.inAppLabels,
+						DatabaseLabels:   tt.allow.inDBLabels,
+						DatabaseNames:    tt.allow.inDBNames,
+						DatabaseUsers:    tt.allow.inDBUsers,
+						Impersonate:      &tt.allow.inImpersonate,
+					},
+					Deny: types.RoleConditions{
+						Logins:           tt.deny.inLogins,
+						NodeLabels:       tt.deny.inLabels,
+						ClusterLabels:    tt.deny.inLabels,
+						KubernetesLabels: tt.deny.inKubeLabels,
+						KubeGroups:       tt.deny.inKubeGroups,
+						KubeUsers:        tt.deny.inKubeUsers,
+						AppLabels:        tt.deny.inAppLabels,
+						DatabaseLabels:   tt.deny.inDBLabels,
+						DatabaseNames:    tt.deny.inDBNames,
+						DatabaseUsers:    tt.deny.inDBUsers,
+						Impersonate:      &tt.deny.inImpersonate,
+					},
 				},
-			},
-		}
+			}
 
-		outRole := ApplyTraits(role, tt.inTraits)
-		require.Equal(t, outRole.GetLogins(Allow), tt.allow.outLogins, comment)
-		require.Equal(t, outRole.GetNodeLabels(Allow), tt.allow.outLabels, comment)
-		require.Equal(t, outRole.GetClusterLabels(Allow), tt.allow.outLabels, comment)
-		require.Equal(t, outRole.GetKubernetesLabels(Allow), tt.allow.outKubeLabels, comment)
-		require.Equal(t, outRole.GetKubeGroups(Allow), tt.allow.outKubeGroups, comment)
-		require.Equal(t, outRole.GetKubeUsers(Allow), tt.allow.outKubeUsers, comment)
-		require.Equal(t, outRole.GetAppLabels(Allow), tt.allow.outAppLabels, comment)
-		require.Equal(t, outRole.GetDatabaseLabels(Allow), tt.allow.outDBLabels, comment)
-		require.Equal(t, outRole.GetDatabaseNames(Allow), tt.allow.outDBNames, comment)
-		require.Equal(t, outRole.GetDatabaseUsers(Allow), tt.allow.outDBUsers, comment)
-		require.Equal(t, outRole.GetImpersonateConditions(Allow), tt.allow.outImpersonate, comment)
-
-		require.Equal(t, outRole.GetLogins(Deny), tt.deny.outLogins, comment)
-		require.Equal(t, outRole.GetNodeLabels(Deny), tt.deny.outLabels, comment)
-		require.Equal(t, outRole.GetClusterLabels(Deny), tt.deny.outLabels, comment)
-		require.Equal(t, outRole.GetKubernetesLabels(Deny), tt.deny.outKubeLabels, comment)
-		require.Equal(t, outRole.GetKubeGroups(Deny), tt.deny.outKubeGroups, comment)
-		require.Equal(t, outRole.GetKubeUsers(Deny), tt.deny.outKubeUsers, comment)
-		require.Equal(t, outRole.GetAppLabels(Deny), tt.deny.outAppLabels, comment)
-		require.Equal(t, outRole.GetDatabaseLabels(Deny), tt.deny.outDBLabels, comment)
-		require.Equal(t, outRole.GetDatabaseNames(Deny), tt.deny.outDBNames, comment)
-		require.Equal(t, outRole.GetDatabaseUsers(Deny), tt.deny.outDBUsers, comment)
-		require.Equal(t, outRole.GetImpersonateConditions(Deny), tt.deny.outImpersonate, comment)
+			outRole := ApplyTraits(role, tt.inTraits)
+			rules := []struct {
+				condition types.RoleConditionType
+				spec      *rule
+			}{
+				{Allow, &tt.allow},
+				{Deny, &tt.deny},
+			}
+			for _, rule := range rules {
+				require.Equal(t, outRole.GetLogins(rule.condition), rule.spec.outLogins)
+				require.Equal(t, outRole.GetNodeLabels(rule.condition), rule.spec.outLabels)
+				require.Equal(t, outRole.GetClusterLabels(rule.condition), rule.spec.outLabels)
+				require.Equal(t, outRole.GetKubernetesLabels(rule.condition), rule.spec.outKubeLabels)
+				require.Equal(t, outRole.GetKubeGroups(rule.condition), rule.spec.outKubeGroups)
+				require.Equal(t, outRole.GetKubeUsers(rule.condition), rule.spec.outKubeUsers)
+				require.Equal(t, outRole.GetAppLabels(rule.condition), rule.spec.outAppLabels)
+				require.Equal(t, outRole.GetDatabaseLabels(rule.condition), rule.spec.outDBLabels)
+				require.Equal(t, outRole.GetDatabaseNames(rule.condition), rule.spec.outDBNames)
+				require.Equal(t, outRole.GetDatabaseUsers(rule.condition), rule.spec.outDBUsers)
+				require.Equal(t, outRole.GetImpersonateConditions(rule.condition), rule.spec.outImpersonate)
+			}
+		})
 	}
 }
 
