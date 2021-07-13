@@ -1113,7 +1113,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 				break
 			}
 
-			if event.GetIndex() >= int64(startIndex) {
+			if event.GetIndex() >= startIndex {
 				c <- event
 			}
 		}
