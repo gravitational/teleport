@@ -24,7 +24,8 @@
           "slug": "/setup/guides/",
           "entries": [
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
-            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" }
+            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" },
+            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" }
           ]
         }
       ]
@@ -161,6 +162,7 @@
       "title": "Infrastructure Guides",
       "entries": [
         { "title": "AWS", "slug": "/aws-oss-guide/" },
+        { "title": "AWS Terraform", "slug": "/aws-terraform-guide/" },
         { "title": "GCP", "slug": "/gcp-guide/" },
         { "title": "IBM", "slug": "/ibm-cloud-guide/" }
       ]
@@ -180,17 +182,17 @@
           "title": "FedRAMP for SSH & K8s",
           "slug": "/enterprise/ssh-kubernetes-fedramp/"
         },
-        { "title": "RBAC", "slug": "/enterprise/ssh-rbac/" }
+        { "title": "Role-Based Access Control", "slug": "/enterprise/ssh-rbac/" }
       ]
     },
     {
       "icon": "cloud",
-      "title": "Cloud",
+      "title": "Pro",
       "entries": [
-        { "title": "Introduction", "slug": "/cloud/introduction/" },
-        { "title": "Getting Started", "slug": "/cloud/getting-started/" },
-        { "title": "Architecture", "slug": "/cloud/architecture/" },
-        { "title": "FAQ", "slug": "/cloud/faq/" }
+        { "title": "Introduction", "slug": "/pro/introduction/" },
+        { "title": "Getting Started", "slug": "/pro/getting-started/" },
+        { "title": "Architecture", "slug": "/pro/architecture/" },
+        { "title": "FAQ", "slug": "/pro/faq/" }
       ]
     },
     {
@@ -242,15 +244,21 @@
     "terraform": {
       "version": "0.12.0"
     },
+    "fluentd": {
+      "version": "1.12.4"
+    },
+    "docker": {
+      "version": "20.10.7"
+    },
     "kubernetes": {
       "major_version": "1",
       "minor_version": "17"
     },
     "teleport": {
-      "version": "6.2.1",
+      "version": "6.2.7",
       "golang": "1.16",
       "plugin": {
-        "version": "6.2.1"
+        "version": "6.2.7"
       },
       "latest_oss_docker_image": "quay.io/gravitational/teleport:6",
       "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6",
@@ -264,8 +272,8 @@
       "permanent": true
     },
     {
-      "source": "/cloud/",
-      "destination": "/cloud/introduction/",
+      "source": "/pro/",
+      "destination": "/pro/introduction/",
       "permanent": true
     },
     {
@@ -300,7 +308,7 @@
     },
     {
       "source": "/preview/cloud/",
-      "destination": "/cloud/",
+      "destination": "/pro/",
       "permanent": true
     },
     {
@@ -326,6 +334,31 @@
     {
       "source": "/quickstart-docker/",
       "destination": "/setup/guides/docker-compose/",
+      "permanent": true
+    },
+    {
+      "source": "/cloud/",
+      "destination": "/pro/",
+      "permanent": true
+    },
+    {
+      "source": "/cloud/getting-started/",
+      "destination": "/pro/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/cloud/introduction/",
+      "destination": "/pro/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/cloud/architecture/",
+      "destination": "/pro/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/cloud/faq/",
+      "destination": "/pro/faq/",
       "permanent": true
     }
   ]

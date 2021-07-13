@@ -27,7 +27,7 @@ client SSH connection:
 
 1. User logs in to Web UI using username and password, and 2nd-factor token if configured (2FA Tokens are not used with SSO providers).
 2. Proxy passes credentials to the Auth Server's API
-3. If Auth Server accepts credentials, it generates a new web session and generates a special ssh keypair associated with this web session. Auth server
+3. If Auth Server accepts credentials, it generates a new web session and generates a special SSH key-pair associated with this web session. Auth server
    starts serving [OpenSSH ssh-agent
    protocol](https://tools.ietf.org/html/draft-miller-ssh-agent-04)
    to the proxy.

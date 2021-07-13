@@ -1,8 +1,14 @@
 # Teleport
 
-[Gravitational Teleport](https://github.com/gravitational/teleport) is a modern SSH/Kubernetes API proxy server for remotely accessing clusters of Linux containers and servers via SSH, HTTPS, or Kubernetes API.  Community and Enterprise versions of Teleport are available.  You can start with the Community edition with this Chart and in the future update to an Enterprise version for the same deployment.
+## Warning
+
+This chart is deprecated and will not receive future updates. We recommend using our other Helm charts for new deployments:
+- [teleport-cluster](../teleport-cluster/README.md)
+- [teleport-kube-agent](../teleport-kube-agent/README.md)
 
 ## Introduction
+
+[Gravitational Teleport](https://github.com/gravitational/teleport) is a modern SSH/Kubernetes API proxy server for remotely accessing clusters of Linux containers and servers via SSH, HTTPS, or Kubernetes API.  Community and Enterprise versions of Teleport are available.  You can start with the Community edition with this Chart and in the future update to an Enterprise version for the same deployment.
 
 This chart deploys Teleport Community or Enterprise components to your cluster via a Kubernetes `Deployment`.
 

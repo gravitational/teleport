@@ -1,6 +1,6 @@
 ---
 title: SSH login approval via Pager Duty
-description: How to configure SSH login approval using PagerDuty and Teleport
+description: How to configure SSH login approval using PagerDuty and Teleport.
 h1: SSH Login Approval using PagerDuty
 ---
 
@@ -21,12 +21,12 @@ or deny the requests via Pagerduty special action.
 
 This guide assumes that you have:
 
-- Teleport Enterprise 4.2.8 or newer
-- Admin privileges with access to `tctl`
+- Teleport Enterprise Edition.
+- Admin privileges with access to [`tctl`](https://gravitational.com/teleport/docs/cli-docs/#tctl).
 - Pagerduty account already set, with access to creating a new API token.
 - A node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience.
 
-#### Create User and Role for access
+#### Create user and role for access
 
 Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a
 new user and role that only has API access to the `access_request` API. The below script
@@ -35,7 +35,7 @@ will create a yaml resource file for a new user and role.
 ```yaml
 # This command will create two Teleport Yaml resources, a new Teleport user and a
 # Role for that users that can only approve / list requests.
-$ cat > rscs.yaml <<EOF
+cat > rscs.yaml <<EOF
 kind: user
 metadata:
   name: access-plugin-pagerduty
@@ -58,7 +58,7 @@ version: v3
 EOF
 
 # Run this to create the user and role in Teleport.
-$ tctl create -f rscs.yaml
+tctl create -f rscs.yaml
 ```
 
 #### Export access-plugin Certificate
@@ -84,9 +84,11 @@ The above sequence should result in three PEM encoded files being generated: aut
 In your Pagerduty dashboard, go to **Configuration → API Access → Create New API Key**, add a key description, and save the key. We'll use the key in the plugin config file later.
 
 **Create Pager Duty API Key**
+
 ![Create a service account](../../../img/enterprise/plugins/pagerduty/pagerduty-api-key.png)
 
 **Create Service Account**
+
 ![Create a service account](../../../img/enterprise/plugins/pagerduty/create-new-service-pd.png)
 
 ## Downloading and installing the plugin
@@ -97,12 +99,12 @@ and Teleport Auth access.  We currently only provide linux-amd64 binaries, you c
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty).
 
 ```bash
-$ wget https://get.gravitational.com/teleport-access-pagerduty-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-access-pagerduty-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-$ cd teleport-access-pagerduty/
-$ ./install
-$ which teleport-pagerduty
-/usr/local/bin/teleport-pagerduty
+wget https://get.gravitational.com/teleport-access-pagerduty-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+tar -xzf teleport-access-pagerduty-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+cd teleport-access-pagerduty/
+./install
+which teleport-pagerduty
+# /usr/local/bin/teleport-pagerduty
 ```
 
 Run `./install` in from 'teleport-pagerduty' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
@@ -112,8 +114,8 @@ Run `./install` in from 'teleport-pagerduty' or place the executable in the appr
 Teleport Pagerduty plugin has its own configuration file in TOML format. Before starting the plugin for the first time, you'll need to generate and edit that config file.
 
 ```bash
-$ teleport-pagerduty configure > teleport-pagerduty.toml
-$ sudo mv teleport-pagerduty.toml /etc
+sudo teleport-pagerduty configure > teleport-pagerduty.toml
+sudo mv teleport-pagerduty.toml /etc
 ```
 
 #### Editing the config file
@@ -125,30 +127,31 @@ After generating the config, edit it as follows:
 (!examples/resources/plugins/teleport-pagerduty.toml!)
 ```
 
-### Testing the Plugin
+### Testing the plugin
 
 With the config above, you should be able to run the plugin invoking
 `teleport-pagerduty start -d`. The will provide some debug information to make sure
 the bot can connect to Pagerduty.
 
 ```bash
-$ teleport-pagerduty start -d
-DEBU   DEBUG logging enabled logrus/exported.go:117
-INFO   Starting Teleport Access PagerDuty extension 0.1.0-dev.1: pagerduty/main.go:124
-DEBU   Checking Teleport server version pagerduty/main.go:226
-DEBU   Starting a request watcher... pagerduty/main.go:288
-DEBU   Starting PagerDuty API health check... pagerduty/main.go:170
-DEBU   Starting secure HTTPS server on :8081 utils/http.go:146
-DEBU   Watcher connected pagerduty/main.go:252
-DEBU   PagerDuty API health check finished ok pagerduty/main.go:176
-DEBU   Setting up the webhook extensions pagerduty/main.go:178
+sudo teleport-pagerduty start -d
+# DEBU   DEBUG logging enabled logrus/exported.go:117
+# INFO   Starting Teleport Access PagerDuty extension 0.1.0-dev.1: pagerduty/main.go:124
+# DEBU   Checking Teleport server version pagerduty/main.go:226
+# DEBU   Starting a request watcher... pagerduty/main.go:288
+# DEBU   Starting PagerDuty API health check... pagerduty/main.go:170
+# DEBU   Starting secure HTTPS server on :8081 utils/http.go:146
+# DEBU   Watcher connected pagerduty/main.go:252
+# DEBU   PagerDuty API health check finished ok pagerduty/main.go:176
+# DEBU   Setting up the webhook extensions pagerduty/main.go:178
 ```
 
 By default, `teleport-pagerduty` will assume its config is in `/etc/teleport-pagerduty.toml`, but you can override it with `--config` option.
 
 ### Setup with SystemD
 
-In production, we recommend starting teleport plugin daemon via an init system like systemd . Here's the recommended Teleport Plugin service unit file for systemd:
+In production, we recommend starting the Teleport Plugin daemon via an init system like `systemd`.	
+Here's the recommended Teleport Plugin service unit file for `systemd`:
 
 ```bash
 (!examples/systemd/plugins/teleport-pagerduty.service!)
@@ -156,7 +159,7 @@ In production, we recommend starting teleport plugin daemon via an init system l
 
 Save this as `teleport-pagerduty.service`.
 
-#### Example PagerDuty Request
+#### Example PagerDuty request
 
 <video controls>
   <source
@@ -172,7 +175,7 @@ Save this as `teleport-pagerduty.service`.
   Your browser does not support the video tag.
 </video>
 
-## Audit Log
+## Audit log
 
 The plugin will let anyone with access to the PagerDuty account so it's
 important to review Teleport's audit log.

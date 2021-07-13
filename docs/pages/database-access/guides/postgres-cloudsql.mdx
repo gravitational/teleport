@@ -1,11 +1,13 @@
 ---
 title: Database Access with PostgreSQL on GCP Cloud SQL
-description: How to configure Teleport Database Access with GCP Cloud SQL PostgreSQL
+description: How to configure Teleport Database Access for GCP Cloud SQL PostgreSQL databases.
 ---
 
 # GCP Cloud SQL PostgreSQL
 
-## Enable Cloud SQL IAM Authentication
+This Guide describes how to configure Teleport Database Access for GCP Cloud SQL PostgreSQL databases.
+
+## Enable Cloud SQL IAM authentication
 
 Teleport uses [IAM database authentication](https://cloud.google.com/sql/docs/postgres/authentication)
 with Cloud SQL PostgreSQL instances.
@@ -17,7 +19,7 @@ database flag under "Customize your instance / Flags" section:
 ![Enable IAM Authentication](../../../img/database-access/guides/cloudsql/iam-new-instance@2x.png)
 
 To check whether IAM authentication is enabled for an existing Cloud SQL instance,
-look for the flag on the Configuration panel on the instance's Overview page:
+look for the flag in the "Configuration" panel on the instance's "Overview" page:
 
 ![Check IAM Authentication](../../../img/database-access/guides/cloudsql/iam-existing-instance@2x.png)
 
@@ -25,7 +27,7 @@ If it isn't enabled, you can add this flag using the "Edit configuration" dialog
 at the bottom of the Configuration panel. Note, changing this setting may
 require a database instance reboot.
 
-## Create Service Account for Database
+## Create Service account for database
 
 Teleport uses service accounts to connect to Cloud SQL databases.
 
@@ -37,7 +39,7 @@ page and create a new service account:
 Press "Create".
 
 On the second step grant this service account the "Cloud SQL Instance User" role
-which will allow it to connect to Cloud SQL instances using IAM token for
+which will allow it to connect to Cloud SQL instances using IAM tokens for
 authentication:
 
 ![Grant Cloud SQL Instance User to Service Account](../../../img/database-access/guides/cloudsql/service-account-db-grant@2x.png)
@@ -50,7 +52,7 @@ service account you've just created:
 
 ![Add Cloud SQL User Account](../../../img/database-access/guides/cloudsql/add-user-account@2x.png)
 
-Press "Add" and your Users table should look similar to this:
+Press "Add" and your "Users" table should look similar to this:
 
 ![Cloud SQL User Accounts Table](../../../img/database-access/guides/cloudsql/user-accounts@2x.png)
 
@@ -84,7 +86,7 @@ Make sure to choose JSON format:
 Save the file, your Teleport Database Service will need it to be able to generate
 IAM auth tokens.
 
-## Gather Cloud SQL Instance Information
+## Gather Cloud SQL instance information
 
 To connect a Cloud SQL database to Teleport, you'll need to gather a few pieces
 of information about the instance.
@@ -103,7 +105,7 @@ Overview page:
 - Cloud SQL instance endpoint.
 
 You will use the instance's public IP address to connect to it. It can be viewed
-on the "Connect to this instance" panel on the Overview page:
+in the "Connect to this instance" panel on the "Overview" page:
 
 ![Instance Public IP](../../../img/database-access/guides/cloudsql/instance-public-ip@2x.png)
 
@@ -117,7 +119,7 @@ file from the Connections tab under Security section:
 
 ## Setup Teleport Auth and Proxy Services
 
-Cloud SQL support for Teleport Database Access is available starting from
+Cloud SQL support for Teleport Database Access is available starting from the
 `6.1` release. Download the appropriate version of Teleport for your platform from
 our [downloads page](https://goteleport.com/teleport/download).
 
@@ -127,10 +129,12 @@ using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol.
 We will assume that you have configured DNS records for `teleport.example.com`
 and `*.teleport.example.com` to point to the Teleport node.
 
+(!docs/pages/includes/permission-warning.mdx!)
+
 Let's generate a Teleport config with ACME enabled:
 
-```shell
-$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
+```bash
+sudo teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
 ```
 
 <Admonition
@@ -145,27 +149,27 @@ $ teleport configure --cluster-name=teleport.example.com --acme --acme-email=ali
 
 Start the service:
 
-```sh
-$ sudo teleport start
+```bash
+sudo teleport start
 ```
 
 Generate a short-lived join token for the database service and save it for
 example in `/tmp/token`:
 
-```sh
-$ tctl tokens add \
+```bash
+tctl tokens add \
     --type=db \
     --db-name=test \
     --db-protocol=postgres \
     --db-uri=35.1.2.3:5432
 ```
 
-### Create User
+### Create a user
 
 Create local Teleport user with the built-in `access` role:
 
-```sh
-$ tctl users add --roles=access alice
+```bash
+tctl users add --roles=access alice
 ```
 
 The `access` role allows users to see all connected database servers, but
@@ -177,8 +181,8 @@ service account.
 
 First, export the user resource:
 
-```sh
-$ tctl get users/alice > alice.yaml
+```bash
+tctl get users/alice > alice.yaml
 ```
 
 Update the resource to include the following traits:
@@ -196,8 +200,8 @@ traits:
 
 Update the user:
 
-```sh
-$ tctl create alice.yaml -f
+```bash
+tctl create alice.yaml -f
 ```
 
 For more detailed information about database access controls see [RBAC](../rbac.mdx)
@@ -260,11 +264,11 @@ proxy_service:
 
 Start the database service:
 
-```sh
-$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
+```bash
+teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ```
 
-### GCP Credentials
+### GCP credentials
 
 Teleport Database Service must have credentials of `teleport-db-service` GCP
 service account we created [above](#create-service-account-for-teleport-database-service)
@@ -282,13 +286,16 @@ in Google Cloud documentation for more details.
 Once the database service has joined the cluster, login to see the available
 databases:
 
-```sh
-$ tsh login --proxy=teleport.example.com:3080 --user=alice
-$ tsh db ls
+```bash
+tsh login --proxy=teleport.example.com:3080 --user=alice
+tsh db ls
+
+# Output
 Name     Description              Labels
 -------- ------------------------ --------
 cloudsql GCP Cloud SQL PostgreSQL env=dev
 ```
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Note that you will only be able to see databases your role has access to. See
 [RBAC](../rbac.mdx) section for more details.
@@ -296,8 +303,8 @@ Note that you will only be able to see databases your role has access to. See
 To connect to a particular database server, first retrieve credentials from
 Teleport using `tsh db login` command:
 
-```sh
-$ tsh db login cloudsql
+```bash
+tsh db login cloudsql
 ```
 
 <Admonition
@@ -310,8 +317,8 @@ $ tsh db login cloudsql
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
-```sh
-$ tsh db login --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
+```bash
+tsh db login --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
 ```
 
 <Admonition
@@ -328,21 +335,21 @@ When logging into a PostgreSQL database, `tsh` automatically configures a sectio
 in the [connection service file](https://www.postgresql.org/docs/current/libpq-pgservice.html)
 with the name of `<cluster-name>-<database-service-name>`.
 
-Suppose the cluster name is "teleport.example.com", then you can connect to the
+Suppose the cluster name is `teleport.example.com`, then you can connect to the
 database using the following `psql` command:
 
-```sh
+```bash
 # Use default database user and database name.
-$ psql "service=teleport.example.com-cloudsql"
+psql "service=teleport.example.com-cloudsql"
 # Specify database user and database name explicitly.
-$ psql "service=teleport.example.com-cloudsql user=teleport@<project-id>.iam dbname=postgres"
+psql "service=teleport.example.com-cloudsql user=teleport@<project-id>.iam dbname=postgres"
 ```
 
 To log out of the database and remove credentials:
 
-```sh
+```bash
 # Remove credentials for a particular database instance.
-$ tsh db logout cloudsql
+tsh db logout cloudsql
 # Remove credentials for all database instances.
-$ tsh db logout
+tsh db logout
 ```

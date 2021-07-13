@@ -1,12 +1,11 @@
 ---
 title: SSH Authentication with Active Directory (AD) on Azure
-description: How to configure SSH access with Active Directory (AD) on Azure using Teleport
+description: How to configure SSH access with Active Directory (AD) on Azure using Teleport.
 h1: SSH Authentication with Azure Active Directory (AD)
 ---
 
 This guide will cover how to configure [Microsoft Azure Active Directory](https://azure.microsoft.com/en-us/services/active-directory/) to issue
-SSH credentials to specific groups of users with a SAML Authentication Connector. When used in combination with role
-based access control (RBAC) it allows SSH administrators to define policies
+SSH credentials to specific groups of users with a SAML Authentication Connector. When used in combination with Role-Based Access Control (RBAC) it allows SSH administrators to define policies
 like:
 
 - Only members of "DBA" Azure AD group can SSH into machines running PostgreSQL.
@@ -66,9 +65,9 @@ Before you get started you’ll need:
 
    ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-8-entityandreplyurl.png)
 
-9. Edit User Attributes & Claims
+9. Edit User Attributes and Claims
 
-   - Edit the Claim Name.  Change the name identifier format to Default. Make sure the source attribute is user.userprincipalname.
+   - Edit the Claim Name.  Change the name identifier format to `Default`. Make sure the source attribute is `user.userprincipalname`.
 
      ![Confirm Name Identifier](../../../img/azuread/azuread-9a-nameidentifier.png)
 
@@ -88,10 +87,12 @@ Before you get started you’ll need:
   type="warning"
   title="Important"
 >
-  This is a important document.  Treat the Federation Metadata XML file as you would a password.
+  This is an important document.  Treat the Federation Metadata XML file as you would a password.
 </Admonition>
 
-## Create a SAML Connector
+(!docs/pages/includes/permission-warning.mdx!)
+
+## Create a SAML connector
 
 Now, create a SAML connector [resource](../../admin-guide.mdx#resources).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the entity_descriptor resource.
 Write down this template as `azure-connector.yaml`:
@@ -117,7 +118,7 @@ spec:
 Create the connector using `tctl` tool:
 
 ```bash
-$ tctl create azure-connector.yaml
+tctl create azure-connector.yaml
 ```
 
 <Admonition
@@ -129,18 +130,18 @@ $ tctl create azure-connector.yaml
 
   ![Sample Connector Transform](../../../img/azuread/azuread-12-sampleconnector.png)
 
-  Alternatively, you can generate your own keypair when creating a connector using `openssl`:
+  Alternatively, you can generate your key-pair when creating a connector using `openssl`:
 
   ```bash
-  $ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
+  openssl req  -nodes -new -x509  -keyout server.key -out server.cer
   ```
 </Admonition>
 
-## Create Teleport Roles
+## Create Teleport roles
 
-We are going to create 2 roles:
+We are going to create two roles:
 
-- Privileged role `admin` who is able to login as root and is capable of administrating
+- Privileged role `admin` who can log in as root and is capable of administrating
   the cluster
 - Non-privileged role `dev`
 
@@ -161,7 +162,7 @@ spec:
         verbs: ["*"]
 ```
 
-Devs are only allowed to login to nodes labeled with `access: relaxed`
+Devs are only allowed to log in to nodes labeled with the `access: relaxed`
 Teleport label. Developers can log in as either `ubuntu` or a username that
 arrives in their assertions. Developers also do not have any rules needed to
 obtain admin access to Teleport.
@@ -183,8 +184,8 @@ spec:
 **Notice:** Replace `ubuntu` with linux login available on your servers!
 
 ```bash
-$ tctl create admin.yaml
-$ tctl create dev.yaml
+tctl create admin.yaml
+tctl create dev.yaml
 ```
 
 ## Testing
@@ -203,7 +204,7 @@ The Web UI will now contain a new button: "Login with Microsoft". The CLI is
 the same as before:
 
 ```bash
-$ tsh --proxy=proxy.example.com login
+tsh --proxy=proxy.example.com login
 ```
 
 This command will print the SSO login URL (and will try to open it
@@ -217,7 +218,7 @@ automatically in a browser).
   can be passed via `tsh login --auth=connector_name`
 </Admonition>
 
-## Token Encryption
+## Token encryption
 
 AzureAD's SAML token encryption encrypts the SAML assertions sent to Teleport during SSO redirect.
 
@@ -225,23 +226,22 @@ AzureAD's SAML token encryption encrypts the SAML assertions sent to Teleport du
   type="tip"
   title="Tip"
 >
-  This is Azure Active Directory Premium feature and requires a separate license.
+  This is the Azure Active Directory Premium feature and requires a separate license.
   You can read more about it [here](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption)
 </Admonition>
 
-### Setup Teleport Token Encryption
+### Setup Teleport token encryption
 
-Start with generating a public/private key and a certificate. You will setup the public
-certificate with AzureAD and the private key with Teleport.
+Start with generating a public/private key and a certificate. You will configure Azure Active Directory with the public certificate and configure Teleport with the private key.
 
 ```bash
-$ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
+openssl req  -nodes -new -x509  -keyout server.key -out server.cer
 ```
 
 If you are modifying the existing connector, first, save it to YAML:
 
 ```bash
-$ tctl get saml --with-secrets > azure-out.yaml
+tctl get saml --with-secrets > azure-out.yaml
 ```
 
 You will spot that Teleport has generated a `signing_key_pair`. This key pair
@@ -373,12 +373,12 @@ version: v2
 Update the connector:
 
 ```bash
-$ tctl create -f azure-out.yaml 
+tctl create -f azure-out.yaml 
 ```
 
 ### Activate token encryption
 
-- Navigate to Token Encryption section
+- Navigate to the "Token Encryption" section
 
 ![Navigate to token encryption](../../../img/azuread/azuread-token-encryption-0.png)
 
@@ -400,7 +400,7 @@ If you get "access denied" errors the number one place to check is the audit
 log on the Teleport auth server. It is located in `/var/lib/teleport/log` by
 default and it will contain the detailed reason why a user's login was denied.
 
-Example of a user being denied due as the role `clusteradmin` wasn't setup.
+Example of a user being denied due as the role `clusteradmin` wasn't set up.
 
 ```json
 {"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"saml","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
@@ -410,7 +410,7 @@ Some errors (like file-system permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```bash
-$ sudo journalctl -fu teleport
+journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass the
