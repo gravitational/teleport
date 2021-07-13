@@ -44,7 +44,6 @@ func ParseAddr(addr string) (string, error) {
 	case "unix":
 		return u.Path, nil
 	case "http", "https":
-		fmt.Println(u.Host)
 		return u.Host, nil
 	default:
 		return "", trace.BadParameter("'%v': unsupported scheme: '%v'", addr, u.Scheme)
@@ -52,7 +51,8 @@ func ParseAddr(addr string) (string, error) {
 }
 
 // ParseHost strings like "tcp://host:port/path" and returns "host".
-func ParseHost(addr string) (string, error) {
+func ParseHost(addr string) (ra string, err error) {
+	defer fmt.Printf("\naddr: %v, return: %v, err: %v\n\n", addr, ra, err)
 	parsed, err := ParseAddr(addr)
 	if err != nil {
 		return "", trace.Wrap(err)
