@@ -1365,7 +1365,7 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 }
 
 // SearchEvents allows searching for events with a full pagination support.
-func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetEventsRequest{
 		Namespace:  namespace,
 		StartDate:  fromUTC,
@@ -1373,6 +1373,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 		EventTypes: eventTypes,
 		Limit:      int32(limit),
 		StartKey:   startKey,
+		Order:      proto.Order(order),
 	}
 
 	response, err := c.grpc.GetEvents(ctx, request, c.callOpts...)
@@ -1393,12 +1394,13 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
-func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetSessionEventsRequest{
 		StartDate: fromUTC,
 		EndDate:   toUTC,
 		Limit:     int32(limit),
 		StartKey:  startKey,
+		Order:     proto.Order(order),
 	}
 
 	response, err := c.grpc.GetSessionEvents(ctx, request, c.callOpts...)
@@ -1517,17 +1519,67 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
-// SetClusterAuditConfig sets cluster audit configuration.
+// SetClusterAuditConfig not implemented: can only be called locally.
 func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
-	auditConfigV2, ok := auditConfig.(*types.ClusterAuditConfigV2)
-	if !ok {
-		return trace.BadParameter("invalid type %T", auditConfig)
-	}
-	_, err := c.grpc.SetClusterAuditConfig(ctx, auditConfigV2, c.callOpts...)
-	return trail.FromGRPC(err)
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteClusterAuditConfig not implemented: can only be called locally.
 func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetLock gets a lock by name.
+func (c *Client) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing lock name")
+	}
+	resp, err := c.grpc.GetLock(ctx, &proto.GetLockRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetLocks gets all locks, matching at least one of the targets when specified.
+func (c *Client) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+	targetPtrs := make([]*types.LockTarget, len(targets))
+	for i := range targets {
+		targetPtrs[i] = &targets[i]
+	}
+	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
+		Targets: targetPtrs,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	locks := make([]types.Lock, 0, len(resp.Locks))
+	for _, lock := range resp.Locks {
+		locks = append(locks, lock)
+	}
+	return locks, nil
+}
+
+// UpsertLock upserts a lock.
+func (c *Client) UpsertLock(ctx context.Context, lock types.Lock) error {
+	lockV2, ok := lock.(*types.LockV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", lock)
+	}
+	_, err := c.grpc.UpsertLock(ctx, lockV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteLock deletes a lock.
+func (c *Client) DeleteLock(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing lock name")
+	}
+	_, err := c.grpc.DeleteLock(ctx, &proto.DeleteLockRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllLocks not implemented: can only be called locally.
+func (c *Client) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }

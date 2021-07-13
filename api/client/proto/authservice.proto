@@ -87,6 +87,8 @@ message Event {
         // ClusterAuditConfig is a resource for cluster audit configuration.
         types.ClusterAuditConfigV2 ClusterAuditConfig = 23
             [ (gogoproto.jsontag) = "cluster_audit_config,omitempty" ];
+        // Lock is a lock resource.
+        types.LockV2 Lock = 24 [ (gogoproto.jsontag) = "lock,omitempty" ];
     }
 }
 
@@ -824,6 +826,13 @@ message SingleUseUserCert {
     }
 }
 
+// Order specifies any ordering of some objects as returned in regards to some aspect
+// of said objects which may be trivially ordered such as a timestamp.
+enum Order {
+    DESCENDING = 0;
+    ASCENDING = 1;
+}
+
 message GetEventsRequest {
     // Namespace, if not set, defaults to 'default'
     string Namespace = 1;
@@ -841,6 +850,9 @@ message GetEventsRequest {
     // If the previous response had LastKey set then this should be
     // set to its value. Otherwise leave empty.
     string StartKey = 6;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 7;
 }
 
 message GetSessionEventsRequest {
@@ -856,6 +868,9 @@ message GetSessionEventsRequest {
     // If the previous response had LastKey set then this should be
     // set to its value. Otherwise leave empty.
     string StartKey = 4;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 5;
 }
 
 message Events {
@@ -883,6 +898,27 @@ message ListNodesResponse {
     // NextKey is the next Key to use as StartKey in a ListNodesRequest to continue
     // retrieving pages of nodes. If NextKey is empty, there are no more pages.
     string NextKey = 2;
+}
+
+message GetLocksRequest {
+    // Targets is a list of targets. Every returned lock must match at least
+    // one of the targets.
+    repeated types.LockTarget Targets = 1;
+}
+
+message GetLocksResponse {
+    // Locks is a list of locks.
+    repeated types.LockV2 Locks = 1;
+}
+
+message GetLockRequest {
+    // Name is the name of the lock to get.
+    string Name = 1;
+}
+
+message DeleteLockRequest {
+    // Name is the name of the lock to delete.
+    string Name = 1;
 }
 
 // AuthService is authentication/authorization service implementation
@@ -1125,8 +1161,6 @@ service AuthService {
 
     // GetClusterAuditConfig gets cluster audit configuration.
     rpc GetClusterAuditConfig(google.protobuf.Empty) returns (types.ClusterAuditConfigV2);
-    // SetClusterAuditConfig sets cluster audit configuration.
-    rpc SetClusterAuditConfig(types.ClusterAuditConfigV2) returns (google.protobuf.Empty);
 
     // GetClusterNetworkingConfig gets cluster networking configuration.
     rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
@@ -1153,4 +1187,13 @@ service AuthService {
     rpc GetEvents(GetEventsRequest) returns (Events);
     // In-session request for audit events.
     rpc GetSessionEvents(GetSessionEventsRequest) returns (Events);
+
+    // GetLock gets a lock by name.
+    rpc GetLock(GetLockRequest) returns (types.LockV2);
+    // GetLocks gets all locks, matching at least one of the targets when specified.
+    rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
+    // UpsertLock upserts a lock.
+    rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
+    // DeleteLock deletes a lock.
+    rpc DeleteLock(DeleteLockRequest) returns (google.protobuf.Empty);
 }
