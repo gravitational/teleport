@@ -128,6 +128,10 @@ func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, orde
 	return events, lastKey, trace.Wrap(err)
 }
 
+func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	return l.Inner.StreamSessionEvents(ctx, sessionID, startIndex)
+}
+
 func (l *AuditLog) WaitForDelivery(ctx context.Context) error {
 	return trace.Wrap(l.Inner.WaitForDelivery(ctx))
 }
