@@ -21,6 +21,7 @@ package sshutils
 import (
 	"crypto/subtle"
 	"fmt"
+	"io"
 	"net"
 	"runtime"
 
@@ -177,9 +178,11 @@ func HostKeyCallback(caCerts [][]byte) (ssh.HostKeyCallback, error) {
 		var err error
 		for err == nil {
 			var publicKey ssh.PublicKey
-			if _, _, publicKey, _, caCert, err = ssh.ParseKnownHosts(caCert); err == nil {
-				trustedKeys = append(trustedKeys, publicKey)
+			_, _, publicKey, _, caCert, err = ssh.ParseKnownHosts(caCert)
+			if err != nil && err != io.EOF {
+				return nil, trace.Wrap(err, "failed parsing CA cert: %v; raw CA cert line: %q", err, caCert)
 			}
+			trustedKeys = append(trustedKeys, publicKey)
 		}
 	}
 
