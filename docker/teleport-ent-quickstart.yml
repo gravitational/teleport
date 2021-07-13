@@ -3,7 +3,7 @@ services:
   # The configure container starts, generates a config, writes it to
   # /etc/teleport/teleport.yaml and then immediately exits.
   configure:
-    image: quay.io/gravitational/teleport-ent:6.2.7
+    image: quay.io/gravitational/teleport-ent:6
     container_name: teleport-configure
     entrypoint: /bin/sh
     hostname: localhost
