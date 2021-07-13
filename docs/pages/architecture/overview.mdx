@@ -24,7 +24,7 @@ Teleport was designed under the following principles:
 - **Off the Shelf Security**: Teleport does not re-implement any security primitives and uses well-established, popular implementations of the encryption and network protocols.
 - **Open Standards**: There is no security through obscurity. Teleport is fully
   compatible with existing and open standards and other software, including
-  [OpenSSH](../admin-guide.mdx#using-teleport-with-openssh).
+  [OpenSSH](../server-access/guides/openssh-client.mdx).
 - **Cluster-Oriented Design**: Teleport is built for managing clusters, not individual servers. In practice this means that hosts and [Users](../user-manual.mdx)
   have cluster memberships. Identity management and authorization happen on a
   cluster level.
@@ -58,7 +58,7 @@ SSH. The Teleport Node service runs on a machine and is similar to the `sshd`
 daemon you may be familiar with. Users can log in to a Teleport Node with all
 of the following clients:
 
-- [OpenSSH: `ssh`](../admin-guide.mdx#using-teleport-with-openssh) (works on Linux, macOS and Windows)
+- [OpenSSH: `ssh`](../server-access/guides/openssh-client.mdx) (works on Linux, macOS and Windows)
 - [Teleport CLI client: `tsh ssh`](../cli-docs.mdx#tsh-ssh) (works on Linux and macOS)
 - [Teleport Proxy UI](proxy.mdx#web-to-ssh-proxy) accessed via any modern web browser (including Safari on iOS and Chrome on Android)
 

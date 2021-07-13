@@ -144,45 +144,6 @@ a browser of your choice to continue the login flow.
 
 [CLI Docs - tsh login](cli-docs.mdx#tsh-login)
 
-### Inspecting SSH certificate
-
-To inspect the SSH certificates in `~/.tsh`, a user may execute the following
-command:
-
-```bash
-tsh status
-
-# Output
-> Profile URL:  https://proxy.example.com:3080
-  Logged in as: johndoe
-  Cluster:      proxy.example.com
-  Roles:        admin*
-  Logins:       root, admin, guest
-  Kubernetes:   disabled
-  Valid until:  2017-04-25 15:02:30 -0700 PDT [valid for 1h0m0s]
-  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
-```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
-
-[CLI Docs - tsh status](cli-docs.mdx#tsh-status)
-
-### SSH agent support
-
-If there is an [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) running,
-`tsh login` will store the user certificate in the agent. This can be verified
-via:
-
-```bash
-ssh-add -L
-```
-
-SSH agent can be used to feed the certificate to other SSH clients, for example
-to OpenSSH `ssh`.
-
-If you wish to disable SSH agent integration, pass `--no-use-local-ssh-agent`
-to `tsh`. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment
-variable to `false` in your shell profile to make this permanent.
-
 ### Identity files
 
 [`tsh login`](cli-docs.mdx#tsh-login) can also save the user certificate into a
@@ -456,10 +417,10 @@ tsh join <session_ID>
 ## Connecting to SSH clusters behind firewalls
 
 Teleport supports creating clusters of servers located behind firewalls
-**without any open listening TCP ports**.  This works by creating reverse SSH
-tunnels from behind-firewall environments into a Teleport proxy you have access to.
+**without any open listening TCP ports**. This works by creating reverse SSH
+tunnels from behind-firewall environments into a public Teleport Proxy you have access to.
 
-These features are called [*Trusted Clusters*](https://gravitational.com/teleport/docs/trustedclusters/). Refer to
+These features are called [Trusted Clusters*](https://gravitational.com/teleport/docs/trustedclusters/). Refer to
 [the admin manual](admin-guide.mdx#trusted-clusters) to learn how a trusted cluster can be configured.
 
 Assuming the `work` Teleport proxy server is configured with a few trusted

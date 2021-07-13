@@ -16,7 +16,7 @@ implemented a generic authentication framework for Solaris. Since then most GNU/
 distributions have adopted PAM.
 
 ```bash
-$ man pam
+man pam
 ```
 
 The Pluggable Authentication Modules (PAM) library abstracts several common
@@ -162,7 +162,7 @@ When PAM is enabled it will use the default `sshd` config file. This can differ 
 distro.
 
 ```bash
-$ cat /etc/pam.d/sshd
+cat /etc/pam.d/sshd
 # PAM configuration for the Secure Shell service
 
 # Standard Un*x authentication.
@@ -231,7 +231,7 @@ session    optional     pam_motd.so noupdate
 Below, we show the default admin MOTD.
 
 ```bash
-$ cat /etc/motd
+cat /etc/motd
 
 The programs included with the Debian GNU/Linux system are free software;
 the exact distribution terms for each program are described in the
@@ -245,7 +245,7 @@ I've updated this to provide a message to users of Teleport, so they know they a
 being audited.
 
 ```bash
-$ cat /etc/motd
+cat /etc/motd
 WARNING: All activity on this node is being recorded by Teleport
 ```
 

@@ -1,0 +1,43 @@
+## OpenSSH hardening
+
+This section describes general ways to secure your OpenSSH client and server connections. 
+
+To get started we encourage creating a user-specific to this task (modifying configuration settings but not say connecting through SSH or teleport):
+
+```bash
+# Create a user with /dev/null shell
+sudo useradd -r ssh-config -s /dev/null
+
+# Confirm the user
+less /etc/passwd
+```
+```bash
+# /etc/passwd
+root:x:0:0:root:/root:/bin/bash
+# ...
+ssh-config:x:997:997::/home/ssh-config:/dev/null
+```
+
+OpenSSH `sshd` server configuration settings are located in `/etc/ssh/sshd_config`:
+
+```bash
+# Open and modify the sshd_config file
+sudo nano /etc/ssh/sshd_config
+```
+
+The following settings are commonly modified:
+
+```yaml
+# Limit max retries
+MaxAuthTries 3
+
+# Disable password authentication
+PasswordAuthentication no
+
+# Disable root access for openssh
+PermitRootLogin no
+```
+
+- Enabling `MaxAuthTries`is a best practice since it limits the number of attempts someone can make reducing the likelihood that an unwanted actor might gain access.
+- Disabling `PasswordAuthentication` removes password authentication for all users requiring the use of individualized SSH certificates or keys to connect.
+- It's also considered a best practice to restrict both *root* and `sudo` access. Create additional Linux users with `sudo` privileges so that there's a clear separation of concerns. 
