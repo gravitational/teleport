@@ -348,6 +348,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	g.NodeName = conf.Hostname
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
+	g.Logger.Format.Output = "text"
 	g.DataDir = defaults.DataDir
 
 	// SSH config:
@@ -454,15 +455,63 @@ type ConnectionLimits struct {
 	Rates          []ConnectionRate `yaml:"rates,omitempty"`
 }
 
+// LegacyLog contains the old format of the 'format' field
+// It is kept here for backwards compatibility and should always be maintained
+// The custom yaml unmarshaler should automatically convert it into the new
+// expected format.
+type LegacyLog struct {
+	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
+	// a path to a log file
+	Output string `yaml:"output,omitempty"`
+	// Severity defines how verbose the log will be. Possible values are "error", "info", "warn"
+	Severity string `yaml:"severity,omitempty"`
+	// Format lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
+	Format []string `yaml:"format,omitempty"`
+}
+
 // Log configures teleport logging
 type Log struct {
 	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
 	// a path to a log file
 	Output string `yaml:"output,omitempty"`
-	// Severity defines how verbose the log will be. Possible valus are "error", "info", "warn"
+	// Severity defines how verbose the log will be. Possible values are "error", "info", "warn"
 	Severity string `yaml:"severity,omitempty"`
-	// Format lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
-	Format []string `yaml:"format,omitempty"`
+	// Format defines the logs output format and extra fields
+	Format LogFormat `yaml:"format,omitempty"`
+}
+
+// LogFormat specifies the logs output format and extra fields
+type LogFormat struct {
+	// Output defines the output format. Possible values are 'text' and 'json'.
+	Output string `yaml:"output,omitempty"`
+	// ExtraFields lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
+	ExtraFields []string `yaml:"extra_fields,omitempty"`
+}
+
+func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// the next two lines are needed because of an infinite loop issue
+	// https://github.com/go-yaml/yaml/issues/107
+	type logYAML Log
+	log := (*logYAML)(l)
+	if err := unmarshal(log); err != nil {
+		if _, ok := err.(*yaml.TypeError); !ok {
+			return err
+		}
+
+		var legacyLog LegacyLog
+		if lerr := unmarshal(&legacyLog); lerr != nil {
+			// return the original unmarshal error
+			return err
+		}
+
+		l.Output = legacyLog.Output
+		l.Severity = legacyLog.Severity
+		l.Format.Output = "text"
+		l.Format.ExtraFields = legacyLog.Format
+		return nil
+	}
+
+	return nil
 }
 
 // Global is 'teleport' (global) section of the config file

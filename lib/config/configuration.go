@@ -395,6 +395,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		}
 		logger.SetOutput(logFile)
 	}
+
 	switch strings.ToLower(loggerConfig.Severity) {
 	case "":
 		break // not set
@@ -410,15 +411,34 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
-	formatter := &textFormatter{
-		LogFormat:    loggerConfig.Format,
-		EnableColors: trace.IsTerminal(os.Stderr),
+	switch strings.ToLower(loggerConfig.Format.Output) {
+	case "":
+		fallthrough // not set. defaults to 'text'
+	case "text":
+		formatter := &textFormatter{
+			ExtraFields:  loggerConfig.Format.ExtraFields,
+			EnableColors: trace.IsTerminal(os.Stderr),
+		}
+
+		if err := formatter.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		logger.SetFormatter(formatter)
+	case "json":
+		formatter := &jsonFormatter{
+			extraFields: loggerConfig.Format.ExtraFields,
+		}
+
+		if err := formatter.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		logger.SetFormatter(formatter)
+	default:
+		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
-	err := formatter.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	logger.Formatter = formatter
+
 	return nil
 }
 
@@ -730,7 +750,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Proxy.ACME = *acme
 
 	return nil
-
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.

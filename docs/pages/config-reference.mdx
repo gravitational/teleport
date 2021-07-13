@@ -58,11 +58,18 @@ teleport:
 
     # Logging configuration. Possible output values to disk via '/var/lib/teleport/teleport.log',
     # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN
-    # and ERROR (default). Possible format values include: timestamp, component, caller, and level.
+    # and ERROR (default).
     log:
         output: /var/lib/teleport/teleport.log
         severity: ERROR
-        format: [level, timestamp, component, caller]
+
+        # Log format configuration
+        # Possible output values are 'json' and 'text' (default).
+        # Possible extra_fields values include: timestamp, component, caller, and level.
+        # All extra fields are included by default.
+        format:
+          output: text
+          extra_fields: [level, timestamp, component, caller]
 
     # Configuration for the storage back-end used for the cluster state and the
     # audit log. Several back-end types are supported. See the "High Availability"
@@ -310,7 +317,7 @@ ssh_service:
       command: ['/bin/uname', '-p']
       period: 1h0m0s
 
-    # Enables reading ~/.tsh/environment before creating a session. 
+    # Enables reading ~/.tsh/environment before creating a session.
     # By default it's set to false can be set true here or through the command-line flag.
     permit_user_env: false
 
