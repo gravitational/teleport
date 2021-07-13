@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"sort"
 	"strings"
 
 	"github.com/gravitational/teleport"
@@ -75,12 +76,17 @@ const (
 	roleDeniesNodeLabel = "role_denies_node_label"
 	nodeHasLabel        = "node_has_label"
 
-	accesses   = "accesses"
-	allowRoles = "allow_roles"
-	denyRoles  = "deny_roles"
+	accesses     = "accesses"
+	denyAccesses = "deny_accesses"
+	denyLogins   = "deny_logins"
 
-	denyNullString   = "No denied accesses.\n"
-	accessNullString = "No accesses.\n"
+	denyNullString   = "No denied accesses found.\n"
+	accessNullString = "No accesses found.\n"
+
+	userIndex  = 0
+	loginIndex = 1
+	nodeIndex  = 2
+	roleIndex  = 3
 )
 
 // QueryAccess returns a list of accesses to Teleport.
@@ -132,17 +138,31 @@ func (c *NodeAccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	for k := range resp.Accesses {
-		resp.Accesses[k] = filterByLogin(resp.Accesses[k], resp.reverseMappings, c.Login)
-	}
+	resp.Accesses = cleanOutput(resp.Accesses, resp.reverseMappings)
+	resp.Accesses = filterByLogin(resp.Accesses, resp.reverseMappings, c.Login)
 	return &resp, nil
 }
 
-func hash(s string) uint32 {
-	h := fnv.New32a()
-	h.Write([]byte(s))
-	return h.Sum32()
+func (r *AccessResponse) addPredicate(key string, atoms ...interface{}) {
+	var mappedAtoms []uint32
+	for _, atom := range atoms {
+		id, ok := atom.(int)
+		if ok {
+			mappedAtoms = append(mappedAtoms, uint32(id))
+			continue
+		}
+		val, ok := atom.(string)
+		if !ok {
+			// Invalid type, we can just skip this predicate.
+			return
+		}
+		loginNum := r.mappings[val]
+		if val == teleport.TraitInternalLoginsVariable {
+			loginNum = loginTraitHash
+		}
+		mappedAtoms = append(mappedAtoms, loginNum)
+	}
+	r.facts[key] = append(r.facts[key], Predicate{mappedAtoms})
 }
 
 func (r *AccessResponse) addToMap(value string) {
@@ -170,9 +190,6 @@ func (r *AccessResponse) createUserMapping(user types.User) {
 func (r *AccessResponse) createRoleMapping(role types.Role) {
 	r.addToMap(role.GetName())
 	for _, login := range append(role.GetLogins(types.Allow), role.GetLogins(types.Deny)...) {
-		if login == teleport.TraitInternalLoginsVariable {
-			continue
-		}
 		r.addToMap(login)
 	}
 	for key, values := range role.GetNodeLabels(types.Allow) {
@@ -200,47 +217,29 @@ func (r *AccessResponse) createNodeMapping(node types.Server) {
 func (r *AccessResponse) createUserPredicates(user types.User, login string) {
 	r.createUserMapping(user)
 	for _, role := range user.GetRoles() {
-		r.facts[hasRole] = append(r.facts[hasRole], Predicate{
-			[]uint32{r.mappings[user.GetName()], r.mappings[role]},
-		})
+		r.addPredicate(hasRole, user.GetName(), role)
 	}
 	for _, trait := range user.GetTraits()[teleport.TraitLogins] {
-		r.facts[hasTrait] = append(r.facts[hasTrait], Predicate{
-			[]uint32{r.mappings[user.GetName()], loginTraitHash, r.mappings[trait]},
-		})
+		r.addPredicate(hasTrait, user.GetName(), loginTraitHash, trait)
 	}
 }
 
 func (r *AccessResponse) createRolePredicates(role types.Role) {
 	r.createRoleMapping(role)
 	for _, login := range role.GetLogins(types.Allow) {
-		if _, exists := r.mappings[login]; !exists {
-			continue
-		}
-		r.facts[roleAllowsLogin] = append(r.facts[roleAllowsLogin], Predicate{
-			[]uint32{r.mappings[role.GetName()], r.mappings[login]},
-		})
+		r.addPredicate(roleAllowsLogin, role.GetName(), login)
 	}
 	for _, login := range role.GetLogins(types.Deny) {
-		if _, exists := r.mappings[login]; !exists {
-			continue
-		}
-		r.facts[roleDeniesLogin] = append(r.facts[roleDeniesLogin], Predicate{
-			[]uint32{r.mappings[role.GetName()], r.mappings[login]},
-		})
+		r.addPredicate(roleDeniesLogin, role.GetName(), login)
 	}
 	for key, values := range role.GetNodeLabels(types.Allow) {
 		for _, value := range values {
-			r.facts[roleAllowsNodeLabel] = append(r.facts[roleAllowsNodeLabel], Predicate{
-				[]uint32{r.mappings[role.GetName()], r.mappings[key], r.mappings[value]},
-			})
+			r.addPredicate(roleAllowsNodeLabel, role.GetName(), key, value)
 		}
 	}
 	for key, values := range role.GetNodeLabels(types.Deny) {
 		for _, value := range values {
-			r.facts[roleDeniesNodeLabel] = append(r.facts[roleDeniesNodeLabel], Predicate{
-				[]uint32{r.mappings[role.GetName()], r.mappings[key], r.mappings[value]},
-			})
+			r.addPredicate(roleDeniesNodeLabel, role.GetName(), key, value)
 		}
 	}
 }
@@ -248,44 +247,19 @@ func (r *AccessResponse) createRolePredicates(role types.Role) {
 func (r *AccessResponse) createNodePredicates(node types.Server) {
 	r.createNodeMapping(node)
 	for key, value := range node.GetAllLabels() {
-		r.facts[nodeHasLabel] = append(r.facts[nodeHasLabel], Predicate{
-			[]uint32{r.mappings[node.GetHostname()], r.mappings[key], r.mappings[value]},
-		})
+		r.addPredicate(nodeHasLabel, node.GetHostname(), key, value)
 	}
-	r.facts[nodeHasLabel] = append(r.facts[nodeHasLabel], Predicate{
-		[]uint32{r.mappings[node.GetHostname()], r.mappings[types.Wildcard], r.mappings[types.Wildcard]},
-	})
+	r.addPredicate(nodeHasLabel, node.GetHostname(), types.Wildcard, types.Wildcard)
 }
 
-func filterByLogin(accesses []Predicate, mappings map[uint32]string, login string) []Predicate {
-	if login == "" {
-		return accesses
-	}
-	ret := make([]Predicate, 0)
-	for _, pred := range accesses {
-		if mappings[pred.Atoms[1]] != login {
-			continue
+func (r *AccessResponse) generateAtomStrings(key string) [][]string {
+	var ret [][]string
+	for _, pred := range r.Accesses[key] {
+		var atoms []string
+		for _, atom := range pred.Atoms {
+			atoms = append(atoms, r.reverseMappings[atom])
 		}
-		ret = append(ret, pred)
-	}
-	return ret
-}
-
-func createUserLoginKey(atoms []uint32, reverseMappings map[uint32]string) string {
-	return reverseMappings[atoms[0]] + keyJoin + reverseMappings[atoms[1]]
-}
-
-func generateTableString(condition bool, table asciitable.Table, nullString string) string {
-	if condition {
-		return table.AsBuffer().String()
-	}
-	return nullString
-}
-
-func generateAtomStrings(atoms []uint32, reverseMappings map[uint32]string) []string {
-	var ret []string
-	for _, atom := range atoms {
-		ret = append(ret, reverseMappings[atom])
+		ret = append(ret, atoms)
 	}
 	return ret
 }
@@ -294,22 +268,113 @@ func generateAtomStrings(atoms []uint32, reverseMappings map[uint32]string) []st
 func (r *AccessResponse) BuildStringOutput() string {
 	accessTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
 	allowingRoles := make(map[string][]string)
-	for _, pred := range r.Accesses[allowRoles] {
-		allowingRoles[createUserLoginKey(pred.Atoms, r.reverseMappings)] = append(
-			allowingRoles[createUserLoginKey(pred.Atoms, r.reverseMappings)],
-			r.reverseMappings[pred.Atoms[3]],
+	accessStrings := r.generateAtomStrings(accesses)
+	for _, atoms := range accessStrings {
+		key := createDupMapKey(atoms[:roleIndex])
+		allowingRoles[key] = append(
+			allowingRoles[key],
+			atoms[roleIndex],
 		)
 	}
-	for _, pred := range r.Accesses[accesses] {
-		allowRoles := strings.Join(allowingRoles[createUserLoginKey(pred.Atoms, r.reverseMappings)], ", ")
-		accessTable.AddRow(append(generateAtomStrings(pred.Atoms, r.reverseMappings), allowRoles))
+	for _, key := range sortKeys(allowingRoles) {
+		sort.Strings(allowingRoles[key])
+		accessTable.AddRow(append(strings.Split(key, keyJoin), strings.Join(allowingRoles[key], ", ")))
 	}
 
-	denyTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Denying Role"})
-	for _, pred := range r.Accesses[denyRoles] {
-		denyTable.AddRow(generateAtomStrings(pred.Atoms, r.reverseMappings))
+	denyTable := asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
+	deniedLogins := make(map[string][]string)
+	denyStrings := r.generateAtomStrings(denyAccesses)
+	for _, atoms := range r.generateAtomStrings(denyLogins) {
+		atomList := append(atoms[:nodeIndex], atoms[loginIndex:]...)
+		atomList[nodeIndex] = types.Wildcard
+		denyStrings = append(denyStrings, atomList)
 	}
-	denyOutputString := generateTableString(len(r.Accesses[denyRoles]) > 0, denyTable, denyNullString)
-	accessOutputString := generateTableString(len(r.Accesses[accesses]) > 0, accessTable, accessNullString)
+	for _, atoms := range denyStrings {
+		key := createDupMapKey(remove(atoms, loginIndex))
+		deniedLogins[key] = append(
+			deniedLogins[key],
+			atoms[loginIndex],
+		)
+	}
+	for _, key := range sortKeys(deniedLogins) {
+		atomList := strings.Split(key, keyJoin)
+		atomList = append(atomList[:nodeIndex], atomList[loginIndex:]...)
+		sort.Strings(deniedLogins[key])
+		atomList[loginIndex] = strings.Join(deniedLogins[key], ", ")
+		denyTable.AddRow(atomList)
+	}
+
+	denyOutputString := generateTableString(len(denyStrings) == 0 && len(r.Accesses[denyLogins]) == 0, denyTable, denyNullString)
+	accessOutputString := generateTableString(len(accessStrings) == 0, accessTable, accessNullString)
 	return accessOutputString + "\n" + denyOutputString
+}
+
+func cleanOutput(accesses IDB, reverse map[uint32]string) IDB {
+	ret := make(IDB)
+	for key, preds := range accesses {
+		var cleaned []Predicate
+		for _, pred := range preds {
+			if _, exists := reverse[pred.Atoms[loginIndex]]; !exists {
+				continue
+			}
+			cleaned = append(cleaned, pred)
+		}
+		ret[key] = cleaned
+	}
+	return ret
+}
+
+func filterByLogin(accesses IDB, reverse map[uint32]string, login string) IDB {
+	if login == "" {
+		return accesses
+	}
+	ret := make(IDB)
+	for key, preds := range accesses {
+		var filtered []Predicate
+		for _, pred := range preds {
+			if reverse[pred.Atoms[loginIndex]] != login {
+				continue
+			}
+			filtered = append(filtered, pred)
+		}
+		ret[key] = filtered
+	}
+	return ret
+}
+
+func remove(atoms []string, idx int) []string {
+	var ret []string
+	for i, a := range atoms {
+		if i == idx {
+			continue
+		}
+		ret = append(ret, a)
+	}
+	return ret
+}
+
+func createDupMapKey(atoms []string) string {
+	return strings.Join(atoms, keyJoin)
+}
+
+func generateTableString(condition bool, table asciitable.Table, nullString string) string {
+	if condition {
+		return nullString
+	}
+	return table.AsBuffer().String()
+}
+
+func sortKeys(mapping map[string][]string) []string {
+	var keys []string
+	for k := range mapping {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func hash(s string) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(s))
+	return h.Sum32()
 }

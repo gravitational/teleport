@@ -31,8 +31,7 @@ type NodeAccessRequest struct {
 }
 
 // AccessResponse returns no response
-type AccessResponse struct {
-}
+type AccessResponse struct{}
 
 // QueryAccess returns a list of accesses to Teleport. Note this function does nothing
 func (c *NodeAccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, error) {

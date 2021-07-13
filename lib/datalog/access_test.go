@@ -19,27 +19,183 @@ limitations under the License.
 package datalog
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
+type mockClient struct {
+	auth.ClientI
+
+	users []types.User
+	roles []types.Role
+	nodes []types.Server
+}
+
+func (c mockClient) GetUser(name string, withSecrets bool) (types.User, error) {
+	for _, user := range c.users {
+		if user.GetName() == name {
+			return user, nil
+		}
+	}
+	return nil, trace.AccessDenied("No user")
+}
+
+func (c mockClient) GetUsers(withSecrets bool) ([]types.User, error) {
+	return c.users, nil
+}
+
+func (c mockClient) GetRoles(ctx context.Context) ([]types.Role, error) {
+	return c.roles, nil
+}
+
+func (c mockClient) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	return c.nodes, nil
+}
+
 type AccessTestSuite struct {
-	testUser types.User
-	testRole types.Role
-	testNode types.Server
+	testUser      types.User
+	testRole      types.Role
+	testNode      types.Server
+	client        mockClient
+	emptyAccesses mockClient
+	emptyDenies   mockClient
+	empty         mockClient
 }
 
 var _ = check.Suite(&AccessTestSuite{})
 
 func TestRootAccess(t *testing.T) { check.TestingT(t) }
 
+func createUser(name string, roles []string, traits map[string][]string) (types.User, error) {
+	user, err := types.NewUser(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user.SetRoles(roles)
+	user.SetTraits(traits)
+	return user, nil
+}
+
+func createRole(name string, allowLogins []string, denyLogins []string, allowLabels types.Labels, denyLabels types.Labels) (types.Role, error) {
+	role, err := types.NewRole(name, types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Logins:     allowLogins,
+			NodeLabels: allowLabels,
+		},
+		Deny: types.RoleConditions{
+			Logins:     denyLogins,
+			NodeLabels: denyLabels,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return role, nil
+}
+
+func createNode(name string, kind string, hostname string, labels map[string]string) (types.Server, error) {
+	node, err := types.NewServerWithLabels(name, kind, types.ServerSpecV2{
+		Hostname: hostname,
+	}, labels)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return node, nil
+}
+
 func (s *AccessTestSuite) SetUpSuite(c *check.C) {
+	bob, err := createUser("bob", []string{"admin", "dev"}, map[string][]string{"logins": {"bob", "ubuntu"}})
+	c.Assert(err, check.IsNil)
+	joe, err := createUser("joe", []string{"dev", "lister"}, map[string][]string{"logins": {"joe"}})
+	c.Assert(err, check.IsNil)
+	rui, err := createUser("rui", []string{"intern"}, map[string][]string{"logins": {"rui"}})
+	c.Assert(err, check.IsNil)
+	julia, err := createUser("julia", []string{"auditor"}, map[string][]string{"logins": {"julia"}})
+	c.Assert(err, check.IsNil)
+
+	// Allow case
+	admin, err := createRole(
+		"admin",
+		[]string{"root", "admin", teleport.TraitInternalLoginsVariable},
+		[]string{},
+		types.Labels{types.Wildcard: []string{types.Wildcard}},
+		types.Labels{},
+	)
+	c.Assert(err, check.IsNil)
+	// Denied login case
+	dev, err := createRole(
+		"dev",
+		[]string{"dev", teleport.TraitInternalLoginsVariable},
+		[]string{"admin"},
+		types.Labels{"env": []string{"prod", "test"}},
+		types.Labels{},
+	)
+	c.Assert(err, check.IsNil)
+	// Denied node case
+	lister, err := createRole(
+		"lister",
+		[]string{"lister", teleport.TraitInternalLoginsVariable},
+		[]string{},
+		types.Labels{types.Wildcard: []string{types.Wildcard}},
+		types.Labels{"env": []string{"prod", "test"}},
+	)
+	c.Assert(err, check.IsNil)
+	// Denied login and denied node case
+	intern, err := createRole(
+		"intern",
+		[]string{"intern", teleport.TraitInternalLoginsVariable},
+		[]string{"rui"},
+		types.Labels{},
+		types.Labels{"env": []string{"prod"}},
+	)
+	c.Assert(err, check.IsNil)
+	// Denied login traits
+	auditor, err := createRole(
+		"auditor",
+		[]string{"auditor", teleport.TraitInternalLoginsVariable},
+		[]string{teleport.TraitInternalLoginsVariable},
+		types.Labels{types.Wildcard: []string{types.Wildcard}},
+		types.Labels{"env": []string{"prod"}},
+	)
+	c.Assert(err, check.IsNil)
+
+	prod, err := createNode("prod", "node", "prod.example.com", map[string]string{"env": "prod"})
+	c.Assert(err, check.IsNil)
+	test, err := createNode("test", "node", "test.example.com", map[string]string{"env": "test"})
+	c.Assert(err, check.IsNil)
+	secret, err := createNode("secret", "node", "secret.example.com", map[string]string{"env": "secret"})
+	c.Assert(err, check.IsNil)
+
+	users := []types.User{bob, joe, rui, julia}
+	roles := []types.Role{admin, dev, lister, intern, auditor}
+	nodes := []types.Server{prod, test, secret}
+	s.client = mockClient{
+		users: users,
+		roles: roles,
+		nodes: nodes,
+	}
+	s.emptyAccesses = mockClient{
+		users: []types.User{rui},
+		roles: roles,
+		nodes: nodes,
+	}
+	s.emptyDenies = mockClient{
+		users: []types.User{bob},
+		roles: []types.Role{admin},
+		nodes: nodes,
+	}
+	s.empty = mockClient{}
+
 	testUser, err := types.NewUser("tester")
 	c.Assert(err, check.IsNil)
 	s.testUser = testUser
@@ -64,7 +220,193 @@ func (s *AccessTestSuite) SetUpSuite(c *check.C) {
 	s.testNode = testNode
 }
 
-// TestMappings checks if all required string values are mapped to integer hashes
+// TestAccessDeduction checks if all the deduced access facts are correct.
+func (s *AccessTestSuite) TestAccessDeduction(c *check.C) {
+	access := NodeAccessRequest{}
+	resp, err := access.QueryAccess(s.client)
+	c.Assert(err, check.IsNil)
+	accessTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
+	denyTable := asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
+	accessTestOutput := [][]string{
+		{"bob", "bob", "prod.example.com", "admin, dev"},
+		{"bob", "bob", "secret.example.com", "admin"},
+		{"bob", "bob", "test.example.com", "admin, dev"},
+		{"bob", "dev", "prod.example.com", "dev"},
+		{"bob", "dev", "test.example.com", "dev"},
+		{"bob", "root", "prod.example.com", "admin"},
+		{"bob", "root", "secret.example.com", "admin"},
+		{"bob", "root", "test.example.com", "admin"},
+		{"bob", "ubuntu", "prod.example.com", "admin, dev"},
+		{"bob", "ubuntu", "secret.example.com", "admin"},
+		{"bob", "ubuntu", "test.example.com", "admin, dev"},
+		{"joe", "joe", "secret.example.com", "lister"},
+		{"joe", "lister", "secret.example.com", "lister"},
+		{"julia", "auditor", "secret.example.com", "auditor"},
+		{"julia", "auditor", "test.example.com", "auditor"},
+	}
+	denyTestOutput := [][]string{
+		{"bob", "admin", types.Wildcard, "dev"},
+		{"joe", "admin", types.Wildcard, "dev"},
+		{"joe", "dev, joe, lister", "prod.example.com", "lister"},
+		{"joe", "dev, joe, lister", "test.example.com", "lister"},
+		{"julia", "julia", types.Wildcard, "auditor"},
+		{"julia", "auditor, julia", "prod.example.com", "auditor"},
+		{"rui", "rui", types.Wildcard, "intern"},
+		{"rui", "rui", "prod.example.com", "intern"},
+	}
+	for _, row := range accessTestOutput {
+		accessTable.AddRow(row)
+	}
+	for _, row := range denyTestOutput {
+		denyTable.AddRow(row)
+	}
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+}
+
+// TestNoAccesses tests the output is correct when there are no access facts.
+func (s *AccessTestSuite) TestNoAccesses(c *check.C) {
+	access := NodeAccessRequest{}
+	resp, err := access.QueryAccess(s.emptyAccesses)
+	c.Assert(err, check.IsNil)
+	denyTable := asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
+	denyTestOutput := [][]string{
+		{"rui", "rui", types.Wildcard, "intern"},
+		{"rui", "rui", "prod.example.com", "intern"},
+	}
+	for _, row := range denyTestOutput {
+		denyTable.AddRow(row)
+	}
+	c.Assert(accessNullString+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+}
+
+// TestNoDeniedAccesses tests the output is correct when there are no denied access facts.
+func (s *AccessTestSuite) TestNoDeniedAccesses(c *check.C) {
+	access := NodeAccessRequest{}
+	resp, err := access.QueryAccess(s.emptyDenies)
+	c.Assert(err, check.IsNil)
+	accessTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
+	accessTestOutput := [][]string{
+		{"bob", "admin", "prod.example.com", "admin"},
+		{"bob", "admin", "secret.example.com", "admin"},
+		{"bob", "admin", "test.example.com", "admin"},
+		{"bob", "bob", "prod.example.com", "admin"},
+		{"bob", "bob", "secret.example.com", "admin"},
+		{"bob", "bob", "test.example.com", "admin"},
+		{"bob", "root", "prod.example.com", "admin"},
+		{"bob", "root", "secret.example.com", "admin"},
+		{"bob", "root", "test.example.com", "admin"},
+		{"bob", "ubuntu", "prod.example.com", "admin"},
+		{"bob", "ubuntu", "secret.example.com", "admin"},
+		{"bob", "ubuntu", "test.example.com", "admin"},
+	}
+	for _, row := range accessTestOutput {
+		accessTable.AddRow(row)
+	}
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyNullString, check.Equals, resp.BuildStringOutput())
+}
+
+// TestEmptyResults tests the output is correct when there are no facts.
+func (s *AccessTestSuite) TestEmptyResults(c *check.C) {
+	// No results
+	access := NodeAccessRequest{}
+	resp, err := access.QueryAccess(s.empty)
+	c.Assert(err, check.IsNil)
+	c.Assert(accessNullString+"\n"+denyNullString, check.Equals, resp.BuildStringOutput())
+}
+
+// TestFiltering checks if all the deduced access facts are correct.
+func (s *AccessTestSuite) TestFiltering(c *check.C) {
+	access := NodeAccessRequest{Username: "julia", Login: "auditor", Node: "secret.example.com"}
+	resp, err := access.QueryAccess(s.client)
+	c.Assert(err, check.IsNil)
+	accessTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
+	denyTable := asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
+	accessTestOutput := [][]string{
+		{"julia", "auditor", "secret.example.com", "auditor"},
+	}
+	for _, row := range accessTestOutput {
+		accessTable.AddRow(row)
+	}
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyNullString, check.Equals, resp.BuildStringOutput())
+
+	access = NodeAccessRequest{Username: "julia", Login: "julia", Node: "secret.example.com"}
+	resp, err = access.QueryAccess(s.client)
+	denyTestOutput := [][]string{
+		{"julia", "julia", types.Wildcard, "auditor"},
+	}
+	for _, row := range denyTestOutput {
+		denyTable.AddRow(row)
+	}
+	c.Assert(accessNullString+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+
+	access = NodeAccessRequest{Login: "joe"}
+	resp, err = access.QueryAccess(s.client)
+	accessTable = asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
+	denyTable = asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
+	accessTestOutput = [][]string{
+		{"joe", "joe", "secret.example.com", "lister"},
+	}
+	denyTestOutput = [][]string{
+		{"joe", "joe", "prod.example.com", "lister"},
+		{"joe", "joe", "test.example.com", "lister"},
+	}
+	for _, row := range accessTestOutput {
+		accessTable.AddRow(row)
+	}
+	for _, row := range denyTestOutput {
+		denyTable.AddRow(row)
+	}
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+
+	access = NodeAccessRequest{Node: "test.example.com"}
+	resp, err = access.QueryAccess(s.client)
+	accessTable = asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
+	denyTable = asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
+	accessTestOutput = [][]string{
+		{"bob", "bob", "test.example.com", "admin, dev"},
+		{"bob", "dev", "test.example.com", "dev"},
+		{"bob", "root", "test.example.com", "admin"},
+		{"bob", "ubuntu", "test.example.com", "admin, dev"},
+		{"julia", "auditor", "test.example.com", "auditor"},
+	}
+	denyTestOutput = [][]string{
+		{"bob", "admin", types.Wildcard, "dev"},
+		{"joe", "admin", types.Wildcard, "dev"},
+		{"joe", "dev, joe, lister", "test.example.com", "lister"},
+		{"julia", "julia", types.Wildcard, "auditor"},
+		{"rui", "rui", types.Wildcard, "intern"},
+	}
+	for _, row := range accessTestOutput {
+		accessTable.AddRow(row)
+	}
+	for _, row := range denyTestOutput {
+		denyTable.AddRow(row)
+	}
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+
+	access = NodeAccessRequest{Username: "joe"}
+	resp, err = access.QueryAccess(s.client)
+	accessTable = asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
+	denyTable = asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
+	accessTestOutput = [][]string{
+		{"joe", "joe", "secret.example.com", "lister"},
+		{"joe", "lister", "secret.example.com", "lister"},
+	}
+	denyTestOutput = [][]string{
+		{"joe", "admin", types.Wildcard, "dev"},
+		{"joe", "dev, joe, lister", "prod.example.com", "lister"},
+		{"joe", "dev, joe, lister", "test.example.com", "lister"},
+	}
+	for _, row := range accessTestOutput {
+		accessTable.AddRow(row)
+	}
+	for _, row := range denyTestOutput {
+		denyTable.AddRow(row)
+	}
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+}
+
+// TestMappings checks if all required string values are mapped to integer hashes.
 func (s *AccessTestSuite) TestMappings(c *check.C) {
 	resp := AccessResponse{make(IDB), make(EDB), make(map[string]uint32), make(map[uint32]string)}
 	resp.createUserMapping(s.testUser)
@@ -82,7 +424,6 @@ func (s *AccessTestSuite) TestMappings(c *check.C) {
 		require.Equal(c, resp.reverseMappings[resp.mappings[login]], login)
 	}
 	require.Contains(c, resp.mappings, s.testRole.GetName())
-	require.NotContains(c, resp.mappings, teleport.TraitInternalLoginsVariable)
 	for _, login := range append(s.testRole.GetLogins(types.Allow), s.testRole.GetLogins(types.Deny)...) {
 		if login == teleport.TraitInternalLoginsVariable {
 			continue
@@ -115,7 +456,7 @@ func (s *AccessTestSuite) TestMappings(c *check.C) {
 	}
 }
 
-// TestPredicates checks if all required predicates are created correctly with the right hashes
+// TestPredicates checks if all required predicates are created correctly with the right hashes.
 func (s *AccessTestSuite) TestPredicates(c *check.C) {
 	// Test user predicates
 	resp := AccessResponse{make(IDB), make(EDB), make(map[string]uint32), make(map[uint32]string)}
@@ -144,12 +485,13 @@ func (s *AccessTestSuite) TestPredicates(c *check.C) {
 	// Test role logins
 	loginCountMap := make(map[string]bool)
 	allLogins := append(s.testRole.GetLogins(types.Allow), s.testRole.GetLogins(types.Deny)...)
+	allLogins = append(allLogins, "")
 	for _, pred := range append(resp.facts[roleAllowsLogin], resp.facts[roleDeniesLogin]...) {
 		require.Equal(c, resp.reverseMappings[pred.Atoms[0]], s.testRole.GetName())
 		require.Contains(c, allLogins, resp.reverseMappings[pred.Atoms[1]])
 		loginCountMap[resp.reverseMappings[pred.Atoms[1]]] = true
 	}
-	require.Equal(c, 1, len(loginCountMap))
+	require.Equal(c, 2, len(loginCountMap))
 
 	// Test role labels
 	allLabels := make(map[string][]string)

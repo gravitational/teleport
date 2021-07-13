@@ -27,41 +27,35 @@ crepe! {
     // Intermediate rules
     struct HasAllowNodeLabel(u32, u32, u32, u32);
     struct HasDenyNodeLabel(u32, u32, u32, u32);
-    struct HasAllowRole(u32, u32, u32);
-    struct HasDenyRole(u32, u32);
-    struct HasDeniedLogin(u32, u32);
+    struct HasAllowRole(u32, u32, u32, u32);
+    struct HasDenyRole(u32, u32, u32);
+    struct HasDeniedLogin(u32, u32, u32);
 
     // Output for IDB
     @output
-    struct HasAccess(u32, u32, u32);
+    struct HasAccess(u32, u32, u32, u32);
     @output
-    struct AllowRoles(u32, u32, u32, u32);
+    struct DenyAccess(u32, u32, u32, u32);
     @output
-    struct DenyRoles(u32, u32, u32, u32);
+    struct DenyLogins(u32, u32, u32);
 
     // Intermediate rules to help determine access
     HasAllowNodeLabel(role, node, key, value) <- RoleAllowsNodeLabel(role, key, value), NodeHasLabel(node, key, value);
     HasDenyNodeLabel(role, node, key, value) <- RoleDeniesNodeLabel(role, key, value), NodeHasLabel(node, key, value);
-    HasAllowRole(user, login, node) <- HasRole(user, role), HasAllowNodeLabel(role, node, _, _), RoleAllowsLogin(role, login),
+    HasAllowRole(user, login, node, role) <- HasRole(user, role), HasAllowNodeLabel(role, node, _, _), RoleAllowsLogin(role, login),
         !RoleDeniesLogin(role, login);
-    HasAllowRole(user, login, node) <- HasRole(user, role), HasAllowNodeLabel(role, node, _, _), HasTrait(user, LOGIN_TRAIT_HASH, login),
-        !RoleDeniesLogin(role, login);
-    HasDenyRole(user, node) <- HasRole(user, role), HasDenyNodeLabel(role, node, _, _);
-    HasDeniedLogin(user, login) <- HasRole(user, role), RoleDeniesLogin(role, login);
+    HasAllowRole(user, login, node, role) <- HasRole(user, role), HasAllowNodeLabel(role, node, _, _), HasTrait(user, LOGIN_TRAIT_HASH, login),
+        !RoleDeniesLogin(role, login), !RoleDeniesLogin(role, LOGIN_TRAIT_HASH);
+    HasDenyRole(user, node, role) <- HasRole(user, role), HasDenyNodeLabel(role, node, _, _);
+    HasDeniedLogin(user, login, role) <- HasRole(user, role), RoleDeniesLogin(role, login);
+    HasDeniedLogin(user, login, role) <- HasRole(user, role), HasTrait(user, LOGIN_TRAIT_HASH, login), RoleDeniesLogin(role, LOGIN_TRAIT_HASH);
 
     // HasAccess rule determines each access for a specified user, login and node
-    HasAccess(user, login, node) <- HasAllowRole(user, login, node), !HasDenyRole(user, node), !HasDeniedLogin(user, login);
+    HasAccess(user, login, node, role) <- HasAllowRole(user, login, node, role), !HasDenyRole(user, node, _), !HasDeniedLogin(user, login, _);
+    DenyAccess(user, login, node, role) <- HasDenyRole(user, node, role), HasTrait(user, LOGIN_TRAIT_HASH, login);
+    DenyAccess(user, login, node, role) <- HasDenyRole(user, node, role), HasAllowRole(user, login, node, _);
 
-    // AllowRoles rule determines each role that allows a user access with a given login to node
-    AllowRoles(user, login, node, role) <- HasRole(user, role), HasAllowNodeLabel(role, node, _, _), RoleAllowsLogin(role, login),
-    !RoleDeniesLogin(role, login);
-    AllowRoles(user, login, node, role) <- HasRole(user, role), HasAllowNodeLabel(role, node, _, _), HasTrait(user, LOGIN_TRAIT_HASH, login),
-    !RoleDeniesLogin(role, login);
-
-    // DenyRoles rule determines each denied access given a user, login, and node. The role that denies the access is also provided
-    DenyRoles(user, login, node, role) <- HasRole(user, role), HasDenyNodeLabel(role, node, _, _), RoleAllowsLogin(role, login);
-    DenyRoles(user, login, node, role) <- HasRole(user, role), HasDenyNodeLabel(role, node, _, _), RoleDeniesLogin(role, login);
-    DenyRoles(user, login, node, role) <- HasRole(user, role), HasDenyNodeLabel(role, node, _, _), HasTrait(user, LOGIN_TRAIT_HASH, login);
+    DenyLogins(user, login, role) <- HasDeniedLogin(user, login, role);
 }
 
 #[derive(Serialize, Deserialize)]
@@ -85,8 +79,8 @@ struct EDB {
 #[derive(Serialize, Deserialize)]
 struct IDB {
     accesses: Vec<Predicate>,
-    allow_roles: Vec<Predicate>,
-    deny_roles: Vec<Predicate>
+    deny_accesses: Vec<Predicate>,
+    deny_logins: Vec<Predicate>
 }
 
 #[no_mangle]
@@ -156,20 +150,11 @@ pub extern "C" fn process_access(s: *const c_char) -> *mut c_char {
     }
 
     // Format output into JSON
-    let (accesses, allow_roles, deny_roles) = runtime.run();
-    let mut accesses = accesses.into_iter().collect::<Vec<_>>();
-    accesses.sort_by(|HasAccess(a, _, _), HasAccess(b, _, _)| a.cmp(b));
-
-    let mut allow_roles = allow_roles.into_iter().collect::<Vec<_>>();
-    allow_roles.sort_by(|AllowRoles(_, _, _, a), AllowRoles(_, _, _, b)| a.cmp(b));
-
-    let mut deny_roles = deny_roles.into_iter().collect::<Vec<_>>();
-    deny_roles.sort_by(|DenyRoles(a, _, _, _), DenyRoles(b, _, _, _)| a.cmp(b));
-
+    let (accesses, deny_accesses, deny_logins) = runtime.run();
     let idb = IDB {
-        accesses: accesses.into_iter().map(|HasAccess(a, b, c)| Predicate{atoms: vec![a, b, c]}).collect(),
-        allow_roles: allow_roles.into_iter().map(|AllowRoles(a, b, c, d)| Predicate{atoms: vec![a, b, c, d]}).collect(),
-        deny_roles: deny_roles.into_iter().map(|DenyRoles(a, b, c, d)| Predicate{atoms: vec![a, b, c, d]}).collect()
+        accesses: accesses.into_iter().map(|HasAccess(a, b, c, d)| Predicate{atoms: vec![a, b, c, d]}).collect(),
+        deny_accesses: deny_accesses.into_iter().map(|DenyAccess(a, b, c, d)| Predicate{atoms: vec![a, b, c, d]}).collect(),
+        deny_logins: deny_logins.into_iter().map(|DenyLogins(a, b, c)| Predicate{atoms: vec![a, b, c]}).collect()
     };
 
     let c_str_song = CString::new(serde_json::to_string(&idb).unwrap()).unwrap();
