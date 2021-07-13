@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -315,6 +316,33 @@ func TestCheckKeyFIPS(t *testing.T) {
 	// Should return trace.BadParameter error because only RSA keys are supported.
 	_, err = s.store.GetKey(idx)
 	require.True(t, trace.IsBadParameter(err))
+}
+
+func TestGetTrustedCertsPEM_nonCertificateBlocks(t *testing.T) {
+	s, cleanup := newTest(t)
+	defer cleanup()
+
+	// Make sure we behave correctly if someone writes a non-CERTIFICATE block to
+	// certs.pem. During regular use this shouldn't happen, but a bug was lurking
+	// around here.
+	proxy := "proxy.example.com"
+	proxyDir := filepath.Join(s.storeDir, "keys", proxy)
+	certsFile := filepath.Join(proxyDir, "certs.pem")
+	err := os.MkdirAll(proxyDir, 0700)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(certsFile, []byte(`-----BEGIN RSA PUBLIC KEY-----
+MIIBCgKCAQEAp2eO39fYnpUI4PplyoS/bHrr5Yiy98t+1sdDwGIG01UPlkxAxzIi
+VVQmel1NrSh4lF4t3b8KUUNM+5pk241F7Olr/4DIRTPQHDGWO0nciEieZ8IpFigz
+kUQRvKjNIw4zZbZSsZu0QE7hCU6O8VwEwSFrEsCCrPw4+28pp2IEYOqe0chZosO/
+6kXdJa/ZjC/Edjep1XVdoM+BSFXR5qwY4WtU/Ha4SNRbaktzMZgrkOLgD5TALGoN
+DYxXLyVgxD6BvRxlaQft75Bwg1KJ6nKqYAAtu/Me98BXDt+1GFwltLsjeY68untS
+hRdXE63PXwAfzj0P/H4qWsFfwdeCo/fuIQIDAQAB
+-----END RSA PUBLIC KEY-----`), 0600)
+	require.NoError(t, err)
+
+	blocks, err := s.store.GetTrustedCertsPEM(proxy)
+	require.Empty(t, blocks)
+	require.NoError(t, err)
 }
 
 type keyStoreTest struct {
