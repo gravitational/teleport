@@ -112,13 +112,13 @@ func GetTunnelAddr(ctx context.Context, proxyAddr string, insecure bool, pool *x
 func tunnelAddr(settings SSHProxySettings) (string, error) {
 	// If a tunnel public address is set, nothing else has to be done, return it.
 	if settings.TunnelPublicAddr != "" {
-		return utils.ParseAddr(settings.TunnelPublicAddr)
+		return utils.ExtractHostPort(settings.TunnelPublicAddr)
 	}
 
 	// Extract the port the tunnel server is listening on.
 	tunnelPort := strconv.Itoa(defaults.SSHProxyTunnelListenPort)
 	if settings.TunnelListenAddr != "" {
-		if port, err := utils.ParsePort(settings.TunnelListenAddr); err == nil {
+		if port, err := utils.ExtractPort(settings.TunnelListenAddr); err == nil {
 			tunnelPort = port
 		}
 	}
@@ -127,18 +127,18 @@ func tunnelAddr(settings SSHProxySettings) (string, error) {
 	// public address has been set, extract the hostname but use the port from
 	// the tunnel listen address.
 	if settings.SSHPublicAddr != "" {
-		if host, err := utils.ParseHost(settings.SSHPublicAddr); err == nil {
+		if host, err := utils.ExtractHost(settings.SSHPublicAddr); err == nil {
 			return net.JoinHostPort(host, tunnelPort), nil
 		}
 	}
 	if settings.PublicAddr != "" {
-		if host, err := utils.ParseHost(settings.PublicAddr); err == nil {
+		if host, err := utils.ExtractHost(settings.PublicAddr); err == nil {
 			return net.JoinHostPort(host, tunnelPort), nil
 		}
 	}
 
 	// If nothing is set, fallback to the tunnel listen address.
-	return utils.ParseAddr(settings.TunnelListenAddr)
+	return utils.ExtractHostPort(settings.TunnelListenAddr)
 }
 
 // PingResponse contains data about the Teleport server like supported

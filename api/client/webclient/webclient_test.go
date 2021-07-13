@@ -34,23 +34,23 @@ func TestTunnelAddr(t *testing.T) {
 	t.Run("should use TunnelPublicAddr", testTunnelAddr(
 		SSHProxySettings{
 			TunnelPublicAddr: "tunnel.example.com:4024",
-			PublicAddr:       "proxy.example.com:443",
-			SSHPublicAddr:    "ssh.example.com:3023",
+			PublicAddr:       "proxy.example.com",
+			SSHPublicAddr:    "ssh.example.com",
 			TunnelListenAddr: "[::]:5024",
 		},
 		"tunnel.example.com:4024",
 	))
 	t.Run("should use SSHPublicAddr and TunnelListenAddr", testTunnelAddr(
 		SSHProxySettings{
-			SSHPublicAddr:    "ssh.example.com:3023",
-			PublicAddr:       "proxy.example.com:443",
+			SSHPublicAddr:    "ssh.example.com",
+			PublicAddr:       "proxy.example.com",
 			TunnelListenAddr: "[::]:5024",
 		},
 		"ssh.example.com:5024",
 	))
 	t.Run("should use PublicAddr and TunnelListenAddr", testTunnelAddr(
 		SSHProxySettings{
-			PublicAddr:       "proxy.example.com:443",
+			PublicAddr:       "proxy.example.com",
 			TunnelListenAddr: "[::]:5024",
 		},
 		"proxy.example.com:5024",
@@ -61,28 +61,10 @@ func TestTunnelAddr(t *testing.T) {
 		},
 		"[::]:5024",
 	))
-	t.Run("should use default tunnel listener if not set", testTunnelAddr(
+	t.Run("should use PublicAddr and SSHProxyTunnelListenPort", testTunnelAddr(
 		SSHProxySettings{
-			PublicAddr: "proxy.example.com:443",
+			PublicAddr: "proxy.example.com",
 		},
 		"proxy.example.com:3024",
-	))
-	t.Run("should handle tcp format", testTunnelAddr(
-		SSHProxySettings{
-			TunnelPublicAddr: "tcp://tunnel.example.com:3024",
-		},
-		"tunnel.example.com:3024",
-	))
-	t.Run("should handle http format", testTunnelAddr(
-		SSHProxySettings{
-			TunnelPublicAddr: "http://tunnel.example.com:3024",
-		},
-		"tunnel.example.com:3024",
-	))
-	t.Run("should handle https format", testTunnelAddr(
-		SSHProxySettings{
-			TunnelPublicAddr: "http://tunnel.example.com:3024",
-		},
-		"tunnel.example.com:3024",
 	))
 }

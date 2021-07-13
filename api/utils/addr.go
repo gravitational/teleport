@@ -14,11 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package webclient provides a client for the Teleport Proxy API endpoints.
 package utils
 
 import (
-	"fmt"
 	"net"
 	"net/url"
 	"strings"
@@ -26,8 +24,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ParseAddr strings like "tcp://host:port/path" and returns "host:port".
-func ParseAddr(addr string) (string, error) {
+// ExtractHostPort takes addresses like "tcp://host:port/path" and returns "host:port".
+func ExtractHostPort(addr string) (string, error) {
 	if addr == "" {
 		return "", trace.BadParameter("missing parameter address")
 	}
@@ -39,34 +37,32 @@ func ParseAddr(addr string) (string, error) {
 		return "", trace.BadParameter("failed to parse %q: %v", addr, err)
 	}
 	switch u.Scheme {
-	case "tcp":
-		return u.Host, nil
-	case "unix":
-		return u.Path, nil
-	case "http", "https":
+	case "tcp", "http", "https":
 		return u.Host, nil
 	default:
 		return "", trace.BadParameter("'%v': unsupported scheme: '%v'", addr, u.Scheme)
 	}
 }
 
-// ParseHost strings like "tcp://host:port/path" and returns "host".
-func ParseHost(addr string) (ra string, err error) {
-	defer fmt.Printf("\naddr: %v, return: %v, err: %v\n\n", addr, ra, err)
-	parsed, err := ParseAddr(addr)
+// ExtractHost takes addresses like "tcp://host:port/path" and returns "host".
+func ExtractHost(addr string) (ra string, err error) {
+	parsed, err := ExtractHostPort(addr)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	host, _, err := net.SplitHostPort(parsed)
 	if err != nil {
+		if strings.Contains(err.Error(), "missing port in address") {
+			return addr, nil
+		}
 		return "", trace.Wrap(err)
 	}
 	return host, nil
 }
 
-// ParsePort strings like "tcp://host:port/path" and returns "port".
-func ParsePort(addr string) (string, error) {
-	parsed, err := ParseAddr(addr)
+// ExtractPort takes addresses like "tcp://host:port/path" and returns "port".
+func ExtractPort(addr string) (string, error) {
+	parsed, err := ExtractHostPort(addr)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
