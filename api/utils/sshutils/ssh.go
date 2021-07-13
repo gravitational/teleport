@@ -175,14 +175,15 @@ func AsAgentKeys(sshCert *ssh.Certificate, privKey []byte) ([]agent.AddedKey, er
 func HostKeyCallback(caCerts [][]byte) (ssh.HostKeyCallback, error) {
 	var trustedKeys []ssh.PublicKey
 	for _, caCert := range caCerts {
-		var err error
-		for err == nil {
-			var publicKey ssh.PublicKey
-			_, _, publicKey, _, caCert, err = ssh.ParseKnownHosts(caCert)
-			if err != nil && err != io.EOF {
+		for {
+			_, _, publicKey, _, bytes, err := ssh.ParseKnownHosts(caCert)
+			if err == io.EOF {
+				break
+			} else if err != nil {
 				return nil, trace.Wrap(err, "failed parsing CA cert: %v; raw CA cert line: %q", err, caCert)
 			}
 			trustedKeys = append(trustedKeys, publicKey)
+			caCert = bytes
 		}
 	}
 
