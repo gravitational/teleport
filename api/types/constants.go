@@ -218,6 +218,9 @@ const (
 	// KindBilling represents access to cloud billing features
 	KindBilling = "billing"
 
+	// KindLock is a lock resource.
+	KindLock = "lock"
+
 	// V4 is the fourth version of resources.
 	V4 = "v4"
 

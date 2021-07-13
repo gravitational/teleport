@@ -2,9 +2,9 @@
 * @klizhentas @russjones @r0mant
 
 # Documentation.
-/docs/ @inertial-frame @klizhentas
-/docs/pages/application-access/ @inertial-frame @klizhentas @r0mant
-/docs/pages/database-access/ @inertial-frame @klizhentas @r0mant
+/docs/ @klizhentas @russjones
+/docs/pages/application-access/ @klizhentas @r0mant @russjones
+/docs/pages/database-access/ @klizhentas @r0mant @russjones
 
 # Frontend Engineering.
 /lib/web/ @alex-kovoy @russjones @r0mant

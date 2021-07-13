@@ -23,15 +23,15 @@
 
 ## Table of Contents
 
-1. [Introduction](#Introduction)
-1. [Installing and Running](#Installing-and-Running)
-1. [Docker](#Docker)
-1. [Building Teleport](#Building-Teleport)
-1. [Why did We Build Teleport?](#Why-did-We-Build-Teleport?)
-1. [More Information](#More-Information)
-1. [Support and Contributing](#Support-and-Contributing)
-1. [Is Teleport Secure and Production Ready?](#Is-Teleport-Secure-and-Production-Ready?)
-1. [Who Built Teleport?](#Who-Built-Teleport?)
+1. [Introduction](#introduction)
+1. [Installing and Running](#installing-and-running)
+1. [Docker](#docker)
+1. [Building Teleport](#building-teleport)
+1. [Why did We Build Teleport?](#why-did-we-build-teleport)
+1. [More Information](#more-information)
+1. [Support and Contributing](#support-and-contributing)
+1. [Is Teleport Secure and Production Ready?](#is-teleport-secure-and-production-ready)
+1. [Who Built Teleport?](#who-built-teleport)
 
 ## Introduction
 
@@ -41,10 +41,11 @@ SSH, HTTPS, Kubernetes API, MySQL, and PostgreSQL wire protocols.
 On the server-side, Teleport is a single binary which enables convenient secure
 access to behind-NAT resources such as:
 
-* [SSH nodes](https://goteleport.com/teleport/docs/quickstart/) - SSH works in browsers too!
-* [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-access/)
-* [PostgreSQL and MySQL databases](https://goteleport.com/teleport/docs/database-access/)
-* [Internal Web apps](https://goteleport.com/teleport/docs/application-access/)
+* [SSH nodes](https://goteleport.com/docs/getting-started/) - SSH works in browsers too!
+* [Kubernetes clusters](https://goteleport.com/docs/kubernetes-access/introduction/)
+* [PostgreSQL and MySQL databases](https://goteleport.com/docs/database-access/introduction/)
+* [Internal Web apps](https://goteleport.com/docs/application-access/introduction/)
+* [Networked servers](https://goteleport.com/docs/server-access/introduction/)
 
 Teleport is trivial to set up as a Linux daemon or in a Kubernetes pod. It's rapidly
 replacing legacy `sshd`-based setups at organizations who need:
@@ -84,6 +85,8 @@ implementation. It is _fully compatible with OpenSSH_,
 
 ## Installing and Running
 
+| Follow the [Installation](https://goteleport.com/docs/installation/) Guide
+
 Download the [latest binary release](https://goteleport.com/teleport/download),
 unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries into
 `/usr/local/bin`.
@@ -101,6 +104,8 @@ In a production environment, Teleport must run as `root`. For testing or non-pro
 * In this case, you will not be able to log in as another user.
 
 ## Docker
+
+| Follow the Docker-Compose [Getting Started](https://goteleport.com/docs/setup/guides/docker-compose/) Guide
 
 ### Deploy Teleport
 

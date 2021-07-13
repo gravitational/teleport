@@ -274,27 +274,6 @@ func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 	return role
 }
 
-// Access service manages roles and permissions
-type Access interface {
-	// GetRoles returns a list of roles
-	GetRoles(ctx context.Context) ([]types.Role, error)
-
-	// CreateRole creates a role
-	CreateRole(role types.Role) error
-
-	// UpsertRole creates or updates role
-	UpsertRole(ctx context.Context, role types.Role) error
-
-	// DeleteAllRoles deletes all roles
-	DeleteAllRoles() error
-
-	// GetRole returns role by name
-	GetRole(ctx context.Context, name string) (types.Role, error)
-
-	// DeleteRole deletes role by name
-	DeleteRole(ctx context.Context, name string) error
-}
-
 const (
 	// Allow is the set of conditions that allow access.
 	Allow types.RoleConditionType = true

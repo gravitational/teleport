@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -52,10 +53,10 @@ func (d *DiscardAuditLog) GetSessionChunk(namespace string, sid session.ID, offs
 func (d *DiscardAuditLog) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }
-func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
 }
-func (d *DiscardAuditLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (d *DiscardAuditLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
 }
 

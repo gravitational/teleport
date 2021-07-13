@@ -67,16 +67,19 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 	priv, pub, err := s.A.GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
 
+	caSigner, err := ssh.ParsePrivateKey(priv)
+	c.Assert(err, check.IsNil)
+
 	cert, err := s.A.GenerateHostCert(
 		services.HostCertParams{
-			PrivateCASigningKey: priv,
-			CASigningAlg:        defaults.CASignatureAlgorithm,
-			PublicHostKey:       pub,
-			HostID:              "00000000-0000-0000-0000-000000000000",
-			NodeName:            "auth.example.com",
-			ClusterName:         "example.com",
-			Roles:               types.SystemRoles{types.RoleAdmin},
-			TTL:                 time.Hour,
+			CASigner:      caSigner,
+			CASigningAlg:  defaults.CASignatureAlgorithm,
+			PublicHostKey: pub,
+			HostID:        "00000000-0000-0000-0000-000000000000",
+			NodeName:      "auth.example.com",
+			ClusterName:   "example.com",
+			Roles:         types.SystemRoles{types.RoleAdmin},
+			TTL:           time.Hour,
 		})
 	c.Assert(err, check.IsNil)
 
@@ -96,8 +99,11 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	priv, pub, err := s.A.GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
 
+	caSigner, err := ssh.ParsePrivateKey(priv)
+	c.Assert(err, check.IsNil)
+
 	cert, err := s.A.GenerateUserCert(services.UserCertParams{
-		PrivateCASigningKey:   priv,
+		CASigner:              caSigner,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
@@ -115,7 +121,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	cert, err = s.A.GenerateUserCert(services.UserCertParams{
-		PrivateCASigningKey:   priv,
+		CASigner:              caSigner,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
@@ -130,7 +136,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
-		PrivateCASigningKey:   priv,
+		CASigner:              caSigner,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
@@ -145,7 +151,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
-		PrivateCASigningKey:   priv,
+		CASigner:              caSigner,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
@@ -160,7 +166,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	inRoles := []string{"role-1", "role-2"}
 	impersonator := "alice"
 	cert, err = s.A.GenerateUserCert(services.UserCertParams{
-		PrivateCASigningKey:   priv,
+		CASigner:              caSigner,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",

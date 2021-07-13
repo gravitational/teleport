@@ -568,3 +568,28 @@ func (c *dbCollection) toMarshal() interface{} {
 func (c *dbCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.toMarshal())
 }
+
+type lockCollection struct {
+	locks []types.Lock
+}
+
+func (c *lockCollection) resources() (r []types.Resource) {
+	for _, resource := range c.locks {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *lockCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"ID", "Target", "Message", "Expires"})
+	for _, lock := range c.locks {
+		target := lock.Target()
+		expires := "never"
+		if lock.LockExpiry() != nil {
+			expires = apiutils.HumanTimeFormat(*lock.LockExpiry())
+		}
+		t.AddRow([]string{lock.GetName(), target.String(), lock.Message(), expires})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}

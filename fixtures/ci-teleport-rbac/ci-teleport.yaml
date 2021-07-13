@@ -1,4 +1,10 @@
 # defines the permissions needed for Teleport k8s integration tests to run in a cluster
+# namespace for teleport tests
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: teletest
+---
 # clusterrole granting overarching privileges
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

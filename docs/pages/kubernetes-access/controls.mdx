@@ -5,30 +5,29 @@ description: Connect SAML and OIDC users to Kubernetes RBAC with Teleport
 
 # Single Sign-On and Kubernetes RBAC
 
-Teleport issues short lived X.509 certs and updates Kubernetes clients to talk to Teleport proxy using mutual TLS.
+Teleport issues short-lived X.509 certs and updates Kubernetes clients to talk to Teleport proxy using mutual TLS.
 It then intercepts every request and adds [impersonation headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation)
 to map users to Kubernetes users and groups.
 
 ![Impersonation](../../img/k8s/auth.svg)
 
-Teleport's connectors configure single sign-on for OIDC, OAuth or SAML providers.
-Here are examples of connectors that map SSO users to Kubernetes groups in OSS
-and Teleport's roles in enterprise:
+Teleport's connectors configure single sign-on for OIDC, OAuth, or SAML providers.
+Here are examples of connectors that map SSO users to Kubernetes groups in the Teleport Open Source Edition and Teleport's roles in the Enterprise Edition:
 
 <Tabs>
   <TabItem label="Open Source">
-    Github's `teams_to_logins` section maps users to roles based on users's teams.
+    Github's `teams_to_logins` section maps users to roles based on users' teams.
 
     ```yaml
     kind: github
     version: v3
     metadata:
-      # connector name that will be used with `tsh --auth=github login`
+      # Connector name that will be used with `tsh --auth=github login`
       name: github
     spec:
-      # client ID of Github OAuth app
+      # Client ID of Github OAuth app
       client_id: client-id
-      # client secret of Github OAuth app
+      # Client secret of Github OAuth app
       client_secret: client-secret
       # This name will be shown on UI login screen
       display: Github
@@ -72,9 +71,9 @@ and Teleport's roles in enterprise:
       name: admin
     spec:
       allow:
-        # if kubernetes integration is enabled, this setting configures which
+        # If kubernetes integration is enabled, this setting configures which
         # kubernetes groups the users of this role will be assigned to.
-        # note that you can refer to a SAML/OIDC trait named 'property' via the "{{external.property}}" template variable,
+        # Note that you can refer to a SAML/OIDC trait named 'property' via the "{{external.property}}" template variable,
         # this allows you to specify Kubernetes group membership via your identity provider:
         kubernetes_groups: ["system:masters"]
     ```
@@ -84,7 +83,7 @@ and Teleport's roles in enterprise:
 ## Mapping OIDC claims and SAML attributes to Kubernetes groups
 
 Identity provider admins can assign metadata to a user, such as
-group membership or access permissions. Administators configure what metadata
+group membership or access permissions. Administrators configure what metadata
 is shared with Teleport. Teleport receives user metadata keys and values as OIDC claims or SAML
 attributes during [signle sign-on redirect flow](https://goteleport.com/blog/how-oidc-authentication-works/):
 
@@ -99,7 +98,7 @@ access: {"env": ["prod", "staging"]}
 
 Teleport's roles map OIDC claims or SAML attributes using template variables.
 Template variable `{{external.groups}}` will
-be substituted to the users's group list in the role definition.
+be substituted to the users' group list in the role definition.
 
 ```yaml
 kind: role
@@ -117,10 +116,12 @@ spec:
     kubernetes_users: ["{{external.email}}"]
 ```
 
+(!docs/pages/includes/permission-warning.mdx!)
+
 Create or update this role using `tctl`:
 
-```bsh
-$ tctl create -f member.yaml
+```bash
+tctl create -f member.yaml
 ```
 
 Assign this role to a user in OIDC or SAML connector:
@@ -131,12 +132,12 @@ Assign this role to a user in OIDC or SAML connector:
     kind: github
     version: v3
     metadata:
-      # connector name that will be used with `tsh --auth=github login`
+      # Connector name that will be used with `tsh --auth=github login`
       name: github
     spec:
-      # client ID of Github OAuth app
+      # Client ID of Github OAuth app
       client_id: client-id
-      # client secret of Github OAuth app
+      # Client secret of Github OAuth app
       client_secret: client-secret
       # This name will be shown on UI login screen
       display: Github
@@ -146,8 +147,8 @@ Assign this role to a user in OIDC or SAML connector:
       teams_to_logins:
         - organization: octocats # Github organization name
           team: admin            # Github team name within that organization
-          # list of Kubernetes groups this Github team is allowed to connect to
-          # keep this field as is for now
+          # List of Kubernetes groups this Github team is allowed to connect to
+          # Keep this field as is for now
           logins: ["admins"]
     ```
   </TabItem>
@@ -195,20 +196,20 @@ Local users are mapped to Kubernetes groups using roles:
 ```bash
 # Specify `kubernetes_groups` property in a role "admins" and
 # create a user assigned to the role.
-$ tctl users add joe --roles="admins"
+tctl users add joe --roles="admins"
 ```
 
-## Kubernetes Labels
+## Kubernetes labels
 
 Label each cluster with key-value pairs describing the cluster:
 
 <Tabs>
   <TabItem label="Helm">
     ```bash
-    # install or upgrade the agent or cluster and set labels:
-    $ helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
-        --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent\
-        --set labels.env=prod --set labels.region=us-west-1
+    # Install or upgrade the agent or cluster and set labels:
+    helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
+      --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent\
+      --set labels.env=prod --set labels.region=us-west-1
     ```
   </TabItem>
 
@@ -290,7 +291,7 @@ subjects:
 
 Take a look at the example usage in a [Teleport Helm chart](https://github.com/gravitational/teleport/blob/v\(=teleport.version=\)/examples/chart/teleport-cluster/templates/clusterrole.yaml)
 
-## Next Steps
+## Next steps
 
 Integrate with your identity provider:
 

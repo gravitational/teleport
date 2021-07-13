@@ -41,8 +41,8 @@ type textFormatter struct {
 	// FormatCaller is a function to return (part) of source file path for output.
 	// Defaults to filePathAndLine() if unspecified
 	FormatCaller func() (caller string)
-	// InputFormat is the parsed format of each log line
-	LogFormat []string
+	// ExtraFields represent the extra fields that will be added to the log message
+	ExtraFields []string
 	// TimestampEnabled specifies if timestamp is enabled in logs
 	timestampEnabled bool
 	// CallerEnabled specifies if caller is enabled in logs
@@ -63,6 +63,7 @@ const (
 	componentField = "component"
 	callerField    = "caller"
 	timestampField = "timestamp"
+	messageField   = "message"
 )
 
 // CheckAndSetDefaults checks and sets log format configuration
@@ -75,13 +76,14 @@ func (tf *textFormatter) CheckAndSetDefaults() error {
 	tf.FormatCaller = formatCallerWithPathAndLine
 
 	// set log formatting
-	if tf.LogFormat == nil {
+	if tf.ExtraFields == nil {
+		tf.timestampEnabled = true
 		tf.callerEnabled = true
-		tf.LogFormat = KnownFormatFields.names()
+		tf.ExtraFields = KnownFormatFields.names()
 		return nil
 	}
 	// parse input
-	res, err := parseInputFormat(tf.LogFormat)
+	res, err := parseInputFormat(tf.ExtraFields)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -94,7 +96,7 @@ func (tf *textFormatter) CheckAndSetDefaults() error {
 		tf.callerEnabled = true
 	}
 
-	tf.LogFormat = res
+	tf.ExtraFields = res
 	return nil
 }
 
@@ -109,7 +111,7 @@ func (tf *textFormatter) Format(e *log.Entry) ([]byte, error) {
 		w.writeField(e.Time.Format(time.RFC3339), noColor)
 	}
 
-	for _, match := range tf.LogFormat {
+	for _, match := range tf.ExtraFields {
 		switch match {
 		case "level":
 			color := noColor
@@ -163,12 +165,75 @@ func (tf *textFormatter) Format(e *log.Entry) ([]byte, error) {
 	// write caller last if enabled
 	if tf.callerEnabled && caller != "" {
 		w.writeField(caller, noColor)
-
 	}
 
 	w.WriteByte('\n')
 	data = w.Bytes()
 	return data, nil
+}
+
+// jsonFormatter implements the logrus.Formatter interface and adds extra
+// fields to log entries
+type jsonFormatter struct {
+	log.JSONFormatter
+
+	extraFields []string
+
+	callerEnabled    bool
+	componentEnabled bool
+}
+
+// CheckAndSetDefaults checks and sets log format configuration
+func (j *jsonFormatter) CheckAndSetDefaults() error {
+	// set log formatting
+	if j.extraFields == nil {
+		j.extraFields = KnownFormatFields.names()
+	}
+
+	// parse input
+	res, err := parseInputFormat(j.extraFields)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if utils.SliceContainsStr(res, timestampField) {
+		j.JSONFormatter.DisableTimestamp = true
+	}
+
+	if utils.SliceContainsStr(res, callerField) {
+		j.callerEnabled = true
+	}
+
+	if utils.SliceContainsStr(res, componentField) {
+		j.componentEnabled = true
+	}
+
+	// rename default fields
+	j.JSONFormatter = log.JSONFormatter{
+		FieldMap: log.FieldMap{
+			log.FieldKeyTime:  timestampField,
+			log.FieldKeyLevel: levelField,
+			log.FieldKeyMsg:   messageField,
+		},
+	}
+
+	return nil
+}
+
+// Format implements logrus.Formatter interface
+func (j *jsonFormatter) Format(e *log.Entry) ([]byte, error) {
+	if j.callerEnabled {
+		path := formatCallerWithPathAndLine()
+		e.Data[callerField] = path
+	}
+
+	if j.componentEnabled {
+		e.Data[componentField] = e.Data[trace.Component]
+	}
+
+	delete(e.Data, trace.Component)
+
+	return j.JSONFormatter.Format(e)
 }
 
 func (w *writer) writeError(value interface{}) {

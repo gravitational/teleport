@@ -139,7 +139,7 @@ sudo tctl auth sign \
 The credentials have been written to api.example.com, api.example.com-cert.pub
 
 # You can use ssh-keygen to verify the contents.
-sudo ssh-keygen -L -f api.example.com-cert.pub
+ssh-keygen -L -f api.example.com-cert.pub
 #api.example.com-cert.pub:
 #        Type: ssh-rsa-cert-v01@openssh.com host certificate
 #        Public key: RSA-CERT SHA256:ireEc5HWFjhYPUhmztaFud7EgsopO8l+GpxNMd3wMSk
@@ -184,7 +184,7 @@ terminate the SSH connection to record it:
 # Note that agent forwarding is enabled twice: one from a client to a proxy
 # (mandatory if using a recording proxy), and then optionally from a proxy
 # to the end server if you want your agent running on the end server or not
-sudo ssh -o "ForwardAgent yes" \
+ssh -o "ForwardAgent yes" \
     -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@p.example.com -s proxy:%h:%p" \
     user@host.example.com
 ```
@@ -206,7 +206,7 @@ logging in:
 # Login as Joe
 tsh login --proxy=proxy.example.com --user=joe
 # see if the certificate is present (look for "teleport:joe") at the end of the cert
-sudo ssh-add -L
+ssh-add -L
 ```
 
 <Admonition
@@ -235,7 +235,7 @@ are signed by Teleport's trusted host CA:
 sudo tctl auth export --type=host > teleport_host_ca.pub
 
 # on the machine where you want to run the ssh client
-sudo cat teleport_host_ca.pub >> ~/.ssh/known_hosts
+cat teleport_host_ca.pub >> ~/.ssh/known_hosts
 ```
 
 If you have multiple Teleport clusters, you have to export and set up these
@@ -258,7 +258,7 @@ Make sure you are running OpenSSH's `ssh-agent`, and have logged in to the
 Teleport proxy:
 
 ```bash
-sudo eval `ssh-agent`
+eval `ssh-agent`
 tsh --proxy=root.example.com login
 ```
 

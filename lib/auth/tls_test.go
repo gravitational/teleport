@@ -1349,14 +1349,14 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	// try searching for events with no filter (empty query) - should get all 3 events:
 	to := time.Now().In(time.UTC).Add(time.Hour)
 	from := to.Add(-time.Hour * 2)
-	history, _, err := clt.SearchEvents(from, to, apidefaults.Namespace, nil, 0, "")
+	history, _, err := clt.SearchEvents(from, to, apidefaults.Namespace, nil, 0, types.EventOrderDescending, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	// Extra event is the upload event
 	c.Assert(len(history), check.Equals, 5)
 
 	// try searching for only "session.end" events (real query)
-	history, _, err = clt.SearchEvents(from, to, apidefaults.Namespace, []string{events.SessionEndEvent}, 0, "")
+	history, _, err = clt.SearchEvents(from, to, apidefaults.Namespace, []string{events.SessionEndEvent}, 0, types.EventOrderDescending, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	c.Assert(len(history), check.Equals, 2)

@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -297,7 +298,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	upload(c, uploadDir, fakeClock, alog)
 
 	// get all events from the audit log, should have two session event and one upload event
-	found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), apidefaults.Namespace, nil, 0, "")
+	found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), apidefaults.Namespace, nil, 0, types.EventOrderAscending, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.HasLen, 3)
 	eventA, okA := found[0].(*apievents.SessionStart)
@@ -382,7 +383,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		c.Assert(err, check.IsNil)
 		c.Assert(string(bytes), check.Equals, string(contents))
 
-		found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), apidefaults.Namespace, nil, 0, "")
+		found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), apidefaults.Namespace, nil, 0, types.EventOrderAscending, "")
 		c.Assert(err, check.IsNil)
 		c.Assert(found, check.HasLen, 1)
 	}

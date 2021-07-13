@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
 
@@ -100,6 +101,9 @@ func (s *NativeSuite) TestDisablePrecompute(c *check.C) {
 //   * If the host ID and node name are the same, only list one.
 func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 	caPrivateKey, _, err := s.suite.A.GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+
+	caSigner, err := ssh.ParsePrivateKey(caPrivateKey)
 	c.Assert(err, check.IsNil)
 
 	_, hostPublicKey, err := s.suite.A.GenerateKeyPair("")
@@ -172,14 +176,14 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 		c.Logf("Running test case: %q", tt.desc)
 		hostCertificateBytes, err := s.suite.A.GenerateHostCert(
 			services.HostCertParams{
-				PrivateCASigningKey: caPrivateKey,
-				CASigningAlg:        defaults.CASignatureAlgorithm,
-				PublicHostKey:       hostPublicKey,
-				HostID:              tt.inHostID,
-				NodeName:            tt.inNodeName,
-				ClusterName:         tt.inClusterName,
-				Roles:               tt.inRoles,
-				TTL:                 time.Hour,
+				CASigner:      caSigner,
+				CASigningAlg:  defaults.CASignatureAlgorithm,
+				PublicHostKey: hostPublicKey,
+				HostID:        tt.inHostID,
+				NodeName:      tt.inNodeName,
+				ClusterName:   tt.inClusterName,
+				Roles:         tt.inRoles,
+				TTL:           time.Hour,
 			})
 		c.Assert(err, check.IsNil)
 
@@ -194,6 +198,9 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 // add to remove roles from certificate extensions.
 func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 	priv, pub, err := s.suite.A.GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+
+	caSigner, err := ssh.ParsePrivateKey(priv)
 	c.Assert(err, check.IsNil)
 
 	tests := []struct {
@@ -217,7 +224,7 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 		comment := check.Commentf("Test %v", i)
 
 		userCertificateBytes, err := s.suite.A.GenerateUserCert(services.UserCertParams{
-			PrivateCASigningKey:   priv,
+			CASigner:              caSigner,
 			CASigningAlg:          defaults.CASignatureAlgorithm,
 			PublicUserKey:         pub,
 			Username:              "user",

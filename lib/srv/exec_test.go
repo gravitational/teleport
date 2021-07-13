@@ -540,11 +540,11 @@ func (a *fakeLog) GetSessionEvents(namespace string, sid rsession.ID, after int,
 	return nil, trace.NotFound("")
 }
 
-func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotFound("")
 }
 
-func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotFound("")
 }
 

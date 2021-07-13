@@ -98,6 +98,9 @@ type ReadAccessPoint interface {
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
 
+	// ListNodes returns a paginated list of registered servers for this cluster.
+	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
+
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
@@ -151,6 +154,12 @@ type ReadAccessPoint interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// GetLock gets a lock by name.
+	GetLock(ctx context.Context, name string) (types.Lock, error)
+
+	// GetLocks gets all locks, matching at least one of the targets when specified.
+	GetLocks(context.Context, ...types.LockTarget) ([]types.Lock, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)

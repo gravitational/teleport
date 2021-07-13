@@ -64,8 +64,15 @@ func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time
 			break // success
 		}
 		if trace.IsAlreadyExists(err) { // locked? wait and repeat:
-			backend.Clock().Sleep(250 * time.Millisecond)
-			continue
+			select {
+			case <-backend.Clock().After(250 * time.Millisecond):
+				// OK, go around and try again
+				continue
+
+			case <-ctx.Done():
+				// Context has been cancelled externally, time to go
+				return Lock{}, trace.Wrap(ctx.Err())
+			}
 		}
 		return Lock{}, trace.ConvertSystemError(err)
 	}

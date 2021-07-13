@@ -25,12 +25,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ProxyGetter is a service that gets proxies
-type ProxyGetter interface {
-	// GetProxies returns a list of registered proxies
-	GetProxies() ([]Server, error)
-}
-
 // Site represents a cluster of teleport nodes who collectively trust the same
 // certificate authority (CA) and have a common name.
 //

@@ -1,6 +1,6 @@
 ---
 title: Database Access Access Controls
-description: Role-based access control (RBAC) for Teleport Database Access
+description: Role-based access control (RBAC) for Teleport Database Access.
 ---
 
 # Database Access Role-Based Access Control
@@ -16,7 +16,7 @@ emergency"*.
 For a more general description of Teleport roles and examples see [RBAC](../access-controls/introduction.mdx), as
 this section focuses on configuring RBAC for Database Access.
 
-## Role Configuration
+## Role configuration
 
 Teleport's "role" resource provides the following instruments for restricting
 database access:
@@ -79,7 +79,7 @@ spec:
   or database account) will be rejected.
 </Admonition>
 
-## Database Names
+## Database names
 
 There's a distinction in how different database servers handle logical databases
 which leads to a difference in how `db_names` role field is applied to a connection
@@ -96,7 +96,7 @@ the scope of permissions a user has once connected is determined by the permissi
 grants set on the account within the database. As such, `db_names` role field
 is not currently enforced on MySQL connection attempts.
 
-## Template Variables
+## Template variables
 
 Similar to other role fields, `db_*` fields support templating variables.
 

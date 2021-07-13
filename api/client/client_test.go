@@ -46,6 +46,14 @@ func newMockServer() *mockServer {
 	return m
 }
 
+// startMockServer starts a new mock server. Parallel tests cannot use the same addr.
+func startMockServer(t *testing.T, addr string) {
+	l, err := net.Listen("tcp", addr)
+	require.NoError(t, err)
+	go newMockServer().grpc.Serve(l)
+	t.Cleanup(func() { require.NoError(t, l.Close()) })
+}
+
 func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
 	return &proto.PingResponse{}, nil
 }
@@ -201,12 +209,4 @@ func TestWaitForConnectionReady(t *testing.T) {
 	// WaitForConnectionReady should return an error if the grpc connection is closed.
 	require.NoError(t, clt.GetConnection().Close())
 	require.Error(t, clt.waitForConnectionReady(ctx))
-}
-
-// startMockServer starts a new mock server. Parallel tests cannot use the same addr.
-func startMockServer(t *testing.T, addr string) {
-	l, err := net.Listen("tcp", addr)
-	require.NoError(t, err)
-	go newMockServer().grpc.Serve(l)
-	t.Cleanup(func() { require.NoError(t, l.Close()) })
 }

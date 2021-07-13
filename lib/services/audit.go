@@ -18,6 +18,7 @@ package services
 
 import (
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -28,7 +29,7 @@ func ClusterAuditConfigSpecFromObject(in interface{}) (*types.ClusterAuditConfig
 	if in == nil {
 		return &cfg, nil
 	}
-	if err := utils.ObjectToStruct(in, &cfg); err != nil {
+	if err := apiutils.ObjectToStruct(in, &cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &cfg, nil

@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
@@ -1017,7 +1018,7 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 	return out, nil
 }
 
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	g := l.log.WithFields(log.Fields{"namespace": namespace, "eventType": eventType, "limit": limit})
 	g.Debugf("SearchEvents(%v, %v)", fromUTC, toUTC)
 	if limit <= 0 {
@@ -1027,18 +1028,18 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
 	}
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, startKey)
+		return l.ExternalLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, order, startKey)
 	}
-	return l.localLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, startKey)
+	return l.localLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, order, startKey)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
+		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
 	}
-	return l.localLog.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
+	return l.localLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
 }
 
 // getLocalLog returns the local (file based) audit log.
@@ -1220,11 +1221,11 @@ func (a *closedLogger) GetSessionEvents(namespace string, sid session.ID, after 
 	return nil, trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 
