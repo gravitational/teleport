@@ -1050,7 +1050,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	e := make(chan error, 1)
 	c := make(chan apievents.AuditEvent)
 
-	tarballPath := filepath.Join(l.playbackDir, string(sessionID)+".tar")
+	tarballPath := filepath.Join(l.playbackDir, string(sessionID)+".stream.tar")
 	downloadCtx, cancel := l.createOrGetDownload(tarballPath)
 
 	// Wait until another in progress download finishes and use it's tarball.
