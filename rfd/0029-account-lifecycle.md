@@ -55,7 +55,7 @@ domain names in the prefix about leaked tokens.
 * [ ] All 3 tokens are regenerated in batch every time account recovery is successful.
 * [ ] Each token can only be used one time successfully or unsuccessfully.
 * [ ] Teleport should store tokens hashed with `crypto/bcrypt` and compare using constant-time compare.
-Teleport should store the the time when the tokens were generated alongside the hashed tokens.
+Teleport should store the time when the tokens were generated alongside the hashed tokens.
 * [ ] Trying a wrong token 3 times in a row should lead to a temporary account lock following
 the same failed account login rate-limiting that exists for local users right now.
 * [ ] The reset endpoints should be rate-limited by account and IP to prevent brute-force scans.
