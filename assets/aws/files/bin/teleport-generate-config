@@ -108,6 +108,7 @@ EOS
 write_ssh_and_tunnel_section() {
     PASSED_EXTERNAL_TUNNEL_PORT="$1"
     SSH_PORT=3023
+    POSTGRES_PORT=443
     if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
         # ACM
         if [[ "${USE_ACM}" == "true" ]]; then
@@ -121,6 +122,9 @@ write_ssh_and_tunnel_section() {
                 # when using ACM, we have to set up a dedicated listener and target group as
                 # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
                 TUNNEL_HOSTNAME="${TELEPORT_PROXY_SERVER_NLB_ALIAS}"
+                # when using ACM, we have to add a specific public addr for postgres which lives on the NLB
+                # (rather than the ACM ALB) so that Teleport's multiplexer can be used to route connections
+                POSTGRES_HOSTNAME="${TELEPORT_PROXY_SERVER_NLB_ALIAS}"
             fi
         # non-ACM
         else
@@ -137,6 +141,11 @@ write_ssh_and_tunnel_section() {
                 TUNNEL_HOSTNAME="${TELEPORT_DOMAIN_NAME}"
             fi
         fi
+    fi
+    # if postgres hostname is set, add it to the config
+    # if not, don't add it and use teleport's default
+    if [[ "${POSTGRES_HOSTNAME}" != "" ]]; then
+      echo "  postgres_public_addr: ${POSTGRES_HOSTNAME}:${POSTGRES_PORT}" >> ${USE_CONFIG_PATH}
     fi
     cat << EOS >> ${USE_CONFIG_PATH}
   ssh_public_addr: ${SSH_HOSTNAME}:${SSH_PORT}
@@ -178,6 +187,11 @@ fi
 AUTHENTICATION_STANZA="second_factor: otp"
 if is_fips; then
     AUTHENTICATION_STANZA="local_auth: false"
+fi
+# If auth type is set in the Terraform variables, add this to the config on the auth servers.
+if [[ "${TELEPORT_AUTH_TYPE}" != "" ]]; then
+  AUTHENTICATION_STANZA="type: ${TELEPORT_AUTH_TYPE}
+    ${AUTHENTICATION_STANZA}"
 fi
 
 if [[ "${TELEPORT_ROLE}" == "auth" ]]; then
