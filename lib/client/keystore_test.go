@@ -389,18 +389,22 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 }
 
 func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
-	rsaKey, err := ssh.ParseRawPrivateKey(privateKey)
+	rawKey, err := ssh.ParseRawPrivateKey(privateKey)
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
-	key, cert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
+	rsaKey, ok := rawKey.(*rsa.PrivateKey)
+	if !ok {
+		return nil, auth.TrustedCerts{}, trace.BadParameter("privateKey is not rsa key")
+	}
+	cert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey, pkix.Name{
 		CommonName:   "localhost",
 		Organization: []string{"localhost"},
 	}, nil, defaults.CATTL)
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
-	ca, err := tlsca.FromKeys(cert, key)
+	ca, err := tlsca.FromCertAndSigner(cert, rsaKey)
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}

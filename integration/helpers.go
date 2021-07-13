@@ -191,10 +191,14 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	if cfg.Priv == nil || cfg.Pub == nil {
 		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair("")
 	}
-	rsaKey, err := ssh.ParseRawPrivateKey(cfg.Priv)
+	rawKey, err := ssh.ParseRawPrivateKey(cfg.Priv)
 	fatalIf(err)
+	rsaKey, ok := rawKey.(*rsa.PrivateKey)
+	if !ok {
+		fatalIf(trace.BadParameter("private key is not rsa key"))
+	}
 
-	tlsCAKey, tlsCACert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
+	tlsCACert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey, pkix.Name{
 		CommonName:   cfg.ClusterName,
 		Organization: []string{cfg.ClusterName},
 	}, nil, defaults.CATTL)
@@ -214,7 +218,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		TTL:           24 * time.Hour,
 	})
 	fatalIf(err)
-	tlsCA, err := tlsca.FromKeys(tlsCACert, tlsCAKey)
+	tlsCA, err := tlsca.FromCertAndSigner(tlsCACert, rsaKey)
 	fatalIf(err)
 	cryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)

@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509/pkix"
 	"fmt"
 	"log"
 	"os"
@@ -30,7 +31,9 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/hsm"
+	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -74,6 +77,7 @@ func TestHSM(t *testing.T) {
 
 				// create config file
 				configFile, err := os.CreateTemp("", "softhsm2.conf")
+				require.NoError(t, err)
 				os.Setenv("SOFTHSM2_CONF", configFile.Name())
 
 				// write config file
@@ -165,6 +169,14 @@ func TestHSM(t *testing.T) {
 			require.NoError(t, err)
 			sshPublicKey := ssh.MarshalAuthorizedKey(sshSigner.PublicKey())
 
+			tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
+				signer,
+				pkix.Name{
+					CommonName:   "server1",
+					Organization: []string{"server1"},
+				}, nil, defaults.CATTL)
+			require.NoError(t, err)
+
 			ca := &types.CertAuthorityV2{
 				Kind:    types.KindCertAuthority,
 				Version: types.V2,
@@ -186,6 +198,7 @@ func TestHSM(t *testing.T) {
 							&types.TLSKeyPair{
 								Key:     key,
 								KeyType: hsm.KeyType(key),
+								Cert:    tlsCert,
 							},
 						},
 						JWT: []*types.JWTKeyPair{
@@ -203,8 +216,9 @@ func TestHSM(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, sshSigner)
 
-			_, tlsSigner, err := client.GetTLSCertAndSigner(ca)
+			tlsCert, tlsSigner, err := client.GetTLSCertAndSigner(ca)
 			require.NoError(t, err)
+			require.NotNil(t, tlsCert)
 			require.NotNil(t, tlsSigner)
 
 			jwtSigner, err := client.GetJWTSigner(ca, clockwork.NewFakeClock())
