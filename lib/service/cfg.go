@@ -352,6 +352,9 @@ type ProxyConfig struct {
 	// MySQLAddr is address of MySQL proxy.
 	MySQLAddr utils.NetAddr
 
+	// ALPNRouter is address of ALPN proxy.
+	ALPNRouter utils.NetAddr
+
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
@@ -385,6 +388,10 @@ type ProxyConfig struct {
 
 	// ACME is ACME protocol support config
 	ACME ACME
+
+	// DisableALPNSNIListener allows to enforce on proxy clients to use no TLS SNI ALPN
+	// proxy dialer. Used in tests.
+	DisableALPNSNIListener bool
 }
 
 // ACME configures ACME automatic certificate renewal

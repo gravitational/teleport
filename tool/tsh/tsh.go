@@ -242,6 +242,9 @@ type CLIConf struct {
 
 	// HomePath is where tsh stores profiles
 	HomePath string
+
+	// LocalProxyPort is a port used by local proxy listener.
+	LocalProxyPort string
 }
 
 func main() {
@@ -369,6 +372,14 @@ func Run(args []string, opts ...cliOption) error {
 	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL)).StringVar(&cf.Format)
+
+	// proxy.
+	proxy := app.Command("proxy", "proxy")
+	proxySSH := proxy.Command("ssh", "proxy ssh")
+	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	proxyDB := proxy.Command("db", "proxy db")
+	proxyDB.Arg("db", "Database name").Required().StringVar(&cf.DatabaseService)
+	proxyDB.Arg("port", "Port for local proxy db listener").StringVar(&cf.LocalProxyPort)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -604,6 +615,12 @@ func Run(args []string, opts ...cliOption) error {
 		err = kube.ls.run(&cf)
 	case kube.login.FullCommand():
 		err = kube.login.run(&cf)
+
+	case proxySSH.FullCommand():
+		err = onProxyCommandSSH(&cf)
+	case proxyDB.FullCommand():
+		err = onProxyCommandDB(&cf)
+
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
 	case dbLogin.FullCommand():

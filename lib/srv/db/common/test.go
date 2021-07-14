@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"net"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -109,6 +110,8 @@ type TestClientConfig struct {
 	Username string
 	// RouteToDatabase contains database routing information.
 	RouteToDatabase tlsca.RouteToDatabase
+
+	DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
 // MakeTestClientTLSConfig returns TLS config suitable for configuring test

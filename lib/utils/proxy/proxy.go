@@ -18,6 +18,7 @@ package proxy
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"net/url"
@@ -25,9 +26,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 
 	"golang.org/x/crypto/ssh"
 
@@ -49,6 +53,20 @@ func dialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*s
 	return sshutils.NewClientConnWithDeadline(conn, addr, config)
 }
 
+func dialTLSWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+	dialer := &net.Dialer{
+		Timeout: config.Timeout,
+	}
+	tlsConn, err := tls.DialWithDialer(dialer, network, addr, &tls.Config{
+		NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
+		InsecureSkipVerify: lib.IsInsecureDevMode(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sshutils.NewClientConnWithDeadline(tlsConn, addr, config)
+}
+
 // A Dialer is a means for a client to establish a SSH connection.
 type Dialer interface {
 	// Dial establishes a client connection to a SSH server.
@@ -58,16 +76,43 @@ type Dialer interface {
 	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
 }
 
-type directDial struct{}
+type directDial struct {
+	useTLS bool
+}
+
+func isALPNUnsupportedError(err error) bool {
+	return err.Error() == "ssh: handshake failed: EOF"
+}
 
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	return dialWithDeadline(network, addr, config)
+	client, err := dialWithDeadline(network, addr, config)
+	if err != nil {
+		if isALPNUnsupportedError(err) {
+			return dialTLSWithDeadline(network, addr, config)
+		}
+		return nil, err
+	}
+	return client, nil
 }
 
 // DialTimeout acts like Dial but takes a timeout.
 func (d directDial) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
-	return net.DialTimeout(network, address, timeout)
+	if d.useTLS {
+		tlsConn, err := tls.Dial("tcp", address, &tls.Config{
+			NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
+			InsecureSkipVerify: lib.IsInsecureDevMode(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return tlsConn, nil
+	}
+	conn, err := net.DialTimeout(network, address, timeout)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
 }
 
 type proxyDial struct {
@@ -126,8 +171,23 @@ func DialerFromEnvironment(addr string) Dialer {
 	return proxyDial{proxyHost: proxyAddr}
 }
 
-func dialProxy(ctx context.Context, proxyAddr string, addr string) (net.Conn, error) {
+type DirectDialerOptFunc func(dial *directDial)
 
+func WithTLSDirectDialer() DirectDialerOptFunc {
+	return func(dial *directDial) {
+		dial.useTLS = true
+	}
+}
+
+func NewDirectDialer(opts ...DirectDialerOptFunc) Dialer {
+	dialer := &directDial{}
+	for _, opt := range opts {
+		opt(dialer)
+	}
+	return dialer
+}
+
+func dialProxy(ctx context.Context, proxyAddr string, addr string) (net.Conn, error) {
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "tcp", proxyAddr)
 	if err != nil {

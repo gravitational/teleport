@@ -17,9 +17,10 @@ limitations under the License.
 package service
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // listenerType identifies different registered listeners in
