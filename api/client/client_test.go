@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,7 +125,7 @@ func TestNew(t *testing.T) {
 			},
 		},
 		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-			require.EqualError(t, err, "all auth methods failed\n\tcontext deadline exceeded")
+			require.True(t, strings.Contains(err.Error(), "all connections methods failed"))
 		},
 	}}
 
