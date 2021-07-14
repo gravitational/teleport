@@ -2,6 +2,7 @@ write_confd_file() {
     cat << EOF > ${TELEPORT_CONFD_DIR?}/conf
 TELEPORT_ROLE=auth
 EC2_REGION=us-east-1
+TELEPORT_AUTH_TYPE=saml
 TELEPORT_AUTH_SERVER_LB=gus-tftestkube4-auth-0f66dd17f8dd9825.elb.us-east-1.amazonaws.com
 TELEPORT_CLUSTER_NAME=gus-tftestkube4
 TELEPORT_DOMAIN_ADMIN_EMAIL=test@email.com
@@ -70,4 +71,10 @@ load fixtures/common
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${AUTH_BLOCK?}"
     echo "${AUTH_BLOCK?}" | grep -E "^  authentication:" -A2 | grep -q "local_auth: false"
+}
+
+@test "[${TEST_SUITE?}] auth_service.authentication.type is set correctly" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${AUTH_BLOCK?}"
+    echo "${AUTH_BLOCK?}" | grep -E "^    type:" | grep -q "saml"
 }
