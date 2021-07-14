@@ -280,6 +280,7 @@ github.com/gravitational/oxy/utils
 github.com/gravitational/roundtrip
 # github.com/gravitational/teleport/api v0.0.0 => ./api
 ## explicit
+github.com/gravitational/teleport/api
 github.com/gravitational/teleport/api/client
 github.com/gravitational/teleport/api/client/proto
 github.com/gravitational/teleport/api/client/webclient
@@ -315,6 +316,9 @@ github.com/jackc/chunkreader/v2
 ## explicit
 github.com/jackc/pgconn
 github.com/jackc/pgconn/internal/ctxwatch
+# github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
+## explicit
+github.com/jackc/pgerrcode
 # github.com/jackc/pgio v1.0.0
 github.com/jackc/pgio
 # github.com/jackc/pgpassfile v1.0.0
@@ -418,6 +422,7 @@ github.com/pborman/uuid
 # github.com/pingcap/errors v0.11.0
 github.com/pingcap/errors
 # github.com/pkg/errors v0.9.1
+## explicit
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib

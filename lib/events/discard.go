@@ -59,10 +59,14 @@ func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace strin
 func (d *DiscardAuditLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
 }
-
 func (d *DiscardAuditLog) UploadSessionRecording(SessionRecording) error {
 	return nil
 }
 func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return nil
+}
+func (d *DiscardAuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	close(c)
+	return c, e
 }
