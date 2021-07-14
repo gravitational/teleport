@@ -41,6 +41,7 @@ proxy:
 #
 config:
   # used for cluster name, advertise_ip, and public addresses
+  # cluster name may be overridden with config.teleport.auth_service.cluster_name
   # If High Availability is set it is only used for the proxy
   public_address: teleport.example.com
   #used for listen addreses in proxy, auth and ssh
@@ -84,6 +85,8 @@ config:
 
     auth_service:
       enabled: yes
+      # Specify a cluster name, otherwise public_address will be used
+      # cluster_name: "teleport"
       license_file: /var/lib/license/license-enterprise.pem
       authentication:
         type: local
