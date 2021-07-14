@@ -236,13 +236,13 @@ func (c *Counter) loop() {
 
 const (
 	// commMax is the maximum length of a command from linux/sched.h.
-	commMax = 16
+	CommMax = 16
 
 	// pathMax is the maximum length of a path from linux/limits.h.
-	pathMax = 255
+	PathMax = 255
 
 	// argvMax is the maximum length of the args vector.
-	argvMax = 128
+	ArgvMax = 128
 
 	// eventArg is an exec event that holds the arguments to a function.
 	eventArg = 0

@@ -9,6 +9,8 @@
         __type(value, val_type); \
     } name SEC(".maps")
 
+#include "vmlinux.h"
+
 #define BPF_HASH(name, key_type, val_type, size) \
     struct { \
         __uint(type, BPF_MAP_TYPE_HASH); \
@@ -16,6 +18,15 @@
         __type(key, key_type); \
         __type(value, val_type); \
     } name SEC(".maps")
+
+#define BPF_LPM_TRIE(name, key_type, val_type, size) \
+	struct { \
+		__uint(type, BPF_MAP_TYPE_LPM_TRIE); \
+		__uint(max_entries, size); \
+		__type(key, key_type); \
+		__type(value, val_type); \
+		__uint(map_flags, BPF_F_NO_PREALLOC); \
+	} name SEC(".maps")
 
 #define BPF_RING_BUF(name, size) \
     struct { \

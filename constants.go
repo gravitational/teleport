@@ -234,6 +234,9 @@ const (
 	// ComponentBPF is the eBPF packagae.
 	ComponentBPF = "bpf"
 
+	// ComponentRestrictedSession is restriction of user access to kernel objects
+	ComponentRestrictedSession = "restrictedsess"
+
 	// ComponentCgroup is the cgroup package.
 	ComponentCgroup = "cgroups"
 

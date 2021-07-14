@@ -68,7 +68,7 @@ type rawConn4Event struct {
 	DstPort uint16
 
 	// Command is name of the executable making the connection.
-	Command [commMax]byte
+	Command [CommMax]byte
 }
 
 // rawConn6Event is sent by the eBPF program that Teleport pulls off the perf
@@ -93,7 +93,7 @@ type rawConn6Event struct {
 	DstPort uint16
 
 	// Command is name of the executable making the connection.
-	Command [commMax]byte
+	Command [CommMax]byte
 }
 
 type conn struct {

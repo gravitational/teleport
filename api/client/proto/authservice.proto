@@ -89,6 +89,9 @@ message Event {
             [ (gogoproto.jsontag) = "cluster_audit_config,omitempty" ];
         // Lock is a lock resource.
         types.LockV2 Lock = 24 [ (gogoproto.jsontag) = "lock,omitempty" ];
+        // NetworkRestrictions is a resource for network restrictions
+        types.NetworkRestrictionsV4 NetworkRestrictions = 25
+            [ (gogoproto.jsontag) = "network_restrictions,omitempty" ];
     }
 }
 
@@ -1208,4 +1211,11 @@ service AuthService {
 
     // StreamSessionEvents streams audit events from a given session recording.
     rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);
+
+    // GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
+    rpc GetNetworkRestrictions(google.protobuf.Empty) returns (types.NetworkRestrictionsV4);
+    // SetNetworkRestrictions updates the network restrictions.
+    rpc SetNetworkRestrictions(types.NetworkRestrictionsV4) returns (google.protobuf.Empty);
+    // DeleteNetworkRestrictions delete the network restrictions.
+    rpc DeleteNetworkRestrictions(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

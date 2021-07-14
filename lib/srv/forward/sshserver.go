@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
@@ -387,6 +388,13 @@ func (s *Server) UseTunnel() bool {
 // node), so return a NOP implementation.
 func (s Server) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
+}
+
+// GetRestrictedSessionManager returns a NOP manager since for a
+// forwarding server it makes no sense (it has to run on the actual
+// node).
+func (s Server) GetRestrictedSessionManager() restricted.Manager{
+	return &restricted.NOP{}
 }
 
 // GetInfo returns a services.Server that represents this server.
