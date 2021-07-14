@@ -195,6 +195,16 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			conn.SetTLSConfig(tlsConfig)
 		})
 	if err != nil {
+		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Server.IsRDS() {
+			return nil, trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure Teleport db service's IAM policy allows it to connect to the RDS instance:
+
+%v
+`, common.ConvertError(err), common.GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
+		}
 		return nil, trace.Wrap(err)
 	}
 	return conn, nil
