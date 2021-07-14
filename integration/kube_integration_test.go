@@ -58,6 +58,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	streamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/client-go/kubernetes"
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/tools/remotecommand"
@@ -95,7 +96,11 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 	}
 	require.NotEmpty(t, suite.kubeConfigPath, "This test requires path to valid kubeconfig.")
 
-	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
+	kubeproxy.TestOnlyMonkeyPatchSelfPermissionCheck(
+		func(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {
+			return nil
+		})
+	t.Cleanup(func() { kubeproxy.TestOnlyMonkeyPatchSelfPermissionCheck(nil) })
 
 	var err error
 	SetTestTimeouts(time.Millisecond * time.Duration(100))

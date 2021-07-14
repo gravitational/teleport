@@ -73,7 +73,7 @@ func (s AuthSuite) TestCheckImpersonationPermissions(c *check.C) {
 			allowedVerbs:     tt.allowedVerbs,
 			allowedResources: tt.allowedResources,
 		}
-		err := checkImpersonationPermissions(context.Background(), mock)
+		err := checkImpersonationPermissions(context.Background(), "test", mock)
 		if tt.wantErr {
 			c.Assert(err, check.NotNil)
 		} else {
@@ -113,13 +113,13 @@ func (c *mockSARClient) Create(_ context.Context, sar *authzapi.SelfSubjectAcces
 	return sar, nil
 }
 
+func alwaysSucceeds(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {
+	return nil
+}
+
 func TestGetKubeCreds(t *testing.T) {
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
-
-	// Permission check is tested separately above.
-	TestOnlySkipSelfPermissionCheck(true)
-	defer TestOnlySkipSelfPermissionCheck(false)
 
 	tmpFile, err := ioutil.TempFile("", "teleport")
 	require.NoError(t, err)
@@ -141,6 +141,10 @@ contexts:
     cluster: example
     user: creds
   name: bar
+- context:
+    cluster: example
+    user: creds
+  name: baz
 users:
 - name: creds
 current-context: foo
@@ -149,34 +153,36 @@ current-context: foo
 	require.NoError(t, tmpFile.Close())
 
 	tests := []struct {
-		desc           string
-		kubeconfigPath string
-		kubeCluster    string
-		serviceType    KubeServiceType
-		want           map[string]*kubeCreds
-		assertErr      require.ErrorAssertionFunc
+		desc              string
+		kubeconfigPath    string
+		kubeCluster       string
+		serviceType       KubeServiceType
+		impersonationShim SelfPermissionsCheckTestingShimFn
+		want              map[string]*kubeCreds
+		assertErr         require.ErrorAssertionFunc
 	}{
 		{
-			desc:        "kubernetes_service, no kube creds",
-			serviceType: KubeService,
-			assertErr:   require.Error,
-		},
-		{
-			desc:        "proxy_service, no kube creds",
-			serviceType: ProxyService,
-			assertErr:   require.NoError,
-			want:        map[string]*kubeCreds{},
-		},
-		{
-			desc:        "legacy proxy_service, no kube creds",
-			serviceType: ProxyService,
-			assertErr:   require.NoError,
-			want:        map[string]*kubeCreds{},
-		},
-		{
-			desc:           "kubernetes_service, with kube creds",
-			serviceType:    KubeService,
-			kubeconfigPath: kubeconfigPath,
+			desc:              "kubernetes_service, no kube creds",
+			serviceType:       KubeService,
+			impersonationShim: alwaysSucceeds,
+			assertErr:         require.Error,
+		}, {
+			desc:              "proxy_service, no kube creds",
+			serviceType:       ProxyService,
+			impersonationShim: alwaysSucceeds,
+			assertErr:         require.NoError,
+			want:              map[string]*kubeCreds{},
+		}, {
+			desc:              "legacy proxy_service, no kube creds",
+			serviceType:       ProxyService,
+			impersonationShim: alwaysSucceeds,
+			assertErr:         require.NoError,
+			want:              map[string]*kubeCreds{},
+		}, {
+			desc:              "kubernetes_service, with kube creds",
+			serviceType:       KubeService,
+			kubeconfigPath:    kubeconfigPath,
+			impersonationShim: alwaysSucceeds,
 			want: map[string]*kubeCreds{
 				"foo": {
 					targetAddr:      "example.com:3026",
@@ -188,22 +194,50 @@ current-context: foo
 					transportConfig: &transport.Config{},
 					kubeClient:      &kubernetes.Clientset{},
 				},
+				"baz": {
+					targetAddr:      "example.com:3026",
+					transportConfig: &transport.Config{},
+					kubeClient:      &kubernetes.Clientset{},
+				},
 			},
 			assertErr: require.NoError,
-		},
-		{
-			desc:           "proxy_service, with kube creds",
-			kubeconfigPath: kubeconfigPath,
-			serviceType:    ProxyService,
-			want:           map[string]*kubeCreds{},
-			assertErr:      require.NoError,
-		},
-		{
-			desc:           "legacy proxy_service, with kube creds",
-			kubeconfigPath: kubeconfigPath,
-			serviceType:    LegacyProxyService,
+		}, {
+			desc:              "proxy_service, with kube creds",
+			kubeconfigPath:    kubeconfigPath,
+			serviceType:       ProxyService,
+			impersonationShim: alwaysSucceeds,
+			want:              map[string]*kubeCreds{},
+			assertErr:         require.NoError,
+		}, {
+			desc:              "legacy proxy_service, with kube creds",
+			kubeconfigPath:    kubeconfigPath,
+			serviceType:       LegacyProxyService,
+			impersonationShim: alwaysSucceeds,
 			want: map[string]*kubeCreds{
 				teleClusterName: {
+					targetAddr:      "example.com:3026",
+					transportConfig: &transport.Config{},
+					kubeClient:      &kubernetes.Clientset{},
+				},
+			},
+			assertErr: require.NoError,
+		}, {
+			desc:           "Missing cluster does not fail operation",
+			kubeconfigPath: kubeconfigPath,
+			serviceType:    KubeService,
+			impersonationShim: func(ctx context.Context, cluster string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
+				if cluster == "bar" {
+					return errors.New("Kaboom")
+				}
+				return nil
+			},
+			want: map[string]*kubeCreds{
+				"foo": {
+					targetAddr:      "example.com:3026",
+					transportConfig: &transport.Config{},
+					kubeClient:      &kubernetes.Clientset{},
+				},
+				"baz": {
 					targetAddr:      "example.com:3026",
 					transportConfig: &transport.Config{},
 					kubeClient:      &kubernetes.Clientset{},
@@ -214,6 +248,9 @@ current-context: foo
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
+			TestOnlyMonkeyPatchSelfPermissionCheck(tt.impersonationShim)
+			defer TestOnlyMonkeyPatchSelfPermissionCheck(nil)
+
 			got, err := getKubeCreds(ctx, testlog.FailureOnly(t), teleClusterName, "", tt.kubeconfigPath, tt.serviceType)
 			tt.assertErr(t, err)
 			if err != nil {
