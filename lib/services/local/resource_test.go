@@ -27,10 +27,11 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 
@@ -63,7 +64,7 @@ func (r *ResourceSuite) TearDownTest(c *check.C) {
 	c.Assert(r.bk.Close(), check.IsNil)
 }
 
-func (r *ResourceSuite) dumpResources(c *check.C) []services.Resource {
+func (r *ResourceSuite) dumpResources(c *check.C) []types.Resource {
 	startKey := []byte("/")
 	endKey := backend.RangeEnd(startKey)
 	result, err := r.bk.GetRange(context.TODO(), startKey, endKey, 0)
@@ -73,10 +74,10 @@ func (r *ResourceSuite) dumpResources(c *check.C) []services.Resource {
 	return resources
 }
 
-func (r *ResourceSuite) runCreationChecks(c *check.C, resources ...services.Resource) {
+func (r *ResourceSuite) runCreationChecks(c *check.C, resources ...types.Resource) {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
-		case services.User:
+		case types.User:
 			c.Logf("Creating User: %+v", r)
 		default:
 		}
@@ -104,8 +105,10 @@ func (r *ResourceSuite) TestUserResourceWithSecrets(c *check.C) {
 }
 
 func (r *ResourceSuite) runUserResourceTest(c *check.C, withSecrets bool) {
-	alice := newUserTestCase(c, "alice", nil, withSecrets)
-	bob := newUserTestCase(c, "bob", nil, withSecrets)
+	expiry := r.bk.Clock().Now().Add(time.Minute)
+
+	alice := newUserTestCase(c, "alice", nil, withSecrets, expiry)
+	bob := newUserTestCase(c, "bob", nil, withSecrets, expiry)
 	// Check basic dynamic item creation
 	r.runCreationChecks(c, alice, bob)
 	// Check that dynamically created item is compatible with service
@@ -126,11 +129,17 @@ func (r *ResourceSuite) runUserResourceTest(c *check.C, withSecrets bool) {
 			c.Errorf("Unexpected user %q", user.GetName())
 		}
 	}
+
+	// Advance the clock to let the users to expire.
+	r.bk.Clock().(clockwork.FakeClock).Advance(2 * time.Minute)
+	allUsers, err = s.GetUsers(withSecrets)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(allUsers), check.Equals, 0, check.Commentf("expected all users to expire"))
 }
 
 func (r *ResourceSuite) TestCertAuthorityResource(c *check.C) {
-	userCA := suite.NewTestCA(services.UserCA, "example.com")
-	hostCA := suite.NewTestCA(services.HostCA, "example.com")
+	userCA := suite.NewTestCA(types.UserCA, "example.com")
+	hostCA := suite.NewTestCA(types.HostCA, "example.com")
 	// Check basic dynamic item creation
 	r.runCreationChecks(c, userCA, hostCA)
 	// Check that dynamically created item is compatible with service
@@ -141,7 +150,7 @@ func (r *ResourceSuite) TestCertAuthorityResource(c *check.C) {
 
 func (r *ResourceSuite) TestTrustedClusterResource(c *check.C) {
 	ctx := context.Background()
-	foo, err := services.NewTrustedCluster("foo", services.TrustedClusterSpecV2{
+	foo, err := types.NewTrustedCluster("foo", types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Roles:                []string{"bar", "baz"},
 		Token:                "qux",
@@ -150,7 +159,7 @@ func (r *ResourceSuite) TestTrustedClusterResource(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	bar, err := services.NewTrustedCluster("bar", services.TrustedClusterSpecV2{
+	bar, err := types.NewTrustedCluster("bar", types.TrustedClusterSpecV2{
 		Enabled:              false,
 		Roles:                []string{"baz", "aux"},
 		Token:                "quux",
@@ -170,19 +179,19 @@ func (r *ResourceSuite) TestTrustedClusterResource(c *check.C) {
 
 func (r *ResourceSuite) TestGithubConnectorResource(c *check.C) {
 	ctx := context.Background()
-	connector := &services.GithubConnectorV3{
-		Kind:    services.KindGithubConnector,
-		Version: services.V3,
-		Metadata: services.Metadata{
+	connector := &types.GithubConnectorV3{
+		Kind:    types.KindGithubConnector,
+		Version: types.V3,
+		Metadata: types.Metadata{
 			Name:      "github",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
-		Spec: services.GithubConnectorSpecV3{
+		Spec: types.GithubConnectorSpecV3{
 			ClientID:     "aaa",
 			ClientSecret: "bbb",
 			RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
 			Display:      "Github",
-			TeamsToLogins: []services.TeamMapping{
+			TeamsToLogins: []types.TeamMapping{
 				{
 					Organization: "gravitational",
 					Team:         "admins",
@@ -217,8 +226,8 @@ func u2fRegTestCase(c *check.C) u2f.Registration {
 	return registration
 }
 
-func localAuthSecretsTestCase(c *check.C) services.LocalAuthSecrets {
-	var auth services.LocalAuthSecrets
+func localAuthSecretsTestCase(c *check.C) types.LocalAuthSecrets {
+	var auth types.LocalAuthSecrets
 	var err error
 	auth.PasswordHash, err = bcrypt.GenerateFromPassword([]byte("insecure"), bcrypt.MinCost)
 	c.Assert(err, check.IsNil)
@@ -235,15 +244,16 @@ func localAuthSecretsTestCase(c *check.C) services.LocalAuthSecrets {
 	return auth
 }
 
-func newUserTestCase(c *check.C, name string, roles []string, withSecrets bool) services.User {
-	user := services.UserV2{
-		Kind:    services.KindUser,
-		Version: services.V2,
-		Metadata: services.Metadata{
+func newUserTestCase(c *check.C, name string, roles []string, withSecrets bool, expires time.Time) types.User {
+	user := types.UserV2{
+		Kind:    types.KindUser,
+		Version: types.V2,
+		Metadata: types.Metadata{
 			Name:      name,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
+			Expires:   &expires,
 		},
-		Spec: services.UserSpecV2{
+		Spec: types.UserSpecV2{
 			Roles: roles,
 		},
 	}

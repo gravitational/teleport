@@ -115,7 +115,7 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewAgentPool returns new isntance of the agent pool
+// NewAgentPool returns new instance of the agent pool
 func NewAgentPool(ctx context.Context, cfg AgentPoolConfig) (*AgentPool, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

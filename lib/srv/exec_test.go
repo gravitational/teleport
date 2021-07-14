@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -88,7 +89,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	bk, err := lite.NewWithConfig(ctx, lite.Config{Path: c.MkDir()})
 	c.Assert(err, check.IsNil)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "localhost",
 	})
 	c.Assert(err, check.IsNil)
@@ -104,8 +105,8 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// set static tokens
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{},
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	c.Assert(err, check.IsNil)
 	err = s.a.SetStaticTokens(staticTokens)
@@ -253,7 +254,7 @@ func (s *ExecSuite) TestEmitExecAuditEvent(c *check.C) {
 	}
 	for _, tt := range tests {
 		emitExecAuditEvent(s.ctx, tt.inCommand, tt.inError)
-		execEvent := fakeServer.LastEvent().(*events.Exec)
+		execEvent := fakeServer.LastEvent().(*apievents.Exec)
 		c.Assert(execEvent.Command, check.Equals, tt.outCommand)
 		c.Assert(execEvent.ExitCode, check.Equals, tt.outCode)
 	}
@@ -475,21 +476,21 @@ func (f *fakeServer) GetClock() clockwork.Clock {
 	return nil
 }
 
-func (f *fakeServer) GetInfo() services.Server {
+func (f *fakeServer) GetInfo() types.Server {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
 	}
 
-	return &services.ServerV2{
-		Kind:    services.KindNode,
-		Version: services.V2,
-		Metadata: services.Metadata{
+	return &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
 			Name:      "",
 			Namespace: "",
 			Labels:    make(map[string]string),
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			CmdLabels: make(map[string]types.CommandLabelV2),
 			Addr:      "",
 			Hostname:  hostname,
@@ -519,7 +520,7 @@ func (a *fakeLog) EmitAuditEventLegacy(e events.Event, f events.EventFields) err
 	return trace.NotImplemented("not implemented")
 }
 
-func (a *fakeLog) EmitAuditEvent(ctx context.Context, e events.AuditEvent) error {
+func (a *fakeLog) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
 	return trace.NotImplemented("not implemented")
 }
 
@@ -539,12 +540,18 @@ func (a *fakeLog) GetSessionEvents(namespace string, sid rsession.ID, after int,
 	return nil, trace.NotFound("")
 }
 
-func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]events.EventFields, error) {
-	return nil, trace.NotFound("")
+func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	return nil, "", trace.NotFound("")
 }
 
-func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]events.EventFields, error) {
-	return nil, trace.NotFound("")
+func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	return nil, "", trace.NotFound("")
+}
+
+func (a *fakeLog) StreamSessionEvents(ctx context.Context, sessionID rsession.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	e <- trace.NotImplemented("not implemented")
+	return c, e
 }
 
 func (a *fakeLog) WaitForDelivery(context.Context) error {

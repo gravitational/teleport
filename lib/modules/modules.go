@@ -19,12 +19,18 @@ limitations under the License.
 package modules
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"reflect"
 	"runtime"
 	"sync"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+
+	"github.com/gravitational/trace"
 )
 
 // Features provides supported and unsupported features
@@ -95,6 +101,31 @@ func GetModules() Modules {
 	return modules
 }
 
+// ValidateResource performs additional resource checks.
+func ValidateResource(res types.Resource) error {
+	// All checks below are Cloud-specific.
+	if !GetModules().Features().Cloud {
+		return nil
+	}
+
+	switch r := res.(type) {
+	case types.AuthPreference:
+		switch r.GetSecondFactor() {
+		case constants.SecondFactorOff, constants.SecondFactorOptional:
+			return trace.BadParameter("cannot disable two-factor authentication on Cloud")
+		}
+	case types.SessionRecordingConfig:
+		switch r.GetMode() {
+		case types.RecordAtProxy, types.RecordAtProxySync:
+			return trace.BadParameter("cannot set proxy recording mode on Cloud")
+		}
+		if !r.GetProxyChecksHostKeys() {
+			return trace.BadParameter("cannot disable strict host key checking on Cloud")
+		}
+	}
+	return nil
+}
+
 type defaultModules struct{}
 
 // BuildType returns build type (OSS or Enterprise)
@@ -116,9 +147,12 @@ func (p *defaultModules) Features() Features {
 	}
 }
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
 func (p *defaultModules) IsBoringBinary() bool {
-	return false
+	// Check the package name for one of the boring primitives, if the package
+	// path is from BoringCrypto, we know this binary was compiled against the
+	// dev.boringcrypto branch of Go.
+	hash := sha256.New()
+	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
 }
 
 var (

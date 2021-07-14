@@ -21,6 +21,8 @@ import (
 	"sync"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -51,10 +53,13 @@ func NewAuditWriter(cfg AuditWriterConfig) (*AuditWriter, error) {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
 		}),
-		cancel:   cancel,
-		closeCtx: ctx,
-		eventsCh: make(chan AuditEvent),
-		doneCh:   make(chan struct{}),
+		cancel:         cancel,
+		closeCtx:       ctx,
+		eventsCh:       make(chan apievents.AuditEvent),
+		doneCh:         make(chan struct{}),
+		lostEvents:     atomic.NewInt64(0),
+		acceptedEvents: atomic.NewInt64(0),
+		slowWrites:     atomic.NewInt64(0),
 	}
 	go func() {
 		writer.processEvents()
@@ -120,7 +125,7 @@ func (cfg *AuditWriterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("audit writer config: missing parameter ClusterName")
 	}
 	if cfg.Namespace == "" {
-		cfg.Namespace = defaults.Namespace
+		cfg.Namespace = apidefaults.Namespace
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -143,21 +148,21 @@ type AuditWriter struct {
 	mtx            sync.Mutex
 	cfg            AuditWriterConfig
 	log            *logrus.Entry
-	lastPrintEvent *SessionPrint
+	lastPrintEvent *apievents.SessionPrint
 	eventIndex     int64
-	buffer         []AuditEvent
-	eventsCh       chan AuditEvent
-	lastStatus     *StreamStatus
-	stream         Stream
+	buffer         []apievents.AuditEvent
+	eventsCh       chan apievents.AuditEvent
+	lastStatus     *apievents.StreamStatus
+	stream         apievents.Stream
 	cancel         context.CancelFunc
 	closeCtx       context.Context
 	// doneCh is closed when all internal processes have exited
 	doneCh chan struct{}
 
 	backoffUntil   time.Time
-	lostEvents     atomic.Int64
-	acceptedEvents atomic.Int64
-	slowWrites     atomic.Int64
+	lostEvents     *atomic.Int64
+	acceptedEvents *atomic.Int64
+	slowWrites     *atomic.Int64
 }
 
 // AuditWriterStats provides stats about lost events and slow writes
@@ -174,7 +179,7 @@ type AuditWriterStats struct {
 
 // Status returns channel receiving updates about stream status
 // last event index that was uploaded and upload ID
-func (a *AuditWriter) Status() <-chan StreamStatus {
+func (a *AuditWriter) Status() <-chan apievents.StreamStatus {
 	return nil
 }
 
@@ -198,8 +203,8 @@ func (a *AuditWriter) Write(data []byte) (int, error) {
 
 	start := time.Now().UTC().Round(time.Millisecond)
 	for len(dataCopy) != 0 {
-		printEvent := &SessionPrint{
-			Metadata: Metadata{
+		printEvent := &apievents.SessionPrint{
+			Metadata: apievents.Metadata{
 				Type: SessionPrintEvent,
 				Time: start,
 			},
@@ -260,7 +265,7 @@ func (a *AuditWriter) maybeSetBackoff(backoffUntil time.Time) bool {
 }
 
 // EmitAuditEvent emits audit event
-func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	// Event modification is done under lock and in the same goroutine
 	// as the caller to avoid data races and event copying
 	if err := a.setupEvent(event); err != nil {
@@ -459,7 +464,7 @@ func (a *AuditWriter) recoverStream() error {
 	return nil
 }
 
-func (a *AuditWriter) closeStream(stream Stream) {
+func (a *AuditWriter) closeStream(stream apievents.Stream) {
 	ctx, cancel := context.WithTimeout(a.cfg.Context, defaults.NetworkRetryDuration)
 	defer cancel()
 	if err := stream.Close(ctx); err != nil {
@@ -467,7 +472,7 @@ func (a *AuditWriter) closeStream(stream Stream) {
 	}
 }
 
-func (a *AuditWriter) completeStream(stream Stream) {
+func (a *AuditWriter) completeStream(stream apievents.Stream) {
 	ctx, cancel := context.WithTimeout(a.cfg.Context, defaults.NetworkBackoffDuration)
 	defer cancel()
 	if err := stream.Complete(ctx); err != nil {
@@ -475,7 +480,7 @@ func (a *AuditWriter) completeStream(stream Stream) {
 	}
 }
 
-func (a *AuditWriter) tryResumeStream() (Stream, error) {
+func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Step: defaults.NetworkRetryDuration,
 		Max:  defaults.NetworkBackoffDuration,
@@ -483,7 +488,7 @@ func (a *AuditWriter) tryResumeStream() (Stream, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var resumedStream Stream
+	var resumedStream apievents.Stream
 	start := time.Now()
 	for i := 0; i < defaults.FastAttempts; i++ {
 		var streamType string
@@ -528,7 +533,7 @@ func (a *AuditWriter) tryResumeStream() (Stream, error) {
 	return nil, trace.Wrap(err)
 }
 
-func (a *AuditWriter) updateStatus(status StreamStatus) {
+func (a *AuditWriter) updateStatus(status apievents.StreamStatus) {
 	a.lastStatus = &status
 	if status.LastEventIndex < 0 {
 		return
@@ -547,7 +552,7 @@ func (a *AuditWriter) updateStatus(status StreamStatus) {
 	}
 }
 
-func (a *AuditWriter) setupEvent(event AuditEvent) error {
+func (a *AuditWriter) setupEvent(event apievents.AuditEvent) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -569,7 +574,7 @@ func (a *AuditWriter) setupEvent(event AuditEvent) error {
 	event.SetIndex(a.eventIndex)
 	a.eventIndex++
 
-	printEvent, ok := event.(*SessionPrint)
+	printEvent, ok := event.(*apievents.SessionPrint)
 	if !ok {
 		return nil
 	}

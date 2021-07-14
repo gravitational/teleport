@@ -1,0 +1,151 @@
+---
+title: Database Access CLI Reference
+description: CLI reference for Teleport Database Access.
+---
+
+# Database Access CLI Reference
+
+## teleport db start
+
+Starts Teleport Database Service agent.
+
+```shell
+$ teleport db start \
+    --token=/path/to/token \
+    --auth-server=proxy.example.com:3080 \
+    --name=example \
+    --protocol=postgres \
+    --uri=postgres.example.com:5432
+```
+
+| Flag | Description |
+| - | - |
+| `-d/--debug` | Enable verbose logging to stderr. |
+| `--pid-file` | Full path to the PID file. By default no PID file will be created. |
+| `--auth-server` | Address of the Teleport proxy server. |
+| `--token` | Invitation token to register with an auth server. |
+| `--ca-pin` | CA pin to validate the auth server. |
+| `-c/--config` | Path to a configuration file (default `/etc/teleport.yaml`). |
+| `--labels` | Comma-separated list of labels for this node, for example `env=dev,app=web`. |
+| `--fips` | Start Teleport in FedRAMP/FIPS 140-2 mode. |
+| `--name` | Name of the proxied database. |
+| `--description` | Description of the proxied database. |
+| `--protocol` | Proxied database protocol. Supported are: `postgres` and `mysql`. |
+| `--uri` | Address the proxied database is reachable at. |
+| `--ca-cert` | Database CA certificate path. |
+| `--aws-region` | (Only for RDS, Aurora or Redshift) AWS region RDS, Aurora or Redshift database instance is running in. |
+| `--aws-redshift-cluster-id` | (Only for Redshift) Redshift database cluster identifier. |
+| `--gcp-project-id` | (Only for Cloud SQL) GCP Cloud SQL project identifier. |
+| `--gcp-instance-id` | (Only for Cloud SQL) GCP Cloud SQL instance identifier.|
+
+## tctl auth sign
+
+When invoked with a `--format=db` (or `--format=mongodb` for MongoDB) flag,
+produces a CA certificate, a client certificate and a private key file used for
+configuring Database Access with self-hosted database instances.
+
+```shell
+$ tctl auth sign --format=db --host=db.example.com --out=db --ttl=2190h
+```
+
+| Flag | Description |
+| - | - |
+| `--format` | When given value `db`, produces secrets in database compatible format. Use `mongodb` when generating MongoDB secrets. |
+| `--host` | Server name to encode in the certificate. Must match the hostname Teleport will be connecting to the database at. |
+| `--out` | Name prefix for output files. |
+| `--ttl` | Certificate validity period. |
+
+(!docs/pages/includes/database-access/ttl-note.mdx!)
+
+## tctl db ls
+
+Administrative command to list all databases registered with the cluster.
+
+```shell
+$ tctl db ls
+$ tctl db ls --format=yaml
+```
+
+| Flag | Description |
+| - | - |
+| `--format` | Output format, one of `text`, `yaml` or `json`. Defaults to `text`. |
+
+## tsh db ls
+
+Lists available databases and their connection information.
+
+```shell
+$ tsh db ls
+```
+
+Displays only the databases a user has access to (see [RBAC](../rbac.mdx)).
+
+## tsh db login
+
+Retrieves database credentials.
+
+```shell
+$ tsh db login example
+$ tsh db login --db-user=postgres --db-name=postgres example
+```
+
+| Flag | Description |
+| - | - |
+| `--db-user` | Optionally, set default database account name to connect as. |
+| `--db-name` | Optionally, set default database name to connect to. |
+
+## tsh db logout
+
+Removes database credentials.
+
+```shell
+$ tsh db logout example
+$ tsh db logout
+```
+
+## tsh db connect
+
+Connect to a database using its CLI client.
+
+```bash
+# Short syntax when only logged into a single database.
+$ tsh db connect
+# Specify database service to connect to explicitly.
+$ tsh db connect example
+# Provide database user and name to connect to.
+$ tsh db connect --db-user=alice --db-name=db example
+```
+
+<Admonition type="note" title="Note">
+  Respective database CLI clients (`psql`, `mysql` or `mongo`) should be
+  available in PATH.
+</Admonition>
+
+| Flag | Description |
+| - | - |
+| `--db-user` | Optionally, set database user name to connect as. |
+| `--db-name` | Optionally, set database name to connect to. |
+
+## tsh db env
+
+Outputs environment variables for a particular database.
+
+```shell
+$ tsh db env
+$ tsh db env example
+$ eval $(tsh db env)
+```
+
+## tsh db config
+
+Prints database connection information. Useful when configuring GUI clients.
+
+```bash
+$ tsh db config
+$ tsh db config example
+$ tsh db config --format=cmd example
+```
+
+| Flag | Description |
+| - | - |
+| `--format` | Output format: `text` is default, `cmd` to print native database client connect command. |

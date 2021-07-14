@@ -21,9 +21,15 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
@@ -140,13 +146,17 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		u.log.Debugf("Completed upload %v.", upload)
 		completed++
 		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID)
+		err = u.ensureSessionEndEvent(ctx, uploadData)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		session := &events.SessionUpload{
-			Metadata: Metadata{
+			Metadata: apievents.Metadata{
 				Type:  SessionUploadEvent,
 				Code:  SessionUploadCode,
 				Index: SessionUploadIndex,
 			},
-			SessionMetadata: SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(uploadData.SessionID),
 			},
 			SessionURL: uploadData.URL,
@@ -166,4 +176,94 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 func (u *UploadCompleter) Close() error {
 	u.cancel()
 	return nil
+}
+
+func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
+	var serverID, clusterName, user, login, hostname, namespace, serverAddr string
+	var interactive bool
+
+	// Get session events to find fields for constructed session end
+	sessionEvents, err := u.cfg.AuditLog.GetSessionEvents(apidefaults.Namespace, uploadData.SessionID, 0, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(sessionEvents) == 0 {
+		return nil
+	}
+
+	// Return if session.end event already exists
+	for _, event := range sessionEvents {
+		if event.GetType() == SessionEndEvent {
+			return nil
+		}
+	}
+
+	// Session start event is the first of session events
+	sessionStart := sessionEvents[0]
+	if sessionStart.GetType() != SessionStartEvent {
+		return trace.BadParameter("invalid session, session start is not the first event")
+	}
+
+	// Set variables
+	serverID = sessionStart.GetString(SessionServerHostname)
+	clusterName = sessionStart.GetString(SessionClusterName)
+	hostname = sessionStart.GetString(SessionServerHostname)
+	namespace = sessionStart.GetString(EventNamespace)
+	serverAddr = sessionStart.GetString(SessionServerAddr)
+	user = sessionStart.GetString(EventUser)
+	login = sessionStart.GetString(EventLogin)
+	if terminalSize := sessionStart.GetString(TerminalSize); terminalSize != "" {
+		interactive = true
+	}
+
+	// Get last event to get session end time
+	lastEvent := sessionEvents[len(sessionEvents)-1]
+
+	participants := getParticipants(sessionEvents)
+
+	sessionEndEvent := &events.SessionEnd{
+		Metadata: events.Metadata{
+			Type:        SessionEndEvent,
+			Code:        SessionEndCode,
+			ClusterName: clusterName,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        serverID,
+			ServerNamespace: namespace,
+			ServerHostname:  hostname,
+			ServerAddr:      serverAddr,
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: string(uploadData.SessionID),
+		},
+		UserMetadata: events.UserMetadata{
+			User:  user,
+			Login: login,
+		},
+		Participants: participants,
+		Interactive:  interactive,
+		StartTime:    sessionStart.GetTime(EventTime),
+		EndTime:      lastEvent.GetTime(EventTime),
+	}
+
+	// Check and set event fields
+	if err = checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), clusterName); err != nil {
+		return trace.Wrap(err)
+	}
+	if err = u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func getParticipants(sessionEvents []EventFields) []string {
+	var participants []string
+	for _, event := range sessionEvents {
+		if event.GetType() == SessionJoinEvent || event.GetType() == SessionStartEvent {
+			participant := event.GetString(EventUser)
+			participants = append(participants, participant)
+
+		}
+	}
+	return apiutils.Deduplicate(participants)
 }

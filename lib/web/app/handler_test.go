@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -156,10 +157,10 @@ type mockAuthClient struct {
 }
 
 type mockClusterName struct {
-	services.ClusterName
+	types.ClusterName
 }
 
-func (c mockAuthClient) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
+func (c mockAuthClient) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	return mockClusterName{}, nil
 }
 
@@ -167,6 +168,6 @@ func (n mockClusterName) GetClusterName() string {
 	return "local-cluster"
 }
 
-func (c mockAuthClient) GetAppSession(context.Context, services.GetAppSessionRequest) (services.WebSession, error) {
+func (c mockAuthClient) GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error) {
 	return nil, c.sessionError
 }

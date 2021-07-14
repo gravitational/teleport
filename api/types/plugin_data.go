@@ -35,9 +35,6 @@ type PluginData interface {
 	Entries() map[string]*PluginDataEntry
 	// Update attempts to apply an update.
 	Update(params PluginDataUpdateParams) error
-	// CheckAndSetDefaults validates the plugin data
-	// and supplies default values where appropriate.
-	CheckAndSetDefaults() error
 }
 
 // NewPluginData configures a new PluginData instance associated
@@ -45,10 +42,6 @@ type PluginData interface {
 // name of an access request).
 func NewPluginData(resourceName string, resourceKind string) (PluginData, error) {
 	data := PluginDataV3{
-		Kind:    KindPluginData,
-		Version: V3,
-		// If additional resource kinds become supported, make
-		// this a parameter.
 		SubKind: resourceKind,
 		Metadata: Metadata{
 			Name: resourceName,
@@ -103,13 +96,6 @@ func (r *PluginDataV3) SetExpiry(expiry time.Time) {
 	r.Metadata.SetExpiry(expiry)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (r *PluginDataV3) SetTTL(clock Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata gets the resource metadata
 func (r *PluginDataV3) GetMetadata() Metadata {
 	return r.Metadata
@@ -129,14 +115,23 @@ func (r *PluginDataV3) String() string {
 	return fmt.Sprintf("PluginData(kind=%s,resource=%s,entries=%d)", r.GetSubKind(), r.GetName(), len(r.Spec.Entries))
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (r *PluginDataV3) setStaticFields() {
+	r.Kind = KindPluginData
+	r.Version = V3
+}
+
 // CheckAndSetDefaults checks and sets default values for PluginData.
 func (r *PluginDataV3) CheckAndSetDefaults() error {
+	r.setStaticFields()
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if r.SubKind == "" {
 		return trace.BadParameter("plugin data missing subkind")
 	}
+
 	return nil
 }
 

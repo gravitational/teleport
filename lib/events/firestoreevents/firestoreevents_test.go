@@ -68,7 +68,7 @@ func (s *FirestoreeventsSuite) SetUpSuite(c *check.C) {
 	s.log = log
 	s.EventsSuite.Log = log
 	s.EventsSuite.Clock = fakeClock
-	s.EventsSuite.QueryDelay = time.Second
+	s.EventsSuite.QueryDelay = time.Second * 5
 }
 
 func emulatorRunning() bool {
@@ -104,4 +104,8 @@ func (s *FirestoreeventsSuite) TearDownTest(c *check.C) {
 
 func (s *FirestoreeventsSuite) TestSessionEventsCRUD(c *check.C) {
 	s.SessionEventsCRUD(c)
+}
+
+func (s *FirestoreeventsSuite) TestPagination(c *check.C) {
+	s.EventPagination(c)
 }

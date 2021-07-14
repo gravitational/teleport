@@ -20,8 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
 )
 
@@ -41,26 +39,23 @@ type ReverseTunnel interface {
 	SetType(TunnelType)
 	// GetDialAddrs returns list of dial addresses for this cluster
 	GetDialAddrs() []string
-	// Check checks tunnel for errors
-	Check() error
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 }
 
 // NewReverseTunnel returns new version of reverse tunnel
-func NewReverseTunnel(clusterName string, dialAddrs []string) ReverseTunnel {
-	return &ReverseTunnelV2{
-		Kind:    KindReverseTunnel,
-		Version: V2,
+func NewReverseTunnel(clusterName string, dialAddrs []string) (ReverseTunnel, error) {
+	r := &ReverseTunnelV2{
 		Metadata: Metadata{
-			Name:      clusterName,
-			Namespace: defaults.Namespace,
+			Name: clusterName,
 		},
 		Spec: ReverseTunnelSpecV2{
 			ClusterName: clusterName,
 			DialAddrs:   dialAddrs,
 		},
 	}
+	if err := r.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return r, nil
 }
 
 // GetVersion returns resource version
@@ -108,13 +103,6 @@ func (r *ReverseTunnelV2) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (r *ReverseTunnelV2) SetTTL(clock Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
-}
-
 // GetName returns the name of the User
 func (r *ReverseTunnelV2) GetName() string {
 	return r.Metadata.Name
@@ -125,16 +113,24 @@ func (r *ReverseTunnelV2) SetName(e string) {
 	r.Metadata.Name = e
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (r *ReverseTunnelV2) setStaticFields() {
+	r.Kind = KindReverseTunnel
+	r.Version = V2
+}
+
 // CheckAndSetDefaults checks and sets defaults
 func (r *ReverseTunnelV2) CheckAndSetDefaults() error {
-	err := r.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	r.setStaticFields()
+	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = r.Check()
-	if err != nil {
-		return trace.Wrap(err)
+	if strings.TrimSpace(r.Spec.ClusterName) == "" {
+		return trace.BadParameter("reverse tunnel validation error: empty cluster name")
+	}
+	if len(r.Spec.DialAddrs) == 0 {
+		return trace.BadParameter("invalid dial address for reverse tunnel '%v'", r.Spec.ClusterName)
 	}
 
 	return nil
@@ -166,18 +162,4 @@ func (r *ReverseTunnelV2) SetType(tt TunnelType) {
 // GetDialAddrs returns list of dial addresses for this cluster
 func (r *ReverseTunnelV2) GetDialAddrs() []string {
 	return r.Spec.DialAddrs
-}
-
-// Check returns nil if all parameters are good, error otherwise
-func (r *ReverseTunnelV2) Check() error {
-	if r.Version == "" {
-		return trace.BadParameter("missing reverse tunnel version")
-	}
-	if strings.TrimSpace(r.Spec.ClusterName) == "" {
-		return trace.BadParameter("Reverse tunnel validation error: empty cluster name")
-	}
-	if len(r.Spec.DialAddrs) == 0 {
-		return trace.BadParameter("Invalid dial address for reverse tunnel '%v'", r.Spec.ClusterName)
-	}
-	return nil
 }

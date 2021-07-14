@@ -44,16 +44,15 @@ type Resource interface {
 	Expiry() time.Time
 	// SetExpiry sets object expiry
 	SetExpiry(time.Time)
-	// SetTTL sets Expires header using the provided clock.
-	// Use SetExpiry instead.
-	// DELETE IN 7.0.0
-	SetTTL(clock Clock, ttl time.Duration)
 	// GetMetadata returns object metadata
 	GetMetadata() Metadata
 	// GetResourceID returns resource ID
 	GetResourceID() int64
 	// SetResourceID sets resource ID
 	SetResourceID(int64)
+	// CheckAndSetDefaults validates the Resource and sets any empty fields to
+	// default values.
+	CheckAndSetDefaults() error
 }
 
 // ResourceWithSecrets includes additional properties which must
@@ -74,13 +73,6 @@ type ResourceWithOrigin interface {
 	Origin() string
 	// SetOrigin sets the origin value of the resource.
 	SetOrigin(string)
-}
-
-// Clock is used to track TTL of resources.
-// This is only used in SetTTL which is deprecated.
-// DELETE IN 7.0.0
-type Clock interface {
-	Now() time.Time
 }
 
 // GetVersion returns resource version
@@ -118,13 +110,6 @@ func (h *ResourceHeader) SetExpiry(t time.Time) {
 	h.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (h *ResourceHeader) SetTTL(clock Clock, ttl time.Duration) {
-	h.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (h *ResourceHeader) GetMetadata() Metadata {
 	return h.Metadata
@@ -143,6 +128,16 @@ func (h *ResourceHeader) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (h *ResourceHeader) SetSubKind(s string) {
 	h.SubKind = s
+}
+
+func (h *ResourceHeader) CheckAndSetDefaults() error {
+	if h.Kind == "" {
+		return trace.BadParameter("resource has an empty Kind field")
+	}
+	if h.Version == "" {
+		return trace.BadParameter("resource has an empty Version field")
+	}
+	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
 }
 
 // GetID returns resource ID
@@ -199,14 +194,6 @@ func (m *Metadata) SetOrigin(origin string) {
 	m.Labels[OriginLabel] = origin
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (m *Metadata) SetTTL(clock Clock, ttl time.Duration) {
-	expireTime := clock.Now().UTC().Add(ttl)
-	m.Expires = &expireTime
-}
-
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
 func (m *Metadata) CheckAndSetDefaults() error {
 	if m.Name == "" {
@@ -228,8 +215,10 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	}
 
 	// Check the origin value.
-	if !utils.SliceContainsStr(append(OriginValues, ""), m.Origin()) {
-		return trace.BadParameter("invalid origin value %q, should be one of %v (this is a bug)", m.Origin(), OriginValues)
+	if m.Origin() != "" {
+		if !utils.SliceContainsStr(OriginValues, m.Origin()) {
+			return trace.BadParameter("invalid origin value %q, must be one of %v", m.Origin(), OriginValues)
+		}
 	}
 
 	return nil

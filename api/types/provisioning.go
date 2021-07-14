@@ -40,19 +40,14 @@ type ProvisionToken interface {
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
 	String() string
-	// CheckAndSetDefaults checks parameters and sets default values
-	CheckAndSetDefaults() error
 }
 
 // NewProvisionToken returns a new instance of provision token resource
 func NewProvisionToken(token string, roles SystemRoles, expires time.Time) (ProvisionToken, error) {
 	t := &ProvisionTokenV2{
-		Kind:    KindToken,
-		Version: V2,
 		Metadata: Metadata{
-			Name:      token,
-			Expires:   &expires,
-			Namespace: defaults.Namespace,
+			Name:    token,
+			Expires: &expires,
 		},
 		Spec: ProvisionTokenSpecV2{
 			Roles: roles,
@@ -74,19 +69,26 @@ func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time
 	return t
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (p *ProvisionTokenV2) setStaticFields() {
+	p.Kind = KindToken
+	p.Version = V2
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
-	p.Kind = KindToken
-	err := p.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	p.setStaticFields()
+	if err := p.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if len(p.Spec.Roles) == 0 {
 		return trace.BadParameter("provisioning token is missing roles")
 	}
 	if err := SystemRoles(p.Spec.Roles).Check(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 
@@ -164,13 +166,6 @@ func (p *ProvisionTokenV2) SetExpiry(expires time.Time) {
 // Expiry returns object expiry setting
 func (p *ProvisionTokenV2) Expiry() time.Time {
 	return p.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (p *ProvisionTokenV2) SetTTL(clock Clock, ttl time.Duration) {
-	p.Metadata.SetTTL(clock, ttl)
 }
 
 // GetName returns server name

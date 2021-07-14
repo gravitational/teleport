@@ -17,63 +17,26 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// LicenseSpecV3Template is a template for V3 License JSON schema
-const LicenseSpecV3Template = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-		"account_id": {
-			"type": ["string"]
-		},
-		"plan_id": {
-			"type": ["string"]
-		},
-		"usage": {
-			"type": ["string", "boolean"]
-		},
-		"aws_pid": {
-			"type": ["string"]
-		},
-		"aws_account": {
-			"type": ["string"]
-		},
-		"k8s": {
-			"type": ["string", "boolean"]
-		},
-		"app": {
-			"type": ["string", "boolean"]
-		},
-		"db": {
-			"type": ["string", "boolean"]
-		},
-		"cloud": {
-			"type": ["string", "boolean"]
-		}
-  }
-}`
-
 // UnmarshalLicense unmarshals the License resource from JSON.
-func UnmarshalLicense(bytes []byte) (License, error) {
+func UnmarshalLicense(bytes []byte) (types.License, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, LicenseSpecV3Template, DefaultDefinitions)
-
-	var license LicenseV3
-	err := utils.UnmarshalWithSchema(schema, &license, bytes)
+	var license types.LicenseV3
+	err := utils.FastUnmarshal(bytes, &license)
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
 
-	if license.Version != V3 {
-		return nil, trace.BadParameter("unsupported version %v, expected version %v", license.Version, V3)
+	if license.Version != types.V3 {
+		return nil, trace.BadParameter("unsupported version %v, expected version %v", license.Version, types.V3)
 	}
 
 	if err := license.CheckAndSetDefaults(); err != nil {
@@ -84,17 +47,18 @@ func UnmarshalLicense(bytes []byte) (License, error) {
 }
 
 // MarshalLicense marshals the License resource to JSON.
-func MarshalLicense(license License, opts ...MarshalOption) ([]byte, error) {
+func MarshalLicense(license types.License, opts ...MarshalOption) ([]byte, error) {
+	if err := license.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch license := license.(type) {
-	case *LicenseV3:
-		if version := license.GetVersion(); version != V3 {
-			return nil, trace.BadParameter("mismatched license version %v and type %T", version, license)
-		}
+	case *types.LicenseV3:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

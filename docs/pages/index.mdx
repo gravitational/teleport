@@ -2,13 +2,14 @@
 title: Introduction to Teleport
 description: How to install and quickly get up and running with Teleport to set up SSH and Kubernetes access to cloud environments.
 h1: Introduction
+layout: tocless-doc
 ---
 
 ## What is Teleport
 
 Teleport is a Certificate Authority and an Access Plane for your infrastructure. With Teleport you can:
 
-- Set up single sign-on and have one place to access your SSH servers, Kubernetes, Databases, and Web Apps.
+- Set up Single Sign-On and have one place to access your SSH servers, Kubernetes, Databases, and Web Apps.
 - Use your favorite programming language to define access policies to your infrastructure.
 - Share and record interactive sessions across all environments.
 
@@ -23,7 +24,7 @@ Teleport is a Certificate Authority and an Access Plane for your infrastructure.
     Single Sign-On, audit and unified access for Kubernetes clusters.
   </Tile>
   <Tile icon="database" title="Database Access" href="./database-access/introduction.mdx">
-    Secure access to PostgreSQL and MySQL databases.
+    Secure access to PostgreSQL, MySQL and MongoDB databases.
   </Tile>
   <Tile icon="cloud" title="Cloud" href="./cloud/introduction.mdx">
     Connect your nodes, web apps, kubernetes clusters and databases to Teleport as a service.
@@ -58,7 +59,7 @@ Teleport is a Certificate Authority and an Access Plane for your infrastructure.
   </TileListItem>
   </TileList>
   <TileList title="For security teams" icon="lock">
-    <TileListItem href="./openssh-teleport.mdx">
+    <TileListItem href="./openssh.mdx">
      Capture sessions and manage certificates for existing OpenSSH fleet.
     </TileListItem>
     <TileListItem href="./architecture/authentication.mdx#issuing-user-certificates">

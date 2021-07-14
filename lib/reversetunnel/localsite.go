@@ -25,10 +25,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -154,7 +154,7 @@ func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
 
 	// try and dial to one of them, as soon as we are successful, return the net.Conn
 	for _, authServer := range authServers {
-		conn, err = net.DialTimeout("tcp", authServer.GetAddr(), defaults.DefaultDialTimeout)
+		conn, err = net.DialTimeout("tcp", authServer.GetAddr(), apidefaults.DefaultDialTimeout)
 		if err == nil {
 			return conn, nil
 		}
@@ -167,12 +167,11 @@ func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
 func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 	// If the proxy is in recording mode and a SSH connection is being requested,
 	// use the agent to dial and build an in-memory forwarding server.
-	clusterConfig, err := s.accessPoint.GetClusterConfig()
+	recConfig, err := s.accessPoint.GetSessionRecordingConfig(s.srv.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if params.ConnType == services.NodeTunnel &&
-		services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
+	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
 		return s.dialWithAgent(params)
 	}
 
@@ -300,7 +299,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	// Connections to application and database servers should never occur
 	// over a direct dial, return right away.
 	switch params.ConnType {
-	case services.AppTunnel:
+	case types.AppTunnel:
 		return nil, false, trace.ConnectionProblem(err, "failed to connect to application server")
 	case types.DatabaseTunnel:
 		return nil, false, trace.ConnectionProblem(err, "failed to connect to database server")
@@ -317,7 +316,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 
 	// If no tunnel connection was found, dial to the target host.
 	dialer := proxy.DialerFromEnvironment(params.To.String())
-	conn, directErr := dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
+	conn, directErr := dialer.DialTimeout(params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
 	if directErr != nil {
 		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")
 		aggregateErr := trace.NewAggregate(tunnelErr, directErr)
@@ -328,7 +327,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	return conn, false, nil
 }
 
-func (s *localSite) addConn(nodeID string, connType services.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
+func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -354,7 +353,7 @@ func (s *localSite) addConn(nodeID string, connType services.TunnelType, conn ne
 // fanOutProxies is a non-blocking call that puts the new proxies
 // list so that remote connection can notify the remote agent
 // about the list update
-func (s *localSite) fanOutProxies(proxies []services.Server) {
+func (s *localSite) fanOutProxies(proxies []types.Server) {
 	s.Lock()
 	defer s.Unlock()
 	for _, conn := range s.remoteConns {

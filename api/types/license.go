@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/trace"
 )
 
 // License defines teleport License Information
@@ -71,23 +71,20 @@ type License interface {
 
 	// GetAccountID returns Account ID
 	GetAccountID() string
-
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for License.
-	CheckAndSetDefaults() error
 }
 
 // NewLicense is a convenience method to to create LicenseV3.
 func NewLicense(name string, spec LicenseSpecV3) (License, error) {
-	return &LicenseV3{
-		Kind:    KindLicense,
-		Version: V3,
+	l := &LicenseV3{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 		Spec: spec,
-	}, nil
+	}
+	if err := l.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return l, nil
 }
 
 // LicenseV3 represents License resource version V3
@@ -168,13 +165,6 @@ func (c *LicenseV3) SetExpiry(t time.Time) {
 	c.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *LicenseV3) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (c *LicenseV3) GetMetadata() Metadata {
 	return c.Metadata
@@ -201,9 +191,19 @@ func (c *LicenseV3) SetReportsUsage(reports Bool) {
 	c.Spec.ReportsUsage = reports
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (c *LicenseV3) setStaticFields() {
+	c.Kind = KindLicense
+	c.Version = V3
+}
+
 // CheckAndSetDefaults verifies the constraints for License.
 func (c *LicenseV3) CheckAndSetDefaults() error {
-	return c.Metadata.CheckAndSetDefaults()
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // GetAWSProductID returns product ID that limits usage to AWS instance

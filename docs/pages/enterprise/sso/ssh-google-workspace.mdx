@@ -83,11 +83,11 @@ Leave Service account permissions as blank.
 ![Create OAuth Creds](../../../img/gsuite/gsuite-5f-download-json.png)
 
 This JSON file will need to be uploaded to the Authentication server, and will be later referenced by
-the OIDC Connector, under `google_service_account_uri`.
+the OIDC Connector, under `google_service_account_uri` or inline with `google_service_account`.
 
 <Admonition type="note">
   Teleport requires the service account JSON to be uploaded to all Teleport authentication servers when setting
-  up in a HA config.
+  up in a High Availability config.
 </Admonition>
 
 ## Manage API Scopes
@@ -123,11 +123,26 @@ https://www.googleapis.com/auth/admin.directory.group.member.readonly, https://w
 ## Create a OIDC Connector
 
 Now, create a OIDC connector [resource](../../admin-guide.mdx#resources).
+There are two options for setting the `google_service_account` value.  You can set the JSON file in the auth server and give a URI to the file.
+The second is populating the contents via inline.  Inline is required for Teleport Cloud.
 Write down this template as `gsuite-connector.yaml`:
 
-```yaml
-(!examples/resources/gworkspace-connector.yaml!)
-```
+
+
+<Tabs>
+  <TabItem label="Google Service Account via URI">
+    ```yaml
+    (!examples/resources/gworkspace-connector.yaml!)
+    ```
+  </TabItem>
+
+  <TabItem label="Google Service Account via inline (required for Teleport Cloud)">
+    ```yaml
+    (!examples/resources/gworkspace-connector-inline.yaml!)
+    ```
+  </TabItem>
+</Tabs>
+
 
 Create the connector using `tctl` tool:
 

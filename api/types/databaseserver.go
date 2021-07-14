@@ -18,9 +18,9 @@ package types
 
 import (
 	"fmt"
+	"net"
+	"strings"
 	"time"
-
-	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -78,24 +78,23 @@ type DatabaseServer interface {
 	IsRedshift() bool
 	// IsCloudSQL returns true if this is a Cloud SQL database.
 	IsCloudSQL() bool
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 	// Copy returns a copy of this database server object.
 	Copy() DatabaseServer
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
-func NewDatabaseServerV3(name string, labels map[string]string, spec DatabaseServerSpecV3) *DatabaseServerV3 {
-	return &DatabaseServerV3{
-		Kind:    KindDatabaseServer,
-		Version: V3,
+func NewDatabaseServerV3(name string, labels map[string]string, spec DatabaseServerSpecV3) (*DatabaseServerV3, error) {
+	s := &DatabaseServerV3{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
-			Labels:    labels,
+			Name:   name,
+			Labels: labels,
 		},
 		Spec: spec,
 	}
+	if err := s.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s, nil
 }
 
 // GetVersion returns the database server resource version.
@@ -161,13 +160,6 @@ func (s *DatabaseServerV3) SetExpiry(expiry time.Time) {
 // Expiry returns the resource expiry time.
 func (s *DatabaseServerV3) Expiry() time.Time {
 	return s.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (s *DatabaseServerV3) SetTTL(clock Clock, ttl time.Duration) {
-	s.Metadata.SetTTL(clock, ttl)
 }
 
 // GetName returns the resource name.
@@ -289,17 +281,21 @@ func (s *DatabaseServerV3) GetType() string {
 
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
-	return fmt.Sprintf("DatabaseServer(Name=%v, Type=%v, Version=%v, Labels=%v)",
-		s.GetName(), s.GetType(), s.GetTeleportVersion(), s.GetStaticLabels())
+	return fmt.Sprintf("DatabaseServer(Name=%v, Type=%v, Version=%v, Labels=%v, HostID=%v)",
+		s.GetName(), s.GetType(), s.GetTeleportVersion(), s.GetStaticLabels(), s.Spec.HostID)
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (s *DatabaseServerV3) setStaticFields() {
+	s.Kind = KindDatabaseServer
+	s.Version = V3
 }
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (s *DatabaseServerV3) CheckAndSetDefaults() error {
+	s.setStaticFields()
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if s.Kind == "" {
-		return trace.BadParameter("database server %q kind is empty", s.GetName())
 	}
 	for key := range s.Spec.DynamicLabels {
 		if !IsValidLabelKey(key) {
@@ -318,7 +314,60 @@ func (s *DatabaseServerV3) CheckAndSetDefaults() error {
 	if s.Spec.HostID == "" {
 		return trace.BadParameter("database server %q host ID is empty", s.GetName())
 	}
+	// In case of RDS, Aurora or Redshift, AWS information such as region or
+	// cluster ID can be extracted from the endpoint if not provided.
+	switch {
+	case strings.Contains(s.Spec.URI, rdsEndpointSuffix):
+		region, err := parseRDSEndpoint(s.Spec.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if s.Spec.AWS.Region == "" {
+			s.Spec.AWS.Region = region
+		}
+	case strings.Contains(s.Spec.URI, redshiftEndpointSuffix):
+		clusterID, region, err := parseRedshiftEndpoint(s.Spec.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if s.Spec.AWS.Redshift.ClusterID == "" {
+			s.Spec.AWS.Redshift.ClusterID = clusterID
+		}
+		if s.Spec.AWS.Region == "" {
+			s.Spec.AWS.Region = region
+		}
+	}
 	return nil
+}
+
+// parseRDSEndpoint extracts region from the provided RDS endpoint.
+func parseRDSEndpoint(endpoint string) (region string, err error) {
+	host, _, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	// RDS/Aurora endpoint looks like this:
+	// aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
+	parts := strings.Split(host, ".")
+	if !strings.HasSuffix(host, rdsEndpointSuffix) || len(parts) != 6 {
+		return "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
+	}
+	return parts[2], nil
+}
+
+// parseRedshiftEndpoint extracts cluster ID and region from the provided Redshift endpoint.
+func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error) {
+	host, _, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	// Redshift endpoint looks like this:
+	// redshift-cluster-1.abcdefghijklmnop.us-east-1.rds.amazonaws.com
+	parts := strings.Split(host, ".")
+	if !strings.HasSuffix(host, redshiftEndpointSuffix) || len(parts) != 6 {
+		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
+	}
+	return parts[0], parts[2], nil
 }
 
 // Copy returns a copy of this database server object.
@@ -343,11 +392,33 @@ type SortedDatabaseServers []DatabaseServer
 // Len returns the slice length.
 func (s SortedDatabaseServers) Len() int { return len(s) }
 
-// Less compares database servers by name.
-func (s SortedDatabaseServers) Less(i, j int) bool { return s[i].GetName() < s[j].GetName() }
+// Less compares database servers by name and host ID.
+func (s SortedDatabaseServers) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+}
 
 // Swap swaps two database servers.
 func (s SortedDatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // DatabaseServers is a list of database servers.
 type DatabaseServers []DatabaseServer
+
+// DeduplicateDatabaseServers deduplicates database servers by name.
+func DeduplicateDatabaseServers(servers []DatabaseServer) (result []DatabaseServer) {
+	seen := make(map[string]struct{})
+	for _, server := range servers {
+		if _, ok := seen[server.GetName()]; ok {
+			continue
+		}
+		seen[server.GetName()] = struct{}{}
+		result = append(result, server)
+	}
+	return result
+}
+
+const (
+	// rdsEndpointSuffix is the RDS/Aurora endpoint suffix.
+	rdsEndpointSuffix = ".rds.amazonaws.com"
+	// redshiftEndpointSuffix is the Redshift endpoint suffix.
+	redshiftEndpointSuffix = ".redshift.amazonaws.com"
+)

@@ -19,7 +19,6 @@ package types
 import (
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -31,8 +30,6 @@ type GithubConnector interface {
 	ResourceWithSecrets
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
-	// CheckAndSetDefaults validates the connector and sets some defaults
-	CheckAndSetDefaults() error
 	// GetClientID returns the connector client ID
 	GetClientID() string
 	// SetClientID sets the connector client ID
@@ -59,16 +56,17 @@ type GithubConnector interface {
 }
 
 // NewGithubConnector creates a new Github connector from name and spec
-func NewGithubConnector(name string, spec GithubConnectorSpecV3) GithubConnector {
-	return &GithubConnectorV3{
-		Kind:    KindGithubConnector,
-		Version: V3,
+func NewGithubConnector(name string, spec GithubConnectorSpecV3) (GithubConnector, error) {
+	c := &GithubConnectorV3{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 		Spec: spec,
 	}
+	if err := c.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c, nil
 }
 
 // GithubClaims represents Github user information obtained during OAuth2 flow
@@ -129,13 +127,6 @@ func (c *GithubConnectorV3) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *GithubConnectorV3) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // SetMetadata sets connector metadata
 func (c *GithubConnectorV3) SetMetadata(meta Metadata) {
 	c.Metadata = meta
@@ -156,8 +147,15 @@ func (c *GithubConnectorV3) WithoutSecrets() Resource {
 	return &c2
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (c *GithubConnectorV3) setStaticFields() {
+	c.Kind = KindGithubConnector
+	c.Version = V3
+}
+
 // CheckAndSetDefaults verifies the connector is valid and sets some defaults
 func (c *GithubConnectorV3) CheckAndSetDefaults() error {
+	c.setStaticFields()
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

@@ -32,6 +32,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -94,15 +97,9 @@ var (
 			Help: "Number of times emitting audit event failed.",
 		},
 	)
-)
 
-func init() {
-	// Metrics have to be registered to be exposed.
-	prometheus.MustRegister(auditOpenFiles)
-	prometheus.MustRegister(auditDiskUsed)
-	prometheus.MustRegister(auditFailedDisk)
-	prometheus.MustRegister(AuditFailedEmit)
-}
+	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit}
+)
 
 // AuditLog is a new combined facility to record Teleport events and
 // sessions. It implements IAuditLog
@@ -236,12 +233,17 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
 	al := &AuditLog{
-		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, defaults.Namespace),
+		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, apidefaults.Namespace),
 		AuditLogConfig: cfg,
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentAuditLog,
@@ -258,7 +260,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	// create a directory for session logs:
-	sessionDir := filepath.Join(cfg.DataDir, cfg.ServerID, SessionLogsDir, defaults.Namespace)
+	sessionDir := filepath.Join(cfg.DataDir, cfg.ServerID, SessionLogsDir, apidefaults.Namespace)
 	if err := os.MkdirAll(sessionDir, *cfg.DirMask); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -325,7 +327,7 @@ func (l *SessionRecording) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter session ID")
 	}
 	if l.Namespace == "" {
-		l.Namespace = defaults.Namespace
+		l.Namespace = apidefaults.Namespace
 	}
 	return nil
 }
@@ -961,10 +963,10 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 }
 
 // EmitAuditEvent adds a new event to the local file log
-func (l *AuditLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	// If an external logger has been set, use it as the emitter, otherwise
 	// fallback to the local disk based emitter.
-	var emitAuditEvent func(ctx context.Context, event AuditEvent) error
+	var emitAuditEvent func(ctx context.Context, event apievents.AuditEvent) error
 
 	if l.ExternalLog != nil {
 		emitAuditEvent = l.ExternalLog.EmitAuditEvent
@@ -1016,30 +1018,108 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 	return out, nil
 }
 
-// SearchEvents finds events. Results show up sorted by date (newest first),
-// limit is used when set to value > 0
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	l.log.Debugf("SearchEvents(%v, %v, query=%v, limit=%v)", fromUTC, toUTC, query, limit)
+func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	g := l.log.WithFields(log.Fields{"namespace": namespace, "eventType": eventType, "limit": limit})
+	g.Debugf("SearchEvents(%v, %v)", fromUTC, toUTC)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
 	if limit > defaults.EventsMaxIterationLimit {
-		return nil, trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
+		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
 	}
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchEvents(fromUTC, toUTC, query, limit)
+		return l.ExternalLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, order, startKey)
 	}
-	return l.getLocalLog().SearchEvents(fromUTC, toUTC, query, limit)
+	return l.localLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, order, startKey)
 }
 
-// SearchSessionEvents searches for session related events. Used to find completed sessions.
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit)
+		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
 	}
-	return l.getLocalLog().SearchSessionEvents(fromUTC, toUTC, limit)
+	return l.localLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
+}
+
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	l.log.Debugf("StreamSessionEvents(%v)", sessionID)
+	e := make(chan error, 1)
+	c := make(chan apievents.AuditEvent)
+
+	tarballPath := filepath.Join(l.playbackDir, string(sessionID)+".stream.tar")
+	downloadCtx, cancel := l.createOrGetDownload(tarballPath)
+
+	// Wait until another in progress download finishes and use it's tarball.
+	if cancel == nil {
+		l.log.Debugf("Another download is in progress for %v, waiting until it gets completed.", sessionID)
+		select {
+		case <-downloadCtx.Done():
+		case <-l.ctx.Done():
+			e <- trace.BadParameter("audit log is closing, aborting the download")
+			return c, e
+		}
+	}
+	defer cancel()
+	rawSession, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	if err != nil {
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	start := time.Now()
+	if err := l.UploadHandler.Download(l.ctx, sessionID, rawSession); err != nil {
+		// remove partially downloaded tarball
+		if rmErr := os.Remove(tarballPath); rmErr != nil {
+			l.log.WithError(rmErr).Warningf("Failed to remove file %v.", tarballPath)
+		}
+
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	l.log.WithField("duration", time.Since(start)).Debugf("Downloaded %v to %v.", sessionID, tarballPath)
+	_, err = rawSession.Seek(0, 0)
+	if err != nil {
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	if err != nil {
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	protoReader := NewProtoReader(rawSession)
+
+	go func() {
+		for {
+			if ctx.Err() != nil {
+				e <- trace.Wrap(ctx.Err())
+				break
+			}
+
+			event, err := protoReader.Read(ctx)
+			if err != nil {
+				if err != io.EOF {
+					e <- trace.Wrap(err)
+				} else {
+					close(c)
+				}
+
+				break
+			}
+
+			if event.GetIndex() >= startIndex {
+				c <- event
+			}
+		}
+	}()
+
+	return c, e
 }
 
 // getLocalLog returns the local (file based) audit log.
@@ -1178,7 +1258,7 @@ func (l *LegacyHandler) IsUnpacked(ctx context.Context, sessionID session.ID) (b
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	_, err = readSessionIndex(l.cfg.Dir, authServers, defaults.Namespace, sessionID)
+	_, err = readSessionIndex(l.cfg.Dir, authServers, apidefaults.Namespace, sessionID)
 	if err == nil {
 		return true, nil
 	}
@@ -1193,45 +1273,53 @@ func (l *LegacyHandler) Download(ctx context.Context, sessionID session.ID, writ
 	return l.cfg.Handler.Download(ctx, sessionID, writer)
 }
 
-type closedLogger struct {
-}
+const loggerClosedMessage = "the logger has been closed"
+
+type closedLogger struct{}
 
 func (a *closedLogger) EmitAuditEventLegacy(e Event, f EventFields) error {
-	return trace.NotImplemented("the logger has been closed")
+	return trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) EmitAuditEvent(ctx context.Context, e AuditEvent) error {
-	return trace.NotImplemented("the logger has been closed")
+func (a *closedLogger) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
+	return trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) PostSessionSlice(s SessionSlice) error {
-	return trace.NotImplemented("the logger has been closed")
+	return trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) UploadSessionRecording(r SessionRecording) error {
-	return trace.NotImplemented("the logger has been closed")
+	return trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) GetSessionChunk(namespace string, sid session.ID, offsetBytes int, maxBytes int) ([]byte, error) {
-	return nil, trace.NotImplemented("the logger has been closed")
+	return nil, trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error) {
-	return nil, trace.NotImplemented("the logger has been closed")
+	return nil, trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	return nil, trace.NotImplemented("the logger has been closed")
+func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]EventFields, error) {
-	return nil, trace.NotImplemented("the logger has been closed")
+func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) WaitForDelivery(context.Context) error {
-	return trace.NotImplemented("the logger has been closed")
+	return trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) Close() error {
-	return trace.NotImplemented("the logger has been closed")
+	return trace.NotImplemented(loggerClosedMessage)
+}
+
+func (a *closedLogger) StreamSessionEvents(_ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	e <- trace.NotImplemented(loggerClosedMessage)
+
+	return c, e
 }

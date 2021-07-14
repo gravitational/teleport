@@ -20,6 +20,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -27,9 +29,9 @@ import (
 
 // NewMultiLog returns a new instance of a multi logger
 func NewMultiLog(loggers ...IAuditLog) (*MultiLog, error) {
-	emitters := make([]Emitter, 0, len(loggers))
+	emitters := make([]apievents.Emitter, 0, len(loggers))
 	for _, logger := range loggers {
-		emitter, ok := logger.(Emitter)
+		emitter, ok := logger.(apievents.Emitter)
 		if !ok {
 			return nil, trace.BadParameter("expected emitter, got %T", logger)
 		}
@@ -126,32 +128,71 @@ func (m *MultiLog) GetSessionEvents(namespace string, sid session.ID, after int,
 	return events, err
 }
 
-// SearchEvents is a flexible way to find events. The format of a query string
-// depends on the implementing backend. A recommended format is urlencoded
-// (good enough for Lucene/Solr)
+// SearchEvents is a flexible way to find events.
 //
-// Pagination is also defined via backend-specific query format.
+// Event types to filter can be specified and pagination is handled by an iterator key that allows
+// a query to be resumed.
 //
-// The only mandatory requirement is a date range (UTC). Results must always
-// show up sorted by date (newest first)
-func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) (events []EventFields, err error) {
+// The only mandatory requirement is a date range (UTC).
+//
+// This function may never return more than 1 MiB of event data.
+func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
 	for _, log := range m.loggers {
-		events, err = log.SearchEvents(fromUTC, toUTC, query, limit)
+		events, lastKey, err := log.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
 		if !trace.IsNotImplemented(err) {
-			return events, err
+			return events, lastKey, err
 		}
 	}
-	return events, err
+	return events, lastKey, err
 }
 
-// SearchSessionEvents returns session related events only. This is used to
-// find completed session.
-func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) (events []EventFields, err error) {
+// SearchSessionEvents is a flexible way to find session events.
+// Only session events are returned by this function.
+// This is used to find completed session.
+//
+// Event types to filter can be specified and pagination is handled by an iterator key that allows
+// a query to be resumed.
+func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
 	for _, log := range m.loggers {
-		events, err = log.SearchSessionEvents(fromUTC, toUTC, limit)
+		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
 		if !trace.IsNotImplemented(err) {
-			return events, err
+			return events, lastKey, err
 		}
 	}
-	return events, err
+	return events, lastKey, err
+}
+
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (m *MultiLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+
+	go func() {
+	loggers:
+		for _, log := range m.loggers {
+			subCh, subErrCh := log.StreamSessionEvents(ctx, sessionID, startIndex)
+
+			for {
+				select {
+				case event, more := <-subCh:
+					if !more {
+						close(c)
+						return
+					}
+
+					c <- event
+				case err := <-subErrCh:
+					if !trace.IsNotImplemented(err) {
+						e <- trace.Wrap(err)
+						return
+					}
+
+					continue loggers
+				}
+			}
+		}
+	}()
+
+	return c, e
 }

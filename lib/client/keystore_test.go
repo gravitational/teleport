@@ -23,10 +23,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -239,14 +241,17 @@ func TestProxySSHConfig(t *testing.T) {
 	hostPriv, hostPub, err := s.keygen.GenerateKeyPair("")
 	require.NoError(t, err)
 
+	caSigner, err := ssh.ParsePrivateKey(CAPriv)
+	require.NoError(t, err)
+
 	hostCert, err := s.keygen.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: CAPriv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       hostPub,
-		HostID:              "127.0.0.1",
-		NodeName:            "127.0.0.1",
-		ClusterName:         "host-cluster-name",
-		Roles:               teleport.Roles{teleport.RoleNode},
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: hostPub,
+		HostID:        "127.0.0.1",
+		NodeName:      "127.0.0.1",
+		ClusterName:   "host-cluster-name",
+		Roles:         types.SystemRoles{types.RoleNode},
 	})
 	require.NoError(t, err)
 
@@ -314,6 +319,32 @@ func TestCheckKeyFIPS(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 }
 
+func TestGetTrustedCertsPEM_nonCertificateBlocks(t *testing.T) {
+	s, cleanup := newTest(t)
+	defer cleanup()
+
+	// Make sure we behave correctly if someone writes a non-CERTIFICATE block to
+	// certs.pem. During regular use this shouldn't happen, but a bug was lurking
+	// around here.
+	proxy := "proxy.example.com"
+	certsFile := keypaths.TLSCAsPath(s.storeDir, proxy)
+	err := os.MkdirAll(filepath.Dir(certsFile), 0700)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(certsFile, []byte(`-----BEGIN RSA PUBLIC KEY-----
+MIIBCgKCAQEAp2eO39fYnpUI4PplyoS/bHrr5Yiy98t+1sdDwGIG01UPlkxAxzIi
+VVQmel1NrSh4lF4t3b8KUUNM+5pk241F7Olr/4DIRTPQHDGWO0nciEieZ8IpFigz
+kUQRvKjNIw4zZbZSsZu0QE7hCU6O8VwEwSFrEsCCrPw4+28pp2IEYOqe0chZosO/
+6kXdJa/ZjC/Edjep1XVdoM+BSFXR5qwY4WtU/Ha4SNRbaktzMZgrkOLgD5TALGoN
+DYxXLyVgxD6BvRxlaQft75Bwg1KJ6nKqYAAtu/Me98BXDt+1GFwltLsjeY68untS
+hRdXE63PXwAfzj0P/H4qWsFfwdeCo/fuIQIDAQAB
+-----END RSA PUBLIC KEY-----`), 0600)
+	require.NoError(t, err)
+
+	blocks, err := s.store.GetTrustedCertsPEM(proxy)
+	require.Empty(t, blocks)
+	require.NoError(t, err)
+}
+
 type keyStoreTest struct {
 	storeDir  string
 	store     *FSLocalKeyStore
@@ -360,8 +391,11 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	})
 	require.NoError(t, err)
 
+	caSigner, err := ssh.ParsePrivateKey(CAPriv)
+	require.NoError(t, err)
+
 	cert, err = s.keygen.GenerateUserCert(services.UserCertParams{
-		PrivateCASigningKey:   CAPriv,
+		CASigner:              caSigner,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              idx.Username,

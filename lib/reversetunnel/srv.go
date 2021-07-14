@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -54,6 +55,7 @@ var (
 		},
 		[]string{"cluster"},
 	)
+
 	trustedClustersStats = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: teleport.MetricTrustedClusters,
@@ -61,13 +63,9 @@ var (
 		},
 		[]string{"cluster", "state"},
 	)
-)
 
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(remoteClustersStats)
-	prometheus.MustRegister(trustedClustersStats)
-}
+	prometheusCollectors = []prometheus.Collector{remoteClustersStats, trustedClustersStats}
+)
 
 // server is a "reverse tunnel server". it exposes the cluster capabilities
 // (like access to a cluster's auth) to remote trusted clients
@@ -255,24 +253,31 @@ func (cfg *Config) CheckAndSetDefaults() error {
 // NewServer creates and returns a reverse tunnel server which is fully
 // initialized but hasn't been started yet
 func NewServer(cfg Config) (Server, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterConfig, err := cfg.LocalAccessPoint.GetClusterConfig()
+	netConfig, err := cfg.LocalAccessPoint.GetClusterNetworkingConfig(cfg.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	offlineThreshold := time.Duration(clusterConfig.GetKeepAliveCountMax()) * clusterConfig.GetKeepAliveInterval()
+	offlineThreshold := time.Duration(netConfig.GetKeepAliveCountMax()) * netConfig.GetKeepAliveInterval()
 
 	ctx, cancel := context.WithCancel(cfg.Context)
 
 	proxyWatcher, err := services.NewProxyWatcher(services.ProxyWatcherConfig{
-		Context:   ctx,
-		Component: cfg.Component,
-		Client:    cfg.LocalAuthClient,
-		Entry:     cfg.Log,
-		ProxiesC:  make(chan []services.Server, 10),
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			ParentContext: ctx,
+			Component:     cfg.Component,
+			Client:        cfg.LocalAuthClient,
+			Log:           cfg.Log,
+		},
+		ProxiesC: make(chan []types.Server, 10),
 	})
 	if err != nil {
 		cancel()
@@ -329,8 +334,8 @@ func NewServer(cfg Config) (Server, error) {
 	return srv, nil
 }
 
-func remoteClustersMap(rc []services.RemoteCluster) map[string]services.RemoteCluster {
-	out := make(map[string]services.RemoteCluster)
+func remoteClustersMap(rc []types.RemoteCluster) map[string]types.RemoteCluster {
+	out := make(map[string]types.RemoteCluster)
 	for i := range rc {
 		out[rc[i].GetName()] = rc[i]
 	}
@@ -405,11 +410,11 @@ func (s *server) fetchClusterPeers() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	newConns := make(map[string]services.TunnelConnection)
+	newConns := make(map[string]types.TunnelConnection)
 	for i := range conns {
 		newConn := conns[i]
 		// Filter out non-proxy tunnels.
-		if newConn.GetType() != services.ProxyTunnel {
+		if newConn.GetType() != types.ProxyTunnel {
 			continue
 		}
 		// Filter out peer records for own proxy.
@@ -450,7 +455,7 @@ func (s *server) reportClusterStats() error {
 	return nil
 }
 
-func (s *server) addClusterPeers(conns map[string]services.TunnelConnection) error {
+func (s *server) addClusterPeers(conns map[string]types.TunnelConnection) error {
 	for key := range conns {
 		connInfo := conns[key]
 		peer, err := newClusterPeer(s, connInfo, s.offlineThreshold)
@@ -462,7 +467,7 @@ func (s *server) addClusterPeers(conns map[string]services.TunnelConnection) err
 	return nil
 }
 
-func (s *server) updateClusterPeers(conns map[string]services.TunnelConnection) {
+func (s *server) updateClusterPeers(conns map[string]types.TunnelConnection) {
 	for key := range conns {
 		connInfo := conns[key]
 		s.updateClusterPeer(connInfo)
@@ -481,7 +486,7 @@ func (s *server) addClusterPeer(peer *clusterPeer) {
 	peers.addPeer(peer)
 }
 
-func (s *server) updateClusterPeer(conn services.TunnelConnection) bool {
+func (s *server) updateClusterPeer(conn types.TunnelConnection) bool {
 	s.Lock()
 	defer s.Unlock()
 	clusterName := conn.GetClusterName()
@@ -492,7 +497,7 @@ func (s *server) updateClusterPeer(conn services.TunnelConnection) bool {
 	return peers.updatePeer(conn)
 }
 
-func (s *server) removeClusterPeers(conns []services.TunnelConnection) {
+func (s *server) removeClusterPeers(conns []types.TunnelConnection) {
 	s.Lock()
 	defer s.Unlock()
 	for _, conn := range conns {
@@ -506,10 +511,10 @@ func (s *server) removeClusterPeers(conns []services.TunnelConnection) {
 	}
 }
 
-func (s *server) existingConns() map[string]services.TunnelConnection {
+func (s *server) existingConns() map[string]types.TunnelConnection {
 	s.RLock()
 	defer s.RUnlock()
-	conns := make(map[string]services.TunnelConnection)
+	conns := make(map[string]types.TunnelConnection)
 	for _, peers := range s.clusterPeers {
 		for _, cluster := range peers.peers {
 			conns[cluster.connInfo.GetName()] = cluster.connInfo
@@ -518,10 +523,10 @@ func (s *server) existingConns() map[string]services.TunnelConnection {
 	return conns
 }
 
-func (s *server) diffConns(newConns, existingConns map[string]services.TunnelConnection) (map[string]services.TunnelConnection, map[string]services.TunnelConnection, []services.TunnelConnection) {
-	connsToAdd := make(map[string]services.TunnelConnection)
-	connsToUpdate := make(map[string]services.TunnelConnection)
-	var connsToRemove []services.TunnelConnection
+func (s *server) diffConns(newConns, existingConns map[string]types.TunnelConnection) (map[string]types.TunnelConnection, map[string]types.TunnelConnection, []types.TunnelConnection) {
+	connsToAdd := make(map[string]types.TunnelConnection)
+	connsToUpdate := make(map[string]types.TunnelConnection)
+	var connsToRemove []types.TunnelConnection
 
 	for existingKey := range existingConns {
 		conn := existingConns[existingKey]
@@ -553,11 +558,13 @@ func (s *server) Start() error {
 
 func (s *server) Close() error {
 	s.cancel()
+	s.proxyWatcher.Close()
 	return s.srv.Close()
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
 	s.cancel()
+	s.proxyWatcher.Close()
 	return s.srv.Shutdown(ctx)
 }
 
@@ -631,22 +638,22 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 		return
 	}
 
-	role := teleport.Role(val)
+	role := types.SystemRole(val)
 	switch role {
 	// Node is dialing back.
-	case teleport.RoleNode:
-		s.handleNewService(role, conn, sconn, nch, services.NodeTunnel)
+	case types.RoleNode:
+		s.handleNewService(role, conn, sconn, nch, types.NodeTunnel)
 	// App is dialing back.
-	case teleport.RoleApp:
-		s.handleNewService(role, conn, sconn, nch, services.AppTunnel)
+	case types.RoleApp:
+		s.handleNewService(role, conn, sconn, nch, types.AppTunnel)
 	// Kubernetes service is dialing back.
-	case teleport.RoleKube:
-		s.handleNewService(role, conn, sconn, nch, services.KubeTunnel)
+	case types.RoleKube:
+		s.handleNewService(role, conn, sconn, nch, types.KubeTunnel)
 	// Database proxy is dialing back.
-	case teleport.RoleDatabase:
+	case types.RoleDatabase:
 		s.handleNewService(role, conn, sconn, nch, types.DatabaseTunnel)
 	// Proxy is dialing back.
-	case teleport.RoleProxy:
+	case types.RoleProxy:
 		s.handleNewCluster(conn, sconn, nch)
 	// Unknown role.
 	default:
@@ -655,7 +662,7 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	}
 }
 
-func (s *server) handleNewService(role teleport.Role, conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel, connType services.TunnelType) {
+func (s *server) handleNewService(role types.SystemRole, conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel, connType types.TunnelType) {
 	cluster, rconn, err := s.upsertServiceConn(conn, sconn, connType)
 	if err != nil {
 		log.Errorf("Failed to upsert %s: %v.", role, err)
@@ -707,8 +714,8 @@ func (s *server) findLocalCluster(sconn *ssh.ServerConn) (*localSite, error) {
 	return nil, trace.BadParameter("local cluster %v not found", clusterName)
 }
 
-func (s *server) getTrustedCAKeysByID(id services.CertAuthID) ([]ssh.PublicKey, error) {
-	ca, err := s.localAccessPoint.GetCertAuthority(id, false, services.SkipValidation())
+func (s *server) getTrustedCAKeysByID(id types.CertAuthID) ([]ssh.PublicKey, error) {
+	ca, err := s.localAccessPoint.GetCertAuthority(id, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -734,7 +741,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 	}
 
 	var clusterName, certRole, certType string
-	var caType services.CertAuthType
+	var caType types.CertAuthType
 	switch cert.CertType {
 	case ssh.HostCert:
 		var ok bool
@@ -747,7 +754,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 			return nil, trace.BadParameter("certificate missing %q extension; this SSH host certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport nodes/proxies", utils.CertExtensionRole)
 		}
 		certType = extCertTypeHost
-		caType = services.HostCA
+		caType = types.HostCA
 	case ssh.UserCert:
 		var ok bool
 		clusterName, ok = cert.Extensions[teleport.CertExtensionTeleportRouteToCluster]
@@ -767,7 +774,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		}
 		certRole = roles[0]
 		certType = extCertTypeUser
-		caType = services.UserCA
+		caType = types.UserCA
 	default:
 		return nil, trace.BadParameter("unsupported cert type: %v.", cert.CertType)
 	}
@@ -787,10 +794,10 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 
 // checkClientCert verifies that client certificate is signed by the recognized
 // certificate authority.
-func (s *server) checkClientCert(logger *log.Entry, user string, clusterName string, cert *ssh.Certificate, caType services.CertAuthType) error {
+func (s *server) checkClientCert(logger *log.Entry, user string, clusterName string, cert *ssh.Certificate, caType types.CertAuthType) error {
 	// fetch keys of the certificate authority to check
 	// if there is a match
-	keys, err := s.getTrustedCAKeysByID(services.CertAuthID{
+	keys, err := s.getTrustedCAKeysByID(types.CertAuthID{
 		Type:       caType,
 		DomainName: clusterName,
 	})
@@ -820,7 +827,7 @@ func (s *server) checkClientCert(logger *log.Entry, user string, clusterName str
 	return nil
 }
 
-func (s *server) upsertServiceConn(conn net.Conn, sconn *ssh.ServerConn, connType services.TunnelType) (*localSite, *remoteConn, error) {
+func (s *server) upsertServiceConn(conn net.Conn, sconn *ssh.ServerConn, connType types.TunnelType) (*localSite, *remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -961,7 +968,7 @@ func (s *server) removeSite(domainName string) error {
 
 // fanOutProxies is a non-blocking call that updated the watches proxies
 // list and notifies all clusters about the proxy list change
-func (s *server) fanOutProxies(proxies []services.Server) {
+func (s *server) fanOutProxies(proxies []types.Server) {
 	s.Lock()
 	defer s.Unlock()
 	for _, cluster := range s.localSites {
@@ -980,9 +987,9 @@ func (s *server) rejectRequest(ch ssh.NewChannel, reason ssh.RejectionReason, ms
 
 // newRemoteSite helper creates and initializes 'remoteSite' instance
 func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite, error) {
-	connInfo, err := services.NewTunnelConnection(
+	connInfo, err := types.NewTunnelConnection(
 		fmt.Sprintf("%v-%v", srv.ID, domainName),
-		services.TunnelConnectionSpecV2{
+		types.TunnelConnectionSpecV2{
 			ClusterName:   domainName,
 			ProxyName:     srv.ID,
 			LastHeartbeat: time.Now().UTC(),
