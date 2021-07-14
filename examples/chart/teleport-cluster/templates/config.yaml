@@ -33,6 +33,8 @@ data:
         audit_sessions_uri: "gs://{{ required "gcp.sessionRecordingBucket is required in chart values" .Values.gcp.sessionRecordingBucket }}?projectID={{ required "gcp.projectId is required in chart values" .Values.gcp.projectId }}&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"
   {{- end }}
     auth_service:
+      tokens:
+      - "app,node:/etc/teleport-secrets/auth-token"
       enabled: true
       cluster_name: {{ required "clusterName is required in chart values" .Values.clusterName }}
   {{- if .Values.enterprise }}

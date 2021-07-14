@@ -156,6 +156,9 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
+        - mountPath: /etc/teleport-secrets
+          name: "auth-token"
+          readOnly: true
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -178,6 +181,9 @@ spec:
       - name: "config"
         configMap:
           name: {{ .Release.Name }}
+      - name: "auth-token"
+        secret:
+          secretName: {{ .Values.secretName }}
       - name: "data"
         {{- if eq .Values.chartMode "standalone" }}
         persistentVolumeClaim:
