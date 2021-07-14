@@ -7,7 +7,6 @@
         { "title": "Introduction", "slug": "/" },
         { "title": "Adopters", "slug": "/adopters/" },
         { "title": "Getting Started", "slug": "/getting-started/" },
-        { "title": "Installation", "slug": "/installation/" },
         { "title": "User Manual", "slug": "/user-manual/" },
         { "title": "Admin Manual", "slug": "/admin-guide/" },
         { "title": "Production Guide", "slug": "/production/" },
@@ -19,6 +18,7 @@
       "icon": "wrench",
       "title": "Setup",
       "entries": [
+        { "title": "Installation", "slug": "/setup/installation/" },
         {
           "title": "Guides",
           "slug": "/setup/guides/",
@@ -27,7 +27,8 @@
             { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" },
             { "title": "Fluentd", "slug": "/setup/guides/fluentd/" }
           ]
-        }
+        },
+        { "title": "FAQ", "slug": "/setup/faq/" }
       ]
     },
     {
@@ -359,6 +360,11 @@
     {
       "source": "/cloud/faq/",
       "destination": "/pro/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/",
+      "destination": "/setup/installation/",
       "permanent": true
     }
   ]
