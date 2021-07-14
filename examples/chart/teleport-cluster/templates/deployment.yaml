@@ -88,6 +88,11 @@ spec:
           name: "gcp-credentials"
           readOnly: true
   {{- end }}
+  {{- if .Values.highAvailability.certManager.enabled }}
+        - mountPath: /etc/teleport-tls
+          name: "teleport-tls"
+          readOnly: true
+  {{- end }}
         - mountPath: /etc/teleport
           name: "config"
           readOnly: true
