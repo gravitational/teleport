@@ -166,7 +166,8 @@
             "required": [
                 "replicaCount",
                 "requireAntiAffinity",
-                "certManager"
+                "certManager",
+                "podDisruptionBudget"
             ],
             "properties": {
                 "replicaCount": {
@@ -202,6 +203,26 @@
                             "$id": "#/properties/highAvailability/properties/certManager/properties/issuerKind",
                             "type": "string",
                             "default": "Issuer"
+                        }
+                    }
+                },
+                "podDisruptionBudget": {
+                    "$id": "#/properties/highAvailability/properties/podDisruptionBudget",
+                    "type": "object",
+                    "required": [
+                        "enabled",
+                        "minAvailable"
+                    ],
+                    "properties": {
+                        "enabled": {
+                            "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/enabled",
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "minAvailable": {
+                            "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/minAvailable",
+                            "type": "integer",
+                            "default": 1
                         }
                     }
                 }
