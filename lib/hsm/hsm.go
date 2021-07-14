@@ -37,7 +37,7 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-var prefix = []byte("pkcs11")
+var prefix = []byte("pkcs11:")
 var label = []byte("teleport")
 
 // RSAKeyPairSource is a function type which returns new RSA keypairs. For use
@@ -300,6 +300,13 @@ func (c *pkcs11Client) selectJWTSigner(ca types.CertAuthority) (crypto.Signer, e
 	// prefer hsm key if there is one
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_PKCS11 {
+			keyID, err := parseKeyID(keyPair.PrivateKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if keyID.HostID != c.hostUUID {
+				continue
+			}
 			signer, err := c.GetSigner(keyPair.PrivateKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -487,7 +494,8 @@ func parseKeyID(key []byte) (keyID, error) {
 	// strip pkcs11: prefix
 	key = key[len(prefix):]
 	if err := json.Unmarshal(key, &keyID); err != nil {
-		return keyID, trace.BadParameter("unable to parse invalid pkcs11 key")
+		//return keyID, trace.BadParameter("unable to parse invalid pkcs11 key")
+		return keyID, trace.Wrap(err)
 	}
 	return keyID, nil
 }
