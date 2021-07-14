@@ -959,6 +959,9 @@ Here's the list of resources currently exposed via [`tctl`](cli-docs.mdx#tctl) :
 | cluster | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together. |
 | role | A role assumed by users. The Teleport Open Source Edition only includes one role: "admin", but Enterprise teleport users can define their own roles. |
 | connector | Authentication connectors for [Single Sign-On](enterprise/sso/ssh-sso.mdx) (SSO) for SAML, OIDC and Github. |
+| cluster_auth_preference | Singleton resource holding authentication-related fields of [`teleport.yaml`](config-reference.mdx#teleportyaml). |
+| cluster_networking_config | Singleton resource holding networking-related fields of [`teleport.yaml`](config-reference.mdx#teleportyaml). |
+| session_recording_config | Singleton resource holding session-recording-related fields of [`teleport.yaml`](config-reference.mdx#teleportyaml). |
 
 **Examples:**
 
