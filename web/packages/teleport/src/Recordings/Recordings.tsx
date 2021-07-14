@@ -28,19 +28,17 @@ import InputSearch from 'teleport/components/InputSearch';
 import useTeleport from 'teleport/useTeleport';
 import useAuditEvents from 'teleport/useAuditEvents';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-
-const MAX_EVENT_FETCH = 9999;
+import { eventCodes } from 'teleport/services/audit';
 
 export default function Container() {
   const teleCtx = useTeleport();
   const { clusterId } = useStickyClusterId();
-  const state = useAuditEvents(teleCtx, clusterId, MAX_EVENT_FETCH);
+  const state = useAuditEvents(teleCtx, clusterId, eventCodes.SESSION_END);
   return <Recordings {...state} />;
 }
 
 export function Recordings(props: ReturnType<typeof useAuditEvents>) {
   const {
-    fetchStartKey,
     attempt,
     range,
     rangeOptions,
@@ -49,6 +47,8 @@ export function Recordings(props: ReturnType<typeof useAuditEvents>) {
     searchValue,
     clusterId,
     setSearchValue,
+    fetchMore,
+    fetchStatus,
   } = props;
 
   return (
@@ -70,12 +70,6 @@ export function Recordings(props: ReturnType<typeof useAuditEvents>) {
       >
         <InputSearch mr="3" onChange={setSearchValue} />
       </Flex>
-      {fetchStartKey && (
-        <Danger>
-          number of events retrieved for specified date range has exceeded the
-          maximum limit of {MAX_EVENT_FETCH} events
-        </Danger>
-      )}
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -88,6 +82,8 @@ export function Recordings(props: ReturnType<typeof useAuditEvents>) {
           events={events}
           clusterId={clusterId}
           pageSize={50}
+          fetchMore={fetchMore}
+          fetchStatus={fetchStatus}
         />
       )}
     </FeatureBox>

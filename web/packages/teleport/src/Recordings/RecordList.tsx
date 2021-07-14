@@ -22,8 +22,9 @@ import { ButtonBorder } from 'design';
 import { displayDateTime } from 'shared/services/loc';
 import * as Table from 'design/DataTable';
 import PagedTable from 'design/DataTable/Paged';
-import { Event, SessionEnd } from 'teleport/services/audit/types';
+import { SessionEnd } from 'teleport/services/audit/types';
 import cfg from 'teleport/config';
+import { State } from 'teleport/useAuditEvents';
 
 type SortCols = 'created' | 'duration';
 type SortState = {
@@ -31,7 +32,14 @@ type SortState = {
 };
 
 export default function RecordList(props: Props) {
-  const { clusterId, searchValue, pageSize, events } = props;
+  const {
+    clusterId,
+    searchValue,
+    pageSize,
+    events,
+    fetchMore,
+    fetchStatus,
+  } = props;
   const [colSortDirs, setSort] = React.useState<SortState>(() => {
     return {
       created: Table.SortTypes.ASC,
@@ -70,7 +78,7 @@ export default function RecordList(props: Props) {
     setSort({ [columnKey]: sortDir });
   }
 
-  const tableProps = { pageSize, data };
+  const tableProps = { pageSize, data, fetchMore, fetchStatus };
 
   return (
     <PagedTable {...tableProps}>
@@ -186,10 +194,12 @@ const PlayCell = props => {
 };
 
 type Props = {
-  searchValue: string;
-  events: Event[];
   pageSize?: number;
-  clusterId: string;
+  searchValue: State['searchValue'];
+  events: State['events'];
+  clusterId: State['clusterId'];
+  fetchMore: State['fetchMore'];
+  fetchStatus: State['fetchStatus'];
 };
 
 const searchableProps = [

@@ -18,12 +18,12 @@ import moment from 'moment';
 import { useEffect, useState, useMemo } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
-import { Event } from 'teleport/services/audit';
+import { Event, EventCode, formatters } from 'teleport/services/audit';
 
 export default function useAuditEvents(
   ctx: Ctx,
   clusterId: string,
-  limit?: number
+  eventCode?: EventCode
 ) {
   const rangeOptions = useMemo(() => getRangeOptions(), []);
   const [searchValue, setSearchValue] = useState('');
@@ -34,6 +34,8 @@ export default function useAuditEvents(
     fetchStartKey: '',
     fetchStatus: '',
   });
+
+  const filterBy = eventCode ? formatters[eventCode].type : '';
 
   useEffect(() => {
     fetch();
@@ -48,7 +50,11 @@ export default function useAuditEvents(
       fetchStatus: 'loading',
     });
     ctx.auditService
-      .fetchEvents(clusterId, { ...range, startKey: results.fetchStartKey })
+      .fetchEvents(clusterId, {
+        ...range,
+        filterBy,
+        startKey: results.fetchStartKey,
+      })
       .then(res =>
         setResults({
           events: [...results.events, ...res.events],
@@ -65,13 +71,18 @@ export default function useAuditEvents(
   // replaces existing events list.
   function fetch() {
     run(() =>
-      ctx.auditService.fetchEvents(clusterId, { ...range, limit }).then(res =>
-        setResults({
-          events: res.events,
-          fetchStartKey: res.startKey,
-          fetchStatus: res.startKey ? '' : 'disabled',
+      ctx.auditService
+        .fetchEvents(clusterId, {
+          ...range,
+          filterBy,
         })
-      )
+        .then(res =>
+          setResults({
+            events: res.events,
+            fetchStartKey: res.startKey,
+            fetchStatus: res.startKey ? '' : 'disabled',
+          })
+        )
     );
   }
 

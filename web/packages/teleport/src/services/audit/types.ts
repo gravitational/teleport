@@ -548,6 +548,7 @@ export type EventQuery = {
   to: Date;
   limit?: number;
   startKey?: string;
+  filterBy?: string;
 };
 
 export type EventResponse = {
