@@ -807,6 +807,15 @@ message IsMFARequiredRequest {
     }
 }
 
+// StreamSessionEventsRequest is a request containing needed data to fetch a session recording.
+message StreamSessionEventsRequest {
+    // SessionID is the ID for a given session in an UUIDv4 format.
+    string SessionID = 1;
+    // StartIndex is the index of the event to resume the stream after.
+    // A StartIndex of 0 creates a new stream.
+    int32 StartIndex = 2;
+}
+
 // NodeLogin specifies an SSH node and OS login.
 message NodeLogin {
     // Node can be node's hostname or UUID.
@@ -1196,4 +1205,7 @@ service AuthService {
     rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
     // DeleteLock deletes a lock.
     rpc DeleteLock(DeleteLockRequest) returns (google.protobuf.Empty);
+
+    // StreamSessionEvents streams audit events from a given session recording.
+    rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);
 }

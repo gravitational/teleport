@@ -793,7 +793,7 @@ func withRDSPostgres(name, authToken string) withDatabaseOption {
 				HostID:        testCtx.hostID,
 				DynamicLabels: dynamicLabels,
 				AWS: types.AWS{
-					Region: "us-east-1",
+					Region: testAWSRegion,
 				},
 				// Set CA cert, otherwise we will attempt to download RDS roots.
 				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
@@ -828,7 +828,7 @@ func withRedshiftPostgres(name, authToken string) withDatabaseOption {
 				HostID:        testCtx.hostID,
 				DynamicLabels: dynamicLabels,
 				AWS: types.AWS{
-					Region:   "us-east-1",
+					Region:   testAWSRegion,
 					Redshift: types.Redshift{ClusterID: "redshift-cluster-1"},
 				},
 				// Set CA cert, otherwise we will attempt to download Redshift roots.
@@ -933,7 +933,7 @@ func withRDSMySQL(name, authUser, authToken string) withDatabaseOption {
 				HostID:        testCtx.hostID,
 				DynamicLabels: dynamicLabels,
 				AWS: types.AWS{
-					Region: "us-east-1",
+					Region: testAWSRegion,
 				},
 				// Set CA cert, otherwise we will attempt to download RDS roots.
 				CACert: testCtx.hostCA.GetActiveKeys().TLS[0].Cert,
@@ -1024,3 +1024,6 @@ var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{
 		Command: []string{"echo", "test"},
 	},
 })
+
+// testAWSRegion is the AWS region used in tests.
+const testAWSRegion = "us-east-1"
