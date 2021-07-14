@@ -1,0 +1,142 @@
+---
+title: Access Controls Single Sign-On Access Requests
+description: Telepor tAccess Controls Single Sign-On Access Requests.
+---
+
+# Teleport Server Access Single Sign-On
+
+TBD
+
+## Prerequisites
+
+- A GitHub user belonging to an organization and a team within that organization.
+
+## Step 3a. Set up GitHub SSO
+
+<video autoplay loop muted playsinline>
+  <source src="https://goteleport.com/teleport/videos/server-access/githubsso.mp4" type="video/mp4"/>
+  <source src="https://goteleport.com/teleport/videos/server-access/githubsso.webm" type="video/webm"/>
+Your browser does not support the video tag.
+</video>
+
+Teleport Server Access also supports using SSO for authentication. Let's add a new user through GitHub SSO:
+
+1. Make sure the user you'll add to Teleport is a GitHub administrator within your GitHub organization.
+
+   i. As your GitHub administrator, go to your organization's **"Settings"** > **"Developer settings"** > **"OAuth Apps"** page.
+
+   ii. Add an OAuth App to your organization's page taking care to create a Client Secret.
+
+   <Figure
+     align="center"
+     bordered
+     caption="OAuth App configuration"
+   >
+     <Image
+       alt=""
+       height="265"
+       src="../../img/server-access/oauth_app_config.png"
+       unoptimized
+       width="581"
+     />
+   </Figure>
+
+2. Within your `auth` terminal:
+
+   - Execute `sudo nano /etc/teleport.yaml` and add the following entry to the `auth_service` section:
+
+   ```yaml
+   authentication:
+     type: github
+   ```
+
+3. Within your `auth` terminal:
+
+   i. Execute `sudo touch connector.yaml`.  
+   ii. Then, `sudo nano connector.yaml` and paste in:
+
+   ```yaml
+   kind: github
+   version: v3
+   metadata:
+     name: github
+   spec:
+     # GitHub OAuth app client ID
+     client_id: APP_CLIENT_ID
+     # GitHub OAuth app client secret
+     client_secret: APP_CLIENT_SECRET
+     # GitHub will make a callback to this URL after successful authentication
+     # cluster-url is the address the cluster UI is reachable at
+     redirect_url: "https://auth.example.com/v1/webapi/github/callback"
+     # connector display name that will be appended to the title of "Login with"
+     # button on the cluster login screen so it will say "Login with Github"
+     display: Github
+     # mapping of GitHub team memberships to Teleport cluster roles
+     teams_to_logins:
+     - logins:
+       -  admin
+       organization: "EXAMPLE_GITHUB_OAUTH_APP"
+       team: TEAM
+   ```
+
+4. `sudo tctl create connector.yaml` (use the `-f` flag to override an existing connector).
+
+   - Display all connectors with: `tctl get connectors`.
+
+5. Your GitHub admin user (`github-test-admin`) can now use:
+
+   - `tsh --proxy=auth.example.com login --auth=github --user=github-test-admin` to authenticate via GitHub SSO.
+
+   <Figure
+     align="center"
+     bordered
+     caption="SSO login success"
+   >
+     <Image
+       alt=""
+       height="265"
+       src="../../img/server-access/sso_login_success.png"
+       unoptimized
+       width="581"
+     />
+   </Figure>
+
+   - The user will automatically appear in the "Team" > "Users" panel of the Teleport Web Interface after the first sign-in.
+
+   <Figure
+     align="center"
+     bordered
+     caption="GitHub users panel"
+   >
+     <Image
+       alt=""
+       height="265"
+       src="../../img/server-access/github_user_added.png"
+       unoptimized
+       width="581"
+     />
+   </Figure>
+
+
+
+## Configure Single Sign-On
+
+<video autoplay loop muted playsinline>
+  <source src="https://goteleport.com/teleport/videos/server-access/githubsso.mp4" type="video/mp4"/>
+  <source src="https://goteleport.com/teleport/videos/server-access/githubsso.webm" type="video/webm"/>
+Your browser does not support the video tag.
+</video>
+
+Teleport Server Access supports Single Sign-On (SSO) for authenticating users when they log into Teleport Web UI and through `tsh`. 
+
+This augments the enhanced security features that Teleport already offers with the robust security that SAML, multi-factor authentication, and SSO additionally provide.
+
+## Supported providers
+
+
+Specific set up guides are available for the following SSO providers:
+
+- Gitlab SSO [here](../../enterprise/sso/gitlab.mdx)
+- Okta SSO [here](../../enterprise/sso/ssh-okta.mdx)
+- [Open ID Connect](../../enterprise/sso/oidc.mdx)
+- And [many more](../../enterprise/sso/ssh-sso.mdx)
