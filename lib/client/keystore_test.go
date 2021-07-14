@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -326,9 +327,8 @@ func TestGetTrustedCertsPEM_nonCertificateBlocks(t *testing.T) {
 	// certs.pem. During regular use this shouldn't happen, but a bug was lurking
 	// around here.
 	proxy := "proxy.example.com"
-	proxyDir := filepath.Join(s.storeDir, "keys", proxy)
-	certsFile := filepath.Join(proxyDir, "certs.pem")
-	err := os.MkdirAll(proxyDir, 0700)
+	certsFile := keypaths.TLSCAsPath(s.storeDir, proxy)
+	err := os.MkdirAll(filepath.Dir(certsFile), 0700)
 	require.NoError(t, err)
 	err = ioutil.WriteFile(certsFile, []byte(`-----BEGIN RSA PUBLIC KEY-----
 MIIBCgKCAQEAp2eO39fYnpUI4PplyoS/bHrr5Yiy98t+1sdDwGIG01UPlkxAxzIi
