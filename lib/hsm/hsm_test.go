@@ -103,7 +103,23 @@ func TestHSM(t *testing.T) {
 			},
 			shouldSkip: func() bool {
 				if os.Getenv("YUBIHSM_PKCS11_CONF") == "" || os.Getenv("YUBIHSM_PKCS11_PATH") == "" {
-					log.Println("Skipping yubihsm test because YUBIHSM_PKCS11_CONF YUBIHSM_PKCS11_PATH is not set.")
+					log.Println("Skipping yubihsm test because YUBIHSM_PKCS11_CONF or YUBIHSM_PKCS11_PATH is not set.")
+					return true
+				}
+				return false
+			},
+		},
+		{
+			desc: "cloudhsm",
+			clientConfig: hsm.ClientConfig{
+				Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
+				TokenLabel: "cavium",
+				Pin:        os.Getenv("CLOUDHSM_PIN"),
+				HostUUID:   "server1",
+			},
+			shouldSkip: func() bool {
+				if os.Getenv("CLOUDHSM_PIN") == "" {
+					log.Println("Skipping cloudhsm test because CLOUDHSM_PIN is not set.")
 					return true
 				}
 				return false
