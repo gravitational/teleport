@@ -1,6 +1,6 @@
 ---
 authors: Roman Tkachenko (roman@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 11 - Teleport Database Access (Preview)
