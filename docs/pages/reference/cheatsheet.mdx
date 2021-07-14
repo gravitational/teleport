@@ -1,0 +1,202 @@
+---
+title: Common Teleport CLI Commands
+description: Cheatsheet of common Teleport CLI commands.
+h1: Common Teleport Commands Reference
+---
+
+(!docs/pages/includes/permission-warning.mdx!)
+
+## Configure and start Teleport with Acme
+
+`--cluster-name` should be set to the same as the cluster name. 
+
+Make sure to leave port `443` open:
+
+```bash
+# Configure Teleport with TLS certs
+sudo teleport configure \
+  --acme --acme-email=your_email@example.com \
+  --cluster-name=tele.example.com \
+  -o file
+
+# Launch Teleport
+sudo teleport start
+```
+
+## Add a Teleport Node
+
+Run the first command on the same server your Teleport Auth node is running on. 
+
+Run the second on the server you want to connect to the existing Teleport Cluster.
+
+```bash
+# Add a Teleport Node in SSH mode and save the token to a file 'token.file'
+tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
+
+# Use 'token.file' to join the cluster
+sudo teleport start \
+  --roles=node \
+  --token=/path/to/token.file \
+  --auth-server=tele.example.com:443
+```
+
+## Add a user with roles and logins
+
+Create a user `teleport-admin` with `editor,access` roles and `root,ubuntu,ec2-user` logins:
+
+```bash
+tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
+```
+
+## Login with tsh
+
+Log in and log out with `tsh`:
+
+```bash
+# Login
+tsh login --proxy=teleport.example.com:443 --user=teleport-admin
+
+# Logout and remove cached info
+tsh logout
+```
+
+## Inspect your SSH certificate
+
+Display relevant information about your locally cached `tsh` certificate:
+
+```bash
+tsh status
+``` 
+
+## Create dependent roles
+
+Create a role with another role that can request it:
+
+```bash
+# Create YAML file
+cat > roles.yaml << 'EOF'
+kind: 'role'
+version: 'v3'
+metadata:
+  name: 'dev'
+spec:
+  allow:
+    request:
+      roles: ['slackdev']
+---
+kind: role
+version: v3
+metadata:
+  name: 'slackdev'
+spec:
+  allow:
+    logins: ['access']
+EOF
+
+# Create YAML file
+tctl create -f roles.yaml
+```
+
+## Request roles with tsh
+
+User requests a role through `tsh` client:
+
+```bash
+# Request a permitted role
+tsh login --request-roles=slackdev
+
+# Alternative syntax
+tsh request create --roles=access
+
+# Alternative syntax
+tsh request new --roles=access,admin
+```
+
+## Approve or deny roles with tsh
+
+Approve or deny role requests as a user logged in through the `tsh` client:
+
+```bash
+# Display requests
+tsh request ls
+
+# Show request details
+tsh request show b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+
+# Approve the request
+tsh request review --approve b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+
+# Deny the request
+tsh request review --deny b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+```
+
+## Approve or deny roles with tctl
+
+Approve or deny role requests as a teleport admin using `tctl`:
+
+```bash
+# Display all active requests
+tctl request ls
+
+# Approve the request
+tctl request approve b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+
+# Deny the request
+tctl request deny b8fa34de-3822-48aa-86f1-1865f9c7c4b9
+```
+
+## Create a role to impersonate another role
+
+Create a role with another role that impersonates it:
+
+```bash
+# Create YAML file
+cat > roles.yaml << 'EOF'
+kind: role
+version: v3
+metadata:
+  name: testrole
+spec:
+  allow:
+    logins: ['access']
+---
+kind: role
+version: v3
+metadata:
+  name: imperole
+spec:
+  allow:
+    impersonate:
+      roles: ['testrole']
+EOF
+
+# Create the roles
+tctl create -f roles.yaml
+```
+
+## Create a user with a role
+
+Create a role with a user:
+
+```bash
+# Create YAML file
+cat > roleuser.yaml << 'EOF'
+kind: user
+metadata:
+  name: test-user
+spec:
+  roles: ['testrole']
+version: v2
+---
+kind: role
+version: v3
+metadata:
+  name: testrole
+spec:
+  allow:
+    logins: ['access']
+EOF
+
+# Create YAML file
+tctl create -f roleuser.yaml
+```

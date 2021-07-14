@@ -46,7 +46,14 @@
           ]
         },
         { "title": "Access Controls", "slug": "/application-access/controls/" },
-        { "title": "Reference", "slug": "/application-access/reference/" }
+        {
+          "title": "Reference",
+          "slug": "/application-access/reference/",
+          "entries": [
+            { "title": "Configuration", "slug": "/application-access/reference/configuration/" },
+            { "title": "CLI", "slug": "/application-access/reference/cli/" }
+          ]
+        }
       ]
     },
     {
@@ -222,8 +229,16 @@
       "title": "Reference",
       "entries": [
         { "title": "YAML", "slug": "/config-reference/" },
-        { "title": "CLI", "slug": "/cli-docs/" },
-        { "title": "Metrics", "slug": "/metrics-logs-reference/" },
+        {
+          "title": "CLI",
+          "slug": "/reference/cli-docs/",
+          "entries": [
+            {"title": "Teleport", "slug": "/reference/cli/teleport/"},
+            {"title": "tsh", "slug": "/reference/cli/tsh/"},
+            {"title": "tctl", "slug": "/reference/cli/tctl/"}
+          ]
+        },
+        { "title": "Cheatsheet", "slug": "/reference/cheatsheet/" },
         {
           "title": "API",
           "slug": "/reference/api/",
@@ -232,7 +247,8 @@
             {"title": "Getting Started", "slug": "/reference/api/getting-started/"},
             {"title": "Architecture", "slug": "/reference/api/architecture/"}
           ]
-        }
+        },
+        { "title": "Metrics", "slug": "/metrics-logs-reference/" }
       ]
     }
   ],
@@ -359,6 +375,11 @@
     {
       "source": "/cloud/faq/",
       "destination": "/pro/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/cli-docs/",
+      "destination": "/reference/cli-docs/",
       "permanent": true
     }
   ]
