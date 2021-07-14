@@ -10,6 +10,7 @@
         "databases",
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
+        "existingDataVolume",
         "podSecurityPolicy",
         "labels",
         "image",
@@ -85,6 +86,11 @@
             "$id": "#/properties/insecureSkipProxyTLSVerify",
             "type": "boolean",
             "default": false
+        },
+        "existingDataVolume": {
+            "$id": "#/properties/existingDataVolume",
+            "type": "string",
+            "default": ""
         },
         "podSecurityPolicy": {
             "$id": "#/properties/podSecurityPolicy",
