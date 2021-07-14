@@ -25,11 +25,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -112,13 +113,13 @@ func GetTunnelAddr(ctx context.Context, proxyAddr string, insecure bool, pool *x
 func tunnelAddr(settings SSHProxySettings) (string, error) {
 	// If a tunnel public address is set, nothing else has to be done, return it.
 	if settings.TunnelPublicAddr != "" {
-		return utils.ExtractHostPort(settings.TunnelPublicAddr)
+		return extractHostPort(settings.TunnelPublicAddr)
 	}
 
 	// Extract the port the tunnel server is listening on.
 	tunnelPort := strconv.Itoa(defaults.SSHProxyTunnelListenPort)
 	if settings.TunnelListenAddr != "" {
-		if port, err := utils.ExtractPort(settings.TunnelListenAddr); err == nil {
+		if port, err := extractPort(settings.TunnelListenAddr); err == nil {
 			tunnelPort = port
 		}
 	}
@@ -127,18 +128,18 @@ func tunnelAddr(settings SSHProxySettings) (string, error) {
 	// public address has been set, extract the hostname but use the port from
 	// the tunnel listen address.
 	if settings.SSHPublicAddr != "" {
-		if host, err := utils.ExtractHost(settings.SSHPublicAddr); err == nil {
+		if host, err := extractHost(settings.SSHPublicAddr); err == nil {
 			return net.JoinHostPort(host, tunnelPort), nil
 		}
 	}
 	if settings.PublicAddr != "" {
-		if host, err := utils.ExtractHost(settings.PublicAddr); err == nil {
+		if host, err := extractHost(settings.PublicAddr); err == nil {
 			return net.JoinHostPort(host, tunnelPort), nil
 		}
 	}
 
 	// If nothing is set, fallback to the tunnel listen address.
-	return utils.ExtractHostPort(settings.TunnelListenAddr)
+	return extractHostPort(settings.TunnelListenAddr)
 }
 
 // PingResponse contains data about the Teleport server like supported
@@ -250,4 +251,53 @@ type GithubSettings struct {
 	Name string `json:"name"`
 	// Display is the connector display name
 	Display string `json:"display"`
+}
+
+// extractHostPort takes addresses like "tcp://host:port/path" and returns "host:port".
+func extractHostPort(addr string) (string, error) {
+	if addr == "" {
+		return "", trace.BadParameter("missing parameter address")
+	}
+	if !strings.Contains(addr, "://") {
+		addr = "tcp://" + addr
+	}
+	u, err := url.Parse(addr)
+	if err != nil {
+		return "", trace.BadParameter("failed to parse %q: %v", addr, err)
+	}
+	switch u.Scheme {
+	case "tcp", "http", "https":
+		return u.Host, nil
+	default:
+		return "", trace.BadParameter("'%v': unsupported scheme: '%v'", addr, u.Scheme)
+	}
+}
+
+// extractHost takes addresses like "tcp://host:port/path" and returns "host".
+func extractHost(addr string) (ra string, err error) {
+	parsed, err := extractHostPort(addr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	host, _, err := net.SplitHostPort(parsed)
+	if err != nil {
+		if strings.Contains(err.Error(), "missing port in address") {
+			return addr, nil
+		}
+		return "", trace.Wrap(err)
+	}
+	return host, nil
+}
+
+// extractPort takes addresses like "tcp://host:port/path" and returns "port".
+func extractPort(addr string) (string, error) {
+	parsed, err := extractHostPort(addr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	_, port, err := net.SplitHostPort(parsed)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return port, nil
 }
