@@ -88,24 +88,20 @@ auth_service:
 Next, `sshd` must be told to allow users to log in with certificates generated
 by the Teleport User CA. Start by exporting the Teleport CA public key:
 
-Export the Teleport CA certificate into a file:
+Export the Teleport Certificate Authority certificate into a file and update
+SSH configuration to trust Teleport's CA:
 
 ```bash
 # tctl needs to be run on the auth server.
-sudo tctl auth export --type=user > teleport_user_ca.pub
+sudo tctl auth export --type=user | sed s/cert-authority\ // > teleport_user_ca.pub
+sudo mv ./teleport_user_ca.pub /etc/ssh/teleport_user_ca.pub
+echo "TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub" | sudo tee -a /etc/ssh/sshd_config
 ```
 
-To allow access for all users:
+Restart SSH daemon.
 
-1. Edit `teleport_user_ca.pub` and remove `cert-authority` from the start of the line.
-2. Copy `teleport_user_ca.pub` to `/etc/ssh/teleport_user_ca.pub`
-3. Update `sshd` configuration (usually `/etc/ssh/sshd_config` ) to point to
-  this file:
-  ```
-  TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub
-  ```
-
-Now, `sshd` will trust users who present a Teleport-issued certificate. The next step is to configure host authentication.
+Now, `sshd` will trust users who present a Teleport-issued certificate.
+The next step is to configure host authentication.
 
 When in recording mode, Teleport will check that the host certificate of any
 node a user connects to is signed by a Teleport CA. By default, this is a strict
@@ -202,7 +198,7 @@ It's important to remember that SSH agent forwarding must be enabled on the
 client. Verify that a Teleport certificate is loaded into the agent after
 logging in:
 
-```bsh
+```bash
 # Login as Joe
 tsh login --proxy=proxy.example.com --user=joe
 # see if the certificate is present (look for "teleport:joe") at the end of the cert
