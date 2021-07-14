@@ -499,6 +499,8 @@ func Run(args []string, opts ...cliOption) error {
 	// MFA subcommands.
 	mfa := newMFACommand(app)
 
+	config := app.Command("config", "Print OpenSSH configuration details")
+
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
@@ -507,6 +509,9 @@ func Run(args []string, opts ...cliOption) error {
 		play.Hidden()
 		scp.Hidden()
 		bench.Hidden()
+
+		// Similarly, `config` for ssh depends on bash.
+		config.Hidden()
 	}
 
 	// parse CLI commands+flags:
@@ -632,6 +637,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onRequestCreate(&cf)
 	case reqReview.FullCommand():
 		err = onRequestReview(&cf)
+	case config.FullCommand():
+		err = onConfig(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)

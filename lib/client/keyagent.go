@@ -287,7 +287,7 @@ func (a *LocalKeyAgent) AddHostSignersToCache(certAuthorities []auth.TrustedCert
 			return trace.Wrap(err)
 		}
 		a.log.Debugf("Adding CA key for %s", ca.ClusterName)
-		err = a.keyStore.AddKnownHostKeys(ca.ClusterName, publicKeys)
+		err = a.keyStore.AddKnownHostKeys(ca.ClusterName, a.proxyHost, publicKeys)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -380,7 +380,7 @@ func (a *LocalKeyAgent) checkHostKey(addr string, remote net.Addr, key ssh.Publi
 
 	// If the user trusts the key, store the key in the local known hosts
 	// cache ~/.tsh/known_hosts.
-	err = a.keyStore.AddKnownHostKeys(addr, []ssh.PublicKey{key})
+	err = a.keyStore.AddKnownHostKeys(addr, a.proxyHost, []ssh.PublicKey{key})
 	if err != nil {
 		a.log.Warnf("Failed to save the host key: %v.", err)
 		return trace.Wrap(err)
