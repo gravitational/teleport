@@ -47,8 +47,6 @@ spec:
     rules:
       - resources: ['access_request']
         verbs: ['list','read','update']
-    # teleport currently refuses to issue certs for a user with 0 logins,
-    # this restriction may be lifted in future versions.
     logins: ['access-plugin-jira']
 version: v3
 EOF
