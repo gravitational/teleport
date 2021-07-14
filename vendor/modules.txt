@@ -55,10 +55,10 @@ github.com/alecthomas/template/parse
 # github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 ## explicit
 github.com/alecthomas/units
-# github.com/aquasecurity/tracee/libbpfgo v0.0.0-20210513142145-242d721bad3d
+# github.com/aquasecurity/libbpfgo v0.1.0
 ## explicit
-github.com/aquasecurity/tracee/libbpfgo
-github.com/aquasecurity/tracee/libbpfgo/helpers
+github.com/aquasecurity/libbpfgo
+github.com/aquasecurity/libbpfgo/helpers
 # github.com/armon/go-radix v1.0.0
 ## explicit
 github.com/armon/go-radix
