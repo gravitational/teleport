@@ -1330,9 +1330,7 @@ func startAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 	// wait for all events to arrive or a timeout. if all the expected events
 	// from above are not received, this instance will not start
 	receivedEvents := []service.Event{}
-	//TODO(smallinksy) change to 4 sec
-	//timeoutCh := time.After(4 * time.Second)
-	timeoutCh := time.After(4 * time.Minute)
+	timeoutCh := time.After(4 * time.Second)
 
 	for idx := 0; idx < len(expectedEvents); idx++ {
 		select {
