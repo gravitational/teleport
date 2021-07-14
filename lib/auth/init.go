@@ -481,10 +481,8 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 
 func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	storedAuthPref, err := asrv.GetAuthPreference(ctx)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
 	}
 	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
 	if err != nil {
@@ -501,10 +499,8 @@ func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.
 
 func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
 	storedNetConfig, err := asrv.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
 	}
 	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedNetConfig, newNetConfig)
 	if err != nil {
@@ -521,10 +517,8 @@ func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetCon
 
 func initSetSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
 	storedRecConfig, err := asrv.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
 	}
 	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedRecConfig, newRecConfig)
 	if err != nil {
