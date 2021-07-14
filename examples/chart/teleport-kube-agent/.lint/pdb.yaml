@@ -1,0 +1,6 @@
+clusterName: helm-lint
+highAvailability:
+  replicaCount: 3
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
