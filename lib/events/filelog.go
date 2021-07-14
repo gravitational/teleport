@@ -640,6 +640,15 @@ func (l *FileLog) findInFile(path string, eventFilter []string) ([]EventFields, 
 	return retval, nil
 }
 
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (l *FileLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	e <- trace.NotImplemented("not implemented")
+	return c, e
+}
+
 type eventFile struct {
 	os.FileInfo
 	path string
