@@ -265,7 +265,7 @@ func (r *AccessRequestV3) setStaticFields() {
 	r.Version = V3
 }
 
-// checkandsetdefaults validates set values and sets default values
+// CheckAndSetDefaults validates set values and sets default values
 func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	r.setStaticFields()
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {

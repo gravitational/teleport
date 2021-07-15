@@ -117,7 +117,7 @@ func TestAlpnSniProxyMultiCluster(t *testing.T) {
 	}
 }
 
-// TestAlpnSniProxyTrustedClusterNode tests ssh connection to trusted cluster node.
+// TestAlpnSniProxyTrustedClusterNode tests ssh connection to a trusted cluster node.
 func TestAlpnSniProxyTrustedClusterNode(t *testing.T) {
 	testCase := []struct {
 		name                        string
@@ -196,7 +196,7 @@ func TestAlpnSniProxyTrustedClusterNode(t *testing.T) {
 }
 
 // TestAlpnSniProxyMultiCluster tests if the reverse tunnel uses http_proxy
-// on single proxy port setup.
+// on a single proxy port setup.
 func TestAlpnSniHTTPSProxy(t *testing.T) {
 	// start the http proxy
 	ps := &proxyServer{}
@@ -229,8 +229,8 @@ func TestAlpnSniHTTPSProxy(t *testing.T) {
 	require.Greater(t, ps.Count(), 0, "proxy did not intercept any connection")
 }
 
-// TestAlpnSniProxyKube tests kubernetes access with custom kube API mock where traffic is forwarded via
-//SNI ALPN proxy service to kubernetes service based on TLS SNI value.
+// TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
+//SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
 func TestAlpnSniProxyKube(t *testing.T) {
 	const (
 		localK8SNI = "kube.teleport.cluster.local"
@@ -279,7 +279,7 @@ func TestAlpnSniProxyKube(t *testing.T) {
 }
 
 // TestAlpnSniProxyDatabaseAccess test DB connection forwarded through local SNI ALPN proxy where
-// DB protocol is wrapped into TLS and forwarded to proxy alpn sni service and routed to appropriate db service.
+// DB protocol is wrapped into TLS and forwarded to proxy ALPN SNI service and routed to appropriate db service.
 func TestAlpnSniProxyDatabaseAccess(t *testing.T) {
 	pack := setupDatabaseTest(t,
 		withPortSetupDatabaseTest(singleProxyPortSetup),
@@ -430,7 +430,7 @@ func TestAlpnSniProxyDatabaseAccess(t *testing.T) {
 	})
 }
 
-// TestProxyAppAccess tests application access via alpn sni proxy service.
+// TestProxyAppAccess tests application access via ALPN SNI proxy service.
 func TestAlpnSniProxyAppAccess(t *testing.T) {
 	pack := setupWithOptions(t, appTestOptions{
 		rootClusterPorts: singleProxyPortSetup(),

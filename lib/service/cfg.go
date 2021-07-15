@@ -389,7 +389,7 @@ type ProxyConfig struct {
 	// ACME is ACME protocol support config
 	ACME ACME
 
-	// DisableALPNSNIListener allows to enforce on proxy clients to use no TLS SNI ALPN
+	// DisableALPNSNIListener allows encoring on proxy clients to use no TLS SNI ALPN
 	// proxy dialer. Used in tests.
 	DisableALPNSNIListener bool
 }

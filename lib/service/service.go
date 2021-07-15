@@ -2462,7 +2462,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	//debugListenerAccept(listeners)
 
 	proxySSHAddr := cfg.Proxy.SSHAddr
 	// override value of cfg.Proxy.SSHAddr with listener addr in order

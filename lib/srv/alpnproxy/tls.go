@@ -24,7 +24,7 @@ import (
 	"time"
 )
 
-// readHelloMessageWithoutTLSTermination allows to read a ClientHelloInfo message without termination of
+// readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
 // incoming TLS connection. After calling readHelloMessageWithoutTLSTermination function a returned
 // net.Conn should be used for further operation.
 func readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.ClientHelloInfo, net.Conn, error) {
@@ -50,7 +50,7 @@ func newBufferedConn(conn net.Conn, header io.Reader) *bufferedConn {
 	}
 }
 
-// bufferedConn allows to inject additional reader that will be drained during Read call reading from net.Conn.
+// bufferedConn allows injecting additional reader that will be drained during Read call reading from net.Conn.
 // Is used when part of the data on a connection has already been read.
 type bufferedConn struct {
 	net.Conn

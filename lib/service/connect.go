@@ -874,7 +874,7 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 }
 
 // tunnelAddr returns the tunnel address in the following preference order:
-//  1. If proxy support ALPN listener where all services are expose on single port return proxy address.
+//  1. If proxy support ALPN listener where all services are exposed on single port return proxy address.
 //  2. Reverse Tunnel Public Address.
 //  3. SSH Proxy Public Address.
 //  4. HTTP Proxy Public Address.

@@ -323,7 +323,7 @@ type Config struct {
 	// HomePath is where tsh stores profiles
 	HomePath string
 
-	// ALPNSNIListenerEnabled indicates that proxy supports ALPN and SNI server where
+	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on single TLS listener (Proxy Web Listener).
 	ALPNSNIListenerEnabled bool
 }

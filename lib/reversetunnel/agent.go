@@ -316,7 +316,7 @@ func (a *Agent) connectWithTLSDirectDialer(authMethod ssh.AuthMethod) (ssh.Conn,
 	return conn, chans, reqs, nil
 }
 
-// isALPNUnsupportedError allows to determinate if a teleport proxy client tried to connect to ALPN SNI proxy with raw
+// isALPNUnsupportedError allows to determining if a teleport proxy client tried to connect to ALPN SNI proxy with raw
 // ssh protocol. After detecting this case the client fallback to TLS dialer.
 func isALPNUnsupportedError(err error) bool {
 	return err.Error() == "ssh: handshake failed: EOF"

@@ -112,8 +112,8 @@ type ProxySettings struct {
 	SSH SSHProxySettings `json:"ssh"`
 	// DB contains database access specific proxy settings
 	DB DBProxySettings `json:"db"`
-	// ALPNSNIListenerEnabled indicates that proxy supports ALPN and SNI server where
-	// all proxy services are exposed on single TLS listener (Proxy Web Listener).
+	// ALPNSNIListenerEnabled indicates that proxy supports ALPN  SNI server where
+	// all proxy services are exposed on a a single TLS listener (Proxy Web Listener).
 	ALPNSNIListenerEnabled bool `json:"alpn_sni_listener_enabled"`
 }
 

@@ -34,7 +34,7 @@ const (
 	KubeSNIPrefix = "kube."
 )
 
-// ProxyConfig  is the configuration for an alpn proxy server.
+// ProxyConfig  is the configuration for an ALPN proxy server.
 type ProxyConfig struct {
 	// Listener is a listener to serve requests on.
 	Listener net.Listener
@@ -46,7 +46,7 @@ type ProxyConfig struct {
 	Log logrus.FieldLogger
 }
 
-// NewRouter creates a alpn new router.
+// NewRouter creates a ALPN new router.
 func NewRouter() *Router {
 	return &Router{
 		alpnHandlers: make(map[string]*HandlerDecs),
@@ -61,7 +61,7 @@ type Router struct {
 	mtx                sync.Mutex
 }
 
-// AddKubeHandler adds the handle for kubernetes protocol (distinguishable by  "kube." SNI prefix).
+// AddKubeHandler adds the handle for Kubernetes protocol (distinguishable by  "kube." SNI prefix).
 func (r *Router) AddKubeHandler(handler HandlerFunc) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
@@ -91,7 +91,7 @@ func (r *Router) Add(desc HandlerDecs) {
 
 // HandlerDecs describes the handler for particular protocols.
 type HandlerDecs struct {
-	// Protocols is a list of supported protocols by handler..
+	// Protocols is a list of supported protocols by handler.
 	Protocols []string
 	// Handler is protocol handling logic.
 	Handler HandlerFunc
@@ -100,11 +100,11 @@ type HandlerDecs struct {
 	ForwardTLS bool
 }
 
-// HandlerFunc is a common function signature used to handle upstream downstream with
+// HandlerFunc is a common function signature used to handle downstream with
 // with particular ALPN protocol.
 type HandlerFunc func(ctx context.Context, conn net.Conn) error
 
-// Proxy is definition of the alpn sni proxy server. Proxy server allows to route downstream connections based on
+// Proxy server allows to route downstream connections based on
 // TLS SNI ALPN values to particular service.
 type Proxy struct {
 	cfg                ProxyConfig
@@ -208,7 +208,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 
 func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.Conn) error {
 	// DB Protocols like Mongo have native support for TLS thus TLS connection needs to be terminated twice.
-	// First time for custom local proxy connection and second time from Mongo protocol where TLS connection is used.
+	// First time for custom local proxy connection and the second time from Mongo protocol where TLS connection is used.
 
 	tlsConn := tls.Server(conn, p.cfg.TLSConfig)
 	if err := tlsConn.Handshake(); err != nil {

@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 )
 
-// LocalProxy allows to to upgrade incoming connection to TLS where custom TLS values are set SNI ALPN and
+// LocalProxy allows upgrading incoming connection to TLS where custom TLS values are set SNI ALPN and
 // updated connection is forwarded to remote ALPN SNI teleport proxy service.
 type LocalProxy struct {
 	cfg     LocalProxyConfig
@@ -45,9 +45,9 @@ type LocalProxy struct {
 
 // LocalProxyConfig is configuration for LocalProxy.
 type LocalProxyConfig struct {
-	// RemoteProxyAddr is downstream destination address of remote ALPN proxy service.
+	// RemoteProxyAddr is the downstream destination address of remote ALPN proxy service.
 	RemoteProxyAddr string
-	// Protocol set for upstream TLS connection.
+	// Protocol set for the upstream TLS connection.
 	Protocol Protocol
 	// Insecure turns off verification for x509 upstream ALPN proxy service certificate.
 	InsecureSkipVerify bool
@@ -57,7 +57,7 @@ type LocalProxyConfig struct {
 	SNI string
 	// ParentContext is a parent context, used to signal global closure>
 	ParentContext context.Context
-	// SSHUser is user user name.
+	// SSHUser is a SSH user name.
 	SSHUser string
 	// SSHUserHost is user host requested by ssh subsystem.
 	SSHUserHost string
@@ -79,7 +79,7 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewLocalProxy create new instance of LocalProxy.
+// NewLocalProxy creates a new instance of LocalProxy.
 func NewLocalProxy(cfg LocalProxyConfig) (*LocalProxy, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
