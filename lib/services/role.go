@@ -894,6 +894,7 @@ func ExtractFromCertificate(access UserGetter, cert *ssh.Certificate) ([]string,
 	// For legacy certificates, fetch roles and traits from the services.User
 	// object in the backend.
 	if isFormatOld(cert) {
+		fmt.Printf("--> OLD CERT!\n")
 		u, err := access.GetUser(cert.KeyId, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

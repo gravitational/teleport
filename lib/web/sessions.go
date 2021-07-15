@@ -56,9 +56,13 @@ import (
 // each web session generated for the user and provides
 // a basic client cache for remote auth server connections.
 type SessionContext struct {
-	log    logrus.FieldLogger
-	user   string
-	clt    *auth.Client
+	log  logrus.FieldLogger
+	user string
+	clt  *auth.Client
+
+	// accessPoint is cache to the parent cluster.
+	accessPoint auth.ReadAccessPoint
+
 	parent *sessionCache
 	// resources is persistent resource store this context is bound to.
 	// The store maintains a list of resources between session renewals
@@ -743,12 +747,13 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 	}
 
 	ctx := &SessionContext{
-		clt:       userClient,
-		remoteClt: make(map[string]auth.ClientI),
-		user:      session.GetUser(),
-		session:   session,
-		parent:    s,
-		resources: s.upsertSessionContext(session.GetUser()),
+		clt:         userClient,
+		accessPoint: s.accessPoint,
+		remoteClt:   make(map[string]auth.ClientI),
+		user:        session.GetUser(),
+		session:     session,
+		parent:      s,
+		resources:   s.upsertSessionContext(session.GetUser()),
 		log: s.log.WithFields(logrus.Fields{
 			"user":    session.GetUser(),
 			"session": session.GetShortName(),

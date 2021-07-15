@@ -499,7 +499,26 @@ func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 // GET /webapi/sites/:site/context
 //
 func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	roleset, err := c.GetCertRoles()
+	//roleset, err := c.GetCertRoles()
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+
+	accessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := c.GetSSHCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roles, traits, err := services.ExtractFromCertificate(c.clt, cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	//fmt.Printf("--> (2) Using cache!\n")
+	roleset, err := services.FetchRoles(roles, accessPoint, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1242,11 +1261,18 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	}
 	var roles services.RoleSet
 	for _, roleName := range user.GetRoles() {
-		role, err := clt.GetRole(context.TODO(), roleName)
+		//fmt.Printf("--> (1) Using cache!\n")
+		role, err := ctx.accessPoint.GetRole(context.Background(), roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		roles = append(roles, role)
+
+		//role, err := clt.GetRole(context.TODO(), roleName)
+		//if err != nil {
+		//	return nil, trace.Wrap(err)
+		//}
+		//roles = append(roles, role)
 	}
 	_, err = roles.CheckLoginDuration(0)
 	if err != nil {
