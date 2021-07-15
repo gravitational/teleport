@@ -131,7 +131,7 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 		defer cancel()
 		ctx = timeoutCtx
 	}
-	conn, err :=  dialProxy(ctx, d.proxyHost, address)
+	conn, err := dialProxy(ctx, d.proxyHost, address)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -194,7 +194,7 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	proxyAddr := getProxyAddress(addr)
 
 	var options dialerOptions
-	for _, opt := range  opts {
+	for _, opt := range opts {
 		opt(&options)
 	}
 

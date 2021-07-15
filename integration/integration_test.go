@@ -1601,14 +1601,12 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	require.NoError(t, a.StartNodeAndProxy("cluster-a-node", sshPort, proxyWebPort, proxySSHPort))
 
-
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
 	for len(checkGetClusters(t, a.Tunnel)) < 2 && len(checkGetClusters(t, b.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		require.False(t, time.Now().After(abortTime), "two sites do not see each other: tunnels are not working")
 	}
-
 
 	cmd := []string{"echo", "hello world"}
 	tc, err := b.NewClient(t, ClientConfig{
@@ -1618,7 +1616,6 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 		Port:    sshPort,
 	})
 	require.NoError(t, err)
-
 
 	output := &bytes.Buffer{}
 	tc.Stdout = output
@@ -1634,7 +1631,6 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	}
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output.String())
-
 
 	// Stop cluster "a" to force existing tunnels to close.
 	require.NoError(t, a.StopAuth(true))
