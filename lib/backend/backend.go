@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/jonboulle/clockwork"
 )
 
@@ -159,32 +160,10 @@ type GetResult struct {
 	Items []Item
 }
 
-// OpType and the OpType constants have been moved to /api/types, and are now imported here
-// for backwards compatibility. These can be removed in a future version.
-// DELETE IN 7.0.0
-// OpType specifies operation type
-type OpType = types.OpType
-
-const (
-	// OpInvalid is returned for invalid operations
-	OpInvalid = types.OpInvalid
-	// OpInit is returned by the system whenever the system
-	// is initialized, init operation is always sent
-	// as a first event over the channel, so the client
-	// can verify that watch has been established.
-	OpInit = types.OpInit
-	// OpPut is returned for Put events
-	OpPut = types.OpPut
-	// OpDelete is returned for Delete events
-	OpDelete = types.OpDelete
-	// OpGet is used for tracking, not present in the event stream
-	OpGet = types.OpGet
-)
-
 // Event is a event containing operation with item
 type Event struct {
 	// Type is operation type
-	Type OpType
+	Type types.OpType
 	// Item is event Item
 	Item Item
 }
@@ -211,7 +190,7 @@ type Config struct {
 	Type string `yaml:"type,omitempty"`
 
 	// Params is a generic key/value property bag which allows arbitrary
-	// falues to be passed to backend
+	// values to be passed to backend
 	Params Params `yaml:",inline"`
 }
 
@@ -234,8 +213,10 @@ func (p Params) GetString(key string) string {
 // NoLimit specifies no limits
 const NoLimit = 0
 
-// RangeEnd returns end of the range for given key
-func RangeEnd(key []byte) []byte {
+// nextKey returns the next possible key.
+// If used with a key prefix, this will return
+// the end of the range for that key prefix.
+func nextKey(key []byte) []byte {
 	end := make([]byte, len(key))
 	copy(end, key)
 	for i := len(end) - 1; i >= 0; i-- {
@@ -252,6 +233,16 @@ func RangeEnd(key []byte) []byte {
 var (
 	noEnd = []byte{0}
 )
+
+// RangeEnd returns end of the range for given key.
+func RangeEnd(key []byte) []byte {
+	return nextKey(key)
+}
+
+// NextPaginationKey returns the next pagination key.
+func NextPaginationKey(r types.Resource) string {
+	return string(nextKey([]byte(r.GetName())))
+}
 
 // Items is a sortable list of backend items
 type Items []Item

@@ -25,10 +25,14 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	firestorebk "github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -153,7 +157,7 @@ type EventsConfig struct {
 
 // SetFromParams establishes values on an EventsConfig from the supplied params
 func (cfg *EventsConfig) SetFromParams(params backend.Params) error {
-	err := utils.ObjectToStruct(params, &cfg)
+	err := apiutils.ObjectToStruct(params, &cfg)
 	if err != nil {
 		return trace.BadParameter("firestore: configuration is invalid: %v", err)
 	}
@@ -304,7 +308,7 @@ func New(cfg EventsConfig) (*Log, error) {
 }
 
 // EmitAuditEvent emits audit event
-func (l *Log) EmitAuditEvent(ctx context.Context, in events.AuditEvent) error {
+func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
 	data, err := utils.FastMarshal(in)
 	if err != nil {
 		return trace.Wrap(err)
@@ -323,7 +327,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in events.AuditEvent) error {
 		SessionID:      sessionID,
 		EventIndex:     in.GetIndex(),
 		EventType:      in.GetType(),
-		EventNamespace: defaults.Namespace,
+		EventNamespace: apidefaults.Namespace,
 		CreatedAt:      in.GetTime().Unix(),
 		Fields:         string(data),
 	}
@@ -362,7 +366,7 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 		SessionID:      sessionID,
 		EventIndex:     int64(eventIndex),
 		EventType:      fields.GetString(events.EventType),
-		EventNamespace: defaults.Namespace,
+		EventNamespace: apidefaults.Namespace,
 		CreatedAt:      created.Unix(),
 		Fields:         string(data),
 	}
@@ -394,7 +398,7 @@ func (l *Log) PostSessionSlice(slice events.SessionSlice) error {
 		}
 		event := event{
 			SessionID:      slice.SessionID,
-			EventNamespace: defaults.Namespace,
+			EventNamespace: apidefaults.Namespace,
 			EventType:      chunk.EventType,
 			EventIndex:     chunk.EventIndex,
 			CreatedAt:      time.Unix(0, chunk.Time).In(time.UTC).Unix(),
@@ -459,7 +463,15 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 	return values, nil
 }
 
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+// SearchEvents is a flexible way to find events.
+//
+// Event types to filter can be specified and pagination is handled by an iterator key that allows
+// a query to be resumed.
+//
+// The only mandatory requirement is a date range (UTC).
+//
+// This function may never return more than 1 MiB of event data.
+func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
 	doFilter := len(eventTypes) > 0
 
@@ -467,6 +479,8 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	var values []events.EventFields
 	var parsedStartKey int64
 	var err error
+	reachedEnd := false
+	totalSize := 0
 
 	if startKey != "" {
 		parsedStartKey, err = strconv.ParseInt(startKey, 10, 64)
@@ -483,18 +497,37 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		return query
 	}
 
+	var firestoreOrdering firestore.Direction
+	switch order {
+	case types.EventOrderAscending:
+		firestoreOrdering = firestore.Asc
+	case types.EventOrderDescending:
+		firestoreOrdering = firestore.Desc
+	default:
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
+	}
+
 	start := time.Now()
 	docSnaps, err := modifyquery(l.svc.Collection(l.CollectionName).
-		Where(eventNamespaceDocProperty, "==", defaults.Namespace).
+		Where(eventNamespaceDocProperty, "==", apidefaults.Namespace).
 		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
 		Where(createdAtDocProperty, "<=", toUTC.Unix()).
-		OrderBy(createdAtDocProperty, firestore.Asc)).
+		OrderBy(createdAtDocProperty, firestoreOrdering)).
 		Limit(limit).
 		Documents(l.svcContext).GetAll()
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 	if err != nil {
 		return nil, "", firestorebk.ConvertGRPCError(err)
+	}
+
+	// Correctly detecting if you've reached the end of a query in firestore is
+	// tricky since it doesn't set any flag when it finds that there are no further events.
+	// This solution here seems to be the the most common but I haven't been able to find
+	// any documented hard guarantees on firestore not early returning for some reason like response
+	// size like DynamoDB does. In short, this should work in all cases for lack of a better solution.
+	if len(docSnaps) < limit {
+		reachedEnd = true
 	}
 
 	g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
@@ -518,16 +551,31 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 			}
 		}
 		if accepted || !doFilter {
+			if totalSize+len(data) >= events.MaxEventBytesInResponse {
+				break
+			}
+
 			lastKey = docSnap.Data()["createdAt"].(int64)
 			values = append(values, fields)
+			totalSize += len(data)
 			if limit > 0 && len(values) >= limit {
 				break
 			}
 		}
 	}
-	sort.Sort(events.ByTimeAndIndex(values))
 
-	eventArr := make([]events.AuditEvent, 0, len(values))
+	var toSort sort.Interface
+	switch order {
+	case types.EventOrderAscending:
+		toSort = events.ByTimeAndIndex(values)
+	case types.EventOrderDescending:
+		toSort = sort.Reverse(events.ByTimeAndIndex(values))
+	default:
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
+	}
+	sort.Sort(toSort)
+
+	eventArr := make([]apievents.AuditEvent, 0, len(values))
 	for _, fields := range values {
 		event, err := events.FromEventFields(fields)
 		if err != nil {
@@ -536,18 +584,23 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		eventArr = append(eventArr, event)
 	}
 
-	return eventArr, fmt.Sprintf("%d", lastKey), nil
+	var lastKeyString string
+	if lastKey != 0 && !reachedEnd {
+		lastKeyString = fmt.Sprintf("%d", lastKey)
+	}
+
+	return eventArr, lastKeyString, nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	// only search for specific event types
 	query := []string{
 		events.SessionStartEvent,
 		events.SessionEndEvent,
 	}
-	return l.SearchEvents(fromUTC, toUTC, defaults.Namespace, query, limit, startKey)
+	return l.SearchEvents(fromUTC, toUTC, apidefaults.Namespace, query, limit, order, startKey)
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to
@@ -617,4 +670,13 @@ func (l *Log) purgeExpiredEvents() error {
 			}
 		}
 	}
+}
+
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	e <- trace.NotImplemented("not implemented")
+	return c, e
 }

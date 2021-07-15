@@ -23,6 +23,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -371,6 +373,9 @@ const (
 	// DatabaseSessionQueryEvent is emitted when a database client executes
 	// a query.
 	DatabaseSessionQueryEvent = "db.session.query"
+	// DatabaseSessionQueryFailedEvent is emitted when database client's request
+	// to execute a database query/command was unsuccessful.
+	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
@@ -453,7 +458,7 @@ type SessionMetadataSetter interface {
 }
 
 // SetCode is a shortcut that sets code for the audit event
-func SetCode(event AuditEvent, code string) AuditEvent {
+func SetCode(event apievents.AuditEvent, code string) apievents.AuditEvent {
 	event.SetCode(code)
 	return event
 }
@@ -461,10 +466,10 @@ func SetCode(event AuditEvent, code string) AuditEvent {
 // Streamer creates and resumes event streams for session IDs
 type Streamer interface {
 	// CreateAuditStream creates event stream
-	CreateAuditStream(context.Context, session.ID) (Stream, error)
+	CreateAuditStream(context.Context, session.ID) (apievents.Stream, error)
 	// ResumeAuditStream resumes the stream for session upload that
 	// has not been completed yet.
-	ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error)
+	ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error)
 }
 
 // StreamPart represents uploaded stream part
@@ -537,13 +542,13 @@ type UploadMetadataGetter interface {
 // associated with every session. It forwards session stream to the audit log
 type StreamWriter interface {
 	io.Writer
-	Stream
+	apievents.Stream
 }
 
 // StreamEmitter supports submitting single events and streaming
 // session events
 type StreamEmitter interface {
-	Emitter
+	apievents.Emitter
 	Streamer
 }
 
@@ -559,7 +564,7 @@ type IAuditLog interface {
 	EmitAuditEventLegacy(Event, EventFields) error
 
 	// EmitAuditEvent emits audit event
-	EmitAuditEvent(context.Context, AuditEvent) error
+	EmitAuditEvent(context.Context, apievents.AuditEvent) error
 
 	// DELETE IN: 2.7.0
 	// This method is no longer necessary as nodes and proxies >= 2.7.0
@@ -591,9 +596,10 @@ type IAuditLog interface {
 	// Event types to filter can be specified and pagination is handled by an iterator key that allows
 	// a query to be resumed.
 	//
-	// The only mandatory requirement is a date range (UTC). Results must always
-	// show up sorted by date (newest first)
-	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]AuditEvent, string, error)
+	// The only mandatory requirement is a date range (UTC).
+	//
+	// This function may never return more than 1 MiB of event data.
+	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
 
 	// SearchSessionEvents is a flexible way to find session events.
 	// Only session events are returned by this function.
@@ -601,11 +607,18 @@ type IAuditLog interface {
 	//
 	// Event types to filter can be specified and pagination is handled by an iterator key that allows
 	// a query to be resumed.
-	SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error)
+	//
+	// This function may never return more than 1 MiB of event data.
+	SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
 
 	// WaitForDelivery waits for resources to be released and outstanding requests to
 	// complete after calling Close method
 	WaitForDelivery(context.Context) error
+
+	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+	// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+	// The event channel is not closed on error to prevent race conditions in downstream select statements.
+	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
 // EventFields instance is attached to every logged event

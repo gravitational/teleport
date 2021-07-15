@@ -30,11 +30,11 @@ and is identified for configuration purposes by a service name, which is often (
 not necessarily) the program name.
 
 The user requesting authentication is called the applicant, while the user (usually, root)
-charged with verifying his identity and granting them the requested credentials is
+charged with verifying their identity and granting them the requested credentials is
 called the arbitrator.
 
 The sequence of operations the server goes through to authenticate a user and perform
-whatever task their requested is a PAM transaction; the context within which the server
+whatever task they requested is a PAM transaction; the context within which the server
 performs the requested task is called a session.
 
 The functionality embodied by PAM is divided into six primitives grouped into four
@@ -43,11 +43,11 @@ management.
 
 Teleport currently supports account management and session management.
 
-<Admonition type="warning" title="Warning">
-  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
-</Admonition>
-
 ## Set up PAM on a Linux Machine running Teleport
+
+(!docs/pages/includes/permission-warning.mdx!)
+
+(!docs/pages/includes/backup-warning.mdx!)
 
 To enable PAM on a given Linux machine, update `/etc/teleport.yaml` with:
 
@@ -259,7 +259,7 @@ WARNING: All activity on this node is being recorded by Teleport
 
 ## Create local users with Teleport
 
-Teleport 4.3 introduced the ability to create local (UNIX) users on login. This is
+Teleport has the ability to create local (UNIX) users on login. This is
 very helpful if you're a large organization and want to provision local users and home
 directories on the fly.
 

@@ -511,7 +511,19 @@ func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []s
 // function is used by Teleport to re-execute itself and pass whatever data
 // is need to the child to actually execute the shell.
 func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
-	// Marshal the parts needed from the *ServerContext into an *execCommand.
+	// Create a os.Pipe and start copying over the payload to execute. While the
+	// pipe buffer is quite large (64k) some users have run into the pipe
+	// blocking writes on much smaller buffers (7k) leading to Teleport being
+	// unable to run some exec commands.
+	//
+	// To not depend on the OS implementation of a pipe, instead the copy should
+	// be non-blocking. The io.Copy will be closed when either when the child
+	// process has fully read in the payload or the process exits with an error
+	// (and closes all child file descriptors).
+	//
+	// See the below for details.
+	//
+	//   https://man7.org/linux/man-pages/man7/pipe.7.html
 	cmdmsg, err := ctx.ExecCommand()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -520,19 +532,7 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Write command bytes to pipe. The child process will read the command
-	// to execute from this pipe.
-	_, err = io.Copy(ctx.cmdw, bytes.NewReader(cmdbytes))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = ctx.cmdw.Close()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	ctx.cmdw = nil
+	go copyCommand(ctx, cmdbytes)
 
 	// Find the Teleport executable and its directory on disk.
 	executable, err := os.Executable()
@@ -567,4 +567,26 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	reexecCommandOSTweaks(cmd)
 
 	return cmd, nil
+}
+
+// copyCommand will copy the provided command to the child process over the
+// pipe attached to the context.
+func copyCommand(ctx *ServerContext, cmdbytes []byte) {
+	defer func() {
+		err := ctx.cmdw.Close()
+		if err != nil {
+			log.Errorf("Failed to close command pipe: %v.", err)
+		}
+
+		// Set to nil so the close in the context doesn't attempt to re-close.
+		ctx.cmdw = nil
+	}()
+
+	// Write command bytes to pipe. The child process will read the command
+	// to execute from this pipe.
+	_, err := io.Copy(ctx.cmdw, bytes.NewReader(cmdbytes))
+	if err != nil {
+		log.Errorf("Failed to copy command over pipe: %v.", err)
+		return
+	}
 }

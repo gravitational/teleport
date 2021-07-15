@@ -21,25 +21,26 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/xml"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	saml2 "github.com/russellhaering/gosaml2"
-	"github.com/russellhaering/gosaml2/types"
+	samltypes "github.com/russellhaering/gosaml2/types"
 	dsig "github.com/russellhaering/goxmldsig"
 )
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values
-func ValidateSAMLConnector(sc SAMLConnector) error {
+func ValidateSAMLConnector(sc types.SAMLConnector) error {
 	if err := sc.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -62,7 +63,7 @@ func ValidateSAMLConnector(sc SAMLConnector) error {
 	}
 
 	if sc.GetEntityDescriptor() != "" {
-		metadata := &types.EntityDescriptor{}
+		metadata := &samltypes.EntityDescriptor{}
 		if err := xml.Unmarshal([]byte(sc.GetEntityDescriptor()), metadata); err != nil {
 			return trace.Wrap(err, "failed to parse entity_descriptor")
 		}
@@ -88,7 +89,7 @@ func ValidateSAMLConnector(sc SAMLConnector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		sc.SetSigningKeyPair(&AsymmetricKeyPair{
+		sc.SetSigningKeyPair(&types.AsymmetricKeyPair{
 			PrivateKey: string(keyPEM),
 			Cert:       string(certPEM),
 		})
@@ -102,7 +103,7 @@ func ValidateSAMLConnector(sc SAMLConnector) error {
 }
 
 // GetAttributeNames returns a list of claim names from the claim values
-func GetAttributeNames(attributes map[string]types.Attribute) []string {
+func GetAttributeNames(attributes map[string]samltypes.Attribute) []string {
 	var out []string
 	for _, attr := range attributes {
 		out = append(out, attr.Name)
@@ -124,13 +125,13 @@ func SAMLAssertionsToTraits(assertions saml2.AssertionInfo) map[string][]string 
 }
 
 // GetSAMLServiceProvider gets the SAMLConnector's service provider
-func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAMLServiceProvider, error) {
+func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*saml2.SAMLServiceProvider, error) {
 	certStore := dsig.MemoryX509CertificateStore{
 		Roots: []*x509.Certificate{},
 	}
 
 	if sc.GetEntityDescriptor() != "" {
-		metadata := &types.EntityDescriptor{}
+		metadata := &samltypes.EntityDescriptor{}
 		if err := xml.Unmarshal([]byte(sc.GetEntityDescriptor()), metadata); err != nil {
 			return nil, trace.Wrap(err, "failed to parse entity_descriptor")
 		}
@@ -213,98 +214,22 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 	return sp, nil
 }
 
-// SAMLConnectorV2SchemaTemplate is a template JSON Schema for SAMLConnector
-const SAMLConnectorV2SchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["kind", "spec", "metadata", "version"],
-	"properties": {
-	  "kind": {"type": "string"},
-	  "version": {"type": "string", "default": "v1"},
-	  "metadata": %v,
-	  "spec": %v
-	}
-  }`
-
-// SAMLConnectorSpecV2Schema is a JSON Schema for SAML Connector
-var SAMLConnectorSpecV2Schema = fmt.Sprintf(`{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["acs"],
-	"properties": {
-	  "issuer": {"type": "string"},
-	  "sso": {"type": "string"},
-	  "cert": {"type": "string"},
-	  "provider": {"type": "string"},
-	  "display": {"type": "string"},
-	  "acs": {"type": "string"},
-	  "audience": {"type": "string"},
-	  "service_provider_issuer": {"type": "string"},
-	  "entity_descriptor": {"type": "string"},
-	  "entity_descriptor_url": {"type": "string"},
-	  "attributes_to_roles": {
-		"type": "array",
-		"items": %v
-	  },
-	  "signing_key_pair": %v,
-	  "assertion_key_pair": %v
-	}
-  }`, AttributeMappingSchema, SigningKeyPairSchema, SigningKeyPairSchema)
-
-// AttributeMappingSchema is JSON schema for claim mapping
-var AttributeMappingSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["name", "value" ],
-	"properties": {
-	  "name": {"type": "string"},
-	  "value": {"type": "string"},
-	  "roles": {
-		"type": "array",
-		"items": {
-		  "type": "string"
-		}
-	  }
-	}
-  }`
-
-// SigningKeyPairSchema is the JSON schema for signing key pair.
-var SigningKeyPairSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "private_key": {"type": "string"},
-	  "cert": {"type": "string"}
-	}
-  }`
-
-// GetSAMLConnectorSchema returns schema for SAMLConnector
-func GetSAMLConnectorSchema() string {
-	return fmt.Sprintf(SAMLConnectorV2SchemaTemplate, MetadataSchema, SAMLConnectorSpecV2Schema)
-}
-
 // UnmarshalSAMLConnector unmarshals the SAMLConnector resource from JSON.
-func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector, error) {
+func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConnector, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var h ResourceHeader
+	var h types.ResourceHeader
 	err = utils.FastUnmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
-	case V2:
-		var c SAMLConnectorV2
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &c); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetSAMLConnectorSchema(), &c, bytes); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
+	case types.V2:
+		var c types.SAMLConnectorV2
+		if err := utils.FastUnmarshal(bytes, &c); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
 
 		if err := ValidateSAMLConnector(&c); err != nil {
@@ -325,17 +250,18 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector,
 }
 
 // MarshalSAMLConnector marshals the SAMLConnector resource to JSON.
-func MarshalSAMLConnector(samlConnector SAMLConnector, opts ...MarshalOption) ([]byte, error) {
+func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidateSAMLConnector(samlConnector); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch samlConnector := samlConnector.(type) {
-	case *SAMLConnectorV2:
-		if version := samlConnector.GetVersion(); version != V2 {
-			return nil, trace.BadParameter("mismatched SAML connector version %v and type %T", version, samlConnector)
-		}
+	case *types.SAMLConnectorV2:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

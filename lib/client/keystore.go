@@ -635,6 +635,7 @@ func (fs *fsLocalNonSessionKeyStore) GetTrustedCertsPEM(proxyHost string) ([][]b
 		}
 		if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
 			fs.log.Debugf("Skipping PEM block type=%v headers=%v.", block.Type, block.Headers)
+			data = rest
 			continue
 		}
 		// rest contains the remainder of data after reading a block.

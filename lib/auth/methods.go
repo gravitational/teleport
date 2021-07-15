@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -86,12 +87,12 @@ type SessionCreds struct {
 // AuthenticateUser authenticates user based on the request type
 func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 	mfaDev, err := s.authenticateUser(context.TODO(), req)
-	event := &events.UserLogin{
-		Metadata: events.Metadata{
+	event := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserLocalLoginFailureCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: req.Username,
 		},
 		Method: events.LoginMethodLocal,
@@ -119,7 +120,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		return nil, trace.Wrap(err)
 	}
 
-	authPreference, err := s.GetAuthPreference()
+	authPreference, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -207,8 +208,9 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // if authentication is successful. In case the existing session ID is used to authenticate,
 // returns the existing session instead of creating a new one
-func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
-	clusterConfig, err := s.GetClusterConfig()
+func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
+	ctx := context.TODO()
+	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -217,7 +219,7 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	// except session ID renewal requests that are using the same method.
 	// This condition uses Session as a blanket check, because any new method added
 	// to the local auth will be disabled by default.
-	if !clusterConfig.GetLocalAuth() && req.Session == nil {
+	if !authPref.GetAllowLocalAuth() && req.Session == nil {
 		s.emitNoLocalAuthEvent(req.Username)
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
@@ -324,12 +326,12 @@ func (c *TrustedCerts) SSHCertPublicKeys() ([]ssh.PublicKey, error) {
 }
 
 // AuthoritiesToTrustedCerts serializes authorities to TrustedCerts data structure
-func AuthoritiesToTrustedCerts(authorities []services.CertAuthority) []TrustedCerts {
+func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts {
 	out := make([]TrustedCerts, len(authorities))
 	for i, ca := range authorities {
 		out[i] = TrustedCerts{
 			ClusterName:      ca.GetClusterName(),
-			HostCertificates: ca.GetCheckingKeys(),
+			HostCertificates: services.GetSSHCheckingKeys(ca),
 			TLSCertificates:  services.GetTLSCerts(ca),
 		}
 	}
@@ -339,11 +341,12 @@ func AuthoritiesToTrustedCerts(authorities []services.CertAuthority) []TrustedCe
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
 func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
-	clusterConfig, err := s.GetClusterConfig()
+	ctx := context.TODO()
+	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !clusterConfig.GetLocalAuth() {
+	if !authPref.GetAllowLocalAuth() {
 		s.emitNoLocalAuthEvent(req.Username)
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
@@ -369,14 +372,14 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 	}
 
 	// Return the host CA for this cluster only.
-	authority, err := s.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	authority, err := s.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	hostCertAuthorities := []services.CertAuthority{
+	hostCertAuthorities := []types.CertAuthority{
 		authority,
 	}
 
@@ -404,15 +407,15 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 
 // emitNoLocalAuthEvent creates and emits a local authentication is disabled message.
 func (s *Server) emitNoLocalAuthEvent(username string) {
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.AuthAttempt{
-		Metadata: events.Metadata{
+	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.AuthAttempt{
+		Metadata: apievents.Metadata{
 			Type: events.AuthAttemptEvent,
 			Code: events.AuthAttemptFailureCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: username,
 		},
-		Status: events.Status{
+		Status: apievents.Status{
 			Success: false,
 			Error:   noLocalAuth,
 		},
@@ -421,7 +424,7 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 	}
 }
 
-func (s *Server) createUserWebSession(ctx context.Context, user services.User) (services.WebSession, error) {
+func (s *Server) createUserWebSession(ctx context.Context, user types.User) (types.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
 	return s.createWebSession(ctx, types.NewWebSessionRequest{

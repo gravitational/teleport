@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -58,8 +57,6 @@ type User interface {
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
 	SetCreatedBy(CreatedBy)
-	// Check checks basic user parameters for errors
-	Check() error
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
 	// GetTraits sets the trait map for this user used to populate role variables.
@@ -69,11 +66,8 @@ type User interface {
 // NewUser creates new empty user
 func NewUser(name string) (User, error) {
 	u := &UserV2{
-		Kind:    KindUser,
-		Version: V2,
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 	}
 	if err := u.CheckAndSetDefaults(); err != nil {
@@ -133,13 +127,6 @@ func (u *UserV2) SetExpiry(expires time.Time) {
 	u.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (u *UserV2) SetTTL(clock Clock, ttl time.Duration) {
-	u.Metadata.SetTTL(clock, ttl)
-}
-
 // GetName returns the name of the User
 func (u *UserV2) GetName() string {
 	return u.Metadata.Name
@@ -170,16 +157,23 @@ func (u *UserV2) SetTraits(traits map[string][]string) {
 	u.Spec.Traits = traits
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (u *UserV2) setStaticFields() {
+	u.Kind = KindUser
+	u.Version = V2
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (u *UserV2) CheckAndSetDefaults() error {
-	err := u.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	u.setStaticFields()
+	if err := u.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = u.Check()
-	if err != nil {
-		return trace.Wrap(err)
+	for _, id := range u.Spec.OIDCIdentities {
+		if err := id.Check(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -263,25 +257,6 @@ func (u *UserV2) SetLocked(until time.Time, reason string) {
 	u.Spec.Status.IsLocked = true
 	u.Spec.Status.LockExpires = until
 	u.Spec.Status.LockedMessage = reason
-}
-
-// Check checks validity of all parameters
-func (u *UserV2) Check() error {
-	if u.Kind == "" {
-		return trace.BadParameter("user kind is not set")
-	}
-	if u.Version == "" {
-		return trace.BadParameter("user version is not set")
-	}
-	if u.Metadata.Name == "" {
-		return trace.BadParameter("user name cannot be empty")
-	}
-	for _, id := range u.Spec.OIDCIdentities {
-		if err := id.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
 }
 
 // IsEmpty returns true if there's no info about who created this user

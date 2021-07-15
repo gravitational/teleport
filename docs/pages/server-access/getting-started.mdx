@@ -14,7 +14,7 @@ This guide introduces some of these common scenarios and how to interact with Te
 3. Introspecting the cluster using Teleport features.
 
 <Admonition type="tip" title="Tip">
-  This guide also demonstrates how to configure Teleport Nodes into the *Bastion* pattern so that [only a single Node can be accessed publically](https://goteleport.com/blog/ssh-bastion-host/). 
+  This guide also demonstrates how to configure Teleport Nodes into the *Bastion* pattern so that [only a single Node can be accessed publicly](https://goteleport.com/blog/ssh-bastion-host/). 
 </Admonition>
 
 <Figure
@@ -31,6 +31,19 @@ This guide introduces some of these common scenarios and how to interact with Te
 - A registered Domain Name with an available subdomain like `tele.example.com`.
 - A Two-Factor Authentication app (such as Authy or Google Authenticator).
 - Teleport (=teleport.version=) installed locally.
+
+(!docs/pages/includes/permission-warning.mdx!)
+
+## Follow along with our video guide
+
+<iframe
+  width="712"
+  height="400"
+  src="https://www.youtube-nocookie.com/embed/EsEvO5ndNDI?rel=0&modestbranding=1"
+  frameBorder="0"
+  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
 
 ## Step 1/4. Create a cluster
 
@@ -62,10 +75,6 @@ This guide introduces some of these common scenarios and how to interact with Te
    | 22 | Cloud Provider | Used to initially access, configure, and provision your cloud instances. We'll configure and launch our instances then demonstrate how to use the `tsh` tool and Teleport in SSH mode thereafter. |
 
 2. Install Teleport on each instance.
-
-   <Admonition type="warning" title="Warning">
-    The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
-   </Admonition>
 
    <Tabs>
      <TabItem label="Amazon Linux 2/RHEL (RPM)">
@@ -164,7 +173,7 @@ This guide introduces some of these common scenarios and how to interact with Te
    # Join cluster
    sudo teleport start \
      --roles=node \
-     --token=./token.file \
+     --token=/path/to/token.file \
      --auth-server=tele.example.com:443
    ```
 

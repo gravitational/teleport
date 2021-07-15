@@ -29,9 +29,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -94,7 +96,7 @@ func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
 		return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 	}
 	requestBody := strings.TrimPrefix(request, prefix)
-	namespace := defaults.Namespace
+	namespace := apidefaults.Namespace
 	var err error
 	parts := strings.Split(requestBody, "@")
 	switch {
@@ -162,7 +164,7 @@ func (p *proxySubsysRequest) String() string {
 // SetDefaults sets default values.
 func (p *proxySubsysRequest) SetDefaults() {
 	if p.namespace == "" {
-		p.namespace = defaults.Namespace
+		p.namespace = apidefaults.Namespace
 	}
 }
 
@@ -307,14 +309,14 @@ func (t *proxySubsys) proxyToHost(
 	// network resolution (by IP or DNS)
 	//
 	var (
-		servers []services.Server
+		servers []types.Server
 		err     error
 	)
 	localCluster, _ := t.srv.authService.GetClusterName()
 	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localCluster.GetName() {
-		servers, err = t.srv.authService.GetNodes(ctx.CancelContext(), t.namespace, services.SkipValidation())
+		servers, err = t.srv.authService.GetNodes(ctx.CancelContext(), t.namespace)
 		if err != nil {
 			t.log.Warn(err)
 		}
@@ -324,7 +326,7 @@ func (t *proxySubsys) proxyToHost(
 		if err != nil {
 			t.log.Warn(err)
 		} else {
-			servers, err = siteClient.GetNodes(ctx.CancelContext(), t.namespace, services.SkipValidation())
+			servers, err = siteClient.GetNodes(ctx.CancelContext(), t.namespace)
 			if err != nil {
 				t.log.Warn(err)
 			}
@@ -342,7 +344,7 @@ func (t *proxySubsys) proxyToHost(
 	hostIsUUID := uuid.Parse(t.host) != nil
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
-	var server services.Server
+	var server types.Server
 	matches := 0
 	for i := range servers {
 		// If the host parameter is a UUID and it matches the Node ID,
@@ -366,7 +368,7 @@ func (t *proxySubsys) proxyToHost(
 			t.log.Errorf("Failed to parse address %q: %v.", servers[i].GetAddr(), err)
 			continue
 		}
-		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
+		if t.host == ip || t.host == servers[i].GetHostname() || apiutils.SliceContainsStr(ips, ip) {
 			if !specifiedPort || t.port == port {
 				server = servers[i]
 				matches++
@@ -441,7 +443,7 @@ func (t *proxySubsys) proxyToHost(
 		Address:      t.host,
 		ServerID:     serverID,
 		Principals:   principals,
-		ConnType:     services.NodeTunnel,
+		ConnType:     types.NodeTunnel,
 	})
 	if err != nil {
 		failedConnectingToNode.Inc()

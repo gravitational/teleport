@@ -21,7 +21,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/gravitational/teleport/lib/client/db/profile"
 
@@ -188,18 +187,3 @@ const (
 	// pgServiceFile is the default name of the Postgres service file.
 	pgServiceFile = ".pg_service.conf"
 )
-
-// Message is printed after Postgres service file has been updated.
-var Message = template.Must(template.New("").Parse(`
-Connection information for PostgreSQL database "{{.Name}}" has been saved.
-
-You can now connect to the database using the following command:
-
-  $ psql "service={{.Name}}{{if not .User}} user=<user>{{end}}{{if not .Database}} dbname=<dbname>{{end}}"
-
-Or configure environment variables and use regular CLI flags:
-
-  $ eval $(tsh db env)
-  $ psql{{if not .User}} -U <user>{{end}}{{if not .Database}} <dbname>{{end}}
-
-`))
