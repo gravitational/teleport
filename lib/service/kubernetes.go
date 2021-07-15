@@ -178,7 +178,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	teleportClusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	// Create the kube server to service listener.
-	authorizer, err := auth.NewAuthorizer(teleportClusterName, conn.Client, conn.Client, conn.Client)
+	authorizer, err := auth.NewAuthorizer(teleportClusterName, accessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
