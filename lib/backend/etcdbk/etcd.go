@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -109,6 +110,18 @@ var (
 			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+	)
+	eventCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "etcd_events",
+			Help: "Number of etcd events",
+		},
+	)
+	eventBackpressure = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "etcd_event_backpressure",
+			Help: "Number of etcd events that hit backpressure",
 		},
 	)
 
@@ -356,34 +369,134 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 }
 
 func (b *EtcdBackend) asyncWatch() {
-	err := b.watchEvents()
+	defer close(b.watchDone)
+	var err error
+WatchEvents:
+	for b.ctx.Err() == nil {
+		err = b.watchEvents(b.ctx)
+
+		// pause briefly to prevent excessive watcher creation attempts
+		select {
+		case <-time.After(utils.HalfJitter(time.Millisecond * 1500)):
+		case <-b.ctx.Done():
+			break WatchEvents
+		}
+
+		// buffer must be reset before recreation in order to avoid duplicate
+		// and/or missing values in the buffer watcher event stream.
+		b.buf.Reset()
+	}
+	if err == nil {
+		err = b.ctx.Err()
+	}
 	b.Debugf("Watch exited: %v.", err)
 }
 
-func (b *EtcdBackend) watchEvents() error {
-	defer close(b.watchDone)
+// eventResult is used to ferry the result of event processing
+type eventResult struct {
+	original clientv3.Event
+	event    backend.Event
+	err      error
+}
 
-start:
-	eventsC := b.client.Watch(b.ctx, b.cfg.Key, clientv3.WithPrefix())
+// watchEvents spawns an etcd watcher and forwards events to the event buffer. the internals of this
+// function are complicated somewhat by the fact that we need to make a per-event API call to translate
+// lease IDs into expiry times. if events are being created faster than their expiries can be resolved,
+// this eventually results in runaway memory usage within the etcd client.  To combat this, we use a
+// concurrentqueue.Queue to parallelize the event processing logic while preserving event order.  While
+// effective, this strategy still suffers from a "head of line blocking"-esque issue since event order
+// must be preserved.
+func (b *EtcdBackend) watchEvents(ctx context.Context) error {
+
+	// etcd watch client relies on context cancellation for cleanup,
+	// so create a new subscope for this function.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// wrap fromEvent in a closure compatible with the concurrent queue
+	workfn := func(v interface{}) interface{} {
+		original := v.(clientv3.Event)
+		event, err := b.fromEvent(b.ctx, original)
+		return eventResult{
+			original: original,
+			event:    *event,
+			err:      err,
+		}
+	}
+
+	// constants here are a bit arbitrary. the goal is to set up the queue s.t.
+	// it could handle >100 events per second assuming an avg of .2 seconds of processing
+	// time per event (as seen in tests of under-provisioned etcd instances).
+	q := cq.New(
+		workfn,
+		cq.Workers(24),
+		cq.Capacity(240),
+		cq.InputBuf(120),
+		cq.OutputBuf(48),
+	)
+	defer q.Close()
+
+	// launch background process responsible for forwarding events from the queue
+	// to the buffer.
+	go func() {
+	PushToBuf:
+		for {
+			select {
+			case p := <-q.Pop():
+				r := p.(eventResult)
+				if r.err != nil {
+					b.Errorf("Failed to unmarshal event: %v %v.", r.err, r.original)
+					continue PushToBuf
+				}
+				b.buf.Push(r.event)
+			case <-q.Done():
+				return
+			}
+		}
+	}()
+
+	// start watching
+	eventsC := b.client.Watch(ctx, b.cfg.Key, clientv3.WithPrefix())
 	b.signalWatchStart()
+
+	var lastBacklogWarning time.Time
 	for {
 		select {
 		case e, ok := <-eventsC:
 			if e.Canceled || !ok {
 				b.Debugf("Watch channel has closed.")
-				goto start
+				return trace.ConnectionProblem(nil, "etcd watch channel closed")
 			}
-			out := make([]backend.Event, 0, len(e.Events))
+
+		PushToQueue:
 			for i := range e.Events {
-				event, err := b.fromEvent(b.ctx, *e.Events[i])
-				if err != nil {
-					b.Errorf("Failed to unmarshal event: %v %v.", err, *e.Events[i])
-				} else {
-					out = append(out, *event)
+				eventCount.Inc()
+
+				var event clientv3.Event = *e.Events[i]
+				// attempt non-blocking push.  We allocate a large input buffer for the queue, so this
+				// aught to succeede reliably.
+				select {
+				case q.Push() <- event:
+					continue PushToQueue
+				default:
+				}
+
+				eventBackpressure.Inc()
+
+				// limit backlog warnings to once per minute to prevent log spam.
+				if now := time.Now(); now.After(lastBacklogWarning.Add(time.Minute)) {
+					b.Warnf("Etcd event processing backlog; may result in excess memory usage and stale cluster state.")
+					lastBacklogWarning = now
+				}
+
+				// fallblack to blocking push
+				select {
+				case q.Push() <- event:
+				case <-ctx.Done():
+					return trace.ConnectionProblem(b.ctx.Err(), "context is closing")
 				}
 			}
-			b.buf.PushBatch(out)
-		case <-b.ctx.Done():
+		case <-ctx.Done():
 			return trace.ConnectionProblem(b.ctx.Err(), "context is closing")
 		}
 	}

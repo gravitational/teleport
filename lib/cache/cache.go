@@ -885,6 +885,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	retry.Reset()
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})
+
+	var lastStalenessWarning time.Time
 	for {
 		select {
 		case <-watcher.Done():
@@ -892,6 +894,29 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 		case <-c.ctx.Done():
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
+			// check for expired resources in OpPut events and log them periodically. stale OpPut events
+			// may be an indicator of poor performance, and can lead to confusing and inconsistent state
+			// as the cache may prune items that aught to exist.
+			//
+			// NOTE: The inconsistent state mentioned above is a symptom of a deeper issue with the cache
+			// design.  The cache should not expire individual items.  It should instead rely on OpDelete events
+			// from backend expiries.  As soon as the cache has expired at least one item, it is no longer
+			// a faithful representation of a real backend state, since it is 'anticipating' a change in
+			// backend state that may or may not have actually happened.  Instead, it aught to serve the
+			// most recent internally-consistent "view" of the backend, and individual consumers should
+			// determine if the resources they are handling are sufficiently fresh.  Resource-level expiry
+			// is a convenience/cleanup feature and aught not be relied upon for meaningful logic anyhow.
+			// If we need to protect against a stale cache, we aught to invalide the cache in its entirity, rather
+			// than pruning the resources that we think *might* have been removed from the real backend.
+			// TODO(fspmarshall): ^^^
+			//
+			if event.Type == types.OpPut && !event.Resource.Expiry().IsZero() {
+				if now := c.Clock.Now(); now.After(event.Resource.Expiry()) && now.After(lastStalenessWarning.Add(time.Minute)) {
+					c.Warning("Encountered stale event(s), may indicate degraded backend or event system performance.")
+					lastStalenessWarning = now
+				}
+			}
+
 			err = c.processEvent(ctx, event)
 			if err != nil {
 				return trace.Wrap(err)
