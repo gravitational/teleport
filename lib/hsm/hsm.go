@@ -149,7 +149,7 @@ func (c *pkcs11Client) GenerateRSA() ([]byte, crypto.Signer, error) {
 		signer, err = c.ctx.GenerateRSAKeyPairWithLabel(id[:], label, teleport.RSAKeySize)
 	}
 	if signer == nil {
-		return nil, nil, trace.Wrap(err, "failed to create RSA key in hsm")
+		return nil, nil, trace.Wrap(err, "failed to create RSA key in hsm, resources may be exhausted")
 	}
 
 	key := keyID{
@@ -264,7 +264,7 @@ func (c *pkcs11Client) selectSSHKeyPair(ca types.CertAuthority) (*types.SSHKeyPa
 }
 
 // GetSSHSigner selects the local SSH keypair and returns an ssh.Signer.
-func (c *pkcs11Client) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
+func (c *pkcs11Client) GetSSHSigner(ca types.CertAuthority) (sshSigner ssh.Signer, err error) {
 	keyPair, err := c.selectSSHKeyPair(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -272,24 +272,25 @@ func (c *pkcs11Client) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) 
 
 	switch keyPair.PrivateKeyType {
 	case types.PrivateKeyType_RAW:
-		signer, err := ssh.ParsePrivateKey(keyPair.PrivateKey)
+		sshSigner, err = ssh.ParsePrivateKey(keyPair.PrivateKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signer = sshutils.AlgSigner(signer, sshutils.GetSigningAlgName(ca))
-		return signer, nil
 	case types.PrivateKeyType_PKCS11:
 		signer, err := c.GetSigner(keyPair.PrivateKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sshSigner, err := ssh.NewSignerFromSigner(signer)
+		sshSigner, err = ssh.NewSignerFromSigner(signer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return sshSigner, nil
+	default:
+		return nil, trace.BadParameter("unrecognized key type %q", keyPair.PrivateKeyType.String())
 	}
-	return nil, trace.BadParameter("unrecognized key type %q", keyPair.PrivateKeyType.String())
+
+	sshSigner = sshutils.AlgSigner(sshSigner, sshutils.GetSigningAlgName(ca))
+	return sshSigner, nil
 }
 
 func (c *pkcs11Client) selectJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
@@ -418,7 +419,7 @@ func (c *rawClient) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 			return signer, nil
 		}
 	}
-	return nil, trace.NotFound("no matching SSH key pairs found in CA for %q", ca.GetClusterName())
+	return nil, trace.NotFound("no raw SSH key pairs found in CA for %q", ca.GetClusterName())
 }
 
 func (c *rawClient) selectJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
