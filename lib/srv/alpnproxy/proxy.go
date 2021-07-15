@@ -164,9 +164,9 @@ func (p *Proxy) Serve(ctx context.Context) error {
 		go func() {
 			if err := p.handleConn(ctx, clientConn); err != nil {
 				if err := clientConn.Close(); err != nil {
-					p.log.WithError(err).Warn("failed to close client connection")
+					p.log.Warnf("failed to close client connection: %v", err)
 				}
-				p.log.WithError(err).Warn("failed to handle client connection")
+				p.log.Warnf("failed to handle client connection: %v", err)
 			}
 		}()
 	}
