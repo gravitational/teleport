@@ -7,7 +7,7 @@ require (
 	github.com/golang/protobuf v1.4.2
 	github.com/google/go-cmp v0.5.4
 	github.com/gravitational/trace v1.1.15
-	github.com/jonboulle/clockwork v0.2.2 // indirect
+	github.com/jonboulle/clockwork v0.2.2
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/sirupsen/logrus v1.6.0 // indirect
 	github.com/stretchr/testify v1.2.2
