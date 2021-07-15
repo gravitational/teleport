@@ -259,6 +259,7 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 
 	totalSize := 0
 
+outer:
 	for _, dynamicEvent := range dynamicEvents {
 		// Convert the event from a dynamic representation to a typed representation.
 		event, err := FromEventFields(dynamicEvent)
@@ -289,11 +290,11 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 		switch order {
 		case types.EventOrderAscending:
 			if event.GetTime().Before(fromUTC) {
-				continue
+				continue outer
 			}
 		case types.EventOrderDescending:
 			if event.GetTime().After(toUTC) {
-				break
+				continue outer
 			}
 		}
 
@@ -303,11 +304,11 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 		switch order {
 		case types.EventOrderAscending:
 			if event.GetTime().After(toUTC) {
-				break
+				break outer
 			}
 		case types.EventOrderDescending:
 			if event.GetTime().Before(fromUTC) {
-				break
+				break outer
 			}
 		}
 

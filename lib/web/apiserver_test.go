@@ -35,6 +35,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -1702,6 +1703,25 @@ func (s *WebSuite) TestConstructSSHResponseLegacy(c *C) {
 	c.Assert(resp.TLSCert, DeepEquals, []byte{0x01})
 }
 
+type byTimeAndIndex []apievents.AuditEvent
+
+func (f byTimeAndIndex) Len() int {
+	return len(f)
+}
+
+func (f byTimeAndIndex) Less(i, j int) bool {
+	itime := f[i].GetTime()
+	jtime := f[j].GetTime()
+	if itime.Equal(jtime) && events.GetSessionID(f[i]) == events.GetSessionID(f[j]) {
+		return f[i].GetIndex() < f[j].GetIndex()
+	}
+	return itime.Before(jtime)
+}
+
+func (f byTimeAndIndex) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
 // TestSearchClusterEvents makes sure web API allows querying events by type.
 func (s *WebSuite) TestSearchClusterEvents(c *C) {
 	// We need a clock that uses the current time here to work around
@@ -1718,6 +1738,7 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		c.Assert(s.proxyClient.EmitAuditEvent(context.TODO(), e), IsNil)
 	}
 
+	sort.Sort(sort.Reverse(byTimeAndIndex(sessionEvents)))
 	sessionStart := sessionEvents[0]
 	sessionPrint := sessionEvents[1]
 	sessionEnd := sessionEvents[4]
