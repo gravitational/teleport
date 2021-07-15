@@ -1,0 +1,36 @@
+Create a local Teleport user with the built-in `access` role:
+
+```bash
+tctl users add --roles=access alice
+```
+
+The `access` role allows users to see all connected database servers, but
+database names and accounts are restricted to the user's `db_names` and
+`db_users` traits. Normally, these traits come from the identity provider. For
+the local user you've just created you can update them manually to allow it to
+connect to any database as any database user.
+
+First, export the user resource:
+
+```bash
+tctl get users/alice > alice.yaml
+```
+
+Update the resource to include the following traits:
+
+```yaml
+traits:
+  db_users:
+  - "*"
+  db_names:
+  - "*"
+```
+
+Update the user:
+
+```bash
+tctl create alice.yaml -f
+```
+
+For more detailed information about database access controls and how to restricted
+access see [RBAC](../../database-access/rbac.mdx) documentation.

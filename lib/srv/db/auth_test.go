@@ -52,67 +52,62 @@ func TestAuthTokens(t *testing.T) {
 		desc     string
 		service  string
 		protocol string
-		err      bool
+		err      string
 	}{
 		{
 			desc:     "correct Postgres RDS IAM auth token",
 			service:  "postgres-rds-correct-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      false,
 		},
 		{
 			desc:     "incorrect Postgres RDS IAM auth token",
 			service:  "postgres-rds-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      true,
+			err:      common.GetRDSPolicy(testAWSRegion), // Make sure we print example RDS IAM policy.
 		},
 		{
 			desc:     "correct Postgres Redshift IAM auth token",
 			service:  "postgres-redshift-correct-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      false,
 		},
 		{
 			desc:     "incorrect Postgres Redshift IAM auth token",
 			service:  "postgres-redshift-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      true,
+			err:      "invalid auth token",
 		},
 		{
 			desc:     "correct Postgres Cloud SQL IAM auth token",
 			service:  "postgres-cloudsql-correct-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      false,
 		},
 		{
 			desc:     "incorrect Postgres Cloud SQL IAM auth token",
 			service:  "postgres-cloudsql-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      true,
+			err:      "invalid auth token",
 		},
 		{
 			desc:     "correct MySQL RDS IAM auth token",
 			service:  "mysql-rds-correct-token",
 			protocol: defaults.ProtocolMySQL,
-			err:      false,
 		},
 		{
 			desc:     "incorrect MySQL RDS IAM auth token",
 			service:  "mysql-rds-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
-			err:      true,
+			err:      common.GetRDSPolicy(testAWSRegion), // Make sure we print example RDS IAM policy.
 		},
 		{
 			desc:     "correct MySQL Cloud SQL IAM auth token",
 			service:  "mysql-cloudsql-correct-token",
 			protocol: defaults.ProtocolMySQL,
-			err:      false,
 		},
 		{
 			desc:     "incorrect MySQL Cloud SQL IAM auth token",
 			service:  "mysql-cloudsql-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
-			err:      true,
+			err:      "Access denied for user",
 		},
 	}
 
@@ -121,16 +116,18 @@ func TestAuthTokens(t *testing.T) {
 			switch test.protocol {
 			case defaults.ProtocolPostgres:
 				conn, err := testCtx.postgresClient(ctx, "alice", test.service, "postgres", "postgres")
-				if test.err {
+				if test.err != "" {
 					require.Error(t, err)
+					require.Contains(t, err.Error(), test.err)
 				} else {
 					require.NoError(t, err)
 					require.NoError(t, conn.Close(ctx))
 				}
 			case defaults.ProtocolMySQL:
 				conn, err := testCtx.mysqlClient("alice", test.service, "root")
-				if test.err {
+				if test.err != "" {
 					require.Error(t, err)
+					require.Contains(t, err.Error(), test.err)
 				} else {
 					require.NoError(t, err)
 					require.NoError(t, conn.Close())
