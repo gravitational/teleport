@@ -621,14 +621,19 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		deleted := false
 		for _, server := range dbServers {
 			if server.GetName() == rc.ref.Name {
 				if err := client.DeleteDatabaseServer(ctx, apidefaults.Namespace, server.GetHostID(), server.GetName()); err != nil {
 					return trace.Wrap(err)
 				}
-				fmt.Printf("database server (HostID: %s Name: %s) has been deleted\n", server.GetHostID(), server.GetName())
+				deleted = true
 			}
 		}
+		if !deleted {
+			return trace.NotFound("database server %q not found", rc.ref.Name)
+		}
+		fmt.Printf("database server %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -987,25 +992,20 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		return &lockCollection{locks: []types.Lock{lock}}, nil
 	case types.KindDatabaseServer:
-		ss, err := client.GetDatabaseServers(ctx, rc.namespace)
+		servers, err := client.GetDatabaseServers(ctx, rc.namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if rc.ref.Name == "" {
-			return &dbCollection{servers: ss}, nil
+			return &dbCollection{servers: servers}, nil
 		}
 
-		var out []types.DatabaseServer
-		for _, s := range ss {
-			if s.GetName() == rc.ref.Name {
-				out = append([]types.DatabaseServer{s})
-				return &dbCollection{servers: []types.DatabaseServer{s}}, nil
+		for _, server := range servers {
+			if server.GetName() == rc.ref.Name {
+				return &dbCollection{servers: []types.DatabaseServer{server}}, nil
 			}
 		}
-		if len(out) > 0 {
-			return &dbCollection{servers: out}, nil
-		}
-		return nil, trace.NotFound("db_server with ID %q not found", rc.ref.Name)
+		return nil, trace.NotFound("database server %q not found", rc.ref.Name)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
