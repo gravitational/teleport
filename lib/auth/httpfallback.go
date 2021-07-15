@@ -640,8 +640,8 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 }
 
 // SearchEvents allows searching for audit events with pagination support.
-func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			log.WithError(err).Debug("Attempted to call SearchEvents over gRPC but received a notImplemented error, falling back to legacy API.")
@@ -655,8 +655,8 @@ func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventT
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, startKey)
+func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, order, startKey)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			log.WithError(err).Debug("Attempted to call SearchSessionEvents over gRPC but received a notImplemented error, falling back to legacy API.")

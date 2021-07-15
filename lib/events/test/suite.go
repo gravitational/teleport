@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -103,7 +105,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	var checkpoint string
 
 	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 100, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 100, types.EventOrderAscending, checkpoint)
 		return err
 	})
 	c.Assert(err, check.IsNil)
@@ -111,7 +113,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	c.Assert(checkpoint, check.Equals, "")
 
 	for _, name := range names {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 1)
 		event, ok := arr[0].(*events.UserLogin)
@@ -119,7 +121,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 		c.Assert(name, check.Equals, event.User)
 	}
 	if checkpoint != "" {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 0)
 	}
@@ -128,7 +130,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	for _, i := range []int{0, 2} {
 		nameA := names[i]
 		nameB := names[i+1]
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 2, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 2, types.EventOrderAscending, checkpoint)
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 2)
 		eventA, okA := arr[0].(*events.UserLogin)
@@ -139,7 +141,22 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 		c.Assert(nameB, check.Equals, eventB.User)
 	}
 	if checkpoint != "" {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 0)
+	}
+	c.Assert(checkpoint, check.Equals, "")
+
+	for i := len(names) - 1; i >= 0; i-- {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, types.EventOrderDescending, checkpoint)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 1)
+		event, ok := arr[0].(*apievents.UserLogin)
+		c.Assert(ok, check.Equals, true)
+		c.Assert(names[i], check.Equals, event.User)
+	}
+	if checkpoint != "" {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, types.EventOrderDescending, checkpoint)
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 0)
 	}
@@ -165,7 +182,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	var history []events.AuditEvent
 
 	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, "")
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, types.EventOrderAscending, "")
 		return err
 	})
 	c.Assert(err, check.IsNil)
@@ -203,11 +220,11 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
 	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, "")
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 2)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, "")
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 1)
 }
