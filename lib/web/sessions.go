@@ -321,7 +321,8 @@ func (c *SessionContext) GetCertRoles() (services.RoleSet, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleset, err := services.FetchRoles(roles, c.clt, traits)
+	//roleset, err := services.FetchRoles(roles, c.clt, traits)
+	roleset, err := services.FetchRoles(roles, c.accessPoint, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
