@@ -41,6 +41,7 @@ type Values struct {
 	// instead.
 	Exec *ExecValues
 
+	// TLSServerName is SNI host value passed to the server.
 	TLSServerName string
 }
 

@@ -928,8 +928,6 @@ type ProxyConfig struct {
 	WebPort int
 	// ReverseTunnelPort is a port for reverse tunnel addresses
 	ReverseTunnelPort int
-
-	TLSProxyPort int
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
@@ -1330,7 +1328,7 @@ func startAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 	// wait for all events to arrive or a timeout. if all the expected events
 	// from above are not received, this instance will not start
 	receivedEvents := []service.Event{}
-	timeoutCh := time.After(4 * time.Second)
+	timeoutCh := time.After(10 * time.Second)
 
 	for idx := 0; idx < len(expectedEvents); idx++ {
 		select {

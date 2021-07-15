@@ -2187,7 +2187,6 @@ func (process *TeleportProcess) initProxy() error {
 	// If no TLS key was provided for the web listener, generate a self-signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
 		!process.Config.Proxy.DisableTLS &&
-		//!process.Config.Proxy.DisableWebService &&
 		!process.Config.Proxy.ACME.Enabled {
 		err := initSelfSignedHTTPSCert(process.Config)
 		if err != nil {
@@ -3652,7 +3651,7 @@ func newHTTPFileSystem() (http.FileSystem, error) {
 		return fs, nil
 	}
 	// Use debug HTTP file system with default assets path
-	fs, err := web.NewDebugFileSystem("/Users/marek/Go/src/github.com/gravitational/teleport/webassets/e/teleport/")
+	fs, err := web.NewDebugFileSystem("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
