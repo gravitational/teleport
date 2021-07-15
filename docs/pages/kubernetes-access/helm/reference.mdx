@@ -1064,10 +1064,10 @@ You can specify multiple apps by adding additional list elements.
   ```bash
   --set "apps[0].name=grafana" \
   --set "apps[0].uri=http://localhost:3000" \
-  --set "apps[0].purpose=monitoring" \
+  --set "apps[0].labels.purpose=monitoring" \
   --set "apps[1].name=grafana" \
   --set "apps[1].uri=http://jenkins:8080" \
-  --set "apps[1].purpose=ci"
+  --set "apps[1].labels.purpose=ci"
   ```
 
   <Admonition type="note">
