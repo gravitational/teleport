@@ -99,13 +99,17 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 // SendKeepAlives allows node to send a stream of keep alive requests
 func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServer) error {
 	defer stream.SendAndClose(&empty.Empty{})
-	auth, err := g.authenticate(stream.Context())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
-	heartbeatConnectionsReceived.Inc()
+	firstIteration := true
 	for {
+		auth, err := g.authenticate(stream.Context())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if firstIteration {
+			g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
+			heartbeatConnectionsReceived.Inc()
+			firstIteration = false
+		}
 		keepAlive, err := stream.Recv()
 		if err == io.EOF {
 			g.Debugf("Connection closed.")
@@ -2817,7 +2821,7 @@ func (g *GRPCServer) GetLock(ctx context.Context, req *proto.GetLockRequest) (*t
 	return lockV2, nil
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 func (g *GRPCServer) GetLocks(ctx context.Context, req *proto.GetLocksRequest) (*proto.GetLocksResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2827,7 +2831,7 @@ func (g *GRPCServer) GetLocks(ctx context.Context, req *proto.GetLocksRequest) (
 	for i := range req.Targets {
 		targets[i] = *req.Targets[i]
 	}
-	locks, err := auth.GetLocks(ctx, targets...)
+	locks, err := auth.GetLocks(ctx, req.InForceOnly, targets...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

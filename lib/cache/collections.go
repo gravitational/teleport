@@ -2054,7 +2054,7 @@ func (c *lock) erase(ctx context.Context) error {
 }
 
 func (c *lock) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.Access.GetLocks(ctx)
+	resources, err := c.Access.GetLocks(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

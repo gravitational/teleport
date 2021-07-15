@@ -127,7 +127,6 @@ func (s *Suite) SetUpTest(c *check.C) {
 
 	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, s.message)
-		s.closeFunc()
 	}))
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
 	s.testhttp.Start()
@@ -200,10 +199,17 @@ func (s *Suite) SetUpTest(c *check.C) {
 	), 0755)
 	c.Assert(err, check.IsNil)
 
-	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient)
+	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentApp,
+			Client:    s.authClient,
+		},
+	})
+	c.Assert(err, check.IsNil)
+	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, lockWatcher)
 	c.Assert(err, check.IsNil)
 
-	s.appServer, err = New(context.Background(), &Config{
+	s.appServer, err = New(s.closeContext, &Config{
 		Clock:        s.clock,
 		DataDir:      s.dataDir,
 		AccessPoint:  s.authClient,
@@ -233,6 +239,8 @@ func (s *Suite) TearDownTest(c *check.C) {
 
 	err = s.tlsServer.Auth().DeleteAllAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
+
+	s.closeFunc()
 }
 
 // TestStart makes sure that after the server has started, a correct services.App
@@ -287,6 +295,47 @@ func (s *Suite) TestWaitStop(c *check.C) {
 
 // TestHandleConnection verifies that requests with valid certificates are forwarded.
 func (s *Suite) TestHandleConnection(c *check.C) {
+	s.checkHTTPResponse(c, s.message)
+}
+
+// TestAuthorize verifies that only authorized requests are handled.
+func (s *Suite) TestAuthorize(c *check.C) {
+}
+
+// TestAuthorizeWithLocks verifies that requests are forbidden when there is
+// a matching lock in force.
+func (s *Suite) TestAuthorizeWithLocks(c *check.C) {
+	// Create a lock targeting the user.
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{User: s.user.GetName()},
+	})
+	c.Assert(err, check.IsNil)
+	s.tlsServer.Auth().UpsertLock(s.closeContext, lock)
+	defer func() {
+		s.tlsServer.Auth().DeleteLock(s.closeContext, lock.GetName())
+	}()
+
+	s.checkHTTPResponse(c, "Forbidden")
+}
+
+// TestGetConfigForClient verifies that only the CAs of the requested cluster are returned.
+func (s *Suite) TestGetConfigForClient(c *check.C) {
+}
+
+// TestRewriteRequest verifies that requests are rewritten to include JWT headers.
+func (s *Suite) TestRewriteRequest(c *check.C) {
+}
+
+// TestRewriteResponse verifies that responses are rewritten if rewrite rules are specified.
+func (s *Suite) TestRewriteResponse(c *check.C) {
+}
+
+// TestSessionClose makes sure sessions are closed after the given session time period.
+func (s *Suite) TestSessionClose(c *check.C) {
+}
+
+// checkHTTPResponse checks expected HTTP response.
+func (s *Suite) checkHTTPResponse(c *check.C, expectedResp string) {
 	pr, pw := net.Pipe()
 	defer pw.Close()
 	defer pr.Close()
@@ -328,7 +377,7 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = resp.Body.Close()
 	c.Assert(err, check.IsNil)
-	c.Assert(strings.TrimSpace(string(buf)), check.Equals, s.message)
+	c.Assert(strings.TrimSpace(string(buf)), check.Equals, expectedResp)
 
 	// Context will close because of the net.Pipe, expect a context canceled
 	// error here.
@@ -338,26 +387,6 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	// Wait for the application server to actually stop serving before
 	// closing the test. This will make sure the server removes the listeners
 	wg.Wait()
-}
-
-// TestAuthorize verifies that only authorized requests are handled.
-func (s *Suite) TestAuthorize(c *check.C) {
-}
-
-// TestGetConfigForClient verifies that only the CAs of the requested cluster are returned.
-func (s *Suite) TestGetConfigForClient(c *check.C) {
-}
-
-// TestRewriteRequest verifies that requests are rewritten to include JWT headers.
-func (s *Suite) TestRewriteRequest(c *check.C) {
-}
-
-// TestRewriteResponse verifies that responses are rewritten if rewrite rules are specified.
-func (s *Suite) TestRewriteResponse(c *check.C) {
-}
-
-// TestSessionClose makes sure sessions are closed after the given session time period.
-func (s *Suite) TestSessionClose(c *check.C) {
 }
 
 func testRotationGetter(role types.SystemRole) (*types.Rotation, error) {
