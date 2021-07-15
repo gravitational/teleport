@@ -312,7 +312,6 @@ func TestConfigReading(t *testing.T) {
 				ListenAddress: "tcp://metrics",
 				EnabledFlag:   "yes",
 			},
-			MTLSFlag: "yes",
 			KeyPairs: []KeyPair{
 				KeyPair{
 					PrivateKey:  "/etc/teleport/proxy.key",
@@ -986,7 +985,6 @@ func makeConfigFixture() string {
 	// Metrics service.
 	conf.Metrics.EnabledFlag = "yes"
 	conf.Metrics.ListenAddress = "tcp://metrics"
-	conf.Metrics.MTLSFlag = "yes"
 	conf.Metrics.CACerts = []string{"/etc/teleport/ca.crt"}
 	conf.Metrics.KeyPairs = []KeyPair{
 		KeyPair{

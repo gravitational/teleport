@@ -1005,15 +1005,25 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 	// Metrics is enabled.
 	cfg.Metrics.Enabled = true
 
-	if fc.Metrics.ListenAddress != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Metrics.ListenAddress, int(defaults.MetricsListenPort))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Metrics.ListenAddr = addr
+	addr, err := utils.ParseHostPortAddr(fc.Metrics.ListenAddress, int(defaults.MetricsListenPort))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.Metrics.ListenAddr = addr
+
+	if !fc.Metrics.MTLSEnabled() {
+		return nil
 	}
 
-	cfg.Metrics.MTLS = fc.Metrics.MTLSEnabled()
+	cfg.Metrics.MTLS = true
+
+	if len(fc.Metrics.KeyPairs) == 0 {
+		return trace.BadParameter("at least one keypair shoud be provided when mtls is enabled in the metrics config")
+	}
+
+	if len(fc.Metrics.CACerts) == 0 {
+		return trace.BadParameter("at least one CA cert shoud be provided when mtls is enabled in the metrics config")
+	}
 
 	for _, p := range fc.Metrics.KeyPairs {
 		// Check that the certificate exists on disk. This exists to provide the
@@ -1033,13 +1043,11 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if utils.IsSelfSigned(certificateChain) {
-			warningMessage := "Starting the metrics service with a self-signed TLS certificate."
-			log.Warnf(warningMessage)
-		} else {
+
+		if !utils.IsSelfSigned(certificateChain) {
 			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
 				return trace.BadParameter("unable to verify the metrics service certificate chain in %v: %s",
-					fc.Proxy.CertFile, utils.UserMessageFromError(err))
+					p.Certificate, utils.UserMessageFromError(err))
 			}
 		}
 
@@ -1057,16 +1065,6 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 
 		cfg.Metrics.CACerts = append(cfg.Metrics.CACerts, caCert)
-	}
-
-	if cfg.Metrics.MTLS {
-		if len(cfg.Metrics.KeyPairs) == 0 {
-			return trace.BadParameter("At least one keypair shoud be provided when mtls is enabled in the metrics config")
-		}
-
-		if len(cfg.Metrics.CACerts) == 0 {
-			return trace.BadParameter("At least one CA cert shoud be provided when mtls is enabled in the metrics config")
-		}
 	}
 
 	return nil
