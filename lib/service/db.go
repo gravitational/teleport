@@ -115,7 +115,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
-	authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
+	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
