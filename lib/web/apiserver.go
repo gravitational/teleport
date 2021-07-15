@@ -1895,7 +1895,7 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 //               include=session.start,session.end, all are returned if empty
 //   "order":    optional ordering of events. Can be either "asc" or "desc"
 //               for ascending and descending respectively.
-//               If no order is provided it defaults to ascending.
+//               If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
 
@@ -1914,7 +1914,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	order, err := queryOrder(values, "order", types.EventOrderAscending)
+	order, err := queryOrder(values, "order", types.EventOrderDescending)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
