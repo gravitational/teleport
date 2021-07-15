@@ -8,10 +8,16 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func onProxyCommandSSH(cf *CLIConf) error {
 	client, err := makeClient(cf, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	address, err := utils.ParseAddr(client.WebProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -21,6 +27,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		Protocol:           alpnproxy.ProtocolProxySSH,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
+		SNI:                address.Host(),
 		SSHUser:            cf.Username,
 		SSHUserHost:        cf.UserHost,
 		SSHHostKeyCallback: client.HostKeyCallback,

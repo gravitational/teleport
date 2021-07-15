@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"golang.org/x/crypto/ssh"
 
@@ -57,9 +58,14 @@ func dialTLSWithDeadline(network string, addr string, config *ssh.ClientConfig) 
 	dialer := &net.Dialer{
 		Timeout: config.Timeout,
 	}
+	address, err := utils.ParseAddr(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	tlsConn, err := tls.DialWithDialer(dialer, network, addr, &tls.Config{
 		NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
 		InsecureSkipVerify: lib.IsInsecureDevMode(),
+		ServerName:         address.Host(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -101,9 +107,14 @@ func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) 
 // DialTimeout acts like Dial but takes a timeout.
 func (d directDial) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	if d.useTLS {
+		addr, err := utils.ParseAddr(address)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		tlsConn, err := tls.Dial("tcp", address, &tls.Config{
 			NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
 			InsecureSkipVerify: lib.IsInsecureDevMode(),
+			ServerName:         addr.Host(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -136,9 +147,14 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 		return nil, trace.Wrap(err)
 	}
 	if d.useTLS {
+		address, err := utils.ParseAddr(address)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		conn = tls.Client(conn, &tls.Config{
 			NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
 			InsecureSkipVerify: lib.IsInsecureDevMode(),
+			ServerName:         address.Host(),
 		})
 	}
 	return conn, nil
@@ -156,9 +172,14 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 		pconn.SetReadDeadline(time.Now().Add(config.Timeout))
 	}
 	if d.useTLS {
+		address, err := utils.ParseAddr(addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		pconn = tls.Client(pconn, &tls.Config{
 			NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
 			InsecureSkipVerify: lib.IsInsecureDevMode(),
+			ServerName:         address.Host(),
 		})
 	}
 

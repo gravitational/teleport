@@ -457,12 +457,15 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpnproxy.Proto
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
+	address, err := utils.ParseAddr(addr)
+	require.NoError(t, err)
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
 		Protocol:           protocol,
 		InsecureSkipVerify: true,
 		Listener:           listener,
 		ParentContext:      context.Background(),
+		SNI:                address.Host(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {

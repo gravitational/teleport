@@ -420,11 +420,17 @@ func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	address, err := utils.ParseAddr(remoteProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+
+	}
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr: remoteProxyAddr,
 		Protocol:        alpnProtocol,
 		Listener:        listener,
 		ParentContext:   ctx,
+		SNI:             address.Host(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
