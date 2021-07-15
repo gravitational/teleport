@@ -437,7 +437,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	// Auth client/authorizer for database service.
 	testCtx.authClient, err = testCtx.tlsServer.NewClient(auth.TestServerID(teleport.RoleDatabase, testCtx.hostID))
 	require.NoError(t, err)
-	dbAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, testCtx.authClient, testCtx.authClient, testCtx.authClient)
+	dbAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, testCtx.authClient)
 	require.NoError(t, err)
 	testCtx.hostCA, err = testCtx.authClient.GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: testCtx.clusterName}, false)
 	require.NoError(t, err)
@@ -445,7 +445,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	// Auth client/authorizer for database proxy.
 	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleProxy))
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient, proxyAuthClient, proxyAuthClient)
+	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient)
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.

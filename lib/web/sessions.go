@@ -56,9 +56,22 @@ import (
 // each web session generated for the user and provides
 // a basic client cache for remote auth server connections.
 type SessionContext struct {
-	log    logrus.FieldLogger
-	user   string
-	clt    *auth.Client
+	log  logrus.FieldLogger
+	user string
+
+	// clt holds a connection to the root auth. Note that requests made using this
+	// client are made with the identity of the user and are NOT cached.
+	clt *auth.Client
+
+	// unsafeCachedAuthClient holds a read-only cache to root auth. Note this access
+	// point cache is authenticated with the identity of the node, not of the
+	// user. This is why its prefixed with "unsafe".
+	//
+	// This access point should only be used if the identity of the caller will
+	// not affect the result of the RPC. For example, never use it to call
+	// "GetNodes".
+	unsafeCachedAuthClient auth.ReadAccessPoint
+
 	parent *sessionCache
 	// resources is persistent resource store this context is bound to.
 	// The store maintains a list of resources between session renewals
@@ -306,9 +319,9 @@ func (c *SessionContext) GetX509Certificate() (*x509.Certificate, error) {
 	return tlsCert, nil
 }
 
-// GetCertRoles extracts roles from the *ssh.Certificate associated with this
-// session.
-func (c *SessionContext) GetCertRoles() (services.RoleSet, error) {
+// GetUserRoles return roles from the SSH certificate associated with
+// this session.
+func (c *SessionContext) GetUserRoles() (services.RoleSet, error) {
 	cert, err := c.GetSSHCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -317,7 +330,7 @@ func (c *SessionContext) GetCertRoles() (services.RoleSet, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleset, err := services.FetchRoles(roles, c.clt, traits)
+	roleset, err := services.FetchRoles(roles, c.unsafeCachedAuthClient, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -743,12 +756,13 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 	}
 
 	ctx := &SessionContext{
-		clt:       userClient,
-		remoteClt: make(map[string]auth.ClientI),
-		user:      session.GetUser(),
-		session:   session,
-		parent:    s,
-		resources: s.upsertSessionContext(session.GetUser()),
+		clt:                    userClient,
+		unsafeCachedAuthClient: s.accessPoint,
+		remoteClt:              make(map[string]auth.ClientI),
+		user:                   session.GetUser(),
+		session:                session,
+		parent:                 s,
+		resources:              s.upsertSessionContext(session.GetUser()),
 		log: s.log.WithFields(logrus.Fields{
 			"user":    session.GetUser(),
 			"session": session.GetShortName(),
