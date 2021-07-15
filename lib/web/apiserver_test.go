@@ -1703,7 +1703,7 @@ func (s *WebSuite) TestConstructSSHResponseLegacy(c *C) {
 	c.Assert(resp.TLSCert, DeepEquals, []byte{0x01})
 }
 
-type byTimeAndIndex []apievents.AuditEvent
+type byTimeAndIndex []events.AuditEvent
 
 func (f byTimeAndIndex) Len() int {
 	return len(f)
