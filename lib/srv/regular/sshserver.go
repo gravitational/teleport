@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -164,6 +165,9 @@ type Server struct {
 	// ebpf is the service used for enhanced session recording.
 	ebpf bpf.BPF
 
+	// restrictedMgr is the service used for restricting access to kernel objects
+	restrictedMgr restricted.Manager
+
 	// onHeartbeat is a callback for heartbeat status.
 	onHeartbeat func(error)
 
@@ -222,6 +226,11 @@ func (s *Server) UseTunnel() bool {
 // GetBPF returns the BPF service used by enhanced session recording.
 func (s *Server) GetBPF() bpf.BPF {
 	return s.ebpf
+}
+
+// GetBPF returns the BPF service used by enhanced session recording.
+func (s *Server) GetRestrictedSessionManager() restricted.Manager{
+	return s.restrictedMgr
 }
 
 // isAuditedAtProxy returns true if sessions are being recorded at the proxy
@@ -495,6 +504,13 @@ func SetFIPS(fips bool) ServerOption {
 func SetBPF(ebpf bpf.BPF) ServerOption {
 	return func(s *Server) error {
 		s.ebpf = ebpf
+		return nil
+	}
+}
+
+func SetRestrictedSessionManager(m restricted.Manager) ServerOption {
+	return func(s *Server) error {
+		s.restrictedMgr = m
 		return nil
 	}
 }

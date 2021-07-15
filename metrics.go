@@ -162,6 +162,9 @@ const (
 	// MetricLostNetworkEvents measures the number of network events that were lost.
 	MetricLostNetworkEvents = "bpf_lost_network_events"
 
+	// MetricLostRestrictedEvents measures the number of restricted events that were lost
+	MetricLostRestrictedEvents = "bpf_lost_restricted_events"
+
 	// MetricState tracks the state of the teleport process.
 	MetricState = "process_state"
 

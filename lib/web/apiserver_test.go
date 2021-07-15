@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -206,6 +207,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
@@ -259,6 +261,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
@@ -2594,6 +2597,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
 	)
 	require.NoError(t, err)
@@ -2675,6 +2679,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
 	)
 	require.NoError(t, err)

@@ -93,7 +93,8 @@ CLANG_FORMAT ?= $(shell which clang-format || which clang-format-10)
 LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
 KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/')
 INCLUDES :=
-BPF_BUILDDIR := lib/bpf/bytecode
+ER_BPF_BUILDDIR := lib/bpf/bytecode
+RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
@@ -160,16 +161,30 @@ $(BUILDDIR)/tsh:
 # Requires a recent version of clang and libbpf installed.
 #
 ifeq ("$(with_bpf)","yes")
-$(BPF_BUILDDIR):
-	mkdir -p $(BPF_BUILDDIR)
+$(ER_BPF_BUILDDIR):
+	mkdir -p $(ER_BPF_BUILDDIR)
+
+$(RS_BPF_BUILDDIR):
+	mkdir -p $(RS_BPF_BUILDDIR)
 
 # Build BPF code
-$(BPF_BUILDDIR)/%.bpf.o: bpf/%.bpf.c $(wildcard bpf/*.h) | $(BPF_BUILDDIR)
+$(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
 	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
+# Build BPF code
+$(RS_BPF_BUILDDIR)/%.bpf.o: bpf/restrictedsession/%.bpf.c $(wildcard bpf/*.h) | $(RS_BPF_BUILDDIR)
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(LLVM_STRIP) -g $@ # strip useless DWARF info
+
+.PHONY: bpf-rs-bytecode
+bpf-rs-bytecode: $(RS_BPF_BUILDDIR)/restricted.bpf.o
+
+.PHONY: bpf-er-bytecode
+bpf-er-bytecode: $(ER_BPF_BUILDDIR)/command.bpf.o $(ER_BPF_BUILDDIR)/disk.bpf.o $(ER_BPF_BUILDDIR)/network.bpf.o $(ER_BPF_BUILDDIR)/counter_test.bpf.o
+
 .PHONY: bpf-bytecode
-bpf-bytecode: $(BPF_BUILDDIR)/command.bpf.o $(BPF_BUILDDIR)/disk.bpf.o $(BPF_BUILDDIR)/network.bpf.o $(BPF_BUILDDIR)/counter_test.bpf.o
+bpf-bytecode: bpf-er-bytecode bpf-rs-bytecode
 
 # Generate vmlinux.h based on the installed kernel
 .PHONY: update-vmlinux-h
@@ -210,7 +225,8 @@ endif
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-	rm -rf $(BPF_BUILDDIR)
+	rm -rf $(ER_BPF_BUILDDIR)
+	rm -rf $(RS_BPF_BUILDDIR)
 	-go clean -cache
 	rm -rf $(GOPKGDIR)
 	rm -rf teleport
@@ -335,7 +351,7 @@ test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
 	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover $(ADDFLAGS)
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -344,7 +360,7 @@ UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode
 test-go-root: FLAGS ?= '-race'
-test-go-root: PACKAGES := $(shell go list ./... | grep -v integration)
+test-go-root: PACKAGES := $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 

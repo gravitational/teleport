@@ -119,6 +119,9 @@ type InitConfig struct {
 	// ClusterConfiguration is a services that holds cluster wide configuration.
 	ClusterConfiguration services.ClusterConfiguration
 
+	// Restricitons is a service to access network restrictions, etc
+	Restrictions services.Restrictions
+
 	// Roles is a set of roles to create
 	Roles []types.Role
 

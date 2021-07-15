@@ -737,6 +737,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// If a cgroup ID was assigned then enhanced session recording was enabled.
 	if cgroupID > 0 {
 		s.hasEnhancedRecording = true
+		ctx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
 	}
 
 	// Process has been placed in a cgroup, continue execution.
@@ -823,6 +824,8 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			s.log.Errorf("Timed out waiting for PTY copy to finish, session data for %v may be missing.", s.id)
 		case <-doneCh:
 		}
+
+		ctx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
 
 		// Close the BPF recording session. If BPF was not configured, not available,
 		// or running in a recording proxy, this is simply a NOP.
@@ -959,6 +962,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	// If a cgroup ID was assigned then enhanced session recording was enabled.
 	if cgroupID > 0 {
 		s.hasEnhancedRecording = true
+		ctx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
 	}
 
 	// Process has been placed in a cgroup, continue execution.
@@ -974,6 +978,8 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		// Wait a little bit to let all events filter through before closing the
 		// BPF session so everything can be recorded.
 		time.Sleep(2 * time.Second)
+
+		ctx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
 
 		// Close the BPF recording session. If BPF was not configured, not available,
 		// or running in a recording proxy, this is simply a NOP.

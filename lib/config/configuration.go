@@ -820,6 +820,13 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.BPF != nil {
 		cfg.SSH.BPF = fc.SSH.BPF.Parse()
 	}
+	if fc.SSH.RestrictedSession != nil {
+		rs, err := fc.SSH.RestrictedSession.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.SSH.RestrictedSession = rs
+	}
 
 	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
 		cfg.SSH.ProxyReverseTunnelFallbackAddr, err = utils.ParseHostPortAddr(proxyAddr, defaults.SSHProxyTunnelListenPort)
