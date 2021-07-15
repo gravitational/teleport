@@ -64,7 +64,6 @@ func singleProxyPortSetup() *InstancePorts {
 		isSinglePortSetup: true,
 	}
 }
-
 func standardPortSetup() *InstancePorts {
 	return &InstancePorts{
 		Web:           newInstancePort(),
@@ -75,6 +74,7 @@ func standardPortSetup() *InstancePorts {
 		MySQL:         newInstancePort(),
 	}
 }
+
 func webReverseTunnelMuxPortSetup() *InstancePorts {
 	v := newInstancePort()
 	return &InstancePorts{

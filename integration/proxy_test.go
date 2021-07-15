@@ -18,8 +18,13 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
@@ -34,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestAlpnSniProxyMultiCluster tests SSH connection in multi-cluster setup with.
@@ -187,6 +193,40 @@ func TestAlpnSniProxyTrustedClusterNode(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestAlpnSniProxyMultiCluster tests if the reverse tunnel uses http_proxy
+// on single proxy port setup.
+func TestAlpnSniHTTPSProxy(t *testing.T) {
+	// start the http proxy
+	ps := &proxyServer{}
+	ts := httptest.NewServer(ps)
+	defer ts.Close()
+
+	// set the http_proxy environment variable
+	u, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+	os.Setenv("http_proxy", u.Host)
+	defer os.Setenv("http_proxy", "")
+
+	username := mustGetCurrentUser(t).Username
+
+	suite := newProxySuite(t,
+		withMainClusterConfig(mainClusterStandardConfig(t)),
+		withLeafClusterConfig(leafClusterStandardConfig(t)),
+		withMainClusterPorts(singleProxyPortSetup()),
+		withLeafClusterPorts(singleProxyPortSetup()),
+		withMainAndLeafClusterRoles(createAdminRole(username)),
+		withStandardRoleMapping(),
+	)
+	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+	utils.RetryStaticFor(time.Second*10, time.Millisecond*200, func() error {
+		for len(checkGetClusters(t, suite.main.Tunnel)) < 2 && len(checkGetClusters(t, suite.leaf.Tunnel)) < 2 {
+			return errors.New("two sites do not see each other: tunnels are not working")
+		}
+		return nil
+	})
+	require.Greater(t, ps.Count(), 0, "proxy did not intercept any connection")
 }
 
 // TestAlpnSniProxyKube tests kubernetes access with custom kube API mock where traffic is forwarded via

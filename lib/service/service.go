@@ -2791,7 +2791,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		if alpnRouter != nil {
+		if alpnRouter != nil && !cfg.Proxy.DisableDatabaseProxy {
 			alpnRouter.Add(alpnproxy.HandlerDecs{
 				Protocols: []string{alpnproxy.ProtocolMySQL},
 				Handler:   dbProxyServer.MySQLProxy().HandleConnection,
@@ -2845,10 +2845,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.RegisterCriticalFunc("proxy.alpn.proxy", func() error {
-			log.Infof("Starting ALPN Router proxy server on %v.", listeners.web.Addr())
+		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
+			log.Infof("Starting TLS ALPN SNI proxy server on %v.", listeners.alpn.Addr())
 			if err := alpnServer.Serve(process.ExitContext()); err != nil {
-				log.WithError(err).Warn("ALPN proxy server exited with error.")
+				log.WithError(err).Warn("TLS ALPN SNI proxy proxy server exited with error.")
 			}
 			return nil
 		})
