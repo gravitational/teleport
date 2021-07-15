@@ -58,6 +58,8 @@ const formatProtocol = (input: DbProtocol) => {
       return 'PostgreSQL';
     case 'mysql':
       return 'MySQL';
+    case 'mongodb':
+      return 'MongoDB';
     default:
       return input;
   }

@@ -676,12 +676,12 @@ exports[`loaded 1`] = `
           </strong>
            - 
           <strong>
-            37
+            41
           </strong>
            
           of 
           <strong>
-            37
+            41
           </strong>
         </div>
       </div>
@@ -740,6 +740,146 @@ exports[`loaded 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-database c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Database Session Ended
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [alice@example.com] has disconnected from database [] on [mongo-primary]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-07-14 07:06:25
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-database c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Database Query Failed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [alice@example.com] query [{"find": "test","filter": {},"lsid": {"id": {"$binary":{"base64":"2KMk23/TTCK...] in database [houston] on [mongo-primary] failed
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-07-14 07:05:22
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-database c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Database Query
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [alice@example.com] has executed query [{"find": "test","filter": {},"lsid": {"id": {"$binary":{"base64":"2KMk23/TTCK...] in database [test] on [mongo-primary]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-07-14 07:03:49
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-database c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Database Session Started
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [alice@example.com] has connected to database [] as [alice] on [mongo-primary]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-07-14 07:01:31
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
         <tr>
           <td>
             <div

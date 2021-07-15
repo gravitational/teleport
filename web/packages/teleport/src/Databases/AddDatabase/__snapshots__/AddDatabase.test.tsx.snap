@@ -472,7 +472,7 @@ exports[`render instructions dialog for adding database 1`] = `
                           autocapitalize="none"
                           autocomplete="off"
                           autocorrect="off"
-                          id="react-select-10-input"
+                          id="react-select-12-input"
                           spellcheck="false"
                           style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
                           tabindex="0"
@@ -551,15 +551,14 @@ exports[`render instructions dialog for adding database 1`] = `
         <div
           class="c9"
         >
-          * Note: For a self-hosted Teleport version, you may need to update DNS and obtain a TLS certificate for this application.
-            Learn more about database access 
+          * Note: Learn more about database access in our 
           <a
             class="c11"
             href="https://goteleport.com/docs/database-access/"
             rel="noreferrer"
             target="_blank"
           >
-            here
+            documentation
           </a>
           .
         </div>

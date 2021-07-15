@@ -71,6 +71,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: Icons.Database,
   [eventCodes.DATABASE_SESSION_ENDED]: Icons.Database,
   [eventCodes.DATABASE_SESSION_QUERY]: Icons.Database,
+  [eventCodes.DATABASE_SESSION_QUERY_FAILURE]: Icons.Database,
   [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
   [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
   [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCardAlt2,

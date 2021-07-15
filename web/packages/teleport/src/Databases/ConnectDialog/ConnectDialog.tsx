@@ -68,7 +68,7 @@ export default function ConnectDialog({
             Step 2
           </Text>
           {' - Retrieve credentials for the database'}
-          <TextSelectCopy mt="2" text={`tsh db login ${dbName}`} />
+          <TextSelectCopy mt="2" text={`tsh db login [--db-user=<user>] [--db-name=<name>] ${dbName}`} />
         </Box>
         <Box mb={4}>
           <Text bold as="span">
@@ -77,7 +77,7 @@ export default function ConnectDialog({
           {' - Connect to the database'}
           <TextSelectCopy
             mt="2"
-            text={`${generateDbConnectCmd(dbName, clusterId, dbProtocol)}`}
+            text={`tsh db connect [--db-user=<user>] [--db-name=<name>] ${dbName}`}
           />
         </Box>
         <Box>
@@ -98,20 +98,6 @@ export default function ConnectDialog({
       </DialogFooter>
     </Dialog>
   );
-}
-
-function generateDbConnectCmd(
-  dbName: string,
-  clusterId: string,
-  dbProtocol: DbProtocol
-) {
-  if (dbProtocol === 'postgres') {
-    return `psql "service=${clusterId}-${dbName} user=[user] dbname=[dbname]"`;
-  }
-  if (dbProtocol === 'mysql') {
-    return `mysql --defaults-group-suffix=_${clusterId}-${dbName} --user=[user] --database=[database]`;
-  }
-  return 'invalid protocol';
 }
 
 export type Props = {

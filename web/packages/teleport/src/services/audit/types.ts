@@ -53,6 +53,7 @@ export const eventCodes = {
   CLIENT_DISCONNECT: 'T3006I',
   DATABASE_SESSION_ENDED: 'TDB01I',
   DATABASE_SESSION_QUERY: 'TDB02I',
+  DATABASE_SESSION_QUERY_FAILURE: 'TDB02W',
   DATABASE_SESSION_STARTED_FAILURE: 'TDB00W',
   DATABASE_SESSION_STARTED: 'TDB00I',
   EXEC_FAILURE: 'T3002E',
@@ -359,6 +360,16 @@ export type RawEvents = {
   >;
   [eventCodes.DATABASE_SESSION_QUERY]: RawEvent<
     typeof eventCodes.DATABASE_SESSION_QUERY,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      db_query: string;
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_QUERY_FAILURE]: RawEvent<
+    typeof eventCodes.DATABASE_SESSION_QUERY_FAILURE,
     {
       name: string;
       db_service: string;

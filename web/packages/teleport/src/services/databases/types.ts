@@ -23,4 +23,4 @@ export interface Database {
 }
 
 export type DbType = 'redshift' | 'rds' | 'gcp' | 'self-hosted';
-export type DbProtocol = 'postgres' | 'mysql';
+export type DbProtocol = 'postgres' | 'mysql' | 'mongodb';
