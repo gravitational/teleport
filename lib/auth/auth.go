@@ -45,10 +45,12 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/hsm"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
@@ -125,6 +127,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(nic): update this with real HSM config
+	hsmClient, err := hsm.NewClient(&hsm.ClientConfig{
+		RSAKeyPairSource: native.GenerateKeyPair,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:              cfg.Backend,
@@ -150,6 +160,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
 		},
+		hsmClient: hsmClient,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -285,6 +296,9 @@ type Server struct {
 	// streamer is events sessionstreamer, used to create continuous
 	// session related streams
 	streamer events.Streamer
+
+	// hsmClient is a client for interacting with Hardware Security Modules
+	hsmClient hsm.Client
 }
 
 // SetCache sets cache used by auth server
@@ -440,19 +454,13 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, err := tlsca.FromAuthority(hostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Marshal to PEM bytes to send the CA over the wire.
-	pemBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
+	cert, _, err := a.GetHSMClient().GetTLSCertAndSigner(hostCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &LocalCAResponse{
-		TLSCA: pemBytes,
+		TLSCA: cert,
 	}, nil
 }
 
@@ -473,7 +481,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
-	caSigner, err := sshSigner(ca)
+	caSigner, err := a.hsmClient.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -492,24 +500,8 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	})
 }
 
-func sshSigner(ca types.CertAuthority) (ssh.Signer, error) {
-	keyPairs := ca.GetActiveKeys().SSH
-	if len(keyPairs) == 0 {
-		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
-	}
-	// TODO(nic): update after PKCS#11 keys are supported.
-	for _, kp := range keyPairs {
-		if kp.PrivateKeyType != types.PrivateKeyType_RAW {
-			continue
-		}
-		signer, err := ssh.ParsePrivateKey(kp.PrivateKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		signer = sshutils.AlgSigner(signer, sshutils.GetSigningAlgName(ca))
-		return signer, nil
-	}
-	return nil, trace.NotFound("no raw SSH private key found in CA for %q", ca.GetClusterName())
+func (a *Server) GetHSMClient() hsm.Client {
+	return a.hsmClient
 }
 
 // certs is a pair of SSH and TLS certificates
@@ -809,7 +801,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caSigner, err := sshSigner(ca)
+	caSigner, err := a.hsmClient.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -864,7 +856,11 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	}
 
 	// generate TLS certificate
-	tlsAuthority, err := tlsca.FromAuthority(ca)
+	cert, signer, err := a.GetHSMClient().GetTLSCertAndSigner(ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsAuthority, err := tlsca.FromCertAndSigner(cert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1445,12 +1441,16 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		}
 	}
 
-	tlsAuthority, err := tlsca.FromAuthority(ca)
+	cert, signer, err := a.GetHSMClient().GetTLSCertAndSigner(ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsAuthority, err := tlsca.FromCertAndSigner(cert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caSigner, err := sshSigner(ca)
+	caSigner, err := a.hsmClient.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

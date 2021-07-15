@@ -169,7 +169,7 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 	}
 
 	// Extract the JWT signing key and sign the claims.
-	privateKey, err := services.GetJWTSigner(ca, s.clock)
+	privateKey, err := s.GetHSMClient().GetJWTSigner(ca, s.clock)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

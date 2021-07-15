@@ -43,6 +43,9 @@ github.com/HdrHistogram/hdrhistogram-go
 ## explicit
 github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/pkg/guid
+# github.com/ThalesIgnite/crypto11 v1.2.4
+## explicit
+github.com/ThalesIgnite/crypto11
 # github.com/alecthomas/assert v0.0.0-20170929043011-405dbfeb8e38
 ## explicit
 # github.com/alecthomas/colour v0.1.0
@@ -407,6 +410,8 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 github.com/mdp/rsc/gf256
 github.com/mdp/rsc/qr
 github.com/mdp/rsc/qr/coding
+# github.com/miekg/pkcs11 v1.0.3-0.20190429190417-a667d056470f
+github.com/miekg/pkcs11
 # github.com/mitchellh/go-wordwrap v1.0.1
 ## explicit
 github.com/mitchellh/go-wordwrap
@@ -500,6 +505,8 @@ github.com/spf13/pflag
 ## explicit
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
+# github.com/thales-e-security/pool v0.0.2
+github.com/thales-e-security/pool
 # github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5
 ## explicit
 # github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4

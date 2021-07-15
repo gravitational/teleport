@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 
 	"github.com/gravitational/trace"
@@ -41,12 +40,15 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentAuthority,
 })
 
-// FromAuthority returns the CertificateAutority's TLS certificate authority from TLS key pairs.
-func FromAuthority(ca types.CertAuthority) (*CertAuthority, error) {
-	if len(ca.GetActiveKeys().TLS) == 0 {
-		return nil, trace.BadParameter("no TLS key pairs found for certificate authority")
+func FromCertAndSigner(certPEM []byte, signer crypto.Signer) (*CertAuthority, error) {
+	cert, err := ParseCertificatePEM(certPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return FromKeys(ca.GetActiveKeys().TLS[0].Cert, ca.GetActiveKeys().TLS[0].Key)
+	return &CertAuthority{
+		Cert:   cert,
+		Signer: signer,
+	}, nil
 }
 
 // FromKeys returns new CA from PEM encoded certificate and private

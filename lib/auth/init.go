@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/hsm"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -199,7 +200,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		if firstStart {
 			log.Infof("Applying %v bootstrap resources (first initialization)", len(cfg.Resources))
-			if err := checkResourceConsistency(domainName, cfg.Resources...); err != nil {
+			if err := checkResourceConsistency(asrv.hsmClient, domainName, cfg.Resources...); err != nil {
 				return nil, trace.Wrap(err, "refusing to bootstrap backend")
 			}
 			if err := local.CreateResources(ctx, cfg.Backend, cfg.Resources...); err != nil {
@@ -323,51 +324,10 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 
 		log.Infof("First start: generating user certificate authority.")
-		priv, pub, err := asrv.GenerateKeyPair("")
+		userCA, err := generateSelfSignedCA(&cfg, asrv.hsmClient, types.UserCA)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-			CommonName:   cfg.ClusterName.GetClusterName(),
-			Organization: []string{cfg.ClusterName.GetClusterName()},
-		}, nil, defaults.CATTL)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		sigAlg := defaults.CASignatureAlgorithm
-		if cfg.CASigningAlg != nil && *cfg.CASigningAlg != "" {
-			sigAlg = *cfg.CASigningAlg
-		}
-
-		userCA := &types.CertAuthorityV2{
-			Kind:    types.KindCertAuthority,
-			Version: types.V2,
-			Metadata: types.Metadata{
-				Name:      cfg.ClusterName.GetClusterName(),
-				Namespace: apidefaults.Namespace,
-			},
-			Spec: types.CertAuthoritySpecV2{
-				ClusterName: cfg.ClusterName.GetClusterName(),
-				Type:        types.UserCA,
-				ActiveKeys: types.CAKeySet{
-					SSH: []*types.SSHKeyPair{{
-						PrivateKey: priv,
-						// TODO: update when HSMs are supported in the config
-						PrivateKeyType: types.PrivateKeyType_RAW,
-						PublicKey:      pub,
-					}},
-					TLS: []*types.TLSKeyPair{{
-						Cert: certPEM,
-						Key:  keyPEM,
-						// TODO: update when HSMs are supported in the config
-						KeyType: types.PrivateKeyType_RAW,
-					}},
-				},
-				SigningAlg: sshutils.ParseSigningAlg(sigAlg),
-			},
-		}
-
 		if err := asrv.Trust.UpsertCertAuthority(userCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -381,49 +341,9 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 
 		log.Infof("First start: generating host certificate authority.")
-		priv, pub, err := asrv.GenerateKeyPair("")
+		hostCA, err := generateSelfSignedCA(&cfg, asrv.hsmClient, types.HostCA)
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-
-		keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-			CommonName:   cfg.ClusterName.GetClusterName(),
-			Organization: []string{cfg.ClusterName.GetClusterName()},
-		}, nil, defaults.CATTL)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		sigAlg := defaults.CASignatureAlgorithm
-		if cfg.CASigningAlg != nil && *cfg.CASigningAlg != "" {
-			sigAlg = *cfg.CASigningAlg
-		}
-
-		hostCA := &types.CertAuthorityV2{
-			Kind:    types.KindCertAuthority,
-			Version: types.V2,
-			Metadata: types.Metadata{
-				Name:      cfg.ClusterName.GetClusterName(),
-				Namespace: apidefaults.Namespace,
-			},
-			Spec: types.CertAuthoritySpecV2{
-				ClusterName: cfg.ClusterName.GetClusterName(),
-				Type:        types.HostCA,
-				ActiveKeys: types.CAKeySet{
-					SSH: []*types.SSHKeyPair{{
-						PrivateKey: priv,
-						// TODO: update when HSMs are supported in the config
-						PrivateKeyType: types.PrivateKeyType_RAW,
-						PublicKey:      pub,
-					}},
-					TLS: []*types.TLSKeyPair{{
-						Cert: certPEM,
-						Key:  keyPEM,
-						// TODO: update when HSMs are supported in the config
-						KeyType: types.PrivateKeyType_RAW,
-					}},
-				},
-				SigningAlg: sshutils.ParseSigningAlg(sigAlg),
-			},
 		}
 		if err := asrv.Trust.UpsertCertAuthority(hostCA); err != nil {
 			return nil, trace.Wrap(err)
@@ -441,7 +361,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	if trace.IsNotFound(err) {
 		log.Infof("Migrate: Adding JWT key to existing cluster %q.", cfg.ClusterName.GetClusterName())
 
-		jwtSigner, err := services.NewJWTAuthority(cfg.ClusterName.GetClusterName())
+		jwtSigner, err := services.NewJWTAuthority(cfg.ClusterName.GetClusterName(), asrv.hsmClient)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -477,6 +397,64 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	return asrv, nil
+}
+
+func generateSelfSignedCA(cfg *InitConfig, hsmClient hsm.Client, caType types.CertAuthType) (*types.CertAuthorityV2, error) {
+	sshPrivateKey, sshCryptoSigner, err := hsmClient.GenerateRSA()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyType := hsm.KeyType(sshPrivateKey)
+	sshSigner, err := ssh.NewSignerFromSigner(sshCryptoSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPublicKey := ssh.MarshalAuthorizedKey(sshSigner.PublicKey())
+
+	tlsPrivateKey, tlsSigner, err := hsmClient.GenerateRSA()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
+		tlsSigner,
+		pkix.Name{
+			CommonName:   cfg.ClusterName.GetClusterName(),
+			Organization: []string{cfg.ClusterName.GetClusterName()},
+		}, nil, defaults.CATTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sigAlg := defaults.CASignatureAlgorithm
+	if cfg.CASigningAlg != nil && *cfg.CASigningAlg != "" {
+		sigAlg = *cfg.CASigningAlg
+	}
+
+	return &types.CertAuthorityV2{
+		Kind:    types.KindCertAuthority,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      cfg.ClusterName.GetClusterName(),
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.CertAuthoritySpecV2{
+			ClusterName: cfg.ClusterName.GetClusterName(),
+			Type:        caType,
+			ActiveKeys: types.CAKeySet{
+				SSH: []*types.SSHKeyPair{{
+					PublicKey:      sshPublicKey,
+					PrivateKey:     sshPrivateKey,
+					PrivateKeyType: keyType,
+				}},
+				TLS: []*types.TLSKeyPair{{
+					Cert:    tlsCert,
+					Key:     tlsPrivateKey,
+					KeyType: keyType,
+				}},
+			},
+			SigningAlg: sshutils.ParseSigningAlg(sigAlg),
+		},
+	}, nil
 }
 
 func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
@@ -818,7 +796,7 @@ func isFirstStart(authServer *Server, cfg InitConfig) (bool, error) {
 }
 
 // checkResourceConsistency checks far basic conflicting state issues.
-func checkResourceConsistency(clusterName string, resources ...types.Resource) error {
+func checkResourceConsistency(hsmClient hsm.Client, clusterName string, resources ...types.Resource) error {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
 		case types.CertAuthority:
@@ -826,7 +804,7 @@ func checkResourceConsistency(clusterName string, resources ...types.Resource) e
 			// all CAs for this cluster do having signing keys.
 			seemsLocal := r.GetClusterName() == clusterName
 			var hasKeys bool
-			_, err := sshSigner(r)
+			_, err := hsmClient.GetSSHSigner(r)
 			switch {
 			case err == nil:
 				hasKeys = true
