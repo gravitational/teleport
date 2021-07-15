@@ -117,6 +117,7 @@ func (d directDial) DialTimeout(network, address string, timeout time.Duration) 
 
 type proxyDial struct {
 	proxyHost string
+	useTLS    bool
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -128,7 +129,17 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 		defer cancel()
 		ctx = timeoutCtx
 	}
-	return dialProxy(ctx, d.proxyHost, address)
+	conn, err :=  dialProxy(ctx, d.proxyHost, address)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if d.useTLS {
+		conn = tls.Client(conn, &tls.Config{
+			NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
+			InsecureSkipVerify: lib.IsInsecureDevMode(),
+		})
+	}
+	return conn, nil
 }
 
 // Dial first connects to a proxy, then uses the connection to establish a new
@@ -142,6 +153,13 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 	if config.Timeout > 0 {
 		pconn.SetReadDeadline(time.Now().Add(config.Timeout))
 	}
+	if d.useTLS {
+		pconn = tls.Client(pconn, &tls.Config{
+			NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
+			InsecureSkipVerify: lib.IsInsecureDevMode(),
+		})
+	}
+
 	// Do the same as ssh.Dial but pass in proxy connection.
 	c, chans, reqs, err := ssh.NewClientConn(pconn, addr, config)
 	if err != nil {
@@ -153,11 +171,42 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 	return ssh.NewClient(c, chans, reqs), nil
 }
 
+type dialerOptions struct {
+	dialTLS bool
+}
+
+type DialerOptionFunc func(options *dialerOptions)
+
+func WithTLSDialer() DialerOptionFunc {
+	return func(options *dialerOptions) {
+		options.dialTLS = true
+	}
+}
+
 // DialerFromEnvironment returns a Dial function. If the https_proxy or http_proxy
 // environment variable are set, it returns a function that will dial through
 // said proxy server. If neither variable is set, it will connect to the SSH
 // server directly.
-func DialerFromEnvironment(addr string) Dialer {
+func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
+	// Try and get proxy addr from the environment.
+	proxyAddr := getProxyAddress(addr)
+
+	var options dialerOptions
+	for _, opt := range  opts {
+		opt(&options)
+	}
+
+	// If no proxy settings are in environment return regular ssh dialer,
+	// otherwise return a proxy dialer.
+	if proxyAddr == "" {
+		log.Debugf("No proxy set in environment, returning direct dialer.")
+		return directDial{useTLS: options.dialTLS}
+	}
+	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)
+	return proxyDial{proxyHost: proxyAddr, useTLS: options.dialTLS}
+}
+
+func DialerTLSFromEnvironment(addr string) Dialer {
 	// Try and get proxy addr from the environment.
 	proxyAddr := getProxyAddress(addr)
 
@@ -165,27 +214,15 @@ func DialerFromEnvironment(addr string) Dialer {
 	// otherwise return a proxy dialer.
 	if proxyAddr == "" {
 		log.Debugf("No proxy set in environment, returning direct dialer.")
-		return directDial{}
+		return directDial{
+			useTLS: true,
+		}
 	}
 	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)
-	return proxyDial{proxyHost: proxyAddr}
+	return proxyDial{proxyHost: proxyAddr, useTLS: true}
 }
 
 type DirectDialerOptFunc func(dial *directDial)
-
-func WithTLSDirectDialer() DirectDialerOptFunc {
-	return func(dial *directDial) {
-		dial.useTLS = true
-	}
-}
-
-func NewDirectDialer(opts ...DirectDialerOptFunc) Dialer {
-	dialer := &directDial{}
-	for _, opt := range opts {
-		opt(dialer)
-	}
-	return dialer
-}
 
 func dialProxy(ctx context.Context, proxyAddr string, addr string) (net.Conn, error) {
 	var d net.Dialer

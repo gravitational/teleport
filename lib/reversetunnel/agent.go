@@ -299,7 +299,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 }
 
 func (a *Agent) connectWithTLSDirectDialer(authMethod ssh.AuthMethod) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
-	dialer := proxy.NewDirectDialer(proxy.WithTLSDirectDialer())
+	dialer := proxy.DialerFromEnvironment(a.Addr.Addr, proxy.WithTLSDialer())
 	pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)

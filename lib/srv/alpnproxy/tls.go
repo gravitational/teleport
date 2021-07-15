@@ -39,24 +39,25 @@ func readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.ClientHelloInfo,
 	if hello == nil {
 		return nil, nil, err
 	}
-	return hello, newConnWrap(conn, buff), nil
+	return hello, newBufferedConn(conn, buff), nil
 }
 
-// newConnWrap creates new instance of connWrap.
-func newConnWrap(conn net.Conn, header io.Reader) *connWrap {
-	return &connWrap{
+// newBufferedConn creates new instance of bufferedConn.
+func newBufferedConn(conn net.Conn, header io.Reader) *bufferedConn {
+	return &bufferedConn{
 		Conn: conn,
 		r:    io.MultiReader(header, conn),
 	}
 }
 
-// connWrap allows to inject additional reader that will be drained during Read call reading from net.Conn.
-type connWrap struct {
+// bufferedConn allows to inject additional reader that will be drained during Read call reading from net.Conn.
+// Is used when part of the data on a connection has already been read.
+type bufferedConn struct {
 	net.Conn
 	r io.Reader
 }
 
-func (conn connWrap) Read(p []byte) (int, error) { return conn.r.Read(p) }
+func (conn bufferedConn) Read(p []byte) (int, error) { return conn.r.Read(p) }
 
 // readOnlyConn allows to only for Read operation. Other net.Conn operation will be discarded.
 type readOnlyConn struct {
