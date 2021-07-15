@@ -135,6 +135,9 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	return ca
 }
 
+// NewProxyWatcherFunc creates a new services.ProxyWatcher.
+type NewProxyWatcherFunc func() (*services.ProxyWatcher, error)
+
 // ServicesTestSuite is an acceptance test suite
 // for services. It is used for local implementations and implementations
 // using GRPC to guarantee consistency between local and remote services
@@ -149,7 +152,7 @@ type ServicesTestSuite struct {
 	UsersS          services.UsersService
 	ChangesC        chan interface{}
 	Clock           clockwork.FakeClock
-	NewProxyWatcher services.NewProxyWatcherFunc
+	NewProxyWatcher NewProxyWatcherFunc
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
@@ -1918,7 +1921,7 @@ func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
 	// since no proxy is yet present, the ProxyWatcher should immediately
 	// yield back to its retry loop.
 	select {
-	case <-w.Reset():
+	case <-w.ResetC:
 	case <-time.After(time.Second):
 		c.Fatalf("Timeout waiting for ProxyWatcher reset")
 	}
