@@ -90,6 +90,35 @@ func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 	return pr, nil
 }
 
+func GetMOTD(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (*MotD, error) {
+	clt := newWebClient(insecure, pool)
+	defer clt.CloseIdleConnections()
+
+	endpoint := fmt.Sprintf("https://%s/webapi/motd", proxyAddr)
+
+	resp, err := clt.Get(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, trace.BadParameter("failed to fetch message of the day: %d", resp.StatusCode)
+	}
+
+	motd := &MotD{}
+	if err := json.NewDecoder(resp.Body).Decode(motd); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return motd, nil
+}
+
+// MotD holds data about the current message of the day.
+type MotD struct {
+	Text string
+}
+
 // PingResponse contains data about the Teleport server like supported
 // authentication types, server version, etc.
 type PingResponse struct {
@@ -169,6 +198,11 @@ type AuthenticationSettings struct {
 	SAML *SAMLSettings `json:"saml,omitempty"`
 	// Github contains Github connector settings needed for authentication.
 	Github *GithubSettings `json:"github,omitempty"`
+
+	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD
+	// banner text that must be retrieved, displayed and acknowledged by
+	// the user.
+	HasMessageOfTheDay bool `json:"has_motd"`
 }
 
 // U2FSettings contains the AppID for Universal Second Factor.
