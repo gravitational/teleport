@@ -1,4 +1,5 @@
-clusterName: helm-lint
+proxyAddr: proxy.example.com:3080
+kubeClusterName: test-kube-cluster-name
 highAvailability:
   replicaCount: 3
   podDisruptionBudget:
