@@ -3,7 +3,7 @@
 #
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOCACHE=/tmp/go-cache
 BCCFLAGS := -v "$$(pwd)/bcc:/usr/include/bcc"
 ADDFLAGS ?=
 NOROOT=-u $$(id -u):$$(id -g)
