@@ -21,6 +21,7 @@ package sshutils
 import (
 	"crypto/subtle"
 	"fmt"
+	"io"
 	"net"
 	"runtime"
 
@@ -174,12 +175,18 @@ func AsAgentKeys(sshCert *ssh.Certificate, privKey []byte) ([]agent.AddedKey, er
 func HostKeyCallback(caCerts [][]byte) (ssh.HostKeyCallback, error) {
 	var trustedKeys []ssh.PublicKey
 	for _, caCert := range caCerts {
-		_, _, publicKey, _, _, err := ssh.ParseKnownHosts(caCert)
-		if err != nil {
-			return nil, trace.BadParameter("failed parsing CA cert: %v; raw CA cert line: %q", err, caCert)
+		for {
+			_, _, publicKey, _, bytes, err := ssh.ParseKnownHosts(caCert)
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				return nil, trace.Wrap(err, "failed parsing CA cert: %v; raw CA cert line: %q", err, caCert)
+			}
+			trustedKeys = append(trustedKeys, publicKey)
+			caCert = bytes
 		}
-		trustedKeys = append(trustedKeys, publicKey)
 	}
+
 	// No CAs are provided, return a nil callback which will prompt the user
 	// for trust.
 	if len(trustedKeys) == 0 {
