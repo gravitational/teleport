@@ -1886,7 +1886,9 @@ func toFieldsSlice(rawEvents []events.AuditEvent) ([]events.EventFields, error) 
 //               empty string means start search from beginning
 //   "include" : optional comma-separated list of event names to return e.g.
 //               include=session.start,session.end, all are returned if empty
-//
+//   "order":    optional ordering of events. Can be either "asc" or "desc"
+//               for ascending and descending respectively.
+//               If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
 
@@ -1905,6 +1907,11 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
+	order, err := queryOrder(values, "order", types.EventOrderDescending)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1916,7 +1923,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	startKey := values.Get("startKey")
-	rawEvents, lastKey, err := clt.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, startKey)
+	rawEvents, lastKey, err := clt.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, order, startKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1959,6 +1966,22 @@ func queryLimit(query url.Values, name string, def int) (int, error) {
 		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
 	}
 	return limit, nil
+}
+
+// queryOrder returns the order parameter with the specified name from the
+// query string or a default if the parameter is not provided.
+func queryOrder(query url.Values, name string, def types.EventOrder) (types.EventOrder, error) {
+	value := query.Get(name)
+	switch value {
+	case "desc":
+		return types.EventOrderDescending, nil
+	case "asc":
+		return types.EventOrderAscending, nil
+	case "":
+		return def, nil
+	default:
+		return types.EventOrderAscending, trace.BadParameter("parameter %v is not a valid ordering", value)
+	}
 }
 
 // siteSessionStreamGet returns a byte array from a session's stream
