@@ -88,6 +88,9 @@ type Client interface {
 
 	// GetSSHSigner selects the local JWT keypair and returns a *jwt.Key.
 	GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, error)
+
+	// DeleteKey deletes the given key from the HSM
+	DeleteKey(keyID []byte) error
 }
 
 // NewClient returns a Client based on the passed ClientConfig. If there is no
@@ -138,9 +141,10 @@ func (c *pkcs11Client) GenerateRSA() ([]byte, crypto.Signer, error) {
 	// Some HSMs (like YubiHSM2) will truncate the passed ID to as few as 2
 	// bytes. There's not a great way to detect this and I don't want to limit
 	// the ID to 2 bytes on all systems, so for now we will generate a few
-	// random IDs and hope to avoid a collision.
-	// TODO(nic): add a method to delete unused keys during rotation to avoid
-	// exhausting resources.
+	// random IDs and hope to avoid a collision. Ideally Teleport should be the
+	// only thing creating keys for this token and there should only be 10 keys
+	// per HSM at a given time:
+	// 2(rotation phases) * (4(SSH and TLS for User and Host CA) + 1(JWT CA))
 	for iterations := 0; iterations < 32 && (err != nil || signer == nil); iterations++ {
 		id, err = uuid.NewRandom()
 		if err != nil {
@@ -346,6 +350,29 @@ func (c *pkcs11Client) GetJWTSigner(ca types.CertAuthority, clock clockwork.Cloc
 	return key, nil
 }
 
+// DeleteKey deletes the given key from the HSM
+func (c *pkcs11Client) DeleteKey(rawKey []byte) error {
+	keyID, err := parseKeyID(rawKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if keyID.HostID != c.hostUUID {
+		return trace.NotFound("pkcs11 key is for different host")
+	}
+	pkcs11ID, err := keyID.pkcs11Key()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	signer, err := c.ctx.FindKeyPair(pkcs11ID, label)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if signer == nil {
+		return trace.NotFound("failed to find keypair for given id")
+	}
+	return trace.Wrap(signer.Delete())
+}
+
 type rawClient struct {
 	rsaKeyPairSource RSAKeyPairSource
 }
@@ -455,6 +482,11 @@ func (c *rawClient) GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) 
 		return nil, trace.Wrap(err)
 	}
 	return key, nil
+}
+
+// DeleteKey deletes the given key from the HSM. This is a no-op for rawClient.
+func (c *rawClient) DeleteKey(rawKey []byte) error {
+	return nil
 }
 
 // KeyType returns the type of the given private key.

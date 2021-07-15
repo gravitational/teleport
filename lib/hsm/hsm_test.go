@@ -240,6 +240,9 @@ func TestHSM(t *testing.T) {
 			require.NotNil(t, key)
 			require.NotNil(t, signer)
 
+			// delete the key when we're done with it
+			t.Cleanup(func() { require.NoError(t, client.DeleteKey(key)) })
+
 			// get a signer from the key
 			signer, err = client.GetSigner(key)
 			require.NoError(t, err)
