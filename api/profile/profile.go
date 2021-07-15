@@ -87,7 +87,7 @@ type Profile struct {
 
 	// ALPNSNIListenerEnabled indicates that proxy supports ALPN and SNI server where
 	// all proxy services are exposed on single TLS listener (Proxy Web Listener).
-	ALPNSNIListenerEnabled bool
+	ALPNSNIListenerEnabled bool `yaml:"alpn_sni_listener_enabled,omitempty"`
 }
 
 // Name returns the name of the profile.

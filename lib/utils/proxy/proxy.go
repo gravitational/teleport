@@ -80,6 +80,8 @@ type directDial struct {
 	useTLS bool
 }
 
+// isALPNUnsupportedError allows to determinate if a teleport proxy client tried to connect to ALPN SNI proxy with raw
+// ssh protocol. After detecting this case the client f
 func isALPNUnsupportedError(err error) bool {
 	return err.Error() == "ssh: handshake failed: EOF"
 }

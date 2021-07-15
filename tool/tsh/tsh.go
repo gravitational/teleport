@@ -379,7 +379,7 @@ func Run(args []string, opts ...cliOption) error {
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	proxyDB := proxy.Command("db", "proxy db")
 	proxyDB.Arg("db", "Database name").Required().StringVar(&cf.DatabaseService)
-	proxyDB.Arg("port", "Port for local proxy db listener").StringVar(&cf.LocalProxyPort)
+	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")

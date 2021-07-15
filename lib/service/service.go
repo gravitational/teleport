@@ -3653,7 +3653,7 @@ func newHTTPFileSystem() (http.FileSystem, error) {
 		return fs, nil
 	}
 	// Use debug HTTP file system with default assets path
-	fs, err := web.NewDebugFileSystem("")
+	fs, err := web.NewDebugFileSystem("/Users/marek/Go/src/github.com/gravitational/teleport/webassets/e/teleport/")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

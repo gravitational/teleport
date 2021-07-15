@@ -73,9 +73,6 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 	if cfg.Protocol == "" {
 		return trace.BadParameter("missing protocol")
 	}
-	if cfg.Listener == nil {
-		return trace.BadParameter("missing listener")
-	}
 	if cfg.ParentContext == nil {
 		return trace.BadParameter("missing parent context")
 	}
@@ -279,8 +276,10 @@ func getAgent() (agent.ExtendedAgent, error) {
 
 func (l *LocalProxy) Close() error {
 	l.cancel()
-	if err := l.cfg.Listener.Close(); err != nil {
-		return trace.Wrap(err)
+	if l.cfg.Listener != nil {
+		if err := l.cfg.Listener.Close(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
