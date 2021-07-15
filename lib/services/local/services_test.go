@@ -47,10 +47,11 @@ var _ = check.Suite(&ServicesSuite{})
 
 func (s *ServicesSuite) SetUpTest(c *check.C) {
 	var err error
+	ctx := context.Background()
 
 	clock := clockwork.NewFakeClock()
 
-	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
+	s.bk, err = lite.NewWithConfig(ctx, lite.Config{
 		Path:             c.MkDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            clock,
@@ -79,11 +80,10 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		ConfigS:       configService,
 		Clock:         clock,
 		NewProxyWatcher: func() (*services.ProxyWatcher, error) {
-			return services.NewProxyWatcher(services.ProxyWatcherConfig{
+			return services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 				ResourceWatcherConfig: services.ResourceWatcherConfig{
-					ParentContext: context.TODO(),
-					Component:     "test",
-					RetryPeriod:   200 * time.Millisecond,
+					Component:   "test",
+					RetryPeriod: 200 * time.Millisecond,
 					Client: &client{
 						PresenceService: presenceService,
 						EventsService:   eventsService,

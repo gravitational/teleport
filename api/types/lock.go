@@ -17,10 +17,13 @@ limitations under the License.
 package types
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/utils"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
@@ -169,21 +172,15 @@ func (c *LockV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(c.Spec.Target.Check())
+	if c.Spec.Target.IsEmpty() {
+		return trace.BadParameter("at least one target field must be set")
+	}
+	return nil
 }
 
-// Check verifies the target's constraints.
-func (t LockTarget) Check() error {
-	targetMap, err := t.IntoMap()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, val := range targetMap {
-		if val != "" {
-			return nil
-		}
-	}
-	return trace.BadParameter("at least one target field must be set")
+// IsEmpty returns true if none of the target's fields is set.
+func (t LockTarget) IsEmpty() bool {
+	return cmp.Equal(t, LockTarget{})
 }
 
 // IntoMap returns the target attributes in the form of a map.
@@ -201,19 +198,34 @@ func (t *LockTarget) FromMap(m map[string]string) error {
 }
 
 // Match returns true if the lock's target is matched by this target.
-func (t LockTarget) Match(lock Lock) (bool, error) {
-	targetMap, err := t.IntoMap()
-	if err != nil {
-		return false, trace.Wrap(err)
+func (t LockTarget) Match(lock Lock) bool {
+	if t.IsEmpty() {
+		return false
 	}
-	lockTargetMap, err := lock.Target().IntoMap()
-	if err != nil {
-		return false, trace.Wrap(err)
+	lockTarget := lock.Target()
+	if t.User != "" && lockTarget.User != t.User {
+		return false
 	}
-	for key := range targetMap {
-		if targetMap[key] != "" && targetMap[key] != lockTargetMap[key] {
-			return false, nil
-		}
+	if t.Role != "" && lockTarget.Role != t.Role {
+		return false
 	}
-	return true, nil
+	if t.Cluster != "" && lockTarget.Cluster != t.Cluster {
+		return false
+	}
+	if t.Login != "" && lockTarget.Login != t.Login {
+		return false
+	}
+	if t.Node != "" && lockTarget.Node != t.Node {
+		return false
+	}
+	if t.MFADevice != "" && lockTarget.MFADevice != t.MFADevice {
+		return false
+	}
+	return true
+}
+
+// String returns string representation of the LockTarget.
+func (t LockTarget) String() string {
+	p := &t
+	return strings.TrimSpace(proto.CompactTextString(p))
 }

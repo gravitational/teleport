@@ -208,8 +208,7 @@ message SessionPrint {
     int64 Offset = 6 [ (gogoproto.jsontag) = "offset" ];
 }
 
-// SessionReject event happens when a user hits the limit of maximum
-// concurrent connections in the cluster `max_connections`
+// SessionReject event happens when a user hits a session control restriction.
 message SessionReject {
     // Metadata is a common event metadata
     Metadata Metadata = 1

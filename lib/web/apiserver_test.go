@@ -138,6 +138,8 @@ func (s *WebSuite) SetUpSuite(c *C) {
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
+	ctx := context.Background()
+
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 	s.user = u.Username
@@ -189,6 +191,14 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	nodeLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentNode,
+			Client:    nodeClient,
+		},
+	})
+	c.Assert(err, IsNil)
+
 	// create SSH service:
 	nodeDataDir := c.MkDir()
 	node, err := regular.New(
@@ -207,6 +217,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
+		regular.SetLockWatcher(nodeLockWatcher),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -244,6 +255,14 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.proxyTunnel = revTunServer
 
+	proxyLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+	})
+	c.Assert(err, IsNil)
+
 	// proxy server:
 	s.proxy, err = regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -260,6 +279,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
+		regular.SetLockWatcher(proxyLockWatcher),
 	)
 	c.Assert(err, IsNil)
 
@@ -274,7 +294,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		ProxyClient:                     s.proxyClient,
 		CipherSuites:                    utils.DefaultCipherSuites(),
 		AccessPoint:                     s.proxyClient,
-		Context:                         context.Background(),
+		Context:                         ctx,
 		HostUUID:                        proxyID,
 		Emitter:                         s.proxyClient,
 		StaticFS:                        fs,
@@ -315,11 +335,13 @@ func (s *WebSuite) TearDownTest(c *C) {
 	if err := s.node.Close(); err != nil {
 		errors = append(errors, err)
 	}
+	s.webServer.Close()
+	if err := s.proxy.Close(); err != nil {
+		errors = append(errors, err)
+	}
 	if err := s.server.Shutdown(context.Background()); err != nil {
 		errors = append(errors, err)
 	}
-	s.webServer.Close()
-	s.proxy.Close()
 	c.Assert(errors, HasLen, 0)
 }
 
@@ -346,7 +368,7 @@ type authPack struct {
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
 func (s *WebSuite) authPack(c *C, user string) *authPack {
-	ctx := context.TODO()
+	ctx := context.Background()
 	login := s.user
 	pass := "abc123"
 	rawSecret := "def456"
@@ -982,7 +1004,7 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 		KeepAliveInterval: types.NewDuration(250 * time.Millisecond),
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetClusterNetworkingConfig(context.TODO(), netConfig)
+	err = s.server.Auth().SetClusterNetworkingConfig(ctx, netConfig)
 	c.Assert(err, IsNil)
 
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -2526,6 +2548,7 @@ func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
 }
 
 func newWebPack(t *testing.T, numProxies int) *webPack {
+	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
 	server, err := auth.NewTestServer(auth.TestServerConfig{
@@ -2536,7 +2559,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, server.Shutdown(context.Background())) })
+	t.Cleanup(func() { require.NoError(t, server.Shutdown(ctx)) })
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
@@ -2565,6 +2588,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	require.NoError(t, err)
+	hostSigners := []ssh.Signer{signer}
 
 	const nodeID = "node"
 	nodeClient, err := server.TLS.NewClient(auth.TestIdentity{
@@ -2576,7 +2600,14 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeClient.Close()) })
 
-	hostSigners := []ssh.Signer{signer}
+	nodeLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentNode,
+			Client:    nodeClient,
+		},
+	})
+	require.NoError(t, err)
+
 	// create SSH service:
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
@@ -2595,6 +2626,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
+		regular.SetLockWatcher(nodeLockWatcher),
 	)
 	require.NoError(t, err)
 
@@ -2605,7 +2637,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	var proxies []*proxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(t, proxyID, node, server.TLS, hostSigners, clock))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -2628,7 +2660,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	}
 }
 
-func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
+func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
 	hostSigners []ssh.Signer, clock clockwork.FakeClock) *proxy {
 
 	// create reverse tunnel service:
@@ -2661,6 +2693,14 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
 
+	proxyLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+	})
+	require.NoError(t, err)
+
 	proxyServer, err := regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		authServer.ClusterName(),
@@ -2676,6 +2716,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
+		regular.SetLockWatcher(proxyLockWatcher),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
@@ -2690,7 +2731,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
 		CipherSuites:     utils.DefaultCipherSuites(),
 		AccessPoint:      client,
-		Context:          context.Background(),
+		Context:          ctx,
 		HostUUID:         proxyID,
 		Emitter:          client,
 		StaticFS:         fs,

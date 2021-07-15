@@ -106,6 +106,8 @@ func newFixture(t *testing.T) *sshTestFixture {
 }
 
 func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshOpts ...ServerOption) *sshTestFixture {
+	ctx := context.Background()
+
 	u, err := user.Current()
 	require.NoError(t, err)
 
@@ -122,7 +124,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 
 	testServer, err := auth.NewTestServer(serverCfg)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(context.Background())) })
+	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
 	certs, err := testServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
@@ -162,6 +164,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		),
 		SetBPF(&bpf.NOP{}),
 		SetClock(clock),
+		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)
@@ -859,6 +862,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 
 	log.Infof("[TEST START] TestProxyReverseTunnel")
 	f := newFixture(t)
+	ctx := context.Background()
 
 	proxyClient, proxyID := newProxyClient(t, f.testSrv)
 
@@ -912,9 +916,11 @@ func TestProxyReverseTunnel(t *testing.T) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
+		SetLockWatcher(newLockWatcher(ctx, t, proxyClient)),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
+	t.Cleanup(func() { require.NoError(t, proxy.Close()) })
 
 	// set up SSH client using the user private key for signing
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
@@ -930,7 +936,6 @@ func TestProxyReverseTunnel(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
 	go rcWatcher.Run(ctx)
 	defer rcWatcher.Close()
 
@@ -991,6 +996,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetEmitter(nodeClient),
 		SetClock(f.clock),
+		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
 	)
 	require.NoError(t, err)
 	require.NoError(t, srv2.Start())
@@ -1049,6 +1055,7 @@ func TestProxyRoundRobin(t *testing.T) {
 
 	log.Infof("[TEST START] TestProxyRoundRobin")
 	f := newFixture(t)
+	ctx := context.Background()
 
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	nodeClient, _ := newNodeClient(t, f.testSrv)
@@ -1091,6 +1098,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
+		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1103,7 +1111,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	// start agent and load balance requests
 	eventsC := make(chan string, 2)
 	rsAgent, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
-		Context:     context.TODO(),
+		Context:     ctx,
 		Addr:        reverseTunnelAddress,
 		ClusterName: "remote",
 		Username:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
@@ -1117,7 +1125,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	rsAgent.Start()
 
 	rsAgent2, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
-		Context:     context.TODO(),
+		Context:     ctx,
 		Addr:        reverseTunnelAddress,
 		ClusterName: "remote",
 		Username:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
@@ -1167,6 +1175,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
+	ctx := context.Background()
 
 	listener, _ := mustListen(t)
 	logger := logrus.WithField("test", "TestProxyDirectAccess")
@@ -1208,6 +1217,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
+		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1299,6 +1309,7 @@ func TestClientDisconnect(t *testing.T) {
 func TestLimiter(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
+	ctx := context.Background()
 
 	limiter, err := limiter.NewLimiter(
 		limiter.Config{
@@ -1337,6 +1348,7 @@ func TestLimiter(t *testing.T) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
+		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
 	)
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
@@ -1858,6 +1870,17 @@ func waitForSites(s reversetunnel.Tunnel, count int) error {
 			return trace.BadParameter("timed out waiting for clusters")
 		}
 	}
+}
+
+func newLockWatcher(ctx context.Context, t *testing.T, client types.Events) *services.LockWatcher {
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "dummy-component",
+			Client:    client,
+		},
+	})
+	require.NoError(t, err)
+	return lockWatcher
 }
 
 // maxPipeSize is one larger than the maximum pipe size for most operating

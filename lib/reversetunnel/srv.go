@@ -270,12 +270,11 @@ func NewServer(cfg Config) (Server, error) {
 
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	proxyWatcher, err := services.NewProxyWatcher(services.ProxyWatcherConfig{
+	proxyWatcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			ParentContext: ctx,
-			Component:     cfg.Component,
-			Client:        cfg.LocalAuthClient,
-			Log:           cfg.Log,
+			Component: cfg.Component,
+			Client:    cfg.LocalAuthClient,
+			Log:       cfg.Log,
 		},
 		ProxiesC: make(chan []types.Server, 10),
 	})
@@ -369,6 +368,9 @@ func (s *server) disconnectClusters() error {
 }
 
 func (s *server) periodicFunctions() {
+	go s.proxyWatcher.RunWatchLoop()
+	defer s.proxyWatcher.Close()
+
 	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
 
@@ -558,13 +560,11 @@ func (s *server) Start() error {
 
 func (s *server) Close() error {
 	s.cancel()
-	s.proxyWatcher.Close()
 	return s.srv.Close()
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
 	s.cancel()
-	s.proxyWatcher.Close()
 	return s.srv.Shutdown(ctx)
 }
 

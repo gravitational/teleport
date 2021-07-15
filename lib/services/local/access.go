@@ -168,11 +168,7 @@ func (s *AccessService) GetLocks(ctx context.Context, targets ...types.LockTarge
 		}
 		// Otherwise, use the targets as filters.
 		for _, target := range targets {
-			match, err := target.Match(lock)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if match {
+			if target.Match(lock) {
 				out = append(out, lock)
 				break
 			}

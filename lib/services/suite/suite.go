@@ -1916,6 +1916,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
 	w, err := s.NewProxyWatcher()
 	c.Assert(err, check.IsNil)
+	go w.RunWatchLoop()
 	defer w.Close()
 
 	// since no proxy is yet present, the ProxyWatcher should immediately
