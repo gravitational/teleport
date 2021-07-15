@@ -6,7 +6,14 @@
       "entries": [
         { "title": "Introduction", "slug": "/" },
         { "title": "Adopters", "slug": "/adopters/" },
-        { "title": "Getting Started", "slug": "/getting-started/" },
+        {
+          "title": "Getting Started",
+          "slug": "/getting-started/",
+           "entries": [
+            { "title": "Linux Server", "slug": "/getting-started/linux-server/" },
+            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" }
+          ]
+        },
         { "title": "Installation", "slug": "/installation/" },
         { "title": "User Manual", "slug": "/user-manual/" },
         { "title": "Admin Manual", "slug": "/admin-guide/" },
@@ -24,7 +31,7 @@
           "slug": "/setup/guides/",
           "entries": [
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
-            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" },
+            { "title": "Docker", "slug": "/setup/guides/docker/" },
             { "title": "Fluentd", "slug": "/setup/guides/fluentd/" }
           ]
         },
@@ -247,7 +254,10 @@
       "version": "1.12.4"
     },
     "docker": {
-      "version": "20.10.7"
+      "version": "20.10.7",
+      "compose": {
+        "version": "1.25.0"
+      }
     },
     "kubernetes": {
       "major_version": "1",
@@ -268,6 +278,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/setup/guides/docker-compose/",
+      "destination": "/setup/guides/docker/",
+      "permanent": true
+    },
     {
       "source": "/cloud/",
       "destination": "/cloud/introduction/",
@@ -335,7 +350,7 @@
     },
     {
       "source": "/quickstart-docker/",
-      "destination": "/setup/guides/docker-compose/",
+      "destination": "/setup/guides/docker/",
       "permanent": true
     }
   ]

@@ -91,3 +91,5 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 UsePAM yes
 
 TrustedUserCAKeys /mnt/shared/certs/teleport.pub
+HostKey /mnt/shared/certs/mars.openssh.teleport
+HostCertificate /mnt/shared/certs/mars.openssh.teleport-cert.pub

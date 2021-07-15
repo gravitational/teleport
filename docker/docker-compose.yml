@@ -139,6 +139,5 @@ networks:
         ip_range: 172.10.1.0/24
         gateway: 172.10.1.254
 
-
 volumes:
   certs:
