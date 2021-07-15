@@ -692,6 +692,11 @@ message ClusterNetworkingConfigSpecV2 {
 
     // ClientIdleTimeoutMessage is the message sent to the user when a connection times out.
     string ClientIdleTimeoutMessage = 5 [ (gogoproto.jsontag) = "idle_timeout_message" ];
+
+    // WebIdleTimeout sets global cluster default setting for the web UI idle
+    // timeouts.
+    int64 WebIdleTimeout = 6
+        [ (gogoproto.jsontag) = "web_idle_timeout", (gogoproto.casttype) = "Duration" ];
 }
 
 // SessionRecordingConfigV2 contains session recording configuration.

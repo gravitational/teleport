@@ -244,6 +244,7 @@ func TestConfigReading(t *testing.T) {
 			LicenseFile:           "lic.pem",
 			DisconnectExpiredCert: types.NewBoolOption(true),
 			ClientIdleTimeout:     types.Duration(17 * time.Second),
+			WebIdleTimeout:        types.Duration(19 * time.Second),
 		},
 		SSH: SSH{
 			Service: Service{
@@ -909,6 +910,7 @@ func makeConfigFixture() string {
 	conf.Auth.ListenAddress = "tcp://auth"
 	conf.Auth.LicenseFile = "lic.pem"
 	conf.Auth.ClientIdleTimeout = types.NewDuration(17 * time.Second)
+	conf.Auth.WebIdleTimeout = types.NewDuration(19 * time.Second)
 	conf.Auth.DisconnectExpiredCert = types.NewBoolOption(true)
 
 	// ssh service:

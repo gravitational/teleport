@@ -20,8 +20,10 @@ import (
 	"bytes"
 	"encoding/base64"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -157,18 +159,20 @@ func TestAuthSection(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		desc          string
-		mutate        func(cfgMap)
-		expectError   require.ErrorAssertionFunc
-		expectEnabled require.BoolAssertionFunc
-		expectIdleMsg require.ValueAssertionFunc
+		desc             string
+		mutate           func(cfgMap)
+		expectError      require.ErrorAssertionFunc
+		expectEnabled    require.BoolAssertionFunc
+		expectIdleMsg    require.ValueAssertionFunc
+		expectWebIdleMsg require.ValueAssertionFunc
 	}{
 		{
-			desc:          "Default",
-			mutate:        func(cfg cfgMap) {},
-			expectError:   require.NoError,
-			expectEnabled: require.True,
-			expectIdleMsg: require.Empty,
+			desc:             "Default",
+			mutate:           func(cfg cfgMap) {},
+			expectError:      require.NoError,
+			expectEnabled:    require.True,
+			expectIdleMsg:    require.Empty,
+			expectWebIdleMsg: require.Empty,
 		}, {
 			desc: "Enabled",
 			mutate: func(cfg cfgMap) {
@@ -190,6 +194,21 @@ func TestAuthSection(t *testing.T) {
 			},
 			expectError:   require.NoError,
 			expectIdleMsg: requireEqual("Are you pondering what I'm pondering?"),
+		}, {
+			desc: "Web idle timeout",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "10m"
+
+			},
+			expectError:      require.NoError,
+			expectWebIdleMsg: requireEqual(types.Duration(10 * time.Minute)),
+		}, {
+			desc: "Web idle timeout (invalid)",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
+
+			},
+			expectError: require.Error,
 		},
 	}
 
@@ -206,6 +225,10 @@ func TestAuthSection(t *testing.T) {
 
 			if tt.expectIdleMsg != nil {
 				tt.expectIdleMsg(t, cfg.Auth.ClientIdleTimeoutMessage)
+			}
+
+			if tt.expectWebIdleMsg != nil {
+				tt.expectWebIdleMsg(t, cfg.Auth.WebIdleTimeout)
 			}
 		})
 	}
