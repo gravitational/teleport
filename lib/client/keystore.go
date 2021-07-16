@@ -75,7 +75,7 @@ type LocalKeyStore interface {
 
 	// AddKnownHostKeys adds the public key to the list of known hosts for
 	// a hostname.
-	AddKnownHostKeys(hostname string, proxyHost string, keys []ssh.PublicKey) error
+	AddKnownHostKeys(hostname, proxyHost string, keys []ssh.PublicKey) error
 
 	// GetKnownHostKeys returns all public keys for a hostname.
 	GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error)
@@ -513,7 +513,7 @@ func (fs *fsLocalNonSessionKeyStore) kubeCertPath(idx KeyIndex, kubename string)
 }
 
 // AddKnownHostKeys adds a new entry to `known_hosts` file.
-func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname string, proxyHost string, hostKeys []ssh.PublicKey) (retErr error) {
+func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname, proxyHost string, hostKeys []ssh.PublicKey) (retErr error) {
 	fp, err := os.OpenFile(fs.knownHostsPath(), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -576,7 +576,7 @@ func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname string, proxyHost
 // The `pattern` may be prefixed with `*.` which will match exactly one domain
 // segment, meaning `*.example.com` will match `foo.example.com` but not
 // `foo.bar.example.com`.
-func matchesWildcard(hostname string, pattern string) bool {
+func matchesWildcard(hostname, pattern string) bool {
 	// Don't allow non-wildcard patterns.
 	if !strings.HasPrefix(pattern, "*.") {
 		return false
@@ -584,7 +584,7 @@ func matchesWildcard(hostname string, pattern string) bool {
 
 	// Don't allow empty matches.
 	pattern = pattern[2:]
-	if pattern == "" {
+	if strings.TrimSpace(pattern) == "" {
 		return false
 	}
 
@@ -615,10 +615,7 @@ func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) ([]ssh.Pu
 			hostMatch = (hostname == "")
 			if !hostMatch {
 				for i := range hosts {
-					if hosts[i] == hostname {
-						hostMatch = true
-						break
-					} else if matchesWildcard(hostname, hosts[i]) {
+					if hosts[i] == hostname || matchesWildcard(hostname, hosts[i]) {
 						hostMatch = true
 						break
 					}
@@ -706,7 +703,7 @@ func (noLocalKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
 	return errNoLocalKeyStore
 }
 func (noLocalKeyStore) DeleteKeys() error { return errNoLocalKeyStore }
-func (noLocalKeyStore) AddKnownHostKeys(hostname string, proxyHost string, keys []ssh.PublicKey) error {
+func (noLocalKeyStore) AddKnownHostKeys(hostname, proxyHost string, keys []ssh.PublicKey) error {
 	return errNoLocalKeyStore
 }
 func (noLocalKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {

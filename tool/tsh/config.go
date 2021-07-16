@@ -44,10 +44,7 @@ Host *.{{ .clusterName }} !{{ .proxyHost }}
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
 // template string.
-func writeSSHConfig(
-	sb *strings.Builder, clusterName string, knownHostsPath string,
-	proxyHost string, proxyPort string, leaf bool,
-) error {
+func writeSSHConfig(sb *strings.Builder, clusterName string, knownHostsPath string, proxyHost string, proxyPort string, leaf bool) error {
 	t, err := template.New("ssh-config").Parse(sshConfigTemplate)
 	if err != nil {
 		return trace.Wrap(err)
@@ -61,7 +58,7 @@ func writeSSHConfig(
 		"leaf":           leaf,
 	})
 	if err != nil {
-		return trace.WrapWithMessage(err, "Error generating SSH configuration from template")
+		return trace.WrapWithMessage(err, "error generating SSH configuration from template")
 	}
 
 	return nil

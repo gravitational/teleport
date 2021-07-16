@@ -43,15 +43,15 @@ func parseKnownHost(raw string) (*knownHostEntry, error) {
 	// text to preserve formatting for all passed-through entries.
 	marker, hosts, pubKey, comment, _, err := ssh.ParseKnownHosts([]byte(raw))
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return &knownHostEntry{
-		raw,
-		marker,
-		hosts,
-		pubKey,
-		comment,
+		raw:     raw,
+		marker:  marker,
+		hosts:   hosts,
+		pubKey:  pubKey,
+		comment: comment,
 	}, nil
 }
 
@@ -126,7 +126,7 @@ func pruneOldHostKeys(output []string) []string {
 		parsed, err := parseKnownHost(line)
 		if err != nil {
 			// If the line isn't parseable, pass it through.
-			log.Debugf("Unable to parse known host on line %d, skipping", i+1)
+			log.WithError(err).Debugf("Unable to parse known host on line %d, skipping", i+1)
 			prunedOutput = append(prunedOutput, line)
 			continue
 		}
