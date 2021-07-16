@@ -394,7 +394,7 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServices = tt.kubeServices
-			roles, err := services.FromSpec("ops", types.RoleSpecV3{
+			roles, err := services.FromSpec("ops", types.RoleSpecV4{
 				Allow: types.RoleConditions{
 					KubeUsers:  tt.roleKubeUsers,
 					KubeGroups: tt.roleKubeGroups,
@@ -714,7 +714,7 @@ type mockCSRClient struct {
 }
 
 func newMockCSRClient() (*mockCSRClient, error) {
-	ca, err := tlsca.FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	if err != nil {
 		return nil, err
 	}
@@ -745,7 +745,7 @@ func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse,
 	}
 	return &auth.KubeCSRResponse{
 		Cert:            cert,
-		CertAuthorities: [][]byte{[]byte(fixtures.SigningCertPEM)},
+		CertAuthorities: [][]byte{[]byte(fixtures.TLSCACertPEM)},
 		TargetAddr:      "mock addr",
 	}, nil
 }
@@ -778,7 +778,7 @@ func (ap mockAccessPoint) GetSessionRecordingConfig(context.Context, ...services
 	return ap.recordingConfig, nil
 }
 
-func (ap mockAccessPoint) GetAuthPreference() (types.AuthPreference, error) {
+func (ap mockAccessPoint) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return ap.authPref, nil
 }
 

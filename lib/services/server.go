@@ -264,6 +264,7 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -271,9 +272,6 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 
 	switch server := server.(type) {
 	case *types.ServerV2:
-		if version := server.GetVersion(); version != types.V2 {
-			return nil, trace.BadParameter("mismatched server version %v and type %T", version, server)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

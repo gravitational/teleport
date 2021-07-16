@@ -154,6 +154,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindSemaphore, nil
 	case types.KindKubeService, "kube_services":
 		return types.KindKubeService, nil
+	case types.KindLock, "locks":
+		return types.KindLock, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -478,6 +480,10 @@ func init() {
 // NOTE: This function only supports the subset of resources which may be imported/exported
 // by users (e.g. via `tctl get`).
 func MarshalResource(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+	if err := resource.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	marshal, ok := getResourceMarshaler(resource.GetKind())
 	if !ok {
 		return nil, trace.NotImplemented("cannot dynamically marshal resources of kind %q", resource.GetKind())

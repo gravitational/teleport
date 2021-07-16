@@ -12,7 +12,7 @@ require (
 	github.com/alecthomas/colour v0.1.0 // indirect
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
-	github.com/aquasecurity/tracee/libbpfgo v0.0.0-20210513142145-242d721bad3d
+	github.com/aquasecurity/libbpfgo v0.1.0
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.37.17
 	github.com/beevik/etree v1.1.0
@@ -35,6 +35,7 @@ require (
 	github.com/google/go-cmp v0.5.4
 	github.com/google/gops v0.3.14
 	github.com/google/uuid v1.2.0
+	github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
@@ -46,10 +47,11 @@ require (
 	github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
 	github.com/gravitational/roundtrip v1.0.0
 	github.com/gravitational/teleport/api v0.0.0
-	github.com/gravitational/trace v1.1.15
+	github.com/gravitational/trace v1.1.16-0.20210609220119-4855e69c89fc
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jackc/pgconn v1.8.0
+	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
 	github.com/jackc/pgproto3/v2 v2.0.7
 	github.com/johannesboyne/gofakes3 v0.0.0-20210217223559-02ffa763be97
 	github.com/jonboulle/clockwork v0.2.2
@@ -72,6 +74,7 @@ require (
 	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635
 	github.com/nsf/termbox-go v0.0.0-20210114135735-d04385b850e8 // indirect
 	github.com/pborman/uuid v1.2.1
+	github.com/pkg/errors v0.9.1
 	github.com/pquerna/otp v1.3.0
 	github.com/prometheus/client_golang v1.9.0
 	github.com/prometheus/client_model v0.2.0
@@ -91,6 +94,7 @@ require (
 	github.com/xeipuuv/gojsonreference v0.0.0-20150808065054-e02fc20de94c // indirect
 	github.com/xeipuuv/gojsonschema v0.0.0-20151204154511-3988ac14d6f6 // indirect
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20201125193152-8a03d2e9614b
+	go.mongodb.org/mongo-driver v1.5.3
 	go.opencensus.io v0.22.5 // indirect
 	go.uber.org/atomic v1.7.0
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83

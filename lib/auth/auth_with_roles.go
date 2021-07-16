@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -659,6 +660,49 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 		len(nodes), len(filteredNodes), elapsedFetch+elapsedFilter)
 
 	return filteredNodes, nil
+}
+
+// ListNodes returns a paginated list of nodes filtered by user access.
+func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.filterAndListNodes(ctx, namespace, limit, startKey)
+}
+
+func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive parameter limit")
+	}
+
+	page = make([]types.Server, 0, limit)
+	nextKey, err = a.authServer.IterateNodePages(ctx, namespace, limit, startKey, func(nextPage []types.Server) (bool, error) {
+		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
+		filteredPage, err := a.filterNodes(nextPage)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		// We have more than enough nodes to fill the page, cut it to size.
+		if len(filteredPage) > limit-len(page) {
+			filteredPage = filteredPage[:limit-len(page)]
+		}
+
+		// Add filteredPage and break out of iterator if the page is now full.
+		page = append(page, filteredPage...)
+		return len(page) == limit, nil
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Filled a page, reset nextKey in case the last node was cut out.
+	if len(page) == limit {
+		nextKey = backend.NextPaginationKey(page[len(page)-1])
+	}
+
+	return page, nextKey, nil
 }
 
 func (a *ServerWithRoles) UpsertAuthServer(s types.Server) error {
@@ -2214,17 +2258,17 @@ func (a *ServerWithRoles) SetStaticTokens(s types.StaticTokens) error {
 }
 
 // GetAuthPreference gets cluster auth preference.
-func (a *ServerWithRoles) GetAuthPreference() (types.AuthPreference, error) {
+func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuthPreference, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetAuthPreference()
+	return a.authServer.GetAuthPreference(ctx)
 }
 
 // SetAuthPreference sets cluster auth preference.
-func (a *ServerWithRoles) SetAuthPreference(newAuthPref types.AuthPreference) error {
-	storedAuthPref, err := a.authServer.GetAuthPreference()
+func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref types.AuthPreference) error {
+	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2235,12 +2279,12 @@ func (a *ServerWithRoles) SetAuthPreference(newAuthPref types.AuthPreference) er
 		}
 	}
 
-	return a.authServer.SetAuthPreference(newAuthPref)
+	return a.authServer.SetAuthPreference(ctx, newAuthPref)
 }
 
 // ResetAuthPreference resets cluster auth preference to defaults.
 func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
-	storedAuthPref, err := a.authServer.GetAuthPreference()
+	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2252,11 +2296,29 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetAuthPreference(types.DefaultAuthPreference())
+	return a.authServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
 }
 
 // DeleteAuthPreference not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAuthPreference(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetClusterAuditConfig gets cluster audit configuration.
+func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	if err := a.action(apidefaults.Namespace, types.KindClusterAuditConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetClusterAuditConfig(ctx, opts...)
+}
+
+// SetClusterAuditConfig not implemented: can only be called locally.
+func (a *ServerWithRoles) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteClusterAuditConfig not implemented: can only be called locally.
+func (a *ServerWithRoles) DeleteClusterAuditConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -2904,7 +2966,7 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 		return trace.Wrap(err)
 	}
 
-	ap, err := a.authServer.GetAuthPreference()
+	ap, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3016,12 +3078,12 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 }
 
 // SearchEvents allows searching audit events with pagination support.
-func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
+func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
 	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	events, lastKey, err = a.alog.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+	events, lastKey, err = a.alog.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3030,17 +3092,73 @@ func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace strin
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.
-func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
+func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
 	if err := a.action(apidefaults.Namespace, types.KindSession, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
+	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	return events, lastKey, nil
+}
+
+// GetLock gets a lock by name.
+func (a *ServerWithRoles) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetLock(ctx, name)
+}
+
+// GetLocks gets all locks, matching at least one of the targets when specified.
+func (a *ServerWithRoles) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetLocks(ctx, targets...)
+}
+
+// UpsertLock upserts a lock.
+func (a *ServerWithRoles) UpsertLock(ctx context.Context, lock types.Lock) error {
+	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertLock(ctx, lock)
+}
+
+// DeleteLock deletes a lock.
+func (a *ServerWithRoles) DeleteLock(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteLock(ctx, name)
+}
+
+// DeleteAllLocks not implemented: can only be called locally.
+func (a *ServerWithRoles) DeleteAllLocks(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	if err := a.action(apidefaults.Namespace, types.KindSession, types.VerbList); err != nil {
+		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

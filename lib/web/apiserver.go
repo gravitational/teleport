@@ -132,6 +132,8 @@ type Config struct {
 	ProxySSHAddr utils.NetAddr
 	// ProxyWebAddr points to the web (HTTPS) address of the proxy
 	ProxyWebAddr utils.NetAddr
+	// ProxyPublicAddr contains web proxy public addresses.
+	ProxyPublicAddrs []utils.NetAddr
 
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
@@ -174,9 +176,6 @@ type RewritingHandler struct {
 
 	// appHandler is a http.Handler to forward requests to applications.
 	appHandler *app.Handler
-
-	// publicAddr is the public address the proxy is running at.
-	publicAddr string
 }
 
 // Check if this request should be forwarded to an application handler to
@@ -190,7 +189,7 @@ func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
-	if redir, ok := app.HasName(r, h.publicAddr); ok {
+	if redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs); ok {
 		http.Redirect(w, r, redir, http.StatusFound)
 		return
 	}
@@ -302,8 +301,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
 
-	// recorded sessions handlers
-	h.GET("/webapi/sites/:site/events", h.WithClusterAuth(h.clusterSearchSessionEvents))                               // get recorded list of sessions (from events)
+	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                               // search site events
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
@@ -479,7 +477,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		),
 		handler:    h,
 		appHandler: appHandler,
-		publicAddr: cfg.ProxySettings.SSH.PublicAddr,
 	}, nil
 }
 
@@ -599,7 +596,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 }
 
 func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
@@ -702,7 +699,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	authClient := h.cfg.ProxyClient
 	connectorName := p.ByName("connector")
 
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -797,7 +794,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	authType := constants.Local
 	secondFactor := constants.SecondFactorOff
 	localAuth := true
-	cap, err := h.cfg.ProxyClient.GetAuthPreference()
+	cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
 	} else {
@@ -863,7 +860,7 @@ func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pairs := ca.GetJWTKeyPairs()
+	pairs := ca.GetTrustedJWTKeyPairs()
 
 	// Create response and allocate space for the keys.
 	var resp JWKSResponse
@@ -1242,7 +1239,10 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token := ctx.getToken()
+	token, err := ctx.getToken()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	user, err := clt.GetUser(ctx.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1286,7 +1286,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	// get cluster preferences to see if we should login
 	// with password or password+otp
 	authClient := h.cfg.ProxyClient
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1881,84 +1881,44 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 	return el, nil
 }
 
-// clusterSearchSessionEvents allows to search for session events on a cluster
-//
-// GET /v1/webapi/sites/:site/events
-//
-// Query parameters:
-//   "from"  : date range from, encoded as RFC3339
-//   "to"    : date range to, encoded as RFC3339
-//   ...     : the rest of the query string is passed to the search back-end as-is,
-//             the default backend performs exact search: ?key=value means "event
-//             with a field 'key' with value 'value'
-//
-func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	query := r.URL.Query()
-
-	clt, err := ctx.GetUserClient(site)
-	if err != nil {
-		h.log.WithError(err).Error("Failed to query user for site.")
-		return nil, trace.Wrap(err)
-	}
-
-	// default values
-	to := time.Now().In(time.UTC)
-	from := to.AddDate(0, -1, 0) // one month ago
-
-	// parse 'to' and 'from' params:
-	fromStr := query.Get("from")
-	if fromStr != "" {
-		from, err = time.Parse(time.RFC3339, fromStr)
-		if err != nil {
-			return nil, trace.BadParameter("from")
-		}
-	}
-	toStr := query.Get("to")
-	if toStr != "" {
-		to, err = time.Parse(time.RFC3339, toStr)
-		if err != nil {
-			return nil, trace.BadParameter("to")
-		}
-	}
-
-	rawEvents, _, err := clt.SearchSessionEvents(from, to, defaults.EventsIterationLimit, "")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	el, err := toFieldsSlice(rawEvents)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return eventsListGetResponse{Events: el}, nil
-}
-
 // clusterSearchEvents returns all audit log events matching the provided criteria
 //
 // GET /v1/webapi/sites/:site/events/search
 //
 // Query parameters:
-//   "from"   : date range from, encoded as RFC3339
-//   "to"     : date range to, encoded as RFC3339
-//   "include": optional semicolon-separated list of event names to return e.g.
-//              include=session.start;session.end, all are returned if empty
-//   "limit"  : optional maximum number of events to return
-//
+//   "from"    : date range from, encoded as RFC3339
+//   "to"      : date range to, encoded as RFC3339
+//   "limit"   : optional maximum number of events to return on each fetch
+//   "startKey": resume events search from the last event received,
+//               empty string means start search from beginning
+//   "include" : optional comma-separated list of event names to return e.g.
+//               include=session.start,session.end, all are returned if empty
+//   "order":    optional ordering of events. Can be either "asc" or "desc"
+//               for ascending and descending respectively.
+//               If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
+
 	from, err := queryTime(values, "from", time.Now().UTC().AddDate(0, -1, 0))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	to, err := queryTime(values, "to", time.Now().UTC())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	limit, err := queryLimit(values, "limit", defaults.EventsIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	order, err := queryOrder(values, "order", types.EventOrderDescending)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1966,10 +1926,11 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 
 	var eventTypes []string
 	if include := values.Get("include"); include != "" {
-		eventTypes = strings.Split(include, ";")
+		eventTypes = strings.Split(include, ",")
 	}
 
-	rawEvents, _, err := clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, "")
+	startKey := values.Get("startKey")
+	rawEvents, lastKey, err := clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, order, startKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1979,7 +1940,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	return eventsListGetResponse{Events: el}, nil
+	return eventsListGetResponse{Events: el, StartKey: lastKey}, nil
 }
 
 // queryTime parses the query string parameter with the specified name as a
@@ -2012,6 +1973,22 @@ func queryLimit(query url.Values, name string, def int) (int, error) {
 		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
 	}
 	return limit, nil
+}
+
+// queryOrder returns the order parameter with the specified name from the
+// query string or a default if the parameter is not provided.
+func queryOrder(query url.Values, name string, def types.EventOrder) (types.EventOrder, error) {
+	value := query.Get(name)
+	switch value {
+	case "desc":
+		return types.EventOrderDescending, nil
+	case "asc":
+		return types.EventOrderAscending, nil
+	case "":
+		return def, nil
+	default:
+		return types.EventOrderAscending, trace.BadParameter("parameter %v is not a valid ordering", value)
+	}
 }
 
 // siteSessionStreamGet returns a byte array from a session's stream
@@ -2123,7 +2100,10 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 }
 
 type eventsListGetResponse struct {
+	// Events is list of events retrieved.
 	Events []events.EventFields `json:"events"`
+	// StartKey is the position to resume search events.
+	StartKey string `json:"startKey"`
 }
 
 // siteSessionEventsGet gets the site session by id
@@ -2203,7 +2183,7 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	authClient := h.cfg.ProxyClient
-	cap, err := authClient.GetAuthPreference()
+	cap, err := authClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

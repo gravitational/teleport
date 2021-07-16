@@ -101,6 +101,10 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 
 // MarshalProvisionToken marshals the ProvisionToken resource to JSON.
 func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalOption) ([]byte, error) {
+	if err := provisionToken.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -108,9 +112,6 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 
 	switch provisionToken := provisionToken.(type) {
 	case *types.ProvisionTokenV2:
-		if version := provisionToken.GetVersion(); version != types.V2 {
-			return nil, trace.BadParameter("mismatched provision token version %v and type %T", version, provisionToken)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

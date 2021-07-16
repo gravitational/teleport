@@ -226,6 +226,9 @@ func TestConfigReading(t *testing.T) {
 			Logger: Log{
 				Output:   "stderr",
 				Severity: "INFO",
+				Format: LogFormat{
+					Output: "text",
+				},
 			},
 			Storage: backend.Config{
 				Type: "bolt",
@@ -382,11 +385,11 @@ func TestTrustedClusters(t *testing.T) {
 	require.Len(t, authorities, 2)
 	require.Equal(t, "cluster-a", authorities[0].GetClusterName())
 	require.Equal(t, types.HostCA, authorities[0].GetType())
-	require.Len(t, authorities[0].GetCheckingKeys(), 1)
+	require.Len(t, authorities[0].GetActiveKeys().SSH, 1)
 	require.Equal(t, "cluster-a", authorities[1].GetClusterName())
 	require.Equal(t, types.UserCA, authorities[1].GetType())
-	require.Len(t, authorities[1].GetCheckingKeys(), 1)
-	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetCheckingKeys()[0])
+	require.Len(t, authorities[1].GetActiveKeys().SSH, 1)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetActiveKeys().SSH[0].PublicKey)
 	require.NoError(t, err)
 
 	tunnels := conf.ReverseTunnels
@@ -522,6 +525,8 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://postgres.example:5432", cfg.Proxy.PostgresPublicAddrs[0].FullAddress())
 	require.Len(t, cfg.Proxy.MySQLPublicAddrs, 1)
 	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
+
+	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
 	u2fCAFromFile, err := ioutil.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
@@ -822,14 +827,6 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			EnabledFlag:    "yes",
 			ListenAddress:  "auth:3025",
 		},
-		Authorities: []Authority{{
-			Type:             types.HostCA,
-			DomainName:       "example.com",
-			CheckingKeys:     []string{"checking key 1"},
-			CheckingKeyFiles: []string{"/ca.checking.key"},
-			SigningKeys:      []string{"signing key 1"},
-			SigningKeyFiles:  []string{"/ca.signing.key"},
-		}},
 		ReverseTunnels: []ReverseTunnel{
 			{
 				DomainName: "tunnel.example.com",
@@ -904,6 +901,7 @@ func makeConfigFixture() string {
 	conf.Limits.Rates = ConnectionRates
 	conf.Logger.Output = "stderr"
 	conf.Logger.Severity = "INFO"
+	conf.Logger.Format = LogFormat{Output: "text"}
 	conf.Storage.Type = "bolt"
 
 	// auth service:
@@ -1411,21 +1409,6 @@ db_service:
 `,
 			outError: `invalid database "foo" address`,
 		},
-		{
-			desc: "missing Redshift region",
-			inConfigString: `
-db_service:
-  enabled: true
-  databases:
-  - name: foo
-    protocol: postgres
-    uri: 192.168.1.1:5438
-    aws:
-      redshift:
-        cluster_id: cluster-1
-`,
-			outError: `missing AWS region for Redshift database "foo"`,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -1605,11 +1588,37 @@ func TestTextFormatter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
 			formatter := &textFormatter{
-				LogFormat: tt.formatConfig,
+				ExtraFields: tt.formatConfig,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
-
 		})
 	}
+}
 
+func TestJSONFormatter(t *testing.T) {
+	tests := []struct {
+		comment     string
+		extraFields []string
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			comment:     "invalid key (does not exist)",
+			extraFields: []string{"level", "invalid key"},
+			assertErr:   require.Error,
+		},
+		{
+			comment:     "valid keys and formatting",
+			extraFields: []string{"level", "caller", "component", "timestamp"},
+			assertErr:   require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.comment, func(t *testing.T) {
+			formatter := &jsonFormatter{
+				extraFields: tt.extraFields,
+			}
+			tt.assertErr(t, formatter.CheckAndSetDefaults())
+		})
+	}
 }

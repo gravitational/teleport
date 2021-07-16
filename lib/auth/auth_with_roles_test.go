@@ -24,11 +24,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -129,13 +131,14 @@ func TestGenerateDatabaseCert(t *testing.T) {
 // TestSetAuthPreference tests the dynamic configuration rules described
 // in rfd/0016-dynamic-configuration.md § Implementation.
 func TestSetAuthPreference(t *testing.T) {
+	ctx := context.Background()
 	testAuth, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
 	// Initialize with the default auth preference.
-	err = testAuth.AuthServer.SetAuthPreference(types.DefaultAuthPreference())
+	err = testAuth.AuthServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
-	storedAuthPref, err := testAuth.AuthServer.GetAuthPreference()
+	storedAuthPref, err := testAuth.AuthServer.GetAuthPreference(ctx)
 	require.NoError(t, err)
 	require.Empty(t, resourceDiff(storedAuthPref, types.DefaultAuthPreference()))
 
@@ -153,9 +156,9 @@ func TestSetAuthPreference(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Run("from default to dynamic", func(t *testing.T) {
-		err = server.SetAuthPreference(dynamicAuthPref)
+		err = server.SetAuthPreference(ctx, dynamicAuthPref)
 		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference()
+		storedAuthPref, err = server.GetAuthPreference(ctx)
 		require.NoError(t, err)
 		require.Empty(t, resourceDiff(storedAuthPref, dynamicAuthPref))
 	})
@@ -165,18 +168,18 @@ func TestSetAuthPreference(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Run("from dynamic to another dynamic", func(t *testing.T) {
-		err = server.SetAuthPreference(newDynamicAuthPref)
+		err = server.SetAuthPreference(ctx, newDynamicAuthPref)
 		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference()
+		storedAuthPref, err = server.GetAuthPreference(ctx)
 		require.NoError(t, err)
 		require.Empty(t, resourceDiff(storedAuthPref, newDynamicAuthPref))
 	})
 
 	staticAuthPref := newU2FAuthPreferenceFromConfigFile(t)
 	t.Run("from dynamic to static", func(t *testing.T) {
-		err = server.SetAuthPreference(staticAuthPref)
+		err = server.SetAuthPreference(ctx, staticAuthPref)
 		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference()
+		storedAuthPref, err = server.GetAuthPreference(ctx)
 		require.NoError(t, err)
 		require.Empty(t, resourceDiff(storedAuthPref, staticAuthPref))
 	})
@@ -187,14 +190,14 @@ func TestSetAuthPreference(t *testing.T) {
 	require.NoError(t, err)
 	replaceStatic := func(success bool) func(t *testing.T) {
 		return func(t *testing.T) {
-			err = server.SetAuthPreference(newAuthPref)
+			err = server.SetAuthPreference(ctx, newAuthPref)
 			checkSetResult := require.Error
 			if success {
 				checkSetResult = require.NoError
 			}
 			checkSetResult(t, err)
 
-			storedAuthPref, err = server.GetAuthPreference()
+			storedAuthPref, err = server.GetAuthPreference(ctx)
 			require.NoError(t, err)
 			expectedStored := staticAuthPref
 			if success {
@@ -237,4 +240,59 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 		cmpopts.EquateEmpty())
+}
+
+// TestListNodes users can retrieve nodes with the appropriate permissions.
+func TestListNodes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	for i := 0; i < 10; i++ {
+		name := uuid.New()
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to list all nodes
+	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// listing nodes 0-4 should list first 5 nodes
+	nodes, _, err := clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	require.NoError(t, err)
+	require.EqualValues(t, 5, len(nodes))
+	expectedNodes := testNodes[:5]
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+
+	// remove permission for third node
+	role.SetNodeLabels(types.Deny, types.Labels{"name": {testNodes[3].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// listing nodes 0-4 should skip the third node and add the fifth to the end.
+	nodes, _, err = clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	require.NoError(t, err)
+	require.EqualValues(t, 5, len(nodes))
+	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
 }

@@ -20,14 +20,15 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"net"
-	"strings"
 	"sync/atomic"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgproto3/v2"
 
 	"github.com/gravitational/trace"
@@ -95,7 +96,7 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "postgres",
+			trace.Component: defaults.ProtocolPostgres,
 			"name":          config.Name,
 		}),
 	}, nil
@@ -108,7 +109,7 @@ func (s *TestServer) Serve() error {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
+			if utils.IsOKNetworkError(err) {
 				return nil
 			}
 			s.log.WithError(err).Error("Failed to accept connection.")
@@ -203,6 +204,11 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend) error {
 	// simulates cloud provider IAM auth.
 	if s.cfg.AuthToken != "" {
 		if err := s.handlePasswordAuth(client); err != nil {
+			if trace.IsAccessDenied(err) {
+				if err := client.Send(&pgproto3.ErrorResponse{Code: pgerrcode.InvalidPassword, Message: err.Error()}); err != nil {
+					return trace.Wrap(err)
+				}
+			}
 			return trace.Wrap(err)
 		}
 	}

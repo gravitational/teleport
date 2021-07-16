@@ -44,9 +44,9 @@ type ClusterConfiguration interface {
 	DeleteStaticTokens() error
 
 	// GetAuthPreference gets types.AuthPreference from the backend.
-	GetAuthPreference() (types.AuthPreference, error)
+	GetAuthPreference(context.Context) (types.AuthPreference, error)
 	// SetAuthPreference sets types.AuthPreference from the backend.
-	SetAuthPreference(types.AuthPreference) error
+	SetAuthPreference(context.Context, types.AuthPreference) error
 	// DeleteAuthPreference deletes types.AuthPreference from the backend.
 	DeleteAuthPreference(ctx context.Context) error
 
@@ -57,12 +57,20 @@ type ClusterConfiguration interface {
 	// DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.
 	DeleteSessionRecordingConfig(ctx context.Context) error
 
+	// DELETE IN 8.0.0: ClusterConfig and all related methods.
 	// GetClusterConfig gets services.ClusterConfig from the backend.
 	GetClusterConfig(opts ...MarshalOption) (types.ClusterConfig, error)
 	// SetClusterConfig sets services.ClusterConfig on the backend.
 	SetClusterConfig(types.ClusterConfig) error
 	// DeleteClusterConfig deletes cluster config resource
 	DeleteClusterConfig() error
+
+	// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
+	GetClusterAuditConfig(context.Context, ...MarshalOption) (types.ClusterAuditConfig, error)
+	// SetClusterAuditConfig sets ClusterAuditConfig from the backend.
+	SetClusterAuditConfig(context.Context, types.ClusterAuditConfig) error
+	// DeleteClusterAuditConfig deletes ClusterAuditConfig from the backend.
+	DeleteClusterAuditConfig(ctx context.Context) error
 
 	// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
 	GetClusterNetworkingConfig(context.Context, ...MarshalOption) (types.ClusterNetworkingConfig, error)

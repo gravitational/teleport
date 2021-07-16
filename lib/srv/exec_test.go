@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -88,7 +89,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	bk, err := lite.NewWithConfig(ctx, lite.Config{Path: c.MkDir()})
 	c.Assert(err, check.IsNil)
 
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "localhost",
 	})
 	c.Assert(err, check.IsNil)
@@ -539,12 +540,18 @@ func (a *fakeLog) GetSessionEvents(namespace string, sid rsession.ID, after int,
 	return nil, trace.NotFound("")
 }
 
-func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotFound("")
 }
 
-func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotFound("")
+}
+
+func (a *fakeLog) StreamSessionEvents(ctx context.Context, sessionID rsession.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	e <- trace.NotImplemented("not implemented")
+	return c, e
 }
 
 func (a *fakeLog) WaitForDelivery(context.Context) error {

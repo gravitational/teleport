@@ -34,6 +34,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -48,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -314,6 +315,16 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.CAPin = fc.CAPin
 	}
 
+	// Set diagnostic address
+	if fc.DiagAddr != "" {
+		// Validate address
+		parsed, err := utils.ParseAddr(fc.DiagAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.DiagnosticAddr = *parsed
+	}
+
 	// apply connection throttling:
 	limiters := []*limiter.Config{
 		&cfg.SSH.Limiter,
@@ -397,10 +408,9 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		}
 		logger.SetOutput(logFile)
 	}
+
 	switch strings.ToLower(loggerConfig.Severity) {
-	case "":
-		break // not set
-	case "info":
+	case "", "info":
 		logger.SetLevel(log.InfoLevel)
 	case "err", "error":
 		logger.SetLevel(log.ErrorLevel)
@@ -412,15 +422,34 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
-	formatter := &textFormatter{
-		LogFormat:    loggerConfig.Format,
-		EnableColors: trace.IsTerminal(os.Stderr),
+	switch strings.ToLower(loggerConfig.Format.Output) {
+	case "":
+		fallthrough // not set. defaults to 'text'
+	case "text":
+		formatter := &textFormatter{
+			ExtraFields:  loggerConfig.Format.ExtraFields,
+			EnableColors: trace.IsTerminal(os.Stderr),
+		}
+
+		if err := formatter.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		logger.SetFormatter(formatter)
+	case "json":
+		formatter := &jsonFormatter{
+			extraFields: loggerConfig.Format.ExtraFields,
+		}
+
+		if err := formatter.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		logger.SetFormatter(formatter)
+	default:
+		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
-	err := formatter.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	logger.Formatter = formatter
+
 	return nil
 }
 
@@ -444,18 +473,6 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Auth.SSHAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
-	}
-
-	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
-	// same pattern as the rest of the configuration (they are not configuration
-	// singletons). However, we need to keep them around while Telekube uses them.
-	for _, authority := range fc.Auth.Authorities {
-		ca, role, err := authority.Parse()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Auth.Authorities = append(cfg.Auth.Authorities, ca)
-		cfg.Auth.Roles = append(cfg.Auth.Roles, role)
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
 		tun, err := t.ConvertAndValidate()
@@ -502,26 +519,24 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		log.Warnf(warningMessage)
 	}
 
-	auditConfig, err := services.AuditConfigFromObject(fc.Storage.Params)
+	// Set cluster audit configuration from file configuration.
+	auditConfigSpec, err := services.ClusterAuditConfigSpecFromObject(fc.Storage.Params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	auditConfig.Type = fc.Storage.Type
-
-	// Set cluster-wide configuration from file configuration.
-	cfg.Auth.ClusterConfig, err = types.NewClusterConfig(types.ClusterConfigSpecV3{
-		Audit: *auditConfig,
-	})
+	auditConfigSpec.Type = fc.Storage.Type
+	cfg.Auth.AuditConfig, err = types.NewClusterAuditConfig(*auditConfigSpec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Set cluster networking configuration from file configuration.
 	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
-		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
-		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
-		SessionControlTimeout: fc.Auth.SessionControlTimeout,
+		ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
+		ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
+		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
+		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
+		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -741,7 +756,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Proxy.ACME = *acme
 
 	return nil
-
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
@@ -813,6 +827,8 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
 		}
 	}
+
+	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
 
 	return nil
 }
@@ -994,14 +1010,20 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 	}
 
 	// create a new certificate authority
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         types.UserCA,
-		ClusterName:  clusterName,
-		SigningKeys:  nil,
-		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubkey)},
-		Roles:        nil,
-		SigningAlg:   types.CertAuthoritySpecV2_UNKNOWN,
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PublicKey: ssh.MarshalAuthorizedKey(pubkey),
+			}},
+		},
+		Roles:      nil,
+		SigningAlg: types.CertAuthoritySpecV2_UNKNOWN,
 	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -1035,11 +1057,18 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority,
 	const prefix = "*."
 	domainName := strings.TrimPrefix(options[0], prefix)
 
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         authType,
-		ClusterName:  domainName,
-		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        authType,
+		ClusterName: domainName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PublicKey: ssh.MarshalAuthorizedKey(pubKey),
+			}},
+		},
 	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -1142,7 +1171,11 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 			tunnelAddresses = append(tunnelAddresses, addr.FullAddress())
 		}
 		if len(tunnelAddresses) > 0 {
-			conf.ReverseTunnels = append(conf.ReverseTunnels, types.NewReverseTunnel(clusterName, tunnelAddresses))
+			rt, err := types.NewReverseTunnel(clusterName, tunnelAddresses)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			conf.ReverseTunnels = append(conf.ReverseTunnels, rt)
 		}
 	}
 	return nil

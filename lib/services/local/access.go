@@ -44,7 +44,7 @@ func (s *AccessService) DeleteAllRoles() error {
 
 // GetRoles returns a list of roles registered with the local auth server
 func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
-	result, err := s.GetRange(context.TODO(), backend.Key(rolesPrefix), backend.RangeEnd(backend.Key(rolesPrefix)), backend.NoLimit)
+	result, err := s.GetRange(ctx, backend.Key(rolesPrefix), backend.RangeEnd(backend.Key(rolesPrefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -107,7 +107,7 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 	if name == "" {
 		return nil, trace.BadParameter("missing role name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(rolesPrefix, name, paramsPrefix))
+	item, err := s.Get(ctx, backend.Key(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("role %v is not found", name)
@@ -132,7 +132,96 @@ func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
+// GetLock gets a lock by name.
+func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing lock name")
+	}
+	item, err := s.Get(ctx, backend.Key(locksPrefix, name))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("lock %q is not found", name)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+}
+
+// GetLocks gets all locks, matching at least one of the targets when specified.
+func (s *AccessService) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+	startKey := backend.Key(locksPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := []types.Lock{}
+	for _, item := range result.Items {
+		lock, err := services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// If no targets specified, return all of the found locks.
+		if len(targets) == 0 {
+			out = append(out, lock)
+			continue
+		}
+		// Otherwise, use the targets as filters.
+		for _, target := range targets {
+			match, err := target.Match(lock)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if match {
+				out = append(out, lock)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// UpsertLock upserts a lock.
+func (s *AccessService) UpsertLock(ctx context.Context, lock types.Lock) error {
+	value, err := services.MarshalLock(lock)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(locksPrefix, lock.GetName()),
+		Value:   value,
+		Expires: lock.Expiry(),
+		ID:      lock.GetResourceID(),
+	}
+
+	if _, err = s.Put(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteLock deletes a lock.
+func (s *AccessService) DeleteLock(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing lock name")
+	}
+	err := s.Delete(ctx, backend.Key(locksPrefix, name))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("lock %q is not found", name)
+		}
+	}
+	return trace.Wrap(err)
+}
+
+// DeleteLock deletes all locks.
+func (s *AccessService) DeleteAllLocks(ctx context.Context) error {
+	startKey := backend.Key(locksPrefix)
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
 const (
 	rolesPrefix  = "roles"
 	paramsPrefix = "params"
+	locksPrefix  = "locks"
 )

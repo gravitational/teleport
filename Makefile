@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=7.0.0-dev
+VERSION=7.0.0-beta.1
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -120,7 +120,7 @@ ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
 
-VERSRC = version.go gitref.go
+VERSRC = version.go gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
@@ -134,7 +134,7 @@ export
 #            This is the default build target for convenience of working on
 #            a web UI.
 .PHONY: all
-all: $(VERSRC)
+all: version
 	@echo "---> Building OSS binaries."
 	$(MAKE) $(BINARIES)
 
@@ -457,7 +457,11 @@ lint-helm:
 		fi; \
 	done
 
-# This rule triggers re-generation of version.go and gitref.go if Makefile changes
+# This rule triggers re-generation of version files if Makefile changes.
+.PHONY: version
+version: $(VERSRC)
+
+# This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 

@@ -274,11 +274,12 @@ func (a *Server) RotateExternalCertAuthority(ca types.CertAuthority) error {
 	}
 
 	updated := existing.Clone()
-	if err := updated.SetCheckingKeys(ca.GetCheckingKeys()); err != nil {
+	if err := updated.SetActiveKeys(ca.GetActiveKeys().Clone()); err != nil {
 		return trace.Wrap(err)
 	}
-	updated.SetTLSKeyPairs(ca.GetTLSKeyPairs())
-	updated.SetJWTKeyPairs(ca.GetJWTKeyPairs())
+	if err := updated.SetAdditionalTrustedKeys(ca.GetAdditionalTrustedKeys().Clone()); err != nil {
+		return trace.Wrap(err)
+	}
 	updated.SetRotation(ca.GetRotation())
 
 	// use compare and swap to protect from concurrent updates
@@ -444,9 +445,7 @@ func processRotationRequest(req rotationReq) (types.CertAuthority, error) {
 		// to standby, servers will only trust one certificate authority.
 		switch rotation.Phase {
 		case types.RotationPhaseUpdateServers, types.RotationPhaseRollback:
-			if err := completeRotation(req.clock, ca); err != nil {
-				return nil, trace.Wrap(err)
-			}
+			completeRotation(req.clock, ca)
 			return ca, nil
 		default:
 			return nil, trace.BadParameter(
@@ -461,8 +460,8 @@ func processRotationRequest(req rotationReq) (types.CertAuthority, error) {
 }
 
 // startNewRotation starts new rotation. In this phase requests will continue
-// to be signed by the old CA (index 0), but a new CA (index 1) will be added.
-// This new CA can be used to verify requests.
+// to be signed by the old CAKeySet, but a new CAKeySet will be added. This new
+// CA can be used to verify requests.
 func startNewRotation(req rotationReq, ca types.CertAuthority) error {
 	clock := req.clock
 	gracePeriod := req.gracePeriod
@@ -536,23 +535,28 @@ func startNewRotation(req rotationReq, ca types.CertAuthority) error {
 		}
 	}
 
-	tlsKeyPair := types.TLSKeyPair{
-		Cert: tlsPublicKey,
-		Key:  tlsPrivateKey,
+	sshKeyPair := &types.SSHKeyPair{
+		PublicKey:      sshPublicKey,
+		PrivateKey:     sshPrivateKey,
+		PrivateKeyType: types.PrivateKeyType_RAW,
 	}
-	jwtKeyPair := types.JWTKeyPair{
-		PublicKey:  jwtPublicKey,
-		PrivateKey: jwtPrivateKey,
+	tlsKeyPair := &types.TLSKeyPair{
+		Cert:    tlsPublicKey,
+		Key:     tlsPrivateKey,
+		KeyType: types.PrivateKeyType_RAW,
+	}
+	jwtKeyPair := &types.JWTKeyPair{
+		PublicKey:      jwtPublicKey,
+		PrivateKey:     jwtPrivateKey,
+		PrivateKeyType: types.PrivateKeyType_RAW,
 	}
 
 	rotation.Started = clock.Now().UTC()
 	rotation.GracePeriod = types.NewDuration(gracePeriod)
 	rotation.CurrentID = id
 
-	signingKeys := ca.GetSigningKeys()
-	checkingKeys := ca.GetCheckingKeys()
-	tlsKeyPairs := ca.GetTLSKeyPairs()
-	jwtKeyPairs := ca.GetJWTKeyPairs()
+	activeKeys := ca.GetActiveKeys()
+	var additionalTrustedKeys types.CAKeySet
 
 	// If no grace period was set, drop old certificate authority without keeping
 	// it as trusted.
@@ -562,17 +566,16 @@ func startNewRotation(req rotationReq, ca types.CertAuthority) error {
 	// not used in the cluster.
 	if gracePeriod == 0 {
 		// Perform a length check because not every CA has all types of keys.
-		// For example, a JWT types.CertAuthority will not have SSH or TLS keys.
-		// Similarly SSH and TLS types.CertAuthority do not have JWT keys.
-		if len(signingKeys) > 0 {
-			signingKeys = [][]byte{sshPrivateKey}
-			checkingKeys = [][]byte{sshPublicKey}
+		// For example, a JWT services.CertAuthority will not have SSH or TLS keys.
+		// Similarly SSH and TLS services.CertAuthority do not have JWT keys.
+		if len(activeKeys.SSH) > 0 {
+			activeKeys.SSH = []*types.SSHKeyPair{sshKeyPair}
 		}
-		if len(tlsKeyPairs) > 0 {
-			tlsKeyPairs = []types.TLSKeyPair{tlsKeyPair}
+		if len(activeKeys.TLS) > 0 {
+			activeKeys.TLS = []*types.TLSKeyPair{tlsKeyPair}
 		}
-		if len(jwtKeyPairs) > 0 {
-			jwtKeyPairs = []types.JWTKeyPair{jwtKeyPair}
+		if len(activeKeys.JWT) > 0 {
+			activeKeys.JWT = []*types.JWTKeyPair{jwtKeyPair}
 		}
 
 		// In case of forced rotation, rotation has been started and completed
@@ -581,17 +584,16 @@ func startNewRotation(req rotationReq, ca types.CertAuthority) error {
 		rotation.Phase = types.RotationPhaseStandby
 	} else {
 		// Perform a length check because not every CA has all types of keys.
-		// For example, a JWT types.CertAuthority will not have SSH or TLS keys.
-		// Similarly SSH and TLS types.CertAuthority do not have JWT keys.
-		if len(signingKeys) > 0 {
-			signingKeys = [][]byte{signingKeys[0], sshPrivateKey}
-			checkingKeys = [][]byte{checkingKeys[0], sshPublicKey}
+		// For example, a JWT services.CertAuthority will not have SSH or TLS keys.
+		// Similarly SSH and TLS services.CertAuthority do not have JWT keys.
+		if len(activeKeys.SSH) > 0 {
+			additionalTrustedKeys.SSH = []*types.SSHKeyPair{sshKeyPair}
 		}
-		if len(tlsKeyPairs) > 0 {
-			tlsKeyPairs = []types.TLSKeyPair{tlsKeyPairs[0], tlsKeyPair}
+		if len(activeKeys.TLS) > 0 {
+			additionalTrustedKeys.TLS = []*types.TLSKeyPair{tlsKeyPair}
 		}
-		if len(jwtKeyPairs) > 0 {
-			jwtKeyPairs = []types.JWTKeyPair{jwtKeyPairs[0], jwtKeyPair}
+		if len(activeKeys.JWT) > 0 {
+			additionalTrustedKeys.JWT = []*types.JWTKeyPair{jwtKeyPair}
 		}
 
 		rotation.State = types.RotationStateInProgress
@@ -599,14 +601,12 @@ func startNewRotation(req rotationReq, ca types.CertAuthority) error {
 	}
 
 	// Update types.CertAuthority.
-	if err := ca.SetSigningKeys(signingKeys); err != nil {
+	if err := ca.SetActiveKeys(activeKeys); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
+	if err := ca.SetAdditionalTrustedKeys(additionalTrustedKeys); err != nil {
 		return trace.Wrap(err)
 	}
-	ca.SetTLSKeyPairs(tlsKeyPairs)
-	ca.SetJWTKeyPairs(jwtKeyPairs)
 	ca.SetRotation(rotation)
 	// The certificate signing algorithm is only set when signing algorithm is
 	// explicitly set in the config file. If the config file doesn't set a value,
@@ -618,139 +618,63 @@ func startNewRotation(req rotationReq, ca types.CertAuthority) error {
 	return nil
 }
 
-// updateClients swaps old CA (index 0) and new CA (index 1).
+// updateClients swaps old and new CA key sets.
 //
 // * Old CAs continue to be trusted, but are no longer used for signing.
 // * New CAs are used for signing.
 // * Remote components will reload with new certificates used for client
 //   connections.
 func updateClients(ca types.CertAuthority, mode string) error {
+	oldActive, oldTrusted := ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()
+	if err := ca.SetActiveKeys(oldTrusted); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.SetAdditionalTrustedKeys(oldActive); err != nil {
+		return trace.Wrap(err)
+	}
+
 	rotation := ca.GetRotation()
-
-	signingKeys := ca.GetSigningKeys()
-	checkingKeys := ca.GetCheckingKeys()
-	tlsKeyPairs := ca.GetTLSKeyPairs()
-	jwtKeyPairs := ca.GetJWTKeyPairs()
-
-	// Perform a length check because not every CA has all types of keys.
-	// For example, a JWT types.CertAuthority will not have SSH or TLS keys.
-	// Similarly SSH and TLS types.CertAuthority do not have JWT keys.
-	if len(signingKeys) > 1 {
-		signingKeys = [][]byte{signingKeys[1], signingKeys[0]}
-		checkingKeys = [][]byte{checkingKeys[1], checkingKeys[0]}
-	}
-	if len(tlsKeyPairs) > 1 {
-		tlsKeyPairs = []types.TLSKeyPair{tlsKeyPairs[1], tlsKeyPairs[0]}
-	}
-	if len(jwtKeyPairs) > 1 {
-		jwtKeyPairs = []types.JWTKeyPair{jwtKeyPairs[1], jwtKeyPairs[0]}
-	}
-
 	rotation.State = types.RotationStateInProgress
 	rotation.Phase = types.RotationPhaseUpdateClients
 	rotation.Mode = mode
-
-	// Update types.CertAuthority.
-	if err := ca.SetSigningKeys(signingKeys); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
-		return trace.Wrap(err)
-	}
-	ca.SetTLSKeyPairs(tlsKeyPairs)
-	ca.SetJWTKeyPairs(jwtKeyPairs)
 	ca.SetRotation(rotation)
-
 	return nil
 }
 
 // startRollingBackRotation starts roll back to the original state. Will move
-// old CA now at index 1 to index 0.
+// old CAKeySet back as active.
 //
-// Will keep the public key of the new CA around as trusted during rollback
-// phase, both types of clients may be present in the cluster.
+// Will keep the new CAKeySet around as trusted during rollback phase, both
+// types of clients may be present in the cluster.
 func startRollingBackRotation(ca types.CertAuthority) error {
-	rotation := ca.GetRotation()
+	oldActive, oldTrusted := ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()
+	if err := ca.SetActiveKeys(oldTrusted); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.SetAdditionalTrustedKeys(oldActive); err != nil {
+		return trace.Wrap(err)
+	}
 
+	rotation := ca.GetRotation()
 	// Rollback always sets rotation to manual mode.
 	rotation.Mode = types.RotationModeManual
-
-	signingKeys := ca.GetSigningKeys()
-	checkingKeys := ca.GetCheckingKeys()
-	tlsKeyPairs := ca.GetTLSKeyPairs()
-	jwtKeyPairs := ca.GetJWTKeyPairs()
-
-	// Perform a length check because not every CA has all types of keys.
-	// For example, a JWT types.CertAuthority will not have SSH or TLS keys.
-	// Similarly SSH and TLS types.CertAuthority do not have JWT keys.
-	if len(signingKeys) > 1 {
-		signingKeys = [][]byte{signingKeys[1]}
-		checkingKeys = [][]byte{checkingKeys[1], checkingKeys[0]}
-	}
-	if len(tlsKeyPairs) > 1 {
-		tlsKeyPairs = []types.TLSKeyPair{tlsKeyPairs[1], types.TLSKeyPair{Cert: tlsKeyPairs[0].Cert}}
-	}
-	if len(jwtKeyPairs) > 1 {
-		jwtKeyPairs = []types.JWTKeyPair{jwtKeyPairs[1], types.JWTKeyPair{PublicKey: jwtKeyPairs[0].PublicKey}}
-	}
-
 	rotation.State = types.RotationStateInProgress
 	rotation.Phase = types.RotationPhaseRollback
-
-	// Update types.CertAuthority.
-	if err := ca.SetSigningKeys(signingKeys); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
-		return trace.Wrap(err)
-	}
-	ca.SetTLSKeyPairs(tlsKeyPairs)
-	ca.SetJWTKeyPairs(jwtKeyPairs)
 	ca.SetRotation(rotation)
-
 	return nil
 }
 
 // completeRotation completes the certificate authority rotation by removing
-// the old CA (removes CA at index 1).
-func completeRotation(clock clockwork.Clock, ca types.CertAuthority) error {
+// the new CA as trusted.
+func completeRotation(clock clockwork.Clock, ca types.CertAuthority) {
+	ca.SetAdditionalTrustedKeys(types.CAKeySet{})
+
 	rotation := ca.GetRotation()
-	signingKeys := ca.GetSigningKeys()
-	checkingKeys := ca.GetCheckingKeys()
-	tlsKeyPairs := ca.GetTLSKeyPairs()
-	jwtKeyPairs := ca.GetJWTKeyPairs()
-
-	// Perform a length check because not every CA has all types of keys.
-	// For example, a JWT types.CertAuthority will not have SSH or TLS keys.
-	// Similarly SSH and TLS types.CertAuthority do not have JWT keys.
-	if len(signingKeys) > 0 {
-		signingKeys = signingKeys[:1]
-		checkingKeys = checkingKeys[:1]
-	}
-	if len(tlsKeyPairs) > 0 {
-		tlsKeyPairs = tlsKeyPairs[:1]
-	}
-	if len(jwtKeyPairs) > 0 {
-		jwtKeyPairs = jwtKeyPairs[:1]
-	}
-
 	rotation.Started = time.Time{}
 	rotation.State = types.RotationStateStandby
 	rotation.Phase = types.RotationPhaseStandby
 	rotation.LastRotated = clock.Now()
 	rotation.Mode = ""
 	rotation.Schedule = types.RotationSchedule{}
-
-	// Update types.CertAuthority.
-	if err := ca.SetSigningKeys(signingKeys); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
-		return trace.Wrap(err)
-	}
-	ca.SetTLSKeyPairs(tlsKeyPairs)
-	ca.SetJWTKeyPairs(jwtKeyPairs)
 	ca.SetRotation(rotation)
-
-	return nil
 }

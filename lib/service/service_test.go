@@ -276,9 +276,11 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 
 		cmt := check.Commentf("tt[%v]: %+v", i, tt)
 
-		loggers, err := initExternalLog(context.Background(), types.AuditConfig{
+		auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 			AuditEventsURI: tt.events,
-		}, t.Log, backend)
+		})
+		c.Assert(err, check.IsNil, cmt)
+		loggers, err := initExternalLog(context.Background(), auditConfig, t.Log, backend)
 
 		if tt.isErr {
 			c.Assert(err, check.NotNil, cmt)

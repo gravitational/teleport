@@ -68,6 +68,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newStaticTokensParser()
 		case types.KindClusterConfig:
 			parser = newClusterConfigParser(e.getClusterConfig)
+		case types.KindClusterAuditConfig:
+			parser = newClusterAuditConfigParser()
 		case types.KindClusterNetworkingConfig:
 			parser = newClusterNetworkingConfigParser()
 		case types.KindClusterAuthPreference:
@@ -117,6 +119,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newKubeServiceParser()
 		case types.KindDatabaseServer:
 			parser = newDatabaseServerParser()
+		case types.KindLock:
+			parser = newLockParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -364,6 +368,8 @@ func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) 
 func newClusterConfigParser(getClusterConfig getClusterConfigFunc) *clusterConfigParser {
 	prefixes := [][]byte{
 		backend.Key(clusterConfigPrefix, generalPrefix),
+		backend.Key(clusterConfigPrefix, namePrefix),
+		backend.Key(clusterConfigPrefix, auditPrefix),
 		backend.Key(clusterConfigPrefix, networkingPrefix),
 		backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
 		backend.Key(authPrefix, preferencePrefix, generalPrefix),
@@ -401,6 +407,40 @@ func (p *clusterConfigParser) parse(event backend.Event) (types.Resource, error)
 			return nil, trace.Wrap(err)
 		}
 		return clusterConfig, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newClusterAuditConfigParser() *clusterAuditConfigParser {
+	return &clusterAuditConfigParser{
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, auditPrefix)),
+	}
+}
+
+type clusterAuditConfigParser struct {
+	baseParser
+}
+
+func (p *clusterAuditConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindClusterAuditConfig, types.V2, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameClusterAuditConfig)
+		return h, nil
+	case types.OpPut:
+		clusterAuditConfig, err := services.UnmarshalClusterAuditConfig(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clusterAuditConfig, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -993,6 +1033,31 @@ func (p *remoteClusterParser) parse(event backend.Event) (types.Resource, error)
 			return nil, trace.Wrap(err)
 		}
 		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newLockParser() *lockParser {
+	return &lockParser{
+		baseParser: newBaseParser(backend.Key(locksPrefix)),
+	}
+}
+
+type lockParser struct {
+	baseParser
+}
+
+func (p *lockParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindLock, types.V2, 0)
+	case types.OpPut:
+		return services.UnmarshalLock(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

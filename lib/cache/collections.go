@@ -73,6 +73,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
 			collections[resourceKind] = &clusterConfig{watch: watch, Cache: c}
+		case types.KindClusterAuditConfig:
+			if c.ClusterConfig == nil {
+				return nil, trace.BadParameter("missing parameter ClusterConfig")
+			}
+			collections[resourceKind] = &clusterAuditConfig{watch: watch, Cache: c}
 		case types.KindClusterNetworkingConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
@@ -171,6 +176,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &databaseServer{watch: watch, Cache: c}
+		case types.KindLock:
+			if c.Access == nil {
+				return nil, trace.BadParameter("missing parameter Access")
+			}
+			collections[resourceKind] = &lock{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1707,7 +1717,7 @@ func (c *authPreference) erase(ctx context.Context) error {
 
 func (c *authPreference) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
 	var noConfig bool
-	resource, err := c.ClusterConfig.GetAuthPreference()
+	resource, err := c.ClusterConfig.GetAuthPreference(ctx)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -1725,7 +1735,7 @@ func (c *authPreference) fetch(ctx context.Context) (apply func(ctx context.Cont
 		}
 
 		c.setTTL(resource)
-		if err := c.clusterConfigCache.SetAuthPreference(resource); err != nil {
+		if err := c.clusterConfigCache.SetAuthPreference(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -1748,7 +1758,7 @@ func (c *authPreference) processEvent(ctx context.Context, event types.Event) er
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		c.setTTL(resource)
-		if err := c.clusterConfigCache.SetAuthPreference(resource); err != nil {
+		if err := c.clusterConfigCache.SetAuthPreference(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -1758,6 +1768,76 @@ func (c *authPreference) processEvent(ctx context.Context, event types.Event) er
 }
 
 func (c *authPreference) watchKind() types.WatchKind {
+	return c.watch
+}
+
+type clusterAuditConfig struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *clusterAuditConfig) erase(ctx context.Context) error {
+	if err := c.clusterConfigCache.DeleteClusterAuditConfig(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *clusterAuditConfig) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var noConfig bool
+	resource, err := c.ClusterConfig.GetClusterAuditConfig(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		noConfig = true
+	}
+	return func(ctx context.Context) error {
+		// either zero or one instance exists, so we either erase or
+		// update, but not both.
+		if noConfig {
+			if err := c.erase(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+
+		c.setTTL(resource)
+		if err := c.clusterConfigCache.SetClusterAuditConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}, nil
+}
+
+func (c *clusterAuditConfig) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := c.clusterConfigCache.DeleteClusterAuditConfig(ctx)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.ClusterAuditConfig)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		c.setTTL(resource)
+		if err := c.clusterConfigCache.SetClusterAuditConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *clusterAuditConfig) watchKind() types.WatchKind {
 	return c.watch
 }
 
@@ -1898,5 +1978,68 @@ func (c *sessionRecordingConfig) processEvent(ctx context.Context, event types.E
 }
 
 func (c *sessionRecordingConfig) watchKind() types.WatchKind {
+	return c.watch
+}
+
+type lock struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *lock) erase(ctx context.Context) error {
+	err := c.accessCache.DeleteAllLocks(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (c *lock) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := c.Access.GetLocks(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := c.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			c.setTTL(resource)
+			if err := c.accessCache.UpsertLock(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (c *lock) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := c.accessCache.DeleteLock(ctx, event.Resource.GetName())
+		if err != nil {
+			// Resource could be missing in the cache, expired or not created,
+			// if the first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				c.WithError(err).Warn("Failed to delete lock.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.Lock)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		c.setTTL(resource)
+		if err := c.accessCache.UpsertLock(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warnf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *lock) watchKind() types.WatchKind {
 	return c.watch
 }
