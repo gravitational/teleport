@@ -354,6 +354,12 @@ export const formatters: Formatters = {
         80
       )}] in database [${db_name}] on [${db_service}]`,
   },
+  [eventCodes.DATABASE_SESSION_QUERY_FAILURE]: {
+    type: 'db.session.query.failed',
+    desc: 'Database Query Failed',
+    format: ({ user, db_service, db_name, db_query }) =>
+      `User [${user}] query [${truncateStr(db_query, 80)}] in database [${db_name}] on [${db_service}] failed`,
+  },
   [eventCodes.MFA_DEVICE_ADD]: {
     type: 'mfa.add',
     desc: 'MFA Device Added',

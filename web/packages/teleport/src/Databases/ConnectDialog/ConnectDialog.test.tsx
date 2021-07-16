@@ -22,7 +22,7 @@ test('correct connect command generated for postgres db', () => {
   render(<ConnectDialog {...props} dbProtocol="postgres" />);
 
   const expectedOutput =
-    'psql "service=im-a-cluster-aurora user=[user] dbname=[dbname]"';
+    'tsh db connect [--db-user=<user>] [--db-name=<name>] aurora';
 
   expect(screen.queryByText(expectedOutput)).not.toBeNull();
 });
@@ -31,7 +31,7 @@ test('correct connect command generated for mysql db', () => {
   render(<ConnectDialog {...props} dbProtocol="mysql" />);
 
   const expectedOutput =
-    'mysql --defaults-group-suffix=_im-a-cluster-aurora --user=[user] --database=[database]';
+    'tsh db connect [--db-user=<user>] [--db-name=<name>] aurora';
 
   expect(screen.queryByText(expectedOutput)).not.toBeNull();
 });

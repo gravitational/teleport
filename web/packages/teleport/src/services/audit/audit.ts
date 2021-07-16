@@ -29,8 +29,9 @@ class AuditService {
     const url = cfg.getClusterEventsUrl(clusterId, {
       start,
       end,
-      limit: params.limit ? params.limit : this.maxFetchLimit,
-      startKey: params.startKey ? params.startKey : undefined,
+      limit: this.maxFetchLimit,
+      include: params.filterBy || undefined,
+      startKey: params.startKey || undefined,
     });
 
     return api.get(url).then(json => {

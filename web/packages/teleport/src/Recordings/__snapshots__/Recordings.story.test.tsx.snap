@@ -610,7 +610,6 @@ exports[`rendering of Session Recordings 1`] = `
         value=""
       />
     </div>
-    
     <div>
       <nav
         class="c7"

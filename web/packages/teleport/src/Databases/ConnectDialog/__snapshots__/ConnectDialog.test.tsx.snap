@@ -297,7 +297,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
                 $
               </div>
               <div>
-                tsh db login aurora
+                tsh db login [--db-user=&lt;user&gt;] [--db-name=&lt;name&gt;] aurora
               </div>
             </div>
             <button
@@ -331,7 +331,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
                 $
               </div>
               <div>
-                psql "service=im-a-cluster-aurora user=[user] dbname=[dbname]"
+                tsh db connect [--db-user=&lt;user&gt;] [--db-name=&lt;name&gt;] aurora
               </div>
             </div>
             <button
