@@ -45,7 +45,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -129,7 +128,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	// TODO(nic): update this with real HSM config
 	hsmClient, err := hsm.NewClient(&hsm.ClientConfig{
-		RSAKeyPairSource: native.GenerateKeyPair,
+		RSAKeyPairSource: cfg.Authority.GenerateKeyPair,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
