@@ -216,6 +216,20 @@ describe('access strategy behavioral testing', () => {
       expect(screen.getByText(/error has occurred/i)).toBeInTheDocument()
     );
   });
+
+  test('when user has assumed roles, waiting room is skipped', async () => {
+    const request = makeAccessRequest();
+    const userContext = makeUserContext(sampleContext('always'));
+
+    jest
+      .spyOn(storeAccessRequests, 'getAssumedRoles')
+      .mockReturnValue([request]);
+    jest.spyOn(storeAccessRequests, 'getWaitingRoom').mockReturnValue(request);
+    jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
+
+    render(<>{Component}</>);
+    await wait(() => expect(screen.getByText(/hello/i)).toBeInTheDocument());
+  });
 });
 
 const sampleRequest = makeAccessRequest();

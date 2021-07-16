@@ -106,7 +106,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 80px;
+  width: 108px;
 }
 
 .c17:active {
@@ -705,7 +705,7 @@ exports[`loaded state 1`] = `
               class="c17"
               disabled=""
               kind="primary"
-              width="80px"
+              width="108px"
             >
               assumed
             </button>
@@ -778,9 +778,9 @@ exports[`loaded state 1`] = `
             <button
               class="c17"
               kind="primary"
-              width="80px"
+              width="108px"
             >
-              assume
+              assume roles
             </button>
             <a
               class="c14"

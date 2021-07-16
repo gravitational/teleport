@@ -239,9 +239,9 @@ const ActionCell = props => {
           size="small"
           disabled={request.isAssumed}
           onClick={() => assumeRole(request)}
-          width="80px"
+          width="108px"
         >
-          {request.isAssumed ? 'assumed' : 'assume'}
+          {request.isAssumed ? 'assumed' : 'assume roles'}
         </ButtonPrimary>
       )}
       <ButtonBorder

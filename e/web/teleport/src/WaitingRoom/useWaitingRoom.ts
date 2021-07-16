@@ -15,6 +15,14 @@ export default function useWaitingRoom(ctx: TeleportContextE) {
   React.useEffect(() => {
     attemptActions.do(() =>
       userService.fetchUserContext().then(res => {
+        // User can only assume roles from the UI, if they have access to the dashboard.
+        // Since waiting room is used for initial login only, this check prevents the user
+        // from going into the waiting room if the role they assumed (from an approved
+        // access request) has the waiting room enabled.
+        if (ctx.storeAccessRequests.getAssumedRoles().length > 0) {
+          return;
+        }
+
         setStrategy(res.accessStrategy);
         // This statement says: on login, if the strategy is always, auto create a request for user.
         // An access request state is retrieved from local storage and is unitialized on logins.

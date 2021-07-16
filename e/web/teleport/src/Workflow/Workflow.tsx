@@ -79,16 +79,6 @@ function Header({ match }: RouteComponentProps<{ requestId?: string }>) {
           )}
         </Flex>
       </FeatureHeaderTitle>
-      {requestId && (
-        <ButtonPrimary
-          as={Link}
-          to={cfg.routes.requestNew}
-          ml="auto"
-          width="240px"
-        >
-          Request Access
-        </ButtonPrimary>
-      )}
     </>
   );
 }

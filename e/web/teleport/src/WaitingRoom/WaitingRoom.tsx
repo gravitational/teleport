@@ -64,7 +64,7 @@ export const WaitingRoom: React.FC<State & Partial<Props>> = props => {
   }
 
   // render strategy
-  if (strategy.type == 'optional') {
+  if (!strategy || strategy.type == 'optional') {
     return <>{children}</>;
   }
 

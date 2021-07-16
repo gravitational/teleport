@@ -168,7 +168,7 @@ export function RequestView({
               onClick={onAssumeRole}
               mt={4}
             >
-              {flags.isAssumed ? 'assumed' : 'assume'}
+              {flags.isAssumed ? 'assumed' : 'assume roles'}
             </ButtonPrimary>
           )}
         </Box>

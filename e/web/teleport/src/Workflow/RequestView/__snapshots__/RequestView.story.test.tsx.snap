@@ -692,7 +692,7 @@ exports[`loaded approved request state 1`] = `
         class="c27"
         kind="primary"
       >
-        assume
+        assume roles
       </button>
     </div>
     <div
