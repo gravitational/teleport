@@ -55,7 +55,7 @@ Optional:
 We recommend setting up Teleport in High Availability mode. In High Availability mode Firestore 
 stores the state of the system and Google Cloud Storage stores the audit logs.
 
-![GCP Intro Image](../img/gcp/gcp-teleport.svg)
+![GCP Intro Image](../../../img/gcp/gcp-teleport.svg)
 
 ### Compute Engine: VM Instances with Instance Groups
 
@@ -69,7 +69,7 @@ GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/do
 this is helpful when adding new instances to an instance group.
 
 To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000`
-see  [Admin Guide: Troubleshooting](admin-guide.mdx#troubleshooting) for more information.
+see  [Admin Guide: Troubleshooting](../../admin-guide.mdx#troubleshooting) for more information.
 
 ### Storage: Cloud Firestore
 
@@ -119,10 +119,10 @@ record is sufficient.
 The Authentication server will need to read and write to Firestore.  For this it'll need
 the correct permission via Server Accounts. Learn how to [enable and create service accounts for instances](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances).
 
-![Service Account](../img/gcp/gcp-permissions.png)
+![Service Account](../../../img/gcp/gcp-permissions.png)
 
 **Download JSON Service Key**
-![GCP Service Key](../img/gcp/gcp-service-key.png)
+![GCP Service Key](../../../img/gcp/gcp-service-key.png)
 
 ## GCP Quickstart
 
@@ -133,7 +133,7 @@ an infrastructure automation tool such as [Cloud Deployment Manager](https://clo
 
 ## 2. Install & Configure Teleport
 
-Follow install instructions from our [installation page](installation.mdx#linux).
+Follow install instructions from our [installation page](../../installation.mdx#linux).
 
 We recommend configuring Teleport as per the below steps:
 
@@ -212,4 +212,4 @@ proxy_service:
 
 **4. Add Users**
 
-Follow [adding users](enterprise/quickstart-enterprise.mdx#adding-users) or integrate with [Google Workspace](enterprise/sso/ssh-google-workspace.mdx) to provide SSO access.
+Follow [adding users](../../enterprise/quickstart-enterprise.mdx#adding-users) or integrate with [Google Workspace](../../enterprise/sso/ssh-google-workspace.mdx) to provide SSO access.
