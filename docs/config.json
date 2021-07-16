@@ -27,7 +27,16 @@
       "title": "Setup",
       "entries": [
         {
-          "title": "Guides",
+          "title": "Deployments",
+          "slug": "/setup/deployments/",
+          "entries": [
+            { "title": "AWS Terraform", "slug": "/setup/deployments/aws-terraform/" },
+            { "title": "GCP", "slug": "/setup/deployments/gcp/" },
+            { "title": "IBM", "slug": "/setup/deployments/ibm/" }
+          ]
+        },
+        {
+          "title": "Integrations",
           "slug": "/setup/guides/",
           "entries": [
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
@@ -176,14 +185,6 @@
       ]
     },
     {
-      "icon": "book",
-      "title": "Infrastructure Guides",
-      "entries": [
-        { "title": "GCP", "slug": "/gcp-guide/" },
-        { "title": "IBM", "slug": "/ibm-cloud-guide/" }
-      ]
-    },
-    {
       "icon": "building",
       "title": "Teleport Enterprise",
       "entries": [
@@ -278,6 +279,21 @@
     }
   },
   "redirects": [
+    {
+      "source": "/gcp-guide/",
+      "destination": "/setup/deployments/gcp/",
+      "permanent": true
+    },    
+    {
+      "source": "/ibm-cloud-guide/",
+      "destination": "/setup/deployments/ibm/",
+      "permanent": true
+    },
+    {
+      "source": "/aws-terraform-guide/",
+      "destination": "/setup/deployments/aws-terraform/",
+      "permanent": true
+    },
     {
       "source": "/setup/guides/docker-compose/",
       "destination": "/setup/guides/docker/",
