@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	KubeSNIPrefix = "kube."
+	KubeSNIPrefix = "kube"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.

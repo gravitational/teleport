@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/gravitational/kingpin"
@@ -307,7 +306,7 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 }
 
 func addSubdomainPrefix(domain, prefix string) string {
-	return strings.Join([]string{domain, prefix}, ".")
+	return fmt.Sprintf("%s.%s", prefix, domain)
 }
 
 // buildKubeConfigUpdate returns a kubeconfig.Values suitable for updating the user's kubeconfig

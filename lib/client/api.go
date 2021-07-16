@@ -802,6 +802,10 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SiteName = c.SiteName
 	cp.ALPNSNIListenerEnabled = c.ALPNSNIListenerEnabled
 
+	if c.ALPNSNIListenerEnabled {
+		cp.KubeProxyAddr = c.WebProxyAddr
+	}
+
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
 	}
