@@ -32,7 +32,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/aquasecurity/tracee/libbpfgo"
+	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
