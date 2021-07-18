@@ -19,11 +19,235 @@ package webclient
 import (
 	"context"
 	"os"
+	"encoding/json"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/stretchr/testify/require"
 )
+
+func newPingHandler(path string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.RequestURI != path {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(PingResponse{ServerVersion: "test"})
+	})
+}
+
+func TestPingHttpFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	handler := newPingHandler("/webapi/ping")
+	httpSvr := httptest.NewServer(handler)
+	defer httpSvr.Close()
+
+	t.Run("Allowed on insecure & loopback", func(t *testing.T) {
+		_, err := Ping(ctx, httpSvr.Listener.Addr().String(), true, nil, "")
+		require.NoError(t, err)
+	})
+
+	t.Run("Denied on secure", func(t *testing.T) {
+		_, err := Ping(ctx, httpSvr.Listener.Addr().String(), false, nil, "")
+		require.Error(t, err)
+	})
+
+	t.Run("Denied on non-loopback", func(t *testing.T) {
+		nonLoopbackSvr := httptest.NewUnstartedServer(handler)
+
+		// replace the test-supplied loopback listener with the first available
+		// non-loopback address
+		nonLoopbackSvr.Listener.Close()
+		l, err := net.Listen("tcp", "0.0.0.0:0")
+		require.NoError(t, err)
+		nonLoopbackSvr.Listener = l
+		nonLoopbackSvr.Start()
+		defer nonLoopbackSvr.Close()
+
+		_, err = Ping(ctx, nonLoopbackSvr.Listener.Addr().String(), true, nil, "")
+		require.Error(t, err)
+	})
+}
+
+func TestFindHttpFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	handler := newPingHandler("/webapi/find")
+	httpSvr := httptest.NewServer(handler)
+	defer httpSvr.Close()
+
+	t.Run("Allowed on insecure & loopback", func(t *testing.T) {
+		_, err := Find(ctx, httpSvr.Listener.Addr().String(), true, nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("Denied on secure", func(t *testing.T) {
+		_, err := Find(ctx, httpSvr.Listener.Addr().String(), false, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("Denied on non-loopback", func(t *testing.T) {
+		svr := httptest.NewUnstartedServer(handler)
+
+		// replace the loopback listener with the first available non-loopback address
+		svr.Listener.Close()
+		l, err := net.Listen("tcp", "0.0.0.0:0")
+		require.NoError(t, err)
+		svr.Listener = l
+		svr.Start()
+		defer svr.Close()
+
+		_, err = Find(ctx, svr.Listener.Addr().String(), true, nil)
+		require.Error(t, err)
+	})
+}
+
+func TestGetTunnelAddr(t *testing.T) {
+	ctx := context.Background()
+	t.Run("should use TELEPORT_TUNNEL_PUBLIC_ADDR", func(t *testing.T) {
+		os.Setenv(defaults.TunnelPublicAddrEnvar, "tunnel.example.com:4024")
+		t.Cleanup(func() { os.Unsetenv(defaults.TunnelPublicAddrEnvar) })
+		tunnelAddr, err := GetTunnelAddr(ctx, "", true, nil)
+		require.NoError(t, err)
+		require.Equal(t, "tunnel.example.com:4024", tunnelAddr)
+	})
+}
+
+func TestTunnelAddr(t *testing.T) {
+	type testCase struct {
+		proxyAddr          string
+		settings           SSHProxySettings
+		expectedTunnelAddr string
+	}
+
+	testTunnelAddr := func(tc testCase) func(*testing.T) {
+		return func(t *testing.T) {
+			t.Parallel()
+			tunnelAddr, err := tunnelAddr(tc.proxyAddr, tc.settings)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedTunnelAddr, tunnelAddr)
+		}
+	}
+
+	t.Run("should use TunnelPublicAddr", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com",
+		settings: SSHProxySettings{
+			TunnelPublicAddr: "tunnel.example.com:4024",
+			PublicAddr:       "public.example.com",
+			SSHPublicAddr:    "ssh.example.com",
+			TunnelListenAddr: "[::]:5024",
+		},
+		expectedTunnelAddr: "tunnel.example.com:4024",
+	}))
+	t.Run("should use SSHPublicAddr and TunnelListenAddr", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com",
+		settings: SSHProxySettings{
+			SSHPublicAddr:    "ssh.example.com",
+			PublicAddr:       "public.example.com",
+			TunnelListenAddr: "[::]:5024",
+		},
+		expectedTunnelAddr: "ssh.example.com:5024",
+	}))
+	t.Run("should use PublicAddr and TunnelListenAddr", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com",
+		settings: SSHProxySettings{
+			PublicAddr:       "public.example.com",
+			TunnelListenAddr: "[::]:5024",
+		},
+		expectedTunnelAddr: "public.example.com:5024",
+	}))
+	t.Run("should use PublicAddr and SSHProxyTunnelListenPort", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com",
+		settings: SSHProxySettings{
+			PublicAddr: "public.example.com",
+		},
+		expectedTunnelAddr: "public.example.com:3024",
+	}))
+	t.Run("should use proxyAddr and SSHProxyTunnelListenPort", testTunnelAddr(testCase{
+		proxyAddr:          "proxy.example.com",
+		settings:           SSHProxySettings{},
+		expectedTunnelAddr: "proxy.example.com:3024",
+	}))
+}
+
+func TestExtract(t *testing.T) {
+	testCases := []struct {
+		addr     string
+		hostPort string
+		host     string
+		port     string
+	}{
+		{
+			addr:     "example.com",
+			hostPort: "example.com",
+			host:     "example.com",
+			port:     "",
+		}, {
+			addr:     "example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     "443",
+		}, {
+			addr:     "http://example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     "443",
+		}, {
+			addr:     "https://example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     "443",
+		}, {
+			addr:     "tcp://example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     "443",
+		}, {
+			addr:     "file://host/path",
+			hostPort: "",
+			host:     "",
+			port:     "",
+		}, {
+			addr:     "[::]:443",
+			hostPort: "[::]:443",
+			host:     "::",
+			port:     "443",
+		}, {
+			addr:     "https://example.com:443/path?query=query#fragment",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     "443",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.addr, func(t *testing.T) {
+			hostPort, err := extractHostPort(tc.addr)
+			// Expect err if expected value is empty
+			require.True(t, (tc.hostPort == "") == (err != nil))
+			require.Equal(t, tc.hostPort, hostPort)
+
+			host, err := extractHost(tc.addr)
+			// Expect err if expected value is empty
+			require.True(t, (tc.host == "") == (err != nil))
+			require.Equal(t, tc.host, host)
+
+			port, err := extractPort(tc.addr)
+			// Expect err if expected value is empty
+			require.True(t, (tc.port == "") == (err != nil))
+			require.Equal(t, tc.port, port)
+		})
+	}
+}
 
 func TestGetTunnelAddr(t *testing.T) {
 	ctx := context.Background()

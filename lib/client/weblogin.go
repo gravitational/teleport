@@ -320,7 +320,7 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
+	re, err := clt.PostJSONWithFallback(ctx, clt.Endpoint("webapi", "ssh", "certs"), login.Insecure, CreateSSHCertReq{
 		User:              login.User,
 		Password:          login.Password,
 		OTPToken:          login.OTPToken,
@@ -434,7 +434,7 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req a
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "host", "credentials"), req)
+	resp, err := clt.PostJSONWithFallback(ctx, clt.Endpoint("webapi", "host", "credentials"), insecure, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
