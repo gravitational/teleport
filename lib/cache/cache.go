@@ -70,6 +70,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindLock},
+		{Kind: types.KindNetworkRestrictions},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -182,6 +183,7 @@ func ForNode(cfg Config) Config {
 		// namespace events to avoid matching too much
 		// data about other namespaces or node events
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindNetworkRestrictions},
 	}
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
@@ -312,6 +314,7 @@ type Cache struct {
 	accessCache        services.Access
 	dynamicAccessCache services.DynamicAccessExt
 	presenceCache      services.Presence
+	restrictionsCache  services.Restrictions
 	appSessionCache    services.AppSession
 	webSessionCache    types.WebSessionInterface
 	webTokenCache      types.WebTokenInterface
@@ -362,6 +365,7 @@ func (c *Cache) read() (readGuard, error) {
 			access:        c.accessCache,
 			dynamicAccess: c.dynamicAccessCache,
 			presence:      c.presenceCache,
+			restrictions:  c.restrictionsCache,
 			appSession:    c.appSessionCache,
 			webSession:    c.webSessionCache,
 			webToken:      c.webTokenCache,
@@ -377,6 +381,7 @@ func (c *Cache) read() (readGuard, error) {
 		access:        c.Config.Access,
 		dynamicAccess: c.Config.DynamicAccess,
 		presence:      c.Config.Presence,
+		restrictions:  c.Config.Restrictions,
 		appSession:    c.Config.AppSession,
 		webSession:    c.Config.WebSession,
 		webToken:      c.Config.WebToken,
@@ -397,6 +402,7 @@ type readGuard struct {
 	dynamicAccess services.DynamicAccessCore
 	presence      services.Presence
 	appSession    services.AppSession
+	restrictions  services.Restrictions
 	webSession    types.WebSessionInterface
 	webToken      types.WebTokenInterface
 	release       func()
@@ -444,6 +450,8 @@ type Config struct {
 	DynamicAccess services.DynamicAccessCore
 	// Presence is a presence service
 	Presence services.Presence
+	// Restrictions is a restrictions service
+	Restrictions services.Restrictions
 	// AppSession holds application sessions.
 	AppSession services.AppSession
 	// WebSession holds regular web sessions.
@@ -598,6 +606,7 @@ func New(config Config) (*Cache, error) {
 		accessCache:        local.NewAccessService(wrapper),
 		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
 		presenceCache:      local.NewPresenceService(wrapper),
+		restrictionsCache:  local.NewRestrictionsService(wrapper),
 		appSessionCache:    local.NewIdentityService(wrapper),
 		webSessionCache:    local.NewIdentityService(wrapper).WebSessions(),
 		webTokenCache:      local.NewIdentityService(wrapper).WebTokens(),
@@ -1381,4 +1390,15 @@ func (c *Cache) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]ty
 	}
 	defer rg.Release()
 	return rg.access.GetLocks(ctx, targets...)
+}
+
+// GetNetworkRestrictions gets the network restrictions.
+func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.restrictions.GetNetworkRestrictions(ctx)
 }

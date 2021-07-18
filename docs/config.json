@@ -208,6 +208,13 @@
       "entries": [
         { "title": "Introduction", "slug": "/cloud/introduction/" },
         { "title": "Getting Started", "slug": "/cloud/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/cloud/guides/",
+          "entries": [
+            { "title": "U2f", "slug": "/cloud/guides/u2f/" }
+          ]
+        },        
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
       ]

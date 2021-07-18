@@ -3163,6 +3163,16 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	suite.ExpectResource(c, w, 3*time.Second, clusterNameResource)
 }
 
+func (s *TLSSuite) TestNetworkRestrictions(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	suite := &suite.ServicesTestSuite{
+		RestrictionsS: clt,
+	}
+	suite.NetworkRestrictions(c)
+}
+
 // verifyJWT verifies that the token was signed by one the passed in key pair.
 func (s *TLSSuite) verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
 	errs := []error{}
