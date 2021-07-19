@@ -160,34 +160,41 @@ func testDynamicallyConfigurableRBAC(t *testing.T, p testDynamicallyConfigurable
 	// runTestCases generates all non-empty RBAC verb combinations and checks the expected
 	// error for each operation.
 	runTestCases := func(withConfigFile bool) {
-		for i := 0b001; i <= 0b111; i++ {
-			verbs := []string{}
-			expectGetErr, expectSetErr, expectResetErr := true, true, true
-			if (i&0b001) > 0 || p.alwaysReadable {
-				verbs = append(verbs, types.VerbRead)
-				expectGetErr = false
-			}
-			if (i & 0b010) > 0 {
-				verbs = append(verbs, types.VerbUpdate)
-				if !withConfigFile {
-					expectSetErr, expectResetErr = false, false
+		for _, canCreate := range []bool{false, true} {
+			for _, canUpdate := range []bool{false, true} {
+				for _, canRead := range []bool{false, true} {
+					if !canRead && !canUpdate && !canCreate {
+						continue
+					}
+					verbs := []string{}
+					expectGetErr, expectSetErr, expectResetErr := true, true, true
+					if canRead || p.alwaysReadable {
+						verbs = append(verbs, types.VerbRead)
+						expectGetErr = false
+					}
+					if canUpdate {
+						verbs = append(verbs, types.VerbUpdate)
+						if !withConfigFile {
+							expectSetErr, expectResetErr = false, false
+						}
+					}
+					if canCreate {
+						verbs = append(verbs, types.VerbCreate)
+						if canUpdate {
+							expectSetErr = false
+						}
+					}
+					allowRules := []types.Rule{
+						{
+							Resources: []string{p.kind},
+							Verbs:     verbs,
+						},
+					}
+					t.Run(fmt.Sprintf("get %v %v", verbs, withConfigFile), testOperation(p.get, allowRules, expectGetErr, withConfigFile))
+					t.Run(fmt.Sprintf("set %v %v", verbs, withConfigFile), testOperation(p.set, allowRules, expectSetErr, withConfigFile))
+					t.Run(fmt.Sprintf("reset %v %v", verbs, withConfigFile), testOperation(p.reset, allowRules, expectResetErr, withConfigFile))
 				}
 			}
-			if (i & 0b100) > 0 {
-				verbs = append(verbs, types.VerbCreate)
-				if (i & 0b010) > 0 {
-					expectSetErr = false
-				}
-			}
-			allowRules := []types.Rule{
-				{
-					Resources: []string{p.kind},
-					Verbs:     verbs,
-				},
-			}
-			t.Run(fmt.Sprintf("get %v %v", verbs, withConfigFile), testOperation(p.get, allowRules, expectGetErr, withConfigFile))
-			t.Run(fmt.Sprintf("set %v %v", verbs, withConfigFile), testOperation(p.set, allowRules, expectSetErr, withConfigFile))
-			t.Run(fmt.Sprintf("reset %v %v", verbs, withConfigFile), testOperation(p.reset, allowRules, expectResetErr, withConfigFile))
 		}
 	}
 
