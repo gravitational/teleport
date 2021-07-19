@@ -82,8 +82,12 @@ func canPruneOldHostsEntry(oldEntry *knownHostEntry, newEntries []*knownHostEntr
 	// only safe to prune an old entry when both the (*.)hostname and public key
 	// match.
 
-	// Note: we already know this entry matches exactly 1 host. The new-style
-	// entries prepend `*.`, so we'll add that upfront.
+	// Ensure that (among other conditions) this entry matches exactly 1 host.
+	if !isOldStyleHostsEntry(oldEntry) {
+		return false
+	}
+
+	// The new-style entries prepend `*.`, so we'll add that upfront.
 	oldHost := "*." + oldEntry.hosts[0]
 
 	// We'll need to marshal the keys so we can compare them properly.
