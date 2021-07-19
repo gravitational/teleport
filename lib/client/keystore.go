@@ -582,6 +582,11 @@ func matchesWildcard(hostname, pattern string) bool {
 		return false
 	}
 
+	// Never match a top-level hostname.
+	if !strings.Contains(hostname, ".") {
+		return false
+	}
+
 	// Don't allow empty matches.
 	pattern = pattern[2:]
 	if strings.TrimSpace(pattern) == "" {

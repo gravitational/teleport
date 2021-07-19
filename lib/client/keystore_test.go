@@ -529,6 +529,9 @@ func TestMatchesWildcard(t *testing.T) {
 	// Too many levels deep.
 	require.False(t, matchesWildcard("a.b.example.com", "*.example.com"))
 
+	// Single-part hostnames never match.
+	require.False(t, matchesWildcard("example", "*.example.com"))
+
 	// Valid wildcard matches.
 	require.True(t, matchesWildcard("foo.example.com", "*.example.com"))
 	require.True(t, matchesWildcard("bar.example.com", "*.example.com"))
