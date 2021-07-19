@@ -318,14 +318,14 @@ func (c *Client) waitForConnectionReady(ctx context.Context) error {
 		switch state := c.conn.GetState(); state {
 		case connectivity.Ready:
 			return nil
-		case connectivity.TransientFailure, connectivity.Connecting:
+		case connectivity.TransientFailure, connectivity.Connecting, connectivity.Idle:
 			// Wait for expected state transitions. For details about grpc.ClientConn state changes
 			// see https://github.com/grpc/grpc/blob/master/doc/connectivity-semantics-and-api.md
 			if !c.conn.WaitForStateChange(ctx, state) {
 				// ctx canceled
 				return trace.Wrap(ctx.Err())
 			}
-		case connectivity.Idle, connectivity.Shutdown:
+		case connectivity.Shutdown:
 			return trace.Errorf("client gRPC connection entered an unexpected state: %v", state)
 		}
 	}
@@ -1630,4 +1630,35 @@ func (c *Client) DeleteLock(ctx context.Context, name string) error {
 // DeleteAllLocks not implemented: can only be called locally.
 func (c *Client) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetNetworkRestrictions retrieves the network restrictions
+func (c *Client) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	nr, err := c.grpc.GetNetworkRestrictions(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return nr, nil
+}
+
+// SetNetworkRestrictions updates the network restrictions
+func (c *Client) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
+	restrictionsV4, ok := nr.(*types.NetworkRestrictionsV4)
+	if !ok {
+		return trace.BadParameter("invalid type %T", nr)
+	}
+	_, err := c.grpc.SetNetworkRestrictions(ctx, restrictionsV4, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions
+func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
+	_, err := c.grpc.DeleteNetworkRestrictions(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
 }

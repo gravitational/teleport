@@ -200,7 +200,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/aquasecurity/tracee/libbpfgo/helpers"
+	"github.com/aquasecurity/libbpfgo/helpers"
 )
 
 const (
@@ -280,7 +280,7 @@ func bumpMemlockRlimit() error {
 	return nil
 }
 
-func errptrError(ptr unsafe.Pointer, format string, args... interface{}) error {
+func errptrError(ptr unsafe.Pointer, format string, args ...interface{}) error {
 	negErrno := C.PTR_ERR(ptr)
 	errno := syscall.Errno(-int64(negErrno))
 	if errno == 0 {
@@ -288,7 +288,7 @@ func errptrError(ptr unsafe.Pointer, format string, args... interface{}) error {
 	}
 
 	args = append(args, errno.Error())
-	return fmt.Errorf(format + ": %v", args...)
+	return fmt.Errorf(format+": %v", args...)
 }
 
 func NewModuleFromFile(bpfObjFile string) (*Module, error) {
@@ -505,6 +505,62 @@ func (b *BPFMap) Update(key, value interface{}) error {
 		return fmt.Errorf("failed to update map %s", b.name)
 	}
 	return nil
+}
+
+type BPFMapIterator struct {
+	b       *BPFMap
+	err     error
+	keySize int
+	prev    []byte
+	next    []byte
+}
+
+func (b *BPFMap) Iterator(keySize int) *BPFMapIterator {
+	return &BPFMapIterator{
+		b:       b,
+		keySize: keySize,
+		prev:    nil,
+		next:    nil,
+	}
+}
+
+func (it *BPFMapIterator) Next() bool {
+	if it.err != nil {
+		return false
+	}
+
+	prevPtr := unsafe.Pointer(nil)
+	if it.next != nil {
+		prevPtr = unsafe.Pointer(&it.next[0])
+	}
+
+	next := make([]byte, it.keySize)
+	nextPtr := unsafe.Pointer(&next[0])
+
+	errC, err := C.bpf_map_get_next_key(it.b.fd, prevPtr, nextPtr)
+	if errno, ok := err.(syscall.Errno); errC == -1 && ok && errno == C.ENOENT {
+		return false
+	}
+	if err != nil {
+		it.err = err
+		return false
+	}
+
+	it.prev = it.next
+	it.next = next
+
+	return true
+}
+
+// Key returns the current key value of the iterator, if the most recent call to Next returned true.
+// The slice is valid only until the next call to Next.
+func (it *BPFMapIterator) Key() []byte {
+	return it.next
+}
+
+// Err returns the last error that ocurred while table.Iter or iter.Next
+func (it *BPFMapIterator) Err() error {
+	return it.err
 }
 
 func (m *Module) GetProgram(progName string) (*BPFProg, error) {
