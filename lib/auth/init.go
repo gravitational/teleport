@@ -826,7 +826,7 @@ func checkResourceConsistency(clusterName string, resources ...types.Resource) e
 			// all CAs for this cluster do having signing keys.
 			seemsLocal := r.GetClusterName() == clusterName
 			var hasKeys bool
-			_, err := sshPrivateKey(r)
+			_, err := sshSigner(r)
 			switch {
 			case err == nil:
 				hasKeys = true
@@ -1395,7 +1395,7 @@ func migrateCertAuthority(ctx context.Context, asrv *Server, ca types.CertAuthor
 		return trace.BadParameter("CA rotation is in progress; please finish CA rotation before upgrading teleport")
 	}
 
-	if err := services.FillNewCertAuthorityKeys(ca); err != nil {
+	if err := services.SyncCertAuthorityKeys(ca); err != nil {
 		return trace.Wrap(err)
 	}
 

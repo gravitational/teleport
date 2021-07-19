@@ -1261,21 +1261,66 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 	return resp, nil
 }
 
-// GetNodes returns a list of nodes by namespace.
-// Nodes that the user doesn't have access to are filtered out.
+// GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
-	resp, err := c.grpc.GetNodes(ctx, &types.ResourcesInNamespaceRequest{Namespace: namespace}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
+
+	// Retrieve the complete list of nodes in chunks.
+	var (
+		nodes     []types.Server
+		startKey  string
+		chunkSize = defaults.DefaultChunkSize
+	)
+	for {
+		resp, nextKey, err := c.ListNodes(ctx, namespace, chunkSize, startKey)
+		if trace.IsLimitExceeded(err) {
+			// Cut chunkSize in half if gRPC max message size is exceeded.
+			chunkSize = chunkSize / 2
+			// This is an extremely unlikely scenario, but better to cover it anyways.
+			if chunkSize == 0 {
+				return nil, trace.Wrap(trail.FromGRPC(err), "Node is too large to retrieve over gRPC (over 4MiB).")
+			}
+			continue
+		} else if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+
+		nodes = append(nodes, resp...)
+		startKey = nextKey
+		if startKey == "" {
+			return nodes, nil
+		}
 	}
-	nodes := make([]types.Server, len(resp.Servers))
+}
+
+// ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
+// nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
+// ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
+func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error) {
+	if namespace == "" {
+		return nil, "", trace.BadParameter("missing parameter namespace")
+	}
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive parameter limit")
+	}
+
+	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
+		Namespace: namespace,
+		Limit:     int32(limit),
+		StartKey:  startKey,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	nodes = make([]types.Server, len(resp.Servers))
 	for i, node := range resp.Servers {
 		nodes[i] = node
 	}
-	return nodes, nil
+
+	return nodes, resp.NextKey, nil
 }
 
 // UpsertNode is used by SSH servers to report their presence
@@ -1472,17 +1517,67 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
-// SetClusterAuditConfig sets cluster audit configuration.
+// SetClusterAuditConfig not implemented: can only be called locally.
 func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
-	auditConfigV2, ok := auditConfig.(*types.ClusterAuditConfigV2)
-	if !ok {
-		return trace.BadParameter("invalid type %T", auditConfig)
-	}
-	_, err := c.grpc.SetClusterAuditConfig(ctx, auditConfigV2, c.callOpts...)
-	return trail.FromGRPC(err)
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteClusterAuditConfig not implemented: can only be called locally.
 func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetLock gets a lock by name.
+func (c *Client) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing lock name")
+	}
+	resp, err := c.grpc.GetLock(ctx, &proto.GetLockRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetLocks gets all locks, matching at least one of the targets when specified.
+func (c *Client) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+	targetPtrs := make([]*types.LockTarget, len(targets))
+	for i := range targets {
+		targetPtrs[i] = &targets[i]
+	}
+	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
+		Targets: targetPtrs,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	locks := make([]types.Lock, 0, len(resp.Locks))
+	for _, lock := range resp.Locks {
+		locks = append(locks, lock)
+	}
+	return locks, nil
+}
+
+// UpsertLock upserts a lock.
+func (c *Client) UpsertLock(ctx context.Context, lock types.Lock) error {
+	lockV2, ok := lock.(*types.LockV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", lock)
+	}
+	_, err := c.grpc.UpsertLock(ctx, lockV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteLock deletes a lock.
+func (c *Client) DeleteLock(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing lock name")
+	}
+	_, err := c.grpc.DeleteLock(ctx, &proto.DeleteLockRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllLocks not implemented: can only be called locally.
+func (c *Client) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
