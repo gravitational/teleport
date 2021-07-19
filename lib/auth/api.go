@@ -160,6 +160,9 @@ type ReadAccessPoint interface {
 
 	// GetLocks gets all locks, matching at least one of the targets when specified.
 	GetLocks(context.Context, ...types.LockTarget) ([]types.Lock, error)
+
+	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
+	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)

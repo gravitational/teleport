@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
@@ -197,7 +198,15 @@ func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	return nil
 }
 
-func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startAfter string) ([]apievents.AuditEvent, string, error) {
+// SearchEvents is a flexible way to find events.
+//
+// Event types to filter can be specified and pagination is handled by an iterator key that allows
+// a query to be resumed.
+//
+// The only mandatory requirement is a date range (UTC).
+//
+// This function may never return more than 1 MiB of event data.
+func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startAfter string) ([]apievents.AuditEvent, string, error) {
 	l.Debugf("SearchEvents(%v, %v, namespace=%v, eventType=%v, limit=%v)", fromUTC, toUTC, namespace, eventTypes, limit)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
@@ -211,7 +220,7 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	if days < 0 {
 		return nil, "", trace.BadParameter("invalid days")
 	}
-	filesToSearch, err := l.matchingFiles(fromUTC, toUTC)
+	filesToSearch, err := l.matchingFiles(fromUTC, toUTC, order)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -232,7 +241,16 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	// in case if events are associated with the same session, to make
 	// sure that events are not displayed out of order in case of multiple
 	// auth servers.
-	sort.Sort(ByTimeAndIndex(dynamicEvents))
+	var toSort sort.Interface
+	switch order {
+	case types.EventOrderAscending:
+		toSort = ByTimeAndIndex(dynamicEvents)
+	case types.EventOrderDescending:
+		toSort = sort.Reverse(ByTimeAndIndex(dynamicEvents))
+	default:
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
+	}
+	sort.Sort(toSort)
 
 	events := make([]apievents.AuditEvent, 0, len(dynamicEvents))
 
@@ -241,6 +259,7 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 
 	totalSize := 0
 
+outer:
 	for _, dynamicEvent := range dynamicEvents {
 		// Convert the event from a dynamic representation to a typed representation.
 		event, err := FromEventFields(dynamicEvent)
@@ -268,15 +287,29 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 		}
 
 		// Skip until we've found the first event within the desired timeframe.
-		if event.GetTime().Before(fromUTC) {
-			continue
+		switch order {
+		case types.EventOrderAscending:
+			if event.GetTime().Before(fromUTC) {
+				continue outer
+			}
+		case types.EventOrderDescending:
+			if event.GetTime().After(toUTC) {
+				continue outer
+			}
 		}
 
 		// If we've found an event after the desired timeframe, all events from here
 		// on out will also be after the desired timeframe due
 		// to the sort so we just break out here and consider the query as finished.
-		if event.GetTime().After(toUTC) {
-			break
+		switch order {
+		case types.EventOrderAscending:
+			if event.GetTime().After(toUTC) {
+				break outer
+			}
+		case types.EventOrderDescending:
+			if event.GetTime().Before(fromUTC) {
+				break outer
+			}
 		}
 
 		if totalSize+size >= MaxEventBytesInResponse {
@@ -320,8 +353,8 @@ func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 	return event.GetID(), nil
 }
 
-func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
-	l.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
+func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	l.Debugf("SearchSessionEvents(%v, %v, %v, %v)", fromUTC, toUTC, order, limit)
 
 	// only search for specific event types
 	eventTypes := []string{SessionStartEvent, SessionEndEvent}
@@ -330,7 +363,7 @@ func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, start
 	// logs, some events can be fetched with session end event and without
 	// session start event. to fix this, the code below filters out the events without
 	// start event to guarantee that all events in the range will get fetched
-	events, lastKey, err := l.SearchEvents(fromUTC, toUTC, "default", eventTypes, limit, startKey)
+	events, lastKey, err := l.SearchEvents(fromUTC, toUTC, "default", eventTypes, limit, order, startKey)
 	if err != nil {
 		return nil, lastKey, trace.Wrap(err)
 	}
@@ -488,7 +521,7 @@ func (l *FileLog) rotateLog() (err error) {
 
 // matchingFiles returns files matching the time restrictions of the query
 // across multiple auth servers, returns a list of file names
-func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time) ([]eventFile, error) {
+func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time, order types.EventOrder) ([]eventFile, error) {
 	var dirs []string
 	var err error
 	if l.SearchDirs != nil {
@@ -538,7 +571,16 @@ func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time) ([]eventFile, error) {
 		}
 	}
 	// sort all accepted files by date
-	sort.Sort(byDate(filtered))
+	var toSort sort.Interface
+	switch order {
+	case types.EventOrderAscending:
+		toSort = byDate(filtered)
+	case types.EventOrderDescending:
+		toSort = sort.Reverse(byDate(filtered))
+	default:
+		return nil, trace.BadParameter("invalid event order: %v", order)
+	}
+	sort.Sort(toSort)
 	return filtered, nil
 }
 
@@ -597,6 +639,15 @@ func (l *FileLog) findInFile(path string, eventFilter []string) ([]EventFields, 
 	}
 
 	return retval, nil
+}
+
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (l *FileLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	e <- trace.NotImplemented("not implemented")
+	return c, e
 }
 
 type eventFile struct {

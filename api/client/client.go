@@ -318,14 +318,14 @@ func (c *Client) waitForConnectionReady(ctx context.Context) error {
 		switch state := c.conn.GetState(); state {
 		case connectivity.Ready:
 			return nil
-		case connectivity.TransientFailure, connectivity.Connecting:
+		case connectivity.TransientFailure, connectivity.Connecting, connectivity.Idle:
 			// Wait for expected state transitions. For details about grpc.ClientConn state changes
 			// see https://github.com/grpc/grpc/blob/master/doc/connectivity-semantics-and-api.md
 			if !c.conn.WaitForStateChange(ctx, state) {
 				// ctx canceled
 				return trace.Wrap(ctx.Err())
 			}
-		case connectivity.Idle, connectivity.Shutdown:
+		case connectivity.Shutdown:
 			return trace.Errorf("client gRPC connection entered an unexpected state: %v", state)
 		}
 	}
@@ -1364,8 +1364,56 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 	return trail.FromGRPC(err)
 }
 
+// StreamSessionEvents streams audit events from a given session recording.
+func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan events.AuditEvent, chan error) {
+	request := &proto.StreamSessionEventsRequest{
+		SessionID:  sessionID,
+		StartIndex: int32(startIndex),
+	}
+
+	ch := make(chan events.AuditEvent)
+	e := make(chan error, 1)
+
+	stream, err := c.grpc.StreamSessionEvents(ctx, request)
+	if err != nil {
+		e <- trace.Wrap(err)
+		return ch, e
+	}
+
+	go func() {
+	outer:
+		for {
+			oneOf, err := stream.Recv()
+			if err != nil {
+				if err != io.EOF {
+					e <- trace.Wrap(trail.FromGRPC(err))
+				} else {
+					close(ch)
+				}
+
+				break outer
+			}
+
+			event, err := events.FromOneOf(*oneOf)
+			if err != nil {
+				e <- trace.Wrap(trail.FromGRPC(err))
+				break outer
+			}
+
+			select {
+			case ch <- event:
+			case <-ctx.Done():
+				e <- trace.Wrap(ctx.Err())
+				break outer
+			}
+		}
+	}()
+
+	return ch, e
+}
+
 // SearchEvents allows searching for events with a full pagination support.
-func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetEventsRequest{
 		Namespace:  namespace,
 		StartDate:  fromUTC,
@@ -1373,6 +1421,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 		EventTypes: eventTypes,
 		Limit:      int32(limit),
 		StartKey:   startKey,
+		Order:      proto.Order(order),
 	}
 
 	response, err := c.grpc.GetEvents(ctx, request, c.callOpts...)
@@ -1393,12 +1442,13 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
-func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetSessionEventsRequest{
 		StartDate: fromUTC,
 		EndDate:   toUTC,
 		Limit:     int32(limit),
 		StartKey:  startKey,
+		Order:     proto.Order(order),
 	}
 
 	response, err := c.grpc.GetSessionEvents(ctx, request, c.callOpts...)
@@ -1580,4 +1630,35 @@ func (c *Client) DeleteLock(ctx context.Context, name string) error {
 // DeleteAllLocks not implemented: can only be called locally.
 func (c *Client) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetNetworkRestrictions retrieves the network restrictions
+func (c *Client) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	nr, err := c.grpc.GetNetworkRestrictions(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return nr, nil
+}
+
+// SetNetworkRestrictions updates the network restrictions
+func (c *Client) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
+	restrictionsV4, ok := nr.(*types.NetworkRestrictionsV4)
+	if !ok {
+		return trace.BadParameter("invalid type %T", nr)
+	}
+	_, err := c.grpc.SetNetworkRestrictions(ctx, restrictionsV4, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions
+func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
+	_, err := c.grpc.DeleteNetworkRestrictions(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
 }

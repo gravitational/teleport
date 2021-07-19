@@ -339,6 +339,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindNetworkRestrictions, services.RO()),
 					},
 				},
 			})

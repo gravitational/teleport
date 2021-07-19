@@ -62,6 +62,13 @@ load fixtures/common
     echo "${AUTH_BLOCK?}" | grep -E "^  license_file: "
 }
 
+@test "[${TEST_SUITE?}] auth_service.authentication.type is not set" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${AUTH_BLOCK?}"
+    # this test inverts the regular behaviour of grep -q, so only succeeds if the line _isn't_ present
+    echo "${AUTH_BLOCK?}" | { ! grep -qE "^    type: "; }
+}
+
 @test "[${TEST_SUITE?}] proxy_service.ssh_public_addr is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${PROXY_BLOCK?}"
