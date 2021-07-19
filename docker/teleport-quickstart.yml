@@ -28,3 +28,20 @@ services:
       - ./teleport/data:/var/lib/teleport
     depends_on:
       - configure
+
+  #
+  # one-sshd is a single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
+  #
+  one-sshd:
+    image: teleport:latest
+    container_name: one-sshd
+    command: /usr/bin/start-sshd.sh
+    env_file: env.file
+    mem_limit: 300m
+    volumes:
+      - ./sshd/pam.d/ssh:/etc/pam.d/ssh
+      - ./sshd/etc/ssh/sshd_config:/etc/ssh/sshd_config
+      - certs:/mnt/shared/certs
+    networks:
+      teleport:
+        ipv4_address: 172.10.1.21

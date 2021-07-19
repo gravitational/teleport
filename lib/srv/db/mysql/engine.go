@@ -195,6 +195,17 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			conn.SetTLSConfig(tlsConfig)
 		})
 	if err != nil {
+		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Server.IsRDS() {
+			return nil, trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure that IAM auth is enabled for MySQL user %q and Teleport database
+agent's IAM policy has "rds-connect" permissions:
+
+%v
+`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
+		}
 		return nil, trace.Wrap(err)
 	}
 	return conn, nil
