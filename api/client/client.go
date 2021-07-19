@@ -247,12 +247,12 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			if len(errs) == 0 {
 				if len(cfg.Addrs) == 0 && cfg.Dialer == nil {
 					// Some credentials don't require these fields. If no errors propagate, then they need to provide these fields.
-					return nil, trace.BadParameter("no methods of connection found, try providing Dialer or Addrs in config")
+					return nil, trace.BadParameter("no connection methods found, try providing Dialer or Addrs in config")
 				}
 				// This case should never be reached with config validation and above case.
-				return nil, trace.Errorf("no methods of connection found")
+				return nil, trace.Errorf("no connection methods found")
 			}
-			return nil, trace.Wrap(trace.NewAggregate(errs...), "all connections methods failed")
+			return nil, trace.Wrap(trace.NewAggregate(errs...), "all connection methods failed")
 		case <-ctx.Done():
 			return nil, trace.Wrap(ctx.Err())
 		}

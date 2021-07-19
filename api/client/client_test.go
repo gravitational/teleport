@@ -204,7 +204,21 @@ func TestNew(t *testing.T) {
 			},
 		},
 		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-			require.True(t, strings.Contains(err.Error(), "all connections methods failed"))
+			require.True(t, strings.Contains(err.Error(), "all connection methods failed"))
+		},
+	}, {
+		desc: "fail to dial with no address or dialer.",
+		config: Config{
+			DialTimeout: time.Second,
+			Credentials: []Credentials{
+				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
+			},
+			DialOpts: []grpc.DialOption{
+				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+			},
+		},
+		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			require.True(t, strings.Contains(err.Error(), "no connection methods found, try providing Dialer or Addrs in config"))
 		},
 	}}
 
