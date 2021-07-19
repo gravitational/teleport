@@ -3,6 +3,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"crypto/x509/pkix"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -14,10 +15,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -54,7 +57,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	client := mockClient{
+	client := &mockClient{
 		clusterName:    clusterName,
 		remoteClusters: []types.RemoteCluster{remoteCluster},
 		userCerts: &proto.Certs{
@@ -206,6 +209,7 @@ type mockClient struct {
 
 	clusterName    types.ClusterName
 	userCerts      *proto.Certs
+	dbCertsReq     *proto.DatabaseCertRequest
 	dbCerts        *proto.DatabaseCertResponse
 	cas            []types.CertAuthority
 	proxies        []types.Server
@@ -213,25 +217,26 @@ type mockClient struct {
 	kubeServices   []types.Server
 }
 
-func (c mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
+func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
-func (c mockClient) GenerateUserCerts(context.Context, proto.UserCertsRequest) (*proto.Certs, error) {
+func (c *mockClient) GenerateUserCerts(context.Context, proto.UserCertsRequest) (*proto.Certs, error) {
 	return c.userCerts, nil
 }
-func (c mockClient) GetCertAuthorities(types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (c *mockClient) GetCertAuthorities(types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
 	return c.cas, nil
 }
-func (c mockClient) GetProxies() ([]types.Server, error) {
+func (c *mockClient) GetProxies() ([]types.Server, error) {
 	return c.proxies, nil
 }
-func (c mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (c *mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	return c.remoteClusters, nil
 }
-func (c mockClient) GetKubeServices(context.Context) ([]types.Server, error) {
+func (c *mockClient) GetKubeServices(context.Context) ([]types.Server, error) {
 	return c.kubeServices, nil
 }
-func (c mockClient) GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+func (c *mockClient) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+	c.dbCertsReq = req
 	return c.dbCerts, nil
 }
 
@@ -241,7 +246,7 @@ func TestCheckKubeCluster(t *testing.T) {
 		ClusterName: teleportCluster,
 	})
 	require.NoError(t, err)
-	client := mockClient{
+	client := &mockClient{
 		clusterName: clusterName,
 	}
 	tests := []struct {
@@ -331,34 +336,91 @@ func TestCheckKubeCluster(t *testing.T) {
 	}
 }
 
+// TestGenerateDatabaseKeys verifies cert/key pair generation for databases.
 func TestGenerateDatabaseKeys(t *testing.T) {
-	tmpDir := t.TempDir()
+	clusterName, err := services.NewClusterNameWithRandomID(
+		types.ClusterNameSpecV2{
+			ClusterName: "example.com",
+		})
+	require.NoError(t, err)
 
-	client := mockClient{
+	certBytes := []byte("TLS cert")
+	caBytes := []byte("CA cert")
+
+	authClient := &mockClient{
+		clusterName: clusterName,
 		dbCerts: &proto.DatabaseCertResponse{
-			Cert: []byte("TLS cert"),
-			CACerts: [][]byte{
-				[]byte("CA cert"),
-			},
+			Cert:    certBytes,
+			CACerts: [][]byte{caBytes},
 		},
 	}
 
-	ac := AuthCommand{
-		output:        filepath.Join(tmpDir, "db"),
-		outputFormat:  identityfile.FormatDatabase,
-		signOverwrite: true,
-		genHost:       "example.com",
-		genTTL:        time.Hour,
+	key, err := client.NewKey()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		inFormat   identityfile.Format
+		inHost     string
+		outSubject pkix.Name
+		outKey     []byte
+		outCert    []byte
+		outCA      []byte
+	}{
+		{
+			name:       "database certificate",
+			inFormat:   identityfile.FormatDatabase,
+			inHost:     "postgres.example.com",
+			outSubject: pkix.Name{CommonName: "postgres.example.com"},
+			outKey:     key.Priv,
+			outCert:    certBytes,
+			outCA:      caBytes,
+		},
+		{
+			name:       "mongodb certificate",
+			inFormat:   identityfile.FormatMongo,
+			inHost:     "mongo.example.com",
+			outSubject: pkix.Name{CommonName: "mongo.example.com", Organization: []string{"example.com"}},
+			outCert:    append(certBytes, key.Priv...),
+			outCA:      caBytes,
+		},
 	}
 
-	err := ac.GenerateAndSignKeys(client)
-	require.NoError(t, err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ac := AuthCommand{
+				output:        filepath.Join(t.TempDir(), "db"),
+				outputFormat:  test.inFormat,
+				signOverwrite: true,
+				genHost:       test.inHost,
+				genTTL:        time.Hour,
+			}
 
-	certBytes, err := ioutil.ReadFile(ac.output + ".crt")
-	require.NoError(t, err)
-	require.Equal(t, client.dbCerts.Cert, certBytes, "certificates match")
+			err = ac.generateDatabaseKeysForKey(authClient, key)
+			require.NoError(t, err)
 
-	caBytes, err := ioutil.ReadFile(ac.output + ".cas")
-	require.NoError(t, err)
-	require.Equal(t, client.dbCerts.CACerts[0], caBytes, "CA certificates match")
+			require.NotNil(t, authClient.dbCertsReq)
+			csr, err := tlsca.ParseCertificateRequestPEM(authClient.dbCertsReq.CSR)
+			require.NoError(t, err)
+			require.Equal(t, test.outSubject.String(), csr.Subject.String())
+
+			if len(test.outKey) > 0 {
+				keyBytes, err := ioutil.ReadFile(ac.output + ".key")
+				require.NoError(t, err)
+				require.Equal(t, test.outKey, keyBytes, "keys match")
+			}
+
+			if len(test.outCert) > 0 {
+				certBytes, err := ioutil.ReadFile(ac.output + ".crt")
+				require.NoError(t, err)
+				require.Equal(t, test.outCert, certBytes, "certificates match")
+			}
+
+			if len(test.outCA) > 0 {
+				caBytes, err := ioutil.ReadFile(ac.output + ".cas")
+				require.NoError(t, err)
+				require.Equal(t, test.outCA, caBytes, "CA certificates match")
+			}
+		})
+	}
 }
