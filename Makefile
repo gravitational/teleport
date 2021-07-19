@@ -479,6 +479,17 @@ version: $(VERSRC)
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
+upgrade-api-version:
+	# Update go files
+	find . -name "*.go" -not \( -name .svn -prune -o -name .git -prune \) -type f -print0 | \
+		xargs -0 sed -i 's/teleport\/api/&\/v2/'
+	# Update go.mod files
+	sed -i 's/teleport\/api/&\/v2/' go.mod api/go.mod examples/go-client/go.mod
+	sed -i 's/v2 v0.0.0/v2 v2.0.0/' go.mod api/go.mod examples/go-client/go.mod
+	# Update `update-vendor` and run it.
+	sed -i 's/teleport\/api/&\/v2/' Makefile
+	make update-vendor
+
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
 # 		- bump VERSION variable
@@ -744,8 +755,8 @@ update-vendor:
 	go mod vendor
 	# delete the vendored api package. In its place
 	# create a symlink to the the original api package
-	rm -r vendor/github.com/gravitational/teleport/api
-	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+	rm -r vendor/github.com/gravitational/teleport/api/v2
+	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport/api/v2
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
