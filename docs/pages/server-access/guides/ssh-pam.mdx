@@ -71,7 +71,7 @@ own PAM service file like `/etc/pam.d/teleport` and specifying it as
 
 ## Set Message of the Day (motd) with Teleport
 
-A cluster-wide Message of the Day can be set in the `auth_server` configuration.
+A cluster-wide Message of the Day can be set in the `auth_service` configuration.
 
 ```yaml
 auth_service:
@@ -87,7 +87,7 @@ Welcome to the cluster. All activity will be logged.
 Press [ENTER] to continue.
 ```
 
-Alternatively, a per-node Message of the day can be set using the traditional unix 
+Alternatively, a per-node Message of the Day can be set using the traditional unix 
 `/etc/motd` file. The `/etc/motd` file is normally displayed by login(1) after a user 
 has logged in but before the shell is run. It is generally used for important system-wide
 announcements.
