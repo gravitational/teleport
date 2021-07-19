@@ -150,6 +150,7 @@ type ServicesTestSuite struct {
 	ConfigS         services.ClusterConfiguration
 	EventsS         types.Events
 	UsersS          services.UsersService
+	RestrictionsS   services.Restrictions
 	ChangesC        chan interface{}
 	Clock           clockwork.FakeClock
 	NewProxyWatcher NewProxyWatcherFunc
@@ -1910,6 +1911,48 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 		},
 	}
 	s.runEventsTests(c, testCases)
+}
+
+// NetworkRestrictions tests network restrictions.
+func (s *ServicesTestSuite) NetworkRestrictions(c *check.C, opts ...Option) {
+	ctx := context.Background()
+
+	// blank slate, should be get/delete should fail
+	_, err := s.RestrictionsS.GetNetworkRestrictions(ctx)
+	fixtures.ExpectNotFound(c, err)
+
+	err = s.RestrictionsS.DeleteNetworkRestrictions(ctx)
+	fixtures.ExpectNotFound(c, err)
+
+	allow := []types.AddressCondition{
+		{CIDR: "10.0.1.0/24"},
+		{CIDR: "10.0.2.2"},
+	}
+	deny := []types.AddressCondition{
+		{CIDR: "10.1.0.0/16"},
+		{CIDR: "8.8.8.8"},
+	}
+
+	expected := types.NewNetworkRestrictions()
+	expected.SetAllow(allow)
+	expected.SetDeny(deny)
+
+	// set and make sure we get it back
+	err = s.RestrictionsS.SetNetworkRestrictions(ctx, expected)
+	c.Assert(err, check.IsNil)
+
+	actual, err := s.RestrictionsS.GetNetworkRestrictions(ctx)
+	c.Assert(err, check.IsNil)
+
+	fixtures.DeepCompare(c, expected.GetAllow(), actual.GetAllow())
+	fixtures.DeepCompare(c, expected.GetDeny(), actual.GetDeny())
+
+	// now delete should work ok and get should fail again
+	err = s.RestrictionsS.DeleteNetworkRestrictions(ctx)
+	c.Assert(err, check.IsNil)
+
+	err = s.RestrictionsS.DeleteNetworkRestrictions(ctx)
+	fixtures.ExpectNotFound(c, err)
 }
 
 // ProxyWatcher tests proxy watcher

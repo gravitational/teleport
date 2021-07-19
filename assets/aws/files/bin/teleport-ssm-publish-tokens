@@ -10,21 +10,45 @@ set -o pipefail
 . /etc/teleport.d/conf
 
 TCTL=/usr/local/bin/tctl
+# get the tctl version
+# database service tokens are only supported in Teleport 6+
+# if the Teleport version cannot be detected, database service tokens will not be configured.
+DATABASE_TOKEN_ENABLED=false
+if [ -f ${TCTL} ]; then
+    TCTL_VERSION=$(${TCTL} version | cut -dv -f2 | cut -d' ' -f1 || true)
+    TCTL_MAJOR_VERSION=$(echo ${TCTL_VERSION} | cut -d'.' -f1 || true)
+    if [ ${TCTL_MAJOR_VERSION:-0} -ge 6 ]; then
+        echo "Detected Teleport version 6+, configuring a token for db_service"
+        DATABASE_TOKEN_ENABLED=true
+    fi
+fi
 
 # Proxy token authenticates proxies joining the cluster
-PROXY_TOKEN=$(uuid)
+PROXY_TOKEN=$(uuid -v4)
 ${TCTL} nodes add --roles=proxy --ttl=4h --token=${PROXY_TOKEN}
 aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/proxy --region ${EC2_REGION} --type="SecureString" --value="${PROXY_TOKEN}" --overwrite
 
 # Node token authenticates nodes joining the cluster
-NODE_TOKEN=$(uuid)
+NODE_TOKEN=$(uuid -v4)
 ${TCTL} nodes add --roles=node --ttl=4h --token=${NODE_TOKEN}
 aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/node --region ${EC2_REGION} --type="SecureString" --value="${NODE_TOKEN}" --overwrite
 
 # Kubernetes token authenticates kubernetes clusters joining the cluster
-KUBE_TOKEN=$(uuid)
+KUBE_TOKEN=$(uuid -v4)
 ${TCTL} nodes add --roles=kube --ttl=4h --token=${KUBE_TOKEN}
 aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/kube --region ${EC2_REGION} --type="SecureString" --value="${KUBE_TOKEN}" --overwrite
+
+# App token authenticates app services joining the cluster
+APP_TOKEN=$(uuid -v4)
+${TCTL} nodes add --roles=app --ttl=4h --token=${APP_TOKEN}
+aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/app --region ${EC2_REGION} --type="SecureString" --value="${APP_TOKEN}" --overwrite
+
+if [[ ${DATABASE_TOKEN_ENABLED} == "true" ]]; then
+    # Database token authenticates app services joining the cluster
+    DATABASE_TOKEN=$(uuid -v4)
+    ${TCTL} nodes add --roles=db --ttl=4h --token=${DATABASE_TOKEN}
+    aws ssm put-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/db --region ${EC2_REGION} --type="SecureString" --value="${DATABASE_TOKEN}" --overwrite
+fi
 
 # Export CA pin hash to SSM parameter store
 CA_PIN_HASH=$(tctl status | grep "CA pin" | awk '{print $3}')

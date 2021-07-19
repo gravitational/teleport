@@ -55,10 +55,10 @@ github.com/alecthomas/template/parse
 # github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 ## explicit
 github.com/alecthomas/units
-# github.com/aquasecurity/tracee/libbpfgo v0.0.0-20210513142145-242d721bad3d
+# github.com/aquasecurity/libbpfgo v0.1.0
 ## explicit
-github.com/aquasecurity/tracee/libbpfgo
-github.com/aquasecurity/tracee/libbpfgo/helpers
+github.com/aquasecurity/libbpfgo
+github.com/aquasecurity/libbpfgo/helpers
 # github.com/armon/go-radix v1.0.0
 ## explicit
 github.com/armon/go-radix
@@ -285,12 +285,14 @@ github.com/gravitational/reporting/types
 github.com/gravitational/roundtrip
 # github.com/gravitational/teleport/api v0.0.0 => ./api
 ## explicit
+github.com/gravitational/teleport/api
 github.com/gravitational/teleport/api/client
 github.com/gravitational/teleport/api/client/proto
 github.com/gravitational/teleport/api/client/webclient
 github.com/gravitational/teleport/api/constants
 github.com/gravitational/teleport/api/defaults
 github.com/gravitational/teleport/api/identityfile
+github.com/gravitational/teleport/api/metadata
 github.com/gravitational/teleport/api/profile
 github.com/gravitational/teleport/api/types
 github.com/gravitational/teleport/api/types/events
@@ -319,6 +321,9 @@ github.com/jackc/chunkreader/v2
 ## explicit
 github.com/jackc/pgconn
 github.com/jackc/pgconn/internal/ctxwatch
+# github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
+## explicit
+github.com/jackc/pgerrcode
 # github.com/jackc/pgio v1.0.0
 github.com/jackc/pgio
 # github.com/jackc/pgpassfile v1.0.0
@@ -422,6 +427,7 @@ github.com/pborman/uuid
 # github.com/pingcap/errors v0.11.0
 github.com/pingcap/errors
 # github.com/pkg/errors v0.9.1
+## explicit
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib

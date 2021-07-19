@@ -221,6 +221,13 @@ const (
 	// KindLock is a lock resource.
 	KindLock = "lock"
 
+	// KindNetworkRestrictions are restrictions for SSH sessions
+	KindNetworkRestrictions = "network_restrictions"
+
+	// MetaNameNetworkRestrictions is the exact name of the singleton resource for
+	// network restrictions
+	MetaNameNetworkRestrictions = "network-restrictions"
+
 	// V4 is the fourth version of resources.
 	V4 = "v4"
 

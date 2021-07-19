@@ -3040,6 +3040,33 @@ func (a *ServerWithRoles) DeleteAllKubeServices(ctx context.Context) error {
 	return a.authServer.DeleteAllKubeServices(ctx)
 }
 
+// GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
+func (a *ServerWithRoles) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetNetworkRestrictions(ctx)
+}
+
+// SetNetworkRestrictions updates the network restrictions.
+func (a *ServerWithRoles) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
+	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetNetworkRestrictions(ctx, nr)
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions.
+func (a *ServerWithRoles) DeleteNetworkRestrictions(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteNetworkRestrictions(ctx)
+}
+
 // TODO(awly): decouple auth.ClientI from auth.ServerWithRoles, they exist on
 // opposite sides of the connection.
 
@@ -3146,6 +3173,19 @@ func (a *ServerWithRoles) DeleteLock(ctx context.Context, name string) error {
 // DeleteAllLocks not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	if err := a.action(apidefaults.Namespace, types.KindSession, types.VerbList); err != nil {
+		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

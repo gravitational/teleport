@@ -23,12 +23,10 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
-	"net/http"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -39,7 +37,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshift"
 
-	"google.golang.org/api/googleapi"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
 
@@ -119,11 +116,23 @@ func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating RDS auth token for %s.", sessionCtx)
-	return rdsutils.BuildAuthToken(
+	token, err := rdsutils.BuildAuthToken(
 		sessionCtx.Server.GetURI(),
 		sessionCtx.Server.GetAWS().Region,
 		sessionCtx.DatabaseUser,
 		awsSession.Config.Credentials)
+	if err != nil {
+		return "", trace.AccessDenied(`Could not generate RDS IAM auth token:
+
+  %v
+
+Make sure that Teleport database agent's IAM policy is attached and has "rds-connect"
+permissions:
+
+%v
+`, err, GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
+	}
+	return token, nil
 }
 
 // GetRedshiftAuthToken returns authorization token that will be used as a
@@ -146,7 +155,15 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
 		DbGroups: []*string{},
 	})
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return "", "", trace.AccessDenied(`Could not generate Redshift IAM auth token:
+
+  %v
+
+Make sure that Teleport database agent's IAM policy is attached and has permissions
+to generate Redshift credentials:
+
+%v
+`, err, GetRedshiftPolicy())
 	}
 	return *resp.DbUser, *resp.DbPassword, nil
 }
@@ -178,7 +195,13 @@ func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) 
 			},
 		})
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.AccessDenied(`Could not generate GCP IAM auth token:
+
+  %v
+
+Make sure Teleport db service has "Service Account Token Creator" GCP IAM role,
+or "iam.serviceAccounts.getAccessToken" IAM permission.
+`, err)
 	}
 	return resp.AccessToken, nil
 }
@@ -194,7 +217,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating GCP user password for %s.", sessionCtx)
-	token, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	token, err := utils.CryptoRandomHex(libauth.TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -211,7 +234,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 		err := a.updateCloudSQLUser(ctx, sessionCtx, gcpCloudSQL, &sqladmin.User{
 			Password: token,
 		})
-		if err != nil && !isStatusConflictError(err) { // We only want to retry on 409.
+		if err != nil && !trace.IsCompareFailed(ConvertError(err)) { // We only want to retry on 409.
 			return utils.PermanentRetryError(err)
 		}
 		return trace.Wrap(err)
@@ -222,18 +245,22 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 	return token, nil
 }
 
-func isStatusConflictError(err error) bool {
-	e, ok := trace.Unwrap(err).(*googleapi.Error)
-	return ok && e.Code == http.StatusConflict
-}
-
 // updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
 func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL *sqladmin.Service, user *sqladmin.User) error {
 	_, err := gcpCloudSQL.Users.Update(
 		sessionCtx.Server.GetGCP().ProjectID,
 		sessionCtx.Server.GetGCP().InstanceID,
 		user).Name(sessionCtx.DatabaseUser).Host("%").Context(ctx).Do()
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
+
+  %v
+
+Make sure Teleport db service has "Cloud SQL Admin" GCP IAM role, or
+"cloudsql.users.update" IAM permission.
+`, sessionCtx.DatabaseUser, err)
+	}
+	return nil
 }
 
 // GetTLSConfig builds the client TLS configuration for the session.

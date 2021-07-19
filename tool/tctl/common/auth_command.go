@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -363,12 +364,39 @@ func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
 	return nil
 }
 
+// generateDatabaseKeys generates a new unsigned key and signs it with Teleport
+// CA for database access.
 func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
 	key, err := client.NewKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return a.generateDatabaseKeysForKey(clusterAPI, key)
+}
+
+// generateDatabaseKeysForKey signs the provided unsigned key with Teleport CA
+// for database access.
+func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *client.Key) error {
 	subject := pkix.Name{CommonName: a.genHost}
+	if a.outputFormat == identityfile.FormatMongo {
+		// Include Organization attribute in MongoDB certificates as well.
+		//
+		// When using X.509 member authentication, MongoDB requires O or OU to
+		// be non-empty so this will make the certs we generate compatible:
+		//
+		// https://docs.mongodb.com/manual/core/security-internal-authentication/#x.509
+		//
+		// The actual O value doesn't matter as long as it matches on all
+		// MongoDB cluster members so set it to the Teleport cluster name
+		// to avoid hardcoding anything.
+		clusterName, err := clusterAPI.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		subject.Organization = []string{
+			clusterName.GetClusterName(),
+		}
+	}
 	csr, err := tlsca.GenerateCertificateRequestPEM(subject, key.Priv)
 	if err != nil {
 		return trace.Wrap(err)
@@ -396,10 +424,55 @@ func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("\nThe credentials have been written to %s\n",
-		strings.Join(filesWritten, ", "))
+	switch a.outputFormat {
+	case identityfile.FormatDatabase:
+		dbAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+			"files":  strings.Join(filesWritten, ", "),
+			"output": a.output,
+		})
+	case identityfile.FormatMongo:
+		mongoAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+			"files":  strings.Join(filesWritten, ", "),
+			"output": a.output,
+		})
+	}
 	return nil
 }
+
+var (
+	// dbAuthSignTpl is printed when user generates credentials for a self-hosted database.
+	dbAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your PostgreSQL server, add the following to its
+postgresql.conf configuration file:
+
+ssl = on
+ssl_cert_file = '/path/to/{{.output}}.crt'
+ssl_key_file = '/path/to/{{.output}}.key'
+ssl_ca_file = '/path/to/{{.output}}.cas'
+
+To enable mutual TLS on your MySQL server, add the following to its
+mysql.cnf configuration file:
+
+[mysqld]
+require_secure_transport=ON
+ssl-cert=/path/to/{{.output}}.crt
+ssl-key=/path/to/{{.output}}.key
+ssl-ca=/path/to/{{.output}}.cas
+`))
+	// mongoAuthSignTpl is printed when user generates credentials for a MongoDB database.
+	mongoAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your MongoDB server, add the following to its
+mongod.yaml configuration file:
+
+net:
+  tls:
+    mode: requireTLS
+    certificateKeyFile: /path/to/{{.output}}.crt
+    CAFile: /path/to/{{.output}}.cas
+`))
+)
 
 func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	// Validate --proxy flag.
