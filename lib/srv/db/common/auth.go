@@ -126,7 +126,8 @@ func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
 
   %v
 
-Make sure Teleport db service's AWS IAM policy allows it to connect to the RDS instance:
+Make sure that Teleport database agent's IAM policy is attached and has "rds-connect"
+permissions:
 
 %v
 `, err, GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
@@ -158,7 +159,8 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
 
   %v
 
-Make sure Teleport db service's AWS IAM policy allows it to generate Redshift credentials:
+Make sure that Teleport database agent's IAM policy is attached and has permissions
+to generate Redshift credentials:
 
 %v
 `, err, GetRedshiftPolicy())

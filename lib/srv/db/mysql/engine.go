@@ -200,10 +200,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 
   %v
 
-Make sure Teleport db service's IAM policy allows it to connect to the RDS instance:
+Make sure that IAM auth is enabled for MySQL user %q and Teleport database
+agent's IAM policy has "rds-connect" permissions:
 
 %v
-`, common.ConvertError(err), common.GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
+`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
 		}
 		return nil, trace.Wrap(err)
 	}
