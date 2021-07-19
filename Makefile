@@ -477,7 +477,33 @@ version: $(VERSRC)
 
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
+	@if [ \
+			$$(grep "Version = " version.go | awk -F'Version = "' '{print$$2}' | cut -d "." -f1) \
+			!= $$(echo $(VERSION) | cut -d "." -f1) \
+		]; \
+		then make update-api-version; \
+	fi
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
+
+
+.PHONY: update-api-version
+update-api-version:
+	@$(eval CURRENT_VER_SUFFIX=$(shell head -1 api/go.mod | awk -F'api/' '{print $$2}'))
+	@$(eval CURRENT_VER_SUFFIX=$(shell [ "$(CURRENT_VER_SUFFIX)" == "" ] && echo "v0" || echo "$(CURRENT_VER_SUFFIX)"))
+	@$(eval CURRENT_MOD_PATH=$(shell head -1 api/go.mod | awk '{print $$2;}' | sed 's;/;\\/;g'))
+	@$(eval UPGRADE_VER_SUFFIX=v$(shell echo $(VERSION) | cut -d "." -f1))
+	@$(eval UPGRADE_MOD_PATH=github.com\/gravitational\/teleport\/api\/$(UPGRADE_VER_SUFFIX))
+	# Update go files
+	find . -name "*.go" -not \( -name .svn -prune -o -name .git -prune \) -type f -print0 | \
+	 	xargs -0 sed -i 's/$(CURRENT_MOD_PATH)/$(UPGRADE_MOD_PATH)/'
+
+	# Update go.mod files
+	sed -i 's/$(CURRENT_MOD_PATH)/$(UPGRADE_MOD_PATH)/' go.mod api/go.mod examples/go-client/go.mod
+	sed -i 's/$(UPGRADE_MOD_PATH) $(CURRENT_VER_SUFFIX).0.0/$(UPGRADE_MOD_PATH) $(UPGRADE_VER_SUFFIX).0.0/' go.mod api/go.mod examples/go-client/go.mod
+
+	# Update `update-vendor` and run it.
+	sed -i 's/$(CURRENT_MOD_PATH)/$(UPGRADE_MOD_PATH)/' Makefile
+	make update-vendor
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
