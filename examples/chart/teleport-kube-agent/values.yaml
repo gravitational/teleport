@@ -60,7 +60,7 @@ labels: {}
 ################################################################
 # Values that must be provided if using persistent storage for Teleport state.
 #
-# Assigning a persistent volume to Teleport agent allows the agent to store it's security association with the Teleport
+# Assigning a persistent volume to Teleport agent allows the agent to store its security association with the Teleport
 # cluster for re-use when the pod is restarted. Without a persistent storage for this state, every time Teleport agent
 # starts it must use the authToken to create a new registration with the cluster. By using the persistent volume the
 # authToken can be routinely rotated without breaking agents ability to restart, as the token is only used on the first
@@ -156,4 +156,3 @@ resources: {}
 # Tolerations for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 tolerations: []
-
