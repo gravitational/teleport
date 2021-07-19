@@ -4,6 +4,10 @@ updates:
   directory: /
   schedule:
     interval: daily
+- package-ecosystem: gomod
+  directory: /api
+  schedule:
+    interval: daily
 - package-ecosystem: docker
   directory: /docker
   schedule:
