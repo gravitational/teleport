@@ -288,30 +288,38 @@ func (ca *CertAuthorityV2) SetSigningAlg(alg CertAuthoritySpecV2_SigningAlgType)
 	ca.Spec.SigningAlg = alg
 }
 
+func (ca *CertAuthorityV2) getOldKeySet(index int) (keySet CAKeySet) {
+	// in the "old" CA schema, index 0 contains the active keys and index 1 the
+	// additional trusted keys
+	if index < 0 || index > 1 {
+		return
+	}
+	if len(ca.Spec.CheckingKeys) > index {
+		kp := &SSHKeyPair{
+			PrivateKeyType: PrivateKeyType_RAW,
+			PublicKey:      utils.CopyByteSlice(ca.Spec.CheckingKeys[index]),
+		}
+		if len(ca.Spec.SigningKeys) > index {
+			kp.PrivateKey = utils.CopyByteSlice(ca.Spec.SigningKeys[index])
+		}
+		keySet.SSH = []*SSHKeyPair{kp}
+	}
+	if len(ca.Spec.TLSKeyPairs) > index {
+		keySet.TLS = []*TLSKeyPair{ca.Spec.TLSKeyPairs[index].Clone()}
+	}
+	if len(ca.Spec.JWTKeyPairs) > index {
+		keySet.JWT = []*JWTKeyPair{ca.Spec.JWTKeyPairs[index].Clone()}
+	}
+	return keySet
+}
+
 func (ca *CertAuthorityV2) GetActiveKeys() CAKeySet {
 	haveNewCAKeys := len(ca.Spec.ActiveKeys.SSH) > 0 || len(ca.Spec.ActiveKeys.TLS) > 0 || len(ca.Spec.ActiveKeys.JWT) > 0
 	if haveNewCAKeys {
 		return ca.Spec.ActiveKeys
 	}
 	// fall back to old schema
-	var keySet CAKeySet
-	if len(ca.Spec.CheckingKeys) > 0 {
-		kp := &SSHKeyPair{
-			PrivateKeyType: PrivateKeyType_RAW,
-			PublicKey:      utils.CopyByteSlice(ca.Spec.CheckingKeys[0]),
-		}
-		if len(ca.Spec.SigningKeys) > 0 {
-			kp.PrivateKey = utils.CopyByteSlice(ca.Spec.SigningKeys[0])
-		}
-		keySet.SSH = []*SSHKeyPair{kp}
-	}
-	if len(ca.Spec.TLSKeyPairs) > 0 {
-		keySet.TLS = []*TLSKeyPair{ca.Spec.TLSKeyPairs[0].Clone()}
-	}
-	if len(ca.Spec.JWTKeyPairs) > 0 {
-		keySet.JWT = []*JWTKeyPair{ca.Spec.JWTKeyPairs[0].Clone()}
-	}
-	return keySet
+	return ca.getOldKeySet(0)
 }
 
 func (ca *CertAuthorityV2) SetActiveKeys(ks CAKeySet) error {
@@ -328,24 +336,7 @@ func (ca *CertAuthorityV2) GetAdditionalTrustedKeys() CAKeySet {
 		return ca.Spec.AdditionalTrustedKeys
 	}
 	// fall back to old schema
-	var keySet CAKeySet
-	if len(ca.Spec.CheckingKeys) > 1 {
-		kp := &SSHKeyPair{
-			PrivateKeyType: PrivateKeyType_RAW,
-			PublicKey:      utils.CopyByteSlice(ca.Spec.CheckingKeys[1]),
-		}
-		if len(ca.Spec.SigningKeys) > 1 {
-			kp.PrivateKey = utils.CopyByteSlice(ca.Spec.SigningKeys[1])
-		}
-		keySet.SSH = []*SSHKeyPair{kp}
-	}
-	if len(ca.Spec.TLSKeyPairs) > 1 {
-		keySet.TLS = []*TLSKeyPair{ca.Spec.TLSKeyPairs[1].Clone()}
-	}
-	if len(ca.Spec.JWTKeyPairs) > 1 {
-		keySet.JWT = []*JWTKeyPair{ca.Spec.JWTKeyPairs[1].Clone()}
-	}
-	return keySet
+	return ca.getOldKeySet(1)
 }
 
 func (ca *CertAuthorityV2) SetAdditionalTrustedKeys(ks CAKeySet) error {
