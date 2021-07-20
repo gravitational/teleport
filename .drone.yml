@@ -1378,8 +1378,8 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -1496,8 +1496,8 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -1617,8 +1617,8 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -2229,8 +2229,8 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -2996,8 +2996,8 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -3114,8 +3114,8 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -3731,8 +3731,8 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -4497,6 +4497,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: f5089d78bd94dbe592780c19a82fc2f35ad1ea9c46a7b29a19a5c2f9bb456e90
+hmac: dbff7198c60320a236d6ec7c44441be636d53817d9247b5e7beb31f3f44cb81f
 
 ...
