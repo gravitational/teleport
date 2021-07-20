@@ -36,7 +36,7 @@ function DatabaseList(props: Props) {
   const {
     databases = [],
     pageSize = 100,
-    user,
+    username,
     clusterId,
     authType,
     searchValue,
@@ -118,7 +118,7 @@ function DatabaseList(props: Props) {
       </StyledTable>
       {dbConnectInfo && (
         <ConnectDialog
-          user={user}
+          username={username}
           clusterId={clusterId}
           dbName={dbConnectInfo.name}
           dbProtocol={dbConnectInfo.protocol}
@@ -175,7 +175,7 @@ function searchAndFilterCb(
 type Props = {
   databases: Database[];
   pageSize?: number;
-  user: string;
+  username: string;
   clusterId: string;
   authType: AuthType;
   searchValue: string;

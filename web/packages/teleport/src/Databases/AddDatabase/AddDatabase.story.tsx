@@ -18,12 +18,12 @@ import React from 'react';
 import Component from './AddDatabase';
 
 export default {
-  title: 'Teleport/Databases',
+  title: 'Teleport/Databases/Add',
 };
 
-export const AddDialog = () => (
+export const Add = () => (
   <Component
-    user="yassine"
+    username="yassine"
     version="6.1.3"
     onClose={() => null}
     authType="local"

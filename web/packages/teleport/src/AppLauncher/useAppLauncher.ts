@@ -47,6 +47,7 @@ function resolveRedirectUrl(params: UrlLauncherParams) {
   const location = window.location;
   const port = location.port ? ':' + location.port : '';
   const state = getUrlParameter('state', location.search);
+  const arn = getUrlParameter('awsrole', location.search);
 
   // no state value: let the target app know of a new auth exchange
   if (!state) {
@@ -58,12 +59,18 @@ function resolveRedirectUrl(params: UrlLauncherParams) {
       if (params.publicAddr) {
         url.searchParams.set('addr', params.publicAddr);
       }
+      if (params.arn) {
+        url.searchParams.set('awsrole', params.arn);
+      }
 
       return url.toString();
     });
   }
 
   // state value received: create new session for the target app
+  if (arn) {
+    params.arn = arn;
+  }
   return service.createAppSession(params).then(result => {
     const url = new URL(`https://${result.fqdn}${port}/x-teleport-auth`);
     url.searchParams.set('state', state);

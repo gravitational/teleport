@@ -27,7 +27,7 @@ import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { DbProtocol } from 'teleport/services/databases';
 
 export default function ConnectDialog({
-  user,
+  username,
   clusterId,
   dbName,
   dbProtocol,
@@ -40,7 +40,7 @@ export default function ConnectDialog({
   const connectCmd =
     authType === 'sso'
       ? `tsh login --proxy=${host}`
-      : `tsh login --proxy=${host} --auth=local --user=${user}`;
+      : `tsh login --proxy=${host} --auth=local --user=${username}`;
 
   return (
     <Dialog
@@ -104,7 +104,7 @@ export type Props = {
   dbName: string;
   dbProtocol: DbProtocol;
   onClose: () => void;
-  user: string;
+  username: string;
   clusterId: string;
   authType: AuthType;
 };

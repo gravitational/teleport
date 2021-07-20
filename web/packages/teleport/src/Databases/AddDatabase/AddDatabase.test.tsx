@@ -65,7 +65,7 @@ test('render instructions dialog for adding database', () => {
 });
 
 const props: Props = {
-  user: 'yassine',
+  username: 'yassine',
   version: '6.1.3',
   onClose: () => null,
   authType: 'local',

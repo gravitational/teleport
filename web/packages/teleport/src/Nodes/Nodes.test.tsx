@@ -15,30 +15,24 @@ limitations under the License.
 */
 
 import React from 'react';
-import Component from './ConnectDialog';
+import { render, screen } from 'design/utils/testing';
+import { nodes } from './fixtures';
+import NodeList from 'teleport/components/NodeList';
 
-export default {
-  title: 'Teleport/Kubes/Connect',
-};
+test('search filter works', () => {
+  const searchValue = 'fujedu';
+  const expectedToBeVisible = /172.10.1.20:3022/i;
+  const notExpectedToBeVisible = /172.10.1.1:3022/i;
 
-export const Local = () => {
-  return (
-    <Component
-      onClose={() => null}
-      username={'sam'}
-      authType={'local'}
-      kubeConnectName={'tele.logicoma.dev-prod'}
+  render(
+    <NodeList
+      onLoginMenuOpen={() => null}
+      onLoginSelect={() => null}
+      nodes={nodes}
+      searchValue={searchValue}
     />
   );
-};
 
-export const SSO = () => {
-  return (
-    <Component
-      onClose={() => null}
-      username={'sam'}
-      authType={'sso'}
-      kubeConnectName={'tele.logicoma.dev-prod'}
-    />
-  );
-};
+  expect(screen.queryByText(expectedToBeVisible)).toBeInTheDocument();
+  expect(screen.queryByText(notExpectedToBeVisible)).toBeNull();
+});

@@ -17,6 +17,7 @@ limitations under the License.
 import Icon, {
   Add,
   AddUsers,
+  AmazonAws,
   Amex,
   Apartment,
   AppInstalled,
@@ -176,6 +177,7 @@ export default Icon;
 export {
   Add,
   AddUsers,
+  AmazonAws,
   Amex,
   Apartment,
   AppInstalled,

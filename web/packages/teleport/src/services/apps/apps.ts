@@ -27,12 +27,13 @@ const service = {
   },
 
   createAppSession(params: UrlAppParams) {
-    const { fqdn, clusterId = '', publicAddr = '' } = params;
+    const { fqdn, clusterId = '', publicAddr = '', arn = '' } = params;
     return api
       .post(cfg.api.appSession, {
         fqdn,
         cluster_name: clusterId,
         public_addr: publicAddr,
+        arn: arn,
       })
       .then(json => ({
         fqdn: json.fqdn as string,
@@ -41,11 +42,9 @@ const service = {
   },
 
   getAppFqdn(params: UrlAppParams) {
-    return api
-      .get(cfg.getAppFqdnUrl(params))
-      .then(json => ({
-        fqdn: json.fqdn as string,
-      }));
+    return api.get(cfg.getAppFqdnUrl(params)).then(json => ({
+      fqdn: json.fqdn as string,
+    }));
   },
 };
 

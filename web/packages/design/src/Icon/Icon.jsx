@@ -39,6 +39,7 @@ function makeFontIcon(name, iconClassName) {
 
 export const Add = makeFontIcon('Add', 'icon-add');
 export const AddUsers = makeFontIcon('AddUsers', 'icon-users-plus');
+export const AmazonAws = makeFontIcon('AmazonAws', 'icon-amazonaws');
 export const Amex = makeFontIcon('Amex', 'icon-cc-amex');
 export const Apartment = makeFontIcon('Apartment', 'icon-apartment');
 export const AppInstalled = makeFontIcon('AppInstalled', 'icon-app-installed');

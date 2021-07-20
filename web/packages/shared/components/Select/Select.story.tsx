@@ -19,7 +19,7 @@ import { Flex, Box } from 'design';
 import Select, { DarkStyledSelect } from '../Select';
 
 export default {
-  title: 'Shared',
+  title: 'Shared/Select',
 };
 
 export const Selects = () => {

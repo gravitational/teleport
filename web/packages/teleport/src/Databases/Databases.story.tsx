@@ -52,7 +52,7 @@ const props: State = {
   isAddDialogVisible: false,
   hideAddDialog: () => null,
   showAddDialog: () => null,
-  user: 'sam',
+  username: 'sam',
   version: '6.1.3',
   authType: 'local',
   searchValue: '',

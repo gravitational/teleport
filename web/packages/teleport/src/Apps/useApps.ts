@@ -26,6 +26,7 @@ export default function useApps(ctx: Ctx) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const { attempt, setAttempt, run } = useAttempt('processing');
   const [apps, setApps] = useState([] as App[]);
+  const [searchValue, setSearchValue] = useState('');
   const isEnterprise = ctx.isEnterprise;
 
   function refresh() {
@@ -60,6 +61,8 @@ export default function useApps(ctx: Ctx) {
     canCreate,
     attempt,
     apps,
+    searchValue,
+    setSearchValue,
   };
 }
 

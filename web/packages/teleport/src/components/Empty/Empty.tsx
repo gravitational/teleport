@@ -80,6 +80,7 @@ export default function Empty(props: Props) {
         borderRadius={8}
         alignItems="center"
         justifyContent="center"
+        style={{ position: 'relative' }}
         target="_blank"
         href={videoLink}
       >

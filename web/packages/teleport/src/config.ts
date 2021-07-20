@@ -40,7 +40,7 @@ const cfg = {
   routes: {
     root: '/web',
     apps: '/web/cluster/:clusterId/apps',
-    appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?',
+    appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
     support: '/web/support',
     settings: '/web/settings',
     account: '/web/account',
@@ -320,6 +320,7 @@ export interface UrlAppParams {
   fqdn: string;
   clusterId?: string;
   publicAddr?: string;
+  arn?: string;
 }
 
 export interface UrlScpParams {
@@ -349,6 +350,7 @@ export interface UrlLauncherParams {
   fqdn: string;
   clusterId?: string;
   publicAddr?: string;
+  arn?: string;
 }
 
 export interface UrlPlayerParams {

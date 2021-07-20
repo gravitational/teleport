@@ -18,19 +18,62 @@ import makeApp from 'teleport/services/apps/makeApps';
 
 export const apps = [
   {
-    name: 'jenkins',
-    uri: '',
-    publicAddr: 'jenkins',
-    labels: [],
+    name: 'Jenkins',
+    uri: 'https://jenkins.teleport-proxy.com',
+    publicAddr: 'jenkins.teleport-proxy.com',
+    description: 'This is a Jenkins app',
+    awsConsole: false,
+    labels: [
+      { name: 'env', value: 'idk' },
+      { name: 'cluster', value: 'one' },
+    ],
     clusterId: 'one',
     fqdn: 'jenkins.one',
   },
   {
-    name: 'jenkins',
-    uri: '',
-    publicAddr: 'jenkins',
-    labels: [],
-    clusterId: 'two',
-    fqdn: 'jenkins.two',
+    name: 'Mattermost1',
+    uri: 'https://mattermost1.teleport-proxy.com',
+    publicAddr: 'mattermost.teleport-proxy.com',
+    description: 'This is a Mattermost app',
+    awsConsole: false,
+    labels: [
+      { name: 'env', value: 'idk' },
+      { name: 'cluster', value: 'one' },
+    ],
+    clusterId: 'one',
+    fqdn: 'mattermost.one',
+  },
+  {
+    name: 'Grafana',
+    uri: 'https://grafana.teleport-proxy.com',
+    publicAddr: 'grafana.teleport-proxy.com',
+    description: 'This is a Grafana app',
+    awsConsole: false,
+    labels: [
+      { name: 'env', value: 'idk' },
+      { name: 'cluster', value: 'one' },
+    ],
+    clusterId: 'one',
+    fqdn: 'grafana.one',
+  },
+  {
+    name: 'aws-console-1',
+    uri: 'https://console.aws.amazon.com/ec2/v2/home',
+    publicAddr: 'awsconsole-1.teleport-proxy.com',
+    labels: [{ name: 'aws_account_id', value: 'joe123' }],
+    description: 'This is an AWS Console app',
+    awsConsole: true,
+    awsRoles: [
+      {
+        arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
+        display: 'EC2FullAccess',
+      },
+      {
+        arn: 'arn:aws:iam::joe123:role/EC2ReadOnly',
+        display: 'EC2ReadOnly',
+      },
+    ],
+    clusterId: 'one',
+    fqdn: 'awsconsole-1.com',
   },
 ].map(makeApp);

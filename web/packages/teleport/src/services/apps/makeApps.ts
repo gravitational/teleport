@@ -14,31 +14,37 @@
  * limitations under the License.
  */
 
-import { at } from 'lodash';
 import { App } from './types';
 import cfg from 'teleport/config';
 
-export default function makeApp(json): App {
-  const [name, uri, publicAddr, labels, clusterId, fqdn] = at(json, [
-    'name',
-    'uri',
-    'publicAddr',
-    'labels',
-    'clusterId',
-    'fqdn',
-  ]);
+export default function makeApp(json: any): App {
+  json = json || {};
+  const {
+    name,
+    description,
+    uri,
+    publicAddr,
+    clusterId,
+    fqdn,
+    awsConsole = false,
+  } = json;
 
   const id = `${clusterId}-${name}-${publicAddr}`;
   const launchUrl = cfg.getAppLauncherRoute({ fqdn, clusterId, publicAddr });
+  const labels = json.labels || [];
+  const awsRoles = json.awsRoles || [];
 
   return {
     id,
     name,
+    description,
     uri,
     publicAddr,
-    labels,
+    tags: labels.map(label => `${label.name}: ${label.value}`),
     clusterId,
     fqdn,
     launchUrl,
+    awsRoles,
+    awsConsole,
   };
 }

@@ -45,7 +45,7 @@ export function Databases(props: State) {
     showAddDialog,
     hideAddDialog,
     isAddDialogVisible,
-    user,
+    username,
     version,
     clusterId,
     authType,
@@ -80,17 +80,11 @@ export function Databases(props: State) {
             flex="0 0 auto"
             justifyContent="space-between"
           >
-            <InputSearch
-              mr="3"
-              value={searchValue}
-              onChange={e => {
-                setSearchValue(e);
-              }}
-            />
+            <InputSearch mr={3} value={searchValue} onChange={setSearchValue} />
           </Flex>
           <DatabaseList
             databases={databases}
-            user={user}
+            username={username}
             clusterId={clusterId}
             authType={authType}
             searchValue={searchValue}
@@ -107,7 +101,7 @@ export function Databases(props: State) {
       )}
       {isAddDialogVisible && (
         <AddDialog
-          user={user}
+          username={username}
           version={version}
           authType={authType}
           onClose={hideAddDialog}

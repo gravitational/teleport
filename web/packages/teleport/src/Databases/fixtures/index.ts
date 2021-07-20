@@ -26,7 +26,7 @@ export const databases: Database[] = [
   },
   {
     name: 'postgres-gcp',
-    desc: 'MPostgreSQL 9.6: Google Cloud SQL',
+    desc: 'PostgreSQL 9.6: Google Cloud SQL',
     title: 'Cloud SQL PostgreSQL',
     protocol: 'postgres',
     tags: ['cluster: env', 'value: gcp'],

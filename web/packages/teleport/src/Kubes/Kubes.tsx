@@ -82,7 +82,6 @@ export function Kubes(props: State) {
             username={username}
             authType={authType}
             searchValue={searchValue}
-            setSearchValue={setSearchValue}
           />
         </>
       )}

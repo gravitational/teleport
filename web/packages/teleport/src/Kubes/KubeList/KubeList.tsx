@@ -148,7 +148,6 @@ type Props = {
   username: string;
   authType: AuthType;
   searchValue: string;
-  setSearchValue: React.Dispatch<React.SetStateAction<string>>;
 };
 
 export default KubeList;

@@ -57,7 +57,7 @@ test('render dialog with instructions to connect to database', () => {
 });
 
 const props: Props = {
-  user: 'yassine',
+  username: 'yassine',
   dbName: 'aurora',
   clusterId: 'im-a-cluster',
   onClose: () => null,

@@ -26,6 +26,7 @@ export const ListOfIcons = () => (
   <Flex flexWrap="wrap">
     <IconBox IconCmpt={Icon.Add} text="Add" />
     <IconBox IconCmpt={Icon.AddUsers} text="AddUsers" />
+    <IconBox IconCmpt={Icon.AmazonAws} text="AmazonAws" />
     <IconBox IconCmpt={Icon.Amex} text="Amex" />
     <IconBox IconCmpt={Icon.Apartment} text="Apartment" />
     <IconBox IconCmpt={Icon.AppInstalled} text="AppInstalled" />

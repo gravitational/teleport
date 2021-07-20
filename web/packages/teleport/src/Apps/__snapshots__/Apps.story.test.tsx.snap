@@ -275,6 +275,7 @@ exports[`empty state for enterprise, can create 1`] = `
         class="c6 c7"
         href="https://www.youtube.com/watch?v=HkBQY-uWIbU"
         rel="noreferrer"
+        style="position: relative;"
         target="_blank"
       >
         <img
@@ -483,6 +484,10 @@ exports[`failed state 1`] = `
 `;
 
 exports[`loaded state 1`] = `
+.c4 {
+  box-sizing: border-box;
+}
+
 .c3 {
   line-height: 1.5;
   margin: 0;
@@ -528,89 +533,167 @@ exports[`loaded state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c9 {
-  display: inline-block;
-  transition: color .3s;
-  color: #FFFFFF;
+.c18 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 88px;
+}
+
+.c18:active {
+  opacity: 0.56;
+}
+
+.c18:hover,
+.c18:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c18:active {
+  opacity: 0.24;
+}
+
+.c18:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
 }
 
 .c11 {
   display: inline-block;
   transition: color .3s;
-  margin-bottom: 16px;
   color: #FFFFFF;
-  font-size: 62px;
+  font-size: 16px;
+}
+
+.c14 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c16 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+  font-size: 22px;
+}
+
+.c19 {
+  display: inline-block;
+  transition: color .3s;
+  margin-left: 4px;
+  color: rgba(255,255,255,0.56);
+  font-size: 14px;
+}
+
+.c17 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-bottom: 4px;
+  margin-right: 4px;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  color: #FFFFFF;
+}
+
+.c21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  font-weight: 600;
+  font-size: 16px;
+  margin: 0px;
 }
 
 .c7 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
+  box-sizing: border-box;
   display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
-  justify-content: center;
-  text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all .3s;
-  -webkit-font-smoothing: antialiased;
-  font-size: 16px;
+  align-items: center;
+}
+
+.c15 {
+  box-sizing: border-box;
   height: 32px;
   width: 32px;
-}
-
-.c7 .c8 {
-  color: inherit;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.3);
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.3);
-}
-
-.c7:hover,
-.c7:focus {
-  background: rgba(255,255,255,0.1);
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-bottom: 8px;
-}
-
-.c4 {
-  box-sizing: border-box;
-  display: flex;
-  flex-wrap: wrap;
-}
-
-.c6 {
-  box-sizing: border-box;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-.c10 {
-  box-sizing: border-box;
-  padding-left: 8px;
-  padding-right: 8px;
-  width: 220px;
-  color: rgba(255,255,255,0.87);
-  flex: 1;
+  background-color: #f57c00;
+  border-radius: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
+}
+
+.c20 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #00796b;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c22 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #0097a7;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c23 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #e64a19;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c1 {
@@ -656,34 +739,170 @@ exports[`loaded state 1`] = `
 
 .c5 {
   box-sizing: border-box;
+  font-size: 12px;
+  min-width: 200px;
+  outline: none;
+  border: none;
+  border-radius: 200px;
+  height: 32px;
+  transition: all .2s;
+  background: #222C59;
   margin-bottom: 24px;
-  margin-right: 32px;
-  height: 240px;
-  width: 240px;
-  background-color: #222C59;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  position: relative;
-  box-shadow: 0 4px 32px rgba(0,0,0,0.24);
-  cursor: pointer;
-  transition: 0.3s;
-  border: 2px solid transparent;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
 }
 
 .c5:hover {
-  border: 2px solid #512FC9;
   background: #2C3A73;
+}
+
+.c5:focus,
+.c5:active {
+  background: #2C3A73;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c5::placeholder {
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+.c12 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c12 > thead > tr > th,
+.c12 > tbody > tr > th,
+.c12 > tfoot > tr > th,
+.c12 > thead > tr > td,
+.c12 > tbody > tr > td,
+.c12 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c12 > thead > tr > th:first-child,
+.c12 > tbody > tr > th:first-child,
+.c12 > tfoot > tr > th:first-child,
+.c12 > thead > tr > td:first-child,
+.c12 > tbody > tr > td:first-child,
+.c12 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c12 > thead > tr > th:last-child,
+.c12 > tbody > tr > th:last-child,
+.c12 > tfoot > tr > th:last-child,
+.c12 > thead > tr > td:last-child,
+.c12 > tbody > tr > td:last-child,
+.c12 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c12 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c12 > thead > tr > th .c10 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c12 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c12 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c12 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c12 tbody > tr:last-child td:first-child {
+  border-bottom-left-radius: 8px;
+}
+
+.c12 tbody > tr:last-child td:last-child {
+  border-bottom-right-radius: 8px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c9 button {
+  background: none;
+  border: none;
+  border-radius: 200px;
+  cursor: pointer;
+  padding: 0;
+  margin: 0 0 0 8px;
+  outline: none;
+  transition: all 0.3s;
+  text-align: center;
+}
+
+.c9 button:hover,
+.c9 button:focus {
+  background: #1C254D;
+}
+
+.c9 button:hover .c10,
+.c9 button:focus .c10 {
+  opacity: 1;
+}
+
+.c9 button .c10 {
+  opacity: 0.4;
+  font-size: 20px;
+  transition: all 0.3s;
+}
+
+.c6 {
+  padding: 8px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c13 > tbody > tr > td {
+  vertical-align: middle;
 }
 
 <div>
   <div
-    class="sc-AxirZ c0"
+    class="c0"
   >
     <div
-      class="sc-AxirZ c1"
+      class="c1"
     >
       <div
         class="c2"
@@ -700,91 +919,326 @@ exports[`loaded state 1`] = `
       </button>
     </div>
     <div
-      class="sc-AxirZ c4"
+      class="c4"
     >
-      <div
-        class="sc-AxirZ c5"
-        height="240px"
-        width="240px"
-      >
-        <div
-          class="sc-AxirZ c6"
-          width="100%"
+      <input
+        class="c5"
+        color="text.primary"
+        placeholder="SEARCH..."
+        value=""
+      />
+      <div>
+        <nav
+          class="c6"
         >
-          <button
-            class="c7"
-            data-testid="button"
-            style="right: 10px; position: absolute; top: 10px;"
-          >
-            <span
-              class="c8 c9 icon icon-ellipsis "
-              color="light"
-            />
-          </button>
-        </div>
-        <a
-          class="sc-AxirZ c10"
-          color="text.primary"
-          href="/web/launch/jenkins.one/one/jenkins"
-          style="text-decoration: none;"
-          tabindex="-1"
-          target="_blank"
-          width="220px"
-        >
-          <span
-            class="c8 c11 icon icon-new-tab "
-            color="light"
-            font-size="62px"
-          />
           <div
-            class="c12"
-            style="text-align: center; width: 100%;"
-          >
-            jenkins
-          </div>
-        </a>
-      </div>
-      <div
-        class="sc-AxirZ c5"
-        height="240px"
-        width="240px"
-      >
-        <div
-          class="sc-AxirZ c6"
-          width="100%"
-        >
-          <button
             class="c7"
-            data-testid="button"
-            style="right: 10px; position: absolute; top: 10px;"
           >
-            <span
-              class="c8 c9 icon icon-ellipsis "
-              color="light"
-            />
-          </button>
-        </div>
-        <a
-          class="sc-AxirZ c10"
-          color="text.primary"
-          href="/web/launch/jenkins.two/two/jenkins"
-          style="text-decoration: none;"
-          tabindex="-1"
-          target="_blank"
-          width="220px"
-        >
-          <span
-            class="c8 c11 icon icon-new-tab "
-            color="light"
-            font-size="62px"
-          />
-          <div
-            class="c12"
-            style="text-align: center; width: 100%;"
-          >
-            jenkins
+            <div
+              class="c8"
+              color="primary.contrastText"
+            >
+              SHOWING 
+              <strong>
+                1
+              </strong>
+               - 
+              <strong>
+                4
+              </strong>
+               
+              of 
+              <strong>
+                4
+              </strong>
+            </div>
           </div>
-        </a>
+          <div
+            class="c9"
+          >
+            <button
+              disabled=""
+              title="Previous Page"
+            >
+              <span
+                class="c10 c11 icon icon-arrow-left-circle "
+                color="light"
+                font-size="3"
+              />
+            </button>
+            <button
+              disabled=""
+              title="Next Page"
+            >
+              <span
+                class="c10 c11 icon icon-arrow-right-circle "
+                color="light"
+                font-size="3"
+              />
+            </button>
+          </div>
+        </nav>
+        <table
+          class="c12 c13"
+        >
+          <thead>
+            <tr>
+              <th />
+              <th>
+                <a>
+                  Name
+                  <span
+                    class="c10 c14 icon icon-chevron-up "
+                    color="light"
+                  />
+                </a>
+              </th>
+              <th>
+                <a>
+                  Description
+                  <span
+                    class="c10 c14 icon icon-chevrons-expand-vertical "
+                    color="light"
+                  />
+                </a>
+              </th>
+              <th>
+                <a>
+                  Address
+                  <span
+                    class="c10 c14 icon icon-chevrons-expand-vertical "
+                    color="light"
+                  />
+                </a>
+              </th>
+              <th>
+                Labels
+              </th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td
+                style="user-select: none;"
+              >
+                <div
+                  class="c15"
+                  height="32px"
+                  width="32px"
+                >
+                  <span
+                    class="c10 c16 icon icon-amazonaws "
+                    color="light"
+                    font-size="6"
+                  />
+                </div>
+              </td>
+              <td>
+                aws-console-1
+              </td>
+              <td>
+                This is an AWS Console app
+              </td>
+              <td>
+                https://
+                awsconsole-1.teleport-proxy.com
+              </td>
+              <td>
+                <div
+                  class="c17"
+                  kind="secondary"
+                >
+                  aws_account_id: joe123
+                </div>
+              </td>
+              <td
+                align="right"
+              >
+                <button
+                  class="c18"
+                  kind="border"
+                  width="88px"
+                >
+                  LAUNCH
+                  <span
+                    class="c10 c19 icon icon-caret-down "
+                    color="text.secondary"
+                    font-size="2"
+                  />
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td
+                style="user-select: none;"
+              >
+                <div
+                  class="c20"
+                  height="32px"
+                  width="32px"
+                >
+                  <div
+                    class="c21"
+                    font-size="3"
+                  >
+                    M
+                  </div>
+                </div>
+              </td>
+              <td>
+                Mattermost1
+              </td>
+              <td>
+                This is a Mattermost app
+              </td>
+              <td>
+                https://
+                mattermost.teleport-proxy.com
+              </td>
+              <td>
+                <div
+                  class="c17"
+                  kind="secondary"
+                >
+                  env: idk
+                </div>
+                <div
+                  class="c17"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+              </td>
+              <td
+                align="right"
+              >
+                <a
+                  class="c18"
+                  href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
+                  kind="border"
+                  rel="noreferrer"
+                  target="_blank"
+                  width="88px"
+                >
+                  LAUNCH
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td
+                style="user-select: none;"
+              >
+                <div
+                  class="c22"
+                  height="32px"
+                  width="32px"
+                >
+                  <div
+                    class="c21"
+                    font-size="3"
+                  >
+                    J
+                  </div>
+                </div>
+              </td>
+              <td>
+                Jenkins
+              </td>
+              <td>
+                This is a Jenkins app
+              </td>
+              <td>
+                https://
+                jenkins.teleport-proxy.com
+              </td>
+              <td>
+                <div
+                  class="c17"
+                  kind="secondary"
+                >
+                  env: idk
+                </div>
+                <div
+                  class="c17"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+              </td>
+              <td
+                align="right"
+              >
+                <a
+                  class="c18"
+                  href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
+                  kind="border"
+                  rel="noreferrer"
+                  target="_blank"
+                  width="88px"
+                >
+                  LAUNCH
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td
+                style="user-select: none;"
+              >
+                <div
+                  class="c23"
+                  height="32px"
+                  width="32px"
+                >
+                  <div
+                    class="c21"
+                    font-size="3"
+                  >
+                    G
+                  </div>
+                </div>
+              </td>
+              <td>
+                Grafana
+              </td>
+              <td>
+                This is a Grafana app
+              </td>
+              <td>
+                https://
+                grafana.teleport-proxy.com
+              </td>
+              <td>
+                <div
+                  class="c17"
+                  kind="secondary"
+                >
+                  env: idk
+                </div>
+                <div
+                  class="c17"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+              </td>
+              <td
+                align="right"
+              >
+                <a
+                  class="c18"
+                  href="/web/launch/grafana.one/one/grafana.teleport-proxy.com"
+                  kind="border"
+                  rel="noreferrer"
+                  target="_blank"
+                  width="88px"
+                >
+                  LAUNCH
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>

@@ -267,6 +267,7 @@ exports[`empty state 1`] = `
         class="c6 c7"
         href="https://www.youtube.com/watch?v=tUXYtwP-Kvw"
         rel="noreferrer"
+        style="position: relative;"
         target="_blank"
       >
         <img

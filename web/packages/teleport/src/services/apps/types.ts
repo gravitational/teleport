@@ -14,18 +14,21 @@
  * limitations under the License.
  */
 
-export interface Label {
-  name: string;
-  value: string;
-}
-
 export interface App {
   id: string;
   name: string;
+  description: string;
   uri: string;
   publicAddr: string;
-  labels: Label[];
+  tags: string[];
   clusterId: string;
   launchUrl: string;
   fqdn: string;
+  awsRoles: AwsRole[];
+  awsConsole: boolean;
 }
+
+export type AwsRole = {
+  arn: string;
+  display: string;
+};

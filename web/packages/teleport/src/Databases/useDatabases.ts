@@ -23,7 +23,7 @@ import { Database } from 'teleport/services/databases';
 export default function useDatabases(ctx: Ctx) {
   const { attempt, run, setAttempt } = useAttempt('processing');
   const { clusterId, isLeafCluster } = useStickyClusterId();
-  const user = ctx.storeUser.state.username;
+  const username = ctx.storeUser.state.username;
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const isEnterprise = ctx.isEnterprise;
   const version = ctx.storeUser.state.cluster.authVersion;
@@ -64,7 +64,7 @@ export default function useDatabases(ctx: Ctx) {
     hideAddDialog,
     showAddDialog,
     isAddDialogVisible,
-    user,
+    username,
     version,
     clusterId,
     authType,

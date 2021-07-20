@@ -33,7 +33,7 @@ import {
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
 export default function AddDatabase({
-  user,
+  username,
   version,
   authType,
   onClose,
@@ -57,7 +57,7 @@ export default function AddDatabase({
   const connectCmd =
     authType === 'sso'
       ? `tsh login --proxy=${host}`
-      : `tsh login --proxy=${host} --auth=local --user=${user}`;
+      : `tsh login --proxy=${host} --auth=local --user=${username}`;
 
   return (
     <Dialog
@@ -185,7 +185,7 @@ const options: DatabaseInfo[] = [
 
 export type Props = {
   onClose(): void;
-  user: string;
+  username: string;
   version: string;
   authType: AuthType;
 };
