@@ -248,9 +248,6 @@ current-context: foo
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			TestOnlyMonkeyPatchSelfPermissionCheck(tt.impersonationShim)
-			defer TestOnlyMonkeyPatchSelfPermissionCheck(nil)
-
 			got, err := getKubeCreds(ctx, testlog.FailureOnly(t), teleClusterName, "", tt.kubeconfigPath, tt.serviceType)
 			tt.assertErr(t, err)
 			if err != nil {

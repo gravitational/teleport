@@ -43,21 +43,6 @@ type kubeCreds struct {
 	kubeClient *kubernetes.Clientset
 }
 
-type SelfPermissionsCheckTestingShimFn func(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error
-
-// selfPermissionCheckTestingShim allows a test to inject a custom k8s impersonation
-// permission check
-var selfPermissionsCheckTestingShim SelfPermissionsCheckTestingShimFn
-
-// TestOnlyMonkeyPatchSelfPermissionCheck sets whether or not to skip checking k8s
-// impersonation permissions granted to this instance.
-//
-// Used in CI integration tests, where we intentionally scope down permissions
-// from what a normal prod instance should have.
-func TestOnlyMonkeyPatchSelfPermissionCheck(shim SelfPermissionsCheckTestingShimFn) {
-	selfPermissionsCheckTestingShim = shim
-}
-
 // getKubeCreds fetches the kubernetes API credentials.
 //
 // There are 2 possible sources of credentials:
@@ -212,10 +197,6 @@ func (c *kubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, erro
 }
 
 func checkImpersonationPermissions(ctx context.Context, cluster string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
-	if selfPermissionsCheckTestingShim != nil {
-		return selfPermissionsCheckTestingShim(ctx, cluster, sarClient)
-	}
-
 	for _, resource := range []string{"users", "groups", "serviceaccounts"} {
 		resp, err := sarClient.Create(ctx, &authzapi.SelfSubjectAccessReview{
 			Spec: authzapi.SelfSubjectAccessReviewSpec{
