@@ -45,9 +45,10 @@ func (s *BufferSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *BufferSuite) list(c *check.C, bufferSize int, listSize int) {
-	b, err := NewCircularBuffer(context.Background(), bufferSize)
+	b, err := NewCircularBuffer(bufferSize)
 	c.Assert(err, check.IsNil)
 	defer b.Close()
+	b.SetInit()
 	s.listWithBuffer(c, b, bufferSize, listSize)
 }
 
@@ -60,7 +61,7 @@ func (s *BufferSuite) listWithBuffer(c *check.C, b *CircularBuffer, bufferSize i
 	// push through all elements of the list and make sure
 	// the slice always matches
 	for i := 0; i < len(elements); i++ {
-		b.Push(Event{Item: Item{ID: elements[i]}})
+		b.Emit(Event{Item: Item{ID: elements[i]}})
 		sliceEnd := i + 1 - bufferSize
 		if sliceEnd < 0 {
 			sliceEnd = 0
@@ -80,23 +81,25 @@ func (s *BufferSuite) TestBufferSizes(c *check.C) {
 }
 
 // TestBufferSizesReset tests various combinations of various
-// buffer sizes and lists with reset
+// buffer sizes and lists with clear.
 func (s *BufferSuite) TestBufferSizesReset(c *check.C) {
-	b, err := NewCircularBuffer(context.Background(), 1)
+	b, err := NewCircularBuffer(1)
 	c.Assert(err, check.IsNil)
 	defer b.Close()
+	b.SetInit()
 
 	s.listWithBuffer(c, b, 1, 100)
-	b.Reset()
+	b.Clear()
 	s.listWithBuffer(c, b, 1, 100)
 }
 
 // TestWatcherSimple tests scenarios with watchers
 func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 	ctx := context.TODO()
-	b, err := NewCircularBuffer(ctx, 3)
+	b, err := NewCircularBuffer(3)
 	c.Assert(err, check.IsNil)
 	defer b.Close()
+	b.SetInit()
 
 	w, err := b.NewWatcher(ctx, Watch{})
 	c.Assert(err, check.IsNil)
@@ -109,7 +112,7 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	b.Push(Event{Item: Item{Key: []byte{Separator}, ID: 1}})
+	b.Emit(Event{Item: Item{Key: []byte{Separator}, ID: 1}})
 
 	select {
 	case e := <-w.Events():
@@ -119,7 +122,7 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 	}
 
 	b.Close()
-	b.Push(Event{Item: Item{ID: 2}})
+	b.Emit(Event{Item: Item{ID: 2}})
 
 	select {
 	case <-w.Done():
@@ -134,12 +137,12 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 // TestWatcherClose makes sure that closed watcher
 // will be removed
 func (s *BufferSuite) TestWatcherClose(c *check.C) {
-	ctx := context.TODO()
-	b, err := NewCircularBuffer(ctx, 3)
+	b, err := NewCircularBuffer(3)
 	c.Assert(err, check.IsNil)
 	defer b.Close()
+	b.SetInit()
 
-	w, err := b.NewWatcher(ctx, Watch{})
+	w, err := b.NewWatcher(context.TODO(), Watch{})
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -190,12 +193,12 @@ func (s *BufferSuite) TestRemoveRedundantPrefixes(c *check.C) {
 // TestWatcherMulti makes sure that watcher
 // with multiple matching prefixes will get an event only once
 func (s *BufferSuite) TestWatcherMulti(c *check.C) {
-	ctx := context.TODO()
-	b, err := NewCircularBuffer(ctx, 3)
+	b, err := NewCircularBuffer(3)
 	c.Assert(err, check.IsNil)
 	defer b.Close()
+	b.SetInit()
 
-	w, err := b.NewWatcher(ctx, Watch{Prefixes: [][]byte{[]byte("/a"), []byte("/a/b")}})
+	w, err := b.NewWatcher(context.TODO(), Watch{Prefixes: [][]byte{[]byte("/a"), []byte("/a/b")}})
 	c.Assert(err, check.IsNil)
 	defer w.Close()
 
@@ -206,7 +209,7 @@ func (s *BufferSuite) TestWatcherMulti(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	b.Push(Event{Item: Item{Key: []byte("/a/b/c"), ID: 1}})
+	b.Emit(Event{Item: Item{Key: []byte("/a/b/c"), ID: 1}})
 
 	select {
 	case e := <-w.Events():
@@ -221,12 +224,12 @@ func (s *BufferSuite) TestWatcherMulti(c *check.C) {
 
 // TestWatcherReset tests scenarios with watchers and buffer resets
 func (s *BufferSuite) TestWatcherReset(c *check.C) {
-	ctx := context.TODO()
-	b, err := NewCircularBuffer(ctx, 3)
+	b, err := NewCircularBuffer(3)
 	c.Assert(err, check.IsNil)
 	defer b.Close()
+	b.SetInit()
 
-	w, err := b.NewWatcher(ctx, Watch{})
+	w, err := b.NewWatcher(context.TODO(), Watch{})
 	c.Assert(err, check.IsNil)
 	defer w.Close()
 
@@ -237,8 +240,8 @@ func (s *BufferSuite) TestWatcherReset(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	b.Push(Event{Item: Item{Key: []byte{Separator}, ID: 1}})
-	b.Reset()
+	b.Emit(Event{Item: Item{Key: []byte{Separator}, ID: 1}})
+	b.Clear()
 
 	// make sure watcher has been closed
 	select {
@@ -247,7 +250,7 @@ func (s *BufferSuite) TestWatcherReset(c *check.C) {
 		c.Fatalf("Timeout waiting for close event.")
 	}
 
-	w2, err := b.NewWatcher(ctx, Watch{})
+	w2, err := b.NewWatcher(context.TODO(), Watch{})
 	c.Assert(err, check.IsNil)
 	defer w2.Close()
 
@@ -258,7 +261,7 @@ func (s *BufferSuite) TestWatcherReset(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	b.Push(Event{Item: Item{Key: []byte{Separator}, ID: 2}})
+	b.Emit(Event{Item: Item{Key: []byte{Separator}, ID: 2}})
 
 	select {
 	case e := <-w2.Events():

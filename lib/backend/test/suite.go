@@ -329,6 +329,11 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer watcher.Close()
 
+	init := collectEvents(c, watcher, 1)
+	verifyEvents(c, init, []backend.Event{
+		{Type: types.OpInit, Item: backend.Item{}},
+	})
+
 	expiresAt := addSeconds(s.Clock.Now(), 2)
 	item, lease := s.addItem(context.TODO(), c, prefix("key"), "val1", expiresAt)
 
@@ -344,9 +349,8 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	// Since the backend translates absolute expiration timestamp to a TTL
 	// and collecting events takes arbitrary time, the expiration timestamps
 	// on the collected events might have a slight skew
-	events := collectEvents(c, watcher, 3)
+	events := collectEvents(c, watcher, 2)
 	verifyEvents(c, events, []backend.Event{
-		{Type: types.OpInit, Item: backend.Item{}},
 		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
 		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
 	})
