@@ -259,6 +259,7 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 
 	totalSize := 0
 
+outer:
 	for _, dynamicEvent := range dynamicEvents {
 		// Convert the event from a dynamic representation to a typed representation.
 		event, err := FromEventFields(dynamicEvent)
@@ -289,11 +290,11 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 		switch order {
 		case types.EventOrderAscending:
 			if event.GetTime().Before(fromUTC) {
-				continue
+				continue outer
 			}
 		case types.EventOrderDescending:
 			if event.GetTime().After(toUTC) {
-				break
+				continue outer
 			}
 		}
 
@@ -303,11 +304,11 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 		switch order {
 		case types.EventOrderAscending:
 			if event.GetTime().After(toUTC) {
-				break
+				break outer
 			}
 		case types.EventOrderDescending:
 			if event.GetTime().Before(fromUTC) {
-				break
+				break outer
 			}
 		}
 
@@ -638,6 +639,15 @@ func (l *FileLog) findInFile(path string, eventFilter []string) ([]EventFields, 
 	}
 
 	return retval, nil
+}
+
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (l *FileLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	e <- trace.NotImplemented("not implemented")
+	return c, e
 }
 
 type eventFile struct {

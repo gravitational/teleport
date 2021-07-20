@@ -257,6 +257,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// Unauthenticated access to JWT public keys.
 	h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwks))
 
+	// Unauthenticated access to the message of the day
+	h.GET("/webapi/motd", httplib.MakeHandler(h.motd))
+
 	// DELETE IN: 5.1.0
 	//
 	// Migrated this endpoint to /webapi/sessions/web below.
@@ -668,6 +671,8 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 		return webclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
 	}
 
+	as.HasMessageOfTheDay = cap.GetMessageOfTheDay() != ""
+
 	return as, nil
 }
 
@@ -875,6 +880,15 @@ func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		resp.Keys = append(resp.Keys, jwk)
 	}
 	return &resp, nil
+}
+
+func (h *Handler) motd(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	authPrefs, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return webclient.MotD{Text: authPrefs.GetMessageOfTheDay()}, nil
 }
 
 func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
@@ -1895,7 +1909,7 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 //               include=session.start,session.end, all are returned if empty
 //   "order":    optional ordering of events. Can be either "asc" or "desc"
 //               for ascending and descending respectively.
-//               If no order is provided it defaults to ascending.
+//               If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
 
@@ -1914,7 +1928,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	order, err := queryOrder(values, "order", types.EventOrderAscending)
+	order, err := queryOrder(values, "order", types.EventOrderDescending)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
