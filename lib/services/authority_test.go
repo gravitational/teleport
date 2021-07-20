@@ -71,7 +71,7 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 	require.NoError(t, err)
 	ca3, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
-		ClusterName: "cluster1",
+		ClusterName: "cluster3",
 		TLSKeyPairs: []types.TLSKeyPair{{
 			Cert: cert,
 			Key:  key,
