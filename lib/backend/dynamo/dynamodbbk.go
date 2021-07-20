@@ -530,11 +530,6 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 
 // NewWatcher returns a new event watcher
 func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
-	select {
-	case <-b.watchStarted.Done():
-	case <-ctx.Done():
-		return nil, trace.ConnectionProblem(ctx.Err(), "context is closing")
-	}
 	return b.buf.NewWatcher(ctx, watch)
 }
 
@@ -594,7 +589,7 @@ func (b *Backend) Close() error {
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (b *Backend) CloseWatchers() {
-	b.buf.Reset()
+	b.buf.Clear()
 }
 
 type tableStatus int

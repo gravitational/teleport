@@ -312,7 +312,7 @@ func (b *EtcdBackend) Close() error {
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (b *EtcdBackend) CloseWatchers() {
-	b.buf.Reset()
+	b.buf.Clear()
 }
 
 func (b *EtcdBackend) reconnect(ctx context.Context) error {
@@ -384,11 +384,13 @@ func (b *EtcdBackend) watchEvents() error {
 start:
 	eventsC := b.client.Watch(b.ctx, b.cfg.Key, clientv3.WithPrefix())
 	b.signalWatchStart()
+	b.buf.SetInit()
 	for {
 		select {
 		case e, ok := <-eventsC:
 			if e.Canceled || !ok {
 				b.Debugf("Watch channel has closed.")
+				b.buf.Reset()
 				goto start
 			}
 			out := make([]backend.Event, 0, len(e.Events))
@@ -400,7 +402,7 @@ start:
 					out = append(out, *event)
 				}
 			}
-			b.buf.PushBatch(out)
+			b.buf.Emit(out...)
 		case <-b.ctx.Done():
 			return trace.ConnectionProblem(b.ctx.Err(), "context is closing")
 		}
@@ -409,11 +411,6 @@ start:
 
 // NewWatcher returns a new event watcher
 func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
-	select {
-	case <-b.watchStarted.Done():
-	case <-ctx.Done():
-		return nil, trace.ConnectionProblem(ctx.Err(), "context is closing")
-	}
 	return b.buf.NewWatcher(ctx, watch)
 }
 

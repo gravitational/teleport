@@ -775,11 +775,6 @@ func (l *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.
 	if l.EventsOff {
 		return nil, trace.BadParameter("events are turned off for this backend")
 	}
-	select {
-	case <-l.watchStarted.Done():
-	case <-ctx.Done():
-		return nil, trace.ConnectionProblem(ctx.Err(), "context is closing")
-	}
 	return l.buf.NewWatcher(ctx, watch)
 }
 
@@ -792,7 +787,7 @@ func (l *Backend) Close() error {
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (l *Backend) CloseWatchers() {
-	l.buf.Reset()
+	l.buf.Clear()
 }
 
 func (l *Backend) isClosed() bool {
