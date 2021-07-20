@@ -275,6 +275,7 @@ func tagCreateReleaseAssetCommands(b buildType) []string {
 	commands := []string{
 		`VERSION=$(cat /go/.version.txt)`,
 		fmt.Sprintf(`RELEASE_HOST=%v`, releasesHost),
+		`apk add --no-cache curl`,
 		fmt.Sprintf(`cd /go/artifacts
 for file in $(find . -type f ! -iname '*.sha256'); do
   product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z

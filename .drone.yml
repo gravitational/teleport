@@ -1372,6 +1372,7 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1489,6 +1490,7 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1609,6 +1611,7 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1645,7 +1648,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:354
+# Generated at dronegen/tag.go:355
 ################################################
 
 kind: pipeline
@@ -1777,7 +1780,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:354
+# Generated at dronegen/tag.go:355
 ################################################
 
 kind: pipeline
@@ -1906,7 +1909,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:354
+# Generated at dronegen/tag.go:355
 ################################################
 
 kind: pipeline
@@ -2024,7 +2027,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:354
+# Generated at dronegen/tag.go:355
 ################################################
 
 kind: pipeline
@@ -2220,6 +2223,7 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2256,7 +2260,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:354
+# Generated at dronegen/tag.go:355
 ################################################
 
 kind: pipeline
@@ -2388,7 +2392,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:354
+# Generated at dronegen/tag.go:355
 ################################################
 
 kind: pipeline
@@ -2986,6 +2990,7 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3103,6 +3108,7 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3139,7 +3145,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:354
+# Generated at dronegen/tag.go:355
 ################################################
 
 kind: pipeline
@@ -3257,7 +3263,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:354
+# Generated at dronegen/tag.go:355
 ################################################
 
 kind: pipeline
@@ -3375,7 +3381,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:354
+# Generated at dronegen/tag.go:355
 ################################################
 
 kind: pipeline
@@ -3507,7 +3513,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:354
+# Generated at dronegen/tag.go:355
 ################################################
 
 kind: pipeline
@@ -3719,6 +3725,7 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -4490,6 +4497,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: eb36de495d368835c761cb4d5901a897ca3cb893af487f6b067211674ff2abbf
+hmac: f5089d78bd94dbe592780c19a82fc2f35ad1ea9c46a7b29a19a5c2f9bb456e90
 
 ...
