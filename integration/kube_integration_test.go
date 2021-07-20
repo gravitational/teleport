@@ -1183,7 +1183,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	caCert, signer, err := authServer.GetHSMClient().GetTLSCertAndSigner(ca)
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ca)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

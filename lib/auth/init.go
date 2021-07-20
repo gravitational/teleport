@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/hsm"
+	"github.com/gravitational/teleport/lib/keystore"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -200,7 +200,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		if firstStart {
 			log.Infof("Applying %v bootstrap resources (first initialization)", len(cfg.Resources))
-			if err := checkResourceConsistency(asrv.hsmClient, domainName, cfg.Resources...); err != nil {
+			if err := checkResourceConsistency(asrv.keyStore, domainName, cfg.Resources...); err != nil {
 				return nil, trace.Wrap(err, "refusing to bootstrap backend")
 			}
 			if err := local.CreateResources(ctx, cfg.Backend, cfg.Resources...); err != nil {
@@ -324,7 +324,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 
 		log.Infof("First start: generating user certificate authority.")
-		userCA, err := generateSelfSignedCA(&cfg, asrv.hsmClient, types.UserCA)
+		userCA, err := generateSelfSignedCA(&cfg, asrv.keyStore, types.UserCA)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -341,7 +341,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 
 		log.Infof("First start: generating host certificate authority.")
-		hostCA, err := generateSelfSignedCA(&cfg, asrv.hsmClient, types.HostCA)
+		hostCA, err := generateSelfSignedCA(&cfg, asrv.keyStore, types.HostCA)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -361,7 +361,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	if trace.IsNotFound(err) {
 		log.Infof("Migrate: Adding JWT key to existing cluster %q.", cfg.ClusterName.GetClusterName())
 
-		jwtSigner, err := services.NewJWTAuthority(cfg.ClusterName.GetClusterName(), asrv.hsmClient)
+		jwtSigner, err := services.NewJWTAuthority(cfg.ClusterName.GetClusterName(), asrv.keyStore)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -399,19 +399,19 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	return asrv, nil
 }
 
-func generateSelfSignedCA(cfg *InitConfig, hsmClient hsm.Client, caType types.CertAuthType) (*types.CertAuthorityV2, error) {
-	sshPrivateKey, sshCryptoSigner, err := hsmClient.GenerateRSA()
+func generateSelfSignedCA(cfg *InitConfig, keyStore keystore.KeyStore, caType types.CertAuthType) (*types.CertAuthorityV2, error) {
+	sshPrivateKey, sshCryptoSigner, err := keyStore.GenerateRSA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyType := hsm.KeyType(sshPrivateKey)
+	keyType := keystore.KeyType(sshPrivateKey)
 	sshSigner, err := ssh.NewSignerFromSigner(sshCryptoSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sshPublicKey := ssh.MarshalAuthorizedKey(sshSigner.PublicKey())
 
-	tlsPrivateKey, tlsSigner, err := hsmClient.GenerateRSA()
+	tlsPrivateKey, tlsSigner, err := keyStore.GenerateRSA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -796,7 +796,7 @@ func isFirstStart(authServer *Server, cfg InitConfig) (bool, error) {
 }
 
 // checkResourceConsistency checks far basic conflicting state issues.
-func checkResourceConsistency(hsmClient hsm.Client, clusterName string, resources ...types.Resource) error {
+func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, resources ...types.Resource) error {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
 		case types.CertAuthority:
@@ -804,7 +804,7 @@ func checkResourceConsistency(hsmClient hsm.Client, clusterName string, resource
 			// all CAs for this cluster do having signing keys.
 			seemsLocal := r.GetClusterName() == clusterName
 			var hasKeys bool
-			_, err := hsmClient.GetSSHSigner(r)
+			_, err := keyStore.GetSSHSigner(r)
 			switch {
 			case err == nil:
 				hasKeys = true

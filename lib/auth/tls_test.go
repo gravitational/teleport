@@ -2255,7 +2255,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 	}, true)
 	c.Assert(err, check.IsNil)
 
-	key, err := s.server.AuthServer.AuthServer.GetHSMClient().GetJWTSigner(ca, s.clock)
+	key, err := s.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ca, s.clock)
 	c.Assert(err, check.IsNil)
 
 	var tests = []struct {
@@ -2726,7 +2726,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	cert, signer, err := s.server.Auth().GetHSMClient().GetTLSCertAndSigner(hostCA)
+	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA)
 	c.Assert(err, check.IsNil)
 	tlsCA, err := tlsca.FromCertAndSigner(cert, signer)
 	c.Assert(err, check.IsNil)
@@ -2813,7 +2813,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	cert, signer, err := s.server.Auth().hsmClient.GetTLSCertAndSigner(hostCA)
+	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA)
 	c.Assert(err, check.IsNil)
 	tlsCA, err := tlsca.FromCertAndSigner(cert, signer)
 	c.Assert(err, check.IsNil)

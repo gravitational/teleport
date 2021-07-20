@@ -1,12 +1,12 @@
-# HSM
+# Keystore
 
-Package hsm provides an HSM client and associated helpers for handling
-HSM-backed keys within Teleport.
+Package keystore provides a generic client and associated helpers for handling
+private keys that may be backed by an HSM.
 
 ## Notes on testing
 
-Testing the HSM package, predictable, requires an HSM. Testcases are currently
-written for the "raw" hsm client (no HSM), SoftHSMv2, YubiHSM2, and AWS
+Testing the Keystore package, predictable, requires an HSM. Testcases are currently
+written for the "raw" KeyStore (no HSM), SoftHSMv2, YubiHSM2, and AWS
 CloudHSM. Only the "raw" tests run without any setup, but testing for SoftHSM
 is enabled by default in the Teleport docker buildbox and will be run in CI.
 

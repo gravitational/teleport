@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/hsm"
+	"github.com/gravitational/teleport/lib/keystore"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -228,7 +228,7 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 			mode:         req.Mode,
 			privateKey:   a.privateKey,
 			caSigningAlg: a.caSigningAlg,
-		}, a.hsmClient)
+		}, a.keyStore)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -366,7 +366,7 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 		return trace.BadParameter("phase is not supported: %q", rotation.Phase)
 	}
 	logger.Infof("Setting rotation phase to %q", req.targetPhase)
-	rotated, err := processRotationRequest(*req, a.hsmClient)
+	rotated, err := processRotationRequest(*req, a.keyStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -379,7 +379,7 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 
 // processRotationRequest processes rotation request based on the target and
 // current phase and state.
-func processRotationRequest(req rotationReq, hsmClient hsm.Client) (types.CertAuthority, error) {
+func processRotationRequest(req rotationReq, keyStore keystore.KeyStore) (types.CertAuthority, error) {
 	rotation := req.ca.GetRotation()
 	ca := req.ca.Clone()
 
@@ -392,7 +392,7 @@ func processRotationRequest(req rotationReq, hsmClient hsm.Client) (types.CertAu
 		default:
 			return nil, trace.BadParameter("can not initate rotation while another is in progress")
 		}
-		if err := startNewRotation(req, ca, hsmClient); err != nil {
+		if err := startNewRotation(req, ca, keyStore); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return ca, nil
@@ -461,7 +461,7 @@ func processRotationRequest(req rotationReq, hsmClient hsm.Client) (types.CertAu
 // startNewRotation starts new rotation. In this phase requests will continue
 // to be signed by the old CAKeySet, but a new CAKeySet will be added. This new
 // CA can be used to verify requests.
-func startNewRotation(req rotationReq, ca types.CertAuthority, hsmClient hsm.Client) error {
+func startNewRotation(req rotationReq, ca types.CertAuthority, keyStore keystore.KeyStore) error {
 	clock := req.clock
 	gracePeriod := req.gracePeriod
 
@@ -524,7 +524,7 @@ func startNewRotation(req rotationReq, ca types.CertAuthority, hsmClient hsm.Cli
 			PrivateKeyType: types.PrivateKeyType_RAW,
 		}
 	} else {
-		sshPrivateKey, sshCryptoSigner, err := hsmClient.GenerateRSA()
+		sshPrivateKey, sshCryptoSigner, err := keyStore.GenerateRSA()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -536,10 +536,10 @@ func startNewRotation(req rotationReq, ca types.CertAuthority, hsmClient hsm.Cli
 		sshKeyPair = &types.SSHKeyPair{
 			PublicKey:      sshPublicKey,
 			PrivateKey:     sshPrivateKey,
-			PrivateKeyType: hsm.KeyType(sshPrivateKey),
+			PrivateKeyType: keystore.KeyType(sshPrivateKey),
 		}
 
-		tlsPrivateKey, tlsSigner, err := hsmClient.GenerateRSA()
+		tlsPrivateKey, tlsSigner, err := keyStore.GenerateRSA()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -555,10 +555,10 @@ func startNewRotation(req rotationReq, ca types.CertAuthority, hsmClient hsm.Cli
 		tlsKeyPair = &types.TLSKeyPair{
 			Cert:    tlsCert,
 			Key:     tlsPrivateKey,
-			KeyType: hsm.KeyType(tlsPrivateKey),
+			KeyType: keystore.KeyType(tlsPrivateKey),
 		}
 
-		jwtPrivateKey, jwtSigner, err := hsmClient.GenerateRSA()
+		jwtPrivateKey, jwtSigner, err := keyStore.GenerateRSA()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -569,7 +569,7 @@ func startNewRotation(req rotationReq, ca types.CertAuthority, hsmClient hsm.Cli
 		jwtKeyPair = &types.JWTKeyPair{
 			PublicKey:      jwtPublicKey,
 			PrivateKey:     jwtPrivateKey,
-			PrivateKeyType: hsm.KeyType(jwtPrivateKey),
+			PrivateKeyType: keystore.KeyType(jwtPrivateKey),
 		}
 	}
 

@@ -27,8 +27,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/hsm"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/keystore"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -48,8 +48,8 @@ func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 
 // NewJWTAuthority creates and returns a types.CertAuthority with a new
 // key pair.
-func NewJWTAuthority(clusterName string, hsmClient hsm.Client) (types.CertAuthority, error) {
-	jwtPrivateKey, signer, err := hsmClient.GenerateRSA()
+func NewJWTAuthority(clusterName string, keyStore keystore.KeyStore) (types.CertAuthority, error) {
+	jwtPrivateKey, signer, err := keyStore.GenerateRSA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -64,7 +64,7 @@ func NewJWTAuthority(clusterName string, hsmClient hsm.Client) (types.CertAuthor
 			JWT: []*types.JWTKeyPair{
 				&types.JWTKeyPair{
 					PrivateKey:     jwtPrivateKey,
-					PrivateKeyType: hsm.KeyType(jwtPrivateKey),
+					PrivateKeyType: keystore.KeyType(jwtPrivateKey),
 					PublicKey:      jwtPublicKey,
 				},
 			},

@@ -1,54 +1,29 @@
-/*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package hsm
+package keystore
 
 import (
-	"bytes"
 	"crypto"
 	"encoding/json"
 
-	"golang.org/x/crypto/ssh"
-
+	"github.com/ThalesIgnite/crypto11"
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
-
-	"github.com/ThalesIgnite/crypto11"
-	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
 )
 
-var prefix = []byte("pkcs11:")
 var label = []byte("teleport")
 
-// RSAKeyPairSource is a function type which returns new RSA keypairs. For use
-// when there is no real HSM.
-type RSAKeyPairSource func(string) (priv []byte, pub []byte, err error)
-
-// ClientConfig is used to pass HSM client configuration parameters.
-type ClientConfig struct {
+// HSMConfigConfig is used to pass HSM client configuration parameters.
+type HSMConfig struct {
 	// Path is the path to the PKCS11 module.
 	Path string
-	// SlotNumber the the PKCS11 slot to use.
+	// SlotNumber is the PKCS11 slot to use.
 	SlotNumber *int
 	// TokenLabel is the label of the PKCS11 token to use.
 	TokenLabel string
@@ -57,62 +32,14 @@ type ClientConfig struct {
 
 	// HostUUID is the UUID of the local auth server this HSM is connected to.
 	HostUUID string
-
-	// RSAKeyPairSource is a function type which returns new RSA keypairs. For
-	// use when there is no real HSM.
-	RSAKeyPairSource RSAKeyPairSource
 }
 
-func (config *ClientConfig) Validate() error {
-	if (config.Path == "") == (config.RSAKeyPairSource == nil) {
-		return trace.BadParameter("exactly one of Path or RSAKeyPairSource must be provided")
-	}
-	return nil
-}
-
-// Client is an interface for performing HSM actions.
-type Client interface {
-	// GenerateRSA creates a new RSA private key and returns its identifier and
-	// a crypto.Signer. The returned identifier can be passed to GetSigner
-	// later to get the same crypto.Signer.
-	GenerateRSA() (keyID []byte, signer crypto.Signer, err error)
-
-	// GetSigner returns a crypto.Signer for the given key identifier, if it is found.
-	GetSigner(keyID []byte) (crypto.Signer, error)
-
-	// GetTLSCertAndSigner selects the local TLS keypair and returns the raw TLS cert and crypto.Signer.
-	GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error)
-
-	// GetSSHSigner selects the local SSH keypair and returns an ssh.Signer.
-	GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error)
-
-	// GetSSHSigner selects the local JWT keypair and returns a *jwt.Key.
-	GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, error)
-
-	// DeleteKey deletes the given key from the HSM
-	DeleteKey(keyID []byte) error
-}
-
-// NewClient returns a Client based on the passed ClientConfig. If there is no
-// attached HSM, RSAKeyPairSource should be provided and raw in-memory keys
-// will be used.
-func NewClient(config *ClientConfig) (Client, error) {
-	if err := config.Validate(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if config.Path != "" {
-		client, err := newPKCS11Client(config)
-		return client, trace.Wrap(err)
-	}
-	return newRawClient(config), nil
-}
-
-type pkcs11Client struct {
+type hsmKeyStore struct {
 	ctx      *crypto11.Context
 	hostUUID string
 }
 
-func newPKCS11Client(config *ClientConfig) (Client, error) {
+func NewHSMKeyStore(config *HSMConfig) (KeyStore, error) {
 	cryptoConfig := &crypto11.Config{
 		Path:       config.Path,
 		TokenLabel: config.TokenLabel,
@@ -124,7 +51,7 @@ func newPKCS11Client(config *ClientConfig) (Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &pkcs11Client{
+	return &hsmKeyStore{
 		ctx:      ctx,
 		hostUUID: config.HostUUID,
 	}, nil
@@ -133,7 +60,7 @@ func newPKCS11Client(config *ClientConfig) (Client, error) {
 // GenerateRSA creates a new RSA private key and returns its identifier and a
 // crypto.Signer. The returned identifier can be passed to GetSigner later to
 // get the same crypto.Signer.
-func (c *pkcs11Client) GenerateRSA() ([]byte, crypto.Signer, error) {
+func (c *hsmKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
 	var id uuid.UUID
 	var signer crypto.Signer
 	var err error
@@ -169,7 +96,7 @@ func (c *pkcs11Client) GenerateRSA() ([]byte, crypto.Signer, error) {
 }
 
 // GetSigner returns a crypto.Signer for the given key identifier, if it is found.
-func (c *pkcs11Client) GetSigner(rawKey []byte) (crypto.Signer, error) {
+func (c *hsmKeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
 	keyType := KeyType(rawKey)
 	switch keyType {
 	case types.PrivateKeyType_PKCS11:
@@ -199,7 +126,7 @@ func (c *pkcs11Client) GetSigner(rawKey []byte) (crypto.Signer, error) {
 	return nil, trace.BadParameter("unrecognized key type %s", keyType.String())
 }
 
-func (c *pkcs11Client) selectTLSKeyPair(ca types.CertAuthority) (*types.TLSKeyPair, error) {
+func (c *hsmKeyStore) selectTLSKeyPair(ca types.CertAuthority) (*types.TLSKeyPair, error) {
 	keyPairs := ca.GetActiveKeys().TLS
 	if len(keyPairs) == 0 {
 		return nil, trace.NotFound("no TLS key pairs found in CA for %q", ca.GetClusterName())
@@ -227,7 +154,7 @@ func (c *pkcs11Client) selectTLSKeyPair(ca types.CertAuthority) (*types.TLSKeyPa
 }
 
 // GetTLSCertAndSigner selects the local TLS keypair and returns the raw TLS cert and crypto.Signer.
-func (c *pkcs11Client) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
+func (c *hsmKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
 	keyPair, err := c.selectTLSKeyPair(ca)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -245,7 +172,7 @@ func (c *pkcs11Client) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, cryp
 	return keyPair.Cert, signer, nil
 }
 
-func (c *pkcs11Client) selectSSHKeyPair(ca types.CertAuthority) (*types.SSHKeyPair, error) {
+func (c *hsmKeyStore) selectSSHKeyPair(ca types.CertAuthority) (*types.SSHKeyPair, error) {
 	keyPairs := ca.GetActiveKeys().SSH
 	if len(keyPairs) == 0 {
 		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
@@ -273,7 +200,7 @@ func (c *pkcs11Client) selectSSHKeyPair(ca types.CertAuthority) (*types.SSHKeyPa
 }
 
 // GetSSHSigner selects the local SSH keypair and returns an ssh.Signer.
-func (c *pkcs11Client) GetSSHSigner(ca types.CertAuthority) (sshSigner ssh.Signer, err error) {
+func (c *hsmKeyStore) GetSSHSigner(ca types.CertAuthority) (sshSigner ssh.Signer, err error) {
 	keyPair, err := c.selectSSHKeyPair(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -302,7 +229,7 @@ func (c *pkcs11Client) GetSSHSigner(ca types.CertAuthority) (sshSigner ssh.Signe
 	return sshSigner, nil
 }
 
-func (c *pkcs11Client) selectJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
+func (c *hsmKeyStore) selectJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
 	keyPairs := ca.GetActiveKeys().JWT
 	if len(keyPairs) == 0 {
 		return nil, trace.NotFound("no JWT keypairs found")
@@ -338,7 +265,7 @@ func (c *pkcs11Client) selectJWTSigner(ca types.CertAuthority) (crypto.Signer, e
 }
 
 // GetJWTSigner returns the active JWT key used to sign tokens.
-func (c *pkcs11Client) GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, error) {
+func (c *hsmKeyStore) GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, error) {
 	signer, err := c.selectJWTSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -356,7 +283,7 @@ func (c *pkcs11Client) GetJWTSigner(ca types.CertAuthority, clock clockwork.Cloc
 }
 
 // DeleteKey deletes the given key from the HSM
-func (c *pkcs11Client) DeleteKey(rawKey []byte) error {
+func (c *hsmKeyStore) DeleteKey(rawKey []byte) error {
 	keyID, err := parseKeyID(rawKey)
 	if err != nil {
 		return trace.Wrap(err)
@@ -378,130 +305,6 @@ func (c *pkcs11Client) DeleteKey(rawKey []byte) error {
 	return trace.Wrap(signer.Delete())
 }
 
-type rawClient struct {
-	rsaKeyPairSource RSAKeyPairSource
-}
-
-func newRawClient(config *ClientConfig) Client {
-	return &rawClient{
-		rsaKeyPairSource: config.RSAKeyPairSource,
-	}
-}
-
-// GenerateRSA creates a new RSA private key and returns its identifier and a
-// crypto.Signer. The returned identifier for rawClient is a pem-encoded
-// private key, and can be passed to GetSigner later to get the same
-// crypto.Signer.
-func (c *rawClient) GenerateRSA() ([]byte, crypto.Signer, error) {
-	priv, _, err := c.rsaKeyPairSource("")
-	if err != nil {
-		return nil, nil, err
-	}
-	signer, err := c.GetSigner(priv)
-	if err != nil {
-		return nil, nil, err
-	}
-	return priv, signer, trace.Wrap(err)
-}
-
-// GetSigner returns a crypto.Signer for the given pem-encoded private key.
-func (c *rawClient) GetSigner(rawKey []byte) (crypto.Signer, error) {
-	signer, err := utils.ParsePrivateKeyPEM(rawKey)
-	return signer, trace.Wrap(err)
-}
-
-// GetTLSCertAndSigner selects the first raw TLS keypair and returns the raw
-// TLS cert and a crypto.Signer.
-func (c *rawClient) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
-	keyPairs := ca.GetActiveKeys().TLS
-	if len(keyPairs) == 0 {
-		return nil, nil, trace.NotFound("no TLS key pairs found in CA for %q", ca.GetClusterName())
-	}
-
-	for _, keyPair := range keyPairs {
-		if keyPair.KeyType == types.PrivateKeyType_RAW {
-			// private key may be nil, the cert will only be used for checking
-			if len(keyPair.Key) == 0 {
-				return keyPair.Cert, nil, nil
-			}
-			signer, err := utils.ParsePrivateKeyPEM(keyPair.Key)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			return keyPair.Cert, signer, nil
-		}
-	}
-	return nil, nil, trace.NotFound("no matching TLS key pairs found in CA for %q", ca.GetClusterName())
-}
-
-// GetSSHSigner selects the first raw SSH keypair and returns an ssh.Signer
-func (c *rawClient) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
-	keyPairs := ca.GetActiveKeys().SSH
-	if len(keyPairs) == 0 {
-		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
-	}
-
-	for _, keyPair := range keyPairs {
-		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
-			signer, err := ssh.ParsePrivateKey(keyPair.PrivateKey)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			signer = sshutils.AlgSigner(signer, sshutils.GetSigningAlgName(ca))
-			return signer, nil
-		}
-	}
-	return nil, trace.NotFound("no raw SSH key pairs found in CA for %q", ca.GetClusterName())
-}
-
-func (c *rawClient) selectJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
-	keyPairs := ca.GetActiveKeys().JWT
-	if len(keyPairs) == 0 {
-		return nil, trace.NotFound("no JWT keypairs found")
-	}
-	for _, keyPair := range keyPairs {
-		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
-			signer, err := utils.ParsePrivateKey(keyPair.PrivateKey)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return signer, nil
-		}
-	}
-	return nil, trace.NotFound("no JWT key pairs found in CA for %q", ca.GetClusterName())
-}
-
-// GetJWTSigner returns the active JWT key used to sign tokens.
-func (c *rawClient) GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, error) {
-	signer, err := c.selectJWTSigner(ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	key, err := jwt.New(&jwt.Config{
-		Clock:       clock,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
-		ClusterName: ca.GetClusterName(),
-		PrivateKey:  signer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return key, nil
-}
-
-// DeleteKey deletes the given key from the HSM. This is a no-op for rawClient.
-func (c *rawClient) DeleteKey(rawKey []byte) error {
-	return nil
-}
-
-// KeyType returns the type of the given private key.
-func KeyType(key []byte) types.PrivateKeyType {
-	if bytes.HasPrefix(key, prefix) {
-		return types.PrivateKeyType_PKCS11
-	}
-	return types.PrivateKeyType_RAW
-}
-
 type keyID struct {
 	HostID string `json:"host_id"`
 	KeyID  string `json:"key_id"`
@@ -512,7 +315,7 @@ func (k keyID) marshal() ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	buf = append(append([]byte{}, prefix...), buf...)
+	buf = append(append([]byte{}, pkcs11Prefix...), buf...)
 	return buf, nil
 }
 
@@ -530,7 +333,7 @@ func parseKeyID(key []byte) (keyID, error) {
 		return keyID, trace.BadParameter("unable to parse invalid pkcs11 key")
 	}
 	// strip pkcs11: prefix
-	key = key[len(prefix):]
+	key = key[len(pkcs11Prefix):]
 	if err := json.Unmarshal(key, &keyID); err != nil {
 		//return keyID, trace.BadParameter("unable to parse invalid pkcs11 key")
 		return keyID, trace.Wrap(err)

@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/hsm"
+	"github.com/gravitational/teleport/lib/keystore"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
@@ -126,13 +126,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(nic): update this with real HSM config
-	hsmClient, err := hsm.NewClient(&hsm.ClientConfig{
+	// TODO(nic): update this with real keystore config
+	keyStore := keystore.NewRawKeyStore(&keystore.RawConfig{
 		RSAKeyPairSource: cfg.Authority.GenerateKeyPair,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
@@ -159,7 +156,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
 		},
-		hsmClient: hsmClient,
+		keyStore: keyStore,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -296,8 +293,8 @@ type Server struct {
 	// session related streams
 	streamer events.Streamer
 
-	// hsmClient is a client for interacting with Hardware Security Modules
-	hsmClient hsm.Client
+	// keyStore is an interface for interacting with private keys
+	keyStore keystore.KeyStore
 }
 
 // SetCache sets cache used by auth server
@@ -453,7 +450,7 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, _, err := a.GetHSMClient().GetTLSCertAndSigner(hostCA)
+	cert, _, err := a.keyStore.GetTLSCertAndSigner(hostCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -480,7 +477,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
-	caSigner, err := a.hsmClient.GetSSHSigner(ca)
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -499,8 +496,8 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	})
 }
 
-func (a *Server) GetHSMClient() hsm.Client {
-	return a.hsmClient
+func (a *Server) GetKeyStore() keystore.KeyStore {
+	return a.keyStore
 }
 
 // certs is a pair of SSH and TLS certificates
@@ -800,7 +797,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caSigner, err := a.hsmClient.GetSSHSigner(ca)
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -855,7 +852,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	}
 
 	// generate TLS certificate
-	cert, signer, err := a.GetHSMClient().GetTLSCertAndSigner(ca)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1440,7 +1437,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		}
 	}
 
-	cert, signer, err := a.GetHSMClient().GetTLSCertAndSigner(ca)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1449,7 +1446,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		return nil, trace.Wrap(err)
 	}
 
-	caSigner, err := a.hsmClient.GetSSHSigner(ca)
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

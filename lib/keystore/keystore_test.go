@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package hsm_test
+package keystore_test
 
 import (
 	"crypto"
@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/hsm"
+	"github.com/gravitational/teleport/lib/keystore"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/jonboulle/clockwork"
@@ -130,21 +130,22 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 func TestHSM(t *testing.T) {
 	yubiSlotNumber := 0
 	testcases := []struct {
-		desc         string
-		clientConfig hsm.ClientConfig
-		shouldSkip   func() bool
-		setup        func(t *testing.T)
+		desc       string
+		hsmConfig  *keystore.HSMConfig
+		rawConfig  *keystore.RawConfig
+		shouldSkip func() bool
+		setup      func(t *testing.T)
 	}{
 		{
 			desc: "raw client",
-			clientConfig: hsm.ClientConfig{
+			rawConfig: &keystore.RawConfig{
 				RSAKeyPairSource: native.GenerateKeyPair,
 			},
 			shouldSkip: func() bool { return false },
 		},
 		{
 			desc: "softhsm",
-			clientConfig: hsm.ClientConfig{
+			hsmConfig: &keystore.HSMConfig{
 				Path:       os.Getenv("SOFTHSM2_PATH"),
 				TokenLabel: "test",
 				Pin:        "password",
@@ -186,7 +187,7 @@ func TestHSM(t *testing.T) {
 		},
 		{
 			desc: "yubihsm",
-			clientConfig: hsm.ClientConfig{
+			hsmConfig: &keystore.HSMConfig{
 				Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
 				SlotNumber: &yubiSlotNumber,
 				Pin:        "0001password",
@@ -202,7 +203,7 @@ func TestHSM(t *testing.T) {
 		},
 		{
 			desc: "cloudhsm",
-			clientConfig: hsm.ClientConfig{
+			hsmConfig: &keystore.HSMConfig{
 				Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
 				TokenLabel: "cavium",
 				Pin:        os.Getenv("CLOUDHSM_PIN"),
@@ -230,21 +231,28 @@ func TestHSM(t *testing.T) {
 				tc.setup(t)
 			}
 
-			// create the client
-			client, err := hsm.NewClient(&tc.clientConfig)
+			// create the keystore
+			var keyStore keystore.KeyStore
+			var err error
+			if tc.hsmConfig != nil {
+				keyStore, err = keystore.NewHSMKeyStore(tc.hsmConfig)
+			} else {
+				keyStore = keystore.NewRawKeyStore(tc.rawConfig)
+			}
 			require.NoError(t, err)
+			require.NotNil(t, keyStore)
 
 			// create a key
-			key, signer, err := client.GenerateRSA()
+			key, signer, err := keyStore.GenerateRSA()
 			require.NoError(t, err)
 			require.NotNil(t, key)
 			require.NotNil(t, signer)
 
 			// delete the key when we're done with it
-			t.Cleanup(func() { require.NoError(t, client.DeleteKey(key)) })
+			t.Cleanup(func() { require.NoError(t, keyStore.DeleteKey(key)) })
 
 			// get a signer from the key
-			signer, err = client.GetSigner(key)
+			signer, err = keyStore.GetSigner(key)
 			require.NoError(t, err)
 			require.NotNil(t, signer)
 
@@ -287,7 +295,7 @@ func TestHSM(t *testing.T) {
 							testPKCS11SSHKeyPair,
 							&types.SSHKeyPair{
 								PrivateKey:     key,
-								PrivateKeyType: hsm.KeyType(key),
+								PrivateKeyType: keystore.KeyType(key),
 								PublicKey:      sshPublicKey,
 							},
 						},
@@ -295,7 +303,7 @@ func TestHSM(t *testing.T) {
 							testPKCS11TLSKeyPair,
 							&types.TLSKeyPair{
 								Key:     key,
-								KeyType: hsm.KeyType(key),
+								KeyType: keystore.KeyType(key),
 								Cert:    tlsCert,
 							},
 						},
@@ -303,7 +311,7 @@ func TestHSM(t *testing.T) {
 							testPKCS11JWTKeyPair,
 							&types.JWTKeyPair{
 								PrivateKey:     key,
-								PrivateKeyType: hsm.KeyType(key),
+								PrivateKeyType: keystore.KeyType(key),
 								PublicKey:      sshPublicKey,
 							},
 						},
@@ -311,17 +319,17 @@ func TestHSM(t *testing.T) {
 				},
 			}
 
-			// test that client is able to select the correct key and get a signer
-			sshSigner, err = client.GetSSHSigner(ca)
+			// test that keyStore is able to select the correct key and get a signer
+			sshSigner, err = keyStore.GetSSHSigner(ca)
 			require.NoError(t, err)
 			require.NotNil(t, sshSigner)
 
-			tlsCert, tlsSigner, err := client.GetTLSCertAndSigner(ca)
+			tlsCert, tlsSigner, err := keyStore.GetTLSCertAndSigner(ca)
 			require.NoError(t, err)
 			require.NotNil(t, tlsCert)
 			require.NotNil(t, tlsSigner)
 
-			jwtSigner, err := client.GetJWTSigner(ca, clockwork.NewFakeClock())
+			jwtSigner, err := keyStore.GetJWTSigner(ca, clockwork.NewFakeClock())
 			require.NoError(t, err)
 			require.NotNil(t, jwtSigner)
 
@@ -349,17 +357,17 @@ func TestHSM(t *testing.T) {
 				},
 			}
 
-			// test that client is able to get a signer
-			sshSigner, err = client.GetSSHSigner(ca)
+			// test that keyStore is able to get a signer
+			sshSigner, err = keyStore.GetSSHSigner(ca)
 			require.NoError(t, err)
 			require.NotNil(t, sshSigner)
 
-			tlsCert, tlsSigner, err = client.GetTLSCertAndSigner(ca)
+			tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ca)
 			require.NoError(t, err)
 			require.NotNil(t, tlsCert)
 			require.NotNil(t, tlsSigner)
 
-			jwtSigner, err = client.GetJWTSigner(ca, clockwork.NewFakeClock())
+			jwtSigner, err = keyStore.GetJWTSigner(ca, clockwork.NewFakeClock())
 			require.NoError(t, err)
 			require.NotNil(t, jwtSigner)
 		})
