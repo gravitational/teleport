@@ -4,19 +4,21 @@ import (
 	"crypto"
 	"encoding/json"
 
-	"github.com/ThalesIgnite/crypto11"
-	"github.com/google/uuid"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
+
+	"github.com/ThalesIgnite/crypto11"
+	"github.com/google/uuid"
 )
 
 var label = []byte("teleport")
 
-// HSMConfigConfig is used to pass HSM client configuration parameters.
+// HSMConfig is used to pass HSM client configuration parameters.
 type HSMConfig struct {
 	// Path is the path to the PKCS11 module.
 	Path string

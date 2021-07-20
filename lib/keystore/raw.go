@@ -3,11 +3,13 @@ package keystore
 import (
 	"crypto"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 type rawKeyStore struct {
@@ -111,7 +113,7 @@ func (c *rawKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error
 	return nil, trace.NotFound("no JWT key pairs found in CA for %q", ca.GetClusterName())
 }
 
-// DeleteKey deletes the given key from the HSM. This is a no-op for rawKeyStore.
+// DeleteKey deletes the given key from the KeyStore. This is a no-op for rawKeyStore.
 func (c *rawKeyStore) DeleteKey(rawKey []byte) error {
 	return nil
 }
