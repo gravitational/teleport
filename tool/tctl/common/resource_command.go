@@ -69,6 +69,9 @@ type ResourceCommand struct {
 	updateCmd *kingpin.CmdClause
 
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
+
+	// stdout allows to switch standard output source for resource command. Used in tests.
+	stdout io.Writer
 }
 
 const getHelp = `Examples:
@@ -128,6 +131,10 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
 
 	rc.getCmd.Alias(getHelp)
+
+	if rc.stdout == nil {
+		rc.stdout = os.Stdout
+	}
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -181,11 +188,11 @@ func (rc *ResourceCommand) Get(client auth.ClientI) error {
 	// is experimental.
 	switch rc.format {
 	case teleport.Text:
-		return collection.writeText(os.Stdout)
+		return collection.writeText(rc.stdout)
 	case teleport.YAML:
-		return writeYAML(collection, os.Stdout)
+		return writeYAML(collection, rc.stdout)
 	case teleport.JSON:
-		return writeJSON(collection, os.Stdout)
+		return writeJSON(collection, rc.stdout)
 	}
 	return trace.BadParameter("unsupported format")
 }
@@ -1000,12 +1007,17 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return &dbCollection{servers: servers}, nil
 		}
 
+		var out []types.DatabaseServer
 		for _, server := range servers {
 			if server.GetName() == rc.ref.Name {
+				out = append(out, server)
 				return &dbCollection{servers: []types.DatabaseServer{server}}, nil
 			}
 		}
-		return nil, trace.NotFound("database server %q not found", rc.ref.Name)
+		if len(out) == 0 {
+			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
+		}
+		return &dbCollection{servers: out}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
