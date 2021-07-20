@@ -1377,9 +1377,10 @@ steps:
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -1495,9 +1496,10 @@ steps:
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -1616,9 +1618,10 @@ steps:
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -1648,7 +1651,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:355
+# Generated at dronegen/tag.go:356
 ################################################
 
 kind: pipeline
@@ -1780,7 +1783,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:355
+# Generated at dronegen/tag.go:356
 ################################################
 
 kind: pipeline
@@ -1909,7 +1912,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:355
+# Generated at dronegen/tag.go:356
 ################################################
 
 kind: pipeline
@@ -2027,7 +2030,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:355
+# Generated at dronegen/tag.go:356
 ################################################
 
 kind: pipeline
@@ -2228,9 +2231,10 @@ steps:
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -2260,7 +2264,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:355
+# Generated at dronegen/tag.go:356
 ################################################
 
 kind: pipeline
@@ -2392,7 +2396,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:355
+# Generated at dronegen/tag.go:356
 ################################################
 
 kind: pipeline
@@ -2995,9 +2999,10 @@ steps:
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -3113,9 +3118,10 @@ steps:
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -3145,7 +3151,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:355
+# Generated at dronegen/tag.go:356
 ################################################
 
 kind: pipeline
@@ -3263,7 +3269,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:355
+# Generated at dronegen/tag.go:356
 ################################################
 
 kind: pipeline
@@ -3381,7 +3387,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:355
+# Generated at dronegen/tag.go:356
 ################################################
 
 kind: pipeline
@@ -3513,7 +3519,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:355
+# Generated at dronegen/tag.go:356
 ################################################
 
 kind: pipeline
@@ -3730,9 +3736,10 @@ steps:
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F release_id="$product@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -4497,6 +4504,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 5dd68a89cf90d72b9c5c7d9e5f79c12c05352e8c905b5018fcbf651cdfd352d2
+hmac: d5a606f255bd259867a812a937c159c6b39338bb24ab13f7f14dcdef13b75fe1
 
 ...
