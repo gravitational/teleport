@@ -8,12 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -229,7 +226,8 @@ func (c *hsmKeyStore) GetSSHSigner(ca types.CertAuthority) (sshSigner ssh.Signer
 	return sshSigner, nil
 }
 
-func (c *hsmKeyStore) selectJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
+// GetJWTSigner returns the active jwt signer used to sign tokens.
+func (c *hsmKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
 	keyPairs := ca.GetActiveKeys().JWT
 	if len(keyPairs) == 0 {
 		return nil, trace.NotFound("no JWT keypairs found")
@@ -262,24 +260,6 @@ func (c *hsmKeyStore) selectJWTSigner(ca types.CertAuthority) (crypto.Signer, er
 		}
 	}
 	return nil, trace.NotFound("no JWT key pairs found in CA for %q", ca.GetClusterName())
-}
-
-// GetJWTSigner returns the active JWT key used to sign tokens.
-func (c *hsmKeyStore) GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, error) {
-	signer, err := c.selectJWTSigner(ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	key, err := jwt.New(&jwt.Config{
-		Clock:       clock,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
-		ClusterName: ca.GetClusterName(),
-		PrivateKey:  signer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return key, nil
 }
 
 // DeleteKey deletes the given key from the HSM

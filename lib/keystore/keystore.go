@@ -23,11 +23,8 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/jwt"
 
 	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
 )
 
 var pkcs11Prefix = []byte("pkcs11:")
@@ -74,8 +71,8 @@ type KeyStore interface {
 	// GetSSHSigner selects the local SSH keypair and returns an ssh.Signer.
 	GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error)
 
-	// GetSSHSigner selects the local JWT keypair and returns a *jwt.Key.
-	GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, error)
+	// GetSSHSigner selects the local JWT keypair and returns a crypto.Signer
+	GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error)
 
 	// DeleteKey deletes the given key from the KeyStore
 	DeleteKey(keyID []byte) error

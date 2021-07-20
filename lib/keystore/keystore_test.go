@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/keystore"
 	"github.com/gravitational/teleport/lib/tlsca"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -329,7 +328,7 @@ func TestHSM(t *testing.T) {
 			require.NotNil(t, tlsCert)
 			require.NotNil(t, tlsSigner)
 
-			jwtSigner, err := keyStore.GetJWTSigner(ca, clockwork.NewFakeClock())
+			jwtSigner, err := keyStore.GetJWTSigner(ca)
 			require.NoError(t, err)
 			require.NotNil(t, jwtSigner)
 
@@ -367,7 +366,7 @@ func TestHSM(t *testing.T) {
 			require.NotNil(t, tlsCert)
 			require.NotNil(t, tlsSigner)
 
-			jwtSigner, err = keyStore.GetJWTSigner(ca, clockwork.NewFakeClock())
+			jwtSigner, err = keyStore.GetJWTSigner(ca)
 			require.NoError(t, err)
 			require.NotNil(t, jwtSigner)
 		})

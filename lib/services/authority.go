@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -151,6 +152,17 @@ func checkJWTKeys(cai types.CertAuthority) error {
 	}
 
 	return nil
+}
+
+// GetJWTSigner returns the active JWT key used to sign tokens.
+func GetJWTSigner(signer crypto.Signer, clusterName string, clock clockwork.Clock) (*jwt.Key, error) {
+	key, err := jwt.New(&jwt.Config{
+		Clock:       clock,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: clusterName,
+		PrivateKey:  signer,
+	})
+	return key, trace.Wrap(err)
 }
 
 // GetTLSCerts returns TLS certificates from CA

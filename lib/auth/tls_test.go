@@ -2255,7 +2255,9 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 	}, true)
 	c.Assert(err, check.IsNil)
 
-	key, err := s.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ca, s.clock)
+	signer, err := s.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ca)
+	c.Assert(err, check.IsNil)
+	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
 	c.Assert(err, check.IsNil)
 
 	var tests = []struct {

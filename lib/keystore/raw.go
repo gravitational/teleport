@@ -4,12 +4,9 @@ import (
 	"crypto"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -96,7 +93,8 @@ func (c *rawKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 	return nil, trace.NotFound("no raw SSH key pairs found in CA for %q", ca.GetClusterName())
 }
 
-func (c *rawKeyStore) selectJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
+// GetJWTSigner returns the active JWT signer used to sign tokens.
+func (c *rawKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
 	keyPairs := ca.GetActiveKeys().JWT
 	if len(keyPairs) == 0 {
 		return nil, trace.NotFound("no JWT keypairs found")
@@ -111,24 +109,6 @@ func (c *rawKeyStore) selectJWTSigner(ca types.CertAuthority) (crypto.Signer, er
 		}
 	}
 	return nil, trace.NotFound("no JWT key pairs found in CA for %q", ca.GetClusterName())
-}
-
-// GetJWTSigner returns the active JWT key used to sign tokens.
-func (c *rawKeyStore) GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, error) {
-	signer, err := c.selectJWTSigner(ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	key, err := jwt.New(&jwt.Config{
-		Clock:       clock,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
-		ClusterName: ca.GetClusterName(),
-		PrivateKey:  signer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return key, nil
 }
 
 // DeleteKey deletes the given key from the HSM. This is a no-op for rawKeyStore.
