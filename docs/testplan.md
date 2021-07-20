@@ -424,6 +424,7 @@ spec:
   - [ ] Verify `switching back` goes back to your default static role
   - [ ] Verify after re-assuming this role, the user is automatically logged out after the expiry is met (4 minutes)
 - [ ] Verify that after logging out (or getting logged out automatically) and relogging in, permissions are reset to `default`, and requests that are not expired and are approved are assumable again
+- [ ] Verify assuming a request with waiting room enabled, does not take you to the waiting room
 
 ## Access Request Waiting Room
 #### Strategy Reason
