@@ -11,10 +11,10 @@ import (
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	_ "github.com/golang/protobuf/ptypes/timestamp"
-	types "github.com/gravitational/teleport/api/types"
-	events "github.com/gravitational/teleport/api/types/events"
-	_ "github.com/gravitational/teleport/api/types/wrappers"
-	github_com_gravitational_teleport_api_types_wrappers "github.com/gravitational/teleport/api/types/wrappers"
+	types "github.com/gravitational/teleport/api/v7/types"
+	events "github.com/gravitational/teleport/api/v7/types/events"
+	_ "github.com/gravitational/teleport/api/v7/types/wrappers"
+	github_com_gravitational_teleport_api_types_wrappers "github.com/gravitational/teleport/api/v7/types/wrappers"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -1269,7 +1269,7 @@ type RequestStateSetter struct {
 	// Annotations are key/value pairs received from plugins during request
 	// resolution.  They are currently only used to provide additional logging
 	// information.
-	Annotations github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,5,opt,name=Annotations,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"annotations,omitempty"`
+	Annotations github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,5,opt,name=Annotations,proto3,customtype=github.com/gravitational/teleport/api/v7/types/wrappers.Traits" json:"annotations,omitempty"`
 	// Roles, if present, overrides the existing set of roles associated
 	// with the access request.
 	Roles                []string `protobuf:"bytes,6,rep,name=Roles,proto3" json:"roles,omitempty"`

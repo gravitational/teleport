@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 
 	"gopkg.in/check.v1"
 )

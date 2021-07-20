@@ -21,8 +21,8 @@ import (
 	"crypto/x509"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/client"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"

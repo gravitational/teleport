@@ -32,8 +32,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/gravitational/teleport/api/constants"
-	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/v7/constants"
+	apievents "github.com/gravitational/teleport/api/v7/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"

@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/v7/utils/sshutils"
 	"github.com/gravitational/trace"
 
 	"golang.org/x/crypto/ssh"

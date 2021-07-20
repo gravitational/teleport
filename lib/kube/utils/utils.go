@@ -21,8 +21,8 @@ import (
 	"encoding/hex"
 	"sort"
 
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v7/types"
+	apiutils "github.com/gravitational/teleport/api/v7/utils"
 	"github.com/gravitational/trace"
 
 	"k8s.io/client-go/kubernetes"

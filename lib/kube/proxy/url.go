@@ -21,7 +21,7 @@ import (
 	"path"
 	"strings"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/v7/types/events"
 )
 
 type apiResource struct {
