@@ -75,17 +75,14 @@ func isOldStyleHostsEntry(entry *knownHostEntry) bool {
 }
 
 // canPruneOldHostsEntry determines if a particular old-style hosts entry has an
-// equivalent new-style entry and can thus be pruned.
+// equivalent new-style entry and can thus be pruned. Note that this will panic
+// if `oldEntry` does not contain at least one host; `isOldStyleHostsEntry`
+// validates this.
 func canPruneOldHostsEntry(oldEntry *knownHostEntry, newEntries []*knownHostEntry) bool {
 	// Note: Per sshd's documentation, it is valid (though not recommended) for
 	// repeated/overlapping entries to exist for a given host; as such, it's
 	// only safe to prune an old entry when both the (*.)hostname and public key
 	// match.
-
-	// Ensure that (among other conditions) this entry matches exactly 1 host.
-	if !isOldStyleHostsEntry(oldEntry) {
-		return false
-	}
 
 	// The new-style entries prepend `*.`, so we'll add that upfront.
 	oldHost := "*." + oldEntry.hosts[0]
