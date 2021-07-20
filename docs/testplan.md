@@ -289,13 +289,6 @@ For main, test with admin role that has access to all resources.
 - [ ] Verify that "Description", "Session ID", "Users", "Nodes" and "Duration" columns show correct values
 - [ ] Verify that "OPTIONS" button allows to join a session
 
-#### Audit log
-- [ ] Verify that time range button is shown and works
-- [ ] Verify that clicking on `Session Ended` event icon, takes user to session player
-- [ ] Verify event detail dialogue renders when clicking on events `details` button
-- [ ] Verify searching by type, description, created works
-
-
 #### Users
 - [ ] Verify that users are shown
 - [ ] Verify that creating a new user works
@@ -546,6 +539,30 @@ Using the same user as above:
 - [ ] Verify logging in with registered u2f key works
 - [ ] Verify connecting to a ssh node prompts you to tap your registered u2f key
 - [ ] Verify in the web terminal, you can scp upload/download files
+
+#### Cloud Billing & Usage
+Run teleport with sales center locally.
+
+- [ ] Verify you can view the `Billing & Usage` screen from user menu (top right corner)
+- [ ] Verify you can view dummy summary, usage chart, and summary
+- [ ] Verify you can view dummy invoices
+- [ ] Verify under billing tab: 
+  - [ ] Add a credit card
+  - [ ] Delete a credit card
+  - [ ] Switch to a different primary card
+
+#### Audit log
+This test should be performed after the above tests has been made b/c at this point, some events would've been generated.
+
+- [ ] Verify that time range button is shown and works
+- [ ] Verify that clicking on `Session Ended` event icon, takes user to session player
+- [ ] Verify event detail dialogue renders when clicking on events `details` button
+- [ ] Verify searching by type, description, created works
+- [ ] Generate a ton of events and test paging (need at least more than 5000)
+
+After the above tests, test the following with teleport running in cloud staging environment to test dynamodb (vs local):
+- [ ] View the audit logs
+- [ ] Paging works
 
 ## RBAC
 Create a role, with no `allow.rules` defined:
