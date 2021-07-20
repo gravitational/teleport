@@ -89,7 +89,7 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, pool.Subjects(), 2)
 	})
-	t.Run("ca3 with 3 certs", func(t *testing.T) {
+	t.Run("ca3 with 1 cert", func(t *testing.T) {
 		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca3})
 		require.NoError(t, err)
 		require.Len(t, pool.Subjects(), 1)
