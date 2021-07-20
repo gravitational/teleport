@@ -520,6 +520,9 @@ type Auth struct {
 	// expires. The empty string implies no message should be sent prior to
 	// disconnection.
 	ClientIdleTimeoutMessage string `yaml:"client_idle_timeout_message,omitempty"`
+
+	// MessageOfTheDay is a banner that a user must acknowledge during a `tsh login`.
+	MessageOfTheDay string `yaml:"message_of_the_day,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key

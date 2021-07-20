@@ -787,6 +787,8 @@ message AuthPreferenceSpecV2 {
         (gogoproto.jsontag) = "allow_local_auth,omitempty",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    string MessageOfTheDay = 8 [ (gogoproto.jsontag) = "message_of_the_day,omitempty" ];
 }
 
 // LegacyClusterConfigAuthFields facilitates a backward compatible transition
