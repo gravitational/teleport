@@ -134,6 +134,8 @@ type ForwarderConfig struct {
 	DynamicLabels *labels.Dynamic
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+
+	CheckImpersonationPermissions ImpersonationPermissionsChecker
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -203,7 +205,12 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		trace.Component: cfg.Component,
 	})
 
-	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType)
+	checkImpersonation := cfg.CheckImpersonationPermissions
+	if checkImpersonation == nil {
+		checkImpersonation = checkImpersonationPermissions
+	}
+
+	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, checkImpersonation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -63,7 +63,7 @@ type kubeCreds struct {
 //   - if loading from kubeconfig, all contexts are returned
 //   - if no credentials are loaded, returns an error
 //   - permission self-test failures cause an error to be returned
-func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, kubeClusterName, kubeconfigPath string, serviceType KubeServiceType) (map[string]*kubeCreds, error) {
+func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, kubeClusterName, kubeconfigPath string, serviceType KubeServiceType, checkImpersonation ImpersonationPermissionsChecker) (map[string]*kubeCreds, error) {
 	log.
 		WithField("kubeconfigPath", kubeconfigPath).
 		WithField("kubeClusterName", kubeClusterName).
@@ -110,7 +110,7 @@ func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, ku
 	res := make(map[string]*kubeCreds, len(cfg.Contexts))
 	// Convert kubeconfig contexts into kubeCreds.
 	for cluster, clientCfg := range cfg.Contexts {
-		clusterCreds, err := extractKubeCreds(ctx, cluster, clientCfg, serviceType, kubeconfigPath, log)
+		clusterCreds, err := extractKubeCreds(ctx, cluster, clientCfg, serviceType, kubeconfigPath, log, checkImpersonation)
 		if err != nil {
 			log.WithError(err).Warnf("failed to load credentials for cluster %q.", cluster)
 			continue
@@ -120,7 +120,7 @@ func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, ku
 	return res, nil
 }
 
-func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Config, serviceType KubeServiceType, kubeconfigPath string, log logrus.FieldLogger) (*kubeCreds, error) {
+func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Config, serviceType KubeServiceType, kubeconfigPath string, log logrus.FieldLogger, checkPermissions ImpersonationPermissionsChecker) (*kubeCreds, error) {
 	log = log.WithField("cluster", cluster)
 
 	log.Debug("Checking Kubernetes impersonation permissions.")
@@ -131,7 +131,7 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 
 	// For each loaded cluster, check impersonation permissions. This
 	// failure is only critical for newKubeService.
-	if err := checkImpersonationPermissions(ctx, cluster, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
+	if err := checkPermissions(ctx, cluster, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
 		// kubernetes_service must have valid RBAC permissions, otherwise
 		// it's pointless.
 		// proxy_service can run without them (e.g. a root proxy).

@@ -192,8 +192,8 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
 
-	err = teleport.Start()
 	require.NoError(t, err)
+	err = teleport.Start()
 	defer teleport.StopAll()
 
 	// impersonating client requests will be denied if the headers
