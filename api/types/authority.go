@@ -313,6 +313,7 @@ func (ca *CertAuthorityV2) GetActiveKeys() CAKeySet {
 	}
 	return keySet
 }
+
 func (ca *CertAuthorityV2) SetActiveKeys(ks CAKeySet) error {
 	if err := ks.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -320,8 +321,8 @@ func (ca *CertAuthorityV2) SetActiveKeys(ks CAKeySet) error {
 	ca.Spec.ActiveKeys = ks
 	return nil
 }
+
 func (ca *CertAuthorityV2) GetAdditionalTrustedKeys() CAKeySet {
-	return ca.Spec.AdditionalTrustedKeys
 	haveNewCAKeys := len(ca.Spec.AdditionalTrustedKeys.SSH) > 0 || len(ca.Spec.AdditionalTrustedKeys.TLS) > 0 || len(ca.Spec.AdditionalTrustedKeys.JWT) > 0
 	if haveNewCAKeys {
 		return ca.Spec.AdditionalTrustedKeys
@@ -346,6 +347,7 @@ func (ca *CertAuthorityV2) GetAdditionalTrustedKeys() CAKeySet {
 	}
 	return keySet
 }
+
 func (ca *CertAuthorityV2) SetAdditionalTrustedKeys(ks CAKeySet) error {
 	if err := ks.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
