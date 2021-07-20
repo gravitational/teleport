@@ -1374,11 +1374,11 @@ steps:
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
   - |-
     cd /go/artifacts
-    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
-      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+    for file in $(find . -type f ! -iname '*.sha256'); do
+      product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -1491,11 +1491,11 @@ steps:
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
   - |-
     cd /go/artifacts
-    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
-      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+    for file in $(find . -type f ! -iname '*.sha256'); do
+      product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -1611,11 +1611,11 @@ steps:
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
   - |-
     cd /go/artifacts
-    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
-      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+    for file in $(find . -type f ! -iname '*.sha256'); do
+      product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -2222,11 +2222,11 @@ steps:
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
   - |-
     cd /go/artifacts
-    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
-      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+    for file in $(find . -type f ! -iname '*.sha256'); do
+      product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+      curl -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -2988,11 +2988,11 @@ steps:
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
   - |-
     cd /go/artifacts
-    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
-      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+    for file in $(find . -type f ! -iname '*.sha256'); do
+      product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+      curl -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -3105,11 +3105,11 @@ steps:
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
   - |-
     cd /go/artifacts
-    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
-      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+    for file in $(find . -type f ! -iname '*.sha256'); do
+      product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+      curl -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -3721,11 +3721,11 @@ steps:
   - RELEASE_HOST=https://rlz.cloud.gravitational.io
   - |-
     cd /go/artifacts
-    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
-      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+    for file in $(find . -type f ! -iname '*.sha256'); do
+      product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+      curl -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
     done
 - name: Upload to S3
   image: plugins/s3
@@ -4490,6 +4490,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 2137f952f1669aace9624fda6cdf2704eb091107f1841c7c8fa6d5cad142688a
+hmac: eb36de495d368835c761cb4d5901a897ca3cb893af487f6b067211674ff2abbf
 
 ...

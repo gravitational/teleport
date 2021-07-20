@@ -276,8 +276,8 @@ func tagCreateReleaseAssetCommands(b buildType) []string {
 		`VERSION=$(cat /go/.version.txt)`,
 		fmt.Sprintf(`RELEASE_HOST=%v`, releasesHost),
 		fmt.Sprintf(`cd /go/artifacts
-for file in $(find . -type f ! -iname '*.sha256' -printf "%%f\n"); do
-  product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
+for file in $(find . -type f ! -iname '*.sha256'); do
+  product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
   status_code=$(curl -s -o /tmp/curl_out.txt -w "%%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
   [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
   curl -F description="TODO" -F os="%s" -F arch="%s" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
