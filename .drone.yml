@@ -1291,7 +1291,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -1367,6 +1367,19 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Register artifacts
+  image: docker
+  commands:
+  - VERSION=$(cat /go/.version.txt)
+  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - |-
+    cd /go/artifacts
+    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
+      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+    done
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -1395,7 +1408,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -1471,6 +1484,19 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Register artifacts
+  image: docker
+  commands:
+  - VERSION=$(cat /go/.version.txt)
+  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - |-
+    cd /go/artifacts
+    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
+      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+    done
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -1499,7 +1525,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -1578,6 +1604,19 @@ steps:
   - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Register artifacts
+  image: docker
+  commands:
+  - VERSION=$(cat /go/.version.txt)
+  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - |-
+    cd /go/artifacts
+    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
+      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+    done
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -1606,7 +1645,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:354
 ################################################
 
 kind: pipeline
@@ -1738,7 +1777,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:354
 ################################################
 
 kind: pipeline
@@ -1867,7 +1906,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:354
 ################################################
 
 kind: pipeline
@@ -1985,7 +2024,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:354
 ################################################
 
 kind: pipeline
@@ -2100,7 +2139,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -2176,6 +2215,19 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Register artifacts
+  image: docker
+  commands:
+  - VERSION=$(cat /go/.version.txt)
+  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - |-
+    cd /go/artifacts
+    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
+      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+    done
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -2204,7 +2256,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:354
 ################################################
 
 kind: pipeline
@@ -2336,7 +2388,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:354
 ################################################
 
 kind: pipeline
@@ -2853,7 +2905,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -2929,6 +2981,19 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Register artifacts
+  image: docker
+  commands:
+  - VERSION=$(cat /go/.version.txt)
+  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - |-
+    cd /go/artifacts
+    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
+      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+    done
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -2957,7 +3022,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -3033,6 +3098,19 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Register artifacts
+  image: docker
+  commands:
+  - VERSION=$(cat /go/.version.txt)
+  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - |-
+    cd /go/artifacts
+    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
+      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+    done
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -3061,7 +3139,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:354
 ################################################
 
 kind: pipeline
@@ -3179,7 +3257,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:354
 ################################################
 
 kind: pipeline
@@ -3297,7 +3375,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:354
 ################################################
 
 kind: pipeline
@@ -3429,7 +3507,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:354
 ################################################
 
 kind: pipeline
@@ -3561,7 +3639,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -3636,6 +3714,19 @@ steps:
   - cp /go/artifacts/teleport-v$${VERSION}-windows-amd64-bin.zip /go/artifacts/teleport-ent-v$${VERSION}-windows-amd64-bin.zip
   - cd /go/artifacts && for FILE in teleport*.zip; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Register artifacts
+  image: docker
+  commands:
+  - VERSION=$(cat /go/.version.txt)
+  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - |-
+    cd /go/artifacts
+    for file in $(find . -type f ! -iname '*.sha256' -printf "%f\n"); do
+      product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft "$RELEASE_HOST/releases")
+      [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" "$RELEASE_HOST/assets";
+    done
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -4399,6 +4490,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: a6eb9db27be4297501980988a17b963076717be5b64fe774bb47f742d5c8b493
+hmac: 2137f952f1669aace9624fda6cdf2704eb091107f1841c7c8fa6d5cad142688a
 
 ...

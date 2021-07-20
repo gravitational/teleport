@@ -11,6 +11,8 @@ const (
 	debPackage = "deb"
 )
 
+const releasesHost = "https://rlz.cloud.gravitational.io"
+
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
 func tagCheckoutCommands(fips bool) []string {
 	commands := []string{
@@ -217,6 +219,11 @@ func tagPipeline(b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyArtifactCommands(b),
 		},
+		{
+			Name:     "Register artifacts",
+			Image:    "docker",
+			Commands: tagCreateReleaseAssetCommands(b),
+		},
 		uploadToS3Step(s3Settings{
 			region:      "us-west-2",
 			source:      "/go/artifacts/*",
@@ -260,6 +267,23 @@ func tagCopyPackageArtifactCommands(b buildType, packageType string) []string {
 		commands = append(commands, fmt.Sprintf(`find build -maxdepth 1 -iname "teleport*.%s*" -print -exec cp {} /go/artifacts \;`, packageType))
 	}
 	commands = append(commands, fmt.Sprintf(`find e/build -maxdepth 1 -iname "teleport*.%s*" -print -exec cp {} /go/artifacts \;`, packageType))
+	return commands
+}
+
+// createReleaseAssetCommands generates a set of commands to create release & asset in release management service
+func tagCreateReleaseAssetCommands(b buildType) []string {
+	commands := []string{
+		`VERSION=$(cat /go/.version.txt)`,
+		fmt.Sprintf(`RELEASE_HOST=%v`, releasesHost),
+		fmt.Sprintf(`cd /go/artifacts
+for file in $(find . -type f ! -iname '*.sha256' -printf "%%f\n"); do
+  product="$(echo -n "$file" | sed 's/-v\d.*//')" # extract part before -vX.Y.Z
+  status_code=$(curl -s -o /tmp/curl_out.txt -w "%%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+  [ $status_code = 200 ] || [ $status_code = 303 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+  curl -F description="TODO" -F os="%s" -F arch="%s" -F file=@$file -F sha256="$(cat $file.sha256)" -F release_id="teleport@$VERSION" $RELEASE_HOST/assets;
+done`,
+			b.os, b.arch /* TODO: fips */),
+	}
 	return commands
 }
 
