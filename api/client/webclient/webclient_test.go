@@ -17,12 +17,24 @@ limitations under the License.
 package webclient
 
 import (
+	"context"
 	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGetTunnelAddr(t *testing.T) {
+	ctx := context.Background()
+	t.Run("should use TELEPORT_TUNNEL_PUBLIC_ADDR", func(t *testing.T) {
+		os.Setenv(defaults.TunnelPublicAddrEnvar, "tunnel.example.com:4024")
+		t.Cleanup(func() { os.Unsetenv(defaults.TunnelPublicAddrEnvar) })
+		tunnelAddr, err := GetTunnelAddr(ctx, "", true, nil)
+		require.NoError(t, err)
+		require.Equal(t, "tunnel.example.com:4024", tunnelAddr)
+	})
+}
 
 func TestTunnelAddr(t *testing.T) {
 	testTunnelAddr := func(settings SSHProxySettings, expectedTunnelAddr string) func(*testing.T) {
@@ -70,13 +82,6 @@ func TestTunnelAddr(t *testing.T) {
 		},
 		"proxy.example.com:3024",
 	))
-	t.Run("should use TELEPORT_TUNNEL_PUBLIC_ADDR", func(t *testing.T) {
-		os.Setenv(defaults.TunnelPublicAddrEnvar, "tunnel.example.com:4024")
-		t.Cleanup(func() { os.Unsetenv(defaults.TunnelPublicAddrEnvar) })
-		tunnelAddr, err := tunnelAddr(SSHProxySettings{})
-		require.NoError(t, err)
-		require.Equal(t, "tunnel.example.com:4024", tunnelAddr)
-	})
 }
 
 func TestExtract(t *testing.T) {

@@ -96,55 +96,19 @@ func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 	return pr, nil
 }
 
-// GetTunnelAddr returns the tunnel address retrieved from the web proxy.
+// GetTunnelAddr returns the tunnel address either set in an environment variable or retrieved from the web proxy.
 func GetTunnelAddr(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (string, error) {
+	// If TELEPORT_TUNNEL_PUBLIC_ADDR is set, nothing else has to be done, return it.
+	if tunnelAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); tunnelAddr != "" {
+		return extractHostPort(tunnelAddr)
+	}
+
 	// Ping web proxy to retrieve tunnel proxy address.
 	pr, err := Find(ctx, proxyAddr, insecure, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	return tunnelAddr(pr.Proxy.SSH)
-}
-
-// The tunnel addr is retrieved in the following preference order:
-//  1. Reverse Tunnel Public Address.
-//  2. SSH Proxy Public Address Host + Tunnel Port.
-//  3. HTTP Proxy Public Address Host + Tunnel Port.
-//  4. Tunnel Listen Address.
-func tunnelAddr(settings SSHProxySettings) (string, error) {
-	// If a tunnel public address is set, nothing else has to be done, return it.
-	if settings.TunnelPublicAddr != "" {
-		return extractHostPort(settings.TunnelPublicAddr)
-	}
-
-	if tunnelAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); tunnelAddr != "" {
-		return extractHostPort(tunnelAddr)
-	}
-
-	// Extract the port the tunnel server is listening on.
-	tunnelPort := strconv.Itoa(defaults.SSHProxyTunnelListenPort)
-	if settings.TunnelListenAddr != "" {
-		if port, err := extractPort(settings.TunnelListenAddr); err == nil {
-			tunnelPort = port
-		}
-	}
-
-	// If a tunnel public address has not been set, but a related HTTP or SSH
-	// public address has been set, extract the hostname but use the port from
-	// the tunnel listen address.
-	if settings.SSHPublicAddr != "" {
-		if host, err := extractHost(settings.SSHPublicAddr); err == nil {
-			return net.JoinHostPort(host, tunnelPort), nil
-		}
-	}
-	if settings.PublicAddr != "" {
-		if host, err := extractHost(settings.PublicAddr); err == nil {
-			return net.JoinHostPort(host, tunnelPort), nil
-		}
-	}
-
-	// If nothing is set, fallback to the tunnel listen address.
-	return extractHostPort(settings.TunnelListenAddr)
 }
 
 func GetMOTD(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (*MotD, error) {
@@ -290,6 +254,43 @@ type GithubSettings struct {
 	Name string `json:"name"`
 	// Display is the connector display name
 	Display string `json:"display"`
+}
+
+// The tunnel addr is retrieved in the following preference order:
+//  1. Reverse Tunnel Public Address.
+//  2. SSH Proxy Public Address Host + Tunnel Port.
+//  3. HTTP Proxy Public Address Host + Tunnel Port.
+//  4. Tunnel Listen Address.
+func tunnelAddr(settings SSHProxySettings) (string, error) {
+	// If a tunnel public address is set, nothing else has to be done, return it.
+	if settings.TunnelPublicAddr != "" {
+		return extractHostPort(settings.TunnelPublicAddr)
+	}
+
+	// Extract the port the tunnel server is listening on.
+	tunnelPort := strconv.Itoa(defaults.SSHProxyTunnelListenPort)
+	if settings.TunnelListenAddr != "" {
+		if port, err := extractPort(settings.TunnelListenAddr); err == nil {
+			tunnelPort = port
+		}
+	}
+
+	// If a tunnel public address has not been set, but a related HTTP or SSH
+	// public address has been set, extract the hostname but use the port from
+	// the tunnel listen address.
+	if settings.SSHPublicAddr != "" {
+		if host, err := extractHost(settings.SSHPublicAddr); err == nil {
+			return net.JoinHostPort(host, tunnelPort), nil
+		}
+	}
+	if settings.PublicAddr != "" {
+		if host, err := extractHost(settings.PublicAddr); err == nil {
+			return net.JoinHostPort(host, tunnelPort), nil
+		}
+	}
+
+	// If nothing is set, fallback to the tunnel listen address.
+	return extractHostPort(settings.TunnelListenAddr)
 }
 
 // extractHostPort takes addresses like "tcp://host:port/path" and returns "host:port".
