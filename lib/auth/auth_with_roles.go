@@ -2377,14 +2377,19 @@ func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context, opts ..
 }
 
 // SetSessionRecordingConfig sets session recording configuration.
-func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
-	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbCreate); err != nil {
+func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecConfig types.SessionRecordingConfig) error {
+	storedRecConfig, err := a.authServer.GetSessionRecordingConfig(ctx)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+
+	for _, verb := range verbsToReplaceResourceWithOrigin(storedRecConfig) {
+		if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, verb); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	return a.authServer.SetSessionRecordingConfig(ctx, recConfig)
+
+	return a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
 }
 
 // ResetSessionRecordingConfig resets session recording configuration to defaults.
