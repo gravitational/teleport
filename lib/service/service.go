@@ -2245,7 +2245,7 @@ func (process *TeleportProcess) initProxy() error {
 
 type proxyListeners struct {
 	mux           *multiplexer.Mux
-	tls           *multiplexer.TLSListener
+	tls           *multiplexer.WebListener
 	ssh           net.Listener
 	web           net.Listener
 	reverseTunnel net.Listener
@@ -2694,14 +2694,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			// to web UI or application access) and those served by a database
 			// access for databases that use plain TLS handshake (such as
 			// MongoDB).
-			listeners.tls, err = multiplexer.NewTLSListener(multiplexer.TLSListenerConfig{
-				ID:       teleport.Component(teleport.ComponentProxy, "web", process.id),
+			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
 				Listener: tls.NewListener(listeners.web, tlsConfig),
 			})
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			listeners.web = listeners.tls.HTTP()
+			listeners.web = listeners.tls.Web()
 			listeners.db.tls = listeners.tls.DB()
 
 			process.RegisterCriticalFunc("proxy.tls", func() error {
@@ -2891,10 +2890,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentDatabase))
 		if listeners.db.postgres != nil {
-			process.RegisterCriticalFunc("proxy.db.db", func() error {
-				log.Infof("Starting Database proxy server on %v.", cfg.Proxy.WebAddr.Addr)
+			process.RegisterCriticalFunc("proxy.db.postgres", func() error {
+				log.Infof("Starting Postgres proxy server on %v.", cfg.Proxy.WebAddr.Addr)
 				if err := dbProxyServer.Serve(listeners.db.postgres); err != nil {
-					log.WithError(err).Warn("Database proxy server exited with error.")
+					log.WithError(err).Warn("Postgres proxy server exited with error.")
 				}
 				return nil
 			})
