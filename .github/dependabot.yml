@@ -5,6 +5,10 @@ updates:
   schedule:
     interval: daily
 - package-ecosystem: gomod
+  directory: /examples/go-client
+  schedule:
+    interval: daily
+- package-ecosystem: gomod
   directory: /api
   schedule:
     interval: daily
