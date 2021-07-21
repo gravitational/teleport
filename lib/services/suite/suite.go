@@ -87,8 +87,8 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		panic(err)
 	}
 
-	key, cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		PrivateKey: rsaKey.(*rsa.PrivateKey),
+	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: rsaKey.(*rsa.PrivateKey),
 		Entity: pkix.Name{
 			CommonName:   config.ClusterName,
 			Organization: []string{config.ClusterName},
@@ -121,7 +121,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 					PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
 					PrivateKey: keyBytes,
 				}},
-				TLS: []*types.TLSKeyPair{{Cert: cert, Key: key}},
+				TLS: []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}},
 				JWT: []*types.JWTKeyPair{{
 					PublicKey:  publicKey,
 					PrivateKey: privateKey,
