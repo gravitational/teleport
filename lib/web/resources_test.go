@@ -98,16 +98,8 @@ metadata:
   name: roleName
 spec:
   allow:
-    app_labels:
-      '*': '*'
-    db_labels:
-      '*': '*'
-    kubernetes_labels:
-      '*': '*'
     logins:
     - test
-    node_labels:
-      '*': '*'
   deny: {}
   options:
     cert_format: standard
@@ -117,7 +109,7 @@ spec:
     forward_agent: false
     max_session_ttl: 30h0m0s
     port_forwarding: true
-version: v3
+version: v4
 `
 	role, err := types.NewRole("roleName", types.RoleSpecV4{
 		Allow: types.RoleConditions{
