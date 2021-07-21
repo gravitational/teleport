@@ -487,11 +487,8 @@ func (r *RoleV4) SetRules(rct RoleConditionType, in []Rule) {
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV4) setStaticFields() {
 	r.Kind = KindRole
-	// TODO(Joerger/nklaassen) Role should default to V4
-	// but shouldn't overwrite V3. For now, this does the
-	// opposite due to an internal reliance on V3 defaults.
-	if r.Version != V4 {
-		r.Version = V3
+	if r.Version != V3 {
+		r.Version = V4
 	}
 }
 
