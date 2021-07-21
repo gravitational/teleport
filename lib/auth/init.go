@@ -1381,9 +1381,8 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 
 func migrateCertAuthority(ctx context.Context, asrv *Server, ca types.CertAuthority) error {
 	// Check if we need to migrate.
-	if ks := ca.GetActiveKeys(); len(ks.TLS) != 0 || len(ks.SSH) != 0 || len(ks.JWT) != 0 {
-		// Already using the new format.
-		return nil
+	if needsMigration, err := services.CertAuthorityNeedsMigration(ca); err != nil || !needsMigration {
+		return trace.Wrap(err)
 	}
 	log.Infof("Migrating %v to 7.0 storage format.", ca)
 	// CA rotation can cause weird edge cases during migration, don't allow
