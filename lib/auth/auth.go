@@ -105,6 +105,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.ClusterConfiguration = clusterConfig
 	}
+	if cfg.Restrictions == nil {
+		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
+	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend, cfg.ClusterConfiguration.GetClusterConfig)
 	}
@@ -147,6 +150,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			Access:               cfg.Access,
 			DynamicAccessExt:     cfg.DynamicAccessExt,
 			ClusterConfiguration: cfg.ClusterConfiguration,
+			Restrictions:         cfg.Restrictions,
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
 		},
@@ -169,6 +173,7 @@ type Services struct {
 	services.Access
 	services.DynamicAccessExt
 	services.ClusterConfiguration
+	services.Restrictions
 	types.Events
 	events.IAuditLog
 }
@@ -379,27 +384,27 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
 }
 
-// GetAuthPreference gets AuthPreference from the backend.
+// GetAuthPreference gets AuthPreference from the cache.
 func (a *Server) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return a.GetCache().GetAuthPreference(ctx)
 }
 
-// GetClusterConfig gets ClusterConfig from the backend.
+// GetClusterConfig gets ClusterConfig from the cache.
 func (a *Server) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
 	return a.GetCache().GetClusterConfig(opts...)
 }
 
-// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
+// GetClusterAuditConfig gets ClusterAuditConfig from the cache.
 func (a *Server) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
 	return a.GetCache().GetClusterAuditConfig(ctx, opts...)
 }
 
-// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
+// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the cache.
 func (a *Server) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
 	return a.GetCache().GetClusterNetworkingConfig(ctx, opts...)
 }
 
-// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
+// GetSessionRecordingConfig gets SessionRecordingConfig from the cache.
 func (a *Server) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
 	return a.GetCache().GetSessionRecordingConfig(ctx, opts...)
 }
@@ -2519,6 +2524,21 @@ func (a *Server) upsertWebSession(ctx context.Context, user string, session type
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// GetNetworkRestrictions returns the network restrictions from the cache
+func (a *Server) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	return a.GetCache().GetNetworkRestrictions(ctx)
+}
+
+// SetNetworkRestrictions updates the network restrictions in the backend
+func (a *Server) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
+	return a.Services.Restrictions.SetNetworkRestrictions(ctx, nr)
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions in the backend
+func (a *Server) DeleteNetworkRestrictions(ctx context.Context) error {
+	return a.Services.Restrictions.DeleteNetworkRestrictions(ctx)
 }
 
 // authKeepAliver is a keep aliver using auth server directly

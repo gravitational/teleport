@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -519,6 +520,13 @@ type Auth struct {
 	// expires. The empty string implies no message should be sent prior to
 	// disconnection.
 	ClientIdleTimeoutMessage string `yaml:"client_idle_timeout_message,omitempty"`
+
+	// MessageOfTheDay is a banner that a user must acknowledge during a `tsh login`.
+	MessageOfTheDay string `yaml:"message_of_the_day,omitempty"`
+
+	// WebIdleTimeout sets global cluster default setting for WebUI client
+	// idle timeouts
+	WebIdleTimeout types.Duration `yaml:"web_idle_timeout,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -671,6 +679,9 @@ type SSH struct {
 	// BPF is used to configure BPF-based auditing for this node.
 	BPF *BPF `yaml:"enhanced_recording,omitempty"`
 
+	// RestrictedSession is used to restrict access to kernel objects
+	RestrictedSession *RestrictedSession `yaml:"restricted_session,omitempty"`
+
 	// MaybeAllowTCPForwarding enables or disables TCP port forwarding. We're
 	// using a pointer-to-bool here because the system default is to allow TCP
 	// forwarding, we need to distinguish between an unset value and a false
@@ -756,6 +767,29 @@ func (b *BPF) Parse() *bpf.Config {
 		NetworkBufferSize: b.NetworkBufferSize,
 		CgroupPath:        b.CgroupPath,
 	}
+}
+
+// RestrictedSession is a configuration for limiting access to kernel objects
+type RestrictedSession struct {
+	// Enabled enables or disables enforcemant for this node.
+	Enabled string `yaml:"enabled"`
+
+	// EventsBufferSize is the size in bytes of the channel to report events
+	// from the kernel to us.
+	EventsBufferSize *int `yaml:"events_buffer_size,omitempty"`
+}
+
+// Parse will parse the enhanced session recording configuration.
+func (r *RestrictedSession) Parse() (*restricted.Config, error) {
+	enabled, err := apiutils.ParseBool(r.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &restricted.Config{
+		Enabled:          enabled,
+		EventsBufferSize: r.EventsBufferSize,
+	}, nil
 }
 
 // Databases represents the database proxy service configuration.

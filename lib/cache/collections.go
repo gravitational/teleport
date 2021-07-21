@@ -176,6 +176,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &databaseServer{watch: watch, Cache: c}
+		case types.KindNetworkRestrictions:
+			if c.Restrictions == nil {
+				return nil, trace.BadParameter("missing parameter Restrictions")
+			}
+			collections[resourceKind] = &networkRestrictions{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1974,4 +1979,58 @@ func (c *sessionRecordingConfig) processEvent(ctx context.Context, event types.E
 
 func (c *sessionRecordingConfig) watchKind() types.WatchKind {
 	return c.watch
+}
+
+type networkRestrictions struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (r *networkRestrictions) erase(ctx context.Context) error {
+	if err := r.restrictionsCache.DeleteNetworkRestrictions(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (r *networkRestrictions) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	nr, err := r.Restrictions.GetNetworkRestrictions(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		nr = nil
+	}
+	return func(ctx context.Context) error {
+		if nr == nil {
+			if err := r.erase(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+		return trace.Wrap(r.restrictionsCache.SetNetworkRestrictions(ctx, nr))
+	}, nil
+}
+
+func (r *networkRestrictions) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		return trace.Wrap(r.restrictionsCache.DeleteNetworkRestrictions(ctx))
+	case types.OpPut:
+		resource, ok := event.Resource.(types.NetworkRestrictions)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		r.setTTL(resource)
+		return trace.Wrap(r.restrictionsCache.SetNetworkRestrictions(ctx, resource))
+	default:
+		r.Warnf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (r *networkRestrictions) watchKind() types.WatchKind {
+	return r.watch
 }

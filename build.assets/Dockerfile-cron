@@ -21,10 +21,10 @@ RUN mkdir -p build && \
 # Second stage builds final container with teleport binaries.
 FROM ubuntu:20.04 AS teleport
 
-# Install ca-certificates and dumb-init, then clean up.
+# Install ca-certificates, dumb-init and libelf1, then clean up.
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
-    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ca-certificates dumb-init && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ca-certificates dumb-init libelf1 && \
     update-ca-certificates && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*

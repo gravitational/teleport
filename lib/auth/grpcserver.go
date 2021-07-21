@@ -415,6 +415,14 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AuthPreference{
 			AuthPreference: r,
 		}
+	case *types.LockV2:
+		out.Resource = &proto.Event_Lock{
+			Lock: r,
+		}
+	case *types.NetworkRestrictionsV4:
+		out.Resource = &proto.Event_NetworkRestrictions{
+			NetworkRestrictions: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -1425,7 +1433,7 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	}
 	downgraded, err := downgradeRole(ctx, roleV4)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	return downgraded, nil
 }
@@ -1448,7 +1456,7 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 		}
 		downgraded, err := downgradeRole(ctx, role)
 		if err != nil {
-			return nil, trail.ToGRPC(err)
+			return nil, trace.Wrap(err)
 		}
 		rolesV4 = append(rolesV4, downgraded)
 	}
@@ -2533,18 +2541,6 @@ func (g *GRPCServer) GetClusterAuditConfig(ctx context.Context, _ *empty.Empty) 
 	return auditConfigV2, nil
 }
 
-// SetClusterAuditConfig sets cluster audit configuration.
-func (g *GRPCServer) SetClusterAuditConfig(ctx context.Context, auditConfig *types.ClusterAuditConfigV2) (*empty.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = auth.ServerWithRoles.SetClusterAuditConfig(ctx, auditConfig); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &empty.Empty{}, nil
-}
-
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *empty.Empty) (*types.ClusterNetworkingConfigV2, error) {
 	auth, err := g.authenticate(ctx)
@@ -2671,40 +2667,79 @@ func (g *GRPCServer) ResetAuthPreference(ctx context.Context, _ *empty.Empty) (*
 	return &empty.Empty{}, nil
 }
 
-type grpcContext struct {
-	*Context
-	*ServerWithRoles
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (g *GRPCServer) StreamSessionEvents(req *proto.StreamSessionEventsRequest, stream proto.AuthService_StreamSessionEventsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c, e := auth.ServerWithRoles.StreamSessionEvents(stream.Context(), session.ID(req.SessionID), int64(req.StartIndex))
+
+	for {
+		select {
+		case event, more := <-c:
+			if !more {
+				return nil
+			}
+
+			oneOf, err := apievents.ToOneOf(event)
+			if err != nil {
+				return trail.ToGRPC(trace.Wrap(err))
+			}
+
+			if err := stream.Send(oneOf); err != nil {
+				return trail.ToGRPC(trace.Wrap(err))
+			}
+		case err := <-e:
+			return trail.ToGRPC(trace.Wrap(err))
+		}
+	}
 }
 
-// authenticate extracts authentication context and returns initialized auth server
-func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
-	// HTTPS server expects auth context to be set by the auth middleware
-	authContext, err := g.Authorizer.Authorize(ctx)
+// GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
+func (g *GRPCServer) GetNetworkRestrictions(ctx context.Context, _ *empty.Empty) (*types.NetworkRestrictionsV4, error) {
+	auth, err := g.authenticate(ctx)
 	if err != nil {
-		// propagate connection problem error so we can differentiate
-		// between connection failed and access denied
-		if trace.IsConnectionProblem(err) {
-			return nil, trace.ConnectionProblem(err, "[10] failed to connect to the database")
-		} else if trace.IsNotFound(err) {
-			// user not found, wrap error with access denied
-			return nil, trace.Wrap(err, "[10] access denied")
-		} else if trace.IsAccessDenied(err) {
-			// don't print stack trace, just log the warning
-			log.Warn(err)
-		} else {
-			log.Warn(trace.DebugReport(err))
-		}
-		return nil, trace.AccessDenied("[10] access denied")
+		return nil, trail.ToGRPC(err)
 	}
-	return &grpcContext{
-		Context: authContext,
-		ServerWithRoles: &ServerWithRoles{
-			authServer: g.AuthServer,
-			context:    *authContext,
-			sessions:   g.SessionService,
-			alog:       g.AuthServer.IAuditLog,
-		},
-	}, nil
+	nr, err := auth.ServerWithRoles.GetNetworkRestrictions(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	restrictionsV4, ok := nr.(*types.NetworkRestrictionsV4)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected type %T", nr))
+	}
+	return restrictionsV4, nil
+}
+
+// SetNetworkRestrictions updates the network restrictions.
+func (g *GRPCServer) SetNetworkRestrictions(ctx context.Context, nr *types.NetworkRestrictionsV4) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err = auth.ServerWithRoles.SetNetworkRestrictions(ctx, nr); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions.
+func (g *GRPCServer) DeleteNetworkRestrictions(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err = auth.ServerWithRoles.DeleteNetworkRestrictions(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
 }
 
 // GetEvents searches for events on the backend and sends them back in a response.
@@ -2714,7 +2749,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(req.StartDate, req.EndDate, req.Namespace, req.EventTypes, int(req.Limit), req.StartKey)
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(req.StartDate, req.EndDate, req.Namespace, req.EventTypes, int(req.Limit), types.EventOrder(req.Order), req.StartKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2743,7 +2778,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), req.StartKey)
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2763,6 +2798,74 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 	res.Items = encodedEvents
 	res.LastKey = lastkey
 	return res, nil
+}
+
+// GetLock retrieves a lock by name.
+func (g *GRPCServer) GetLock(ctx context.Context, req *proto.GetLockRequest) (*types.LockV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lock, err := auth.GetLock(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lockV2, ok := lock.(*types.LockV2)
+	if !ok {
+		return nil, trace.Errorf("unexpected lock type %T", lock)
+	}
+	return lockV2, nil
+}
+
+// GetLocks gets all locks, matching at least one of the targets when specified.
+func (g *GRPCServer) GetLocks(ctx context.Context, req *proto.GetLocksRequest) (*proto.GetLocksResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	targets := make([]types.LockTarget, len(req.Targets))
+	for i := range req.Targets {
+		targets[i] = *req.Targets[i]
+	}
+	locks, err := auth.GetLocks(ctx, targets...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var lockV2s []*types.LockV2
+	for _, lock := range locks {
+		lockV2, ok := lock.(*types.LockV2)
+		if !ok {
+			return nil, trace.BadParameter("unexpected lock type %T", lock)
+		}
+		lockV2s = append(lockV2s, lockV2)
+	}
+	return &proto.GetLocksResponse{
+		Locks: lockV2s,
+	}, nil
+}
+
+// UpsertLock upserts a lock.
+func (g *GRPCServer) UpsertLock(ctx context.Context, lock *types.LockV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.UpsertLock(ctx, lock); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteLock deletes a lock.
+func (g *GRPCServer) DeleteLock(ctx context.Context, req *proto.DeleteLockRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteLock(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration
@@ -2847,4 +2950,40 @@ func grpcErrorConvertStreamInterceptor(next grpc.StreamServerInterceptor) grpc.S
 		err := next(srv, ss, info, handler)
 		return trail.ToGRPC(err)
 	}
+}
+
+type grpcContext struct {
+	*Context
+	*ServerWithRoles
+}
+
+// authenticate extracts authentication context and returns initialized auth server
+func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
+	// HTTPS server expects auth context to be set by the auth middleware
+	authContext, err := g.Authorizer.Authorize(ctx)
+	if err != nil {
+		// propagate connection problem error so we can differentiate
+		// between connection failed and access denied
+		if trace.IsConnectionProblem(err) {
+			return nil, trace.ConnectionProblem(err, "[10] failed to connect to the database")
+		} else if trace.IsNotFound(err) {
+			// user not found, wrap error with access denied
+			return nil, trace.Wrap(err, "[10] access denied")
+		} else if trace.IsAccessDenied(err) {
+			// don't print stack trace, just log the warning
+			log.Warn(err)
+		} else {
+			log.Warn(trace.DebugReport(err))
+		}
+		return nil, trace.AccessDenied("[10] access denied")
+	}
+	return &grpcContext{
+		Context: authContext,
+		ServerWithRoles: &ServerWithRoles{
+			authServer: g.AuthServer,
+			context:    *authContext,
+			sessions:   g.SessionService,
+			alog:       g.AuthServer.IAuditLog,
+		},
+	}, nil
 }

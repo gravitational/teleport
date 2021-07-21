@@ -78,6 +78,7 @@ type testPack struct {
 	dynamicAccessS services.DynamicAccessCore
 	presenceS      services.Presence
 	appSessionS    services.AppSession
+	restrictions   services.Restrictions
 	webSessionS    types.WebSessionInterface
 	webTokenS      types.WebTokenInterface
 }
@@ -161,6 +162,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	p.appSessionS = local.NewIdentityService(p.backend)
 	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
+	p.restrictions = local.NewRestrictionsService(p.backend)
 
 	return p, nil
 }
@@ -187,6 +189,7 @@ func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
 		AppSession:    p.appSessionS,
 		WebSession:    p.webSessionS,
 		WebToken:      p.webTokenS,
+		Restrictions:  p.restrictions,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
@@ -256,6 +259,7 @@ func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
 		AppSession:    p.appSessionS,
 		WebSession:    p.webSessionS,
 		WebToken:      p.webTokenS,
+		Restrictions:  p.restrictions,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
@@ -473,6 +477,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 			AppSession:    p.appSessionS,
 			WebSession:    p.webSessionS,
 			WebToken:      p.webTokenS,
+			Restrictions:  p.restrictions,
 			RetryPeriod:   200 * time.Millisecond,
 			EventsC:       p.eventsC,
 			PreferRecent: PreferRecent{
@@ -530,6 +535,7 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 		AppSession:    p.appSessionS,
 		WebSession:    p.webSessionS,
 		WebToken:      p.webTokenS,
+		Restrictions:  p.restrictions,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -592,6 +598,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		AppSession:    p.appSessionS,
 		WebSession:    p.webSessionS,
 		WebToken:      p.webTokenS,
+		Restrictions:  p.restrictions,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -626,6 +633,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		AppSession:    p.appSessionS,
 		WebSession:    p.webSessionS,
 		WebToken:      p.webTokenS,
+		Restrictions:  p.restrictions,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -672,6 +680,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 		AppSession:    p.appSessionS,
 		WebSession:    p.webSessionS,
 		WebToken:      p.webTokenS,
+		Restrictions:  p.restrictions,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{

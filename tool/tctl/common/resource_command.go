@@ -93,6 +93,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindClusterAuthPreference:   rc.createAuthPreference,
 		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
 		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
+		types.KindLock:                    rc.createLock,
+		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
 	}
 	rc.config = config
 
@@ -348,7 +350,7 @@ func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw servic
 	return nil
 }
 
-// createConnector implements `tctl create role.yaml` command
+// createRole implements `tctl create role.yaml` command.
 func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownResource) error {
 	ctx := context.TODO()
 	role, err := services.UnmarshalRole(raw.Raw)
@@ -490,6 +492,49 @@ func (rc *ResourceCommand) createSessionRecordingConfig(client auth.ClientI, raw
 	return nil
 }
 
+// createLock implements `tctl create lock.yaml` command.
+func (rc *ResourceCommand) createLock(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+	lock, err := services.UnmarshalLock(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Check if a lock of the name already exists.
+	name := lock.GetName()
+	_, err = client.GetLock(ctx, name)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	exists := (err == nil)
+	if !rc.force && exists {
+		return trace.AlreadyExists("lock %q already exists", name)
+	}
+
+	if err := client.UpsertLock(ctx, lock); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("lock %q has been %s\n", name, UpsertVerb(exists, rc.force))
+	return nil
+}
+
+// createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
+func (rc *ResourceCommand) createNetworkRestrictions(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+
+	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.SetNetworkRestrictions(ctx, newNetRestricts); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("network restrictions have been updated\n")
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	singletonResources := []string{
@@ -583,6 +628,16 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("session recording configuration has been reset to defaults\n")
+	case types.KindLock:
+		if err = client.DeleteLock(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("lock %q has been deleted\n", rc.ref.Name)
+	case types.KindNetworkRestrictions:
+		if err = resetNetworkRestrictions(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -629,6 +684,10 @@ func resetSessionRecordingConfig(ctx context.Context, client auth.ClientI) error
 	}
 
 	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
+}
+
+func resetNetworkRestrictions(ctx context.Context, client auth.ClientI) error {
+	return trace.Wrap(client.DeleteNetworkRestrictions(ctx))
 }
 
 // Update updates select resource fields: expiry and labels
@@ -878,7 +937,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		return &remoteClusterCollection{remoteClusters: []types.RemoteCluster{remoteCluster}}, nil
 	case types.KindSemaphore:
-		sems, err := client.GetSemaphores(context.TODO(), types.SemaphoreFilter{
+		sems, err := client.GetSemaphores(ctx, types.SemaphoreFilter{
 			SemaphoreKind: rc.ref.SubKind,
 			SemaphoreName: rc.ref.Name,
 		})
@@ -887,7 +946,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		return &semaphoreCollection{sems: sems}, nil
 	case types.KindKubeService:
-		servers, err := client.GetKubeServices(context.TODO())
+		servers, err := client.GetKubeServices(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -927,6 +986,25 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.Wrap(err)
 		}
 		return &recConfigCollection{recConfig}, nil
+	case types.KindLock:
+		if rc.ref.Name == "" {
+			locks, err := client.GetLocks(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &lockCollection{locks: locks}, nil
+		}
+		lock, err := client.GetLock(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &lockCollection{locks: []types.Lock{lock}}, nil
+	case types.KindNetworkRestrictions:
+		nr, err := client.GetNetworkRestrictions(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &netRestrictionsCollection{nr}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
