@@ -577,6 +577,9 @@ func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname, proxyHost string
 // segment, meaning `*.example.com` will match `foo.example.com` but not
 // `foo.bar.example.com`.
 func matchesWildcard(hostname, pattern string) bool {
+	// Trim any trailing "." in case of an absolute domain.
+	hostname = strings.TrimSuffix(hostname, ".")
+
 	// Don't allow non-wildcard patterns.
 	if !strings.HasPrefix(pattern, "*.") {
 		return false

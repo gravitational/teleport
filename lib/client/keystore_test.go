@@ -559,9 +559,13 @@ func TestMatchesWildcard(t *testing.T) {
 
 	// Single-part hostnames never match.
 	require.False(t, matchesWildcard("example", "*.example.com"))
+	require.False(t, matchesWildcard("example", "*.example"))
+	require.False(t, matchesWildcard("example", "example"))
+	require.False(t, matchesWildcard("example", "*."))
 
 	// Valid wildcard matches.
 	require.True(t, matchesWildcard("foo.example.com", "*.example.com"))
 	require.True(t, matchesWildcard("bar.example.com", "*.example.com"))
+	require.True(t, matchesWildcard("bar.example.com.", "*.example.com"))
 	require.True(t, matchesWildcard("bar.foo", "*.foo"))
 }
