@@ -48,16 +48,11 @@ message LockTarget {
     // In remote clusters, this constraint is evaluated before translating to local roles.
     string Role;
 
-    // Cluster specifies the name of a leaf Teleport cluster.
-    // This prevents the root cluster's users from connecting to nodes in the leaf cluster
-    // but does not prevent the leaf cluster from heartbeating back to the root cluster.
-    string Cluster;
-
     // Login specifies the name of a local UNIX user.
     string Login;
 
     // Node specifies the name or UUID of a node.
-    // A matching node is also unregistered and prevented from registering.
+    // A matching node is also prevented from heartbeating to the auth server.
     string Node;
 
     // MFADevice specifies the ID of an MFA device recorded in a user certificate.
@@ -95,17 +90,15 @@ of new `Lock`s, see Scenarios below.
 
 ### Propagation within a Teleport cluster
 
-For the purposes of lock detection and evaluation, the `Lock` resource will be propagated using the cache system to all Teleport roles/services.
+Instead of relying on the main cache system for lock propagation, every cluster component (Teleport process) will be initialized with its own local lock-specific watcher. Such a `LockWatcher` will be used to report connection/staleness issues to the caller while attempting to reestablishing a connection to the auth server in the background (similar to as already performed by `services.ProxyWatcher`).
 
-An `auth.AccessPoint` wrapper will be introduced that makes the getters return a `trace.ConnectionProblem` for stale data. The wrapper will be parametrized by a duration that defines the maximum failure period after which the data are considered stale.
+It will be parametrized by a duration that defines the maximum failure period after which the data are to be considered stale. If this tolerance interval is exceeded while performing such reloads, the fallback mode described below is employed until a healthy connection is reestablished.
 
-`LockTarget` will be convertible into a filter for `types.WatchKind`, allowing
-the creation of watchers that match specific contexts. The `GetLocks` method
-should also accept `LockTarget`s as filters.
+`LockWatcher` will keep a single connection to the auth server for the purpose of monitoring the `Lock` resources. It will in turn allow derived watchers ("lock watcher subscriptions") which can be configured by a list of `LockTarget`s.
 
 ### Fallback mode
 
-If the "strict" cache returns an error indicating stale data, there is a decision to be made about whether to rely on the last known locks. There will be two levels on which to determine this decision.
+If `LockWatcher` returns an error indicating stale data, there is a decision to be made about whether to rely on the last known locks. There will be two levels on which to determine this decision.
 
 1. If a lockable transaction involves a user and the user's certificate has an extension named `teleport-lock-fallback`, the transaction is locked out based on the extension's value which comes from the user's RBAC role:
 
@@ -128,34 +121,24 @@ an attempt.
 A new lock check will be added to the `generateUserCert` and `GenerateHostCert`
 functions in `lib/auth/auth.go`.
 
-### Disable initiating new session
+### Disable initiating new connections
 
 Even if a locked-out user is already in a posinteraction of a valid Teleport certificate,
-they should be prevented from initiating a new session.
+they should be prevented from initiating a new session. This is covered by
+adding a check to `auth.Authorize`.
 
-This should be implemented so that it touches _all_ the access proxies
-supported by Teleport: SSH, k8s, app and DB.
+This restriction touches _all_ the access proxies/servers supported by Teleport: SSH, k8s, app and DB.  A lock in force will also block initiating sessions with the proxy web UI and sending requests to the Auth API (both gRPC and HTTP/JSON).
 
-### Terminate existing sessions
+### Terminate existing connections
 
 Terminating an established session/connection due to a (freshly created) lock
 is similar to terminating an existing session due to certificate expiry.  The
-support for the latter is covered by `srv.Monitor` and its `Start` routine.
+support for the latter is covered by `srv.Monitor`. To add support for locks,
+`srv.Monitor` will be passed in a reference to `LockWatcher` associated with
+the Teleport instance.
 
-In order to make `srv.Monitor` keep track of all the `Lock`s without
-periodically polling the backend, two new fields are added to `srv.MonitorConfig`:
-+ `StoredLocks`: a slice of `Lock`s known at the time of calling
-  `srv.NewMonitor`;
-+ `LockWatcher`: a `types.Watcher` detecting additional puts or deletes
-  of `Lock`s pertaining to the current session.
-
-`LockWatcher` will be similar to `services.ProxyWatcher` in that it should
-reload automatically after a failure.  If a tolerance interval is exceeded
-while performing such reloads, the fallback mode described above is employed
-until a healthy connection is reestablished.
-
-The developed logic should work with every protocol that makes use of
-`srv.Monitor`: SSH, k8s and DB.
+The developed logic should work with every protocol that features "live sessions"
+in the proper sense and that makes use of `srv.Monitor`: SSH, k8s and DB.
 
 ### Replication to leaf clusters
 
@@ -264,11 +247,11 @@ the connection was closed on the remote side on  15 Jun 21 10:43 CEST
 #### Locking out a node
 
 ```
-$ tctl lock --node=hostname
+$ tctl lock --node=node-uuid
 ```
 
 #### Locking out an MFA device ID
 
 ```
-$ tctl lock --mfa-device=id
+$ tctl lock --mfa-device=device-uuid
 ```
