@@ -70,21 +70,15 @@ func TestConnAndSessLimits(t *testing.T) {
 		cmt := fmt.Sprintf("test case %d: %s", ti, tt.desc)
 		var set RoleSet
 		for i, val := range tt.vals {
-			role := &types.RoleV4{
-				Kind:    types.KindRole,
-				Version: types.V3,
-				Metadata: types.Metadata{
-					Name:      fmt.Sprintf("role-%d", i),
-					Namespace: apidefaults.Namespace,
-				},
-				Spec: types.RoleSpecV4{
+			role, err := types.NewRole(fmt.Sprintf("role-%d", i),
+				types.RoleSpecV4{
 					Options: types.RoleOptions{
 						MaxConnections: val,
 						MaxSessions:    val,
 					},
 				},
-			}
-			require.NoError(t, role.CheckAndSetDefaults(), cmt)
+			)
+			require.NoError(t, err, cmt)
 			set = append(set, role)
 		}
 		require.Equal(t, tt.want, set.MaxConnections(), cmt)
@@ -2185,10 +2179,8 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			HostID:   "host_id",
 		})
 	require.NoError(t, err)
-	roleDevStage := &types.RoleV4{
-		Metadata: types.Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
-		Version:  types.V3,
-		Spec: types.RoleSpecV4{
+	roleDevStage, err := types.NewRole("dev-stage",
+		types.RoleSpecV4{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
@@ -2200,12 +2192,10 @@ func TestCheckAccessToDatabase(t *testing.T) {
 				DatabaseNames: []string{"supersecret"},
 			},
 		},
-	}
-	require.NoError(t, roleDevStage.CheckAndSetDefaults())
-	roleDevProd := &types.RoleV4{
-		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
-		Version:  types.V3,
-		Spec: types.RoleSpecV4{
+	)
+	require.NoError(t, err)
+	roleDevProd, err := types.NewRole("dev-prod",
+		types.RoleSpecV4{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
@@ -2213,12 +2203,10 @@ func TestCheckAccessToDatabase(t *testing.T) {
 				DatabaseUsers:  []string{"dev"},
 			},
 		},
-	}
-	require.NoError(t, roleDevProd.CheckAndSetDefaults())
-	roleDevProdWithMFA := &types.RoleV4{
-		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
-		Version:  types.V3,
-		Spec: types.RoleSpecV4{
+	)
+	require.NoError(t, err)
+	roleDevProdWithMFA, err := types.NewRole("dev-prod",
+		types.RoleSpecV4{
 			Options: types.RoleOptions{
 				RequireSessionMFA: true,
 			},
@@ -2229,18 +2217,15 @@ func TestCheckAccessToDatabase(t *testing.T) {
 				DatabaseUsers:  []string{"dev"},
 			},
 		},
-	}
-	require.NoError(t, roleDevProdWithMFA.CheckAndSetDefaults())
-	// Database labels are not set in allow/deny rules on purpose to test
-	// that they're set during check and set defaults below.
-	roleDeny := &types.RoleV4{
-		Metadata: types.Metadata{Name: "deny", Namespace: apidefaults.Namespace},
-		Version:  types.V3,
-		Spec: types.RoleSpecV4{
+	)
+	require.NoError(t, err)
+	roleDeny, err := types.NewRole("deny",
+		types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseNames: []string{types.Wildcard},
-				DatabaseUsers: []string{types.Wildcard},
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseNames:  []string{types.Wildcard},
+				DatabaseUsers:  []string{types.Wildcard},
+				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
@@ -2248,8 +2233,8 @@ func TestCheckAccessToDatabase(t *testing.T) {
 				DatabaseUsers: []string{"postgres"},
 			},
 		},
-	}
-	require.NoError(t, roleDeny.CheckAndSetDefaults())
+	)
+	require.NoError(t, err)
 	type access struct {
 		server types.DatabaseServer
 		dbName string
