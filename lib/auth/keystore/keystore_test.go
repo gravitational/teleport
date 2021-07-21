@@ -22,6 +22,10 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509/pkix"
+	"fmt"
+	"log"
+	"os"
+	"os/exec"
 	"testing"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -123,9 +127,11 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 )
 
 func TestKeyStore(t *testing.T) {
+	yubiSlotNumber := 0
 	testcases := []struct {
 		desc       string
 		rawConfig  *keystore.RawConfig
+		hsmConfig  *keystore.HSMConfig
 		shouldSkip func() bool
 		setup      func(t *testing.T)
 	}{
@@ -135,6 +141,80 @@ func TestKeyStore(t *testing.T) {
 				RSAKeyPairSource: native.GenerateKeyPair,
 			},
 			shouldSkip: func() bool { return false },
+		},
+		{
+			desc: "softhsm",
+			hsmConfig: &keystore.HSMConfig{
+				Path:       os.Getenv("SOFTHSM2_PATH"),
+				TokenLabel: "test",
+				Pin:        "password",
+				HostUUID:   "server1",
+			},
+			shouldSkip: func() bool {
+				if os.Getenv("SOFTHSM2_PATH") == "" {
+					log.Println("Skipping softhsm test because SOFTHSM2_PATH is not set.")
+					return true
+				}
+				return false
+			},
+			setup: func(t *testing.T) {
+				// create tokendir
+				tokenDir, err := os.MkdirTemp("", "softhsm2-tokendir")
+				require.NoError(t, err)
+
+				// create config file
+				configFile, err := os.CreateTemp("", "softhsm2.conf")
+				require.NoError(t, err)
+				os.Setenv("SOFTHSM2_CONF", configFile.Name())
+
+				// write config file
+				_, err = configFile.WriteString(fmt.Sprintf(
+					"directories.tokendir = %s\nobjectstore.backend = file\nlog.level = DEBUG\n",
+					tokenDir))
+				require.NoError(t, err)
+				require.NoError(t, configFile.Close())
+
+				// create test token
+				cmd := exec.Command("softhsm2-util", "--init-token", "--slot", "0", "--label", "test", "--so-pin", "password", "--pin", "password")
+				require.NoError(t, cmd.Run())
+
+				t.Cleanup(func() {
+					require.NoError(t, os.Remove(configFile.Name()))
+					require.NoError(t, os.RemoveAll(tokenDir))
+				})
+			},
+		},
+		{
+			desc: "yubihsm",
+			hsmConfig: &keystore.HSMConfig{
+				Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
+				SlotNumber: &yubiSlotNumber,
+				Pin:        "0001password",
+				HostUUID:   "server1",
+			},
+			shouldSkip: func() bool {
+				if os.Getenv("YUBIHSM_PKCS11_CONF") == "" || os.Getenv("YUBIHSM_PKCS11_PATH") == "" {
+					log.Println("Skipping yubihsm test because YUBIHSM_PKCS11_CONF or YUBIHSM_PKCS11_PATH is not set.")
+					return true
+				}
+				return false
+			},
+		},
+		{
+			desc: "cloudhsm",
+			hsmConfig: &keystore.HSMConfig{
+				Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
+				TokenLabel: "cavium",
+				Pin:        os.Getenv("CLOUDHSM_PIN"),
+				HostUUID:   "server1",
+			},
+			shouldSkip: func() bool {
+				if os.Getenv("CLOUDHSM_PIN") == "" {
+					log.Println("Skipping cloudhsm test because CLOUDHSM_PIN is not set.")
+					return true
+				}
+				return false
+			},
 		},
 	}
 
@@ -151,7 +231,14 @@ func TestKeyStore(t *testing.T) {
 			}
 
 			// create the keystore
-			keyStore := keystore.NewRawKeyStore(tc.rawConfig)
+			var keyStore keystore.KeyStore
+			var err error
+			if tc.hsmConfig != nil {
+				keyStore, err = keystore.NewHSMKeyStore(tc.hsmConfig)
+			} else {
+				keyStore = keystore.NewRawKeyStore(tc.rawConfig)
+			}
+			require.NoError(t, err)
 			require.NotNil(t, keyStore)
 
 			// create a key
