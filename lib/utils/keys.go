@@ -50,6 +50,19 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, []byte, error) {
 	}
 }
 
+// MarshalPublicKey returns a PEM encoded public key for a given crypto.Signer
+func MarshalPublicKey(signer crypto.Signer) ([]byte, error) {
+	switch publicKey := signer.Public().(type) {
+	case *rsa.PublicKey:
+		return pem.EncodeToMemory(&pem.Block{
+			Type:  "RSA PUBLIC KEY",
+			Bytes: x509.MarshalPKCS1PublicKey(publicKey),
+		}), nil
+	default:
+		return nil, trace.BadParameter("unsupported public key type %T", publicKey)
+	}
+}
+
 // ParsePrivateKey parses a PEM encoded private key and returns a
 // crypto.Signer. Only supports RSA private keys.
 func ParsePrivateKey(bytes []byte) (crypto.Signer, error) {
