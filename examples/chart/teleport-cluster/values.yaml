@@ -8,6 +8,9 @@
 # for example: teleport.example.com
 clusterName: ""
 
+# Name for this kubernetes cluster to be used by teleport users.
+kubeClusterName: ""
+
 ##################################################
 # Values that you may need to change.
 ##################################################

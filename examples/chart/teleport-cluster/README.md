@@ -14,6 +14,7 @@ $ helm install teleport/teleport-cluster \
     --set acme=true \
     --set acmeEmail=alice@example.com \
     --set clusterName=teleport.example.com\
+    --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?} \
     --create-namespace \
     --namespace=teleport-cluster \
     ./teleport-cluster/
