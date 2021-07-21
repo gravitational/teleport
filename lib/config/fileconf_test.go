@@ -18,98 +18,14 @@ package config
 
 import (
 	"bytes"
-	"encoding/base64"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
-
-func TestAuthenticationSection(t *testing.T) {
-	tests := []struct {
-		comment                 string
-		inConfigString          string
-		outAuthenticationConfig *AuthenticationConfig
-	}{
-		{
-			`0 - local with otp`,
-
-			`
-auth_service:
-  authentication:
-    type: local
-    second_factor: otp
-`,
-			&AuthenticationConfig{
-				Type:         "local",
-				SecondFactor: "otp",
-			},
-		},
-		{
-			`1 - local auth without otp`,
-
-			`
-auth_service:
-  authentication:
-    type: local
-    second_factor: off
-`,
-			&AuthenticationConfig{
-				Type:         "local",
-				SecondFactor: "off",
-			},
-		},
-		{
-			`2 - local auth with u2f`,
-
-			`
-auth_service:
-   authentication:
-       type: local
-       second_factor: u2f
-       u2f:
-           app_id: https://graviton:3080
-           facets:
-           - https://graviton:3080
-           device_attestation_cas:
-           - testdata/u2f_attestation_ca.pam
-           - |
-             -----BEGIN CERTIFICATE-----
-             fake certificate
-             -----END CERTIFICATE-----
-`,
-			&AuthenticationConfig{
-				Type:         "local",
-				SecondFactor: "u2f",
-				U2F: &UniversalSecondFactor{
-					AppID: "https://graviton:3080",
-					Facets: []string{
-						"https://graviton:3080",
-					},
-					DeviceAttestationCAs: []string{
-						"testdata/u2f_attestation_ca.pam",
-						`-----BEGIN CERTIFICATE-----
-fake certificate
------END CERTIFICATE-----
-`,
-					},
-				},
-			},
-		},
-	}
-
-	// run tests
-	for _, tt := range tests {
-		t.Run(tt.comment, func(t *testing.T) {
-			encodedConfigString := base64.StdEncoding.EncodeToString([]byte(tt.inConfigString))
-
-			fc, err := ReadFromString(encodedConfigString)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(fc.Auth.Authentication, tt.outAuthenticationConfig))
-		})
-	}
-}
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be
 // mutated programatically by test cases and then re-serialised to test the
@@ -157,18 +73,22 @@ func TestAuthSection(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		desc          string
-		mutate        func(cfgMap)
-		expectError   require.ErrorAssertionFunc
-		expectEnabled require.BoolAssertionFunc
-		expectIdleMsg require.ValueAssertionFunc
+		desc                 string
+		mutate               func(cfgMap)
+		expectError          require.ErrorAssertionFunc
+		expectEnabled        require.BoolAssertionFunc
+		expectIdleMsg        require.ValueAssertionFunc
+		expectMotd           require.ValueAssertionFunc
+		expectWebIdleTimeout require.ValueAssertionFunc
 	}{
 		{
-			desc:          "Default",
-			mutate:        func(cfg cfgMap) {},
-			expectError:   require.NoError,
-			expectEnabled: require.True,
-			expectIdleMsg: require.Empty,
+			desc:                 "Default",
+			mutate:               func(cfg cfgMap) {},
+			expectError:          require.NoError,
+			expectEnabled:        require.True,
+			expectIdleMsg:        require.Empty,
+			expectMotd:           require.Empty,
+			expectWebIdleTimeout: require.Empty,
 		}, {
 			desc: "Enabled",
 			mutate: func(cfg cfgMap) {
@@ -190,6 +110,28 @@ func TestAuthSection(t *testing.T) {
 			},
 			expectError:   require.NoError,
 			expectIdleMsg: requireEqual("Are you pondering what I'm pondering?"),
+		}, {
+			desc: "Message of the Day",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["message_of_the_day"] = "Are you pondering what I'm pondering?"
+			},
+			expectError: require.NoError,
+			expectMotd:  requireEqual("Are you pondering what I'm pondering?"),
+		}, {
+			desc: "Web idle timeout",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "10m"
+
+			},
+			expectError:          require.NoError,
+			expectWebIdleTimeout: requireEqual(types.Duration(10 * time.Minute)),
+		}, {
+			desc: "Web idle timeout (invalid)",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
+
+			},
+			expectError: require.Error,
 		},
 	}
 
@@ -207,6 +149,96 @@ func TestAuthSection(t *testing.T) {
 			if tt.expectIdleMsg != nil {
 				tt.expectIdleMsg(t, cfg.Auth.ClientIdleTimeoutMessage)
 			}
+
+			if tt.expectMotd != nil {
+				tt.expectMotd(t, cfg.Auth.MessageOfTheDay)
+			}
+
+			if tt.expectWebIdleTimeout != nil {
+				tt.expectWebIdleTimeout(t, cfg.Auth.WebIdleTimeout)
+			}
+		})
+	}
+}
+
+func TestAuthenticationSection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc        string
+		mutate      func(cfgMap)
+		expectError require.ErrorAssertionFunc
+		expected    *AuthenticationConfig
+	}{
+		{
+			desc: "local auth with OTP",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "otp",
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "otp",
+			},
+		}, {
+			desc: "local auth without OTP",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "off",
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "off",
+			},
+		}, {
+			desc: "Local auth with u2f",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "u2f",
+					"u2f": cfgMap{
+						"app_id": "https://graviton:3080",
+						"facets": []interface{}{"https://graviton:3080"},
+						"device_attestation_cas": []interface{}{
+							"testdata/u2f_attestation_ca.pam",
+							"-----BEGIN CERTIFICATE-----\nfake certificate\n-----END CERTIFICATE-----",
+						},
+					},
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "u2f",
+				U2F: &UniversalSecondFactor{
+					AppID: "https://graviton:3080",
+					Facets: []string{
+						"https://graviton:3080",
+					},
+					DeviceAttestationCAs: []string{
+						"testdata/u2f_attestation_ca.pam",
+						"-----BEGIN CERTIFICATE-----\nfake certificate\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+		},
+	}
+
+	// run tests
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tt.mutate))
+
+			cfg, err := ReadConfig(text)
+			tt.expectError(t, err)
+
+			require.Empty(t, cmp.Diff(cfg.Auth.Authentication, tt.expected))
 		})
 	}
 }

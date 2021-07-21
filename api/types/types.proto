@@ -692,6 +692,11 @@ message ClusterNetworkingConfigSpecV2 {
 
     // ClientIdleTimeoutMessage is the message sent to the user when a connection times out.
     string ClientIdleTimeoutMessage = 5 [ (gogoproto.jsontag) = "idle_timeout_message" ];
+
+    // WebIdleTimeout sets global cluster default setting for the web UI idle
+    // timeouts.
+    int64 WebIdleTimeout = 6
+        [ (gogoproto.jsontag) = "web_idle_timeout", (gogoproto.casttype) = "Duration" ];
 }
 
 // SessionRecordingConfigV2 contains session recording configuration.
@@ -787,6 +792,8 @@ message AuthPreferenceSpecV2 {
         (gogoproto.jsontag) = "allow_local_auth,omitempty",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    string MessageOfTheDay = 8 [ (gogoproto.jsontag) = "message_of_the_day,omitempty" ];
 }
 
 // LegacyClusterConfigAuthFields facilitates a backward compatible transition
@@ -2238,4 +2245,39 @@ message LockTarget {
 
     // MFADevice specifies the UUID of a user MFA device.
     string MFADevice = 6 [ (gogoproto.jsontag) = "mfa_device,omitempty" ];
+}
+
+// AddressCondition represents a set of addresses. Presently the addresses are specfied
+// exclusively in terms of IPv4/IPv6 ranges.
+message AddressCondition {
+    // CIDR is IPv4 or IPv6 address. Valid value are either CIDR ranges (e.g. "10.0.1.0/24",
+    // "fe::/8") or a single IP address (e.g "10.1.2.3")
+    string CIDR = 1 [ (gogoproto.jsontag) = "cidr" ];
+}
+
+message NetworkRestrictionsSpecV4 {
+    // Allow lists the addresses that should be allowed.
+    repeated AddressCondition Allow = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "allow" ];
+    // Deny lists the addresses that should be denied even if they're allowed by Allow condition.
+    repeated AddressCondition Deny = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "deny" ];
+}
+
+// NetworkRestrictions specifies a list of addresses to restrict (block). The deny
+// list is checked first and the allow lists overrides it. Thus an empty allow
+// list does not mean that no addresses will be allowed, that will only be the
+// case if the deny list covers the whole address range.
+message NetworkRestrictionsV4 {
+    // Kind is the network restrictions resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the network restrictions metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec contains the network restrictions data
+    NetworkRestrictionsSpecV4 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }

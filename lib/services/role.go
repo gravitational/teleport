@@ -337,94 +337,52 @@ func validateRule(r types.Rule) error {
 	return nil
 }
 
+func filterInvalidUnixLogins(candidates []string) []string {
+	// The tests for `ApplyTraits()` require that an empty list is nil
+	// rather than a 0-size slice, and I don't understand the potential
+	// knock-on effects of changing that, so the  default value is `nil`
+	output := []string(nil)
+
+	for _, candidate := range candidates {
+		if !cstrings.IsValidUnixUser(candidate) {
+			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+			continue
+		}
+
+		// A valid variable was found in the traits, append it to the list of logins.
+		output = append(output, candidate)
+	}
+	return output
+}
+
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
 func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 	for _, condition := range []types.RoleConditionType{Allow, Deny} {
 		inLogins := r.GetLogins(condition)
-
-		var outLogins []string
-		for _, login := range inLogins {
-			variableValues, err := ApplyValueTraits(login, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping login %v: %v.", login, err)
-				}
-				continue
-			}
-
-			// Filter out logins that come from variables that are not valid Unix logins.
-			for _, variableValue := range variableValues {
-				if !cstrings.IsValidUnixUser(variableValue) {
-					log.Debugf("Skipping login %v, not a valid Unix login.", variableValue)
-					continue
-				}
-
-				// A valid variable was found in the traits, append it to the list of logins.
-				outLogins = append(outLogins, variableValue)
-			}
-		}
-
+		outLogins := applyValueTraitsSlice(inLogins, traits, "login")
+		outLogins = filterInvalidUnixLogins(outLogins)
 		r.SetLogins(condition, apiutils.Deduplicate(outLogins))
 
 		// apply templates to kubernetes groups
 		inKubeGroups := r.GetKubeGroups(condition)
-		var outKubeGroups []string
-		for _, group := range inKubeGroups {
-			variableValues, err := ApplyValueTraits(group, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping kube group %v: %v.", group, err)
-				}
-				continue
-			}
-			outKubeGroups = append(outKubeGroups, variableValues...)
-		}
+		outKubeGroups := applyValueTraitsSlice(inKubeGroups, traits, "kube group")
 		r.SetKubeGroups(condition, apiutils.Deduplicate(outKubeGroups))
 
 		// apply templates to kubernetes users
 		inKubeUsers := r.GetKubeUsers(condition)
-		var outKubeUsers []string
-		for _, user := range inKubeUsers {
-			variableValues, err := ApplyValueTraits(user, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping kube user %v: %v.", user, err)
-				}
-				continue
-			}
-			outKubeUsers = append(outKubeUsers, variableValues...)
-		}
+		outKubeUsers := applyValueTraitsSlice(inKubeUsers, traits, "kube user")
 		r.SetKubeUsers(condition, apiutils.Deduplicate(outKubeUsers))
 
 		// apply templates to database names
 		inDbNames := r.GetDatabaseNames(condition)
-		var outDbNames []string
-		for _, name := range inDbNames {
-			variableValues, err := ApplyValueTraits(name, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping database name %q: %v.", name, err)
-				}
-				continue
-			}
-			outDbNames = append(outDbNames, variableValues...)
-		}
+		outDbNames := applyValueTraitsSlice(inDbNames, traits, "database name")
 		r.SetDatabaseNames(condition, apiutils.Deduplicate(outDbNames))
 
 		// apply templates to database users
+
 		inDbUsers := r.GetDatabaseUsers(condition)
-		var outDbUsers []string
-		for _, user := range inDbUsers {
-			variableValues, err := ApplyValueTraits(user, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping database user %q: %v.", user, err)
-				}
-				continue
-			}
-			outDbUsers = append(outDbUsers, variableValues...)
-		}
+		outDbUsers := applyValueTraitsSlice(inDbUsers, traits, "database user")
 		r.SetDatabaseUsers(condition, apiutils.Deduplicate(outDbUsers))
 
 		// apply templates to node labels
@@ -460,26 +418,8 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		// apply templates to impersonation conditions
 		inCond := r.GetImpersonateConditions(condition)
 		var outCond types.ImpersonateConditions
-		for _, user := range inCond.Users {
-			variableValues, err := ApplyValueTraits(user, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.WithError(err).Debugf("Skipping impersonate user %q.", user)
-				}
-				continue
-			}
-			outCond.Users = append(outCond.Users, variableValues...)
-		}
-		for _, role := range inCond.Roles {
-			variableValues, err := ApplyValueTraits(role, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.WithError(err).Debugf("Skipping impersonate role %q.", role)
-				}
-				continue
-			}
-			outCond.Roles = append(outCond.Roles, variableValues...)
-		}
+		outCond.Users = applyValueTraitsSlice(inCond.Users, traits, "impersonate user")
+		outCond.Roles = applyValueTraitsSlice(inCond.Roles, traits, "impersonate role")
 		outCond.Users = apiutils.Deduplicate(outCond.Users)
 		outCond.Roles = apiutils.Deduplicate(outCond.Roles)
 		outCond.Where = inCond.Where
@@ -487,6 +427,23 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 	}
 
 	return r
+}
+
+// applyValueTraitsSlice iterates over a slice of input strings, calling
+// ApplyValueTraits on each.
+func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldName string) []string {
+	var output []string
+	for _, value := range inputs {
+		outputs, err := ApplyValueTraits(value, traits)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				log.WithError(err).Debugf("Skipping %s %q.", fieldName, value)
+			}
+			continue
+		}
+		output = append(output, outputs...)
+	}
+	return output
 }
 
 // applyLabelsTraits interpolates variables based on the templates
