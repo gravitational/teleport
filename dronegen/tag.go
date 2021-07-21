@@ -278,7 +278,7 @@ func tagCreateReleaseAssetCommands(b buildType) []string {
 		`apk add --no-cache curl`,
 		fmt.Sprintf(`cd /go/artifacts
 for file in $(find . -type f ! -iname '*.sha256'); do
-  product="$(basename "$file" | sed 's/-v[0-9].*//')" # extract part before -vX.Y.Z
+  product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
   shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
   status_code=$(curl -s -o /tmp/curl_out.txt -w "%%{http_code}" -F product=$product -F version=$VERSION -F notes_md="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
   [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
@@ -393,6 +393,11 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Name:     "Copy artifacts",
 			Image:    "docker",
 			Commands: tagCopyPackageArtifactCommands(b, packageType),
+		},
+		{
+			Name:     "Register artifacts",
+			Image:    "docker",
+			Commands: tagCreateReleaseAssetCommands(b),
 		},
 		uploadToS3Step(s3Settings{
 			region:      "us-west-2",
