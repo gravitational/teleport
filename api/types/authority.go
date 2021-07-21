@@ -288,7 +288,40 @@ func (ca *CertAuthorityV2) SetSigningAlg(alg CertAuthoritySpecV2_SigningAlgType)
 	ca.Spec.SigningAlg = alg
 }
 
-func (ca *CertAuthorityV2) GetActiveKeys() CAKeySet { return ca.Spec.ActiveKeys }
+func (ca *CertAuthorityV2) getOldKeySet(index int) (keySet CAKeySet) {
+	// in the "old" CA schema, index 0 contains the active keys and index 1 the
+	// additional trusted keys
+	if index < 0 || index > 1 {
+		return
+	}
+	if len(ca.Spec.CheckingKeys) > index {
+		kp := &SSHKeyPair{
+			PrivateKeyType: PrivateKeyType_RAW,
+			PublicKey:      utils.CopyByteSlice(ca.Spec.CheckingKeys[index]),
+		}
+		if len(ca.Spec.SigningKeys) > index {
+			kp.PrivateKey = utils.CopyByteSlice(ca.Spec.SigningKeys[index])
+		}
+		keySet.SSH = []*SSHKeyPair{kp}
+	}
+	if len(ca.Spec.TLSKeyPairs) > index {
+		keySet.TLS = []*TLSKeyPair{ca.Spec.TLSKeyPairs[index].Clone()}
+	}
+	if len(ca.Spec.JWTKeyPairs) > index {
+		keySet.JWT = []*JWTKeyPair{ca.Spec.JWTKeyPairs[index].Clone()}
+	}
+	return keySet
+}
+
+func (ca *CertAuthorityV2) GetActiveKeys() CAKeySet {
+	haveNewCAKeys := len(ca.Spec.ActiveKeys.SSH) > 0 || len(ca.Spec.ActiveKeys.TLS) > 0 || len(ca.Spec.ActiveKeys.JWT) > 0
+	if haveNewCAKeys {
+		return ca.Spec.ActiveKeys
+	}
+	// fall back to old schema
+	return ca.getOldKeySet(0)
+}
+
 func (ca *CertAuthorityV2) SetActiveKeys(ks CAKeySet) error {
 	if err := ks.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -296,7 +329,16 @@ func (ca *CertAuthorityV2) SetActiveKeys(ks CAKeySet) error {
 	ca.Spec.ActiveKeys = ks
 	return nil
 }
-func (ca *CertAuthorityV2) GetAdditionalTrustedKeys() CAKeySet { return ca.Spec.AdditionalTrustedKeys }
+
+func (ca *CertAuthorityV2) GetAdditionalTrustedKeys() CAKeySet {
+	haveNewCAKeys := len(ca.Spec.AdditionalTrustedKeys.SSH) > 0 || len(ca.Spec.AdditionalTrustedKeys.TLS) > 0 || len(ca.Spec.AdditionalTrustedKeys.JWT) > 0
+	if haveNewCAKeys {
+		return ca.Spec.AdditionalTrustedKeys
+	}
+	// fall back to old schema
+	return ca.getOldKeySet(1)
+}
+
 func (ca *CertAuthorityV2) SetAdditionalTrustedKeys(ks CAKeySet) error {
 	if err := ks.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -307,10 +349,10 @@ func (ca *CertAuthorityV2) SetAdditionalTrustedKeys(ks CAKeySet) error {
 
 func (ca *CertAuthorityV2) GetTrustedSSHKeyPairs() []*SSHKeyPair {
 	var kps []*SSHKeyPair
-	for _, k := range ca.Spec.ActiveKeys.SSH {
+	for _, k := range ca.GetActiveKeys().SSH {
 		kps = append(kps, k.Clone())
 	}
-	for _, k := range ca.Spec.AdditionalTrustedKeys.SSH {
+	for _, k := range ca.GetAdditionalTrustedKeys().SSH {
 		kps = append(kps, k.Clone())
 	}
 	return kps
@@ -318,10 +360,10 @@ func (ca *CertAuthorityV2) GetTrustedSSHKeyPairs() []*SSHKeyPair {
 
 func (ca *CertAuthorityV2) GetTrustedTLSKeyPairs() []*TLSKeyPair {
 	var kps []*TLSKeyPair
-	for _, k := range ca.Spec.ActiveKeys.TLS {
+	for _, k := range ca.GetActiveKeys().TLS {
 		kps = append(kps, k.Clone())
 	}
-	for _, k := range ca.Spec.AdditionalTrustedKeys.TLS {
+	for _, k := range ca.GetAdditionalTrustedKeys().TLS {
 		kps = append(kps, k.Clone())
 	}
 	return kps
@@ -329,10 +371,10 @@ func (ca *CertAuthorityV2) GetTrustedTLSKeyPairs() []*TLSKeyPair {
 
 func (ca *CertAuthorityV2) GetTrustedJWTKeyPairs() []*JWTKeyPair {
 	var kps []*JWTKeyPair
-	for _, k := range ca.Spec.ActiveKeys.JWT {
+	for _, k := range ca.GetActiveKeys().JWT {
 		kps = append(kps, k.Clone())
 	}
-	for _, k := range ca.Spec.AdditionalTrustedKeys.JWT {
+	for _, k := range ca.GetAdditionalTrustedKeys().JWT {
 		kps = append(kps, k.Clone())
 	}
 	return kps

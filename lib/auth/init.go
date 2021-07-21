@@ -484,10 +484,8 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 
 func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	storedAuthPref, err := asrv.GetAuthPreference(ctx)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
 	}
 	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
 	if err != nil {
@@ -504,10 +502,8 @@ func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.
 
 func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
 	storedNetConfig, err := asrv.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
 	}
 	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedNetConfig, newNetConfig)
 	if err != nil {
@@ -524,10 +520,8 @@ func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetCon
 
 func initSetSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
 	storedRecConfig, err := asrv.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
 	}
 	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedRecConfig, newRecConfig)
 	if err != nil {
@@ -1387,9 +1381,8 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 
 func migrateCertAuthority(ctx context.Context, asrv *Server, ca types.CertAuthority) error {
 	// Check if we need to migrate.
-	if ks := ca.GetActiveKeys(); len(ks.TLS) != 0 || len(ks.SSH) != 0 || len(ks.JWT) != 0 {
-		// Already using the new format.
-		return nil
+	if needsMigration, err := services.CertAuthorityNeedsMigration(ca); err != nil || !needsMigration {
+		return trace.Wrap(err)
 	}
 	log.Infof("Migrating %v to 7.0 storage format.", ca)
 	// CA rotation can cause weird edge cases during migration, don't allow
