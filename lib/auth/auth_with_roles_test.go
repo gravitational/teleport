@@ -19,17 +19,16 @@ package auth
 import (
 	"context"
 	"crypto/x509/pkix"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -128,118 +127,158 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	}
 }
 
-// TestSetAuthPreference tests the dynamic configuration rules described
+type testDynamicallyConfigurableRBACParams struct {
+	kind                          string
+	storeDefault, storeConfigFile func(*Server)
+	get, set, reset               func(*ServerWithRoles) error
+	alwaysReadable                bool
+}
+
+// TestDynamicConfigurationRBACVerbs tests the dynamic configuration RBAC verbs described
 // in rfd/0016-dynamic-configuration.md § Implementation.
-func TestSetAuthPreference(t *testing.T) {
-	ctx := context.Background()
+func testDynamicallyConfigurableRBAC(t *testing.T, p testDynamicallyConfigurableRBACParams) {
 	testAuth, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	// Initialize with the default auth preference.
-	err = testAuth.AuthServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
-	require.NoError(t, err)
-	storedAuthPref, err := testAuth.AuthServer.GetAuthPreference(ctx)
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(storedAuthPref, types.DefaultAuthPreference()))
-
-	// Grant VerbRead and VerbUpdate privileges for cluster_auth_preference.
-	allowRules := []types.Rule{
-		{
-			Resources: []string{"cluster_auth_preference"},
-			Verbs:     []string{types.VerbRead, types.VerbUpdate},
-		},
-	}
-	server := withAllowRules(t, testAuth, allowRules)
-
-	dynamicAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		SecondFactor: constants.SecondFactorOff,
-	})
-	require.NoError(t, err)
-	t.Run("from default to dynamic", func(t *testing.T) {
-		err = server.SetAuthPreference(ctx, dynamicAuthPref)
-		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference(ctx)
-		require.NoError(t, err)
-		require.Empty(t, resourceDiff(storedAuthPref, dynamicAuthPref))
-	})
-
-	newDynamicAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		SecondFactor: constants.SecondFactorOTP,
-	})
-	require.NoError(t, err)
-	t.Run("from dynamic to another dynamic", func(t *testing.T) {
-		err = server.SetAuthPreference(ctx, newDynamicAuthPref)
-		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference(ctx)
-		require.NoError(t, err)
-		require.Empty(t, resourceDiff(storedAuthPref, newDynamicAuthPref))
-	})
-
-	staticAuthPref := newU2FAuthPreferenceFromConfigFile(t)
-	t.Run("from dynamic to static", func(t *testing.T) {
-		err = server.SetAuthPreference(ctx, staticAuthPref)
-		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference(ctx)
-		require.NoError(t, err)
-		require.Empty(t, resourceDiff(storedAuthPref, staticAuthPref))
-	})
-
-	newAuthPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		SecondFactor: constants.SecondFactorOTP,
-	})
-	require.NoError(t, err)
-	replaceStatic := func(success bool) func(t *testing.T) {
+	testOperation := func(op func(*ServerWithRoles) error, allowRules []types.Rule, expectErr, withConfigFile bool) func(*testing.T) {
 		return func(t *testing.T) {
-			err = server.SetAuthPreference(ctx, newAuthPref)
-			checkSetResult := require.Error
-			if success {
-				checkSetResult = require.NoError
+			if withConfigFile {
+				p.storeConfigFile(testAuth.AuthServer)
+			} else {
+				p.storeDefault(testAuth.AuthServer)
 			}
-			checkSetResult(t, err)
-
-			storedAuthPref, err = server.GetAuthPreference(ctx)
-			require.NoError(t, err)
-			expectedStored := staticAuthPref
-			if success {
-				expectedStored = newAuthPref
+			server := serverWithAllowRules(t, testAuth, allowRules)
+			opErr := op(server)
+			if expectErr {
+				require.Error(t, opErr)
+			} else {
+				require.NoError(t, opErr)
 			}
-			require.Empty(t, resourceDiff(storedAuthPref, expectedStored))
 		}
 	}
 
-	t.Run("replacing static fails without VerbCreate privilege", replaceStatic(false))
-
-	// Grant VerbCreate privilege for cluster_auth_preference.
-	allowRules[0].Verbs = append(allowRules[0].Verbs, types.VerbCreate)
-	server = withAllowRules(t, testAuth, allowRules)
-
-	t.Run("replacing static success with VerbCreate privilege", replaceStatic(true))
-}
-
-func withAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.Rule) *ServerWithRoles {
-	username := "some-user"
-	_, role, err := CreateUserAndRoleWithoutRoles(srv.AuthServer, username, nil)
-	require.NoError(t, err)
-	role.SetRules(types.Allow, allowRules)
-	err = srv.AuthServer.UpsertRole(context.TODO(), role)
-	require.NoError(t, err)
-
-	localUser := LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := contextForLocalUser(localUser, srv.AuthServer.Identity, srv.AuthServer.Access)
-	require.NoError(t, err)
-
-	return &ServerWithRoles{
-		authServer: srv.AuthServer,
-		sessions:   srv.SessionServer,
-		alog:       srv.AuditLog,
-		context:    *authContext,
+	// runTestCases generates all non-empty RBAC verb combinations and checks the expected
+	// error for each operation.
+	runTestCases := func(withConfigFile bool) {
+		for _, canCreate := range []bool{false, true} {
+			for _, canUpdate := range []bool{false, true} {
+				for _, canRead := range []bool{false, true} {
+					if !canRead && !canUpdate && !canCreate {
+						continue
+					}
+					verbs := []string{}
+					expectGetErr, expectSetErr, expectResetErr := true, true, true
+					if canRead || p.alwaysReadable {
+						verbs = append(verbs, types.VerbRead)
+						expectGetErr = false
+					}
+					if canUpdate {
+						verbs = append(verbs, types.VerbUpdate)
+						if !withConfigFile {
+							expectSetErr, expectResetErr = false, false
+						}
+					}
+					if canCreate {
+						verbs = append(verbs, types.VerbCreate)
+						if canUpdate {
+							expectSetErr = false
+						}
+					}
+					allowRules := []types.Rule{
+						{
+							Resources: []string{p.kind},
+							Verbs:     verbs,
+						},
+					}
+					t.Run(fmt.Sprintf("get %v %v", verbs, withConfigFile), testOperation(p.get, allowRules, expectGetErr, withConfigFile))
+					t.Run(fmt.Sprintf("set %v %v", verbs, withConfigFile), testOperation(p.set, allowRules, expectSetErr, withConfigFile))
+					t.Run(fmt.Sprintf("reset %v %v", verbs, withConfigFile), testOperation(p.reset, allowRules, expectResetErr, withConfigFile))
+				}
+			}
+		}
 	}
+
+	runTestCases(false)
+	runTestCases(true)
 }
 
-func resourceDiff(res1, res2 types.Resource) string {
-	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
-		cmpopts.EquateEmpty())
+func TestAuthPreferenceRBAC(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	testDynamicallyConfigurableRBAC(t, testDynamicallyConfigurableRBACParams{
+		kind: types.KindClusterAuthPreference,
+		storeDefault: func(s *Server) {
+			s.SetAuthPreference(ctx, types.DefaultAuthPreference())
+		},
+		storeConfigFile: func(s *Server) {
+			authPref := types.DefaultAuthPreference()
+			authPref.SetOrigin(types.OriginConfigFile)
+			s.SetAuthPreference(ctx, authPref)
+		},
+		get: func(s *ServerWithRoles) error {
+			_, err := s.GetAuthPreference(ctx)
+			return err
+		},
+		set: func(s *ServerWithRoles) error {
+			return s.SetAuthPreference(ctx, types.DefaultAuthPreference())
+		},
+		reset: func(s *ServerWithRoles) error {
+			return s.ResetAuthPreference(ctx)
+		},
+		alwaysReadable: true,
+	})
+}
+
+func TestClusterNetworkingConfigRBAC(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	testDynamicallyConfigurableRBAC(t, testDynamicallyConfigurableRBACParams{
+		kind: types.KindClusterNetworkingConfig,
+		storeDefault: func(s *Server) {
+			s.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		},
+		storeConfigFile: func(s *Server) {
+			netConfig := types.DefaultClusterNetworkingConfig()
+			netConfig.SetOrigin(types.OriginConfigFile)
+			s.SetClusterNetworkingConfig(ctx, netConfig)
+		},
+		get: func(s *ServerWithRoles) error {
+			_, err := s.GetClusterNetworkingConfig(ctx)
+			return err
+		},
+		set: func(s *ServerWithRoles) error {
+			return s.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		},
+		reset: func(s *ServerWithRoles) error {
+			return s.ResetClusterNetworkingConfig(ctx)
+		},
+	})
+}
+
+func TestSessionRecordingConfigRBAC(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	testDynamicallyConfigurableRBAC(t, testDynamicallyConfigurableRBACParams{
+		kind: types.KindSessionRecordingConfig,
+		storeDefault: func(s *Server) {
+			s.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		},
+		storeConfigFile: func(s *Server) {
+			recConfig := types.DefaultSessionRecordingConfig()
+			recConfig.SetOrigin(types.OriginConfigFile)
+			s.SetSessionRecordingConfig(ctx, recConfig)
+		},
+		get: func(s *ServerWithRoles) error {
+			_, err := s.GetSessionRecordingConfig(ctx)
+			return err
+		},
+		set: func(s *ServerWithRoles) error {
+			return s.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		},
+		reset: func(s *ServerWithRoles) error {
+			return s.ResetSessionRecordingConfig(ctx)
+		},
+	})
 }
 
 // TestListNodes users can retrieve nodes with the appropriate permissions.
@@ -295,4 +334,24 @@ func TestListNodes(t *testing.T) {
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+}
+
+func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.Rule) *ServerWithRoles {
+	username := "some-user"
+	_, role, err := CreateUserAndRoleWithoutRoles(srv.AuthServer, username, nil)
+	require.NoError(t, err)
+	role.SetRules(types.Allow, allowRules)
+	err = srv.AuthServer.UpsertRole(context.TODO(), role)
+	require.NoError(t, err)
+
+	localUser := LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
+	authContext, err := contextForLocalUser(localUser, srv.AuthServer.Identity, srv.AuthServer.Access)
+	require.NoError(t, err)
+
+	return &ServerWithRoles{
+		authServer: srv.AuthServer,
+		sessions:   srv.SessionServer,
+		alog:       srv.AuditLog,
+		context:    *authContext,
+	}
 }

@@ -83,7 +83,6 @@ BPF_MESSAGE := "without BPF support"
 with_bpf := no
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
-ifeq ("$(FIPS)","")
 ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
@@ -108,7 +107,6 @@ CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
 CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -Wl,-Bdynamic"
-endif
 endif
 endif
 endif
