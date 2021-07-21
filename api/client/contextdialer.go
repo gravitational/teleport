@@ -62,6 +62,10 @@ func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dura
 			return nil, trace.Wrap(err)
 		}
 
+		if pr.Proxy.SSH.TunnelPublicAddr == "" {
+			return nil, trace.BadParameter("reverse tunnel address not discoverable, 'tunnel_public_addr' is not set")
+		}
+
 		conn, err = dialer.DialContext(ctx, network, pr.Proxy.SSH.TunnelPublicAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)

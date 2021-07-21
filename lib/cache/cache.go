@@ -69,7 +69,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindLock},
 		{Kind: types.KindNetworkRestrictions},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -102,7 +101,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindLock},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -178,7 +176,6 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindLock},
 		// Node only needs to "know" about default
 		// namespace events to avoid matching too much
 		// data about other namespaces or node events
@@ -1359,37 +1356,6 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 	}
 	defer rg.Release()
 	return rg.clusterConfig.GetSessionRecordingConfig(ctx, opts...)
-}
-
-// GetLock gets a lock by name.
-func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	lock, err := rg.access.GetLock(ctx, name)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if lock, err := c.Config.Access.GetLock(ctx, name); err == nil {
-			return lock, nil
-		}
-	}
-	return lock, trace.Wrap(err)
-}
-
-// GetLocks gets all locks, matching at least one of the targets when specified.
-func (c *Cache) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.access.GetLocks(ctx, targets...)
 }
 
 // GetNetworkRestrictions gets the network restrictions.
