@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -77,7 +76,6 @@ func NewTLSListener(cfg TLSListenerConfig) (*TLSListener, error) {
 		cfg:           cfg,
 		http2Listener: newListener(context, cfg.Listener.Addr()),
 		httpListener:  newListener(context, cfg.Listener.Addr()),
-		dbListener:    newListener(context, cfg.Listener.Addr()),
 		cancel:        cancel,
 		context:       context,
 	}, nil
@@ -92,7 +90,6 @@ type TLSListener struct {
 	cfg           TLSListenerConfig
 	http2Listener *Listener
 	httpListener  *Listener
-	dbListener    *Listener
 	cancel        context.CancelFunc
 	context       context.Context
 	isClosed      int32
@@ -106,11 +103,6 @@ func (l *TLSListener) HTTP2() net.Listener {
 // HTTP returns HTTP listener
 func (l *TLSListener) HTTP() net.Listener {
 	return l.httpListener
-}
-
-// DB returns database access listener.
-func (l *TLSListener) DB() net.Listener {
-	return l.dbListener
 }
 
 // Serve accepts and forwards tls.Conn connections
@@ -179,14 +171,6 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 			return
 		}
 	case teleport.HTTPNextProtoTLS, "":
-		if l.isDatabaseConnection(conn.ConnectionState()) {
-			select {
-			case l.dbListener.connC <- conn:
-			case <-l.context.Done():
-				conn.Close()
-			}
-			return
-		}
 		select {
 		case l.httpListener.connC <- conn:
 		case <-l.context.Done():
@@ -211,21 +195,4 @@ func (l *TLSListener) Close() error {
 // Addr returns the listener's network address.
 func (l *TLSListener) Addr() net.Addr {
 	return l.cfg.Listener.Addr()
-}
-
-// isDatabaseConnection inspects the TLS connection state and returns true
-// if it's a database access connection as determined by the decoded
-// identity from the client certificate.
-func (l *TLSListener) isDatabaseConnection(state tls.ConnectionState) bool {
-	// VerifiedChains must be populated after the handshake.
-	if len(state.VerifiedChains) < 1 || len(state.VerifiedChains[0]) < 1 {
-		return false
-	}
-	identity, err := tlsca.FromSubject(state.VerifiedChains[0][0].Subject,
-		state.VerifiedChains[0][0].NotAfter)
-	if err != nil {
-		l.log.WithError(err).Debug("Failed to decode identity from client certificate.")
-		return false
-	}
-	return identity.RouteToDatabase.ServiceName != ""
 }

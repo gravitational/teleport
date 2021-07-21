@@ -86,7 +86,7 @@ func TestProxyProtocolMongo(t *testing.T) {
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
 
 	// Point our proxy to the Teleport's TLS listener.
-	proxy, err := multiplexer.NewTestProxy(testCtx.tlsListener.Addr().String())
+	proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String())
 	require.NoError(t, err)
 	t.Cleanup(func() { proxy.Close() })
 	go proxy.Serve()

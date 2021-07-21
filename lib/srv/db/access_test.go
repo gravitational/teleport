@@ -401,7 +401,7 @@ type testContext struct {
 	proxyServer    *ProxyServer
 	mux            *multiplexer.Mux
 	mysqlListener  net.Listener
-	tlsListener    *multiplexer.TLSListener
+	webListener    *multiplexer.WebListener
 	proxyConn      chan net.Conn
 	fakeRemoteSite *reversetunnel.FakeRemoteSite
 	server         *Server
@@ -446,13 +446,13 @@ func (c *testContext) startProxy() {
 	// Start multiplexer.
 	go c.mux.Serve()
 	// Start TLS multiplexer.
-	go c.tlsListener.Serve()
+	go c.webListener.Serve()
 	// Start database proxy server.
 	go c.proxyServer.Serve(c.mux.DB())
 	// Start MySQL proxy server.
 	go c.proxyServer.ServeMySQL(c.mysqlListener)
 	// Start database TLS proxy server.
-	go c.proxyServer.ServeTLS(c.tlsListener.DB())
+	go c.proxyServer.ServeTLS(c.webListener.DB())
 }
 
 // startHandlingConnections starts all services required to handle database
@@ -515,7 +515,7 @@ func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUs
 // mongoClient connects to test MongoDB through database access as a
 // specified Teleport user and database account.
 func (c *testContext) mongoClient(ctx context.Context, teleportUser, dbService, dbUser string) (*mongo.Client, error) {
-	return c.mongoClientWithAddr(ctx, c.tlsListener.Addr().String(), teleportUser, dbService, dbUser)
+	return c.mongoClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser)
 }
 
 // mongoClientWithAddr is like mongoClient but allows to override connection address.
@@ -569,8 +569,8 @@ func (c *testContext) Close() error {
 	if c.mysqlListener != nil {
 		errors = append(errors, c.mysqlListener.Close())
 	}
-	if c.tlsListener != nil {
-		errors = append(errors, c.tlsListener.Close())
+	if c.webListener != nil {
+		errors = append(errors, c.webListener.Close())
 	}
 	if c.server != nil {
 		errors = append(errors, c.server.Close())
@@ -611,8 +611,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Setup TLS listener.
-	testCtx.tlsListener, err = multiplexer.NewTLSListener(multiplexer.TLSListenerConfig{
-		ID:       "test",
+	testCtx.webListener, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
 		Listener: tls.NewListener(testCtx.mux.TLS(), testCtx.makeTLSConfig(t)),
 	})
 	require.NoError(t, err)
