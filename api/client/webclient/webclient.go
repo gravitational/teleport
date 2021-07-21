@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -114,6 +115,10 @@ func tunnelAddr(settings SSHProxySettings) (string, error) {
 	// If a tunnel public address is set, nothing else has to be done, return it.
 	if settings.TunnelPublicAddr != "" {
 		return extractHostPort(settings.TunnelPublicAddr)
+	}
+
+	if tunnelAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); tunnelAddr != "" {
+		return extractHostPort(tunnelAddr)
 	}
 
 	// Extract the port the tunnel server is listening on.

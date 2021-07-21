@@ -17,65 +17,136 @@ limitations under the License.
 package webclient
 
 import (
+	"os"
 	"testing"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTunnelAddr(t *testing.T) {
+	testTunnelAddr := func(settings SSHProxySettings, expectedTunnelAddr string) func(*testing.T) {
+		return func(t *testing.T) {
+			t.Parallel()
+			tunnelAddr, err := tunnelAddr(settings)
+			require.NoError(t, err)
+			require.Equal(t, expectedTunnelAddr, tunnelAddr)
+		}
+	}
+
+	t.Run("should use TunnelPublicAddr", testTunnelAddr(
+		SSHProxySettings{
+			TunnelPublicAddr: "tunnel.example.com:4024",
+			PublicAddr:       "proxy.example.com",
+			SSHPublicAddr:    "ssh.example.com",
+			TunnelListenAddr: "[::]:5024",
+		},
+		"tunnel.example.com:4024",
+	))
+	t.Run("should use SSHPublicAddr and TunnelListenAddr", testTunnelAddr(
+		SSHProxySettings{
+			SSHPublicAddr:    "ssh.example.com",
+			PublicAddr:       "proxy.example.com",
+			TunnelListenAddr: "[::]:5024",
+		},
+		"ssh.example.com:5024",
+	))
+	t.Run("should use PublicAddr and TunnelListenAddr", testTunnelAddr(
+		SSHProxySettings{
+			PublicAddr:       "proxy.example.com",
+			TunnelListenAddr: "[::]:5024",
+		},
+		"proxy.example.com:5024",
+	))
+	t.Run("should return TunnelListenAddr", testTunnelAddr(
+		SSHProxySettings{
+			TunnelListenAddr: "[::]:5024",
+		},
+		"[::]:5024",
+	))
+	t.Run("should use PublicAddr and SSHProxyTunnelListenPort", testTunnelAddr(
+		SSHProxySettings{
+			PublicAddr: "proxy.example.com",
+		},
+		"proxy.example.com:3024",
+	))
+	t.Run("should use TELEPORT_TUNNEL_PUBLIC_ADDR", func(t *testing.T) {
+		os.Setenv(defaults.TunnelPublicAddrEnvar, "tunnel.example.com:4024")
+		t.Cleanup(func() { os.Unsetenv(defaults.TunnelPublicAddrEnvar) })
+		tunnelAddr, err := tunnelAddr(SSHProxySettings{})
+		require.NoError(t, err)
+		require.Equal(t, "tunnel.example.com:4024", tunnelAddr)
+	})
+}
+
+func TestExtract(t *testing.T) {
 	testCases := []struct {
-		description      string
-		sshProxySettings SSHProxySettings
-		expectTunnelAddr string
+		addr     string
+		hostPort string
+		host     string
+		port     string
 	}{
 		{
-			description: "should use TunnelPublicAddr",
-			sshProxySettings: SSHProxySettings{
-				TunnelPublicAddr: "tunnel.example.com:4024",
-				PublicAddr:       "proxy.example.com",
-				SSHPublicAddr:    "ssh.example.com",
-				TunnelListenAddr: "[::]:5024",
-			},
-			expectTunnelAddr: "tunnel.example.com:4024",
-		},
-		{
-			description: "should use SSHPublicAddr and TunnelListenAddr",
-			sshProxySettings: SSHProxySettings{
-				SSHPublicAddr:    "ssh.example.com",
-				PublicAddr:       "proxy.example.com",
-				TunnelListenAddr: "[::]:5024",
-			},
-			expectTunnelAddr: "ssh.example.com:5024",
-		},
-		{
-			description: "should use PublicAddr and TunnelListenAddr",
-			sshProxySettings: SSHProxySettings{
-				PublicAddr:       "proxy.example.com",
-				TunnelListenAddr: "[::]:5024",
-			},
-			expectTunnelAddr: "proxy.example.com:5024",
-		},
-		{
-			description: "should return TunnelListenAddr",
-			sshProxySettings: SSHProxySettings{
-				TunnelListenAddr: "[::]:5024",
-			},
-			expectTunnelAddr: "[::]:5024",
-		},
-		{
-			description: "should use PublicAddr and SSHProxyTunnelListenPort",
-			sshProxySettings: SSHProxySettings{
-				PublicAddr: "proxy.example.com",
-			},
-			expectTunnelAddr: "proxy.example.com:3024",
+			addr:     "example.com",
+			hostPort: "example.com",
+			host:     "example.com",
+			port:     "",
+		}, {
+			addr:     "example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     "443",
+		}, {
+			addr:     "http://example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     "443",
+		}, {
+			addr:     "https://example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     "443",
+		}, {
+			addr:     "tcp://example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     "443",
+		}, {
+			addr:     "file://host/path",
+			hostPort: "",
+			host:     "",
+			port:     "",
+		}, {
+			addr:     "[::]:443",
+			hostPort: "[::]:443",
+			host:     "::",
+			port:     "443",
+		}, {
+			addr:     "https://example.com:443/path?query=query#fragment",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     "443",
 		},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.description, func(t *testing.T) {
-			tunnelAddr, err := tunnelAddr(tc.sshProxySettings)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectTunnelAddr, tunnelAddr)
+		t.Run(tc.addr, func(t *testing.T) {
+			t.Parallel()
+
+			hostPort, err := extractHostPort(tc.addr)
+			// Expect err if expected value is empty
+			require.True(t, (tc.hostPort == "") == (err != nil))
+			require.Equal(t, tc.hostPort, hostPort)
+
+			host, err := extractHost(tc.addr)
+			// Expect err if expected value is empty
+			require.True(t, (tc.host == "") == (err != nil))
+			require.Equal(t, tc.host, host)
+
+			port, err := extractPort(tc.addr)
+			// Expect err if expected value is empty
+			require.True(t, (tc.port == "") == (err != nil))
+			require.Equal(t, tc.port, port)
 		})
 	}
 }

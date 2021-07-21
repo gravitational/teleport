@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
@@ -831,7 +832,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		cfg.SSH.RestrictedSession = rs
 	}
 
-	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
+	if proxyAddr := os.Getenv(apidefaults.TunnelPublicAddrEnvar); proxyAddr != "" {
 		cfg.SSH.ProxyReverseTunnelFallbackAddr, err = utils.ParseHostPortAddr(proxyAddr, defaults.SSHProxyTunnelListenPort)
 		if err != nil {
 			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
