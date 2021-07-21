@@ -272,7 +272,7 @@ teleport:
   cache:
     type: in-memory
   connection_limits:
-    max_connections: 6500
+    max_connections: 65000
     max_users: 10000
   log:
     output: stderr
