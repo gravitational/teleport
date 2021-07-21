@@ -279,6 +279,9 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 						Where: builder.Equals(services.ResourceNameExpr, builder.String(r.ClusterName)).String(),
 					},
 				},
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		})
 	if err != nil {
@@ -309,6 +312,9 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Rules: []types.Rule{
 						types.NewRule(types.KindAuthServer, services.RW()),
 					},
+					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	case types.RoleProvisionToken:
@@ -341,6 +347,9 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindNetworkRestrictions, services.RO()),
 					},
+					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	case types.RoleApp:
@@ -370,6 +379,9 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindWebToken, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
 					},
+					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	case types.RoleDatabase:
@@ -397,6 +409,9 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindDatabaseServer, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 					},
+					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	case types.RoleProxy:
@@ -462,6 +477,9 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 								).String(),
 							},
 						},
+						AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+						KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 					},
 				})
 		}
@@ -523,6 +541,9 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 							).String(),
 						},
 					},
+					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	case types.RoleSignup:
@@ -535,6 +556,9 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindAuthServer, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 					},
+					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	case types.RoleAdmin:
@@ -552,6 +576,9 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 					},
+					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	case types.RoleNop:
@@ -559,8 +586,11 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			role.String(),
 			types.RoleSpecV4{
 				Allow: types.RoleConditions{
-					Namespaces: []string{},
-					Rules:      []types.Rule{},
+					Namespaces:       []string{},
+					Rules:            []types.Rule{},
+					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	case types.RoleKube:
@@ -583,6 +613,9 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 					},
+					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	}
