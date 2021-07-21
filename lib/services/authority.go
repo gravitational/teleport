@@ -411,6 +411,17 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 	}
 }
 
+// CertAuthorityNeedsMigrations returns true if the given CertAuthority needs to be migrated
+func CertAuthorityNeedsMigration(cai types.CertAuthority) (bool, error) {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return false, trace.BadParameter("unknown type %T", cai)
+	}
+	haveOldCAKeys := len(ca.Spec.CheckingKeys) > 0 || len(ca.Spec.TLSKeyPairs) > 0 || len(ca.Spec.JWTKeyPairs) > 0
+	haveNewCAKeys := len(ca.Spec.ActiveKeys.SSH) > 0 || len(ca.Spec.ActiveKeys.TLS) > 0 || len(ca.Spec.ActiveKeys.JWT) > 0
+	return haveOldCAKeys && !haveNewCAKeys, nil
+}
+
 // SyncCertAuthorityKeys backfills the old or new key formats, if one of them
 // is empty. If both formats are present, SyncCertAuthorityKeys does nothing.
 func SyncCertAuthorityKeys(cai types.CertAuthority) error {

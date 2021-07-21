@@ -168,6 +168,11 @@ type Config struct {
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
+
+	// WebIdleTimeout specifies how long a user WebUI session can be left
+	// idle before being logged by the server. A zero value means there
+	// is no idle timeout set.
+	WebIdleTimeout time.Duration
 }
 
 type RewritingHandler struct {
