@@ -1334,7 +1334,7 @@ These labels can then be used with Teleport's RBAC policies to define access rul
 | - | - |
 | `bool` | `false` |
 
-Enables the creation of a kubernetes persistent volume to hold teleport agent state.
+Enables the creation of a Kubernetes persistent volume to hold Teleport agent state.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
 
@@ -1359,7 +1359,7 @@ Enables the creation of a kubernetes persistent volume to hold teleport agent st
 | `string` | `nil` |
 
 The storage class name the persistent volume should use when creating persistent volume claims. The provided storage class
-name needs to exist on the kubernetes cluster for Teleport to use.
+name needs to exist on the Kubernetes cluster for Teleport to use.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/storage-classes/)
 
@@ -1640,15 +1640,15 @@ Kubernetes affinity to set for pod assignments.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  labels:
+  nodeSelector:
     role: node
     region: us-east
   ```
   </TabItem>
   <TabItem label="--set">
   ```bash
-  --set labels.role=node \
-  --set labels.region=us-east
+  --set nodeSelector.role=node \
+  --set nodeSelector.region=us-east
   ```
   </TabItem>
 </Tabs>
