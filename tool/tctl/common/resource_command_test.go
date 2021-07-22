@@ -52,6 +52,8 @@ func TestDatabaseResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
+			WebAddr: mustGetFreeLocalListenerAddr(t),
+			TunAddr: mustGetFreeLocalListenerAddr(t),
 		},
 		Auth: config.Auth{
 			Service: config.Service{

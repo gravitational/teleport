@@ -133,20 +133,21 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 }
 
 func waitForBackendDatabaseResourcePropagation(t *testing.T, authServer *auth.Server) {
+	deadlineC := time.After(5 * time.Second)
 	for {
 		select {
 		case <-time.Tick(100 * time.Millisecond):
 			databases, err := authServer.GetDatabaseServers(context.Background(), defaults.Namespace)
 			if err != nil {
-				logrus.WithError(err).Debugf("GetDatabaseServer call failed.")
+				logrus.WithError(err).Debugf("GetDatabaseServer call failed")
 				continue
 			}
 			if len(databases) == 0 {
-				logrus.WithError(err).Debugf("Database servers not found")
+				logrus.Debugf("Database servers not found")
 				continue
 			}
 			return
-		case <-time.After(1 * time.Second):
+		case <-deadlineC:
 			t.Fatal("Failed to fetch database servers")
 		}
 	}
