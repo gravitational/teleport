@@ -143,6 +143,7 @@ func waitForBackendDatabaseResourcePropagation(t *testing.T, authServer *auth.Se
 			}
 			if len(databases) == 0 {
 				logrus.WithError(err).Debugf("Database servers not found")
+				continue
 			}
 			return
 		case <-time.After(1 * time.Second):
