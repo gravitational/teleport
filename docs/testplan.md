@@ -74,11 +74,32 @@ With every user combination, try to login and signup with invalid second factor,
 - [ ] Audit Log
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
-    - [ ] Server ID is the ID of the node in regular mode
-    - [ ] Server ID is randomly generated for proxy node
+    - [ ] Server ID is the ID of the node in "session_recording: node" mode
+    - [ ] Server ID is the ID of the proxy in "session_recording: proxy" mode
+
+    Node/Proxy ID may be found at `/var/lib/teleport/host_uuid` in the
+    corresponding machine.
+
+    Node IDs may also be queried via `tctl nodes ls`.
+
   - [ ] Exec commands are recorded
   - [ ] `scp` commands are recorded
   - [ ] Subsystem results are recorded
+
+    Subsystem testing may be achieved using both
+    [Recording Proxy mode](
+    https://goteleport.com/teleport/docs/architecture/proxy/#recording-proxy-mode)
+    and
+    [OpenSSH integration](
+    https://goteleport.com/docs/server-access/guides/openssh/).
+
+    Assuming the proxy is `proxy.example.com:3023` and `node1` is a node running
+    OpenSSH/sshd, you may use the following command to trigger a subsystem audit
+    log:
+
+    ```shell
+    sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
+    ```
 
 - [ ] Interact with a cluster using `tsh`
 
@@ -182,6 +203,10 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
 ### Teleport with FIPS mode
 
 * [ ] Perform trusted clusters, Web and SSH sanity check with all teleport components deployed in FIPS mode.
+
+### ACME
+
+- [ ] Teleport can fetch TLS certificate automatically using ACME protocol.
 
 ### Migrations
 
@@ -714,17 +739,21 @@ and non interactive tsh bench loads.
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MongoDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS Redshift Postgres.
+  - [ ] AWS Redshift.
   - [ ] GCP Cloud SQL Postgres.
+  - [ ] GCP Cloud SQL MySQL.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MongoDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS Redshift Postgres.
+  - [ ] AWS Redshift.
   - [ ] GCP Cloud SQL Postgres.
+  - [ ] GCP Cloud SQL MySQL.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -733,7 +762,9 @@ and non interactive tsh bench loads.
   - [ ] `tsh db ls` shows only databases matching role's `db_labels`.
   - [ ] Can only connect as users from `db_users`.
   - [ ] _(Postgres only)_ Can only connect to databases from `db_names`.
-  - [ ] `db.session.start` is emitted when connection attempt is denied.
+    - [ ] `db.session.start` is emitted when connection attempt is denied.
+  - [ ] _(MongoDB only)_ Can only execute commands in databases from `db_names`.
+    - [ ] `db.session.query` is emitted when command fails due to permissions.
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
