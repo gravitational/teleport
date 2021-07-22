@@ -8,8 +8,6 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import cfg from 'e-teleport/config';
-import Information from './Information';
-import Invoices from './Invoices';
 import Usage from './Usage';
 
 export default function Billing() {
@@ -20,19 +18,11 @@ export default function Billing() {
           <TabItem as={NavLink} to={cfg.routes.billingUsage}>
             Usage
           </TabItem>
-          <TabItem as={NavLink} to={cfg.routes.billingInvoices}>
-            Invoices
-          </TabItem>
-          <TabItem as={NavLink} to={cfg.routes.billingAccount}>
-            Billing
-          </TabItem>
         </FeatureHeaderTitle>
       </FeatureHeader>
       <Box mt={3}>
         <Switch>
           <Route path={cfg.routes.billingUsage} component={Usage} />
-          <Route path={cfg.routes.billingAccount} component={Information} />
-          <Route path={cfg.routes.billingInvoices} component={Invoices} />
         </Switch>
       </Box>
     </FeatureBox>

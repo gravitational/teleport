@@ -16,7 +16,7 @@ export default function UsageSummary({ items, mt = 0 }: Props) {
         borderTopLeftRadius={3}
       >
         <Text typography="h4" bold>
-          Yearly Usage Summary
+          Usage Summary
         </Text>
       </Box>
       <StyledTable {...tableProps}>

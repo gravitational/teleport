@@ -2,10 +2,8 @@ import React from 'react';
 import { Text, Flex, Box, Alert, Indicator } from 'design';
 import CardEmpty from 'teleport/components/CardEmpty';
 import useTeleportE from 'e-teleport/useTeleportE';
-import BillingCycle from './BillingCycle';
-import UsageChart from './UsageChart';
-import UsageSummary from './UsageSummary';
 import useUsage, { State } from './useUsage';
+import UsageSummary from './UsageSummary';
 
 export default function Container() {
   const ctx = useTeleportE();
@@ -13,13 +11,7 @@ export default function Container() {
   return <Usage {...state} />;
 }
 
-export function Usage({
-  attempt,
-  balance,
-  productName,
-  cycles,
-  yearlyUsages,
-}: State) {
+export function Usage({ attempt, productName, cycles, yearlyUsages }: State) {
   if (attempt.status === 'processing') {
     return (
       <Box textAlign="center" m={10}>
@@ -41,9 +33,7 @@ export function Usage({
       <Text typography="h3" mb={3}>
         {productName}
       </Text>
-      <BillingCycle balance={balance} cycles={cycles} />
-      <UsageChart totalAmts={yearlyUsages[0].totals} mt={6} />
-      <UsageSummary items={yearlyUsages[0].items} mt={6} />
+      <UsageSummary items={yearlyUsages[0].items} />
     </Flex>
   );
 }
