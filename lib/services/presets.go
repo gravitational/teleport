@@ -18,6 +18,7 @@ package services
 
 import (
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -28,16 +29,9 @@ import (
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
-func NewPresetEditorRole() types.Role {
-	role := &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V4,
-		Metadata: types.Metadata{
-			Name:        teleport.PresetEditorRoleName,
-			Namespace:   apidefaults.Namespace,
-			Description: "Edit cluster configuration",
-		},
-		Spec: types.RoleSpecV4{
+func NewPresetEditorRole() (types.Role, error) {
+	return types.NewRoleWithDescription(teleport.PresetEditorRoleName, "Edit cluster configuration",
+		types.RoleSpecV4{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -67,22 +61,14 @@ func NewPresetEditorRole() types.Role {
 				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
-	}
-	return role
+	)
 }
 
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
-func NewPresetAccessRole() types.Role {
-	role := &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V4,
-		Metadata: types.Metadata{
-			Name:        teleport.PresetAccessRoleName,
-			Namespace:   apidefaults.Namespace,
-			Description: "Access cluster resources",
-		},
-		Spec: types.RoleSpecV4{
+func NewPresetAccessRole() (types.Role, error) {
+	role, err := types.NewRoleWithDescription(teleport.PresetAccessRoleName, "Access cluster resources",
+		types.RoleSpecV4{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -103,26 +89,22 @@ func NewPresetAccessRole() types.Role {
 				},
 			},
 		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	role.SetLogins(Allow, []string{teleport.TraitInternalLoginsVariable})
 	role.SetKubeUsers(Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(Allow, []string{teleport.TraitInternalKubeGroupsVariable})
-	return role
+	return role, nil
 }
 
 // NewPresetAuditorRole returns a new pre-defined role for cluster
 // auditor - someone who can review cluster events and replay sessions,
 // but can't initiate interactive sessions or modify configuration.
-func NewPresetAuditorRole() types.Role {
-	role := &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V4,
-		Metadata: types.Metadata{
-			Name:        teleport.PresetAuditorRoleName,
-			Namespace:   apidefaults.Namespace,
-			Description: "Review cluster events and replay sessions",
-		},
-		Spec: types.RoleSpecV4{
+func NewPresetAuditorRole() (types.Role, error) {
+	role, err := types.NewRoleWithDescription(teleport.PresetAuditorRoleName, "Review cluster events and replay sessions",
+		types.RoleSpecV4{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -142,7 +124,10 @@ func NewPresetAuditorRole() types.Role {
 				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	role.SetLogins(Allow, []string{"no-login-" + uuid.New()})
-	return role
+	return role, nil
 }

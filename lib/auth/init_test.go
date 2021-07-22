@@ -600,10 +600,14 @@ func TestMigrateMFADevices(t *testing.T) {
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
-	roles := []types.Role{
-		services.NewPresetEditorRole(),
-		services.NewPresetAccessRole(),
-		services.NewPresetAuditorRole()}
+
+	editor, err := services.NewPresetEditorRole()
+	require.NoError(t, err)
+	access, err := services.NewPresetAccessRole()
+	require.NoError(t, err)
+	auditor, err := services.NewPresetAuditorRole()
+	require.NoError(t, err)
+	roles := []types.Role{editor, access, auditor}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
@@ -630,9 +634,10 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		access := services.NewPresetEditorRole()
+		access, err := services.NewPresetEditorRole()
+		require.NoError(t, err)
 		access.SetLogins(types.Allow, []string{"root"})
-		err := as.CreateRole(access)
+		err = as.CreateRole(access)
 		require.NoError(t, err)
 
 		err = createPresets(ctx, as)

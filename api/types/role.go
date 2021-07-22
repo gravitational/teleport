@@ -118,11 +118,17 @@ type Role interface {
 	SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions)
 }
 
-// NewRole constructs new standard role
+// NewRole constructs new standard role.
 func NewRole(name string, spec RoleSpecV4) (Role, error) {
+	return NewRoleWithDescription(name, "", spec)
+}
+
+// NewRoleWithDescription constructs new standard role with description.
+func NewRoleWithDescription(name, description string, spec RoleSpecV4) (Role, error) {
 	role := RoleV4{
 		Metadata: Metadata{
-			Name: name,
+			Description: description,
+			Name:        name,
 		},
 		Spec: spec,
 	}

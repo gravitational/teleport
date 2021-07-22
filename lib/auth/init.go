@@ -600,10 +600,20 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 
 // createPresets creates preset resources - roles
 func createPresets(ctx context.Context, asrv *Server) error {
-	roles := []types.Role{
-		services.NewPresetEditorRole(),
-		services.NewPresetAccessRole(),
-		services.NewPresetAuditorRole()}
+	editor, err := services.NewPresetEditorRole()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	access, err := services.NewPresetAccessRole()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	auditor, err := services.NewPresetAuditorRole()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	roles := []types.Role{editor, access, auditor}
+
 	for _, role := range roles {
 		err := asrv.CreateRole(role)
 		if err != nil {
