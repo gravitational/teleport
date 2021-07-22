@@ -1583,6 +1583,67 @@ func (s *WebSuite) TestPing(c *C) {
 	c.Assert(out.Auth.SecondFactor, Equals, preference.GetSecondFactor())
 }
 
+// TestEmptyMotD ensures that responses returned by both /webapi/ping and
+// /webapi/motd work when no MotD is set
+func (s *WebSuite) TestEmptyMotD(c *C) {
+	ctx := context.Background()
+	wc := s.client()
+
+	// Given an auth server configured *not* to expose a Message Of The
+	// Day...
+
+	// When I issue a ping request...
+	re, err := wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	c.Assert(err, IsNil)
+
+	// Expect that the MotD flag in the ping response is *not* set
+	var pingResponse *webclient.PingResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &pingResponse), IsNil)
+	c.Assert(pingResponse.Auth.HasMessageOfTheDay, Equals, false)
+
+	// When I fetch the MotD...
+	re, err = wc.Get(ctx, wc.Endpoint("webapi", "motd"), url.Values{})
+	c.Assert(err, IsNil)
+
+	// Expect that an empty response returned
+	var motdResponse *webclient.MotD
+	c.Assert(json.Unmarshal(re.Bytes(), &motdResponse), IsNil)
+	c.Assert(motdResponse.Text, Equals, "")
+}
+
+// TestMotD ensures that a response is returned by both /webapi/ping and /webapi/motd
+// and that that the response bodies contain their MOTD components
+func (s *WebSuite) TestMotD(c *C) {
+	const motd = "Hello. I'm a Teleport cluster!"
+
+	ctx := context.Background()
+	wc := s.client()
+
+	// Given an auth server configured to expose a Message Of The Day...
+	prefs := types.DefaultAuthPreference()
+	prefs.SetMessageOfTheDay(motd)
+	s.server.AuthServer.AuthServer.SetAuthPreference(ctx, prefs)
+
+	// When I issue a ping request...
+	re, err := wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	c.Assert(err, IsNil)
+
+	// Expect that the MotD flag in the ping response is set to indicate
+	// a MotD
+	var pingResponse *webclient.PingResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &pingResponse), IsNil)
+	c.Assert(pingResponse.Auth.HasMessageOfTheDay, Equals, true)
+
+	// When I fetch the MotD...
+	re, err = wc.Get(ctx, wc.Endpoint("webapi", "motd"), url.Values{})
+	c.Assert(err, IsNil)
+
+	// Expect that the text returned is the configured value
+	var motdResponse *webclient.MotD
+	c.Assert(json.Unmarshal(re.Bytes(), &motdResponse), IsNil)
+	c.Assert(motdResponse.Text, Equals, motd)
+}
+
 func (s *WebSuite) TestMultipleConnectors(c *C) {
 	ctx := context.Background()
 	wc := s.client()

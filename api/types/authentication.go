@@ -74,6 +74,12 @@ type AuthPreference interface {
 
 	// String represents a human readable version of authentication settings.
 	String() string
+
+	// GetMessageOfTheDay fetches the MOTD
+	GetMessageOfTheDay() string
+
+	// SetMessageOfTheDay sets the MOTD
+	SetMessageOfTheDay(string)
 }
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
@@ -246,6 +252,16 @@ func (c *AuthPreferenceV2) GetAllowLocalAuth() bool {
 // SetAllowLocalAuth gets if local authentication is allowed.
 func (c *AuthPreferenceV2) SetAllowLocalAuth(b bool) {
 	c.Spec.AllowLocalAuth = NewBoolOption(b)
+}
+
+// GetMessageOfTheDay gets the current Message Of The Day. May be empty.
+func (c *AuthPreferenceV2) GetMessageOfTheDay() string {
+	return c.Spec.MessageOfTheDay
+}
+
+// SetMessageOfTheDay sets the current Message Of The Day. May be empty.
+func (c *AuthPreferenceV2) SetMessageOfTheDay(motd string) {
+	c.Spec.MessageOfTheDay = motd
 }
 
 // setStaticFields sets static resource header and metadata fields.

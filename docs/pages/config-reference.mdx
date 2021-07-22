@@ -316,6 +316,12 @@ auth_service:
     license_file: /var/lib/teleport/license.pem
 
 
+    # Configures a banner message to be displayed to a user logging into the cluster, 
+    # which must be acknowledged before the user is allowed to log in. Note that will
+    # be shown *before* login, so should not contain any confidential information. 
+    # Defaults to the empty string, implying no message or acknowledgment is required.
+    message_of_the_day: ""
+
 # This section configures the 'node service':
 ssh_service:
     # Turns 'ssh' role on. Default is 'yes'
