@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -69,7 +70,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindLock},
 		{Kind: types.KindNetworkRestrictions},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -102,7 +102,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindLock},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -178,7 +177,6 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindLock},
 		// Node only needs to "know" about default
 		// namespace events to avoid matching too much
 		// data about other namespaces or node events
@@ -894,6 +892,9 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	retry.Reset()
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})
+
+	var lastStalenessWarning time.Time
+	var staleEventCount int
 	for {
 		select {
 		case <-watcher.Done():
@@ -901,6 +902,35 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 		case <-c.ctx.Done():
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
+			// check for expired resources in OpPut events and log them periodically. stale OpPut events
+			// may be an indicator of poor performance, and can lead to confusing and inconsistent state
+			// as the cache may prune items that aught to exist.
+			//
+			// NOTE: The inconsistent state mentioned above is a symptom of a deeper issue with the cache
+			// design.  The cache should not expire individual items.  It should instead rely on OpDelete events
+			// from backend expiries.  As soon as the cache has expired at least one item, it is no longer
+			// a faithful representation of a real backend state, since it is 'anticipating' a change in
+			// backend state that may or may not have actually happened.  Instead, it aught to serve the
+			// most recent internally-consistent "view" of the backend, and individual consumers should
+			// determine if the resources they are handling are sufficiently fresh.  Resource-level expiry
+			// is a convenience/cleanup feature and aught not be relied upon for meaningful logic anyhow.
+			// If we need to protect against a stale cache, we aught to invalidate the cache in its entirity, rather
+			// than pruning the resources that we think *might* have been removed from the real backend.
+			// TODO(fspmarshall): ^^^
+			//
+			if event.Type == types.OpPut && !event.Resource.Expiry().IsZero() {
+				staleEventCount++
+				if now := c.Clock.Now(); now.After(event.Resource.Expiry()) && now.After(lastStalenessWarning.Add(time.Minute)) {
+					kind := event.Resource.GetKind()
+					if sk := event.Resource.GetSubKind(); sk != "" {
+						kind = fmt.Sprintf("%s/%s", kind, sk)
+					}
+					c.Warningf("Encountered %d stale event(s), may indicate degraded backend or event system performance. last_kind=%q", staleEventCount, kind)
+					lastStalenessWarning = now
+					staleEventCount = 0
+				}
+			}
+
 			err = c.processEvent(ctx, event)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1359,37 +1389,6 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 	}
 	defer rg.Release()
 	return rg.clusterConfig.GetSessionRecordingConfig(ctx, opts...)
-}
-
-// GetLock gets a lock by name.
-func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	lock, err := rg.access.GetLock(ctx, name)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if lock, err := c.Config.Access.GetLock(ctx, name); err == nil {
-			return lock, nil
-		}
-	}
-	return lock, trace.Wrap(err)
-}
-
-// GetLocks gets all locks, matching at least one of the targets when specified.
-func (c *Cache) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.access.GetLocks(ctx, targets...)
 }
 
 // GetNetworkRestrictions gets the network restrictions.

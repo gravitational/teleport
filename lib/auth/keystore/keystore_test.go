@@ -91,7 +91,7 @@ xrmzqBs9YMU//QIN5ZFE+7opw5v6mbeGCCk3woH46VmVwO6mHCfLha4K/K92MMdg
 JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 -----END CERTIFICATE-----
 `)
-	testPKCS11Key = []byte(`pkcs11:{"host_id": "server2", "key_id": "11111111-1111-1111-1111-111111111111"}`)
+	testPKCS11Key = []byte(`pkcs11:{"host_id": "server2", "key_id": "00000000-0000-0000-0000-000000000000"}`)
 
 	testRawSSHKeyPair = &types.SSHKeyPair{
 		PublicKey:      testRawPublicKey,
@@ -357,19 +357,31 @@ func TestKeyStore(t *testing.T) {
 				},
 			}
 
-			// test that keyStore is able to get a signer
-			sshSigner, err = keyStore.GetSSHSigner(ca)
-			require.NoError(t, err)
-			require.NotNil(t, sshSigner)
+			if tc.hsmConfig != nil {
+				// hsm keyStore should not get any signer from raw keys
+				_, err = keyStore.GetSSHSigner(ca)
+				require.Error(t, err)
 
-			tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ca)
-			require.NoError(t, err)
-			require.NotNil(t, tlsCert)
-			require.NotNil(t, tlsSigner)
+				_, _, err = keyStore.GetTLSCertAndSigner(ca)
+				require.Error(t, err)
 
-			jwtSigner, err = keyStore.GetJWTSigner(ca)
-			require.NoError(t, err)
-			require.NotNil(t, jwtSigner)
+				_, err = keyStore.GetJWTSigner(ca)
+				require.Error(t, err)
+			} else {
+				// raw keyStore should be able to get a signer
+				sshSigner, err = keyStore.GetSSHSigner(ca)
+				require.NoError(t, err)
+				require.NotNil(t, sshSigner)
+
+				tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ca)
+				require.NoError(t, err)
+				require.NotNil(t, tlsCert)
+				require.NotNil(t, tlsSigner)
+
+				jwtSigner, err = keyStore.GetJWTSigner(ca)
+				require.NoError(t, err)
+				require.NotNil(t, jwtSigner)
+			}
 		})
 	}
 }
