@@ -1162,7 +1162,11 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	role, err := types.NewRole("devs", types.RoleSpecV4{
 		Options: tc.options,
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
 		},
 	})
 	require.NoError(t, err)
@@ -1694,7 +1698,11 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	mainDevs := "main-devs"
 	role, err := types.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
 		},
 	})
 	require.NoError(t, err)
@@ -1722,7 +1730,11 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	auxDevs := "aux-devs"
 	role, err = types.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
 		},
 	})
 	require.NoError(t, err)
@@ -1992,7 +2004,11 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	mainDevs := "main-devs"
 	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
 		},
 	})
 	// If the test is using labels, the cluster will be labeled
@@ -2007,7 +2023,11 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	mainAdmins := "main-admins"
 	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins: []string{"superuser"},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{"superuser"},
 		},
 	})
 	require.NoError(t, err)
@@ -2018,8 +2038,12 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	mainOps := "main-ops"
 	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins:        []string{username},
-			ClusterLabels: types.Labels{"access": []string{"ops"}},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
+			ClusterLabels:    types.Labels{"access": []string{"ops"}},
 		},
 	})
 	require.NoError(t, err)
@@ -2047,7 +2071,11 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	auxDevs := "aux-devs"
 	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
 		},
 	})
 	require.NoError(t, err)
@@ -2227,7 +2255,11 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	mainDevs := "main-devs"
 	role, err := types.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
 		},
 	})
 	require.NoError(t, err)
@@ -2255,7 +2287,11 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	auxDevs := "aux-devs"
 	role, err = types.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
 		},
 	})
 	require.NoError(t, err)
@@ -3711,7 +3747,11 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	mainDevs := "main-devs"
 	role, err := types.NewRole(mainDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins: []string{suite.me.Username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{suite.me.Username},
 		},
 	})
 	require.NoError(t, err)
@@ -3729,7 +3769,11 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	auxDevs := "aux-devs"
 	role, err = types.NewRole(auxDevs, types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins: []string{suite.me.Username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{suite.me.Username},
 		},
 	})
 	require.NoError(t, err)
@@ -4361,8 +4405,11 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 			// Create role with logins and labels for this test.
 			role, err := types.NewRole(tt.inRoleName, types.RoleSpecV4{
 				Allow: types.RoleConditions{
-					Logins:     []string{tt.inLogin},
-					NodeLabels: tt.inLabels,
+					Logins:           []string{tt.inLogin},
+					NodeLabels:       tt.inLabels,
+					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 			require.NoError(t, err)
@@ -4968,6 +5015,9 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	userRole, err := types.NewRole(userRoleName, types.RoleSpecV4{
 		Options: types.RoleOptions{},
 		Allow: types.RoleConditions{
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Request: &types.AccessRequestConditions{
 				Roles: []string{requestedRoleName},
 			},
