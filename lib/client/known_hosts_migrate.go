@@ -1,0 +1,160 @@
+/*
+Copyright 2021 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package client
+
+import (
+	"bytes"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+)
+
+// knownHostEntry is a parsed entry from a Teleport/OpenSSH known_hosts file,
+// used as part of the migration/pruning process to make Teleport's known_hosts
+// compatible with OpenSSH.
+type knownHostEntry struct {
+	raw     string
+	marker  string
+	hosts   []string
+	pubKey  ssh.PublicKey
+	comment string
+}
+
+// parseKnownHost parses a single line of a known hosts file into a struct.
+func parseKnownHost(raw string) (*knownHostEntry, error) {
+	// Due to the lack of first-class tuples, we'll need to wrap this in a
+	// struct to avoid re-parsing lines constantly. We'll also keep the input
+	// text to preserve formatting for all passed-through entries.
+	marker, hosts, pubKey, comment, _, err := ssh.ParseKnownHosts([]byte(raw))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &knownHostEntry{
+		raw:     raw,
+		marker:  marker,
+		hosts:   hosts,
+		pubKey:  pubKey,
+		comment: comment,
+	}, nil
+}
+
+// isOldStyleHostsEntry determines if a particular known host entry is explicitly
+// formatted as an old-style entry. Only old-style entries are candidates for
+// pruning; all others are passed through untouched.
+func isOldStyleHostsEntry(entry *knownHostEntry) bool {
+	if entry.marker != "" {
+		return false
+	}
+
+	if len(entry.hosts) != 1 {
+		return false
+	}
+
+	if entry.comment != "" {
+		return false
+	}
+
+	return true
+}
+
+// canPruneOldHostsEntry determines if a particular old-style hosts entry has an
+// equivalent new-style entry and can thus be pruned. Note that this will panic
+// if `oldEntry` does not contain at least one host; `isOldStyleHostsEntry`
+// validates this.
+func canPruneOldHostsEntry(oldEntry *knownHostEntry, newEntries []*knownHostEntry) bool {
+	// Note: Per sshd's documentation, it is valid (though not recommended) for
+	// repeated/overlapping entries to exist for a given host; as such, it's
+	// only safe to prune an old entry when both the (*.)hostname and public key
+	// match.
+
+	// The new-style entries prepend `*.`, so we'll add that upfront.
+	oldHost := "*." + oldEntry.hosts[0]
+
+	// We'll need to marshal the keys so we can compare them properly.
+	oldKey := oldEntry.pubKey.Marshal()
+
+	for _, newEntry := range newEntries {
+		if oldEntry.pubKey.Type() != newEntry.pubKey.Type() {
+			continue
+		}
+
+		newKey := newEntry.pubKey.Marshal()
+		if !bytes.Equal(oldKey, newKey) {
+			continue
+		}
+
+		for _, newHost := range newEntry.hosts {
+			if newHost == oldHost {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// pruneOldHostKeys removes all old-style host keys for which a new-style
+// duplicate entry exists. This may modify order of host keys, but will not
+// change their content.
+func pruneOldHostKeys(output []string) []string {
+	log := logrus.WithField(trace.Component, teleport.ComponentMigrate)
+
+	var (
+		oldEntries   = make([]*knownHostEntry, 0)
+		newEntries   = make([]*knownHostEntry, 0)
+		prunedOutput = make([]string, 0)
+	)
+
+	// First, categorize all existing known hosts entries.
+	for i, line := range output {
+		parsed, err := parseKnownHost(line)
+		if err != nil {
+			// If the line isn't parseable, pass it through.
+			log.WithError(err).Debugf("Unable to parse known host on line %d, skipping", i+1)
+			prunedOutput = append(prunedOutput, line)
+			continue
+		}
+
+		if isOldStyleHostsEntry(parsed) {
+			// Only old-style entries are candidates for removal.
+			oldEntries = append(oldEntries, parsed)
+		} else {
+			// Everything else is passed through as-is...
+			prunedOutput = append(prunedOutput, line)
+
+			// ...but only new-style entries are candidates for comparison.
+			if parsed.marker == "cert-authority" {
+				newEntries = append(newEntries, parsed)
+			}
+		}
+	}
+
+	// Next, for each old-style entry, determine if an existing new-style entry
+	// exists. If not, pass it through.
+	for _, entry := range oldEntries {
+		if canPruneOldHostsEntry(entry, newEntries) {
+			log.Debugf("Pruning old known_hosts entry for %s.", entry.hosts[0])
+		} else {
+			prunedOutput = append(prunedOutput, entry.raw)
+		}
+	}
+
+	return prunedOutput
+}
