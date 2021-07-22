@@ -184,7 +184,10 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 	kubeUsers := []string{"alice@example.com"}
 	role, err := types.NewRole("kubemaster", types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins:     []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}}, Logins: []string{username},
 			KubeGroups: kubeGroups,
 			KubeUsers:  kubeUsers,
 		},
@@ -354,9 +357,13 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 	kubeUsers := []string{"alice@example.com"}
 	role, err := types.NewRole("kubemaster", types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: kubeGroups,
-			KubeUsers:  kubeUsers,
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
+			KubeGroups:       kubeGroups,
+			KubeUsers:        kubeUsers,
 		},
 		Deny: types.RoleConditions{
 			KubeGroups: kubeGroups,
@@ -406,8 +413,12 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	kubeGroups := []string{testImpersonationGroup}
 	role, err := types.NewRole("kubemaster", types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: kubeGroups,
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
+			KubeGroups:       kubeGroups,
 		},
 	})
 	require.NoError(t, err)
@@ -503,8 +514,12 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	mainKubeGroups := []string{testImpersonationGroup}
 	mainRole, err := types.NewRole("main-kube", types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: mainKubeGroups,
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
+			KubeGroups:       mainKubeGroups,
 		},
 	})
 	require.NoError(t, err)
@@ -539,7 +554,11 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	auxKubeGroups := []string{teleport.TraitInternalKubeGroupsVariable}
 	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
 			// Note that main cluster can pass it's kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
@@ -757,8 +776,12 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	mainKubeGroups := []string{testImpersonationGroup}
 	mainRole, err := types.NewRole("main-kube", types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: mainKubeGroups,
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
+			KubeGroups:       mainKubeGroups,
 		},
 	})
 	require.NoError(t, err)
@@ -797,7 +820,11 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	auxKubeGroups := []string{teleport.TraitInternalKubeGroupsVariable}
 	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
 			// Note that main cluster can pass it's kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
@@ -1038,8 +1065,12 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	role, err := types.NewRole("kubemaster", types.RoleSpecV4{
 		Options: tc.options,
 		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: kubeGroups,
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Logins:           []string{username},
+			KubeGroups:       kubeGroups,
 		},
 	})
 	require.NoError(t, err)
