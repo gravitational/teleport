@@ -61,7 +61,7 @@ func TestDatabaseResource(t *testing.T) {
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, WithFileConfig(fileConfig))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
 	waitForBackendDatabaseResourcePropagation(t, auth.GetAuthServer())
 
 	var out []*types.DatabaseServerV3
@@ -86,7 +86,7 @@ func TestDatabaseResource(t *testing.T) {
 
 		_, err = runResourceCommand(t, fileConfig, []string{"get", "db/example2", "--format=json"})
 		require.Error(t, err)
-		require.IsType(t, &trace.NotFoundError{},  err.(*trace.TraceErr).OrigError())
+		require.IsType(t, &trace.NotFoundError{}, err.(*trace.TraceErr).OrigError())
 
 		buff, err := runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
 		require.NoError(t, err)

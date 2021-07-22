@@ -86,13 +86,12 @@ func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
 }
 
 type testServerOptions struct {
-	tmpDir     string
 	fileConfig *config.FileConfig
 }
 
 type testServerOptionFunc func(options *testServerOptions)
 
-func WithFileConfig(fc *config.FileConfig) testServerOptionFunc {
+func withFileConfig(fc *config.FileConfig) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fileConfig = fc
 	}
@@ -136,7 +135,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 func waitForBackendDatabaseResourcePropagation(t *testing.T, authServer *auth.Server) {
 	for {
 		select {
-		case <-time.Tick(100*time.Millisecond):
+		case <-time.Tick(100 * time.Millisecond):
 			databases, err := authServer.GetDatabaseServers(context.Background(), defaults.Namespace)
 			if err != nil {
 				logrus.WithError(err).Debugf("GetDatabaseServer call failed.")
