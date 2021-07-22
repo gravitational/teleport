@@ -9,13 +9,16 @@ with an existing Teleport cluster:
 To use it, you will need:
 - an existing Teleport cluster (at least proxy and auth services)
 - a reachable proxy endpoint (`$PROXY_ENDPOINT` e.g. `teleport.example.com:3080` or `teleport.example.com:443`) 
-- a reachable reverse tunnel port on the proxy (e.g. `teleport.example.com:3024`). The address is automatically retrieved from the Teleport proxy configuration.
-- a [static join
-  token](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster)
-  for this Teleport cluster (`$JOIN_TOKEN`)
-  - this chart does not currently support dynamic join tokens; please [file an
-    issue](https://github.com/gravitational/teleport/issues/new?labels=type%3A+feature+request&template=feature_request.md)
-    if you require support for dynamic tokens
+- a reachable reverse tunnel port on the proxy (e.g. `teleport.example.com:3024`). The address is automatically 
+  retrieved from the Teleport proxy configuration.
+- either a static or dynamic join token for the Teleport Cluster
+  - a [static join token](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster)
+    for this Teleport cluster (`$JOIN_TOKEN`) is used by default.
+  - optionally a [dynamic join token](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster) can
+    be used on Kubernetes clusters that support persistent volumes. Set `storage.enabled=true` and 
+    `storage.storageClassName=<storage class configured in kubernetes>` in the helm configuration to use persistent 
+    volumes.
+
 
 ## Combining roles
 
