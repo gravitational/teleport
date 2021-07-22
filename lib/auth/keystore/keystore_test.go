@@ -357,19 +357,31 @@ func TestKeyStore(t *testing.T) {
 				},
 			}
 
-			// test that keyStore is able to get a signer
-			sshSigner, err = keyStore.GetSSHSigner(ca)
-			require.NoError(t, err)
-			require.NotNil(t, sshSigner)
+			if tc.hsmConfig != nil {
+				// hsm keyStore should not get any signer from raw keys
+				_, err = keyStore.GetSSHSigner(ca)
+				require.Error(t, err)
 
-			tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ca)
-			require.NoError(t, err)
-			require.NotNil(t, tlsCert)
-			require.NotNil(t, tlsSigner)
+				_, _, err = keyStore.GetTLSCertAndSigner(ca)
+				require.Error(t, err)
 
-			jwtSigner, err = keyStore.GetJWTSigner(ca)
-			require.NoError(t, err)
-			require.NotNil(t, jwtSigner)
+				_, err = keyStore.GetJWTSigner(ca)
+				require.Error(t, err)
+			} else {
+				// raw keyStore should be able to get a signer
+				sshSigner, err = keyStore.GetSSHSigner(ca)
+				require.NoError(t, err)
+				require.NotNil(t, sshSigner)
+
+				tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ca)
+				require.NoError(t, err)
+				require.NotNil(t, tlsCert)
+				require.NotNil(t, tlsSigner)
+
+				jwtSigner, err = keyStore.GetJWTSigner(ca)
+				require.NoError(t, err)
+				require.NotNil(t, jwtSigner)
+			}
 		})
 	}
 }

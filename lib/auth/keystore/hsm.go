@@ -9,7 +9,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/ThalesIgnite/crypto11"
@@ -119,8 +118,7 @@ func (c *hsmKeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
 		}
 		return signer, nil
 	case types.PrivateKeyType_RAW:
-		signer, err := utils.ParsePrivateKeyPEM(rawKey)
-		return signer, trace.Wrap(err)
+		return nil, trace.BadParameter("cannot get raw signer from HSM KeyStore")
 	}
 	return nil, trace.BadParameter("unrecognized key type %s", keyType.String())
 }
@@ -130,7 +128,6 @@ func (c *hsmKeyStore) selectTLSKeyPair(ca types.CertAuthority) (*types.TLSKeyPai
 	if len(keyPairs) == 0 {
 		return nil, trace.NotFound("no TLS key pairs found in CA for %q", ca.GetClusterName())
 	}
-	// prefer hsm key
 	for _, keyPair := range keyPairs {
 		if keyPair.KeyType == types.PrivateKeyType_PKCS11 {
 			keyID, err := parseKeyID(keyPair.Key)
@@ -143,13 +140,7 @@ func (c *hsmKeyStore) selectTLSKeyPair(ca types.CertAuthority) (*types.TLSKeyPai
 			return keyPair, nil
 		}
 	}
-	// if there are no hsm keys for this host, check for a raw key
-	for _, keyPair := range keyPairs {
-		if keyPair.KeyType == types.PrivateKeyType_RAW {
-			return keyPair, nil
-		}
-	}
-	return nil, trace.NotFound("no TLS key pairs found in CA for %q", ca.GetClusterName())
+	return nil, trace.NotFound("no local PKCS#11 TLS key pairs found in CA for %q", ca.GetClusterName())
 }
 
 // GetTLSCertAndSigner selects the local TLS keypair and returns the raw TLS cert and crypto.Signer.
@@ -176,7 +167,6 @@ func (c *hsmKeyStore) selectSSHKeyPair(ca types.CertAuthority) (*types.SSHKeyPai
 	if len(keyPairs) == 0 {
 		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
 	}
-	// prefer hsm key
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_PKCS11 {
 			keyID, err := parseKeyID(keyPair.PrivateKey)
@@ -189,13 +179,7 @@ func (c *hsmKeyStore) selectSSHKeyPair(ca types.CertAuthority) (*types.SSHKeyPai
 			return keyPair, nil
 		}
 	}
-	// if there are no hsm keys for this host, check for a raw key
-	for _, keyPair := range keyPairs {
-		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
-			return keyPair, nil
-		}
-	}
-	return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
+	return nil, trace.NotFound("no local PKCS#11  SSH key pairs found in CA for %q", ca.GetClusterName())
 }
 
 // GetSSHSigner selects the local SSH keypair and returns an ssh.Signer.
@@ -205,25 +189,14 @@ func (c *hsmKeyStore) GetSSHSigner(ca types.CertAuthority) (sshSigner ssh.Signer
 		return nil, trace.Wrap(err)
 	}
 
-	switch keyPair.PrivateKeyType {
-	case types.PrivateKeyType_RAW:
-		sshSigner, err = ssh.ParsePrivateKey(keyPair.PrivateKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case types.PrivateKeyType_PKCS11:
-		signer, err := c.GetSigner(keyPair.PrivateKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		sshSigner, err = ssh.NewSignerFromSigner(signer)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		return nil, trace.BadParameter("unrecognized key type %q", keyPair.PrivateKeyType.String())
+	signer, err := c.GetSigner(keyPair.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
+	sshSigner, err = ssh.NewSignerFromSigner(signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	sshSigner = sshutils.AlgSigner(sshSigner, sshutils.GetSigningAlgName(ca))
 	return sshSigner, nil
 }
@@ -234,7 +207,6 @@ func (c *hsmKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error
 	if len(keyPairs) == 0 {
 		return nil, trace.NotFound("no JWT keypairs found")
 	}
-	// prefer hsm key if there is one
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_PKCS11 {
 			keyID, err := parseKeyID(keyPair.PrivateKey)
@@ -251,17 +223,7 @@ func (c *hsmKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error
 			return signer, nil
 		}
 	}
-	// if there are no hsm keys for this host, check for a raw key
-	for _, keyPair := range keyPairs {
-		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
-			signer, err := utils.ParsePrivateKey(keyPair.PrivateKey)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return signer, nil
-		}
-	}
-	return nil, trace.NotFound("no JWT key pairs found in CA for %q", ca.GetClusterName())
+	return nil, trace.NotFound("no local PKCS#11 JWT key pairs found in CA for %q", ca.GetClusterName())
 }
 
 // DeleteKey deletes the given key from the HSM
