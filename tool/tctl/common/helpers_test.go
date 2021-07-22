@@ -63,7 +63,6 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string) (*by
 	_, err = command.TryRun(selectedCmd, client)
 	if err != nil {
 		return nil, err
-
 	}
 	return &stdoutBuff, nil
 }

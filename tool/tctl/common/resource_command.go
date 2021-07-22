@@ -1037,7 +1037,6 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		for _, server := range servers {
 			if server.GetName() == rc.ref.Name {
 				out = append(out, server)
-				return &dbCollection{servers: []types.DatabaseServer{server}}, nil
 			}
 		}
 		if len(out) == 0 {
