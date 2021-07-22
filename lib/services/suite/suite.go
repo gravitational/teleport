@@ -722,7 +722,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	rout, err := s.Access.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(rout.GetResourceID())
-	fixtures.DeepCompare(c, rout, &role)
+	fixtures.DeepCompare(c, rout, role)
 
 	role.SetLogins(types.Allow, []string{"bob"})
 	err = s.Access.UpsertRole(ctx, role)
@@ -730,7 +730,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	rout, err = s.Access.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(rout.GetResourceID())
-	c.Assert(rout, check.DeepEquals, &role)
+	c.Assert(rout, check.DeepEquals, role)
 
 	err = s.Access.DeleteRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
