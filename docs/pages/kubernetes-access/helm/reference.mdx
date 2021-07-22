@@ -1349,6 +1349,30 @@ You can override this to use your own Teleport image rather than a Teleport-publ
   </TabItem>
 </Tabs>
 
+## `imagePullSecrets`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod)
+
+A list of secrets containing authorization tokens which can be optionally used to access a private Docker registry.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  imagePullSecrets:
+  - name: my-docker-registry-key
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "imagePullSecrets[0].name=my-docker-registry-key"
+  ```
+  </TabItem>
+</Tabs>
+
 ## `replicaCount`
 
 | Type | Default value |
