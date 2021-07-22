@@ -19,8 +19,10 @@ package config
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -71,20 +73,22 @@ func TestAuthSection(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		desc          string
-		mutate        func(cfgMap)
-		expectError   require.ErrorAssertionFunc
-		expectEnabled require.BoolAssertionFunc
-		expectIdleMsg require.ValueAssertionFunc
-		expectMotd    require.ValueAssertionFunc
+		desc                 string
+		mutate               func(cfgMap)
+		expectError          require.ErrorAssertionFunc
+		expectEnabled        require.BoolAssertionFunc
+		expectIdleMsg        require.ValueAssertionFunc
+		expectMotd           require.ValueAssertionFunc
+		expectWebIdleTimeout require.ValueAssertionFunc
 	}{
 		{
-			desc:          "Default",
-			mutate:        func(cfg cfgMap) {},
-			expectError:   require.NoError,
-			expectEnabled: require.True,
-			expectIdleMsg: require.Empty,
-			expectMotd:    require.Empty,
+			desc:                 "Default",
+			mutate:               func(cfg cfgMap) {},
+			expectError:          require.NoError,
+			expectEnabled:        require.True,
+			expectIdleMsg:        require.Empty,
+			expectMotd:           require.Empty,
+			expectWebIdleTimeout: require.Empty,
 		}, {
 			desc: "Enabled",
 			mutate: func(cfg cfgMap) {
@@ -113,6 +117,21 @@ func TestAuthSection(t *testing.T) {
 			},
 			expectError: require.NoError,
 			expectMotd:  requireEqual("Are you pondering what I'm pondering?"),
+		}, {
+			desc: "Web idle timeout",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "10m"
+
+			},
+			expectError:          require.NoError,
+			expectWebIdleTimeout: requireEqual(types.Duration(10 * time.Minute)),
+		}, {
+			desc: "Web idle timeout (invalid)",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
+
+			},
+			expectError: require.Error,
 		},
 	}
 
@@ -133,6 +152,10 @@ func TestAuthSection(t *testing.T) {
 
 			if tt.expectMotd != nil {
 				tt.expectMotd(t, cfg.Auth.MessageOfTheDay)
+			}
+
+			if tt.expectWebIdleTimeout != nil {
+				tt.expectWebIdleTimeout(t, cfg.Auth.WebIdleTimeout)
 			}
 		})
 	}

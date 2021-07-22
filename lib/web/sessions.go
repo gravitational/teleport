@@ -361,20 +361,32 @@ func (c *SessionContext) getToken() (types.WebToken, error) {
 }
 
 // expired returns whether this context has expired.
-// The context is considered expired when its bearer token TTL
-// is in the past (subject to lingering threshold)
+// Session records in the backend are created with a built-in expiry that
+// automatically deletes the session record from the back-end database at
+// the end of its natural life.
+// If a session record still exists in the backend, it is considered still
+// alive, regardless of the time. If no such record exists then a record is
+// considered expired when its bearer token TTL is in the past (subject to
+// lingering threshold)
 func (c *SessionContext) expired(ctx context.Context) bool {
 	_, err := c.parent.readSession(ctx, types.GetWebSessionRequest{
 		User:      c.user,
 		SessionID: c.session.GetName(),
 	})
+
+	// If looking up the session in the cache or backend succeeds, then
+	// it by definition must not have expired yet.
 	if err == nil {
 		return false
 	}
+
+	// If the session has no expiry time, then also by definition it
+	// cannot be expired
 	expiry := c.session.GetBearerTokenExpiryTime()
 	if expiry.IsZero() {
 		return false
 	}
+
 	if !trace.IsNotFound(err) {
 		c.log.WithError(err).Debug("Failed to query web session.")
 	}

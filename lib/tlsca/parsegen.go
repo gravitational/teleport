@@ -233,6 +233,14 @@ func MarshalPublicKeyFromPrivateKeyPEM(privateKey crypto.PrivateKey) ([]byte, er
 	return pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: derBytes}), nil
 }
 
+// MarshalPrivateKeyPEM marshals provided rsa.PrivateKey into PEM format.
+func MarshalPrivateKeyPEM(privateKey *rsa.PrivateKey) []byte {
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+	})
+}
+
 // MarshalCertificatePEM takes a *x509.Certificate and returns the PEM
 // encoded bytes.
 func MarshalCertificatePEM(cert *x509.Certificate) ([]byte, error) {
