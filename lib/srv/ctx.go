@@ -916,12 +916,7 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 // ComputeLockTargets computes lock targets inferred from a Server
 // and an IdentityContext.
 func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error) {
-	clusterName, err := s.GetAccessPoint().GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return append([]types.LockTarget{
-		{Cluster: clusterName.GetClusterName()},
 		{User: id.TeleportUser},
 		{Login: id.Login},
 		{Node: s.HostUUID()},

@@ -63,7 +63,7 @@ func TestLockTargetMatch(t *testing.T) {
 	require.True(t, target.Match(lock))
 
 	disjointTarget := LockTarget{
-		Cluster: "leaf",
+		Login: "root",
 	}
 	require.False(t, disjointTarget.Match(lock))
 

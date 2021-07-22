@@ -1318,15 +1318,6 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.parent.cfg.CachingAuthClient.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	lockTargets := append(
-		services.LockTargetsFromTLSIdentity(s.UnmappedIdentity.GetIdentity()),
-		types.LockTarget{Cluster: clusterName.GetClusterName()},
-	)
-
 	ctx, cancel := context.WithCancel(s.parent.ctx)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
@@ -1340,7 +1331,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           s.parent.cfg.LockWatcher,
-		LockTargets:           lockTargets,
+		LockTargets:           services.LockTargetsFromTLSIdentity(s.UnmappedIdentity.GetIdentity()),
 		DisconnectExpiredCert: s.disconnectExpiredCert,
 		ClientIdleTimeout:     s.clientIdleTimeout,
 		Clock:                 s.parent.cfg.Clock,

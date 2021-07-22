@@ -208,9 +208,6 @@ func (t LockTarget) Match(lock Lock) bool {
 	if t.Role != "" && lockTarget.Role != t.Role {
 		return false
 	}
-	if t.Cluster != "" && lockTarget.Cluster != t.Cluster {
-		return false
-	}
 	if t.Login != "" && lockTarget.Login != t.Login {
 		return false
 	}
