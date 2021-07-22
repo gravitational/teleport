@@ -91,7 +91,7 @@ xrmzqBs9YMU//QIN5ZFE+7opw5v6mbeGCCk3woH46VmVwO6mHCfLha4K/K92MMdg
 JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 -----END CERTIFICATE-----
 `)
-	testPKCS11Key = []byte(`pkcs11:{"host_id": "server2", "key_id": "11111111-1111-1111-1111-111111111111"}`)
+	testPKCS11Key = []byte(`pkcs11:{"host_id": "server2", "key_id": "00000000-0000-0000-0000-000000000000"}`)
 
 	testRawSSHKeyPair = &types.SSHKeyPair{
 		PublicKey:      testRawPublicKey,
