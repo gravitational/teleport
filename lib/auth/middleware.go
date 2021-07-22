@@ -25,15 +25,15 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -143,7 +143,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		cfg: cfg,
 		httpServer: &http.Server{
 			Handler:           limiter,
-			ReadHeaderTimeout: defaults.DefaultDialTimeout,
+			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		},
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
@@ -241,7 +241,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	switch info.ServerName {
 	case "":
 		// Client does not use SNI, will validate against all known CAs.
-	case teleport.APIDomain:
+	case constants.APIDomain:
 		// REMOVE IN 4.4: all 4.3+ clients must specify the correct cluster name.
 		//
 		// Instead, this case should either default to current cluster CAs or
@@ -326,30 +326,30 @@ func (a *Middleware) Wrap(h http.Handler) {
 func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
 	peerInfo, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, trail.ToGRPC(trace.AccessDenied("missing authentication"))
+		return nil, trace.AccessDenied("missing authentication")
 	}
 	// Limit requests per second and simultaneous connection by client IP.
 	clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
 	if err != nil {
 		log.WithError(err).Debugf("Failed to get client IP.")
-		return nil, trail.ToGRPC(trace.BadParameter("missing client IP"))
+		return nil, trace.BadParameter("missing client IP")
 	}
 	if err := a.Limiter.RegisterRequest(clientIP); err != nil {
-		return nil, trail.ToGRPC(trace.LimitExceeded("rate limit exceeded"))
+		return nil, trace.LimitExceeded("rate limit exceeded")
 	}
 	if err := a.Limiter.ConnLimiter.Acquire(clientIP, 1); err != nil {
-		return nil, trail.ToGRPC(trace.LimitExceeded("connection limit exceeded"))
+		return nil, trace.LimitExceeded("connection limit exceeded")
 	}
 	defer a.Limiter.ConnLimiter.Release(clientIP, 1)
 	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
 
 	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
 	if !ok {
-		return nil, trail.ToGRPC(trace.AccessDenied("missing authentication"))
+		return nil, trace.AccessDenied("missing authentication")
 	}
 	user, err := a.GetUser(tlsInfo.State)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	return handler(context.WithValue(ctx, ContextUser, user), req)
 }
@@ -359,28 +359,28 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 func (a *Middleware) StreamInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	peerInfo, ok := peer.FromContext(serverStream.Context())
 	if !ok {
-		return trail.ToGRPC(trace.AccessDenied("missing authentication"))
+		return trace.AccessDenied("missing authentication")
 	}
 	// Limit requests per second and simultaneous connection by client IP.
 	clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
 	if err != nil {
 		log.WithError(err).Debugf("Failed to get client IP.")
-		return trail.ToGRPC(trace.BadParameter("missing client IP"))
+		return trace.BadParameter("missing client IP")
 	}
 	if err := a.Limiter.RegisterRequest(clientIP); err != nil {
-		return trail.ToGRPC(trace.LimitExceeded("rate limit exceeded"))
+		return trace.LimitExceeded("rate limit exceeded")
 	}
 	if err := a.Limiter.ConnLimiter.Acquire(clientIP, 1); err != nil {
-		return trail.ToGRPC(trace.LimitExceeded("connection limit exceeded"))
+		return trace.LimitExceeded("connection limit exceeded")
 	}
 	defer a.Limiter.ConnLimiter.Release(clientIP, 1)
 	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
 	if !ok {
-		return trail.ToGRPC(trace.AccessDenied("missing authentication"))
+		return trace.AccessDenied("missing authentication")
 	}
 	user, err := a.GetUser(tlsInfo.State)
 	if err != nil {
-		return trail.ToGRPC(err)
+		return trace.Wrap(err)
 	}
 	return handler(srv, &authenticatedStream{ctx: context.WithValue(serverStream.Context(), ContextUser, user), ServerStream: serverStream})
 }
@@ -417,8 +417,8 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	if len(peers) == 0 {
 		return BuiltinRole{
 			GetSessionRecordingConfig: a.AccessPoint.GetSessionRecordingConfig,
-			Role:                      teleport.RoleNop,
-			Username:                  string(teleport.RoleNop),
+			Role:                      types.RoleNop,
+			Username:                  string(types.RoleNop),
 			ClusterName:               localClusterName.GetClusterName(),
 			Identity:                  tlsca.Identity{},
 		}, nil
@@ -508,9 +508,9 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	}, nil
 }
 
-func findSystemRole(roles []string) *teleport.Role {
+func findSystemRole(roles []string) *types.SystemRole {
 	for _, role := range roles {
-		systemRole := teleport.Role(role)
+		systemRole := types.SystemRole(role)
 		err := systemRole.Check()
 		if err == nil {
 			return &systemRole
@@ -554,13 +554,13 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 // ClientCertPool returns trusted x509 cerificate authority pool
 func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
-	var authorities []services.CertAuthority
+	var authorities []types.CertAuthority
 	if clusterName == "" {
-		hostCAs, err := client.GetCertAuthorities(services.HostCA, false, services.SkipValidation())
+		hostCAs, err := client.GetCertAuthorities(types.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userCAs, err := client.GetCertAuthorities(services.UserCA, false, services.SkipValidation())
+		userCAs, err := client.GetCertAuthorities(types.UserCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -568,14 +568,14 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 		authorities = append(authorities, userCAs...)
 	} else {
 		hostCA, err := client.GetCertAuthority(
-			services.CertAuthID{Type: services.HostCA, DomainName: clusterName},
-			false, services.SkipValidation())
+			types.CertAuthID{Type: types.HostCA, DomainName: clusterName},
+			false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userCA, err := client.GetCertAuthority(
-			services.CertAuthID{Type: services.UserCA, DomainName: clusterName},
-			false, services.SkipValidation())
+			types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
+			false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -584,7 +584,7 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 	}
 
 	for _, auth := range authorities {
-		for _, keyPair := range auth.GetTLSKeyPairs() {
+		for _, keyPair := range auth.GetTrustedTLSKeyPairs() {
 			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 			if err != nil {
 				return nil, trace.Wrap(err)

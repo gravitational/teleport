@@ -35,11 +35,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -74,7 +74,7 @@ type NodeClient struct {
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 //
-func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
+func (proxy *ProxyClient) GetSites() ([]types.Site, error) {
 	proxySession, err := proxy.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -103,11 +103,11 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(defaults.DefaultDialTimeout):
+	case <-time.After(apidefaults.DefaultDialTimeout):
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 	log.Debugf("Found clusters: %v", stdout.String())
-	var sites []services.Site
+	var sites []types.Site
 	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -115,14 +115,14 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 }
 
 // GetLeafClusters returns the leaf/remote clusters.
-func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]services.RemoteCluster, error) {
+func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	clt, err := proxy.ConnectToRootCluster(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
 
-	remoteClusters, err := clt.GetRemoteClusters(services.SkipValidation())
+	remoteClusters, err := clt.GetRemoteClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -285,7 +285,13 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 		// Database certs have to be requested with CertUsage All because
 		// pre-7.0 servers do not accept usage-restricted certificates.
 		if params.RouteToDatabase.ServiceName != "" {
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+			switch params.RouteToDatabase.Protocol {
+			case defaults.ProtocolMongoDB:
+				// MongoDB expects certificate and key pair in the same pem file.
+				key.DBTLSCerts[params.RouteToDatabase.ServiceName] = append(certs.TLS, key.Priv...)
+			default:
+				key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+			}
 		}
 
 	case proto.UserCertsRequest_SSH:
@@ -293,7 +299,13 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 	case proto.UserCertsRequest_App:
 		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
 	case proto.UserCertsRequest_Database:
-		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+		switch params.RouteToDatabase.Protocol {
+		case defaults.ProtocolMongoDB:
+			// MongoDB expects certificate and key pair in the same pem file.
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = append(certs.TLS, key.Priv...)
+		default:
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+		}
 	case proto.UserCertsRequest_Kubernetes:
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
 	}
@@ -483,7 +495,7 @@ func (proxy *ProxyClient) RootClusterName() (string, error) {
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
-func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
+func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -492,7 +504,7 @@ func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req services.
 }
 
 // GetAccessRequests loads all access requests matching the spupplied filter.
-func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -505,7 +517,7 @@ func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter services
 }
 
 // GetRole loads a role resource by name.
-func (proxy *ProxyClient) GetRole(ctx context.Context, name string) (services.Role, error) {
+func (proxy *ProxyClient) GetRole(ctx context.Context, name string) (types.Role, error) {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -518,7 +530,7 @@ func (proxy *ProxyClient) GetRole(ctx context.Context, name string) (services.Ro
 }
 
 // NewWatcher sets up a new event watcher.
-func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -535,17 +547,17 @@ func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch services.Watch) 
 //
 // A server is matched when ALL labels match.
 // If no labels are passed, ALL nodes are returned.
-func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace string, labels map[string]string) ([]services.Server, error) {
+func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace string, labels map[string]string) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(auth.MissingNamespaceError)
 	}
-	nodes := make([]services.Server, 0)
+	nodes := make([]types.Server, 0)
 	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	siteNodes, err := site.GetNodes(ctx, namespace, services.SkipValidation())
+	siteNodes, err := site.GetNodes(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -560,13 +572,13 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 }
 
 // GetAppServers returns a list of application servers.
-func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]services.Server, error) {
+func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]types.Server, error) {
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := authClient.GetAppServers(ctx, namespace, services.SkipValidation())
+	servers, err := authClient.GetAppServers(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -619,7 +631,7 @@ func (proxy *ProxyClient) GetDatabaseServers(ctx context.Context, namespace stri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := authClient.GetDatabaseServers(ctx, namespace, services.SkipValidation())
+	servers, err := authClient.GetDatabaseServers(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -683,7 +695,7 @@ func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context, quiet bool) 
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
-	dialer := auth.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
+	dialer := client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return proxy.dialAuthServer(ctx, clusterName)
 	})
 
@@ -998,7 +1010,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	nc := &NodeClient{
 		Client:    client,
 		Proxy:     proxy,
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
 	}
 
@@ -1070,7 +1082,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	nc := &NodeClient{
 		Client:    client,
 		Proxy:     proxy,
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
 	}
 
@@ -1407,7 +1419,7 @@ func (c *NodeClient) Close() error {
 }
 
 // currentCluster returns the connection to the API of the current cluster
-func (proxy *ProxyClient) currentCluster() (*services.Site, error) {
+func (proxy *ProxyClient) currentCluster() (*types.Site, error) {
 	sites, err := proxy.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)

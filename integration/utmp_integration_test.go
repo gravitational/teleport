@@ -23,11 +23,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -45,8 +47,8 @@ import (
 const teleportTestUser = "teleport-test"
 
 // wildcardAllow is used in tests to allow access to all labels.
-var wildcardAllow = services.Labels{
-	services.Wildcard: []string{services.Wildcard},
+var wildcardAllow = types.Labels{
+	types.Wildcard: []string{types.Wildcard},
 }
 
 type SrvCtx struct {
@@ -175,7 +177,7 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: s.server.ClusterName(),
-		Roles:    teleport.Roles{teleport.RoleNode},
+		Roles:    types.SystemRoles{types.RoleNode},
 	})
 	require.NoError(t, err)
 
@@ -186,7 +188,7 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 	s.nodeID = uuid.New()
 	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleNode,
+			Role:     types.RoleNode,
 			Username: s.nodeID,
 		},
 	})
@@ -211,7 +213,7 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(s.nodeID),
-		regular.SetNamespace(defaults.Namespace),
+		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
 		regular.SetShell("/bin/sh"),
 		regular.SetSessionServer(s.nodeClient),
@@ -219,12 +221,13 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
-				"baz": &services.CommandLabelV2{
-					Period:  services.NewDuration(time.Millisecond),
+				"baz": &types.CommandLabelV2{
+					Period:  types.NewDuration(time.Millisecond),
 					Command: []string{"expr", "1", "+", "3"}},
 			},
 		),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetUtmpPath(utmpPath, utmpPath),
 	)
@@ -235,23 +238,23 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 	return s
 }
 
-func newUpack(s *SrvCtx, username string, allowedLogins []string, allowedLabels services.Labels) (*upack, error) {
+func newUpack(s *SrvCtx, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	ctx := context.Background()
 	auth := s.server.Auth()
 	upriv, upub, err := auth.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.NewUser(username)
+	user, err := types.NewUser(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
 	rules := role.GetRules(services.Allow)
-	rules = append(rules, services.NewRule(services.Wildcard, services.RW()))
+	rules = append(rules, types.NewRule(types.Wildcard, services.RW()))
 	role.SetRules(services.Allow, rules)
 	opts := role.GetOptions()
-	opts.PermitX11Forwarding = services.NewBool(true)
+	opts.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(opts)
 	role.SetLogins(services.Allow, allowedLogins)
 	role.SetNodeLabels(services.Allow, allowedLabels)
@@ -264,7 +267,7 @@ func newUpack(s *SrvCtx, username string, allowedLogins []string, allowedLabels 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ucert, err := s.server.AuthServer.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CertificateFormatStandard)
+	ucert, err := s.server.AuthServer.GenerateUserCert(upub, user.GetName(), 5*time.Minute, constants.CertificateFormatStandard)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

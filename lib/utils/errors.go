@@ -19,8 +19,7 @@ package utils
 import (
 	"strings"
 
-	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 )
 
@@ -31,7 +30,7 @@ func IsUseOfClosedNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection)
+	return strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection)
 }
 
 // IsOKNetworkError returns true if the provided error received from a network

@@ -17,8 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -27,27 +25,12 @@ import (
 
 // IsRecordAtProxy returns true if recording is sync or async at proxy.
 func IsRecordAtProxy(mode string) bool {
-	return mode == RecordAtProxy || mode == RecordAtProxySync
+	return mode == types.RecordAtProxy || mode == types.RecordAtProxySync
 }
 
 // IsRecordSync returns true if recording is sync or async for proxy or node.
 func IsRecordSync(mode string) bool {
-	return mode == RecordAtProxySync || mode == RecordAtNodeSync
-}
-
-// SessionRecordingConfigSpecSchema is JSON schema for SessionRecordingConfig spec.
-const SessionRecordingConfigSpecSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"mode": {"type": "string"},
-		"proxy_checks_host_keys": {"anyOf": [{"type": "string"}, { "type": "boolean"}]}
-	}
-}`
-
-// GetSessionRecordingConfigSchema returns full SessionRecordingConfig JSON schema.
-func GetSessionRecordingConfigSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, SessionRecordingConfigSpecSchema, DefaultDefinitions)
+	return mode == types.RecordAtProxySync || mode == types.RecordAtNodeSync
 }
 
 // UnmarshalSessionRecordingConfig unmarshals the SessionRecordingConfig resource from JSON.
@@ -62,16 +45,8 @@ func UnmarshalSessionRecordingConfig(bytes []byte, opts ...MarshalOption) (types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &recConfig); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetSessionRecordingConfigSchema(), &recConfig, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
+	if err := utils.FastUnmarshal(bytes, &recConfig); err != nil {
+		return nil, trace.BadParameter(err.Error())
 	}
 
 	err = recConfig.CheckAndSetDefaults()
@@ -101,7 +76,7 @@ func MarshalSessionRecordingConfig(recConfig types.SessionRecordingConfig, opts 
 
 	switch recConfig := recConfig.(type) {
 	case *types.SessionRecordingConfigV2:
-		if version := recConfig.GetVersion(); version != V2 {
+		if version := recConfig.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched session recording config version %v and type %T", version, recConfig)
 		}
 		if !cfg.PreserveResourceID {

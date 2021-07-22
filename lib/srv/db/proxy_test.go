@@ -19,8 +19,11 @@ package db
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 
 	"github.com/stretchr/testify/require"
@@ -70,4 +73,95 @@ func TestProxyProtocolMySQL(t *testing.T) {
 	mysql, err := testCtx.mysqlClientWithAddr(proxy.Address(), "alice", "mysql", "root")
 	require.NoError(t, err)
 	require.NoError(t, mysql.Close())
+}
+
+// TestProxyProtocolMongo ensures that clients can successfully connect to a
+// Mongo database when Teleport is running behind a proxy that sends a proxy
+// line.
+func TestProxyProtocolMongo(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
+
+	// Point our proxy to the Teleport's TLS listener.
+	proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { proxy.Close() })
+	go proxy.Serve()
+
+	// Connect to the proxy instead of directly to Teleport listener and make
+	// sure the connection succeeds.
+	mongo, err := testCtx.mongoClientWithAddr(ctx, proxy.Address(), "alice", "mongo", "admin")
+	require.NoError(t, err)
+	require.NoError(t, mongo.Disconnect(ctx))
+}
+
+// TestProxyClientDisconnectDueToIdleConnection ensures that idle clients will be disconnected.
+func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
+	const (
+		idleClientTimeout             = time.Minute
+		connMonitorDisconnectTimeBuff = time.Second * 5
+	)
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
+	setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx, t, testCtx.authServer, idleClientTimeout)
+
+	mysql, err := testCtx.mysqlClient("alice", "mysql", "root")
+	require.NoError(t, err)
+
+	err = mysql.Ping()
+	require.NoError(t, err)
+
+	testCtx.clock.Advance(idleClientTimeout + connMonitorDisconnectTimeBuff)
+
+	waitForEvent(t, testCtx, events.ClientDisconnectCode)
+	err = mysql.Ping()
+	require.Error(t, err)
+}
+
+// TestProxyClientDisconnectDueToCertExpiration ensures that if the DisconnectExpiredCert cluster flag is enabled
+// clients will be disconnected after cert expiration.
+func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
+	const (
+		ttlClientCert = time.Hour
+	)
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
+	setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx, t, testCtx.authServer, time.Hour*24)
+
+	mysql, err := testCtx.mysqlClient("alice", "mysql", "root")
+	require.NoError(t, err)
+
+	err = mysql.Ping()
+	require.NoError(t, err)
+
+	testCtx.clock.Advance(ttlClientCert)
+
+	waitForEvent(t, testCtx, events.ClientDisconnectCode)
+	err = mysql.Ping()
+	require.Error(t, err)
+}
+
+func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *testing.T, auth *auth.Server, timeout time.Duration) {
+	authPref, err := auth.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	authPref.SetDisconnectExpiredCert(true)
+	err = auth.SetAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	netConfig, err := auth.GetClusterNetworkingConfig(ctx)
+	require.NoError(t, err)
+	netConfig.SetClientIdleTimeout(timeout)
+	err = auth.SetClusterNetworkingConfig(ctx, netConfig)
+	require.NoError(t, err)
 }

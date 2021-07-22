@@ -49,9 +49,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -316,6 +318,9 @@ type Config struct {
 
 	// MockSSOLogin is used in tests for mocking the SSO login response.
 	MockSSOLogin SSOLoginFunc
+
+	// HomePath is where tsh stores profiles
+	HomePath string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -400,14 +405,14 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 //
 // It's stored in ~/.tsh/keys/<proxy>/certs.pem by default.
 func (p *ProfileStatus) CACertPath() string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name, constants.FileNameTLSCerts)
+	return keypaths.TLSCAsPath(p.Dir, p.Name)
 }
 
 // KeyPath returns path to the private key for this profile.
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>.
 func (p *ProfileStatus) KeyPath() string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name, p.Username)
+	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
 }
 
 // DatabaseCertPath returns path to the specified database access certificate
@@ -415,10 +420,7 @@ func (p *ProfileStatus) KeyPath() string {
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) DatabaseCertPath(name string) string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name,
-		fmt.Sprintf("%v%v", p.Username, dbDirSuffix),
-		p.Cluster,
-		fmt.Sprintf("%v%v", name, constants.FileExtTLSCert))
+	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
 // AppCertPath returns path to the specified app access certificate
@@ -426,10 +428,8 @@ func (p *ProfileStatus) DatabaseCertPath(name string) string {
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) AppCertPath(name string) string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name,
-		fmt.Sprintf("%v%v", p.Username, appDirSuffix),
-		p.Cluster,
-		fmt.Sprintf("%v%v", name, constants.FileExtTLSCert))
+	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+
 }
 
 // DatabaseServices returns a list of database service names for this profile.
@@ -1033,9 +1033,9 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		log.Infof("no host login given. defaulting to %s", c.HostLogin)
 	}
 	if c.KeyTTL == 0 {
-		c.KeyTTL = defaults.CertDuration
+		c.KeyTTL = apidefaults.CertDuration
 	}
-	c.Namespace = services.ProcessNamespace(c.Namespace)
+	c.Namespace = types.ProcessNamespace(c.Namespace)
 
 	tc = &TeleportClient{Config: *c}
 
@@ -1128,7 +1128,7 @@ func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string
 	// If no caching policy was set or on Windows (where Teleport does not
 	// support file locking at the moment), return direct access to the access
 	// point.
-	if tc.CachePolicy == nil || runtime.GOOS == teleport.WindowsOS {
+	if tc.CachePolicy == nil || runtime.GOOS == constants.WindowsOS {
 		log.Debugf("not using caching access point")
 		return clt, nil
 	}
@@ -1145,7 +1145,7 @@ func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
 	var (
 		err    error
-		nodes  []services.Server
+		nodes  []types.Server
 		retval = make([]string, 0)
 	)
 	if tc.Labels != nil && len(tc.Labels) > 0 {
@@ -1214,7 +1214,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
-func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
+func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1225,7 +1225,7 @@ func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.
 }
 
 // GetAccessRequests loads all access requests matching the supplied filter.
-func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1236,7 +1236,7 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services
 }
 
 // GetRole loads a role resource by name.
-func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Role, error) {
+func (tc *TeleportClient) GetRole(ctx context.Context, name string) (types.Role, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1250,7 +1250,7 @@ func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Ro
 // which holds a closer that must be called after the watcher
 // is closed.
 type watchCloser struct {
-	services.Watcher
+	types.Watcher
 	io.Closer
 }
 
@@ -1259,7 +1259,7 @@ func (w watchCloser) Close() error {
 }
 
 // NewWatcher sets up a new event watcher.
-func (tc *TeleportClient) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+func (tc *TeleportClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1448,11 +1448,11 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	serverID := session.Parties[0].ServerID
 
 	// find a server address by its ID
-	nodes, err := site.GetNodes(ctx, namespace, services.SkipValidation())
+	nodes, err := site.GetNodes(ctx, namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var node services.Server
+	var node types.Server
 	for _, n := range nodes {
 		if n.GetName() == serverID {
 			node = n
@@ -1537,7 +1537,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 }
 
 // PlayFile plays the recorded session from a tar file
-func (tc *TeleportClient) PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
+func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	var sessionEvents []events.EventFields
 	var stream []byte
 	protoReader := events.NewProtoReader(tarFile)
@@ -1769,7 +1769,7 @@ func isRemoteDest(name string) bool {
 }
 
 // ListNodes returns a list of nodes connected to a proxy
-func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, error) {
+func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error) {
 	var err error
 	// userhost is specified? that must be labels
 	if tc.Host != "" {
@@ -1790,7 +1790,7 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, err
 }
 
 // ListAppServers returns a list of application servers.
-func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]services.Server, error) {
+func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1831,7 +1831,7 @@ func (tc *TeleportClient) ListDatabaseServers(ctx context.Context) ([]types.Data
 }
 
 // ListAllNodes is the same as ListNodes except that it ignores labels.
-func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]services.Server, error) {
+func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2198,6 +2198,13 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if pr.Auth.HasMessageOfTheDay {
+		err = tc.ShowMOTD(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// generate a new keypair. the public key will be signed via proxy if client's
 	// password+OTP are valid
 	key, err := NewKey()
@@ -2208,13 +2215,13 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	var response *auth.SSHLoginResponse
 
 	switch pr.Auth.Type {
-	case teleport.Local:
+	case constants.Local:
 		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.Pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case teleport.OIDC:
-		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.Pub, teleport.OIDC)
+	case constants.OIDC:
+		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.Pub, constants.OIDC)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2223,8 +2230,8 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if tc.localAgent != nil {
 			tc.localAgent.username = response.Username
 		}
-	case teleport.SAML:
-		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, teleport.SAML)
+	case constants.SAML:
+		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, constants.SAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2233,8 +2240,8 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if tc.localAgent != nil {
 			tc.localAgent.username = response.Username
 		}
-	case teleport.Github:
-		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, teleport.Github)
+	case constants.Github:
+		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, constants.Github)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2360,9 +2367,37 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	return pr, nil
 }
 
+// ShowMOTD fetches the cluster MotD, displays it (if any) and waits for
+// confirmation from the user.
+func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
+	motd, err := webclient.GetMOTD(
+		ctx,
+		tc.WebProxyAddr,
+		tc.InsecureSkipVerify,
+		loopbackPool(tc.WebProxyAddr))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if motd.Text != "" {
+		fmt.Printf("%s\nPress [ENTER] to continue.\n", motd.Text)
+		// We're re-using the password reader for user acknowledgment for
+		// aesthetic purposes, because we want to hide any garbage the
+		// use might enter at the prompt. Whatever the user enters will
+		// be simply discarded, and the user can still CTRL+C out if they
+		// disagree.
+		_, err := passwordFromConsole()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // GetTrustedCA returns a list of host certificate authorities
 // trusted by the cluster client is authenticated with.
-func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]services.CertAuthority, error) {
+func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]types.CertAuthority, error) {
 	// Connect to the proxy.
 	if !tc.Config.ProxySpecified() {
 		return nil, trace.BadParameter("proxy server is not specified")
@@ -2380,7 +2415,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	}
 
 	// Get the list of host certificates that this cluster knows about.
-	return clt.GetCertAuthorities(services.HostCA, false)
+	return clt.GetCertAuthorities(types.HostCA, false)
 }
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
@@ -2558,19 +2593,19 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants
 }
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests
-func (tc *TeleportClient) AddTrustedCA(ca services.CertAuthority) error {
+func (tc *TeleportClient) AddTrustedCA(ca types.CertAuthority) error {
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.AddTrustedCA called on a client without localAgent")
 	}
-	err := tc.localAgent.AddHostSignersToCache(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
+	err := tc.localAgent.AddHostSignersToCache(auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// only host CA has TLS certificates, user CA will overwrite trusted certs
 	// to empty file if called
-	if ca.GetType() == services.HostCA {
-		err = tc.localAgent.SaveTrustedCerts(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
+	if ca.GetType() == types.HostCA {
+		err = tc.localAgent.SaveTrustedCerts(auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -19,7 +19,7 @@ package web
 import (
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/trace"
@@ -50,7 +50,7 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	// Get a list of database servers.
-	dbServers, err := clt.GetDatabaseServers(r.Context(), defaults.Namespace)
+	dbServers, err := clt.GetDatabaseServers(r.Context(), apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

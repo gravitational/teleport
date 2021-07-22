@@ -1,9 +1,9 @@
 ---
 title: Second Factor - U2F
-description: Configuring U2F support in Teleport clusters
+description: Configuring U2F support in Teleport clusters.
 ---
 
-# U2F
+#  U2F ( Hardware Tokens) 
 
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
 hardware keys as a second authentication factor. U2F can be used for logging
@@ -77,17 +77,20 @@ changes.
 
 ## Register U2F devices as a user
 
-A user can register multiple U2F devices [using
-`tsh`](../../cli-docs.mdx#tsh-mfa-add):
+A user can register multiple U2F devices [using `tsh`](../../cli-docs.mdx#tsh-mfa-add):
 
 ```bash
-$ tsh mfa add
+tsh mfa add
+
+# Output
 Choose device type [TOTP, U2F]: u2f
 Enter device name: desktop yubikey
 Tap any *registered* security key
 Tap your *new* security key
 MFA device "desktop yubikey" added.
 ```
+
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 <Admonition type="warning" title="Windows support">
   U2F devices are currently not supported in `tsh` on Windows.
@@ -97,8 +100,10 @@ MFA device "desktop yubikey" added.
 
 Once a U2F device is registered, the user will be prompted for it on login:
 
-```sh
-$ tsh login --proxy=example.com
+```bash
+tsh login --proxy=example.com
+
+# Output
 Enter password for Teleport user awly:
 Tap any security key <tap U2F token>
 > Profile URL:        https://example.com
@@ -111,12 +116,14 @@ Tap any security key <tap U2F token>
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+
 <Admonition type="note">
 U2F for logging into Teleport is only required for [local
 users](../../admin-guide.mdx#local-connector). SSO users should configure
 multi-factor authentication in their SSO provider.
 </Admonition>
 
-## Next Steps
+## Next steps
 
 - [Setup per-session U2F checks](per-session-mfa.mdx)

@@ -31,7 +31,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -66,13 +69,16 @@ func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
 		c.Skip("Skipping AWS-dependent test suite.")
 	}
 
+	backend, err := memory.New(memory.Config{})
+	c.Assert(err, check.IsNil)
+
 	fakeClock := clockwork.NewFakeClock()
 	log, err := New(context.Background(), Config{
-		Region:       "us-west-1",
+		Region:       "eu-north-1",
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
-	})
+	}, backend)
 	c.Assert(err, check.IsNil)
 	s.log = log
 	s.EventsSuite.Log = log
@@ -108,12 +114,12 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 		c.Assert(err, check.IsNil)
 	}
 
-	var history []events.AuditEvent
+	var history []apievents.AuditEvent
 
 	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
 		time.Sleep(s.EventsSuite.QueryDelay)
 
-		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 0, "")
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 0, types.EventOrderAscending, "")
 		c.Assert(err, check.IsNil)
 
 		if len(history) == eventCount {
@@ -180,14 +186,18 @@ func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 	end := start.Add(time.Hour * time.Duration(24*11))
 	attemptWaitFor := time.Minute * 5
 	waitStart := time.Now()
+	var eventArr []event
 
 	for time.Since(waitStart) < attemptWaitFor {
-		events, _, err := s.log.searchEventsRaw(start, end, defaults.Namespace, []string{"test.event"}, 1000, "")
-		sort.Sort(byTimeAndIndexRaw(events))
+		err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+			eventArr, _, err = s.log.searchEventsRaw(start, end, apidefaults.Namespace, []string{"test.event"}, 1000, types.EventOrderAscending, "")
+			return err
+		})
 		c.Assert(err, check.IsNil)
+		sort.Sort(byTimeAndIndexRaw(eventArr))
 		correct := true
 
-		for _, event := range events {
+		for _, event := range eventArr {
 			timestampUnix := event.CreatedAt
 			dateString := time.Unix(timestampUnix, 0).Format(iso8601DateFormat)
 			if dateString != event.CreatedAtDate {

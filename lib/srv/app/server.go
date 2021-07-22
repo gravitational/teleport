@@ -29,6 +29,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
@@ -43,7 +45,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type RotationGetter func(role teleport.Role) (*services.Rotation, error)
+type RotationGetter func(role types.SystemRole) (*types.Rotation, error)
 
 // Config is the configuration for an application server.
 type Config struct {
@@ -73,7 +75,7 @@ type Config struct {
 	GetRotation RotationGetter
 
 	// Server contains the list of applications that will be proxied.
-	Server services.Server
+	Server types.Server
 
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
@@ -127,7 +129,7 @@ type Server struct {
 	closeFunc    context.CancelFunc
 
 	mu     sync.RWMutex
-	server services.Server
+	server types.Server
 
 	httpServer *http.Server
 	tlsConfig  *tls.Config
@@ -186,7 +188,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 			continue
 		}
 		dl, err := labels.NewDynamic(s.closeContext, &labels.DynamicConfig{
-			Labels: services.V2ToLabels(a.DynamicLabels),
+			Labels: types.V2ToLabels(a.DynamicLabels),
 			Log:    s.log,
 		})
 		if err != nil {
@@ -203,10 +205,10 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		Component:       teleport.ComponentApp,
 		Announcer:       c.AccessPoint,
 		GetServerInfo:   s.GetServerInfo,
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
-		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/2),
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/2),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		ServerTTL:       defaults.ServerAnnounceTTL,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
 		OnHeartbeat:     c.OnHeartbeat,
 	})
 	if err != nil {
@@ -228,7 +230,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 // GetServerInfo returns a services.Server representing the application. Used
 // in heartbeat code.
-func (s *Server) GetServerInfo() (services.Resource, error) {
+func (s *Server) GetServerInfo() (types.Resource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -239,15 +241,15 @@ func (s *Server) GetServerInfo() (services.Resource, error) {
 		if !ok {
 			continue
 		}
-		a.DynamicLabels = services.LabelsToV2(dl.Get())
+		a.DynamicLabels = types.LabelsToV2(dl.Get())
 	}
 	s.server.SetApps(apps)
 
 	// Update the TTL.
-	s.server.SetExpiry(s.c.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
+	s.server.SetExpiry(s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 
 	// Update rotation state.
-	rotation, err := s.c.GetRotation(teleport.RoleApp)
+	rotation, err := s.c.GetRotation(types.RoleApp)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			s.log.Warningf("Failed to get rotation state: %v.", err)
@@ -353,7 +355,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 
 // authorize will check if request carries a session cookie matching a
 // session in the backend.
-func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identity, *services.App, error) {
+func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identity, *types.App, error) {
 	// Only allow local and remote identities to proxy to an application.
 	userType := r.Context().Value(auth.ContextUser)
 	switch userType.(type) {
@@ -374,7 +376,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	ap, err := s.c.AccessPoint.GetAuthPreference()
+	ap, err := s.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -382,7 +384,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 		Verified:       identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
-	err = authContext.Checker.CheckAccessToApp(defaults.Namespace, app, mfaParams)
+	err = authContext.Checker.CheckAccessToApp(apidefaults.Namespace, app, mfaParams)
 	if err != nil {
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
@@ -393,7 +395,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 // getSession returns a request session used to proxy the request to the
 // target application. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
-func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app *services.App) (*session, error) {
+func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app *types.App) (*session, error) {
 	// If a cached forwarder exists, return it right away.
 	session, err := s.cache.get(identity.RouteToApp.SessionID)
 	if err == nil {
@@ -422,7 +424,7 @@ func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app *
 // (or round robin) does not need to occur here because they will all point
 // to the same target address. Random selection (or round robin) occurs at the
 // web proxy to load balance requests to the application service.
-func (s *Server) getApp(ctx context.Context, publicAddr string) (*services.App, error) {
+func (s *Server) getApp(ctx context.Context, publicAddr string) (*types.App, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -447,7 +449,7 @@ func (s *Server) newHTTPServer() *http.Server {
 
 	return &http.Server{
 		Handler:           authMiddleware,
-		ReadHeaderTimeout: defaults.DefaultDialTimeout,
+		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 	}
 }

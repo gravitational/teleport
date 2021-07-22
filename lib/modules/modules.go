@@ -27,6 +27,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+
+	"github.com/gravitational/trace"
 )
 
 // Features provides supported and unsupported features
@@ -95,6 +99,31 @@ func GetModules() Modules {
 	mutex.Lock()
 	defer mutex.Unlock()
 	return modules
+}
+
+// ValidateResource performs additional resource checks.
+func ValidateResource(res types.Resource) error {
+	// All checks below are Cloud-specific.
+	if !GetModules().Features().Cloud {
+		return nil
+	}
+
+	switch r := res.(type) {
+	case types.AuthPreference:
+		switch r.GetSecondFactor() {
+		case constants.SecondFactorOff, constants.SecondFactorOptional:
+			return trace.BadParameter("cannot disable two-factor authentication on Cloud")
+		}
+	case types.SessionRecordingConfig:
+		switch r.GetMode() {
+		case types.RecordAtProxy, types.RecordAtProxySync:
+			return trace.BadParameter("cannot set proxy recording mode on Cloud")
+		}
+		if !r.GetProxyChecksHostKeys() {
+			return trace.BadParameter("cannot disable strict host key checking on Cloud")
+		}
+	}
+	return nil
 }
 
 type defaultModules struct{}

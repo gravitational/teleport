@@ -95,15 +95,12 @@ type AccessRequest interface {
 // NewAccessRequest assembled an AccessRequest resource.
 func NewAccessRequest(name string, user string, roles ...string) (AccessRequest, error) {
 	req := AccessRequestV3{
-		Kind:    KindAccessRequest,
-		Version: V3,
 		Metadata: Metadata{
 			Name: name,
 		},
 		Spec: AccessRequestSpecV3{
 			User:  user,
 			Roles: roles,
-			State: RequestState_PENDING,
 		},
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -262,44 +259,23 @@ func (r *AccessRequestV3) SetSuggestedReviewers(reviewers []string) {
 	r.Spec.SuggestedReviewers = reviewers
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (r *AccessRequestV3) setStaticFields() {
+	r.Kind = KindAccessRequest
+	r.Version = V3
+}
+
 // CheckAndSetDefaults validates set values and sets default values
 func (r *AccessRequestV3) CheckAndSetDefaults() error {
+	r.setStaticFields()
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if r.GetState().IsNone() {
-		if err := r.SetState(RequestState_PENDING); err != nil {
-			return trace.Wrap(err)
-		}
+
+	if r.Spec.State.IsNone() {
+		r.Spec.State = RequestState_PENDING
 	}
 
-	// dedupe and sort roles to simplify comparing role lists
-	r.Spec.Roles = utils.Deduplicate(r.Spec.Roles)
-	sort.Strings(r.Spec.Roles)
-
-	if err := r.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// Check validates AccessRequest values
-func (r *AccessRequestV3) Check() error {
-	if r.Kind == "" {
-		return trace.BadParameter("access request kind not set")
-	}
-	if r.Version == "" {
-		return trace.BadParameter("access request version not set")
-	}
-	if r.GetName() == "" {
-		return trace.BadParameter("access request id not set")
-	}
-	if r.GetUser() == "" {
-		return trace.BadParameter("access request user name not set")
-	}
-	if len(r.GetRoles()) < 1 {
-		return trace.BadParameter("access request does not specify any roles")
-	}
 	if r.GetState().IsPending() {
 		if r.GetResolveReason() != "" {
 			return trace.BadParameter("pending requests cannot include resolve reason")
@@ -308,6 +284,18 @@ func (r *AccessRequestV3) Check() error {
 			return trace.BadParameter("pending requests cannot include resolve annotations")
 		}
 	}
+
+	if r.GetUser() == "" {
+		return trace.BadParameter("access request user name not set")
+	}
+	if len(r.GetRoles()) < 1 {
+		return trace.BadParameter("access request does not specify any roles")
+	}
+
+	// dedupe and sort roles to simplify comparing role lists
+	r.Spec.Roles = utils.Deduplicate(r.Spec.Roles)
+	sort.Strings(r.Spec.Roles)
+
 	return nil
 }
 
@@ -349,13 +337,6 @@ func (r *AccessRequestV3) Expiry() time.Time {
 // SetExpiry sets Expiry
 func (r *AccessRequestV3) SetExpiry(expiry time.Time) {
 	r.Metadata.SetExpiry(expiry)
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (r *AccessRequestV3) SetTTL(clock Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
 }
 
 // GetMetadata gets Metadata

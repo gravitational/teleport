@@ -17,29 +17,11 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
-
-// ClusterNetworkingConfigSpecSchema is JSON schema for ClusterNetworkingConfig spec.
-const ClusterNetworkingConfigSpecSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"client_idle_timeout": {"type": "string"},
-		"keep_alive_interval": {"type": "string"},
-		"keep_alive_count_max": {"type": "number"},
-		"session_control_timeout": {"type": "string"}
-	}
-}`
-
-// GetClusterNetworkingConfigSchema returns full ClusterNetworkingConfig JSON schema.
-func GetClusterNetworkingConfigSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ClusterNetworkingConfigSpecSchema, DefaultDefinitions)
-}
 
 // UnmarshalClusterNetworkingConfig unmarshals the ClusterNetworkingConfig resource from JSON.
 func UnmarshalClusterNetworkingConfig(bytes []byte, opts ...MarshalOption) (types.ClusterNetworkingConfig, error) {
@@ -54,15 +36,8 @@ func UnmarshalClusterNetworkingConfig(bytes []byte, opts ...MarshalOption) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &netConfig); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetClusterNetworkingConfigSchema(), &netConfig, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
+	if err := utils.FastUnmarshal(bytes, &netConfig); err != nil {
+		return nil, trace.BadParameter(err.Error())
 	}
 
 	err = netConfig.CheckAndSetDefaults()
@@ -92,9 +67,6 @@ func MarshalClusterNetworkingConfig(netConfig types.ClusterNetworkingConfig, opt
 
 	switch netConfig := netConfig.(type) {
 	case *types.ClusterNetworkingConfigV2:
-		if version := netConfig.GetVersion(); version != V2 {
-			return nil, trace.BadParameter("mismatched cluster networking config version %v and type %T", version, netConfig)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

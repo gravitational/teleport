@@ -28,11 +28,14 @@ import (
 	"strings"
 	"time"
 
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -43,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -113,10 +117,10 @@ type Config struct {
 
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start
-	ReverseTunnels []services.ReverseTunnel
+	ReverseTunnels []types.ReverseTunnel
 
 	// OIDCConnectors is a list of trusted OpenID Connect identity providers
-	OIDCConnectors []services.OIDCConnector
+	OIDCConnectors []types.OIDCConnector
 
 	// PidFile is a full path of the PID file for teleport daemon
 	PIDFile string
@@ -128,7 +132,7 @@ type Config struct {
 	Presence services.Presence
 
 	// Events is events service
-	Events services.Events
+	Events types.Events
 
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
@@ -319,7 +323,7 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	//DisableTLS is enabled if we don't want self signed certs
+	//DisableTLS is enabled if we don't want self-signed certs
 	DisableTLS bool
 
 	// DisableWebInterface allows to turn off serving the Web UI interface
@@ -460,24 +464,24 @@ type AuthConfig struct {
 
 	// Authorities is a set of trusted certificate authorities
 	// that will be added by this auth server on the first start
-	Authorities []services.CertAuthority
+	Authorities []types.CertAuthority
 
 	// Resources is a set of previously backed up resources
 	// used to bootstrap backend state on the first start.
-	Resources []services.Resource
+	Resources []types.Resource
 
 	// Roles is a set of roles to pre-provision for this cluster
-	Roles []services.Role
+	Roles []types.Role
 
 	// ClusterName is a name that identifies this authority and all
 	// host nodes in the cluster that will share this authority domain name
 	// as a base name, e.g. if authority domain name is example.com,
 	// all nodes in the cluster will have UUIDs in the form: <uuid>.example.com
-	ClusterName services.ClusterName
+	ClusterName types.ClusterName
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
-	StaticTokens services.StaticTokens
+	StaticTokens types.StaticTokens
 
 	// StorageConfig contains configuration settings for the storage backend.
 	StorageConfig backend.Config
@@ -489,10 +493,13 @@ type AuthConfig struct {
 
 	// Preference defines the authentication preference (type and second factor) for
 	// the auth server.
-	Preference services.AuthPreference
+	Preference types.AuthPreference
 
 	// ClusterConfig stores cluster level configuration.
-	ClusterConfig services.ClusterConfig
+	ClusterConfig types.ClusterConfig
+
+	// AuditConfig stores cluster audit configuration.
+	AuditConfig types.ClusterAuditConfig
 
 	// NetworkingConfig stores cluster networking configuration.
 	NetworkingConfig types.ClusterNetworkingConfig
@@ -527,6 +534,9 @@ type SSHConfig struct {
 	// BPF holds BPF configuration for Teleport.
 	BPF *bpf.Config
 
+	// RestrictedSession holds kernel objects restrictions for Teleport.
+	RestrictedSession *restricted.Config
+
 	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
 	// discovered proxy fails.
 	// This configuration is not exposed directly but can be set from environment via
@@ -534,6 +544,14 @@ type SSHConfig struct {
 	//
 	// See github.com/gravitational/teleport/issues/4141 for details.
 	ProxyReverseTunnelFallbackAddr *utils.NetAddr
+
+	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
+	AllowTCPForwarding bool
+
+	// IdleTimeoutMessage is sent to the client when a session expires due to
+	// the inactivity timeout expiring. The empty string indicates that no
+	// timeout message will be sent.
+	IdleTimeoutMessage string
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -627,11 +645,28 @@ func (d *Database) Check() error {
 	if errs := validation.IsDNS1035Label(d.Name); len(errs) > 0 {
 		return trace.BadParameter("invalid database %q name: %v", d.Name, errs)
 	}
-	if !utils.SliceContainsStr(defaults.DatabaseProtocols, d.Protocol) {
+	if !apiutils.SliceContainsStr(defaults.DatabaseProtocols, d.Protocol) {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
 			d.Name, d.Protocol, defaults.DatabaseProtocols)
 	}
-	if _, _, err := net.SplitHostPort(d.URI); err != nil {
+	// For MongoDB we support specifying either server address or connection
+	// string in the URI which is useful when connecting to a replica set.
+	if d.Protocol == defaults.ProtocolMongoDB &&
+		(strings.HasPrefix(d.URI, connstring.SchemeMongoDB+"://") ||
+			strings.HasPrefix(d.URI, connstring.SchemeMongoDBSRV+"://")) {
+		connString, err := connstring.ParseAndValidate(d.URI)
+		if err != nil {
+			return trace.BadParameter("invalid MongoDB database %q connection string %q: %v",
+				d.Name, d.URI, err)
+		}
+		// Validate read preference to catch typos early.
+		if connString.ReadPreference != "" {
+			if _, err := readpref.ModeFromString(connString.ReadPreference); err != nil {
+				return trace.BadParameter("invalid MongoDB database %q read preference %q",
+					d.Name, connString.ReadPreference)
+			}
+		}
+	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
 	}
@@ -641,31 +676,12 @@ func (d *Database) Check() error {
 				d.Name, err)
 		}
 	}
-	// Validate Redshift specific configuration.
-	if d.AWS.Redshift.ClusterID != "" {
-		if d.AWS.Region == "" {
-			return trace.BadParameter("missing AWS region for Redshift database %q", d.Name)
-		}
-	}
 	// Validate Cloud SQL specific configuration.
 	switch {
 	case d.GCP.ProjectID != "" && d.GCP.InstanceID == "":
 		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.Name)
 	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
-	case d.GCP.ProjectID != "" && d.GCP.InstanceID != "":
-		// Only Postgres Cloud SQL instances currently support IAM authentication.
-		// It's a relatively new feature so we'll be able to enable it once it
-		// expands to MySQL as well:
-		//   https://cloud.google.com/sql/docs/postgres/authentication
-		if d.Protocol != defaults.ProtocolPostgres {
-			return trace.BadParameter("Cloud SQL IAM authentication is currently supported only for PostgreSQL databases, can't use database %q with protocol %q", d.Name, d.Protocol)
-		}
-		// TODO(r0mant): See if we can download it automatically similar to RDS:
-		// https://cloud.google.com/sql/docs/postgres/instance-info#rest-v1beta4
-		if len(d.CACert) == 0 {
-			return trace.BadParameter("missing Cloud SQL instance root certificate for database %q", d.Name)
-		}
 	}
 	return nil
 }
@@ -851,11 +867,12 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
-	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
-	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
+	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
+	cfg.Auth.ClusterConfig = types.DefaultClusterConfig()
+	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
-	cfg.Auth.Preference = services.DefaultAuthPreference()
+	cfg.Auth.Preference = types.DefaultAuthPreference()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 
@@ -876,6 +893,8 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+	cfg.SSH.RestrictedSession = &restricted.Config{Enabled: false}
+	cfg.SSH.AllowTCPForwarding = true
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false
@@ -902,9 +921,9 @@ func ApplyFIPSDefaults(cfg *Config) {
 	// Only SSO based authentication is supported in FIPS mode. The SSO
 	// provider is where any FedRAMP/FIPS 140-2 compliance (like password
 	// complexity) should be enforced.
-	cfg.Auth.ClusterConfig.SetLocalAuth(false)
+	cfg.Auth.Preference.SetAllowLocalAuth(false)
 
 	// Update cluster configuration to record sessions at node, this way the
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.
-	cfg.Auth.SessionRecordingConfig.SetMode(services.RecordAtNode)
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }

@@ -41,7 +41,9 @@ func TestAuthTokens(t *testing.T) {
 		withCloudSQLPostgres("postgres-cloudsql-correct-token", cloudSQLAuthToken),
 		withCloudSQLPostgres("postgres-cloudsql-incorrect-token", "qwe123"),
 		withRDSMySQL("mysql-rds-correct-token", "root", rdsAuthToken),
-		withRDSMySQL("mysql-rds-incorrect-token", "root", "qwe123"))
+		withRDSMySQL("mysql-rds-incorrect-token", "root", "qwe123"),
+		withCloudSQLMySQL("mysql-cloudsql-correct-token", "root", cloudSQLPassword),
+		withCloudSQLMySQL("mysql-cloudsql-incorrect-token", "root", "qwe123"))
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -50,55 +52,62 @@ func TestAuthTokens(t *testing.T) {
 		desc     string
 		service  string
 		protocol string
-		err      bool
+		err      string
 	}{
 		{
 			desc:     "correct Postgres RDS IAM auth token",
 			service:  "postgres-rds-correct-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      false,
 		},
 		{
 			desc:     "incorrect Postgres RDS IAM auth token",
 			service:  "postgres-rds-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      true,
+			err:      common.GetRDSPolicy(testAWSRegion), // Make sure we print example RDS IAM policy.
 		},
 		{
 			desc:     "correct Postgres Redshift IAM auth token",
 			service:  "postgres-redshift-correct-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      false,
 		},
 		{
 			desc:     "incorrect Postgres Redshift IAM auth token",
 			service:  "postgres-redshift-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      true,
+			err:      "invalid auth token",
 		},
 		{
 			desc:     "correct Postgres Cloud SQL IAM auth token",
 			service:  "postgres-cloudsql-correct-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      false,
 		},
 		{
 			desc:     "incorrect Postgres Cloud SQL IAM auth token",
 			service:  "postgres-cloudsql-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      true,
+			err:      "invalid auth token",
 		},
 		{
 			desc:     "correct MySQL RDS IAM auth token",
 			service:  "mysql-rds-correct-token",
 			protocol: defaults.ProtocolMySQL,
-			err:      false,
 		},
 		{
 			desc:     "incorrect MySQL RDS IAM auth token",
 			service:  "mysql-rds-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
-			err:      true,
+			err:      common.GetRDSPolicy(testAWSRegion), // Make sure we print example RDS IAM policy.
+		},
+		{
+			desc:     "correct MySQL Cloud SQL IAM auth token",
+			service:  "mysql-cloudsql-correct-token",
+			protocol: defaults.ProtocolMySQL,
+		},
+		{
+			desc:     "incorrect MySQL Cloud SQL IAM auth token",
+			service:  "mysql-cloudsql-incorrect-token",
+			protocol: defaults.ProtocolMySQL,
+			err:      "Access denied for user",
 		},
 	}
 
@@ -107,16 +116,18 @@ func TestAuthTokens(t *testing.T) {
 			switch test.protocol {
 			case defaults.ProtocolPostgres:
 				conn, err := testCtx.postgresClient(ctx, "alice", test.service, "postgres", "postgres")
-				if test.err {
+				if test.err != "" {
 					require.Error(t, err)
+					require.Contains(t, err.Error(), test.err)
 				} else {
 					require.NoError(t, err)
 					require.NoError(t, conn.Close(ctx))
 				}
 			case defaults.ProtocolMySQL:
 				conn, err := testCtx.mysqlClient("alice", test.service, "root")
-				if test.err {
+				if test.err != "" {
 					require.Error(t, err)
+					require.Contains(t, err.Error(), test.err)
 				} else {
 					require.NoError(t, err)
 					require.NoError(t, conn.Close())
@@ -157,6 +168,8 @@ const (
 	redshiftAuthToken = "redshift-auth-token"
 	// cloudSQLAuthToken is a mock Cloud SQL IAM auth token.
 	cloudSQLAuthToken = "cloudsql-auth-token"
+	// cloudSQLPassword is a mock Cloud SQL user password.
+	cloudSQLPassword = "cloudsql-password"
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
@@ -175,4 +188,10 @@ func (a *testAuth) GetRedshiftAuthToken(sessionCtx *common.Session) (string, str
 func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Cloud SQL auth token for %v.", sessionCtx)
 	return cloudSQLAuthToken, nil
+}
+
+// GetCloudSQLPassword generates Cloud SQL user password.
+func (a *testAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *common.Session) (string, error) {
+	a.Infof("Generating Cloud SQL user password %v.", sessionCtx)
+	return cloudSQLPassword, nil
 }

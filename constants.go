@@ -22,33 +22,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-
-	"github.com/gravitational/teleport/api/constants"
-)
-
-// The following constants have been moved to /api/constants/constants.go, and are now
-// imported here for backwards compatibility. DELETE IN 7.0.0
-const (
-	Local                        = constants.Local
-	OIDC                         = constants.OIDC
-	SAML                         = constants.SAML
-	Github                       = constants.Github
-	HumanDateFormatSeconds       = constants.HumanDateFormatSeconds
-	DefaultImplicitRole          = constants.DefaultImplicitRole
-	APIDomain                    = constants.APIDomain
-	CertificateFormatStandard    = constants.CertificateFormatStandard
-	DurationNever                = constants.DurationNever
-	EnhancedRecordingMinKernel   = constants.EnhancedRecordingMinKernel
-	EnhancedRecordingCommand     = constants.EnhancedRecordingCommand
-	EnhancedRecordingDisk        = constants.EnhancedRecordingDisk
-	EnhancedRecordingNetwork     = constants.EnhancedRecordingNetwork
-	KeepAliveNode                = constants.KeepAliveNode
-	KeepAliveApp                 = constants.KeepAliveApp
-	KeepAliveDatabase            = constants.KeepAliveDatabase
-	WindowsOS                    = constants.WindowsOS
-	LinuxOS                      = constants.LinuxOS
-	DarwinOS                     = constants.DarwinOS
-	UseOfClosedNetworkConnection = constants.UseOfClosedNetworkConnection
 )
 
 // WebAPIVersion is a current webapi version
@@ -261,6 +234,9 @@ const (
 	// ComponentBPF is the eBPF packagae.
 	ComponentBPF = "bpf"
 
+	// ComponentRestrictedSession is restriction of user access to kernel objects
+	ComponentRestrictedSession = "restrictedsess"
+
 	// ComponentCgroup is the cgroup package.
 	ComponentCgroup = "cgroups"
 
@@ -456,6 +432,9 @@ const (
 	NetIQ = "netiq"
 	// ADFS is Microsoft Active Directory Federation Services
 	ADFS = "adfs"
+	// Ping is the common backend for all Ping Identity-branded identity
+	// providers (including PingOne, PingFederate, etc).
+	Ping = "ping"
 )
 
 const (

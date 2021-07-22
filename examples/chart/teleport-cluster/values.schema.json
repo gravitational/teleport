@@ -118,6 +118,11 @@
                     "$id": "#/properties/aws/properties/sessionRecordingBucket",
                     "type": "string",
                     "default": ""
+                },
+                "backups": {
+                    "$id": "#/properties/aws/properties/backups",
+                    "type": "boolean",
+                    "default": false
                 }
             }
         },
@@ -263,6 +268,11 @@
         },
         "extraArgs": {
             "$id": "#/properties/extraArgs",
+            "type": "array",
+            "default": []
+        },
+        "extraEnv": {
+            "$id": "#/properties/extraEnv",
             "type": "array",
             "default": []
         },

@@ -20,7 +20,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,7 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 
 	tests := []struct {
 		desc        string
-		services    []services.Server
+		services    []types.Server
 		kubeCluster string
 		teleCluster string
 		want        string
@@ -38,7 +38,7 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 	}{
 		{
 			desc: "valid cluster name",
-			services: []services.Server{
+			services: []types.Server{
 				kubeService("k8s-1", "k8s-2"),
 				kubeService("k8s-3", "k8s-4"),
 			},
@@ -49,7 +49,7 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 		},
 		{
 			desc: "invalid cluster name",
-			services: []services.Server{
+			services: []types.Server{
 				kubeService("k8s-1", "k8s-2"),
 				kubeService("k8s-3", "k8s-4"),
 			},
@@ -59,21 +59,21 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 		},
 		{
 			desc:        "no registered clusters",
-			services:    []services.Server{},
+			services:    []types.Server{},
 			kubeCluster: "k8s-1",
 			teleCluster: "zzz-tele-cluster",
 			assertErr:   require.Error,
 		},
 		{
 			desc:        "no registered clusters and empty cluster provided",
-			services:    []services.Server{},
+			services:    []types.Server{},
 			kubeCluster: "",
 			teleCluster: "zzz-tele-cluster",
 			assertErr:   require.Error,
 		},
 		{
 			desc: "no cluster provided, default to first alphabetically",
-			services: []services.Server{
+			services: []types.Server{
 				kubeService("k8s-1", "k8s-2"),
 				kubeService("k8s-3", "k8s-4"),
 			},
@@ -84,7 +84,7 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 		},
 		{
 			desc: "no cluster provided, default to teleport cluster name",
-			services: []services.Server{
+			services: []types.Server{
 				kubeService("k8s-1", "k8s-2"),
 				kubeService("k8s-3", "zzz-tele-cluster", "k8s-4"),
 			},
@@ -103,19 +103,19 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 	}
 }
 
-type mockKubeServicesPresence []services.Server
+type mockKubeServicesPresence []types.Server
 
-func (p mockKubeServicesPresence) GetKubeServices(context.Context) ([]services.Server, error) {
+func (p mockKubeServicesPresence) GetKubeServices(context.Context) ([]types.Server, error) {
 	return p, nil
 }
 
-func kubeService(kubeClusters ...string) services.Server {
-	var ks []*services.KubernetesCluster
+func kubeService(kubeClusters ...string) types.Server {
+	var ks []*types.KubernetesCluster
 	for _, kc := range kubeClusters {
-		ks = append(ks, &services.KubernetesCluster{Name: kc})
+		ks = append(ks, &types.KubernetesCluster{Name: kc})
 	}
-	return &services.ServerV2{
-		Spec: services.ServerSpecV2{
+	return &types.ServerV2{
+		Spec: types.ServerSpecV2{
 			KubernetesClusters: ks,
 		},
 	}

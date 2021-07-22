@@ -69,12 +69,12 @@ imagePullSecrets:
 # - name: myRegistryKeySecretName
 # Number of replicas for the agent deployment.
 replicaCount: 1
-# Name of the ClusterRole, used by the agent's service account.
-clusterRoleName: teleport-kube-agent
-# Name of the ClusterRoleBinding, used by the agent's service account.
-clusterRoleBindingName: teleport-kube-agent
-# Name of the service account used by the agent.
-serviceAccountName: teleport-kube-agent
+# (optional) Override the name of the ClusterRole used by the agent's service account.
+clusterRoleName: ""
+# (optional) Override the name of the ClusterRoleBinding used by the agent's service account.
+clusterRoleBindingName: ""
+# (optional) Override the name of the service account used by the agent.
+serviceAccountName: ""
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
 # Log level for the Teleport process.
@@ -100,6 +100,8 @@ annotations:
   deployment: {}
   # Annotations for each Pod in the Deployment
   pod: {}
+  # Annotations for the ServiceAccount object
+  serviceAccount: {}
 
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/

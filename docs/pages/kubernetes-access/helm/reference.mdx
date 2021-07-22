@@ -8,6 +8,8 @@ The Teleport Helm repository hosts two Helm charts:
 - [`teleport-cluster`](#teleport-cluster) [(source on Github)](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-cluster)
 - [`teleport-kube-agent`](#teleport-kube-agent) [(source on Github)](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent)
 
+(!docs/pages/includes/backup-warning.mdx!)
+
 ## `teleport-cluster`
 
 The `teleport-cluster` Helm chart is used to configure a Teleport cluster. It runs two Teleport services:
@@ -102,7 +104,7 @@ You can optionally override this to use a different published Teleport Docker im
 
 See these links for information on Docker image versions:
 
-- [Community Docker image information](../../quickstart-docker.mdx#pick-your-image)
+- [Community Docker image information](../../setup/guides/docker.mdx#step-14-pick-your-image)
 - [Enterprise Docker image information](../../enterprise/quickstart-enterprise.mdx#run-teleport-enterprise-using-docker)
 
 <Tabs>
@@ -705,6 +707,35 @@ Kubernetes annotations which should be applied to the `Service` created by the c
   </TabItem>
 </Tabs>
 
+## `annotations.serviceAccount`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `serviceAccount` created by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    serviceAccount:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
 ## `extraArgs`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -726,6 +757,33 @@ A list of extra arguments to pass to the `teleport start` command when running a
   ```
   </TabItem>
 </Tabs>
+
+## `extraEnv`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/)
+
+A list of extra environment variables to be set on the main Teleport container.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraEnv:
+  - name: MY_ENV
+    value: my-value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "extraEnv[0].name=MY_ENV" \
+  --set "extraEnv[0].value=my-value"
+  ```
+  </TabItem>
+</Tabs>
+
 
 ## `extraVolumes`
 
@@ -1098,14 +1156,14 @@ You can specify multiple databases by adding additional list elements.
     protocol: postgres
     aws:
       region: us-east-1
-    labels:
+    static_labels:
       env: staging
   - name: mysql
     uri: mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306
     protocol: mysql
     aws:
       region: us-east-1
-    labels:
+    static_labels:
       env: staging
   ```
 
@@ -1120,12 +1178,12 @@ You can specify multiple databases by adding additional list elements.
   --set "databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432" \
   --set "databases[0].protocol=postgres" \
   --set "databases[0].aws.region=us-east-1" \
-  --set "databases[0].labels.env=staging" \
+  --set "databases[0].static_labels.env=staging" \
   --set "databases[1].name=mysql" \
   --set "databases[1].uri=mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306" \
   --set "databases[1].protocol=mysql" \
   --set "databases[1].aws.region=us-east-1" \
-  --set "databases[1].labels.env=staging" \
+  --set "databases[1].static_labels.env=staging" \
   ```
 
   <Admonition type="note">
@@ -1150,7 +1208,7 @@ Normally the version of Teleport being used will match the version of the chart 
 
 You can optionally override this to use a different published Teleport Docker image tag like `6.0.2` or `7`.
 
-See [this link for information on Community Docker image versions](../../quickstart-docker.mdx#pick-your-image).
+See [this link for information on Community Docker image versions](../../setup/guides/docker.mdx#step-14-pick-your-image).
 
 <Admonition type="note">
   The `teleport-kube-agent` chart always runs using Teleport Community edition as it does not require any Enterprise features, so it does
@@ -1246,8 +1304,10 @@ These labels can then be used with Teleport's RBAC policies to define access rul
   For historical/backwards compatibility reasons, these labels will only be applied to the Kubernetes cluster being joined via the
   Teleport Kubernetes service.
 
-  To set labels for applications or databases, add a `labels` element to either the [`apps`](#apps) or [`databases`](#databases) section
-  respectively.
+  To set labels for applications, add a `labels` element to the [`apps`](#apps) section.
+  To set labels for databases, add a `static_labels` element to the [`databases`](#databases) section.
+
+  For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../admin-guide.mdx#labeling-nodes-and-applications).
 </Admonition>
 
 <Tabs>
@@ -1323,9 +1383,9 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 
 | Type | Default value |
 | - | - |
-| `string` | `teleport-kube-agent` |
+| `string` | `nil` |
 
-`clusterRoleName` is the name of the Kubernetes `ClusterRole` used by the `teleport-kube-agent` chart's `ServiceAccount`.
+`clusterRoleName` can be optionally used to override the name of the Kubernetes `ClusterRole` used by the `teleport-kube-agent` chart's `ServiceAccount`.
 
 <Admonition type="note">
   Most users will not need to change this.
@@ -1352,10 +1412,10 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 
 | Type | Default value |
 | - | - |
-| `string` | `teleport-kube-agent` |
+| `string` | `nil` |
 
 
-`clusterRoleBindingName` is the name of the Kubernetes `ClusterRoleBinding` used by the `teleport-kube-agent` chart's `ServiceAccount`.
+`clusterRoleBindingName` can be optionally used to override the name of the Kubernetes `ClusterRoleBinding` used by the `teleport-kube-agent` chart's `ServiceAccount`.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1378,9 +1438,9 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 
 | Type | Default value |
 | - | - |
-| `string` | `teleport-kube-agent` |
+| `string` | `nil` |
 
-`serviceAccountName` is the name of the Kubernetes `ServiceAccount` used by the `teleport-kube-agent` chart.
+`serviceAccountName` can be optionally used to override the name of the Kubernetes `ServiceAccount` used by the `teleport-kube-agent` chart.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1578,6 +1638,35 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
   <TabItem label="--set">
   ```shell
   --set annotations.pod."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
+## `annotations.serviceAccount`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `ServiceAccount` created by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    serviceAccount:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend

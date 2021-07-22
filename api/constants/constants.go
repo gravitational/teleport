@@ -27,7 +27,7 @@ const (
 
 	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
 	// recording feature.
-	EnhancedRecordingMinKernel = "4.18.0"
+	EnhancedRecordingMinKernel = "5.8.0"
 
 	// EnhancedRecordingCommand is a role option that implies command events are
 	// captured.
@@ -133,26 +133,4 @@ const (
 	// RemoteAuthServer is a special non-resolvable address that indicates client
 	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
-)
-
-const (
-	// SessionKeyDir is the sub-directory where session keys are stored (.tsh/keys).
-	SessionKeyDir = "keys"
-	// SSHDirSuffix is the suffix of the sub-directory where
-	// ssh keys are stored (.tsh/keys/profilename/username-ssh).
-	SSHDirSuffix = "-ssh"
-	// FileNameKnownHosts is a file that stores known hosts.
-	FileNameKnownHosts = "known_hosts"
-	// FileExtTLSCert is the filename extension/suffix of TLS certs
-	// stored in a profile (./tsh/keys/profilename/username-x509.pem).
-	FileExtTLSCert = "-x509.pem"
-	// FileNameTLSCerts is the filename of Cert Authorities stored in a
-	// profile (./tsh/keys/profilename/certs.pem).
-	FileNameTLSCerts = "certs.pem"
-	// FileExtCert is a file extension used for SSH Certificate files
-	// (.tsh/keys/profilename/username-ssh/clustername-cert.pub).
-	FileExtSSHCert = "-cert.pub"
-	// FileExtPub is a file extension used for SSH Certificate Authorities
-	// stored in a profile (./tsh/keys/profilename/username.pub).
-	FileExtPub = ".pub"
 )

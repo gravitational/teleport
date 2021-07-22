@@ -31,11 +31,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -113,7 +115,7 @@ type Server interface {
 	GetClock() clockwork.Clock
 
 	// GetInfo returns a services.Server that represents this server.
-	GetInfo() services.Server
+	GetInfo() types.Server
 
 	// UseTunnel used to determine if this node has connected to this cluster
 	// using reverse tunnel.
@@ -121,6 +123,9 @@ type Server interface {
 
 	// GetBPF returns the BPF service used for enhanced session recording.
 	GetBPF() bpf.BPF
+
+	// GetRestrictedSessionManager returns the manager for restricting user activity
+	GetRestrictedSessionManager() restricted.Manager
 
 	// Context returns server shutdown context
 	Context() context.Context
@@ -146,7 +151,7 @@ type IdentityContext struct {
 	Certificate *ssh.Certificate
 
 	// CertAuthority is the Certificate Authority that signed the Certificate.
-	CertAuthority services.CertAuthority
+	CertAuthority types.CertAuthority
 
 	// RoleSet is the roles this Teleport user is associated with. RoleSet is
 	// used to check RBAC permissions.
@@ -158,6 +163,9 @@ type IdentityContext struct {
 
 	// RouteToCluster is derived from the certificate
 	RouteToCluster string
+
+	// ActiveRequests is active access request IDs
+	ActiveRequests []string
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -273,6 +281,11 @@ type ServerContext struct {
 	// port to connect to in a "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	DstAddr string
+
+	// Monitor is a handle to the idle timeout monitor that is watching this
+	// session context. May be nil if there is no set idle timeout or we are
+	// not monitoring certificate expiry.
+	Monitor *Monitor
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -281,11 +294,6 @@ type ServerContext struct {
 // associated with the scope of the parent ConnectionContext to ensure that
 // cancellation of the ConnectionContext propagates to the ServerContext.
 func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext) (context.Context, *ServerContext, error) {
-	clusterConfig, err := srv.GetAccessPoint().GetClusterConfig()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -312,7 +320,12 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		cancel:                 cancel,
 	}
 
-	disconnectExpiredCert := identityContext.RoleSet.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert())
+	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	disconnectExpiredCert := identityContext.RoleSet.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
 	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
 		child.disconnectExpiredCert = identityContext.CertValidBefore
 	}
@@ -336,7 +349,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	})
 
 	if !child.disconnectExpiredCert.IsZero() || child.clientIdleTimeout != 0 {
-		mon, err := NewMonitor(MonitorConfig{
+		child.Monitor, err = NewMonitor(MonitorConfig{
 			DisconnectExpiredCert: child.disconnectExpiredCert,
 			ClientIdleTimeout:     child.clientIdleTimeout,
 			Clock:                 child.srv.GetClock(),
@@ -353,7 +366,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 			child.Close()
 			return nil, nil, trace.Wrap(err)
 		}
-		go mon.Start()
+		go child.Monitor.Start()
 	}
 
 	// Create pipe used to send command to child process.
@@ -569,26 +582,26 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	// below, that is because the connection is held from the perspective of
 	// the server not the client, but the logs are from the perspective of the
 	// client.
-	sessionDataEvent := &events.SessionData{
-		Metadata: events.Metadata{
+	sessionDataEvent := &apievents.SessionData{
+		Metadata: apievents.Metadata{
 			Index: events.SessionDataIndex,
 			Type:  events.SessionDataEvent,
 			Code:  events.SessionDataCode,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        c.GetServer().HostUUID(),
 			ServerNamespace: c.GetServer().GetNamespace(),
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(c.SessionID()),
 			WithMFA:   c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         c.Identity.TeleportUser,
 			Login:        c.Identity.Login,
 			Impersonator: c.Identity.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: c.ServerConn.RemoteAddr().String(),
 		},
 		BytesTransmitted: rxBytes,

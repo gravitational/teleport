@@ -133,9 +133,10 @@ type volumeClaim struct {
 }
 
 type service struct {
-	Name    string      `yaml:"name"`
-	Image   string      `yaml:"image"`
-	Volumes []volumeRef `yaml:"volumes"`
+	Name       string      `yaml:"name"`
+	Image      string      `yaml:"image"`
+	Privileged bool        `yaml:"privileged"`
+	Volumes    []volumeRef `yaml:"volumes"`
 }
 
 type volumeRef struct {

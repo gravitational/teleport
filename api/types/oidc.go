@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -57,8 +56,6 @@ type OIDCConnector interface {
 	// GetTraitMappings converts gets all claim mappings in the
 	// generic trait mapping format.
 	GetTraitMappings() TraitMappingSet
-	// Check checks OIDC connector for errors
-	Check() error
 	// SetClientSecret sets client secret to some value
 	SetClientSecret(secret string)
 	// SetClientID sets id for authentication client (in our case it's our Auth server)
@@ -94,16 +91,17 @@ type OIDCConnector interface {
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV2.
-func NewOIDCConnector(name string, spec OIDCConnectorSpecV2) OIDCConnector {
-	return &OIDCConnectorV2{
-		Kind:    KindOIDCConnector,
-		Version: V2,
+func NewOIDCConnector(name string, spec OIDCConnectorSpecV2) (OIDCConnector, error) {
+	o := &OIDCConnectorV2{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 		Spec: spec,
 	}
+	if err := o.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return o, nil
 }
 
 // SetPrompt sets OIDC prompt value
@@ -211,13 +209,6 @@ func (o *OIDCConnectorV2) SetExpiry(expires time.Time) {
 // Expiry returns object expiry setting
 func (o *OIDCConnectorV2) Expiry() time.Time {
 	return o.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (o *OIDCConnectorV2) SetTTL(clock Clock, ttl time.Duration) {
-	o.Metadata.SetTTL(clock, ttl)
 }
 
 // GetName returns the name of the connector
@@ -343,11 +334,19 @@ func (o *OIDCConnectorV2) GetTraitMappings() TraitMappingSet {
 	return TraitMappingSet(tms)
 }
 
-// Check returns nil if all parameters are great, err otherwise
-func (o *OIDCConnectorV2) Check() error {
-	if o.Metadata.Name == "" {
-		return trace.BadParameter("ID: missing connector name")
+// setStaticFields sets static resource header and metadata fields.
+func (o *OIDCConnectorV2) setStaticFields() {
+	o.Kind = KindOIDCConnector
+	o.Version = V2
+}
+
+// CheckAndSetDefaults checks and set default values for any missing fields.
+func (o *OIDCConnectorV2) CheckAndSetDefaults() error {
+	o.setStaticFields()
+	if err := o.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
+
 	if o.Metadata.Name == constants.Local {
 		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", constants.Local)
 	}
@@ -360,21 +359,6 @@ func (o *OIDCConnectorV2) Check() error {
 		if len(v.Roles) == 0 {
 			return trace.BadParameter("add roles in claims_to_roles")
 		}
-	}
-
-	return nil
-}
-
-// CheckAndSetDefaults checks and set default values for any missing fields.
-func (o *OIDCConnectorV2) CheckAndSetDefaults() error {
-	err := o.Metadata.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = o.Check()
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	return nil

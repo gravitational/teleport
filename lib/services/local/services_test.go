@@ -62,11 +62,11 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		*EventsService
 	}
 
-	eventsService := NewEventsService(s.bk)
-	presenceService := NewPresenceService(s.bk)
-
-	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	configService, err := NewClusterConfigurationService(s.bk)
 	c.Assert(err, check.IsNil)
+
+	eventsService := NewEventsService(s.bk, configService.GetClusterConfig)
+	presenceService := NewPresenceService(s.bk)
 
 	s.suite = &suite.ServicesTestSuite{
 		CAS:           NewCAService(s.bk),
@@ -76,29 +76,24 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		Access:        NewAccessService(s.bk),
 		EventsS:       eventsService,
 		ChangesC:      make(chan interface{}),
-		ConfigS:       clusterConfig,
+		ConfigS:       configService,
+		RestrictionsS: NewRestrictionsService(s.bk),
 		Clock:         clock,
 		NewProxyWatcher: func() (*services.ProxyWatcher, error) {
 			return services.NewProxyWatcher(services.ProxyWatcherConfig{
-				Context:     context.TODO(),
-				Component:   "test",
-				RetryPeriod: 200 * time.Millisecond,
-				Client: &client{
-					PresenceService: presenceService,
-					EventsService:   eventsService,
+				ResourceWatcherConfig: services.ResourceWatcherConfig{
+					ParentContext: context.TODO(),
+					Component:     "test",
+					RetryPeriod:   200 * time.Millisecond,
+					Client: &client{
+						PresenceService: presenceService,
+						EventsService:   eventsService,
+					},
 				},
-				ProxiesC: make(chan []services.Server, 10),
+				ProxiesC: make(chan []types.Server, 10),
 			})
 		},
 	}
-
-	// DELETE IN 8.0.0
-	err = s.suite.ConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
-	c.Assert(err, check.IsNil)
-
-	// DELETE IN 8.0.0
-	err = s.suite.ConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
-	c.Assert(err, check.IsNil)
 }
 
 func (s *ServicesSuite) TearDownTest(c *check.C) {
@@ -196,4 +191,8 @@ func (s *ServicesSuite) TestSemaphoreContention(c *check.C) {
 
 func (s *ServicesSuite) TestSemaphoreFlakiness(c *check.C) {
 	s.suite.SemaphoreFlakiness(c)
+}
+
+func (s *ServicesSuite) TestNetworkRestrictions(c *check.C) {
+	s.suite.NetworkRestrictions(c)
 }

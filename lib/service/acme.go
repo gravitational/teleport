@@ -21,6 +21,7 @@ import (
 	"net"
 	"strings"
 
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -53,7 +54,7 @@ func (h *hostPolicyChecker) checkHost(ctx context.Context, host string) error {
 			host, strings.Join(h.dnsNames, ","))
 	}
 
-	if utils.SliceContainsStr(h.dnsNames, host) {
+	if apiutils.SliceContainsStr(h.dnsNames, host) {
 		return nil
 	}
 

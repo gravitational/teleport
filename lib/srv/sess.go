@@ -28,6 +28,8 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -123,28 +125,28 @@ func (s *SessionRegistry) Close() {
 // emitSessionJoinEvent emits a session join event to both the Audit Log as
 // well as sending a "x-teleport-event" global request on the SSH connection.
 func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
-	sessionJoinEvent := &events.SessionJoin{
-		Metadata: events.Metadata{
+	sessionJoinEvent := &apievents.SessionJoin{
+		Metadata: apievents.Metadata{
 			Type:        events.SessionJoinEvent,
 			Code:        events.SessionJoinCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
 			ServerHostname:  s.srv.GetInfo().GetHostname(),
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(ctx.SessionID()),
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ctx.Identity.TeleportUser,
 			Login:        ctx.Identity.Login,
 			Impersonator: ctx.Identity.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 	}
@@ -248,23 +250,23 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 // emitSessionLeaveEvent emits a session leave event to both the Audit Log as
 // well as sending a "x-teleport-event" global request on the SSH connection.
 func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
-	sessionLeaveEvent := &events.SessionLeave{
-		Metadata: events.Metadata{
+	sessionLeaveEvent := &apievents.SessionLeave{
+		Metadata: apievents.Metadata{
 			Type:        events.SessionLeaveEvent,
 			Code:        events.SessionLeaveCode,
 			ClusterName: party.ctx.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        party.ctx.srv.HostUUID(),
 			ServerLabels:    party.ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
 			ServerHostname:  s.srv.GetInfo().GetHostname(),
 			ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: party.id.String(),
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: party.user,
 		},
 	}
@@ -328,23 +330,23 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		start, end := sess.startTime, time.Now().UTC()
 
 		// Emit a session.end event for this (interactive) session.
-		sessionEndEvent := &events.SessionEnd{
-			Metadata: events.Metadata{
+		sessionEndEvent := &apievents.SessionEnd{
+			Metadata: apievents.Metadata{
 				Type:        events.SessionEndEvent,
 				Code:        events.SessionEndCode,
 				ClusterName: party.ctx.ClusterName,
 			},
-			ServerMetadata: events.ServerMetadata{
+			ServerMetadata: apievents.ServerMetadata{
 				ServerID:        party.ctx.srv.HostUUID(),
 				ServerLabels:    party.ctx.srv.GetInfo().GetAllLabels(),
 				ServerNamespace: s.srv.GetNamespace(),
 				ServerHostname:  s.srv.GetInfo().GetHostname(),
 				ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 			},
-			SessionMetadata: events.SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(sess.id),
 			},
-			UserMetadata: events.UserMetadata{
+			UserMetadata: apievents.UserMetadata{
 				User: party.user,
 			},
 			EnhancedRecording: sess.hasEnhancedRecording,
@@ -393,23 +395,23 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	sid := session.id
 
 	// Build the resize event.
-	resizeEvent := &events.Resize{
-		Metadata: events.Metadata{
+	resizeEvent := &apievents.Resize{
+		Metadata: apievents.Metadata{
 			Type:        events.ResizeEvent,
 			Code:        events.TerminalResizeCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
 			ServerHostname:  s.srv.GetInfo().GetHostname(),
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sid),
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ctx.Identity.TeleportUser,
 			Login:        ctx.Identity.Login,
 			Impersonator: ctx.Identity.Impersonator,
@@ -683,7 +685,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			SessionID:    s.id,
 			Namespace:    ctx.srv.GetNamespace(),
 			ServerID:     ctx.srv.HostUUID(),
-			RecordOutput: ctx.SessionRecordingConfig.GetMode() != services.RecordOff,
+			RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 			ClusterName:  ctx.ClusterName,
 		})
@@ -735,40 +737,41 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// If a cgroup ID was assigned then enhanced session recording was enabled.
 	if cgroupID > 0 {
 		s.hasEnhancedRecording = true
+		ctx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
 	}
 
 	// Process has been placed in a cgroup, continue execution.
 	s.term.Continue()
 
 	params := s.term.GetTerminalParams()
-
 	// Emit "new session created" event for the interactive session.
-	sessionStartEvent := &events.SessionStart{
-		Metadata: events.Metadata{
+	sessionStartEvent := &apievents.SessionStart{
+		Metadata: apievents.Metadata{
 			Type:        events.SessionStartEvent,
 			Code:        events.SessionStartCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			ServerNamespace: ctx.srv.GetNamespace(),
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ctx.Identity.TeleportUser,
 			Login:        ctx.Identity.Login,
 			Impersonator: ctx.Identity.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		TerminalSize:     params.Serialize(),
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
+		AccessRequests:   ctx.Identity.ActiveRequests,
 	}
 
 	// Local address only makes sense for non-tunnel nodes.
@@ -821,6 +824,8 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			s.log.Errorf("Timed out waiting for PTY copy to finish, session data for %v may be missing.", s.id)
 		case <-doneCh:
 		}
+
+		ctx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
 
 		// Close the BPF recording session. If BPF was not configured, not available,
 		// or running in a recording proxy, this is simply a NOP.
@@ -878,7 +883,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			Clock:        ctx.srv.GetClock(),
 			Namespace:    ctx.srv.GetNamespace(),
 			ServerID:     ctx.srv.HostUUID(),
-			RecordOutput: ctx.SessionRecordingConfig.GetMode() != services.RecordOff,
+			RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 			ClusterName:  ctx.ClusterName,
 		})
@@ -888,31 +893,32 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	}
 
 	// Emit a session.start event for the exec session.
-	sessionStartEvent := &events.SessionStart{
-		Metadata: events.Metadata{
+	sessionStartEvent := &apievents.SessionStart{
+		Metadata: apievents.Metadata{
 			Type:        events.SessionStartEvent,
 			Code:        events.SessionStartCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			ServerNamespace: ctx.srv.GetNamespace(),
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ctx.Identity.TeleportUser,
 			Login:        ctx.Identity.Login,
 			Impersonator: ctx.Identity.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
+		AccessRequests:   ctx.Identity.ActiveRequests,
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
@@ -956,6 +962,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	// If a cgroup ID was assigned then enhanced session recording was enabled.
 	if cgroupID > 0 {
 		s.hasEnhancedRecording = true
+		ctx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
 	}
 
 	// Process has been placed in a cgroup, continue execution.
@@ -972,6 +979,8 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		// BPF session so everything can be recorded.
 		time.Sleep(2 * time.Second)
 
+		ctx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
+
 		// Close the BPF recording session. If BPF was not configured, not available,
 		// or running in a recording proxy, this is simply a NOP.
 		err = ctx.srv.GetBPF().CloseSession(sessionContext)
@@ -985,23 +994,23 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		start, end := s.startTime, time.Now().UTC()
 
 		// Emit a session.end event for this (exec) session.
-		sessionEndEvent := &events.SessionEnd{
-			Metadata: events.Metadata{
+		sessionEndEvent := &apievents.SessionEnd{
+			Metadata: apievents.Metadata{
 				Type:        events.SessionEndEvent,
 				Code:        events.SessionEndCode,
 				ClusterName: ctx.ClusterName,
 			},
-			ServerMetadata: events.ServerMetadata{
+			ServerMetadata: apievents.ServerMetadata{
 				ServerID:        ctx.srv.HostUUID(),
 				ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 				ServerNamespace: ctx.srv.GetNamespace(),
 				ServerHostname:  ctx.srv.GetInfo().GetHostname(),
 				ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			},
-			SessionMetadata: events.SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(s.id),
 			},
-			UserMetadata: events.UserMetadata{
+			UserMetadata: apievents.UserMetadata{
 				User:         ctx.Identity.TeleportUser,
 				Login:        ctx.Identity.Login,
 				Impersonator: ctx.Identity.Impersonator,

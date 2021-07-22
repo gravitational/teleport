@@ -22,7 +22,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -68,23 +67,31 @@ type TrustedCluster interface {
 
 // NewTrustedCluster is a convenience way to create a TrustedCluster resource.
 func NewTrustedCluster(name string, spec TrustedClusterSpecV2) (TrustedCluster, error) {
-	return &TrustedClusterV2{
-		Kind:    KindTrustedCluster,
-		Version: V2,
+	c := &TrustedClusterV2{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 		Spec: spec,
-	}, nil
+	}
+	if err := c.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c, nil
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (c *TrustedClusterV2) setStaticFields() {
+	c.Kind = KindTrustedCluster
+	c.Version = V2
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
 func (c *TrustedClusterV2) CheckAndSetDefaults() error {
-	// make sure we have defaults for all fields
+	c.setStaticFields()
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	// This is to force users to migrate
 	if len(c.Spec.Roles) != 0 && len(c.Spec.RoleMap) != 0 {
 		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
@@ -164,13 +171,6 @@ func (c *TrustedClusterV2) SetExpiry(expires time.Time) {
 // Expiry returns object expiry setting
 func (c *TrustedClusterV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *TrustedClusterV2) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
 }
 
 // GetName returns the name of the TrustedCluster.

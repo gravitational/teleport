@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -90,16 +89,17 @@ type SAMLConnector interface {
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
-func NewSAMLConnector(name string, spec SAMLConnectorSpecV2) SAMLConnector {
-	return &SAMLConnectorV2{
-		Kind:    KindSAMLConnector,
-		Version: V2,
+func NewSAMLConnector(name string, spec SAMLConnectorSpecV2) (SAMLConnector, error) {
+	o := &SAMLConnectorV2{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 		Spec: spec,
 	}
+	if err := o.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return o, nil
 }
 
 // GetVersion returns resource version
@@ -235,13 +235,6 @@ func (o *SAMLConnectorV2) Expiry() time.Time {
 	return o.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (o *SAMLConnectorV2) SetTTL(clock Clock, ttl time.Duration) {
-	o.Metadata.SetTTL(clock, ttl)
-}
-
 // GetName returns the name of the connector
 func (o *SAMLConnectorV2) GetName() string {
 	return o.Metadata.GetName()
@@ -332,11 +325,19 @@ func (o *SAMLConnectorV2) SetEncryptionKeyPair(k *AsymmetricKeyPair) {
 	o.Spec.EncryptionKeyPair = k
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (o *SAMLConnectorV2) setStaticFields() {
+	o.Kind = KindSAMLConnector
+	o.Version = V2
+}
+
 // CheckAndSetDefaults checks and sets default values
 func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
+	o.setStaticFields()
 	if err := o.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if o.Metadata.Name == constants.Local {
 		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", constants.Local)
 	}

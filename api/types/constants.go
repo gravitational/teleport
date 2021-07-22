@@ -155,6 +155,13 @@ const (
 	// MetaNameClusterConfig is the exact name of the cluster config singleton resource.
 	MetaNameClusterConfig = "cluster-config"
 
+	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
+	KindClusterAuditConfig = "cluster_audit_config"
+
+	// MetaNameClusterAuditConfig is the exact name of the singleton resource holding
+	// cluster audit configuration.
+	MetaNameClusterAuditConfig = "cluster-audit-config"
+
 	// KindClusterNetworkingConfig is the resource that holds cluster networking configuration.
 	KindClusterNetworkingConfig = "cluster_networking_config"
 
@@ -210,6 +217,19 @@ const (
 
 	// KindBilling represents access to cloud billing features
 	KindBilling = "billing"
+
+	// KindLock is a lock resource.
+	KindLock = "lock"
+
+	// KindNetworkRestrictions are restrictions for SSH sessions
+	KindNetworkRestrictions = "network_restrictions"
+
+	// MetaNameNetworkRestrictions is the exact name of the singleton resource for
+	// network restrictions
+	MetaNameNetworkRestrictions = "network-restrictions"
+
+	// V4 is the fourth version of resources.
+	V4 = "v4"
 
 	// V3 is the third version of resources.
 	V3 = "v3"

@@ -23,8 +23,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
@@ -57,7 +57,7 @@ type DialParams struct {
 
 	// ConnType is the type of connection requested, either node or application.
 	// Only used when connecting through a tunnel.
-	ConnType services.TunnelType
+	ConnType types.TunnelType
 }
 
 func (params DialParams) String() string {

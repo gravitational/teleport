@@ -49,6 +49,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // Send is a high level function that:
@@ -81,6 +82,11 @@ func ToGRPC(err error) error {
 	if err == nil {
 		return nil
 	}
+	// If err is already a gRPC error, don't modify it.
+	if _, ok := status.FromError(err); ok {
+		return err
+	}
+
 	userMessage := trace.UserMessage(err)
 	if trace.IsNotFound(err) {
 		return grpc.Errorf(codes.NotFound, userMessage)

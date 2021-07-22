@@ -22,8 +22,8 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/services"
@@ -58,9 +58,9 @@ func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWr
 		Streamer:     streamer,
 		Clock:        s.cfg.Clock,
 		SessionID:    session.ID(sessionCtx.ID),
-		Namespace:    defaults.Namespace,
+		Namespace:    apidefaults.Namespace,
 		ServerID:     sessionCtx.Server.GetHostID(),
-		RecordOutput: recConfig.GetMode() != services.RecordOff,
+		RecordOutput: recConfig.GetMode() != types.RecordOff,
 		Component:    teleport.ComponentDatabase,
 		ClusterName:  clusterName.GetClusterName(),
 	})
@@ -78,7 +78,7 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig ty
 	s.log.Debugf("Using async streamer for session %v.", sessionID)
 	uploadDir := filepath.Join(
 		s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		libevents.StreamingLogsDir, defaults.Namespace)
+		libevents.StreamingLogsDir, apidefaults.Namespace)
 	// Make sure the upload dir exists, otherwise file streamer will fail.
 	_, err := utils.StatDir(uploadDir)
 	if err != nil && !trace.IsNotFound(err) {

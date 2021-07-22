@@ -2,10 +2,10 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -16,14 +16,14 @@ import (
 type SemaphoreLockConfig struct {
 	// Service is the service against which all semaphore
 	// operations are performed.
-	Service Semaphores
+	Service types.Semaphores
 	// Expiry is an optional lease expiry parameter.
 	Expiry time.Duration
 	// TickRate is the rate at which lease renewals are attempted
 	// and defaults to 1/2 expiry.  Used to accelerate tests.
 	TickRate time.Duration
 	// Params holds the semaphore lease acquisition parameters.
-	Params AcquireSemaphoreRequest
+	Params types.AcquireSemaphoreRequest
 }
 
 // CheckAndSetDefaults checks and sets default parameters
@@ -56,7 +56,7 @@ func (l *SemaphoreLockConfig) CheckAndSetDefaults() error {
 // semaphore lease keepalive operations.
 type SemaphoreLock struct {
 	cfg       SemaphoreLockConfig
-	lease0    SemaphoreLease
+	lease0    types.SemaphoreLease
 	retry     utils.Retry
 	ticker    *time.Ticker
 	doneC     chan struct{}
@@ -186,6 +186,32 @@ Outer:
 	}
 }
 
+// AcquireSemaphoreWithRetryConfig contains parameters for trying to acquire a
+// semaphore with a retry.
+type AcquireSemaphoreWithRetryConfig struct {
+	Service types.Semaphores
+	Request types.AcquireSemaphoreRequest
+	Retry   utils.LinearConfig
+}
+
+// AcquireSemaphoreWithRetry tries to acquire the semaphore according to the
+// retry schedule until it succeeds or context expires.
+func AcquireSemaphoreWithRetry(ctx context.Context, req AcquireSemaphoreWithRetryConfig) (*types.SemaphoreLease, error) {
+	retry, err := utils.NewLinear(req.Retry)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var lease *types.SemaphoreLease
+	err = retry.For(ctx, func() (err error) {
+		lease, err = req.Service.AcquireSemaphore(ctx, req.Request)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return lease, nil
+}
+
 // AcquireSemaphoreLock attempts to acquire and hold a semaphore lease.  If successfully acquired,
 // background keepalive processes are started and an associated lock handle is returned.  Cancelling
 // the supplied context releases the semaphore.
@@ -218,33 +244,9 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 	return lock, nil
 }
 
-// SemaphoreSpecSchemaTemplate is a template for Semaphore schema.
-const SemaphoreSpecSchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "leases": {
-		"type": "array",
-		"items": {
-		"type": "object",
-		"properties": {
-		  "lease_id": { "type": "string" },
-		  "expires": { "type": "string" },
-		  "holder": { "type": "string" }
-		  }
-		}
-	  }
-	}
-  }`
-
-// GetSemaphoreSchema returns the validation schema for this object
-func GetSemaphoreSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, SemaphoreSpecSchemaTemplate, DefaultDefinitions)
-}
-
 // UnmarshalSemaphore unmarshals the Semaphore resource from JSON.
-func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (Semaphore, error) {
-	var semaphore SemaphoreV3
+func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (types.Semaphore, error) {
+	var semaphore types.SemaphoreV3
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -255,15 +257,8 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (Semaphore, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &semaphore); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetSemaphoreSchema(), &semaphore, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
+	if err := utils.FastUnmarshal(bytes, &semaphore); err != nil {
+		return nil, trace.BadParameter(err.Error())
 	}
 
 	err = semaphore.CheckAndSetDefaults()
@@ -281,16 +276,18 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (Semaphore, error) 
 }
 
 // MarshalSemaphore marshals the Semaphore resource to JSON.
-func MarshalSemaphore(semaphore Semaphore, opts ...MarshalOption) ([]byte, error) {
+func MarshalSemaphore(semaphore types.Semaphore, opts ...MarshalOption) ([]byte, error) {
+	if err := semaphore.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	switch semaphore := semaphore.(type) {
-	case *SemaphoreV3:
-		if version := semaphore.GetVersion(); version != V3 {
-			return nil, trace.BadParameter("mismatched semaphore version %v and type %T", version, semaphore)
-		}
+	case *types.SemaphoreV3:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

@@ -20,7 +20,6 @@ import (
 	"sort"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // Label describes label for webapp
@@ -63,7 +62,7 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []services.Server) []Server {
+func MakeServers(clusterName string, servers []types.Server) []Server {
 	uiServers := []Server{}
 	for _, server := range servers {
 		uiLabels := []Label{}

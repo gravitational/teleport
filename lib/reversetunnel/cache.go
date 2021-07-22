@@ -23,7 +23,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -144,7 +144,7 @@ func (c *certificateCache) generateHostCert(principals []string) (ssh.Signer, er
 		principals[0],
 		principals,
 		clusterName,
-		teleport.Roles{teleport.RoleNode},
+		types.SystemRoles{types.RoleNode},
 		0)
 	if err != nil {
 		return nil, trace.Wrap(err)

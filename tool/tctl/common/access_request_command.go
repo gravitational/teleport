@@ -133,13 +133,13 @@ func (c *AccessRequestCommand) TryRun(cmd string, client auth.ClientI) (match bo
 }
 
 func (c *AccessRequestCommand) List(client auth.ClientI) error {
-	reqs, err := client.GetAccessRequests(context.TODO(), services.AccessRequestFilter{})
+	reqs, err := client.GetAccessRequests(context.TODO(), types.AccessRequestFilter{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	now := time.Now()
-	activeReqs := []services.AccessRequest{}
+	activeReqs := []types.AccessRequest{}
 	for _, req := range reqs {
 		if now.Before(req.GetAccessExpiry()) {
 			activeReqs = append(activeReqs, req)
@@ -157,9 +157,9 @@ func (c *AccessRequestCommand) List(client auth.ClientI) error {
 
 func (c *AccessRequestCommand) Get(client auth.ClientI) error {
 	ctx := context.TODO()
-	reqs := []services.AccessRequest{}
+	reqs := []types.AccessRequest{}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		req, err := client.GetAccessRequests(ctx, services.AccessRequestFilter{
+		req, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{
 			ID: reqID,
 		})
 		if err != nil {
@@ -221,9 +221,9 @@ func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		if err := client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
+		if err := client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 			RequestID:   reqID,
-			State:       services.RequestState_APPROVED,
+			State:       types.RequestState_APPROVED,
 			Reason:      c.reason,
 			Annotations: annotations,
 			Roles:       c.splitRoles(),
@@ -244,9 +244,9 @@ func (c *AccessRequestCommand) Deny(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		if err := client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
+		if err := client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 			RequestID:   reqID,
-			State:       services.RequestState_DENIED,
+			State:       types.RequestState_DENIED,
 			Reason:      c.reason,
 			Annotations: annotations,
 		}); err != nil {
@@ -287,7 +287,7 @@ func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 }
 
 func (c *AccessRequestCommand) Caps(client auth.ClientI) error {
-	caps, err := client.GetAccessCapabilities(context.TODO(), services.AccessCapabilitiesRequest{
+	caps, err := client.GetAccessCapabilities(context.TODO(), types.AccessCapabilitiesRequest{
 		User:               c.user,
 		RequestableRoles:   true,
 		SuggestedReviewers: true,
@@ -358,7 +358,7 @@ func (c *AccessRequestCommand) Review(client auth.ClientI) error {
 }
 
 // printRequestsOverview prints an overview of given access requests.
-func printRequestsOverview(reqs []services.AccessRequest, format string) error {
+func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 	switch format {
 	case teleport.Text:
 		table := asciitable.MakeTable([]string{"Token", "Requestor", "Metadata", "Created At (UTC)", "Status"})
@@ -397,7 +397,7 @@ func printRequestsOverview(reqs []services.AccessRequest, format string) error {
 }
 
 // printRequestsDetailed prints a detailed view of given access requests.
-func printRequestsDetailed(reqs []services.AccessRequest, format string) error {
+func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 	switch format {
 	case teleport.Text:
 		for _, req := range reqs {

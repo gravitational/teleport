@@ -50,3 +50,13 @@ chart: {{ template "teleport.chart" . }}
 release: {{ .Release.Name }}
 heritage: {{ .Release.Service }}
 {{- end -}}
+
+{{/* Get diag port for metrics */}}
+{{- define "teleport.diagPort" -}}
+{{- range .Values.extraArgs }}
+{{- if contains "--diag-addr=0.0.0.0:3000" . }}
+- name: diag
+  containerPort: 3000
+{{- end }}
+{{- end }}
+{{- end -}}

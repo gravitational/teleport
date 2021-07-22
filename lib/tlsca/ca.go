@@ -43,10 +43,10 @@ var log = logrus.WithFields(logrus.Fields{
 
 // FromAuthority returns the CertificateAutority's TLS certificate authority from TLS key pairs.
 func FromAuthority(ca types.CertAuthority) (*CertAuthority, error) {
-	if len(ca.GetTLSKeyPairs()) == 0 {
+	if len(ca.GetActiveKeys().TLS) == 0 {
 		return nil, trace.BadParameter("no TLS key pairs found for certificate authority")
 	}
-	return FromKeys(ca.GetTLSKeyPairs()[0].Cert, ca.GetTLSKeyPairs()[0].Key)
+	return FromKeys(ca.GetActiveKeys().TLS[0].Cert, ca.GetActiveKeys().TLS[0].Key)
 }
 
 // FromKeys returns new CA from PEM encoded certificate and private

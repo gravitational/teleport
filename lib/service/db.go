@@ -33,7 +33,7 @@ func (process *TeleportProcess) initDatabases() {
 	if len(process.Config.Databases.Databases) == 0 {
 		return
 	}
-	process.registerWithAuthServer(teleport.RoleDatabase, DatabasesIdentityEvent)
+	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
@@ -84,7 +84,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	// Create database server for each of the proxied databases.
 	var databaseServers []types.DatabaseServer
 	for _, db := range process.Config.Databases.Databases {
-		databaseServers = append(databaseServers, types.NewDatabaseServerV3(
+		db, err := types.NewDatabaseServerV3(
 			db.Name,
 			db.StaticLabels,
 			types.DatabaseServerSpecV3{
@@ -106,7 +106,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 				Version:       teleport.Version,
 				Hostname:      process.Config.Hostname,
 				HostID:        process.Config.HostUUID,
-			}))
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		databaseServers = append(databaseServers, db)
 	}
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
@@ -141,6 +145,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
+		Clock:       process.Clock,
 		DataDir:     process.Config.DataDir,
 		AuthClient:  conn.Client,
 		AccessPoint: accessPoint,

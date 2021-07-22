@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -129,7 +130,7 @@ func (c *TokenCommand) TryRun(cmd string, client auth.ClientI) (match bool, err 
 // Add is called to execute "tokens add ..." command.
 func (c *TokenCommand) Add(client auth.ClientI) error {
 	// Parse string to see if it's a type of role that Teleport supports.
-	roles, err := teleport.ParseRoles(c.tokenType)
+	roles, err := types.ParseTeleportRoles(c.tokenType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -171,7 +172,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 
 	// Print signup message.
 	switch {
-	case roles.Include(teleport.RoleApp):
+	case roles.Include(types.RoleApp):
 		proxies, err := client.GetProxies()
 		if err != nil {
 			return trace.Wrap(err)
@@ -196,7 +197,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 			proxies[0].GetPublicAddr(),
 			appPublicAddr,
 			appPublicAddr)
-	case roles.Include(teleport.RoleDatabase):
+	case roles.Include(types.RoleDatabase):
 		proxies, err := client.GetProxies()
 		if err != nil {
 			return trace.Wrap(err)
@@ -214,7 +215,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 				"db_protocol": c.dbProtocol,
 				"db_uri":      c.dbURI,
 			})
-	case roles.Include(teleport.RoleTrustedCluster), roles.Include(teleport.LegacyClusterTokenType):
+	case roles.Include(types.RoleTrustedCluster), roles.Include(types.LegacyClusterTokenType):
 		fmt.Printf(trustedClusterMessage,
 			token,
 			int(c.ttl.Minutes()))

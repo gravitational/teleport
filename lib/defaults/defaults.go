@@ -91,10 +91,6 @@ const (
 	// to a cluster
 	InviteTokenTTL = 15 * time.Minute
 
-	// DefaultDialTimeout is a default TCP dial timeout we set for our
-	// connection attempts
-	DefaultDialTimeout = defaults.DefaultDialTimeout
-
 	// HTTPMaxIdleConns is the max idle connections across all hosts.
 	HTTPMaxIdleConns = 2000
 
@@ -131,6 +127,10 @@ const (
 	// ReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
 	ReadHeadersTimeout = time.Second
+
+	// DatabaseConnectTimeout is a timeout for connecting to a database via
+	// database access.
+	DatabaseConnectTimeout = time.Minute
 
 	// HandshakeReadDeadline is the default time to wait for the client during
 	// the TLS handshake.
@@ -218,9 +218,6 @@ const (
 	// is locked after MaxLoginAttempts
 	AccountLockInterval = 20 * time.Minute
 
-	// Namespace is default namespace
-	Namespace = defaults.Namespace
-
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30
 
@@ -282,16 +279,6 @@ var (
 	// ResyncInterval is how often tunnels are resynced.
 	ResyncInterval = 5 * time.Second
 
-	// ServerAnnounceTTL is a period between heartbeats
-	// Median sleep time between node pings is this value / 2 + random
-	// deviation added to this time to avoid lots of simultaneous
-	// heartbeats coming to auth server
-	ServerAnnounceTTL = defaults.ServerAnnounceTTL
-
-	// ServerKeepAliveTTL is a period between server keep alives,
-	// when servers announce only presence withough sending full data
-	ServerKeepAliveTTL = defaults.ServerKeepAliveTTL
-
 	// AuthServersRefreshPeriod is a period for clients to refresh their
 	// their stored list of auth servers
 	AuthServersRefreshPeriod = 30 * time.Second
@@ -342,17 +329,6 @@ var (
 	// HighResReportingPeriod is a high resolution polling reporting
 	// period used in services
 	HighResReportingPeriod = 10 * time.Second
-
-	// KeepAliveInterval is interval at which Teleport will send keep-alive
-	// messages to the client. The default interval of 5 minutes (300 seconds) is
-	// set to help keep connections alive when using AWS NLBs (which have a default
-	// timeout of 350 seconds)
-	KeepAliveInterval = defaults.KeepAliveInterval
-
-	// KeepAliveCountMax is the number of keep-alive messages that can be sent
-	// without receiving a response from the client before the client is
-	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
-	KeepAliveCountMax = defaults.KeepAliveCountMax
 
 	// DiskAlertThreshold is the disk space alerting threshold.
 	DiskAlertThreshold = 90
@@ -431,19 +407,18 @@ const (
 const (
 	// MinCertDuration specifies minimum duration of validity of issued certificate
 	MinCertDuration = time.Minute
-	// MaxCertDuration limits maximum duration of validity of issued certificate
-	MaxCertDuration = defaults.MaxCertDuration
-	// CertDuration is a default certificate duration.
-	CertDuration = defaults.CertDuration
+
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
-	RotationGracePeriod = MaxCertDuration
+	RotationGracePeriod = defaults.MaxCertDuration
+
 	// PendingAccessDuration defines the expiry of a pending access request.
 	PendingAccessDuration = time.Hour
+
 	// MaxAccessDuration defines the maximum time for which an access request
 	// can be active.
-	MaxAccessDuration = MaxCertDuration
+	MaxAccessDuration = defaults.MaxCertDuration
 )
 
 // list of roles teleport service can run as:
@@ -466,12 +441,15 @@ const (
 	ProtocolPostgres = "postgres"
 	// ProtocolMySQL is the MySQL database protocol.
 	ProtocolMySQL = "mysql"
+	// ProtocolMongoDB is the MongoDB database protocol.
+	ProtocolMongoDB = "mongodb"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
 var DatabaseProtocols = []string{
 	ProtocolPostgres,
 	ProtocolMySQL,
+	ProtocolMongoDB,
 }
 
 const (
@@ -491,9 +469,6 @@ const (
 	// events.
 	ArgsCacheSize = 1024
 )
-
-// EnhancedEvents returns the default list of enhanced events.
-var EnhancedEvents = defaults.EnhancedEvents
 
 var (
 	// ConfigFilePath is default path to teleport config file

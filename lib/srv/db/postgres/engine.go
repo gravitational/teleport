@@ -94,7 +94,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 	// Now we know which database/username the user is connecting to, so
 	// perform an authorization check.
-	err = e.checkAccess(sessionCtx)
+	err = e.checkAccess(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -170,8 +170,8 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 	return nil
 }
 
-func (e *Engine) checkAccess(sessionCtx *common.Session) error {
-	ap, err := e.Auth.GetAuthPreference()
+func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
+	ap, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -204,6 +204,17 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 	// messages b/w server and client e.g. to get client's password.
 	conn, err := pgconn.ConnectConfig(ctx, connectConfig)
 	if err != nil {
+		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Server.IsRDS() {
+			return nil, nil, trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure that Postgres user %q has "rds_iam" role and Teleport database
+agent's IAM policy has "rds-connect" permissions:
+
+%v
+`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
+		}
 		return nil, nil, trace.Wrap(err)
 	}
 	// Hijacked connection exposes some internal connection data, such as
@@ -265,7 +276,7 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 		switch msg := message.(type) {
 		case *pgproto3.Query:
 			// Query message indicates the client is executing a simple query.
-			e.Audit.OnQuery(e.Context, sessionCtx, msg.String)
+			e.Audit.OnQuery(e.Context, sessionCtx, common.Query{Query: msg.String})
 		case *pgproto3.Parse:
 			// Parse message is a start of the extended query protocol which
 			// prepares parameterized query for execution. It is never used
@@ -292,7 +303,10 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 			if err != nil {
 				log.WithError(err).Warnf("Failed to find destination portal %#v.", msg)
 			} else {
-				e.Audit.OnQuery(e.Context, sessionCtx, portal.Query, portal.Parameters...)
+				e.Audit.OnQuery(e.Context, sessionCtx, common.Query{
+					Query:      portal.Query,
+					Parameters: portal.Parameters,
+				})
 			}
 		case *pgproto3.Close:
 			// Close message closes the specified prepared statement or portal.

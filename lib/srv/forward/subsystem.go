@@ -23,6 +23,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/trace"
@@ -131,16 +132,16 @@ func (r *remoteSubsystem) Wait() error {
 
 func (r *remoteSubsystem) emitAuditEvent(err error) {
 	srv := r.serverContext.GetServer()
-	subsystemEvent := &events.Subsystem{
-		Metadata: events.Metadata{
+	subsystemEvent := &apievents.Subsystem{
+		Metadata: apievents.Metadata{
 			Type: events.SubsystemEvent,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         r.serverContext.Identity.TeleportUser,
 			Login:        r.serverContext.Identity.Login,
 			Impersonator: r.serverContext.Identity.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  r.serverContext.RemoteClient.LocalAddr().String(),
 			RemoteAddr: r.serverContext.RemoteClient.RemoteAddr().String(),
 		},

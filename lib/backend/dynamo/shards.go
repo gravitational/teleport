@@ -21,6 +21,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -229,12 +230,12 @@ func filterActiveShards(shards []*dynamodbstreams.Shard) []*dynamodbstreams.Shar
 	return active
 }
 
-func toOpType(rec *dynamodbstreams.Record) (backend.OpType, error) {
+func toOpType(rec *dynamodbstreams.Record) (types.OpType, error) {
 	switch aws.StringValue(rec.EventName) {
 	case dynamodbstreams.OperationTypeInsert, dynamodbstreams.OperationTypeModify:
-		return backend.OpPut, nil
+		return types.OpPut, nil
 	case dynamodbstreams.OperationTypeRemove:
-		return backend.OpDelete, nil
+		return types.OpDelete, nil
 	default:
 		return -1, trace.BadParameter("unsupported DynamodDB operation: %v", aws.StringValue(rec.EventName))
 	}
@@ -246,7 +247,7 @@ func toEvent(rec *dynamodbstreams.Record) (*backend.Event, error) {
 		return nil, trace.Wrap(err)
 	}
 	switch op {
-	case backend.OpPut:
+	case types.OpPut:
 		var r record
 		if err := dynamodbattribute.UnmarshalMap(rec.Dynamodb.NewImage, &r); err != nil {
 			return nil, trace.Wrap(err)
@@ -264,7 +265,7 @@ func toEvent(rec *dynamodbstreams.Record) (*backend.Event, error) {
 				ID:      r.ID,
 			},
 		}, nil
-	case backend.OpDelete:
+	case types.OpDelete:
 		var r record
 		if err := dynamodbattribute.UnmarshalMap(rec.Dynamodb.Keys, &r); err != nil {
 			return nil, trace.Wrap(err)

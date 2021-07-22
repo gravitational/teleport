@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -313,7 +315,7 @@ type upload struct {
 }
 
 // readStatus reads stream status
-func (u *upload) readStatus() (*events.StreamStatus, error) {
+func (u *upload) readStatus() (*apievents.StreamStatus, error) {
 	data, err := ioutil.ReadAll(u.checkpointFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -321,7 +323,7 @@ func (u *upload) readStatus() (*events.StreamStatus, error) {
 	if len(data) == 0 {
 		return nil, trace.NotFound("no status found")
 	}
-	var status events.StreamStatus
+	var status apievents.StreamStatus
 	err = utils.FastUnmarshal(data, &status)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -330,7 +332,7 @@ func (u *upload) readStatus() (*events.StreamStatus, error) {
 }
 
 // writeStatus writes stream status
-func (u *upload) writeStatus(status events.StreamStatus) error {
+func (u *upload) writeStatus(status apievents.StreamStatus) error {
 	data, err := utils.FastMarshal(status)
 	if err != nil {
 		return trace.Wrap(err)
@@ -455,7 +457,7 @@ func (u *Uploader) upload(up *upload) error {
 		}
 	}()
 
-	var stream events.Stream
+	var stream apievents.Stream
 	status, err := up.readStatus()
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -531,7 +533,7 @@ func (u *Uploader) upload(up *upload) error {
 	// before the files are closed to avoid async writes
 	// the timeout is a defensive measure to avoid blocking
 	// indefinitely in case of unforeseen error (e.g. write taking too long)
-	wctx, wcancel := context.WithTimeout(ctx, defaults.DefaultDialTimeout)
+	wctx, wcancel := context.WithTimeout(ctx, apidefaults.DefaultDialTimeout)
 	defer wcancel()
 
 	<-wctx.Done()
@@ -551,7 +553,7 @@ func (u *Uploader) upload(up *upload) error {
 
 // monitorStreamStatus monitors stream's status
 // and checkpoints the stream
-func (u *Uploader) monitorStreamStatus(ctx context.Context, up *upload, stream events.Stream, cancel context.CancelFunc) {
+func (u *Uploader) monitorStreamStatus(ctx context.Context, up *upload, stream apievents.Stream, cancel context.CancelFunc) {
 	defer cancel()
 	for {
 		select {

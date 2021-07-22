@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +41,7 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 
 	// Run through 1000 unique keys.
 	for i := 0; i < 1000; i++ {
-		r.trackRequest(OpGet, []byte(strconv.Itoa(i)), nil)
+		r.trackRequest(types.OpGet, []byte(strconv.Itoa(i)), nil)
 	}
 
 	// Now the metric should have only 10 of the keys above.

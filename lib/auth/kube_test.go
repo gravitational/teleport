@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
@@ -23,8 +23,8 @@ func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 		roleB       = "requestable"
 		clusterName = "me.localhost"
 	)
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, clusterName)), check.IsNil)
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, clusterName)), check.IsNil)
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, clusterName)), check.IsNil)
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, clusterName)), check.IsNil)
 
 	// Requested user identity, presented in CSR Subject.
 	userID := tlsca.Identity{

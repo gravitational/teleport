@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -42,7 +43,7 @@ func TestProtoStreamer(t *testing.T) {
 	type testCase struct {
 		name           string
 		minUploadBytes int64
-		events         []AuditEvent
+		events         []apievents.AuditEvent
 		err            error
 	}
 	testCases := []testCase{
@@ -100,7 +101,7 @@ func TestProtoStreamer(t *testing.T) {
 			err = stream.Complete(ctx)
 			require.Nil(t, err)
 
-			var outEvents []AuditEvent
+			var outEvents []apievents.AuditEvent
 			uploads, err := uploader.ListUploads(ctx)
 			require.Nil(t, err)
 			parts, err := uploader.GetParts(uploads[0].ID)
@@ -160,7 +161,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 	// Receive makes sure all events are recevied in the same order as they are sent
 	t.Run("Receive", func(t *testing.T) {
-		chanEmitter := &channelEmitter{eventsCh: make(chan AuditEvent, len(events))}
+		chanEmitter := &channelEmitter{eventsCh: make(chan apievents.AuditEvent, len(events))}
 		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
 			Inner: chanEmitter,
 		})
@@ -198,7 +199,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 		emitsDoneC := make(chan struct{}, len(events))
 		for _, e := range events {
-			go func(event AuditEvent) {
+			go func(event apievents.AuditEvent) {
 				emitter.EmitAuditEvent(ctx, event)
 				emitsDoneC <- struct{}{}
 			}(e)
@@ -231,7 +232,7 @@ type slowEmitter struct {
 	timeout time.Duration
 }
 
-func (s *slowEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (s *slowEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	<-s.clock.After(s.timeout)
 	return nil
 }
@@ -240,16 +241,16 @@ type counterEmitter struct {
 	count *atomic.Int64
 }
 
-func (c *counterEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (c *counterEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	c.count.Inc()
 	return nil
 }
 
 type channelEmitter struct {
-	eventsCh chan AuditEvent
+	eventsCh chan apievents.AuditEvent
 }
 
-func (c *channelEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+func (c *channelEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -322,16 +323,16 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 
 	t.Run("CheckingStream", func(t *testing.T) {
 		emitter := NewCheckingStream(&DiscardStream{}, clock, "cluster")
-		event := &SessionStart{
-			Metadata: Metadata{
+		event := &apievents.SessionStart{
+			Metadata: apievents.Metadata{
 				ID:   "event.id",
 				Code: "event.code",
 				Type: "event.type",
 			},
 		}
 		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
-		require.Empty(t, cmp.Diff(event, &SessionStart{
-			Metadata: Metadata{
+		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
+			Metadata: apievents.Metadata{
 				ID:          "event.id",
 				Code:        "event.code",
 				Type:        "event.type",
@@ -351,16 +352,16 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 		}
 		emitter, err := streamer.CreateAuditStream(context.Background(), "session.id")
 		require.NoError(t, err)
-		event := &SessionStart{
-			Metadata: Metadata{
+		event := &apievents.SessionStart{
+			Metadata: apievents.Metadata{
 				ID:   "event.id",
 				Code: "event.code",
 				Type: "event.type",
 			},
 		}
 		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
-		require.Empty(t, cmp.Diff(event, &SessionStart{
-			Metadata: Metadata{
+		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
+			Metadata: apievents.Metadata{
 				ID:          "event.id",
 				Code:        "event.code",
 				Type:        "event.type",
@@ -380,16 +381,16 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 		}
 		emitter, err := streamer.ResumeAuditStream(context.Background(), "session.id", "upload.id")
 		require.NoError(t, err)
-		event := &SessionStart{
-			Metadata: Metadata{
+		event := &apievents.SessionStart{
+			Metadata: apievents.Metadata{
 				ID:   "event.id",
 				Code: "event.code",
 				Type: "event.type",
 			},
 		}
 		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
-		require.Empty(t, cmp.Diff(event, &SessionStart{
-			Metadata: Metadata{
+		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
+			Metadata: apievents.Metadata{
 				ID:          "event.id",
 				Code:        "event.code",
 				Type:        "event.type",

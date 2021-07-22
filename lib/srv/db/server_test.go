@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,8 @@ func TestDatabaseServerStart(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedPostgres("postgres"),
-		withSelfHostedMySQL("mysql"))
+		withSelfHostedMySQL("mysql"),
+		withSelfHostedMongo("mongo"))
 
 	err := testCtx.server.Start()
 	require.NoError(t, err)
@@ -46,6 +47,9 @@ func TestDatabaseServerStart(t *testing.T) {
 		},
 		{
 			server: testCtx.mysql["mysql"].server,
+		},
+		{
+			server: testCtx.mongo["mongo"].server,
 		},
 	}
 
@@ -62,7 +66,7 @@ func TestDatabaseServerStart(t *testing.T) {
 	}
 
 	// Make sure servers were announced and their labels updated.
-	servers, err := testCtx.authClient.GetDatabaseServers(ctx, defaults.Namespace)
+	servers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	for _, server := range servers {
 		require.Equal(t, map[string]string{"echo": "test"}, server.GetAllLabels())
