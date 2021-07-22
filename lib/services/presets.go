@@ -59,6 +59,12 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindRemoteCluster, RW()),
 					types.NewRule(types.KindToken, RW()),
 				},
+				// These labels were inadvertently set by role.CheckAndSetDefaults. Since this
+				// is no longer done for V4 roles, these need to be added during role version migration.
+				// DELETE IN 8.0.0
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
 	}
