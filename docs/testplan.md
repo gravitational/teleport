@@ -183,6 +183,10 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
 
 * [ ] Perform trusted clusters, Web and SSH sanity check with all teleport components deployed in FIPS mode.
 
+### ACME
+
+- [ ] Teleport can fetch TLS certificate automatically using ACME protocol.
+
 ### Migrations
 
 * [ ] Migrate trusted clusters from 2.4.0 to 2.5.0
@@ -714,17 +718,21 @@ and non interactive tsh bench loads.
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MongoDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS Redshift Postgres.
+  - [ ] AWS Redshift.
   - [ ] GCP Cloud SQL Postgres.
+  - [ ] GCP Cloud SQL MySQL.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MongoDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS Redshift Postgres.
+  - [ ] AWS Redshift.
   - [ ] GCP Cloud SQL Postgres.
+  - [ ] GCP Cloud SQL MySQL.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -733,7 +741,9 @@ and non interactive tsh bench loads.
   - [ ] `tsh db ls` shows only databases matching role's `db_labels`.
   - [ ] Can only connect as users from `db_users`.
   - [ ] _(Postgres only)_ Can only connect to databases from `db_names`.
-  - [ ] `db.session.start` is emitted when connection attempt is denied.
+    - [ ] `db.session.start` is emitted when connection attempt is denied.
+  - [ ] _(MongoDB only)_ Can only execute commands in databases from `db_names`.
+    - [ ] `db.session.query` is emitted when command fails due to permissions.
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
