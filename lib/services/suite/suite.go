@@ -691,14 +691,8 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	role := types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:      "role1",
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.RoleSpecV4{
+	role, err := types.NewRole("role1",
+		types.RoleSpecV4{
 			Options: types.RoleOptions{
 				MaxSessionTTL:     types.Duration(time.Hour),
 				PortForwarding:    types.NewBoolOption(true),
@@ -720,27 +714,28 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 				Namespaces: []string{apidefaults.Namespace},
 			},
 		},
-	}
-
-	err = s.Access.UpsertRole(ctx, &role)
+	)
 	c.Assert(err, check.IsNil)
-	rout, err := s.Access.GetRole(ctx, role.Metadata.Name)
+
+	err = s.Access.UpsertRole(ctx, role)
+	c.Assert(err, check.IsNil)
+	rout, err := s.Access.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(rout.GetResourceID())
 	fixtures.DeepCompare(c, rout, &role)
 
-	role.Spec.Allow.Logins = []string{"bob"}
-	err = s.Access.UpsertRole(ctx, &role)
+	role.SetLogins(types.Allow, []string{"bob"})
+	err = s.Access.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
-	rout, err = s.Access.GetRole(ctx, role.Metadata.Name)
+	rout, err = s.Access.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(rout.GetResourceID())
 	c.Assert(rout, check.DeepEquals, &role)
 
-	err = s.Access.DeleteRole(ctx, role.Metadata.Name)
+	err = s.Access.DeleteRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 
-	_, err = s.Access.GetRole(ctx, role.Metadata.Name)
+	_, err = s.Access.GetRole(ctx, role.GetName())
 	fixtures.ExpectNotFound(c, err)
 }
 

@@ -112,7 +112,6 @@ func TestRoleParse(t *testing.T) {
 			role:  types.RoleV4{},
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
-
 		{
 			name: "validation error, missing resources",
 			in: `{
@@ -231,7 +230,7 @@ func TestRoleParse(t *testing.T) {
 			name: "full valid role",
 			in: `{
 					   		      "kind": "role",
-					   		      "version": "v3",
+					   		      "version": "v4",
 					   		      "metadata": {"name": "name1", "labels": {"a-b": "c"}},
 					   		      "spec": {
 					                    "options": {
@@ -268,7 +267,7 @@ func TestRoleParse(t *testing.T) {
 					   		    }`,
 			role: types.RoleV4{
 				Kind:    types.KindRole,
-				Version: types.V3,
+				Version: types.V4,
 				Metadata: types.Metadata{
 					Name:      "name1",
 					Namespace: apidefaults.Namespace,
@@ -314,7 +313,7 @@ func TestRoleParse(t *testing.T) {
 			name: "alternative options form",
 			in: `{
 		   		      "kind": "role",
-		   		      "version": "v3",
+		   		      "version": "v4",
 		   		      "metadata": {"name": "name1"},
 		   		      "spec": {
 		                    "options": {
@@ -350,7 +349,7 @@ func TestRoleParse(t *testing.T) {
 		   		    }`,
 			role: types.RoleV4{
 				Kind:    types.KindRole,
-				Version: types.V3,
+				Version: types.V4,
 				Metadata: types.Metadata{
 					Name:      "name1",
 					Namespace: apidefaults.Namespace,
@@ -394,7 +393,7 @@ func TestRoleParse(t *testing.T) {
 			name: "non-scalar and scalar values of labels",
 			in: `{
 		   		      "kind": "role",
-		   		      "version": "v3",
+		   		      "version": "v4",
 		   		      "metadata": {"name": "name1"},
 		   		      "spec": {
 		                    "options": {
@@ -419,7 +418,7 @@ func TestRoleParse(t *testing.T) {
 		   		    }`,
 			role: types.RoleV4{
 				Kind:    types.KindRole,
-				Version: types.V3,
+				Version: types.V4,
 				Metadata: types.Metadata{
 					Name:      "name1",
 					Namespace: apidefaults.Namespace,
@@ -477,9 +476,6 @@ func TestRoleParse(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, role, &tc.role)
-
-				err := ValidateRole(role)
-				require.NoError(t, err)
 
 				out, err := json.Marshal(role)
 				require.NoError(t, err)
@@ -557,11 +553,9 @@ func TestValidateRole(t *testing.T) {
 	for _, tc := range tests {
 		err := ValidateRole(&types.RoleV4{
 			Metadata: types.Metadata{
-				Name:      "name1",
-				Namespace: apidefaults.Namespace,
+				Name: "name1",
 			},
-			Version: types.V3,
-			Spec:    tc.spec,
+			Spec: tc.spec,
 		})
 		if tc.err != nil {
 			require.Error(t, err, tc.name)
@@ -1930,14 +1924,8 @@ func TestApplyTraits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
-			role := &types.RoleV4{
-				Kind:    types.KindRole,
-				Version: types.V3,
-				Metadata: types.Metadata{
-					Name:      "name1",
-					Namespace: apidefaults.Namespace,
-				},
-				Spec: types.RoleSpecV4{
+			role, err := types.NewRole("name1",
+				types.RoleSpecV4{
 					Allow: types.RoleConditions{
 						Logins:           tt.allow.inLogins,
 						NodeLabels:       tt.allow.inLabels,
@@ -1965,7 +1953,8 @@ func TestApplyTraits(t *testing.T) {
 						Impersonate:      &tt.deny.inImpersonate,
 					},
 				},
-			}
+			)
+			require.NoError(t, err)
 
 			outRole := ApplyTraits(role, tt.inTraits)
 			rules := []struct {
@@ -2144,17 +2133,13 @@ func TestBoolOptions(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		set := NewRoleSet(&types.RoleV4{
-			Kind:    types.KindRole,
-			Version: types.V3,
-			Metadata: types.Metadata{
-				Name:      "role-name",
-				Namespace: apidefaults.Namespace,
-			},
-			Spec: types.RoleSpecV4{
+		role, err := types.NewRole("role-name",
+			types.RoleSpecV4{
 				Options: tt.inOptions,
 			},
-		})
+		)
+		require.NoError(t, err)
+		set := NewRoleSet(role)
 		require.Equal(t, tt.outCanPortForward, set.CanPortForward())
 		require.Equal(t, tt.outCanForwardAgents, set.CanForwardAgents())
 	}
@@ -2869,20 +2854,15 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	var set RoleSet
 	set = append(set, NewAdminRole())
 	for i := 0; i < 4; i++ {
-		set = append(set, &types.RoleV4{
-			Kind:    types.KindRole,
-			Version: types.V3,
-			Metadata: types.Metadata{
-				Name:      strconv.Itoa(i),
-				Namespace: apidefaults.Namespace,
-			},
-			Spec: types.RoleSpecV4{
+		role, _ := types.NewRole(strconv.Itoa(i),
+			types.RoleSpecV4{
 				Allow: types.RoleConditions{
 					Logins:     []string{"admin", "one", "two", "three", "four"},
 					NodeLabels: types.Labels{"a": []string{"b"}},
 				},
 			},
-		})
+		)
+		set = append(set, role)
 	}
 
 	// Initialization is complete, start the benchmark timer.

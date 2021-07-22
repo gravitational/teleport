@@ -357,10 +357,6 @@ func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownR
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = role.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	if err := services.ValidateAccessPredicates(role); err != nil {
 		// check for syntax errors in predicates
