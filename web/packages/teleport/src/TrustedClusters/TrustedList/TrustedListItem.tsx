@@ -60,7 +60,15 @@ export default function TrustedListItem(props: Props) {
           fontSize="48px"
           color="text.primary"
         />
-        <Text typography="p" bold caps mb="1">
+        <Text
+          typography="p"
+          bold
+          caps
+          mb="1"
+          textAlign="center"
+          title={name}
+          style={{ width: '200px' }}
+        >
           {name}
         </Text>
       </Flex>
