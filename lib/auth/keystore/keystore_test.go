@@ -174,6 +174,7 @@ func TestKeyStore(t *testing.T) {
 			signature, err := signer.Sign(rand.Reader, hashed[:], crypto.SHA256)
 			require.NoError(t, err)
 			require.NotEmpty(t, signature)
+			// make sure we can verify the signature with a "known good" rsa implementation
 			err = rsa.VerifyPKCS1v15(signer.Public().(*rsa.PublicKey), crypto.SHA256, hashed[:], signature)
 			require.NoError(t, err)
 
@@ -251,7 +252,7 @@ func TestKeyStore(t *testing.T) {
 				Kind:    types.KindCertAuthority,
 				Version: types.V2,
 				Metadata: types.Metadata{
-					Name:      "exaple.com",
+					Name:      "example.com",
 					Namespace: apidefaults.Namespace,
 				},
 				Spec: types.CertAuthoritySpecV2{
