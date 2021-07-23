@@ -135,25 +135,21 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	return ca
 }
 
-// NewProxyWatcherFunc creates a new services.ProxyWatcher.
-type NewProxyWatcherFunc func() (*services.ProxyWatcher, error)
-
 // ServicesTestSuite is an acceptance test suite
 // for services. It is used for local implementations and implementations
 // using GRPC to guarantee consistency between local and remote services
 type ServicesTestSuite struct {
-	Access          services.Access
-	CAS             services.Trust
-	PresenceS       services.Presence
-	ProvisioningS   services.Provisioner
-	WebS            services.Identity
-	ConfigS         services.ClusterConfiguration
-	EventsS         types.Events
-	UsersS          services.UsersService
-	RestrictionsS   services.Restrictions
-	ChangesC        chan interface{}
-	Clock           clockwork.FakeClock
-	NewProxyWatcher NewProxyWatcherFunc
+	Access        services.Access
+	CAS           services.Trust
+	PresenceS     services.Presence
+	ProvisioningS services.Provisioner
+	WebS          services.Identity
+	ConfigS       services.ClusterConfiguration
+	EventsS       types.Events
+	UsersS        services.UsersService
+	RestrictionsS services.Restrictions
+	ChangesC      chan interface{}
+	Clock         clockwork.FakeClock
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
@@ -1953,66 +1949,6 @@ func (s *ServicesTestSuite) NetworkRestrictions(c *check.C, opts ...Option) {
 
 	err = s.RestrictionsS.DeleteNetworkRestrictions(ctx)
 	fixtures.ExpectNotFound(c, err)
-}
-
-// ProxyWatcher tests proxy watcher
-func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
-	w, err := s.NewProxyWatcher()
-	c.Assert(err, check.IsNil)
-	defer w.Close()
-
-	// since no proxy is yet present, the ProxyWatcher should immediately
-	// yield back to its retry loop.
-	select {
-	case <-w.ResetC:
-	case <-time.After(time.Second):
-		c.Fatalf("Timeout waiting for ProxyWatcher reset")
-	}
-
-	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
-	c.Assert(s.PresenceS.UpsertProxy(proxy), check.IsNil)
-
-	// the first event is always the current list of proxies
-	select {
-	case changeset := <-w.ProxiesC:
-		c.Assert(changeset, check.HasLen, 1)
-		out, err := s.PresenceS.GetProxies()
-		c.Assert(err, check.IsNil)
-		fixtures.DeepCompare(c, changeset[0], out[0])
-	case <-w.Done():
-		c.Fatalf("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for the first event")
-	}
-
-	// add a second proxy
-	proxy2 := NewServer(types.KindProxy, "proxy2", "127.0.0.1:2023", apidefaults.Namespace)
-	c.Assert(s.PresenceS.UpsertProxy(proxy2), check.IsNil)
-
-	// watcher should detect the proxy list change
-	select {
-	case changeset := <-w.ProxiesC:
-		c.Assert(changeset, check.HasLen, 2)
-	case <-w.Done():
-		c.Fatalf("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for the first event")
-	}
-
-	c.Assert(s.PresenceS.DeleteProxy(proxy.GetName()), check.IsNil)
-
-	// watcher should detect the proxy list change
-	select {
-	case changeset := <-w.ProxiesC:
-		c.Assert(changeset, check.HasLen, 1)
-		out, err := s.PresenceS.GetProxies()
-		c.Assert(err, check.IsNil)
-		fixtures.DeepCompare(c, changeset[0], out[0])
-	case <-w.Done():
-		c.Fatalf("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for the first event")
-	}
 }
 
 func (s *ServicesTestSuite) runEventsTests(c *check.C, testCases []eventTest) {

@@ -591,8 +591,7 @@ func (m *SessionPrint) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SessionPrint proto.InternalMessageInfo
 
-// SessionReject event happens when a user hits the limit of maximum
-// concurrent connections in the cluster `max_connections`
+// SessionReject event happens when a user hits a session control restriction.
 type SessionReject struct {
 	// Metadata is a common event metadata
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
