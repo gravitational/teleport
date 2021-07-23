@@ -119,7 +119,6 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 		auth.Close()
 	})
 
-	// Wait for proxy to become ready.
 	eventCh := make(chan service.Event, 1)
 	auth.WaitForEvent(auth.ExitContext(), service.AuthTLSReady, eventCh)
 	select {
