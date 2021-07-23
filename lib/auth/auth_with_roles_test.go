@@ -551,3 +551,63 @@ func TestGetAppServers(t *testing.T) {
 	}
 	require.Empty(t, cmp.Diff(testServers, servers))
 }
+
+// TestReplaceRemoteLocksRBAC verifies that only a remote proxy may replace the
+// remote locks associated with its cluster.
+func TestReplaceRemoteLocksRBAC(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(srv.AuthServer, "test-user", []string{})
+	require.NoError(t, err)
+
+	targetCluster := "cluster"
+	tests := []struct {
+		desc     string
+		identity TestIdentity
+		checkErr func(error) bool
+	}{
+		{
+			desc:     "users may not replace remote locks",
+			identity: TestUser(user.GetName()),
+			checkErr: trace.IsAccessDenied,
+		},
+		{
+			desc:     "local proxy may not replace remote locks",
+			identity: TestBuiltin(types.RoleProxy),
+			checkErr: trace.IsAccessDenied,
+		},
+		{
+			desc:     "remote proxy of a non-target cluster may not replace the target's remote locks",
+			identity: TestRemoteBuiltin(types.RoleProxy, "non-"+targetCluster),
+			checkErr: trace.IsAccessDenied,
+		},
+		{
+			desc:     "remote proxy of the target cluster may replace its remote locks",
+			identity: TestRemoteBuiltin(types.RoleProxy, targetCluster),
+			checkErr: func(err error) bool { return err == nil },
+		},
+	}
+
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: types.LockTarget{User: "test-user"}})
+	require.NoError(t, err)
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, test.identity.I))
+			require.NoError(t, err)
+
+			s := &ServerWithRoles{
+				authServer: srv.AuthServer,
+				sessions:   srv.SessionServer,
+				alog:       srv.AuditLog,
+				context:    *authContext,
+			}
+
+			err = s.ReplaceRemoteLocks(ctx, targetCluster, []types.Lock{lock})
+			require.True(t, test.checkErr(err), trace.DebugReport(err))
+		})
+	}
+}

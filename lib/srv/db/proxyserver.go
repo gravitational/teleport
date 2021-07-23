@@ -335,6 +335,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 	tc, err := monitorConn(ctx, monitorConnConfig{
 		conn:         clientConn,
 		lockWatcher:  s.cfg.LockWatcher,
+		lockTargets:  authContext.LockTargets(),
 		identity:     authContext.Identity.GetIdentity(),
 		checker:      authContext.Checker,
 		clock:        s.cfg.Clock,
@@ -384,6 +385,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 type monitorConnConfig struct {
 	conn         net.Conn
 	lockWatcher  *services.LockWatcher
+	lockTargets  []types.LockTarget
 	checker      services.AccessChecker
 	identity     tlsca.Identity
 	clock        clockwork.Clock
@@ -428,7 +430,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           cfg.lockWatcher,
-		LockTargets:           services.LockTargetsFromTLSIdentity(cfg.identity),
+		LockTargets:           cfg.lockTargets,
 		DisconnectExpiredCert: disconnectCertExpired,
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  cfg.conn,

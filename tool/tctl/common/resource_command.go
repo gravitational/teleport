@@ -636,10 +636,14 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		}
 		fmt.Printf("session recording configuration has been reset to defaults\n")
 	case types.KindLock:
-		if err = client.DeleteLock(ctx, rc.ref.Name); err != nil {
+		name := rc.ref.Name
+		if rc.ref.SubKind != "" {
+			name = rc.ref.SubKind + "/" + name
+		}
+		if err = client.DeleteLock(ctx, name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("lock %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("lock %q has been deleted\n", name)
 	case types.KindDatabaseServer:
 		dbServers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
@@ -1019,7 +1023,11 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			}
 			return &lockCollection{locks: locks}, nil
 		}
-		lock, err := client.GetLock(ctx, rc.ref.Name)
+		name := rc.ref.Name
+		if rc.ref.SubKind != "" {
+			name = rc.ref.SubKind + "/" + name
+		}
+		lock, err := client.GetLock(ctx, name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

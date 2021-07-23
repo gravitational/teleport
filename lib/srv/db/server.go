@@ -368,6 +368,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	conn, err = monitorConn(ctx, monitorConnConfig{
 		conn:         conn,
 		lockWatcher:  s.cfg.LockWatcher,
+		lockTargets:  sessionCtx.LockTargets,
 		identity:     sessionCtx.Identity,
 		checker:      sessionCtx.Checker,
 		clock:        s.cfg.Clock,
@@ -471,5 +472,6 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 			"id": id,
 			"db": server.GetName(),
 		}),
+		LockTargets: authContext.LockTargets(),
 	}, nil
 }
