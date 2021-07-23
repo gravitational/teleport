@@ -160,7 +160,6 @@ func TestProxyClientDisconnectDueToLockInForce(t *testing.T) {
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
-	setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx, t, testCtx.authServer, time.Hour*24)
 
 	mysql, err := testCtx.mysqlClient("alice", "mysql", "root")
 	require.NoError(t, err)
