@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -115,7 +116,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
-	authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
+	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -143,6 +144,17 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
+	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentDatabase,
+			Log:       log,
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
 		Clock:       process.Clock,
@@ -164,6 +176,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentDatabase})
 			}
 		},
+		LockWatcher: lockWatcher,
 	})
 	if err != nil {
 		return trace.Wrap(err)
