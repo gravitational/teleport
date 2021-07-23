@@ -484,6 +484,7 @@ func startNewRotation(req rotationReq, ca types.CertAuthority) error {
 	// generate keys and certificates:
 	if len(req.privateKey) != 0 {
 		log.Infof("Generating CA, using pregenerated test private key.")
+		tlsPrivateKey = req.privateKey
 
 		rsaKey, err := ssh.ParseRawPrivateKey(req.privateKey)
 		if err != nil {
@@ -497,8 +498,8 @@ func startNewRotation(req rotationReq, ca types.CertAuthority) error {
 		sshPublicKey = ssh.MarshalAuthorizedKey(signer.PublicKey())
 		sshPrivateKey = req.privateKey
 
-		tlsPrivateKey, tlsPublicKey, err = tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-			PrivateKey: rsaKey.(*rsa.PrivateKey),
+		tlsPublicKey, err = tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+			Signer: rsaKey.(*rsa.PrivateKey),
 			Entity: pkix.Name{
 				CommonName:   ca.GetClusterName(),
 				Organization: []string{ca.GetClusterName()},
