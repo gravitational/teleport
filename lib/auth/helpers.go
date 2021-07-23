@@ -320,7 +320,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
+	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
