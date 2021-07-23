@@ -28,7 +28,6 @@ import (
 	"os/exec"
 	"testing"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -261,6 +260,7 @@ func TestKeyStore(t *testing.T) {
 			signature, err := signer.Sign(rand.Reader, hashed[:], crypto.SHA256)
 			require.NoError(t, err)
 			require.NotEmpty(t, signature)
+			// make sure we can verify the signature with a "known good" rsa implementation
 			err = rsa.VerifyPKCS1v15(signer.Public().(*rsa.PublicKey), crypto.SHA256, hashed[:], signature)
 			require.NoError(t, err)
 
@@ -280,43 +280,37 @@ func TestKeyStore(t *testing.T) {
 			require.NotNil(t, tlsCert)
 
 			// test CA with multiple active keypairs
-			ca := &types.CertAuthorityV2{
-				Kind:    types.KindCertAuthority,
-				Version: types.V2,
-				Metadata: types.Metadata{
-					Name:      "exaple.com",
-					Namespace: apidefaults.Namespace,
-				},
-				Spec: types.CertAuthoritySpecV2{
-					ClusterName: "example.com",
-					ActiveKeys: types.CAKeySet{
-						SSH: []*types.SSHKeyPair{
-							testPKCS11SSHKeyPair,
-							&types.SSHKeyPair{
-								PrivateKey:     key,
-								PrivateKeyType: keystore.KeyType(key),
-								PublicKey:      sshPublicKey,
-							},
+			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.HostCA,
+				ClusterName: "example.com",
+				ActiveKeys: types.CAKeySet{
+					SSH: []*types.SSHKeyPair{
+						testPKCS11SSHKeyPair,
+						&types.SSHKeyPair{
+							PrivateKey:     key,
+							PrivateKeyType: keystore.KeyType(key),
+							PublicKey:      sshPublicKey,
 						},
-						TLS: []*types.TLSKeyPair{
-							testPKCS11TLSKeyPair,
-							&types.TLSKeyPair{
-								Key:     key,
-								KeyType: keystore.KeyType(key),
-								Cert:    tlsCert,
-							},
+					},
+					TLS: []*types.TLSKeyPair{
+						testPKCS11TLSKeyPair,
+						&types.TLSKeyPair{
+							Key:     key,
+							KeyType: keystore.KeyType(key),
+							Cert:    tlsCert,
 						},
-						JWT: []*types.JWTKeyPair{
-							testPKCS11JWTKeyPair,
-							&types.JWTKeyPair{
-								PrivateKey:     key,
-								PrivateKeyType: keystore.KeyType(key),
-								PublicKey:      sshPublicKey,
-							},
+					},
+					JWT: []*types.JWTKeyPair{
+						testPKCS11JWTKeyPair,
+						&types.JWTKeyPair{
+							PrivateKey:     key,
+							PrivateKeyType: keystore.KeyType(key),
+							PublicKey:      sshPublicKey,
 						},
 					},
 				},
-			}
+			})
+			require.NoError(t, err)
 
 			// test that keyStore is able to select the correct key and get a signer
 			sshSigner, err = keyStore.GetSSHSigner(ca)
@@ -334,28 +328,22 @@ func TestKeyStore(t *testing.T) {
 			require.NotNil(t, jwtSigner)
 
 			// test CA with only raw keys
-			ca = &types.CertAuthorityV2{
-				Kind:    types.KindCertAuthority,
-				Version: types.V2,
-				Metadata: types.Metadata{
-					Name:      "exaple.com",
-					Namespace: apidefaults.Namespace,
-				},
-				Spec: types.CertAuthoritySpecV2{
-					ClusterName: "example.com",
-					ActiveKeys: types.CAKeySet{
-						SSH: []*types.SSHKeyPair{
-							testRawSSHKeyPair,
-						},
-						TLS: []*types.TLSKeyPair{
-							testRawTLSKeyPair,
-						},
-						JWT: []*types.JWTKeyPair{
-							testRawJWTKeyPair,
-						},
+			ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.HostCA,
+				ClusterName: "example.com",
+				ActiveKeys: types.CAKeySet{
+					SSH: []*types.SSHKeyPair{
+						testRawSSHKeyPair,
+					},
+					TLS: []*types.TLSKeyPair{
+						testRawTLSKeyPair,
+					},
+					JWT: []*types.JWTKeyPair{
+						testRawJWTKeyPair,
 					},
 				},
-			}
+			})
+			require.NoError(t, err)
 
 			if tc.hsmConfig != nil {
 				// hsm keyStore should not get any signer from raw keys

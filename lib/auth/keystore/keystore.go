@@ -43,7 +43,7 @@ type KeyStore interface {
 	// GetSSHSigner selects the local SSH keypair and returns an ssh.Signer.
 	GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error)
 
-	// GetSSHSigner selects the local JWT keypair and returns a crypto.Signer
+	// GetJWTSigner selects the local JWT keypair and returns a crypto.Signer
 	GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error)
 
 	// DeleteKey deletes the given key from the KeyStore
