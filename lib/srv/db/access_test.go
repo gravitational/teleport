@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -667,6 +668,16 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	// Create test audit events emitter.
 	testCtx.emitter = newTestEmitter()
 
+	// Create a lock watcher for the DB proxy server.
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    proxyAuthClient,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(lockWatcher.Close)
+
 	// Create database proxy server.
 	testCtx.proxyServer, err = NewProxyServer(ctx, ProxyServerConfig{
 		AuthClient:  proxyAuthClient,
@@ -682,6 +693,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 			sort.Sort(types.SortedDatabaseServers(servers))
 			return servers
 		},
+		LockWatcher: lockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -713,6 +725,15 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 	})
 	require.NoError(t, err)
 
+	// Create a lock watcher for the DB service.
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentDatabase,
+			Client:    c.authClient,
+		},
+	})
+	require.NoError(t, err)
+
 	server, err := New(ctx, Config{
 		Clock:         clockwork.NewFakeClockAt(time.Now()),
 		DataDir:       t.TempDir(),
@@ -736,6 +757,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 		CADownloader: &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
 		},
+		LockWatcher: lockWatcher,
 	})
 	require.NoError(t, err)
 

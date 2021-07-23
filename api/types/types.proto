@@ -2230,6 +2230,9 @@ message LockSpecV2 {
 
 // LockTarget lists the attributes of interactions to be disabled.
 message LockTarget {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
     // User specifies the name of a Teleport user.
     string User = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
 
