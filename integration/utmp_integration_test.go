@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -67,8 +68,9 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		t.Skip("This test will be skipped because tests are not being run as root.")
 	}
 
-	s := newSrvCtx(t)
-	up, err := newUpack(s, teleportTestUser, []string{teleportTestUser}, wildcardAllow)
+	ctx := context.Background()
+	s := newSrvCtx(ctx, t)
+	up, err := newUpack(ctx, s, teleportTestUser, []string{teleportTestUser}, wildcardAllow)
 	require.NoError(t, err)
 
 	sshConfig := &ssh.ClientConfig{
@@ -149,7 +151,7 @@ func TouchFile(name string) error {
 }
 
 // This returns the utmp path.
-func newSrvCtx(t *testing.T) *SrvCtx {
+func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	s := &SrvCtx{}
 
 	t.Cleanup(func() {
@@ -157,7 +159,7 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 			require.NoError(t, s.srv.Close())
 		}
 		if s.server != nil {
-			require.NoError(t, s.server.Shutdown(context.Background()))
+			require.NoError(t, s.server.Shutdown(ctx))
 		}
 	})
 
@@ -203,6 +205,15 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 	s.utmpPath = utmpPath
 
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentNode,
+			Client:    s.nodeClient,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(lockWatcher.Close)
+
 	nodeDir := t.TempDir()
 	srv, err := regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -230,6 +241,7 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetUtmpPath(utmpPath, utmpPath),
+		regular.SetLockWatcher(lockWatcher),
 	)
 	require.NoError(t, err)
 	s.srv = srv
@@ -238,8 +250,7 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 	return s
 }
 
-func newUpack(s *SrvCtx, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
-	ctx := context.Background()
+func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	auth := s.server.Auth()
 	upriv, upub, err := auth.GenerateKeyPair("")
 	if err != nil {
