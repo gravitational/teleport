@@ -55,10 +55,6 @@ func (c *rawKeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
 // TLS cert and a crypto.Signer.
 func (c *rawKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
 	keyPairs := ca.GetActiveKeys().TLS
-	if len(keyPairs) == 0 {
-		return nil, nil, trace.NotFound("no TLS key pairs found in CA for %q", ca.GetClusterName())
-	}
-
 	for _, keyPair := range keyPairs {
 		if keyPair.KeyType == types.PrivateKeyType_RAW {
 			// private key may be nil, the cert will only be used for checking
@@ -78,10 +74,6 @@ func (c *rawKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypt
 // GetSSHSigner selects the first raw SSH keypair and returns an ssh.Signer
 func (c *rawKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 	keyPairs := ca.GetActiveKeys().SSH
-	if len(keyPairs) == 0 {
-		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
-	}
-
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
 			signer, err := ssh.ParsePrivateKey(keyPair.PrivateKey)
@@ -98,9 +90,6 @@ func (c *rawKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 // GetJWTSigner returns the active JWT signer used to sign tokens.
 func (c *rawKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
 	keyPairs := ca.GetActiveKeys().JWT
-	if len(keyPairs) == 0 {
-		return nil, trace.NotFound("no JWT keypairs found")
-	}
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
 			signer, err := utils.ParsePrivateKey(keyPair.PrivateKey)
