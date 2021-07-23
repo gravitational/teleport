@@ -486,10 +486,12 @@ $(VERSRC): Makefile
 # 		- commit changes to git
 # 		- build binaries with 'make release'
 # 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
-.PHONY: tag
-tag:
-	@echo "Run this:\n> git tag $(GITTAG)\n> git push --tags"
-
+.PHONY: update-tag
+update-tag:
+	@test $(VERSION)
+	git tag $(GITTAG)
+	git tag api/$(GITTAG)
+	git push origin $(GITTAG) && git push origin api/$(GITTAG)
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
