@@ -29,6 +29,7 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -206,6 +207,17 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		Streamer: streamer,
 	}
 
+	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentKube,
+			Log:       log,
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:         apidefaults.Namespace,
@@ -224,6 +236,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			Component:         teleport.ComponentKube,
 			StaticLabels:      cfg.Kube.StaticLabels,
 			DynamicLabels:     dynLabels,
+			LockWatcher:       lockWatcher,
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,

@@ -537,6 +537,8 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
 		return s.dialWithAgent(params)
 	}
+
+	// Attempt to perform a direct TCP dial.
 	return s.DialTCP(params)
 }
 
@@ -607,6 +609,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		HostUUID:        s.srv.ID,
 		Emitter:         s.srv.Config.Emitter,
 		ParentContext:   s.srv.Context,
+		LockWatcher:     s.srv.LockWatcher,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
