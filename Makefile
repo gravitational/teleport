@@ -15,7 +15,6 @@ VERSION=7.0.0-beta.1
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
-DOCKER_IMAGE_TELEPORT_LAB ?= quay.io/gravitational/teleport-lab
 
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
