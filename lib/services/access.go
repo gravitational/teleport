@@ -22,6 +22,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// LockGetter is a service that gets locks.
+type LockGetter interface {
+	// GetLock gets a lock by name.
+	GetLock(ctx context.Context, name string) (types.Lock, error)
+	// GetLocks gets all locks, matching at least one of the targets when specified.
+	GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error)
+}
+
 // Access service manages roles and permissions.
 type Access interface {
 	// GetRoles returns a list of roles.
@@ -37,10 +45,7 @@ type Access interface {
 	// DeleteRole deletes role by name.
 	DeleteRole(ctx context.Context, name string) error
 
-	// GetLock gets a lock by name.
-	GetLock(ctx context.Context, name string) (types.Lock, error)
-	// GetLocks gets all locks, matching at least one of the targets when specified.
-	GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error)
+	LockGetter
 	// UpsertLock upserts a lock.
 	UpsertLock(context.Context, types.Lock) error
 	// DeleteLock deletes a lock.
