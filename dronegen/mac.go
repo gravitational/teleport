@@ -26,16 +26,7 @@ func pushDarwinPipeline() pipeline {
 	p := newDarwinPipeline("push-build-darwin-amd64")
 	p.Trigger = triggerPush
 	p.Steps = []step{
-		{
-			Name:        "Set up exec runner storage",
-			Environment: map[string]value{"WORKSPACE_DIR": {raw: p.Workspace.Path}},
-			Commands: []string{
-				"set -u",
-				"mkdir -p $WORKSPACE_DIR",
-				"chmod -R u+rw $WORKSPACE_DIR",
-				"rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh",
-			},
-		},
+		setUpExecStorageStep(p.Workspace.Path),
 		{
 			Name: "Check out code",
 			Environment: map[string]value{
@@ -55,15 +46,7 @@ func pushDarwinPipeline() pipeline {
 			},
 			Commands: tagBuildCommandsDarwin(),
 		},
-		{
-			Name:        "Clean up exec runner storage (post)",
-			Environment: map[string]value{"WORKSPACE_DIR": {raw: p.Workspace.Path}},
-			Commands: []string{
-				`set -u`,
-				`chmod -R u+rw $WORKSPACE_DIR`,
-				`rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh`,
-			},
-		},
+		cleanUpExecStorageStep(p.Workspace.Path),
 		{
 			Name:        "Send Slack notification (exec)",
 			Environment: map[string]value{"SLACK_WEBHOOK_DEV_TELEPORT": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"}},
@@ -90,16 +73,7 @@ func tagDarwinPipeline() pipeline {
 	p := newDarwinPipeline("build-darwin-amd64")
 	p.Trigger = triggerTag
 	p.Steps = []step{
-		{
-			Name:        "Set up exec runner storage",
-			Environment: map[string]value{"WORKSPACE_DIR": {raw: p.Workspace.Path}},
-			Commands: []string{
-				"set -u",
-				"mkdir -p $WORKSPACE_DIR",
-				"chmod -R u+rw $WORKSPACE_DIR",
-				"rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh",
-			},
-		},
+		setUpExecStorageStep(p.Workspace.Path),
 		{
 			Name: "Check out code",
 			Environment: map[string]value{
@@ -137,15 +111,7 @@ func tagDarwinPipeline() pipeline {
 			},
 			Commands: uploadToS3CommandsDarwin(),
 		},
-		{
-			Name:        "Clean up exec runner storage (post)",
-			Environment: map[string]value{"WORKSPACE_DIR": {raw: p.Workspace.Path}},
-			Commands: []string{
-				`set -u`,
-				`chmod -R u+rw $WORKSPACE_DIR`,
-				`rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh`,
-			},
-		},
+		cleanUpExecStorageStep(p.Workspace.Path),
 	}
 	return p
 }
@@ -168,6 +134,31 @@ func pushCheckoutCommandsDarwin() []string {
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true`,
 		`rm -rf $WORKSPACE_DIR/.ssh`,
 		`mkdir $WORKSPACE_DIR/go/cache`,
+	}
+}
+
+func setUpExecStorageStep(path string) step {
+	return step{
+		Name:        "Set up exec runner storage",
+		Environment: map[string]value{"WORKSPACE_DIR": {raw: path}},
+		Commands: []string{
+			"set -u",
+			"mkdir -p $WORKSPACE_DIR",
+			"chmod -R u+rw $WORKSPACE_DIR",
+			"rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh",
+		},
+	}
+}
+
+func cleanUpExecStorageStep(path string) step {
+	return step{
+		Name:        "Clean up exec runner storage (post)",
+		Environment: map[string]value{"WORKSPACE_DIR": {raw: path}},
+		Commands: []string{
+			`set -u`,
+			`chmod -R u+rw $WORKSPACE_DIR`,
+			`rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh`,
+		},
 	}
 }
 
