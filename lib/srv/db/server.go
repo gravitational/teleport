@@ -63,8 +63,8 @@ type Config struct {
 	Authorizer auth.Authorizer
 	// GetRotation returns the certificate rotation state.
 	GetRotation func(role types.SystemRole) (*types.Rotation, error)
-	// Servers contains a list of database servers this service proxies.
-	Servers types.DatabaseServers
+	// Server is the resource representing this database server.
+	Server types.DatabaseServer
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 	// Auth is responsible for generating database auth tokens.
@@ -117,8 +117,8 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.GetRotation == nil {
 		return trace.BadParameter("missing GetRotation")
 	}
-	if len(c.Servers) == 0 {
-		return trace.BadParameter("missing Servers")
+	if c.Server == nil {
+		return trace.BadParameter("missing Server")
 	}
 	if c.CADownloader == nil {
 		c.CADownloader = NewRealDownloader(c.DataDir)
@@ -140,7 +140,7 @@ type Server struct {
 	closeFunc context.CancelFunc
 	// middleware extracts identity from client certificates.
 	middleware *auth.Middleware
-	// dynamicLabels contains dynamic labels for database servers.
+	// dynamicLabels contains dynamic labels for databases.
 	dynamicLabels map[string]*labels.Dynamic
 	// heartbeats holds hearbeats for database servers.
 	heartbeats map[string]*srv.Heartbeat
@@ -176,10 +176,16 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
 		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log)
 
+	// Initialize the heartbeat which will periodically register
+	// this server with the auth server.
+	if err := server.initHeartbeat(ctx, server.cfg.Server); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Perform various initialization actions on each proxied database, like
 	// starting up dynamic labels and loading root certs for RDS dbs.
-	for _, db := range server.cfg.Servers {
-		if err := server.initDatabaseServer(ctx, db); err != nil {
+	for _, db := range server.cfg.Server.GetDatabases() {
+		if err := server.initDatabase(ctx, db); err != nil {
 			return nil, trace.Wrap(err, "failed to initialize %v", server)
 		}
 	}
@@ -187,33 +193,30 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	return server, nil
 }
 
-func (s *Server) initDatabaseServer(ctx context.Context, server types.DatabaseServer) error {
-	if err := s.initDynamicLabels(ctx, server); err != nil {
+func (s *Server) initDatabase(ctx context.Context, database types.Database) error {
+	if err := s.initDynamicLabels(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.initHeartbeat(ctx, server); err != nil {
+	if err := s.initCACert(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.initCACert(ctx, server); err != nil {
-		return trace.Wrap(err)
-	}
-	s.log.Debugf("Initialized %v.", server)
+	s.log.Debugf("Initialized %v.", database)
 	return nil
 }
 
-func (s *Server) initDynamicLabels(ctx context.Context, server types.DatabaseServer) error {
-	if len(server.GetDynamicLabels()) == 0 {
+func (s *Server) initDynamicLabels(ctx context.Context, database types.Database) error {
+	if len(database.GetDynamicLabels()) == 0 {
 		return nil // Nothing to do.
 	}
 	dynamic, err := labels.NewDynamic(ctx, &labels.DynamicConfig{
-		Labels: server.GetDynamicLabels(),
+		Labels: database.GetDynamicLabels(),
 		Log:    s.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	dynamic.Sync()
-	s.dynamicLabels[server.GetName()] = dynamic
+	s.dynamicLabels[database.GetName()] = dynamic
 	return nil
 }
 
@@ -245,10 +248,15 @@ func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (types.Re
 		server = server.Copy()
 		s.mu.RUnlock()
 		// Update dynamic labels.
-		labels, ok := s.dynamicLabels[server.GetName()]
-		if ok {
-			server.SetDynamicLabels(labels.Get())
+		databases := make([]types.Database, 0, len(server.GetDatabases()))
+		for _, database := range server.GetDatabases() {
+			labels, ok := s.dynamicLabels[database.GetName()]
+			if ok {
+				database.SetDynamicLabels(labels.Get())
+			}
+			databases = append(databases, database)
 		}
+		server.SetDatabases(databases)
 		// Update CA rotation state.
 		rotation, err := s.cfg.GetRotation(types.RoleDatabase)
 		if err != nil && !trace.IsNotFound(err) {
@@ -371,7 +379,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 		identity:     sessionCtx.Identity,
 		checker:      sessionCtx.Checker,
 		clock:        s.cfg.Clock,
-		serverID:     sessionCtx.Server.GetHostID(),
+		serverID:     s.cfg.Server.GetHostID(),
 		authClient:   s.cfg.AuthClient,
 		teleportUser: sessionCtx.Identity.Username,
 		emitter:      s.cfg.AuthClient,
@@ -397,7 +405,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch sessionCtx.Server.GetProtocol() {
+	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolPostgres:
 		return &postgres.Engine{
 			Auth:    s.cfg.Auth,
@@ -425,7 +433,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 		}, nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
-		sessionCtx.Server.GetProtocol())
+		sessionCtx.Database.GetProtocol())
 }
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
@@ -444,23 +452,24 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	identity := authContext.Identity.GetIdentity()
 	s.log.Debugf("Client identity: %#v.", identity)
 	// Fetch the requested database server.
-	var server types.DatabaseServer
-	for _, s := range s.cfg.Servers {
-		if s.GetName() == identity.RouteToDatabase.ServiceName {
-			server = s
+	var database types.Database
+	for _, db := range s.cfg.Server.GetDatabases() {
+		if db.GetName() == identity.RouteToDatabase.ServiceName {
+			database = db
 		}
 	}
-	if server == nil {
-		return nil, trace.NotFound("%q not found among registered database servers: %v",
-			identity.RouteToDatabase.ServiceName, s.cfg.Servers)
+	if database == nil {
+		return nil, trace.NotFound("%q not found among registered databases: %v",
+			identity.RouteToDatabase.ServiceName, s.cfg.Server.GetDatabases())
 	}
-	s.log.Debugf("Will connect to database %q at %v.", server.GetName(),
-		server.GetURI())
+	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
+		database.GetURI())
 	id := uuid.New()
 	return &common.Session{
 		ID:                id,
 		ClusterName:       identity.RouteToCluster,
-		Server:            server,
+		Server:            s.cfg.Server,
+		Database:          database,
 		Identity:          identity,
 		DatabaseUser:      identity.RouteToDatabase.Username,
 		DatabaseName:      identity.RouteToDatabase.Database,
@@ -469,7 +478,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		Statements:        common.NewStatementsCache(),
 		Log: s.log.WithFields(logrus.Fields{
 			"id": id,
-			"db": server.GetName(),
+			"db": database.GetName(),
 		}),
 	}, nil
 }

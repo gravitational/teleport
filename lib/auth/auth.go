@@ -2348,15 +2348,17 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
-		dbs, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
+		servers, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var db types.DatabaseServer
-		for _, d := range dbs {
-			if d.GetName() == t.Database.ServiceName {
-				db = d
-				break
+		var db types.Database
+		for _, server := range servers {
+			for _, d := range server.GetDatabases() {
+				if d.GetName() == t.Database.ServiceName {
+					db = d
+					break
+				}
 			}
 		}
 		if db == nil {
