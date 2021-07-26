@@ -19,6 +19,9 @@ limitations under the License.
 package datalog
 
 import (
+	"context"
+
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 )
 
@@ -31,14 +34,14 @@ type NodeAccessRequest struct {
 }
 
 // AccessResponse returns no response
-type AccessResponse struct{}
+type NodeAccessResponse struct{}
 
 // QueryAccess returns a list of accesses to Teleport. Note this function does nothing
-func (c *NodeAccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, error) {
-	return &AccessResponse{}, nil
+func QueryNodeAccess(ctx context.Context, client auth.ClientI, req NodeAccessRequest) (*NodeAccessResponse, error) {
+	return &NodeAccessResponse{}, nil
 }
 
 // BuildStringOutput creates the UI for displaying access responses.
-func (r *AccessResponse) BuildStringOutput() string {
-	return "Role tester is not available. Please recompile Teleport with rust and cargo installed."
+func (r *NodeAccessResponse) ToTable() (asciitable.Table, asciitable.Table, int, int) {
+	return asciitable.MakeTable([]string{}), asciitable.MakeTable([]string{}), 0, 0
 }
