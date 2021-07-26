@@ -1,0 +1,268 @@
+---
+authors: Andrew Lytvynov (andrew@goteleport.com)
+state: draft
+---
+
+# RFD 34 - Desktop Access - Windows
+
+## What
+
+RFD 33 defines the high-level goals and architecture for Teleport Desktop
+Access.
+
+This RFD specifies how Teleport Desktop Access integrates with Windows hosts,
+including Microsoft Active Directory domains.
+
+## Details
+
+### Architecture
+
+Windows Desktop Access is implemented using `windows_desktop_service` that
+translates the Teleport desktop protocol into RDP:
+
+```
++--------+
+| web UI |
++--------+
+    ^
+    | desktop protocol over websocket
+    v
++--------+
+| proxy  |
++--------+
+    ^
+    | desktop protocol over mTLS
+    v
++-------------------------+
+| windows_backend_service |--------------\
++-------------------------+-\            |
+   ^                        |            |
+   | RDP                    | RDP        | LDAP
+   v                        v            |
++---------------------+  +-----------+  +-------------------+
+| windows server 2012 |  | windows 7 |  | domain controller |
++---------------------+  +-----------+  +-------------------+
+```
+
+`windows_desktop_service` can talk to any number of remote Windows RDP hosts.
+It can also talk to `localhost` RDP service, if installed on a Windows machine
+in agent mode (described below).
+
+`windows_desktop_service` also discovers all available Windows hosts from
+Active Directory and registers them in Teleport as `WindowsDesktop` objects.
+
+### Supported versions
+
+Windows Desktop Access supports Windows Server 2012 R2, Windows 7 and newer
+versions. However, it should also work with any server that implements RDP and
+supports Smart Card authentication.
+
+### Protocol
+
+Windows Desktop Access uses Remote Desktop Protocol (RDP). RDP service is built
+into Windows and requires no additional software to be installed on the hosts.
+
+RDP is a very complex protocol, with cruft accumulated over its long history
+and frequent vulnerability discoveries (see [Security
+Concerns](#security-concerns) below). It was not my first choice for this
+implementation. However, it is the only option for supporting concurrent
+sessions and allows easier customer rollout without per-host agents.
+
+#### RDP client
+
+`windows_desktop_service` implements an RDP client. There are no existing Go
+libraries implementing enough of the RDP spec for a basic desktop session.
+
+There are a few options, in order of preference:
+- use [rdp-rs Rust library](https://crates.io/crates/rdp-rs) via FFI from Go,
+  assuming it supports smart cards
+- use [libfreerdp](https://www.freerdp.com/) via CGO, assuming it supports
+  smart cards and concurrent outbound connections
+- implement RDP protocol in Go from scratch; last resort due to the amount of
+  work needed
+
+### Modes
+
+`windows_desktop_service` can run in two modes: gateway and agent.
+
+#### Gateway mode
+
+Gateway mode is for connecting to multiple remote Windows hosts, similar to
+Kubernetes Access. This mode is shown in the [Architecture
+diagram](#architecture) above.
+
+This mode is easy for admins to set up and has minimal resource overhead.
+However, this requires the Windows hosts to expose RDP ports to the
+`windows_desktop_service`, which is more risky (see [Security
+Concerns](#security-concerns) below).
+
+#### Agent mode
+
+Agent mode is for running a `windows_desktop_service` instance on the Windows
+host as a system service. In this mode, connection is made over `localhost` and
+the RDP port does not need to be exposed on the network.
+`windows_desktop_service` can reverse-tunnel to the Teleport proxy, allowing
+the Windows host to completely block all inbound connections. In the future,
+`windows_desktop_service` could also collect more session information (like
+eBPF on Linux) and enforce extra restrictions.
+
+```
++--------+
+| web UI |
++--------+
+    ^
+    | desktop protocol over websocket
+    v
++--------+
+| proxy  |
++--------+
+    ^
+    | desktop protocol over mTLS over reverse tunnel
+    |
++---|------------------------------+
+|   v                              |
+| +-------------------------+      |
+| | windows_backend_service |      |
+| +-------------------------+      |
+|   ^                              |
+|   | RDP over localhost           |
+|   v                              |
+| +-------------+                  |
+| | RDP service |                  |
+| +-------------+     Windows host |
++----------------------------------+
+```
+
+### Authentication
+
+In Windows, authentication is handled differently for standalone and
+Active Directory-enrolled machines. Standalone machines validate credentials
+using the local user database (SAM). Active Directory-enrolled machines send
+credentials to the domain controller for validation. Teleport Desktop Access
+will support both modes.
+
+Windows generally exposes 3 authentication mechanisms:
+- smart cards
+- username/password
+- kerberos tickets
+
+#### Smart cards
+
+Smart cards implement asymmetric cert-based authn, using PKI configured on the
+server/AD side. Since this is the only known way for us to support cert-based
+authn, Teleport will implement a smart card emulator to authenticate over RDP.
+This will be the primary authentication method.
+
+Smart card authentication and emulator are described in more detail in RFD 35.
+
+#### Username/password
+
+Username and password are most universal and Teleport should support these
+interactively as a fallback, when other methods are not available. This will
+allow users to replace their existing RDP client software, while providing RBAC
+and session recording, despite weaker authentication and worse UX.
+
+#### Kerberos tickets
+
+When a user is already authenticated against Kerberos (using one of the above
+methods), they get a Ticket-granting ticket (TGT) which can be used to get
+other tickets for specific services, such as an RDP host. Since Teleport has no
+exposure to Kerberos tickets (even when using AAD as SSO provider) and we can't
+assume that all clients use Windows machines, Teleport will not use TGTs for
+RDP authentication.
+
+### Host discovery
+
+When a user starts a new desktop session, they must specify the Windows host to
+connect to. Internally, Teleport tracks known Windows hosts using
+`WindowsDesktop` objects.
+
+There are 3 ways that `windows_desktop_service` discovers Windows hosts to
+register:
+- hardcoded list of standalone hosts provided in the config file (see
+  [configuration](#configuration))
+- list of Active Directory-enrolled hosts obtained from AD via LDAPS (LDAP over
+  SSL)
+  - LDAP library: https://pkg.go.dev/github.com/go-ldap/ldap/v3
+- local host, when running on a Windows machine in agent mode
+
+### Concurrent sessions
+
+RDP supports concurrent user sessions on the same host. It allocates a virtual
+desktop for each user to isolate their activities. However, it only allows a
+single session per user per host. If a user starts a new session on the host
+that they are already logged into, they will log out the other session. This is
+RDP behavior we cannot change.
+
+### Session recording
+
+RDP video output uses bitmaps and not a standard video encoding format.
+To allow playback of session recordings, we have 2 options:
+- record bitmap updates with timestamps and replay them using JS on a canvas.
+- encode finished bitmap recording into MP4 or WebM
+
+The latter allows recording export and sharing, and can be played back in many
+existing applications. However, video encoding is a complex and
+resource-intensive process that has to be done after the session is complete,
+because video container formats must encode the total duration upfront.
+
+Teleport will record active desktop sessions into the simplest possible format
+and then transcode them to MP4 or WebM asynchronously. Transcoding can be done
+using `ffmpeg` if we don't find a solid encoder in Go or Rust.
+
+### Configuration
+
+New `teleport.yaml` section for `windows_desktop_service`:
+
+```yaml
+windows_desktop_service:
+  enabled: yes # default false
+  listen_addr: 0.0.0.0:3028
+  public_addrs: [rdp.example.com:3028]
+  mode: "gateway" # or "agent"
+  # (optional) ldap contains hostname and credentials for the LDAP server on
+  # the Active Directory domain controller.
+  # If specified, windows hosts will be automatically discovered by Teleport.
+  #
+  # Note: Teleport will only connect to LDAP over TLS and will always
+  # validate the server certificate.
+  ldap:
+    host: ldap.example.com
+    username: "ldap_user"
+    password: "ldap_pass"
+    # optional CA cert to use for LDAP server certificate validation.
+    ca_cert: "/var/lib/teleport/ldap_ca.pem"
+  # (optional) static_hosts is a list of hostnames to register as
+  # WindowsDesktop objects in Teleport.
+  # These are usually non-AD hosts.
+  static_hosts:
+  - win1.example.com
+  - win2.example.com
+  - ...
+  # (optional) host_labels applies labels to windows hosts for RBAC.
+  # Each entry maps to a subset of hosts by regexp and applies a group of labels.
+  # A host can match multiple regexps and will get a union of all the labels.
+  host_labels:
+  - match: ".*"
+    labels:
+    - env: prod
+  - match: "^db.*"
+    labels:
+    - type: database
+  - match: "^dc\.example\.com$"
+    labels:
+    - type: domain_controller
+```
+
+### Security concerns
+
+RDP is a very complex protocol with a history of vulnerabilities. Using a
+memory-safe client that we fully control and not exposing raw RDP publicly is
+essential. Running Teleport in agent mode is and extra hardening step to avoid
+exposing RDP even on private networks.
+
+Generally, admins are still responsible for patching their Windows hosts to
+pick up any RDP server fixes that come out.
+
+The RDP client implementation in Teleport should be reasonably paranoid, verify
+the identity of the target RDP host and treat it as potentially malicious.
