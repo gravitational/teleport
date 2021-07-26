@@ -52,6 +52,7 @@ type transportConfig struct {
 	w                  events.StreamWriter
 	traits             wrappers.Traits
 	log                logrus.FieldLogger
+	user               string
 }
 
 // Check validates configuration.
