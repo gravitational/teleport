@@ -2270,6 +2270,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		return &proto.IsMFARequiredResponse{Required: true}, nil
 	}
 	var noMFAAccessErr, notFoundErr error
+	var noMFAAccessErrTarget string
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
 		notFoundErr = trace.NotFound("node %q not found", t.Node)
@@ -2314,6 +2315,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			err := checker.CheckAccessToServer(t.Node.Login, n, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
 			if err != nil {
 				noMFAAccessErr = err
+				noMFAAccessErrTarget = fmt.Sprintf("%s@%s", t.Node.Login, t.Node.Node)
 				break
 			}
 		}
@@ -2342,6 +2344,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 		noMFAAccessErr = checker.CheckAccessToKubernetes(apidefaults.Namespace, cluster, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
+		noMFAAccessErrTarget = t.KubernetesCluster
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
@@ -2363,6 +2366,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 		noMFAAccessErr = checker.CheckAccessToDatabase(db, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
+		noMFAAccessErrTarget = t.Database.ServiceName
 
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)
@@ -2377,6 +2381,26 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
 		if trace.IsAccessDenied(noMFAAccessErr) {
 			log.Infof("Access to resource denied: %v", noMFAAccessErr)
+
+			// Emit the failure to the audit log.
+			user := ClientUsername(ctx)
+			if err := a.emitter.EmitAuditEvent(ctx, &apievents.AuthAttempt{
+				Metadata: apievents.Metadata{
+					Type: events.AuthAttemptEvent,
+					Code: events.AuthAttemptFailureCode,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:  user,
+					Login: noMFAAccessErrTarget,
+				},
+				Status: apievents.Status{
+					Success: false,
+					Error:   fmt.Sprintf("user %s denied access to resource %s: %+v", user, noMFAAccessErrTarget, noMFAAccessErr),
+				},
+			}); err != nil {
+				log.WithError(err).Warn("Failed to emit denied resource access attempt event.")
+			}
+
 			// notFoundErr should always be set by this point, but check it
 			// just in case.
 			if notFoundErr == nil {
