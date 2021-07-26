@@ -39,7 +39,7 @@ type hsmKeyStore struct {
 	log      logrus.FieldLogger
 }
 
-func NewHSMKeyStore(config *HSMConfig) (*hsmKeyStore, error) {
+func NewHSMKeyStore(config *HSMConfig) (KeyStore, error) {
 	cryptoConfig := &crypto11.Config{
 		Path:       config.Path,
 		TokenLabel: config.TokenLabel,
