@@ -133,7 +133,7 @@ func pushCheckoutCommandsDarwin() []string {
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true`,
 		`rm -rf $WORKSPACE_DIR/.ssh`,
-		`mkdir $WORKSPACE_DIR/go/cache`,
+		`mkdir -p $WORKSPACE_DIR/go/cache`,
 	}
 }
 

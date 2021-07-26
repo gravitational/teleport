@@ -157,7 +157,7 @@ func tagPipelines() []pipeline {
 	// CentOS 6 FIPS builds have been removed in Teleport 7.0. See https://github.com/gravitational/teleport/issues/7207
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
 
-	ps = append(ps, tagDarwinPipeline())
+	ps = append(ps, tagDarwinPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline())
 	return ps
 }
 
