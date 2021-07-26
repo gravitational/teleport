@@ -1,8 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
-func darwinPkgPipeline(name string, makeTarget string) pipeline {
+func darwinPkgPipeline(name string, makeTarget string, pkgGlobs []string) pipeline {
 	p := newDarwinPipeline(name)
 	p.Trigger = triggerTag
 	p.DependsOn = []string{"build-darwin-amd64"}
@@ -47,7 +50,7 @@ func darwinPkgPipeline(name string, makeTarget string) pipeline {
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: tagCopyPkgArtifactCommandsDarwin(),
+			Commands: tagCopyPkgArtifactCommandsDarwin(pkgGlobs),
 		},
 		{
 			Name: "Upload to S3",
@@ -71,11 +74,11 @@ func darwinPkgPipeline(name string, makeTarget string) pipeline {
 }
 
 func darwinTeleportPkgPipeline() pipeline {
-	return darwinPkgPipeline("build-darwin-amd64-pkg", "pkg")
+	return darwinPkgPipeline("build-darwin-amd64-pkg", "pkg", []string{"build/teleport*.pkg", "e/build/teleport-ent*.pkg"})
 }
 
 func darwinTshPkgPipeline() pipeline {
-	return darwinPkgPipeline("build-darwin-amd64-pkg-tsh", "pkg-tsh")
+	return darwinPkgPipeline("build-darwin-amd64-pkg-tsh", "pkg-tsh", []string{"build/tsh*.pkg"})
 }
 
 func tagDownloadArtifactCommandsDarwin() []string {
@@ -104,16 +107,15 @@ func tagPackageCommandsDarwin(target string) []string {
 	}
 }
 
-func tagCopyPkgArtifactCommandsDarwin() []string {
+func tagCopyPkgArtifactCommandsDarwin(pkgGlobs []string) []string {
 	return []string{
 		`set -u`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		// delete temporary tarball artifacts so we don't re-upload them in the next stage
 		`rm -rf $WORKSPACE_DIR/go/artifacts/*.tar.gz`,
 		// copy release archives to artifact directory
-		`cp build/teleport*.pkg $WORKSPACE_DIR/go/artifacts`,
-		`cp e/build/teleport-ent*.pkg $WORKSPACE_DIR/go/artifacts`,
+		fmt.Sprintf(`cp %s $WORKSPACE_DIR/go/artifacts/`, strings.Join(pkgGlobs, " ")),
 		// generate checksums (for mac)
-		`cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l`,
+		`cd $WORKSPACE_DIR/go/artifacts && for FILE in *.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l`,
 	}
 }

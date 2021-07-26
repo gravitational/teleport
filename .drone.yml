@@ -2665,10 +2665,9 @@ steps:
   - set -u
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rm -rf $WORKSPACE_DIR/go/artifacts/*.tar.gz
-  - cp build/teleport*.pkg $WORKSPACE_DIR/go/artifacts
-  - cp e/build/teleport-ent*.pkg $WORKSPACE_DIR/go/artifacts
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256
-    $FILE > $FILE.sha256; done && ls -l
+  - cp build/teleport*.pkg e/build/teleport-ent*.pkg $WORKSPACE_DIR/go/artifacts/
+  - cd $WORKSPACE_DIR/go/artifacts && for FILE in *.pkg; do shasum -a 256 $FILE >
+    $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
 - name: Upload to S3
@@ -2803,10 +2802,9 @@ steps:
   - set -u
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rm -rf $WORKSPACE_DIR/go/artifacts/*.tar.gz
-  - cp build/teleport*.pkg $WORKSPACE_DIR/go/artifacts
-  - cp e/build/teleport-ent*.pkg $WORKSPACE_DIR/go/artifacts
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256
-    $FILE > $FILE.sha256; done && ls -l
+  - cp build/tsh*.pkg $WORKSPACE_DIR/go/artifacts/
+  - cd $WORKSPACE_DIR/go/artifacts && for FILE in *.pkg; do shasum -a 256 $FILE >
+    $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Upload to S3
@@ -4381,6 +4379,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: f56df5f46f791f840735a7b8e33fbb90898051a13cfe6e9237a4808d7e58cf95
+hmac: 85fe6fbbf3a4fbfa4a3cad0310c987503b81a1c46ca05bba450ae7ccd5d4b336
 
 ...
