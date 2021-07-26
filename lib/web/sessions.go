@@ -336,6 +336,19 @@ func (c *SessionContext) GetUserRoles() (services.RoleSet, error) {
 	return roleset, nil
 }
 
+// GetIdentity returns identity parsed from the session's TLS certificate.
+func (c *SessionContext) GetIdentity() (*tlsca.Identity, error) {
+	cert, err := c.GetX509Certificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return identity, nil
+}
+
 // GetSessionID returns the ID of the underlying user web session.
 func (c *SessionContext) GetSessionID() string {
 	return c.session.GetName()
