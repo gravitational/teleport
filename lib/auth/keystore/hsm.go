@@ -13,6 +13,7 @@ import (
 
 	"github.com/ThalesIgnite/crypto11"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 var label = []byte("teleport")
@@ -35,9 +36,10 @@ type HSMConfig struct {
 type hsmKeyStore struct {
 	ctx      *crypto11.Context
 	hostUUID string
+	log      logrus.FieldLogger
 }
 
-func NewHSMKeyStore(config *HSMConfig) (KeyStore, error) {
+func NewHSMKeyStore(config *HSMConfig) (*hsmKeyStore, error) {
 	cryptoConfig := &crypto11.Config{
 		Path:       config.Path,
 		TokenLabel: config.TokenLabel,
@@ -52,6 +54,7 @@ func NewHSMKeyStore(config *HSMConfig) (KeyStore, error) {
 	return &hsmKeyStore{
 		ctx:      ctx,
 		hostUUID: config.HostUUID,
+		log:      logrus.WithFields(logrus.Fields{trace.Component: "HSMKeyStore"}),
 	}, nil
 }
 
@@ -60,25 +63,39 @@ func NewHSMKeyStore(config *HSMConfig) (KeyStore, error) {
 // get the same crypto.Signer.
 func (c *hsmKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
 	var id uuid.UUID
-	var signer crypto.Signer
 	var err error
 
-	// Some HSMs (like YubiHSM2) will truncate the passed ID to as few as 2
-	// bytes. There's not a great way to detect this and I don't want to limit
-	// the ID to 2 bytes on all systems, so for now we will generate a few
-	// random IDs and hope to avoid a collision. Ideally Teleport should be the
-	// only thing creating keys for this token and there should only be 10 keys
-	// per HSM at a given time:
+	// Some HSMs (like YubiHSM2) will silently truncate the passed ID to as few
+	// as 2 bytes. There's not a great way to detect this and I don't want to
+	// limit the ID to 2 bytes on all systems, so for now we will generate a
+	// few random IDs and hope to avoid a collision. Ideally Teleport should be
+	// the only thing creating keys for this token and there should only be 10
+	// keys per HSM at a given time:
 	// 2(rotation phases) * (4(SSH and TLS for User and Host CA) + 1(JWT CA))
-	for iterations := 0; iterations < 16 && (err != nil || signer == nil); iterations++ {
+	maxIterations := 16
+	iterations := 0
+	for ; iterations < maxIterations; iterations++ {
 		id, err = uuid.NewRandom()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, trace.Wrap(err)
 		}
-		signer, err = c.ctx.GenerateRSAKeyPairWithLabel(id[:], label, teleport.RSAKeySize)
+		existingSigner, err := c.ctx.FindKeyPair(id[:], label)
+		// some HSMs (like YubiHSM2) will return signer == nil && err == nil if
+		// no match is found
+		if err != nil || existingSigner == nil {
+			// failed to find an existing keypair, so this ID is unique
+			break
+		} else {
+			c.log.Warn("Found CKA_ID collision while creating keypair, retrying with new ID")
+		}
 	}
-	if signer == nil {
-		return nil, nil, trace.Wrap(err, "failed to create RSA key in hsm, resources may be exhausted")
+	if iterations == maxIterations {
+		return nil, nil, trace.AlreadyExists("failed to find unused CKA_ID for HSM")
+	}
+
+	signer, err := c.ctx.GenerateRSAKeyPairWithLabel(id[:], label, teleport.RSAKeySize)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	key := keyID{
