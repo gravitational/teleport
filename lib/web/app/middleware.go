@@ -17,7 +17,6 @@ limitations under the License.
 package app
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 	"path"
@@ -77,16 +76,20 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	if p.clusterName != "" && p.publicAddr != "" {
 		urlPath = append(urlPath, p.clusterName, p.publicAddr)
 	}
-	urlQuery := ""
+
+	urlQuery := url.Values{}
 	if p.stateToken != "" {
-		urlQuery = fmt.Sprintf("state=%v", p.stateToken)
+		urlQuery.Add("state", p.stateToken)
+	}
+	if p.awsRole != "" {
+		urlQuery.Add("awsrole", p.awsRole)
 	}
 
 	u := url.URL{
 		Scheme:   "https",
 		Host:     h.c.WebPublicAddr,
 		Path:     path.Join(urlPath...),
-		RawQuery: urlQuery,
+		RawQuery: urlQuery.Encode(),
 	}
 	http.Redirect(w, r, u.String(), http.StatusFound)
 	return nil
@@ -96,6 +99,7 @@ type launcherURLParams struct {
 	clusterName string
 	publicAddr  string
 	stateToken  string
+	awsRole     string
 }
 
 // makeRouterHandler creates a httprouter.Handle.

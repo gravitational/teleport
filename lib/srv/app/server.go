@@ -79,6 +79,9 @@ type Config struct {
 
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
+
+	// Cloud provides cloud provider access related functionality.
+	Cloud Cloud
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -114,6 +117,13 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.OnHeartbeat == nil {
 		return trace.BadParameter("heartbeat missing")
+	}
+	if c.Cloud == nil {
+		cloud, err := NewCloud(CloudConfig{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Cloud = cloud
 	}
 
 	return nil
@@ -341,6 +351,23 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		return trace.Wrap(err)
 	}
 
+	// If this application is AWS management console, generate a sign-in URL
+	// and redirect the user to it.
+	if app.IsAWSConsole() {
+		s.log.Debugf("Redirecting %v to AWS mananement console with role %v.",
+			identity.Username, identity.RouteToApp.AWSRoleARN)
+		url, err := s.c.Cloud.GetAWSSigninURL(AWSSigninRequest{
+			Identity:  identity,
+			TargetURL: app.URI,
+			Issuer:    app.PublicAddr,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		http.Redirect(w, r, url.SigninURL, http.StatusFound)
+		return nil
+	}
+
 	// Fetch a cached request forwarder (or create one) that lives about 5
 	// minutes. Used to stream session chunks to the Audit Log.
 	session, err := s.getSession(r.Context(), identity, app)
@@ -384,7 +411,17 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 		Verified:       identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
-	err = authContext.Checker.CheckAccessToApp(apidefaults.Namespace, app, mfaParams)
+
+	// When accessing AWS management console, check permissions to assume
+	// requested IAM role as well.
+	var matchers []services.RoleMatcher
+	if app.IsAWSConsole() {
+		matchers = append(matchers, &services.AWSRoleARNMatcher{
+			RoleARN: identity.RouteToApp.AWSRoleARN,
+		})
+	}
+
+	err = authContext.Checker.CheckAccessToApp(apidefaults.Namespace, app, mfaParams, matchers...)
 	if err != nil {
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
