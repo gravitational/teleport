@@ -1345,6 +1345,9 @@ message RoleConditions {
     // ReviewRequests defines conditions for submitting access reviews.
     AccessReviewConditions ReviewRequests = 15
         [ (gogoproto.jsontag) = "review_requests,omitempty" ];
+
+    // AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
+    repeated string AWSRoleARNs = 16 [ (gogoproto.jsontag) = "aws_role_arns,omitempty" ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on

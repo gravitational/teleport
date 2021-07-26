@@ -21,12 +21,16 @@ import (
 	"sort"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // App describes an application
 type App struct {
 	// Name is the name of the application.
 	Name string `json:"name"`
+	// Description is the app description.
+	Description string `json:"description"`
 	// URI is the internal address the application is available at.
 	URI string `json:"uri"`
 	// PublicAddr is the public address the application is accessible at.
@@ -37,15 +41,33 @@ type App struct {
 	ClusterID string `json:"clusterId"`
 	// Labels is a map of static labels associated with an application.
 	Labels []Label `json:"labels"`
+	// AWSConsole if true, indicates that the app represents AWS management console.
+	AWSConsole bool `json:"awsConsole"`
+	// AWSRoles is a list of AWS IAM roles for the application representing AWS console.
+	AWSRoles []utils.AWSRole `json:"awsRoles,omitempty"`
+}
+
+// MakeAppsConfig contains parameters for converting apps to UI representation.
+type MakeAppsConfig struct {
+	// LocalClusterName is the name of the local cluster.
+	LocalClusterName string
+	// LocalProxyDNSName is the public hostname of the local cluster.
+	LocalProxyDNSName string
+	// AppClusterName is the name of the cluster apps reside in.
+	AppClusterName string
+	// Apps is a list of registered apps.
+	Apps []types.Server
+	// Identity is identity of the logged in user.
+	Identity *tlsca.Identity
 }
 
 // MakeApps creates server application objects
-func MakeApps(localClusterName string, localProxyDNSName string, appClusterName string, appServers []types.Server) []App {
+func MakeApps(c MakeAppsConfig) []App {
 	result := []App{}
-	for _, server := range appServers {
+	for _, server := range c.Apps {
 		teleApps := server.GetApps()
 		for _, teleApp := range teleApps {
-			fqdn := AssembleAppFQDN(localClusterName, localProxyDNSName, appClusterName, teleApp)
+			fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, teleApp)
 			labels := []Label{}
 			for name, value := range teleApp.StaticLabels {
 				labels = append(labels, Label{
@@ -56,14 +78,23 @@ func MakeApps(localClusterName string, localProxyDNSName string, appClusterName 
 
 			sort.Sort(sortedLabels(labels))
 
-			result = append(result, App{
-				Name:       teleApp.Name,
-				URI:        teleApp.URI,
-				PublicAddr: teleApp.PublicAddr,
-				Labels:     labels,
-				ClusterID:  appClusterName,
-				FQDN:       fqdn,
-			})
+			app := App{
+				Name:        teleApp.Name,
+				Description: teleApp.Description,
+				URI:         teleApp.URI,
+				PublicAddr:  teleApp.PublicAddr,
+				Labels:      labels,
+				ClusterID:   c.AppClusterName,
+				FQDN:        fqdn,
+				AWSConsole:  teleApp.IsAWSConsole(),
+			}
+
+			if teleApp.IsAWSConsole() {
+				app.AWSRoles = utils.FilterAWSRoles(c.Identity.AWSRoleARNs,
+					teleApp.GetAWSAccountID())
+			}
+
+			result = append(result, app)
 		}
 	}
 
