@@ -259,6 +259,15 @@
     "terraform": {
       "version": "0.12.0"
     },
+    "soc2": {
+      "last_report": "April 12th, 2021"
+    },
+    "cloud": {
+      "sla": {
+        "monthly_percentage": "99.5%",
+        "monthly_downtime": "3 hours 40 minutes"
+      }
+    },
     "fluentd": {
       "version": "1.12.4"
     },
