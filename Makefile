@@ -113,16 +113,11 @@ endif
 
 # Check if rust and cargo are installed before compiling
 with_roletester := no
-ifeq ("$(OS)", "windows")
-CHECK_CARGO := $(shell where cargo)
-CHECK_RUST := $(shell where rustc)
-else
-CHECK_CARGO := $(shell which cargo)
-CHECK_RUST := $(shell which rustc)
-endif
+CHECK_CARGO := $(shell cargo --version 2>/dev/null)
+CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
-ifneq (, "$(CHECK_RUST)")
-ifneq (, "$(CHECK_CARGO)")
+ifneq ($(CHECK_RUST),)
+ifneq ($(CHECK_CARGO),)
 with_roletester := yes
 ROLETESTER_TAG := roletester
 ROLETESTER_BUILDDIR := lib/datalog/roletester/Cargo.toml
@@ -618,6 +613,10 @@ buildbox-grpc:
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
 	  --gogofast_out=plugins=grpc:.\
     *.proto
+
+	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
+	  --gogofast_out=plugins=grpc:.\
+    types.proto
 
 .PHONY: goinstall
 goinstall:

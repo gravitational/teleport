@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gravitational/kingpin"
@@ -39,6 +40,11 @@ type AccessCommand struct {
 	accessList *kingpin.CmdClause
 }
 
+const (
+	denyNullString   = "No denied access found.\n"
+	accessNullString = "No access found.\n"
+)
+
 // Initialize allows AccessCommand to plug itself into the CLI parser
 func (c *AccessCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
@@ -53,14 +59,30 @@ func (c *AccessCommand) Initialize(app *kingpin.Application, config *service.Con
 
 // TryRun attempts to run subcommands like "access ls".
 func (c *AccessCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+
+	ctx := context.TODO()
 	switch cmd {
 	case c.accessList.FullCommand():
 		access := datalog.NodeAccessRequest{Username: c.user, Login: c.login, Node: c.node, Namespace: c.namespace}
-		resp, err := access.QueryAccess(client)
+		resp, err := datalog.QueryNodeAccess(ctx, client, access)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		fmt.Println(resp.BuildStringOutput())
+		accessTable, denyTable, accessLen, denyLen := resp.ToTable()
+		var denyOutputString string
+		if denyLen == 0 {
+			denyOutputString = denyNullString
+		} else {
+			denyOutputString = denyTable.AsBuffer().String()
+		}
+
+		var accessOutputString string
+		if accessLen == 0 {
+			accessOutputString = accessNullString
+		} else {
+			accessOutputString = accessTable.AsBuffer().String()
+		}
+		fmt.Println(accessOutputString + "\n" + denyOutputString)
 	default:
 		return false, nil
 	}

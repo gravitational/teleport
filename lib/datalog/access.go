@@ -20,33 +20,25 @@ package datalog
 
 // #cgo LDFLAGS: -Lroletester/target/release -lrole_tester
 // #include <stdio.h>
-// extern char * process_access(const char *str);
+// #include <stdlib.h>
+// extern int process_access(unsigned char *f, unsigned char *res, size_t input_len, size_t output_len);
+// extern void deallocate_rust_buffer(unsigned char *res, size_t len);
 import "C"
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"sort"
 	"strings"
+	"unsafe"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/trace"
 )
-
-// Predicate struct defines a datalog fact with a variable number of atoms.
-type Predicate struct {
-	Atoms []uint32
-}
-
-// EDB (extensional database) types holds the already known facts.
-type EDB map[string][]Predicate
-
-// IDB (intensional database) type holds the interpreted facts from rules.
-type IDB map[string][]Predicate
 
 // NodeAccessRequest defines a request for access for a specific user, login, and node.
 type NodeAccessRequest struct {
@@ -56,58 +48,43 @@ type NodeAccessRequest struct {
 	Namespace string
 }
 
-// AccessResponse defines all interpreted facts from rules.
-type AccessResponse struct {
-	Accesses        IDB
-	facts           EDB
+// NodeAccessResponse defines all interpreted facts from the input facts.
+type NodeAccessResponse struct {
+	Accesses        Facts
+	facts           Facts
 	mappings        map[string]uint32
 	reverseMappings map[uint32]string
+	errorStrings    map[int]string
 }
 
 const (
 	loginTraitHash = 0
 	keyJoin        = "_"
-
-	hasRole             = "has_role"
-	hasTrait            = "has_trait"
-	roleAllowsLogin     = "role_allows_login"
-	roleDeniesLogin     = "role_denies_login"
-	roleAllowsNodeLabel = "role_allows_node_label"
-	roleDeniesNodeLabel = "role_denies_node_label"
-	nodeHasLabel        = "node_has_label"
-
-	accesses     = "accesses"
-	denyAccesses = "deny_accesses"
-	denyLogins   = "deny_logins"
-
-	denyNullString   = "No denied accesses found.\n"
-	accessNullString = "No accesses found.\n"
-
-	userIndex  = 0
-	loginIndex = 1
-	nodeIndex  = 2
-	roleIndex  = 3
+	userIndex      = 0
+	loginIndex     = 1
+	nodeIndex      = 2
+	roleIndex      = 3
 )
 
-// QueryAccess returns a list of accesses to Teleport.
-func (c *NodeAccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, error) {
-	resp := AccessResponse{make(IDB), make(EDB), make(map[string]uint32), make(map[uint32]string)}
-	ctx := context.TODO()
+// QueryNodeAccess returns a list of accesses to Teleport.
+func QueryNodeAccess(ctx context.Context, client auth.ClientI, req NodeAccessRequest) (*NodeAccessResponse, error) {
+	resp := NewNodeAccessResponse()
 	resp.addToMap(types.Wildcard)
 
-	if c.Username != "" {
-		u, err := client.GetUser(c.Username, false)
+	// Since we can filter on specific usernames, this conditional will only retrieve and build the facts for the required user(s).
+	if req.Username != "" {
+		u, err := client.GetUser(req.Username, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		resp.createUserPredicates(u, c.Login)
+		resp.createUserPredicates(u, req.Login)
 	} else {
 		us, err := client.GetUsers(false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		for _, u := range us {
-			resp.createUserPredicates(u, c.Login)
+			resp.createUserPredicates(u, req.Login)
 		}
 	}
 
@@ -119,53 +96,69 @@ func (c *NodeAccessRequest) QueryAccess(client auth.ClientI) (*AccessResponse, e
 		resp.createRolePredicates(r)
 	}
 
-	ns, err := client.GetNodes(ctx, c.Namespace)
+	ns, err := client.GetNodes(ctx, req.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	for _, n := range ns {
-		if len(c.Node) == 0 || n.GetHostname() == c.Node {
+		if len(req.Node) == 0 || n.GetHostname() == req.Node {
 			resp.createNodePredicates(n)
 		}
 	}
 
-	b, err := json.Marshal(resp.facts)
+	b, err := resp.facts.Marshal()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = json.Unmarshal([]byte(C.GoString(C.process_access(C.CString(string(b))))), &resp.Accesses)
+	ptr := (*C.uchar)(C.CBytes(b))
+	defer C.free(unsafe.Pointer(ptr))
+	res := (*C.uchar)(C.CBytes(make([]byte, len(b))))
+	l := C.process_access(ptr, res, C.size_t(len(b)), C.size_t(len(b)))
+	if int(l) < 0 {
+		return nil, trace.Wrap(fmt.Errorf(resp.errorStrings[int(l)]))
+	}
+
+	// Couldn't write to result since there is not enough memory allocated
+	if int(l) > len(b) {
+		res = (*C.uchar)(C.CBytes(make([]byte, l)))
+		l = C.process_access(ptr, res, C.size_t(len(b)), C.size_t(l))
+		if int(l) < 0 {
+			return nil, trace.Wrap(fmt.Errorf(resp.errorStrings[int(l)]))
+		}
+	}
+	C.deallocate_rust_buffer(res, C.size_t(l))
+	defer C.free(unsafe.Pointer(res))
+
+	err = proto.Unmarshal(C.GoBytes(unsafe.Pointer(res), C.int(l)), &resp.Accesses)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	resp.Accesses = cleanOutput(resp.Accesses, resp.reverseMappings)
-	resp.Accesses = filterByLogin(resp.Accesses, resp.reverseMappings, c.Login)
+	resp.Accesses = filterByLogin(resp.Accesses, resp.reverseMappings, req.Login)
 	return &resp, nil
 }
 
-func (r *AccessResponse) addPredicate(key string, atoms ...interface{}) {
-	var mappedAtoms []uint32
-	for _, atom := range atoms {
-		id, ok := atom.(int)
-		if ok {
-			mappedAtoms = append(mappedAtoms, uint32(id))
-			continue
-		}
-		val, ok := atom.(string)
-		if !ok {
-			// Invalid type, we can just skip this predicate.
-			return
-		}
-		loginNum := r.mappings[val]
-		if val == teleport.TraitInternalLoginsVariable {
-			loginNum = loginTraitHash
-		}
-		mappedAtoms = append(mappedAtoms, loginNum)
-	}
-	r.facts[key] = append(r.facts[key], Predicate{mappedAtoms})
+func NewNodeAccessResponse() NodeAccessResponse {
+	resp := NodeAccessResponse{Facts{}, Facts{}, make(map[string]uint32), make(map[uint32]string), map[int]string{
+		-1: "Invalid input.",
+		-2: "Invalid output generation.",
+	}}
+	return resp
 }
 
-func (r *AccessResponse) addToMap(value string) {
+func (r *NodeAccessResponse) addPredicate(key Facts_PredicateType, atoms []uint32) {
+	r.facts.Predicates = append(r.facts.Predicates, &Facts_Predicate{Atoms: atoms, Name: key})
+}
+
+func (r *NodeAccessResponse) addToMap(value string) {
+	// TraitInternalLoginsVariable represents a login string that isn't the literal login that is used.
+	// Rather, this string is used to identify the specific trait that the user has, which is "logins".
+	// We assign the loginTraitHash constant so that the datalog interpreter knows which trait this is.
+	// The datalog interpreter is set up this way so we can reuse the HasTrait fact for other traits in the future.
+	if value == teleport.TraitInternalLoginsVariable {
+		return
+	}
 	if _, exists := r.mappings[value]; exists {
 		return
 	}
@@ -177,7 +170,7 @@ func (r *AccessResponse) addToMap(value string) {
 	r.mappings[value] = h
 }
 
-func (r *AccessResponse) createUserMapping(user types.User) {
+func (r *NodeAccessResponse) createUserMapping(user types.User) {
 	r.addToMap(user.GetName())
 	for _, login := range user.GetTraits()[teleport.TraitLogins] {
 		r.addToMap(login)
@@ -187,7 +180,7 @@ func (r *AccessResponse) createUserMapping(user types.User) {
 	}
 }
 
-func (r *AccessResponse) createRoleMapping(role types.Role) {
+func (r *NodeAccessResponse) createRoleMapping(role types.Role) {
 	r.addToMap(role.GetName())
 	for _, login := range append(role.GetLogins(types.Allow), role.GetLogins(types.Deny)...) {
 		r.addToMap(login)
@@ -206,7 +199,7 @@ func (r *AccessResponse) createRoleMapping(role types.Role) {
 	}
 }
 
-func (r *AccessResponse) createNodeMapping(node types.Server) {
+func (r *NodeAccessResponse) createNodeMapping(node types.Server) {
 	r.addToMap(node.GetHostname())
 	for key, value := range node.GetAllLabels() {
 		r.addToMap(key)
@@ -214,61 +207,52 @@ func (r *AccessResponse) createNodeMapping(node types.Server) {
 	}
 }
 
-func (r *AccessResponse) createUserPredicates(user types.User, login string) {
+func (r *NodeAccessResponse) createUserPredicates(user types.User, login string) {
 	r.createUserMapping(user)
 	for _, role := range user.GetRoles() {
-		r.addPredicate(hasRole, user.GetName(), role)
+		r.addPredicate(Facts_HASROLE, []uint32{r.mappings[user.GetName()], r.mappings[role]})
 	}
 	for _, trait := range user.GetTraits()[teleport.TraitLogins] {
-		r.addPredicate(hasTrait, user.GetName(), loginTraitHash, trait)
+		r.addPredicate(Facts_HASTRAIT, []uint32{r.mappings[user.GetName()], loginTraitHash, r.mappings[trait]})
 	}
 }
 
-func (r *AccessResponse) createRolePredicates(role types.Role) {
+func (r *NodeAccessResponse) createRolePredicates(role types.Role) {
 	r.createRoleMapping(role)
 	for _, login := range role.GetLogins(types.Allow) {
-		r.addPredicate(roleAllowsLogin, role.GetName(), login)
+		r.addPredicate(Facts_ROLEALLOWSLOGIN, []uint32{r.mappings[role.GetName()], r.mappings[login]})
 	}
 	for _, login := range role.GetLogins(types.Deny) {
-		r.addPredicate(roleDeniesLogin, role.GetName(), login)
+		r.addPredicate(Facts_ROLEDENIESLOGIN, []uint32{r.mappings[role.GetName()], r.mappings[login]})
 	}
 	for key, values := range role.GetNodeLabels(types.Allow) {
 		for _, value := range values {
-			r.addPredicate(roleAllowsNodeLabel, role.GetName(), key, value)
+			r.addPredicate(Facts_ROLEALLOWSNODELABEL, []uint32{r.mappings[role.GetName()], r.mappings[key], r.mappings[value]})
 		}
 	}
 	for key, values := range role.GetNodeLabels(types.Deny) {
 		for _, value := range values {
-			r.addPredicate(roleDeniesNodeLabel, role.GetName(), key, value)
+			r.addPredicate(Facts_ROLEDENIESNODELABEL, []uint32{r.mappings[role.GetName()], r.mappings[key], r.mappings[value]})
 		}
 	}
 }
 
-func (r *AccessResponse) createNodePredicates(node types.Server) {
+func (r *NodeAccessResponse) createNodePredicates(node types.Server) {
 	r.createNodeMapping(node)
 	for key, value := range node.GetAllLabels() {
-		r.addPredicate(nodeHasLabel, node.GetHostname(), key, value)
+		r.addPredicate(Facts_NODEHASLABEL, []uint32{r.mappings[node.GetHostname()], r.mappings[key], r.mappings[value]})
 	}
-	r.addPredicate(nodeHasLabel, node.GetHostname(), types.Wildcard, types.Wildcard)
+	// This needs to be added to account for any roles that allow to all nodes with the wildcard label.
+	// Serves as a bandaid fix before regex implementation.
+	r.addPredicate(Facts_NODEHASLABEL, []uint32{r.mappings[node.GetHostname()], r.mappings[types.Wildcard], r.mappings[types.Wildcard]})
 }
 
-func (r *AccessResponse) generateAtomStrings(key string) [][]string {
-	var ret [][]string
-	for _, pred := range r.Accesses[key] {
-		var atoms []string
-		for _, atom := range pred.Atoms {
-			atoms = append(atoms, r.reverseMappings[atom])
-		}
-		ret = append(ret, atoms)
-	}
-	return ret
-}
-
-// BuildStringOutput creates the UI for displaying access responses.
-func (r *AccessResponse) BuildStringOutput() string {
+// ToTable builds the data structure used to output accesses
+func (r *NodeAccessResponse) ToTable() (asciitable.Table, asciitable.Table, int, int) {
+	accessMap := generatePredicateMap(r.Accesses)
 	accessTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
 	allowingRoles := make(map[string][]string)
-	accessStrings := r.generateAtomStrings(accesses)
+	accessStrings := generateAtomStrings(accessMap, Facts_HASACCESS.String(), r.reverseMappings)
 	for _, atoms := range accessStrings {
 		key := createDupMapKey(atoms[:roleIndex])
 		allowingRoles[key] = append(
@@ -283,8 +267,8 @@ func (r *AccessResponse) BuildStringOutput() string {
 
 	denyTable := asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
 	deniedLogins := make(map[string][]string)
-	denyStrings := r.generateAtomStrings(denyAccesses)
-	for _, atoms := range r.generateAtomStrings(denyLogins) {
+	denyStrings := generateAtomStrings(accessMap, Facts_DENYACCESS.String(), r.reverseMappings)
+	for _, atoms := range generateAtomStrings(accessMap, Facts_DENYLOGINS.String(), r.reverseMappings) {
 		atomList := append(atoms[:nodeIndex], atoms[loginIndex:]...)
 		atomList[nodeIndex] = types.Wildcard
 		denyStrings = append(denyStrings, atomList)
@@ -303,41 +287,50 @@ func (r *AccessResponse) BuildStringOutput() string {
 		atomList[loginIndex] = strings.Join(deniedLogins[key], ", ")
 		denyTable.AddRow(atomList)
 	}
-
-	denyOutputString := generateTableString(len(denyStrings) == 0 && len(r.Accesses[denyLogins]) == 0, denyTable, denyNullString)
-	accessOutputString := generateTableString(len(accessStrings) == 0, accessTable, accessNullString)
-	return accessOutputString + "\n" + denyOutputString
+	return accessTable, denyTable, len(accessStrings), len(denyStrings) + len(accessMap[Facts_DENYLOGINS.String()])
 }
 
-func cleanOutput(accesses IDB, reverse map[uint32]string) IDB {
-	ret := make(IDB)
-	for key, preds := range accesses {
-		var cleaned []Predicate
-		for _, pred := range preds {
-			if _, exists := reverse[pred.Atoms[loginIndex]]; !exists {
-				continue
-			}
-			cleaned = append(cleaned, pred)
+func cleanOutput(accesses Facts, reverse map[uint32]string) Facts {
+	ret := Facts{}
+	for _, pred := range accesses.Predicates {
+		if _, exists := reverse[pred.Atoms[loginIndex]]; !exists {
+			continue
 		}
-		ret[key] = cleaned
+		ret.Predicates = append(ret.Predicates, pred)
 	}
 	return ret
 }
 
-func filterByLogin(accesses IDB, reverse map[uint32]string, login string) IDB {
+func filterByLogin(accesses Facts, reverse map[uint32]string, login string) Facts {
 	if login == "" {
 		return accesses
 	}
-	ret := make(IDB)
-	for key, preds := range accesses {
-		var filtered []Predicate
-		for _, pred := range preds {
-			if reverse[pred.Atoms[loginIndex]] != login {
-				continue
-			}
-			filtered = append(filtered, pred)
+	ret := Facts{}
+	for _, pred := range accesses.Predicates {
+		if reverse[pred.Atoms[loginIndex]] != login {
+			continue
 		}
-		ret[key] = filtered
+		ret.Predicates = append(ret.Predicates, pred)
+	}
+	return ret
+}
+
+func generatePredicateMap(accesses Facts) map[string][]*Facts_Predicate {
+	ret := make(map[string][]*Facts_Predicate)
+	for _, pred := range accesses.Predicates {
+		ret[pred.Name.String()] = append(ret[pred.Name.String()], pred)
+	}
+	return ret
+}
+
+func generateAtomStrings(accesses map[string][]*Facts_Predicate, key string, reverse map[uint32]string) [][]string {
+	var ret [][]string
+	for _, pred := range accesses[key] {
+		var atoms []string
+		for _, atom := range pred.Atoms {
+			atoms = append(atoms, reverse[atom])
+		}
+		ret = append(ret, atoms)
 	}
 	return ret
 }
@@ -355,13 +348,6 @@ func remove(atoms []string, idx int) []string {
 
 func createDupMapKey(atoms []string) string {
 	return strings.Join(atoms, keyJoin)
-}
-
-func generateTableString(condition bool, table asciitable.Table, nullString string) string {
-	if condition {
-		return nullString
-	}
-	return table.AsBuffer().String()
 }
 
 func sortKeys(mapping map[string][]string) []string {

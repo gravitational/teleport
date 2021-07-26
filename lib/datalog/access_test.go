@@ -41,6 +41,11 @@ type mockClient struct {
 	nodes []types.Server
 }
 
+const (
+	denyNullString   = "No denied access found.\n"
+	accessNullString = "No access found.\n"
+)
+
 func (c mockClient) GetUser(name string, withSecrets bool) (types.User, error) {
 	for _, user := range c.users {
 		if user.GetName() == name {
@@ -111,6 +116,24 @@ func createNode(name string, kind string, hostname string, labels map[string]str
 		return nil, trace.Wrap(err)
 	}
 	return node, nil
+}
+
+func tableToString(resp *NodeAccessResponse) string {
+	accessTable, denyTable, accessLen, denyLen := resp.ToTable()
+	var denyOutputString string
+	if denyLen == 0 {
+		denyOutputString = denyNullString
+	} else {
+		denyOutputString = denyTable.AsBuffer().String()
+	}
+
+	var accessOutputString string
+	if accessLen == 0 {
+		accessOutputString = accessNullString
+	} else {
+		accessOutputString = accessTable.AsBuffer().String()
+	}
+	return accessOutputString + "\n" + denyOutputString
 }
 
 func (s *AccessTestSuite) SetUpSuite(c *check.C) {
@@ -223,7 +246,8 @@ func (s *AccessTestSuite) SetUpSuite(c *check.C) {
 // TestAccessDeduction checks if all the deduced access facts are correct.
 func (s *AccessTestSuite) TestAccessDeduction(c *check.C) {
 	access := NodeAccessRequest{}
-	resp, err := access.QueryAccess(s.client)
+	ctx := context.TODO()
+	resp, err := QueryNodeAccess(ctx, s.client, access)
 	c.Assert(err, check.IsNil)
 	accessTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
 	denyTable := asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
@@ -260,13 +284,14 @@ func (s *AccessTestSuite) TestAccessDeduction(c *check.C) {
 	for _, row := range denyTestOutput {
 		denyTable.AddRow(row)
 	}
-	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, tableToString(resp))
 }
 
 // TestNoAccesses tests the output is correct when there are no access facts.
 func (s *AccessTestSuite) TestNoAccesses(c *check.C) {
 	access := NodeAccessRequest{}
-	resp, err := access.QueryAccess(s.emptyAccesses)
+	ctx := context.TODO()
+	resp, err := QueryNodeAccess(ctx, s.emptyAccesses, access)
 	c.Assert(err, check.IsNil)
 	denyTable := asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
 	denyTestOutput := [][]string{
@@ -276,13 +301,14 @@ func (s *AccessTestSuite) TestNoAccesses(c *check.C) {
 	for _, row := range denyTestOutput {
 		denyTable.AddRow(row)
 	}
-	c.Assert(accessNullString+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+	c.Assert(accessNullString+"\n"+denyTable.AsBuffer().String(), check.Equals, tableToString(resp))
 }
 
 // TestNoDeniedAccesses tests the output is correct when there are no denied access facts.
 func (s *AccessTestSuite) TestNoDeniedAccesses(c *check.C) {
 	access := NodeAccessRequest{}
-	resp, err := access.QueryAccess(s.emptyDenies)
+	ctx := context.TODO()
+	resp, err := QueryNodeAccess(ctx, s.emptyDenies, access)
 	c.Assert(err, check.IsNil)
 	accessTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
 	accessTestOutput := [][]string{
@@ -302,22 +328,24 @@ func (s *AccessTestSuite) TestNoDeniedAccesses(c *check.C) {
 	for _, row := range accessTestOutput {
 		accessTable.AddRow(row)
 	}
-	c.Assert(accessTable.AsBuffer().String()+"\n"+denyNullString, check.Equals, resp.BuildStringOutput())
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyNullString, check.Equals, tableToString(resp))
 }
 
 // TestEmptyResults tests the output is correct when there are no facts.
 func (s *AccessTestSuite) TestEmptyResults(c *check.C) {
 	// No results
+	ctx := context.TODO()
 	access := NodeAccessRequest{}
-	resp, err := access.QueryAccess(s.empty)
+	resp, err := QueryNodeAccess(ctx, s.empty, access)
 	c.Assert(err, check.IsNil)
-	c.Assert(accessNullString+"\n"+denyNullString, check.Equals, resp.BuildStringOutput())
+	c.Assert(accessNullString+"\n"+denyNullString, check.Equals, tableToString(resp))
 }
 
 // TestFiltering checks if all the deduced access facts are correct.
 func (s *AccessTestSuite) TestFiltering(c *check.C) {
+	ctx := context.TODO()
 	access := NodeAccessRequest{Username: "julia", Login: "auditor", Node: "secret.example.com"}
-	resp, err := access.QueryAccess(s.client)
+	resp, err := QueryNodeAccess(ctx, s.client, access)
 	c.Assert(err, check.IsNil)
 	accessTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
 	denyTable := asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
@@ -327,20 +355,21 @@ func (s *AccessTestSuite) TestFiltering(c *check.C) {
 	for _, row := range accessTestOutput {
 		accessTable.AddRow(row)
 	}
-	c.Assert(accessTable.AsBuffer().String()+"\n"+denyNullString, check.Equals, resp.BuildStringOutput())
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyNullString, check.Equals, tableToString(resp))
 
 	access = NodeAccessRequest{Username: "julia", Login: "julia", Node: "secret.example.com"}
-	resp, err = access.QueryAccess(s.client)
+	resp, err = QueryNodeAccess(ctx, s.client, access)
 	denyTestOutput := [][]string{
 		{"julia", "julia", types.Wildcard, "auditor"},
 	}
 	for _, row := range denyTestOutput {
 		denyTable.AddRow(row)
 	}
-	c.Assert(accessNullString+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+	c.Assert(accessNullString+"\n"+denyTable.AsBuffer().String(), check.Equals, tableToString(resp))
 
 	access = NodeAccessRequest{Login: "joe"}
-	resp, err = access.QueryAccess(s.client)
+	resp, err = QueryNodeAccess(ctx, s.client, access)
+	c.Assert(err, check.IsNil)
 	accessTable = asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
 	denyTable = asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
 	accessTestOutput = [][]string{
@@ -356,10 +385,11 @@ func (s *AccessTestSuite) TestFiltering(c *check.C) {
 	for _, row := range denyTestOutput {
 		denyTable.AddRow(row)
 	}
-	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, tableToString(resp))
 
 	access = NodeAccessRequest{Node: "test.example.com"}
-	resp, err = access.QueryAccess(s.client)
+	resp, err = QueryNodeAccess(ctx, s.client, access)
+	c.Assert(err, check.IsNil)
 	accessTable = asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
 	denyTable = asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
 	accessTestOutput = [][]string{
@@ -382,10 +412,11 @@ func (s *AccessTestSuite) TestFiltering(c *check.C) {
 	for _, row := range denyTestOutput {
 		denyTable.AddRow(row)
 	}
-	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, tableToString(resp))
 
 	access = NodeAccessRequest{Username: "joe"}
-	resp, err = access.QueryAccess(s.client)
+	resp, err = QueryNodeAccess(ctx, s.client, access)
+	c.Assert(err, check.IsNil)
 	accessTable = asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
 	denyTable = asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
 	accessTestOutput = [][]string{
@@ -403,12 +434,12 @@ func (s *AccessTestSuite) TestFiltering(c *check.C) {
 	for _, row := range denyTestOutput {
 		denyTable.AddRow(row)
 	}
-	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, resp.BuildStringOutput())
+	c.Assert(accessTable.AsBuffer().String()+"\n"+denyTable.AsBuffer().String(), check.Equals, tableToString(resp))
 }
 
 // TestMappings checks if all required string values are mapped to integer hashes.
 func (s *AccessTestSuite) TestMappings(c *check.C) {
-	resp := AccessResponse{make(IDB), make(EDB), make(map[string]uint32), make(map[uint32]string)}
+	resp := NewNodeAccessResponse()
 	resp.createUserMapping(s.testUser)
 	resp.createRoleMapping(s.testRole)
 	resp.createNodeMapping(s.testNode)
@@ -459,12 +490,13 @@ func (s *AccessTestSuite) TestMappings(c *check.C) {
 // TestPredicates checks if all required predicates are created correctly with the right hashes.
 func (s *AccessTestSuite) TestPredicates(c *check.C) {
 	// Test user predicates
-	resp := AccessResponse{make(IDB), make(EDB), make(map[string]uint32), make(map[uint32]string)}
+	resp := NewNodeAccessResponse()
 	resp.createUserPredicates(s.testUser, "")
 	resp.createRolePredicates(s.testRole)
 	resp.createNodePredicates(s.testNode)
 	roleCountMap := make(map[string]bool)
-	for _, pred := range resp.facts[hasRole] {
+	factsMap := generatePredicateMap(resp.facts)
+	for _, pred := range factsMap[Facts_HASROLE.String()] {
 		require.Equal(c, resp.reverseMappings[pred.Atoms[0]], s.testUser.GetName())
 		require.Contains(c, s.testUser.GetRoles(), resp.reverseMappings[pred.Atoms[1]])
 		roleCountMap[resp.reverseMappings[pred.Atoms[1]]] = true
@@ -472,7 +504,7 @@ func (s *AccessTestSuite) TestPredicates(c *check.C) {
 	require.Equal(c, len(s.testUser.GetRoles()), len(roleCountMap))
 
 	traitCountMap := make(map[string]bool)
-	for _, pred := range resp.facts[hasTrait] {
+	for _, pred := range factsMap[Facts_HASTRAIT.String()] {
 		if pred.Atoms[1] != loginTraitHash {
 			continue
 		}
@@ -486,7 +518,7 @@ func (s *AccessTestSuite) TestPredicates(c *check.C) {
 	loginCountMap := make(map[string]bool)
 	allLogins := append(s.testRole.GetLogins(types.Allow), s.testRole.GetLogins(types.Deny)...)
 	allLogins = append(allLogins, "")
-	for _, pred := range append(resp.facts[roleAllowsLogin], resp.facts[roleDeniesLogin]...) {
+	for _, pred := range append(factsMap[Facts_ROLEALLOWSLOGIN.String()], factsMap[Facts_ROLEDENIESLOGIN.String()]...) {
 		require.Equal(c, resp.reverseMappings[pred.Atoms[0]], s.testRole.GetName())
 		require.Contains(c, allLogins, resp.reverseMappings[pred.Atoms[1]])
 		loginCountMap[resp.reverseMappings[pred.Atoms[1]]] = true
@@ -500,15 +532,15 @@ func (s *AccessTestSuite) TestPredicates(c *check.C) {
 			allLabels[key] = append(allLabels[key], value)
 		}
 	}
-	for _, pred := range resp.facts[roleAllowsNodeLabel] {
+	for _, pred := range factsMap[Facts_ROLEALLOWSNODELABEL.String()] {
 		require.Contains(c, allLabels[resp.reverseMappings[pred.Atoms[1]]], resp.reverseMappings[pred.Atoms[2]])
 	}
-	for _, pred := range resp.facts[roleDeniesNodeLabel] {
+	for _, pred := range factsMap[Facts_ROLEDENIESNODELABEL.String()] {
 		require.Contains(c, allLabels[resp.reverseMappings[pred.Atoms[1]]], resp.reverseMappings[pred.Atoms[2]])
 	}
 
 	// Test node labels
-	for _, pred := range resp.facts[nodeHasLabel] {
+	for _, pred := range factsMap[Facts_NODEHASLABEL.String()] {
 		require.Equal(c, s.testNode.GetAllLabels()[resp.reverseMappings[pred.Atoms[1]]], resp.reverseMappings[pred.Atoms[2]])
 	}
 }

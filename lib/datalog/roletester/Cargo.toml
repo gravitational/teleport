@@ -8,11 +8,11 @@ edition = "2018"
 path = "src/role_tester.rs"
 crate-type = ["dylib"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 crepe = "0.1.5"
 libc = "0.2.0"
-serde = { version = "1.0.126", features = ["derive"] }
-serde_json = "1.0.64"
-phf = "0.8.0"
+prost = "0.8"
+bytes = "1"
+
+[build-dependencies]
+prost-build = { version = "0.8" }

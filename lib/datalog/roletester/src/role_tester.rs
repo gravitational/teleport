@@ -1,11 +1,19 @@
-extern crate libc;
+use libc::{size_t, c_uchar};
 use crepe::crepe;
-use libc::c_char;
-use std::ffi::CString;
-use std::ffi::CStr;
-use serde::{Deserialize, Serialize};
+use prost::Message;
+use bytes::BytesMut;
+use std::{ptr, slice};
 
-static LOGIN_TRAIT_HASH: u32 = 0;
+pub mod types {
+    include!(concat!(env!("OUT_DIR"), "/types.rs"));
+}
+
+// Login trait hash is the value for all login traits, equal to the Go library's definition.
+const LOGIN_TRAIT_HASH: u32 = 0;
+enum Errors {
+    InvalidInputError = -1,
+    InvalidOutputError = -2,
+}
 
 crepe! {
     // Input from EDB
@@ -58,105 +66,71 @@ crepe! {
     DenyLogins(user, login, role) <- HasDeniedLogin(user, login, role);
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct Predicate {
-    atoms: Vec<u32>
-}
+#[no_mangle]
+pub extern "C" fn process_access(input: *mut c_uchar, output: *mut c_uchar, input_len: size_t, output_len: size_t) -> i32 {
+    let mut runtime = Crepe::new();
+    let b = unsafe { slice::from_raw_parts_mut(input, input_len) };
+    let r = match types::Facts::decode(BytesMut::from(&b[..])) {
+        Ok(b) => b,
+        Err(_e) => return Errors::InvalidInputError as i32
+    };
 
-#[derive(Serialize, Deserialize)]
-struct EDB {
-    has_role: Option<Vec<Predicate>>,
-	has_trait: Option<Vec<Predicate>>,
-	has_login_trait: Option<Vec<Predicate>>,
-	role_allows_login: Option<Vec<Predicate>>,
-	role_denies_login: Option<Vec<Predicate>>,
-	role_allows_node_label: Option<Vec<Predicate>>,
-	role_denies_node_label: Option<Vec<Predicate>>,
-	node_has_label: Option<Vec<Predicate>>,
-}
+    for pred in &r.predicates {
+        if pred.name == types::facts::PredicateType::Hasrole as i32 {
+            runtime.extend(&[HasRole(pred.atoms[0], pred.atoms[1])]);
+        } else if pred.name == types::facts::PredicateType::Hastrait as i32 {
+            runtime.extend(&[HasTrait(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
+        } else if pred.name == types::facts::PredicateType::Roleallowslogin as i32 {
+            runtime.extend(&[RoleAllowsLogin(pred.atoms[0], pred.atoms[1])]);
+        } else if pred.name == types::facts::PredicateType::Roledenieslogin as i32 {
+            runtime.extend(&[RoleDeniesLogin(pred.atoms[0], pred.atoms[1])]);
+        } else if pred.name == types::facts::PredicateType::Roleallowsnodelabel as i32 {
+            runtime.extend(&[RoleAllowsNodeLabel(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
+        } else if pred.name == types::facts::PredicateType::Roledeniesnodelabel as i32 {
+            runtime.extend(&[RoleDeniesNodeLabel(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
+        } else if pred.name == types::facts::PredicateType::Nodehaslabel as i32 {
+            runtime.extend(&[NodeHasLabel(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
+        } else {
+            return Errors::InvalidInputError as i32;
+        }
+    }
 
-#[derive(Serialize, Deserialize)]
-struct IDB {
-    accesses: Vec<Predicate>,
-    deny_accesses: Vec<Predicate>,
-    deny_logins: Vec<Predicate>
+    let (accesses, deny_accesses, deny_logins) = runtime.run();
+    let mut predicates = vec![];
+    predicates.extend::<Vec<_>>(accesses.into_iter().map(|HasAccess(a, b, c, d)| types::facts::Predicate{
+        name: types::facts::PredicateType::Hasaccess as i32,
+        atoms: vec![a, b, c, d],
+    }).collect());
+    predicates.extend::<Vec<_>>(deny_accesses.into_iter().map(|DenyAccess(a, b, c, d)| types::facts::Predicate{
+        name: types::facts::PredicateType::Denyaccess as i32,
+        atoms: vec![a, b, c, d],
+    }).collect());
+    predicates.extend::<Vec<_>>(deny_logins.into_iter().map(|DenyLogins(a, b, c)| types::facts::Predicate{
+        name: types::facts::PredicateType::Denylogins as i32,
+        atoms: vec![a, b, c],
+    }).collect());
+
+    let idb = types::Facts {
+        predicates: predicates
+    };
+
+    let mut buf = Vec::with_capacity(idb.encoded_len());
+    match idb.encode(&mut buf) {
+        Ok(_) => (),
+        Err(_e) => return Errors::InvalidOutputError as i32,
+    };
+    unsafe {
+        if buf.len() == 0 || buf.len() > output_len {
+            return buf.len() as i32
+        }
+        ptr::copy_nonoverlapping(&(*buf)[0], output, buf.len());
+    }
+
+    buf.len() as i32
 }
 
 #[no_mangle]
-pub extern "C" fn process_access(s: *const c_char) -> *mut c_char {
-    let mut runtime = Crepe::new();
-    let c_str = unsafe {
-        assert!(!s.is_null());
-        CStr::from_ptr(s)
-    };
-    let r_str = c_str.to_str().unwrap();
-    let edb: EDB = serde_json::from_str(r_str).unwrap();
-    
-    match edb.has_role {
-        Some(x) => {
-            x.into_iter()
-             .for_each(|Predicate{atoms}| runtime.extend(&[HasRole(atoms[0], atoms[1])]));
-        },
-        None => {}
-    }
-
-    match edb.has_trait {
-        Some(x) => {
-            x.into_iter()
-             .for_each(|Predicate{atoms}| runtime.extend(&[HasTrait(atoms[0], atoms[1], atoms[2])]));
-        },
-        None => {}
-    }
-    
-    match edb.role_allows_login {
-        Some(x) => {
-            x.into_iter()
-             .for_each(|Predicate{atoms}| runtime.extend(&[RoleAllowsLogin(atoms[0], atoms[1])]));
-        },
-        None => {}
-    }
-
-    match edb.role_denies_login {
-        Some(x) => {
-            x.into_iter()
-             .for_each(|Predicate{atoms}| runtime.extend(&[RoleDeniesLogin(atoms[0], atoms[1])]));
-        },
-        None => {}
-    }
-
-    match edb.role_allows_node_label {
-        Some(x) => {
-            x.into_iter()
-             .for_each(|Predicate{atoms}| runtime.extend(&[RoleAllowsNodeLabel(atoms[0], atoms[1], atoms[2])]));
-        },
-        None => {}
-    }
-
-    match edb.role_denies_node_label {
-        Some(x) => {
-            x.into_iter()
-             .for_each(|Predicate{atoms}| runtime.extend(&[RoleDeniesNodeLabel(atoms[0], atoms[1], atoms[2])]));
-        },
-        None => {}
-    }
-
-    match edb.node_has_label {
-        Some(x) => {
-            x.into_iter()
-             .for_each(|Predicate{atoms}| runtime.extend(&[NodeHasLabel(atoms[0], atoms[1], atoms[2])]));
-        },
-        None => {}
-    }
-
-    // Format output into JSON
-    let (accesses, deny_accesses, deny_logins) = runtime.run();
-    let idb = IDB {
-        accesses: accesses.into_iter().map(|HasAccess(a, b, c, d)| Predicate{atoms: vec![a, b, c, d]}).collect(),
-        deny_accesses: deny_accesses.into_iter().map(|DenyAccess(a, b, c, d)| Predicate{atoms: vec![a, b, c, d]}).collect(),
-        deny_logins: deny_logins.into_iter().map(|DenyLogins(a, b, c)| Predicate{atoms: vec![a, b, c]}).collect()
-    };
-
-    let c_str_song = CString::new(serde_json::to_string(&idb).unwrap()).unwrap();
-    c_str_song.into_raw()
+extern "C" fn deallocate_rust_buffer(ptr: *mut c_uchar, len: size_t) {
+    let len = len as usize;
+    unsafe { drop(slice::from_raw_parts(ptr, len)) };
 }
