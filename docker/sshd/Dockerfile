@@ -1,4 +1,5 @@
-FROM quay.io/gravitational/teleport:6
+ARG TELEPORT_TAG
+FROM quay.io/gravitational/teleport:${TELEPORT_TAG}
 
 # Demo ansible, ssh, htop
 RUN apt-get update && apt-get install -y ansible ssh inetutils-syslogd htop
