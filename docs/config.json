@@ -65,7 +65,8 @@
           "entries": [
             { "title": "Connecting Apps", "slug": "/application-access/guides/connecting-apps/" },
             { "title": "Integrating with JWT", "slug": "/application-access/guides/jwt/" },
-            { "title": "API Access", "slug": "/application-access/guides/api-access/" }
+            { "title": "API Access", "slug": "/application-access/guides/api-access/" },
+            { "title": "AWS Console Access", "slug": "/application-access/guides/aws-console/" }
           ]
         },
         { "title": "Access Controls", "slug": "/application-access/controls/" },
