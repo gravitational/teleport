@@ -3,7 +3,7 @@
   
   Generally:
 
-  1. We discourage using `sudo` in production environments unless it's needed. 
+  1. We discourage using `sudo` in production environments unless it's needed. You can run the auth, proxy, application access, kubernetes access, and database access teleport components as a non-root user. Only the teleport ssh service requires root access.
   2. We encourage creating new, non-root, users or new test instances for experimenting with Teleport.
   3. We encourage adherence to the *Principle of Least Privilege* (PoLP) and *Zero Admin* best practices. Don't give users the `admin` role when giving them the more restrictive `access,editor` roles will do instead.
   4. Saving tokens into a file rather than sharing tokens directly *as strings*.
