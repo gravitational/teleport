@@ -477,33 +477,19 @@ version: $(VERSRC)
 
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
-	@if [ \
-			$$(grep "Version = " version.go | awk -F'Version = "' '{print$$2}' | cut -d "." -f1) \
-			!= $$(echo $(VERSION) | cut -d "." -f1) \
-		]; \
-		then make update-api-version; \
-	fi
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
+	make update-api-version
 
-
+# This rule updates the api module path to use the latest major version upon release.
+# e.g. github.com/gravitational/teleport/api/v7 -> github.com/gravitational/teleport/api/v8
+# the go binary called will skip update if:
+#  1. The major version hasn't changed - e.g. 7.0.0 -> 7.1.0
+#  2. A suffix is present in the version - e.g. "-alpha"
 .PHONY: update-api-version
-update-api-version:
-	@$(eval CURRENT_VER_SUFFIX=$(shell head -1 api/go.mod | awk -F'api/' '{print $$2}'))
-	@$(eval CURRENT_VER_SUFFIX=$(shell [ "$(CURRENT_VER_SUFFIX)" == "" ] && echo "v0" || echo "$(CURRENT_VER_SUFFIX)"))
-	@$(eval CURRENT_MOD_PATH=$(shell head -1 api/go.mod | awk '{print $$2;}' | sed 's;/;\\/;g'))
-	@$(eval UPGRADE_VER_SUFFIX=v$(shell echo $(VERSION) | cut -d "." -f1))
-	@$(eval UPGRADE_MOD_PATH=github.com\/gravitational\/teleport\/api\/$(UPGRADE_VER_SUFFIX))
-	# Update go files
-	find . -name "*.go" -not \( -name .svn -prune -o -name .git -prune \) -type f -print0 | \
-	 	xargs -0 sed -i 's/$(CURRENT_MOD_PATH)/$(UPGRADE_MOD_PATH)/'
-
-	# Update go.mod files
-	sed -i 's/$(CURRENT_MOD_PATH)/$(UPGRADE_MOD_PATH)/' go.mod api/go.mod examples/go-client/go.mod
-	sed -i 's/$(UPGRADE_MOD_PATH) $(CURRENT_VER_SUFFIX).0.0/$(UPGRADE_MOD_PATH) $(UPGRADE_VER_SUFFIX).0.0/' go.mod api/go.mod examples/go-client/go.mod
-
-	# Update `update-vendor` and run it.
-	sed -i 's/$(CURRENT_MOD_PATH)/$(UPGRADE_MOD_PATH)/' Makefile
-	make update-vendor
+update-api-version: 
+	@go run build.assets/updateapiversion/main.go \
+		&& echo "successfully updated api version" \
+		|| echo "continue without updating api version"
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -761,6 +747,8 @@ init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
 
+# Update go.mod and vendor files. Note: make update-vendor is called by 
+# "build.assets/updateapiversion" which is called by "make update-api-version"
 .PHONY: update-vendor
 update-vendor:
 	# update modules in api/
