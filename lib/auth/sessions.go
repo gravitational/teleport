@@ -77,6 +77,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		appSessionID:   uuid.New(),
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
+		awsRoleARN:     req.AWSRoleARN,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

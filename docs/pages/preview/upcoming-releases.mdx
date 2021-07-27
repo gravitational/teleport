@@ -6,48 +6,39 @@ h1: Upcoming Teleport Releases
 
 The teleport team delivers a new major release roughly every 3 months.
 
-## Teleport 6.2 "Buffalo"
+## Teleport
 
-The Core team focuses on cleanup of customer-facing issues and documentation.
-The plugins team catches up with Terraform plugin missed in the previous release
-and updates PagerDuty and Gitlab plugins to use the new API.
+### Teleport 7.0 "Stockholm"
 
-### Release Schedule
+Teleport 7.0 will focus on adding support for the MongoDB protocol, BPF based restricted sessions, UX improvements, and foundations for automatic upgrades. Other features have been delayed to a Teleport 7 minor release.
 
-| Version | Date | Description |
-| - | - | - |
-| First alpha | May 7th, 2021 | Good for testing and demos. |
-| First beta | May 14th | Deploy on staging. |
-| Release | May 24th, 2021 | Good to go for production. |
+You can find the full list of fixes and features in the [Github milestone](https://github.com/gravitational/teleport/milestone/54).
 
-### Features
+| Version     | Date            | Description                      |
+| ----------- | --------------- | -------------------------------- |
+| First alpha | June 1st, 2021  | Good for some testing and demos. |
+| First beta  | June 15th, 2021 | Deploy on staging.               |
+| Release     | July 30th, 2021 | Good to go for production.       |
 
-You can find the full list of fixes and features in the
-[Github milestone](https://github.com/gravitational/teleport/milestone/55).
+### Teleport 7.1
 
-## Teleport 7.0 "Stockholm"
+Teleport 7.1 will focus on [HSM](https://github.com/gravitational/teleport/issues/4225) and [session termination and user locking](https://github.com/gravitational/teleport/issues/3360) which were delayed from 7.0 due to timing constraints.
 
-The Core team adds support for [hardware security modules - HSM](https://github.com/gravitational/teleport/blob/master/rfd/0025-hsm.md) for managing certificate authorities.
+| Version | Date              | Description         |
+| ------- | ----------------- | ------------------- |
+| Release | August 16th, 2021 | Production release. |
 
-The team improves security with fleet patch upgrades, makes it easier to write access requests
-and adds [Session termination and user locking](https://github.com/gravitational/teleport/issues/3360).
+You can find the full list of fixes and features in the [Github milestone](https://github.com/gravitational/teleport/milestone/58).
 
-Our engineers are working on improving first-time user experience of `teleport` and `tsh`.
+### Teleport 7.2
 
-The Database Access team adds MongoDB protocol support.
+Teleport 7.2 will focus on [simplified node joining](https://github.com/gravitational/teleport/issues/7145) and UX improvements which were delayed from 7.0 due to timing constraints.
 
-### Release Schedule
+You can find the full list of fixes and features in the [Github milestone](https://github.com/gravitational/teleport/milestone/60).
 
-| Version | Date | Description |
-| - | - | - |
-| First alpha | June 1st, 2021 | Good for some testing and demos. |
-| First beta | June 15th | Deploy on staging. |
-| Release | July 15th, 2021 | Good to go for production. |
-
-### Features
-
-You can find the full list of fixes and features in the
-[Github milestone](https://github.com/gravitational/teleport/milestone/54).
+| Version | Date              | Description         |
+| ------- | ----------------- | ------------------- |
+| Release | August 30th, 2021 | Production release. |
 
 ## Teleport Cloud "Washington"
 

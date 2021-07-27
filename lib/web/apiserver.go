@@ -168,6 +168,11 @@ type Config struct {
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
+
+	// WebIdleTimeout specifies how long a user WebUI session can be left
+	// idle before being logged by the server. A zero value means there
+	// is no idle timeout set.
+	WebIdleTimeout time.Duration
 }
 
 type RewritingHandler struct {
@@ -256,6 +261,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// Unauthenticated access to JWT public keys.
 	h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwks))
+
+	// Unauthenticated access to the message of the day
+	h.GET("/webapi/motd", httplib.MakeHandler(h.motd))
 
 	// DELETE IN: 5.1.0
 	//
@@ -499,7 +507,14 @@ func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 // GET /webapi/sites/:site/context
 //
 func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	roleset, err := c.GetCertRoles()
+	cn, err := h.cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cn.GetClusterName() != site.GetName() {
+		return nil, trace.BadParameter("endpoint only implemented for root cluster")
+	}
+	roleset, err := c.GetUserRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -667,6 +682,8 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 	default:
 		return webclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
 	}
+
+	as.HasMessageOfTheDay = cap.GetMessageOfTheDay() != ""
 
 	return as, nil
 }
@@ -875,6 +892,15 @@ func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		resp.Keys = append(resp.Keys, jwk)
 	}
 	return &resp, nil
+}
+
+func (h *Handler) motd(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	authPrefs, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return webclient.MotD{Text: authPrefs.GetMessageOfTheDay()}, nil
 }
 
 func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
@@ -1235,31 +1261,19 @@ type CreateSessionResponse struct {
 }
 
 func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
-	clt, err := ctx.GetClient()
+	roleset, err := ctx.GetUserRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := ctx.getToken()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err := clt.GetUser(ctx.GetUser(), false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var roles services.RoleSet
-	for _, roleName := range user.GetRoles() {
-		role, err := clt.GetRole(context.TODO(), roleName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		roles = append(roles, role)
-	}
-	_, err = roles.CheckLoginDuration(0)
+	_, err = roleset.CheckLoginDuration(0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	token, err := ctx.getToken()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &CreateSessionResponse{
 		TokenType:      roundtrip.AuthBearer,
 		Token:          token.GetName(),
@@ -2392,12 +2406,12 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 // ProxyWithRoles returns a reverse tunnel proxy verifying the permissions
 // of the given user.
 func (h *Handler) ProxyWithRoles(ctx *SessionContext) (reversetunnel.Tunnel, error) {
-	roles, err := ctx.GetCertRoles()
+	roleset, err := ctx.GetUserRoles()
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to get client roles.")
 		return nil, trace.Wrap(err)
 	}
-	return reversetunnel.NewTunnelWithRoles(h.cfg.Proxy, roles, h.cfg.AccessPoint), nil
+	return reversetunnel.NewTunnelWithRoles(h.cfg.Proxy, roleset, h.cfg.AccessPoint), nil
 }
 
 // ProxyHostPort returns the address of the proxy server using --proxy

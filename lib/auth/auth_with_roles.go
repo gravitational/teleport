@@ -2377,14 +2377,19 @@ func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context, opts ..
 }
 
 // SetSessionRecordingConfig sets session recording configuration.
-func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
-	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbCreate); err != nil {
+func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecConfig types.SessionRecordingConfig) error {
+	storedRecConfig, err := a.authServer.GetSessionRecordingConfig(ctx)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+
+	for _, verb := range verbsToReplaceResourceWithOrigin(storedRecConfig) {
+		if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, verb); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	return a.authServer.SetSessionRecordingConfig(ctx, recConfig)
+
+	return a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
 }
 
 // ResetSessionRecordingConfig resets session recording configuration to defaults.
@@ -3038,6 +3043,33 @@ func (a *ServerWithRoles) DeleteAllKubeServices(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllKubeServices(ctx)
+}
+
+// GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
+func (a *ServerWithRoles) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetNetworkRestrictions(ctx)
+}
+
+// SetNetworkRestrictions updates the network restrictions.
+func (a *ServerWithRoles) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
+	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetNetworkRestrictions(ctx, nr)
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions.
+func (a *ServerWithRoles) DeleteNetworkRestrictions(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteNetworkRestrictions(ctx)
 }
 
 // TODO(awly): decouple auth.ClientI from auth.ServerWithRoles, they exist on

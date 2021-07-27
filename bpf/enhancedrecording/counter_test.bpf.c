@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "vmlinux.h"
+#include "../vmlinux.h"
 #include <bpf/bpf_helpers.h>       /* most used helpers: SEC, __always_inline, etc */
 #include <bpf/bpf_core_read.h>     /* for BPF CO-RE helpers */
 #include <bpf/bpf_tracing.h>       /* for getting kprobe arguments */
 
-#include "helpers.h"
+#include "../helpers.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 

@@ -5,6 +5,7 @@ teleport:
     output: stderr
     severity: INFO
 auth_service:
+  cluster_name: teleport  
   enabled: "yes"
 ssh_service:
   enabled: "yes"

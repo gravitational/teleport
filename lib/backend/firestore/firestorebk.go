@@ -264,7 +264,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	// It won't be needed after New returns.
 	defer firestoreAdminClient.Close()
 
-	buf, err := backend.NewCircularBuffer(ctx, cfg.BufferSize)
+	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -494,11 +494,6 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 
 // NewWatcher returns a new event watcher
 func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
-	select {
-	case <-b.watchStarted.Done():
-	case <-ctx.Done():
-		return nil, trace.ConnectionProblem(ctx.Err(), "context is closing")
-	}
 	return b.buf.NewWatcher(ctx, watch)
 }
 
@@ -552,7 +547,7 @@ func (b *Backend) Close() error {
 
 // CloseWatchers closes all the watchers without closing the backend
 func (b *Backend) CloseWatchers() {
-	b.buf.Reset()
+	b.buf.Clear()
 }
 
 // Clock returns wall clock
@@ -611,14 +606,34 @@ func isCanceled(err error) bool {
 	}
 }
 
+// driftTolerance is the amount of clock drift between auth servers that we
+// will be resilient to.  Clock drift greater than this amount may result
+// in cache inconsistencies due to missing events which aught to have a "happens after"
+// relationship to associated reads.  This is because the firestore event stream
+// starts at a timestamp field that is defined by the auth server.  If a different
+// auth server is lagging behind us, it may modify a document after we established our
+// listener, but we will miss the event because it used an old timestamp.  We combat this
+// issue by starting our query slightly in the past.  If an auth server writes a document
+// and is lagging less than driftTolerance, subscribing caches will be correctly updated.
+// This has the unfortunate side-effect of potentially emitting old events, but this is OK
+// (if somewhat confusing).  All caching logic assumes that it may see some events which
+// happened before it's reads completed.  Missing an event that happened after is what
+// can lead to permanently bad cache state.
+const driftTolerance = time.Millisecond * 2500
+
 // watchCollection watches a firestore collection for changes and pushes those changes, events into the buffer for watchers
 func (b *Backend) watchCollection() error {
 	var snaps *firestore.QuerySnapshotIterator
+
 	if b.LimitWatchQuery {
-		snaps = b.svc.Collection(b.CollectionName).Query.Where(timestampDocProperty, ">=", b.clock.Now().UTC().Unix()).Snapshots(b.clientContext)
+		snaps = b.svc.Collection(b.CollectionName).Query.Where(timestampDocProperty, ">=", b.clock.Now().UTC().Add(-driftTolerance).Unix()).Snapshots(b.clientContext)
 	} else {
 		snaps = b.svc.Collection(b.CollectionName).Snapshots(b.clientContext)
 	}
+
+	b.buf.SetInit()
+	defer b.buf.Reset()
+
 	b.signalWatchStart()
 	defer snaps.Stop()
 	for {
@@ -648,7 +663,7 @@ func (b *Backend) watchCollection() error {
 					},
 				}
 			}
-			b.buf.Push(e)
+			b.buf.Emit(e)
 		}
 	}
 }
