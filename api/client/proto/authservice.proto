@@ -915,11 +915,11 @@ message ListNodesResponse {
 }
 
 message GetLocksRequest {
-    // InForceOnly specifies whether to return only those locks that are in force.
-    bool InForceOnly = 1;
     // Targets is a list of targets. Every returned lock must match at least
     // one of the targets.
-    repeated types.LockTarget Targets = 2;
+    repeated types.LockTarget Targets = 1;
+    // InForceOnly specifies whether to return only those locks that are in force.
+    bool InForceOnly = 2;
 }
 
 message GetLocksResponse {
