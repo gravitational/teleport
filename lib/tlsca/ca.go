@@ -121,6 +121,8 @@ type Identity struct {
 	MFAVerified string
 	// ClientIP is an observed IP of the client that this Identity represents.
 	ClientIP string
+	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
+	AWSRoleARNs []string
 }
 
 // RouteToApp holds routing information for applications.
@@ -142,6 +144,9 @@ type RouteToApp struct {
 
 	// Name is the app name.
 	Name string
+
+	// AWSRoleARN is the AWS role to assume when accessing AWS console.
+	AWSRoleARN string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -237,6 +242,14 @@ var (
 	// AppNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// application name into a certificate.
 	AppNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 10}
+
+	// AppAWSRoleARNASN1ExtensionOID is an extension ID used when encoding/decoding
+	// AWS role ARN into a certificate.
+	AppAWSRoleARNASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 11}
+
+	// AWSRoleARNsASN1ExtensionOID is an extension ID used when encoding/decoding
+	// allowed AWS role ARNs into a certificate.
+	AWSRoleARNsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 12}
 
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
@@ -343,6 +356,20 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AppNameASN1ExtensionOID,
 				Value: id.RouteToApp.Name,
+			})
+	}
+	if id.RouteToApp.AWSRoleARN != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppAWSRoleARNASN1ExtensionOID,
+				Value: id.RouteToApp.AWSRoleARN,
+			})
+	}
+	for i := range id.AWSRoleARNs {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AWSRoleARNsASN1ExtensionOID,
+				Value: id.AWSRoleARNs[i],
 			})
 	}
 	if id.TeleportCluster != "" {
@@ -480,6 +507,16 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.RouteToApp.Name = val
+			}
+		case attr.Type.Equal(AppAWSRoleARNASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.AWSRoleARN = val
+			}
+		case attr.Type.Equal(AWSRoleARNsASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.AWSRoleARNs = append(id.AWSRoleARNs, val)
 			}
 		case attr.Type.Equal(TeleportClusterASN1ExtensionOID):
 			val, ok := attr.Value.(string)

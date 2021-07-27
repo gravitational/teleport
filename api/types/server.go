@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
@@ -352,6 +354,16 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
 	return proto.Clone(s).(*ServerV2)
+}
+
+// IsAWSConsole returns true if this app is AWS management console.
+func (a *App) IsAWSConsole() bool {
+	return strings.HasPrefix(a.URI, constants.AWSConsoleURL)
+}
+
+// GetAWSAccountID returns value of label containing AWS account ID on this app.
+func (a *App) GetAWSAccountID() string {
+	return a.StaticLabels[constants.AWSAccountIDLabel]
 }
 
 // CommandLabel is a label that has a value as a result of the
