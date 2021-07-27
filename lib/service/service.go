@@ -1557,7 +1557,7 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, ca
 	return process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
 }
 
-// DELETE IN: 5.1.
+// DELETE IN: 8.0.0
 //
 // newLocalCacheForOldRemoteProxy returns new instance of access point
 // configured for an old remote proxy.
