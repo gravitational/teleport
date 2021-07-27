@@ -355,3 +355,152 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 		context:    *authContext,
 	}
 }
+
+func TestGetDatabaseServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test databases.
+	for i := 0; i < 5; i++ {
+		name := uuid.New()
+		db, err := types.NewDatabaseServerV3(name, map[string]string{"name": name}, types.DatabaseServerSpecV3{
+			Protocol: "postgres",
+			URI:      "example.com",
+			Hostname: "host",
+			HostID:   "hostid",
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to get the first database
+	role.SetDatabaseLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, len(servers))
+	require.Empty(t, cmp.Diff(testServers[0:1], servers))
+
+	// permit user to get all databases
+	role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+
+	// deny user to get the first database
+	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Empty(t, cmp.Diff(testServers[1:], servers))
+
+	// deny user to get all databases
+	role.SetDatabaseLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, len(servers))
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{}, servers))
+}
+
+func TestGetAppServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test apps.
+	for i := 0; i < 5; i++ {
+		name := uuid.New()
+		app, err := types.NewServerWithLabels(
+			name,
+			types.KindAppServer,
+			types.ServerSpecV2{
+				Apps: []*types.App{{
+					Name:         name,
+					StaticLabels: map[string]string{"name": name},
+				}},
+			},
+			nil,
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertAppServer(ctx, app)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetAppServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to get the first app
+	role.SetAppLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetAppServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	for i := 1; i < len(servers); i++ {
+		// servers other than the first should have no apps
+		require.Empty(t, servers[i].GetApps())
+		// set apps to be equal to compare other fields
+		servers[i].SetApps(testServers[i].GetApps())
+	}
+	require.Empty(t, cmp.Diff(testServers, servers))
+
+	// permit user to get all apps
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetAppServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+
+	// deny user to get the first app
+	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetAppServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	// first server should have no apps
+	require.Empty(t, servers[0].GetApps())
+	// set apps to be equal to compare other fields
+	servers[0].SetApps(testServers[0].GetApps())
+	require.Empty(t, cmp.Diff(testServers, servers))
+
+	// deny user to get all apps
+	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetAppServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	for i := 0; i < len(servers); i++ {
+		// servers other than the first should have no apps
+		require.Empty(t, servers[i].GetApps())
+		// set apps to be equal to compare other fields
+		servers[i].SetApps(testServers[i].GetApps())
+	}
+	require.Empty(t, cmp.Diff(testServers, servers))
+}
