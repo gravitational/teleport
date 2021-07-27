@@ -672,3 +672,60 @@ func (c *Client) SetAuthPreference(ctx context.Context, cap types.AuthPreference
 
 	return nil
 }
+
+// GetClusterAuditConfig gets cluster audit configuration.
+func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	auditConfig, err := c.APIClient.GetClusterAuditConfig(ctx)
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return auditConfig, nil
+	}
+
+	cfg, err := c.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg.GetClusterAuditConfig()
+}
+
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	netConfig, err := c.APIClient.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return netConfig, nil
+	}
+
+	cfg, err := c.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg.GetClusterNetworkingConfig()
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	recConfig, err := c.APIClient.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return recConfig, nil
+	}
+
+	cfg, err := c.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg.GetSessionRecordingConfig()
+}
