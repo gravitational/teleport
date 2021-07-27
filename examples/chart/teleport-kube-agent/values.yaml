@@ -85,7 +85,7 @@ storage:
 # don't need the enterprise version.
 image: quay.io/gravitational/teleport
 # Optional array of imagePullSecrets, to use when pulling from a private registry
-imagePullSecrets:
+imagePullSecrets: []
 # - name: myRegistryKeySecretName
 # Number of replicas for the agent deployment.
 replicaCount: 1
