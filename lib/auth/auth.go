@@ -2390,8 +2390,9 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 					Code: events.AuthAttemptFailureCode,
 				},
 				UserMetadata: apievents.UserMetadata{
-					User:  user,
-					Login: noMFAAccessErrTarget,
+					User:         user,
+					Login:        noMFAAccessErrTarget,
+					Impersonator: ClientImpersonator(ctx),
 				},
 				Status: apievents.Status{
 					Success: false,
