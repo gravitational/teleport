@@ -1,0 +1,21 @@
+Verify that your Teleport client is connected:
+
+```bash
+tctl status
+
+# Cluster  tele.example.com
+# Version  (=teleport.version=)
+# CA pin   sha256:sha-hash-here
+```
+
+<Admonition type="note" title="Connecting to the cloud">
+To try this flow in the cloud, login into your cluster using tsh, then use tctl remotely:
+
+```bash
+tsh login --proxy=myinstance.teleport.sh:443
+
+# tctl (Enterprise edition) can use tsh credentials as of version 5.0
+tctl status
+```
+
+</Admonition>
