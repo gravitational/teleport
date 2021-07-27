@@ -47,7 +47,7 @@ import AwsLaunchButton from './AwsLaunchButton';
 export default function AppList(props: Props) {
   const { apps = [], pageSize = 100, searchValue } = props;
   const [sortDir, setSortDir] = useState<Record<string, string>>({
-    name: SortTypes.ASC,
+    name: SortTypes.DESC,
   });
 
   function sortAndFilter(search) {
@@ -135,7 +135,7 @@ function AppIconCell(props) {
       <Flex
         height="32px"
         width="32px"
-        bg={getIconColor(name)}
+        bg={awsConsole ? orange[700] : getIconColor(name)}
         borderRadius="100%"
         justifyContent="center"
         alignItems="center"

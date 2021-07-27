@@ -60,7 +60,7 @@ function resolveRedirectUrl(params: UrlLauncherParams) {
         url.searchParams.set('addr', params.publicAddr);
       }
       if (params.arn) {
-        url.searchParams.set('awsrole', params.arn);
+        url.searchParams.set('awsrole', decodeURIComponent(params.arn));
       }
 
       return url.toString();

@@ -595,14 +595,14 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
-.c16 {
+.c22 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 22px;
 }
 
-.c19 {
+.c23 {
   display: inline-block;
   transition: color .3s;
   margin-left: 4px;
@@ -637,7 +637,7 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
-.c21 {
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -656,7 +656,18 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #f57c00;
+  background-color: #e64a19;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c19 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #0097a7;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -674,22 +685,11 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c22 {
+.c21 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #0097a7;
-  border-radius: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c23 {
-  box-sizing: border-box;
-  height: 32px;
-  width: 32px;
-  background-color: #e64a19;
+  background-color: #f57c00;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -988,7 +988,7 @@ exports[`loaded state 1`] = `
                 <a>
                   Name
                   <span
-                    class="c10 c14 icon icon-chevron-up "
+                    class="c10 c14 icon icon-chevron-down "
                     color="light"
                   />
                 </a>
@@ -1027,74 +1027,23 @@ exports[`loaded state 1`] = `
                   height="32px"
                   width="32px"
                 >
-                  <span
-                    class="c10 c16 icon icon-amazonaws "
-                    color="light"
-                    font-size="6"
-                  />
-                </div>
-              </td>
-              <td>
-                aws-console-1
-              </td>
-              <td>
-                This is an AWS Console app
-              </td>
-              <td>
-                https://
-                awsconsole-1.teleport-proxy.com
-              </td>
-              <td>
-                <div
-                  class="c17"
-                  kind="secondary"
-                >
-                  aws_account_id: joe123
-                </div>
-              </td>
-              <td
-                align="right"
-              >
-                <button
-                  class="c18"
-                  kind="border"
-                  width="88px"
-                >
-                  LAUNCH
-                  <span
-                    class="c10 c19 icon icon-caret-down "
-                    color="text.secondary"
-                    font-size="2"
-                  />
-                </button>
-              </td>
-            </tr>
-            <tr>
-              <td
-                style="user-select: none;"
-              >
-                <div
-                  class="c20"
-                  height="32px"
-                  width="32px"
-                >
                   <div
-                    class="c21"
+                    class="c16"
                     font-size="3"
                   >
-                    M
+                    G
                   </div>
                 </div>
               </td>
               <td>
-                Mattermost1
+                Grafana
               </td>
               <td>
-                This is a Mattermost app
+                This is a Grafana app
               </td>
               <td>
                 https://
-                mattermost.teleport-proxy.com
+                grafana.teleport-proxy.com
               </td>
               <td>
                 <div
@@ -1115,7 +1064,7 @@ exports[`loaded state 1`] = `
               >
                 <a
                   class="c18"
-                  href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
+                  href="/web/launch/grafana.one/one/grafana.teleport-proxy.com"
                   kind="border"
                   rel="noreferrer"
                   target="_blank"
@@ -1130,12 +1079,12 @@ exports[`loaded state 1`] = `
                 style="user-select: none;"
               >
                 <div
-                  class="c22"
+                  class="c19"
                   height="32px"
                   width="32px"
                 >
                   <div
-                    class="c21"
+                    class="c16"
                     font-size="3"
                   >
                     J
@@ -1186,27 +1135,27 @@ exports[`loaded state 1`] = `
                 style="user-select: none;"
               >
                 <div
-                  class="c23"
+                  class="c20"
                   height="32px"
                   width="32px"
                 >
                   <div
-                    class="c21"
+                    class="c16"
                     font-size="3"
                   >
-                    G
+                    M
                   </div>
                 </div>
               </td>
               <td>
-                Grafana
+                Mattermost1
               </td>
               <td>
-                This is a Grafana app
+                This is a Mattermost app
               </td>
               <td>
                 https://
-                grafana.teleport-proxy.com
+                mattermost.teleport-proxy.com
               </td>
               <td>
                 <div
@@ -1227,7 +1176,7 @@ exports[`loaded state 1`] = `
               >
                 <a
                   class="c18"
-                  href="/web/launch/grafana.one/one/grafana.teleport-proxy.com"
+                  href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
                   kind="border"
                   rel="noreferrer"
                   target="_blank"
@@ -1235,6 +1184,57 @@ exports[`loaded state 1`] = `
                 >
                   LAUNCH
                 </a>
+              </td>
+            </tr>
+            <tr>
+              <td
+                style="user-select: none;"
+              >
+                <div
+                  class="c21"
+                  height="32px"
+                  width="32px"
+                >
+                  <span
+                    class="c10 c22 icon icon-amazonaws "
+                    color="light"
+                    font-size="6"
+                  />
+                </div>
+              </td>
+              <td>
+                aws-console-1
+              </td>
+              <td>
+                This is an AWS Console app
+              </td>
+              <td>
+                https://
+                awsconsole-1.teleport-proxy.com
+              </td>
+              <td>
+                <div
+                  class="c17"
+                  kind="secondary"
+                >
+                  aws_account_id: joe123
+                </div>
+              </td>
+              <td
+                align="right"
+              >
+                <button
+                  class="c18"
+                  kind="border"
+                  width="88px"
+                >
+                  LAUNCH
+                  <span
+                    class="c10 c23 icon icon-caret-down "
+                    color="text.secondary"
+                    font-size="2"
+                  />
+                </button>
               </td>
             </tr>
           </tbody>
