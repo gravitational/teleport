@@ -154,6 +154,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
+		{Kind: types.KindDatabaseServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
