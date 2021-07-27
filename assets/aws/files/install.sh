@@ -8,7 +8,7 @@ yum -y update
 yum install -y uuid libffi-devel gcc openssl-devel adduser libfontconfig
 
 # Install nginx
-amazon-linux-extras install nginx1.12
+amazon-linux-extras install nginx1
 
 # Set some curl options so that temporary failures get retried
 # More info: https://ec.haxx.se/usingcurl-timeouts.html
