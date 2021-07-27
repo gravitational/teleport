@@ -194,10 +194,11 @@ type Config struct {
 	// Emitter is event emitter
 	Emitter events.StreamEmitter
 
-	// DELETE IN: 5.1.
+	// DELETE IN: 8.0.0
 	//
-	// Pass in a access point that can be configured with the old access point
-	// policy until all clusters are migrated to 5.0 and above.
+	// NewCachingAccessPointOldProxy is an access point that can be configured
+	// with the old access point policy until all clusters are migrated to 7.0.0
+	// and above.
 	NewCachingAccessPointOldProxy auth.NewCachingAccessPoint
 }
 
@@ -1028,18 +1029,19 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.remoteClient = clt
 
-	// DELETE IN: 5.1.0.
+	// DELETE IN: 8.0.0
 	//
-	// Check if the cluster that is connecting is an older cluster. If it is,
-	// don't request access to application servers because older servers policy
-	// will reject that causing the cache to go into a re-sync loop.
+	// Check if the cluster that is connecting is a pre-v7 cluster. If it is,
+	// don't assume the newer organization of cluster configuration resources
+	// (RFD 28) because older proxy servers will reject that causing the cache
+	// to go into a re-sync loop.
 	var accessPointFunc auth.NewCachingAccessPoint
-	ok, err := isOldCluster(closeContext, sconn)
+	ok, err := isPreV7Cluster(closeContext, sconn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if ok {
-		log.Debugf("Older cluster connecting, loading old cache policy.")
+		log.Debugf("Pre-v7 cluster connecting, loading old cache policy.")
 		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
 	} else {
 		accessPointFunc = srv.newAccessPoint
@@ -1070,20 +1072,20 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 
 // DELETE IN: 7.0.0.
 //
-// isOldCluster checks if the cluster is older than 6.0.0.
-func isOldCluster(ctx context.Context, conn ssh.Conn) (bool, error) {
+// isPreV7Cluster checks if the cluster is older than 7.0.0.
+func isPreV7Cluster(ctx context.Context, conn ssh.Conn) (bool, error) {
 	version, err := sendVersionRequest(ctx, conn)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	// Return true if the version is older than 6.0.0, the check is actually for
-	// 5.99.99, a non-existent version, to allow this check to work during development.
+	// Return true if the version is older than 7.0.0, the check is actually for
+	// 6.99.99, a non-existent version, to allow this check to work during development.
 	remoteClusterVersion, err := semver.NewVersion(version)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	minClusterVersion, err := semver.NewVersion("5.99.99")
+	minClusterVersion, err := semver.NewVersion("6.99.99")
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
