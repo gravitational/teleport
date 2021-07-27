@@ -20,7 +20,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/v7/defaults"
 	"github.com/gravitational/trace"
 )
 

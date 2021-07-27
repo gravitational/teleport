@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v7/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"

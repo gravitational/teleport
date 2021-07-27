@@ -19,7 +19,7 @@ package services
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 )
 
 // ClusterConfiguration stores the cluster configuration in the backend. All
