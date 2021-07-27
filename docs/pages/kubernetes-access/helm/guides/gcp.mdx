@@ -257,6 +257,14 @@ kubectl --namespace teleport create -f gcp-issuer.yaml
 
 ## Step 5: Set values to configure the cluster
 
+<Admonition type="note">
+  If you are installing Teleport in a brand new GCP project, make sure you have enabled the
+  [Cloud Firestore API](https://console.cloud.google.com/apis/api/firestore.googleapis.com/overview)
+  and created a
+  [Firestore Database](https://console.cloud.google.com/firestore/welcome)
+  in your project before continuing.
+</Admonition>
+
 There are two different ways to configure the `teleport-cluster` Helm chart to use `gcp` mode - using a `values.yaml` file or using `--set`
 on the command line.
 
