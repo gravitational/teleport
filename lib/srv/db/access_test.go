@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -401,7 +402,7 @@ type testContext struct {
 	proxyServer    *ProxyServer
 	mux            *multiplexer.Mux
 	mysqlListener  net.Listener
-	tlsListener    *multiplexer.TLSListener
+	webListener    *multiplexer.WebListener
 	proxyConn      chan net.Conn
 	fakeRemoteSite *reversetunnel.FakeRemoteSite
 	server         *Server
@@ -446,13 +447,13 @@ func (c *testContext) startProxy() {
 	// Start multiplexer.
 	go c.mux.Serve()
 	// Start TLS multiplexer.
-	go c.tlsListener.Serve()
+	go c.webListener.Serve()
 	// Start database proxy server.
 	go c.proxyServer.Serve(c.mux.DB())
 	// Start MySQL proxy server.
 	go c.proxyServer.ServeMySQL(c.mysqlListener)
 	// Start database TLS proxy server.
-	go c.proxyServer.ServeTLS(c.tlsListener.DB())
+	go c.proxyServer.ServeTLS(c.webListener.DB())
 }
 
 // startHandlingConnections starts all services required to handle database
@@ -515,7 +516,7 @@ func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUs
 // mongoClient connects to test MongoDB through database access as a
 // specified Teleport user and database account.
 func (c *testContext) mongoClient(ctx context.Context, teleportUser, dbService, dbUser string) (*mongo.Client, error) {
-	return c.mongoClientWithAddr(ctx, c.tlsListener.Addr().String(), teleportUser, dbService, dbUser)
+	return c.mongoClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser)
 }
 
 // mongoClientWithAddr is like mongoClient but allows to override connection address.
@@ -569,8 +570,8 @@ func (c *testContext) Close() error {
 	if c.mysqlListener != nil {
 		errors = append(errors, c.mysqlListener.Close())
 	}
-	if c.tlsListener != nil {
-		errors = append(errors, c.tlsListener.Close())
+	if c.webListener != nil {
+		errors = append(errors, c.webListener.Close())
 	}
 	if c.server != nil {
 		errors = append(errors, c.server.Close())
@@ -611,8 +612,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Setup TLS listener.
-	testCtx.tlsListener, err = multiplexer.NewTLSListener(multiplexer.TLSListenerConfig{
-		ID:       "test",
+	testCtx.webListener, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
 		Listener: tls.NewListener(testCtx.mux.TLS(), testCtx.makeTLSConfig(t)),
 	})
 	require.NoError(t, err)
@@ -637,7 +637,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	// Auth client/authorizer for database proxy.
 	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient, proxyAuthClient, proxyAuthClient)
+	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient)
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.
@@ -668,6 +668,16 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	// Create test audit events emitter.
 	testCtx.emitter = newTestEmitter()
 
+	// Create a lock watcher for the DB proxy server.
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    proxyAuthClient,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(lockWatcher.Close)
+
 	// Create database proxy server.
 	testCtx.proxyServer, err = NewProxyServer(ctx, ProxyServerConfig{
 		AuthClient:  proxyAuthClient,
@@ -683,6 +693,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 			sort.Sort(types.SortedDatabaseServers(servers))
 			return servers
 		},
+		LockWatcher: lockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -703,7 +714,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 	require.NoError(t, err)
 
 	// Database service authorizer.
-	dbAuthorizer, err := auth.NewAuthorizer(c.clusterName, c.authClient, c.authClient, c.authClient)
+	dbAuthorizer, err := auth.NewAuthorizer(c.clusterName, c.authClient)
 	require.NoError(t, err)
 
 	// Create test database auth tokens generator.
@@ -711,6 +722,15 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 		AuthClient: c.authClient,
 		Clients:    &common.TestCloudClients{},
 		Clock:      c.clock,
+	})
+	require.NoError(t, err)
+
+	// Create a lock watcher for the DB service.
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentDatabase,
+			Client:    c.authClient,
+		},
 	})
 	require.NoError(t, err)
 
@@ -737,6 +757,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 		CADownloader: &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
 		},
+		LockWatcher: lockWatcher,
 	})
 	require.NoError(t, err)
 
