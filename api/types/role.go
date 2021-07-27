@@ -116,6 +116,11 @@ type Role interface {
 	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
 	// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 	SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions)
+
+	// GetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
+	GetAWSRoleARNs(RoleConditionType) []string
+	// SetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
+	SetAWSRoleARNs(RoleConditionType, []string)
 }
 
 // NewRole constructs new standard role
@@ -465,6 +470,23 @@ func (r *RoleV4) SetImpersonateConditions(rct RoleConditionType, cond Impersonat
 	}
 }
 
+// GetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to impersonate.
+func (r *RoleV4) GetAWSRoleARNs(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.AWSRoleARNs
+	}
+	return r.Spec.Deny.AWSRoleARNs
+}
+
+// SetAWSRoleARNs sets a list of AWS role ARNs this role is allowed to impersonate.
+func (r *RoleV4) SetAWSRoleARNs(rct RoleConditionType, arns []string) {
+	if rct == Allow {
+		r.Spec.Allow.AWSRoleARNs = arns
+	} else {
+		r.Spec.Deny.AWSRoleARNs = arns
+	}
+}
+
 // GetRules gets all allow or deny rules.
 func (r *RoleV4) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
@@ -570,6 +592,11 @@ func (r *RoleV4) CheckAndSetDefaults() error {
 	for _, login := range r.Spec.Allow.Logins {
 		if login == Wildcard {
 			return trace.BadParameter("wildcard matcher is not allowed in logins")
+		}
+	}
+	for _, arn := range r.Spec.Allow.AWSRoleARNs {
+		if arn == Wildcard {
+			return trace.BadParameter("wildcard matcher is not allowed in aws_role_arns")
 		}
 	}
 	for key, val := range r.Spec.Allow.NodeLabels {

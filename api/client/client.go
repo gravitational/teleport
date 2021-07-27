@@ -834,6 +834,7 @@ func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		Username:    req.Username,
 		PublicAddr:  req.PublicAddr,
 		ClusterName: req.ClusterName,
+		AWSRoleARN:  req.AWSRoleARN,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)

@@ -1078,6 +1078,7 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppS
 		Username:    req.GetUsername(),
 		PublicAddr:  req.GetPublicAddr(),
 		ClusterName: req.GetClusterName(),
+		AWSRoleARN:  req.GetAWSRoleARN(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
