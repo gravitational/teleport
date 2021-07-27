@@ -15,4 +15,4 @@ prost = "0.8"
 bytes = "1"
 
 [build-dependencies]
-prost-build = { version = "0.8" }
+prost-build = "0.8
