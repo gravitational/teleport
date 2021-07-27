@@ -1144,7 +1144,7 @@ func (c *clusterName) fetch(ctx context.Context) (apply func(ctx context.Context
 		}
 		noName = true
 	} else {
-		// Prior to v7.0, ClusterID used to be stored in ClusterConfig instead of
+		// Prior to 7.0, ClusterID used to be stored in ClusterConfig instead of
 		// ClusterName.  Therefore when creating a cache on top of a legacy data
 		// source (e.g. an older remote cluster) it is necessary to fetch ClusterID
 		// from the legacy ClusterConfig resource and set it in ClusterName.
