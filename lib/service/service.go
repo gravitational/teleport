@@ -1198,7 +1198,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authorizer, err := auth.NewAuthorizer(cfg.Auth.ClusterName.GetClusterName(), authServer.Access, authServer.Identity, authServer.Trust)
+	authorizer, err := auth.NewAuthorizer(cfg.Auth.ClusterName.GetClusterName(), authServer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1557,7 +1557,7 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, ca
 	return process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
 }
 
-// DELETE IN: 5.1.
+// DELETE IN: 8.0.0
 //
 // newLocalCacheForOldRemoteProxy returns new instance of access point
 // configured for an old remote proxy.
@@ -1754,6 +1754,17 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentNode,
+				Log:       log,
+				Client:    conn.Client,
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		s, err = regular.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -1785,6 +1796,7 @@ func (process *TeleportProcess) initSSH() error {
 				}
 			}),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
+			regular.SetLockWatcher(lockWatcher),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2499,6 +2511,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		Streamer: streamer,
 	}
 
+	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	var tsrv reversetunnel.Server
@@ -2531,6 +2554,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				FIPS:          cfg.FIPS,
 				Emitter:       streamEmitter,
 				Log:           process.log,
+				LockWatcher:   lockWatcher,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2757,6 +2781,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}),
 		regular.SetEmitter(streamEmitter),
+		regular.SetLockWatcher(lockWatcher),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2803,7 +2828,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var kubeServer *kubeproxy.TLSServer
 	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
+		authorizer, err := auth.NewAuthorizer(clusterName, accessPoint)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2833,6 +2858,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				KubeconfigPath:    cfg.Proxy.Kube.KubeconfigPath,
 				Component:         component,
 				KubeServiceType:   kubeServiceType,
+				LockWatcher:       lockWatcher,
 			},
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
@@ -2866,7 +2892,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// then routing them to a respective database server over the reverse tunnel
 	// framework.
 	if !listeners.db.Empty() && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
+		authorizer, err := auth.NewAuthorizer(clusterName, accessPoint)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2884,6 +2910,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Emitter:     asyncEmitter,
 				Clock:       process.Clock,
 				ServerID:    cfg.HostUUID,
+				LockWatcher: lockWatcher,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3149,7 +3176,7 @@ func (process *TeleportProcess) initApps() {
 		}
 		clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
-		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
+		authorizer, err := auth.NewAuthorizer(clusterName, accessPoint)
 		if err != nil {
 			return trace.Wrap(err)
 		}
