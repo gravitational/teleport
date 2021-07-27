@@ -71,10 +71,6 @@ type ClusterConfig interface {
 	// DELETE IN 8.0.0
 	SetAuthFields(AuthPreference) error
 
-	// ClearLegacyFields clears embedded legacy fields.
-	// DELETE IN 8.0.0
-	ClearLegacyFields()
-
 	// Copy creates a copy of the resource and returns it.
 	Copy() ClusterConfig
 }
@@ -255,16 +251,6 @@ func (c *ClusterConfigV3) SetAuthFields(authPref AuthPreference) error {
 		DisconnectExpiredCert: NewBool(authPrefV2.Spec.DisconnectExpiredCert.Value),
 	}
 	return nil
-}
-
-// ClearLegacyFields clears legacy fields.
-// DELETE IN 8.0.0
-func (c *ClusterConfigV3) ClearLegacyFields() {
-	c.Spec.Audit = nil
-	c.Spec.ClusterNetworkingConfigSpecV2 = nil
-	c.Spec.LegacySessionRecordingConfigSpec = nil
-	c.Spec.LegacyClusterConfigAuthFields = nil
-	c.Spec.ClusterID = ""
 }
 
 // Copy creates a copy of the resource and returns it.

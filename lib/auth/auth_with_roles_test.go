@@ -345,7 +345,7 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	require.NoError(t, err)
 
 	localUser := LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := contextForLocalUser(localUser, srv.AuthServer.Identity, srv.AuthServer.Access)
+	authContext, err := contextForLocalUser(localUser, srv.AuthServer)
 	require.NoError(t, err)
 
 	return &ServerWithRoles{

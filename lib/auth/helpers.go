@@ -320,7 +320,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
+	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -781,14 +781,14 @@ func (t *TestTLSServer) Close() error {
 
 // Shutdown closes the listener and HTTP server gracefully
 func (t *TestTLSServer) Shutdown(ctx context.Context) error {
-	err := t.TLSServer.Shutdown(ctx)
+	errs := []error{t.TLSServer.Shutdown(ctx)}
 	if t.Listener != nil {
-		t.Listener.Close()
+		errs = append(errs, t.Listener.Close())
 	}
 	if t.AuthServer.Backend != nil {
-		t.AuthServer.Backend.Close()
+		errs = append(errs, t.AuthServer.Backend.Close())
 	}
-	return err
+	return trace.NewAggregate(errs...)
 }
 
 // Stop stops listening server, but does not close the auth backend

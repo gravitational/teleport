@@ -1190,6 +1190,29 @@ steps:
       - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
+  - name: Build/push Teleport Lab Docker image
+    image: docker
+    environment:
+      OS: linux
+      ARCH: amd64
+    settings:
+      username:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt)
+      - export TELEPORT_LAB_IMAGE_NAME="quay.io/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+       # Get Dockerfile
+      - curl -Ls -o /go/build/Dockerfile-teleport-lab https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/docker/sshd/Dockerfile
+      # Build and push Teleport lab image
+      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME -f /go/build/Dockerfile-teleport-lab /go/build
+      - docker push $TELEPORT_LAB_IMAGE_NAME
+
 services:
   - name: Start Docker
     image: docker:dind
@@ -4399,6 +4422,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: a6eb9db27be4297501980988a17b963076717be5b64fe774bb47f742d5c8b493
+hmac: 0fefc46617d44db78e452aa83b1220a3373a832fd76b2f7427a65e674bb8fbeb
 
 ...
