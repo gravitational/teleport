@@ -2311,13 +2311,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
 			err := checker.CheckAccessToServer(t.Node.Login, n, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
+
+			// Ignore other errors; they'll be caught on the real access attempt.
 			if err == nil {
 				continue
 			} else if errors.Is(err, services.ErrSessionMFARequired) {
 				noMFAAccessErr = err
 				break
-			} else {
-				log.Debugf("ignoring unrelated error while checking access to server: %v", err)
 			}
 		}
 
