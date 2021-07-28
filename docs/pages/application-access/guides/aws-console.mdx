@@ -1,0 +1,179 @@
+---
+title: Access AWS Management Console With Teleport Application Access
+description: How to access AWS Management Console with Teleport Application Access.
+---
+
+# AWS Management Console Access
+
+Teleport can automatically sign your users into AWS management console with
+appropriate IAM roles.
+
+This guide will explain how to:
+
+- Connect your AWS account(-s) to Teleport.
+- Use Teleport's role-based access control with AWS IAM roles.
+- View Teleport users' AWS console activity in CloudTrail.
+
+## Prerequisites
+
+- Teleport with Application Access. Follow [Getting Started](../getting-started.mdx)
+  or [Connecting Apps](./connecting-apps.mdx) guides to get it running.
+- IAM permissions in the AWS account you want to connect.
+
+## Step 1. Update IAM roles trust relationships
+
+Teleport uses AWS [Federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html)
+service to generate sign-in URLs for users, which relies on the `AssumeRole` API
+for getting temporary security credentials. As such, you would first need to
+update your IAM roles' "Trusted entities" to include AWS account ID.
+
+Go to the [Roles](https://console.aws.amazon.com/iamv2/home#/roles) list, pick
+a role and create the following trust policy for it by clicking on "Edit trust
+relationship" button on the "Trust relationships" tab:
+
+```yaml
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<account-id>:root"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+
+See [How to use trust policies with IAM roles](https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/)
+for more details. After saving the trust policy, the account will show as a
+trusted entity:
+
+![AWS trusted entities](../../../img/application-access/aws-trusted-entities@2x.png)
+
+Do this for each IAM role your Teleport users will need to assume.
+
+## Step 2. Give Teleport permissions to assume roles
+
+Next, create the following IAM policy to allow Teleport to assume IAM roles:
+
+```yaml
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+<Admonition type="note">
+You can make the policy more strict by providing specific IAM role resource
+ARNs in the Resource field instead of using a wildcard.
+</Admonition>
+
+Attach this policy to the IAM role/user your Teleport application service agent
+is using.
+
+## Step 3. Configure Teleport IAM role mapping
+
+The next step is to give your Teleport users permissions to assume IAM roles.
+
+You can do this by creating a role with `aws_role_arns` field listing all IAM
+role ARNs this particular role permits its users to assume:
+
+```yaml
+kind: role
+version: v4
+metadata:
+  name: aws-console-access
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    aws_role_arns:
+    - arn:aws:iam::1234567890:role/ec2-read-only
+    - arn:aws:iam::1234567890:role/ec2-full-access
+    - arn:aws:iam::0987654321:role/example-role
+```
+
+The `aws_role_arns` field supports template variables so they can be populated
+dynamically based on your users' identity provider attributes. See [Role Templates](../../access-controls/guides/role-templates.mdx)
+for details.
+
+## Step 4. Register AWS console application in Teleport
+
+Add AWS management console to your application service configuration:
+
+```yaml
+app_service:
+  enabled: "yes"
+  apps:
+  - name: "awsconsole"
+    uri: "https://console.aws.amazon.com/ec2/v2/home"
+```
+
+Note that URI must start with `https://console.aws.amazon.com` in order to be
+recognized as an AWS console.
+
+### Multiple AWS accounts
+
+If you have multiple AWS accounts and would like to logically separate them
+in the UI, register an application entry for each and set `aws_account_id`
+label to the account ID:
+
+```yaml
+app_service:
+  enabled: "yes"
+  apps:
+  - name: "awsconsole-test"
+    uri: "https://console.aws.amazon.com/ec2/v2/home"
+    labels:
+      aws_account_id: "1234567890"
+      env: test
+  - name: "awsconsole-prod"
+    uri: "https://console.aws.amazon.com/ec2/v2/home"
+    labels:
+      aws_account_id: "0987654321"
+      env: prod
+```
+
+When showing available IAM roles, Teleport will display only role ARNs that
+belong to the specific account.
+
+## Step 5. Connect to AWS console with assumed IAM role
+
+Navigate to the Applications tab in your Teleport cluster's control panel and
+click on the Launch button for the AWS console application which will bring up
+an IAM role selector:
+
+![IAM role selector](../../../img/application-access/iam-role-selector.png)
+
+Click on the role you want to assume and you will get redirected to AWS
+management console signed in with the selected role.
+
+In the console's top-right corner you should see that you're logged in through
+federated login and the name of your assumed IAM role:
+
+![Federated login](../../../img/application-access/federated-login@2x.png)
+
+Note that your federated login session is marked with your Teleport username.
+
+## Step 6. Use CloudTrail to see Teleport user activity
+
+To view CloudTrail events for your federated sessions, navigate to the CloudTrail
+[dashboard](https://console.aws.amazon.com/cloudtrail/home) and go to "Event history".
+
+Each Teleport federated login session uses Teleport username as the federated
+username which you can search for to get the events history:
+
+![CloudTrail](../../../img/application-access/cloud-trail.png)
+
+## Next steps
+
+- Take a closer look at [role-based access controls](../controls.mdx).
+- Explore other application access [guides](../guides.mdx).

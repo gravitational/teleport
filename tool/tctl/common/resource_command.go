@@ -1013,7 +1013,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		return &recConfigCollection{recConfig}, nil
 	case types.KindLock:
 		if rc.ref.Name == "" {
-			locks, err := client.GetLocks(ctx)
+			locks, err := client.GetLocks(ctx, false)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
