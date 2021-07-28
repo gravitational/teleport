@@ -29,6 +29,32 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+func TestContextLockTargets(t *testing.T) {
+	t.Parallel()
+	authContext := &Context{
+		Identity: BuiltinRole{
+			Role:        types.RoleNode,
+			ClusterName: "cluster",
+			Identity: tlsca.Identity{
+				Username: "node.cluster",
+				Groups:   []string{"role1", "role2"},
+			},
+		},
+		UnmappedIdentity: WrapIdentity(tlsca.Identity{
+			Username: "node.cluster",
+			Groups:   []string{"mapped-role"}},
+		),
+	}
+	expected := []types.LockTarget{
+		{Node: "node"},
+		{User: "node.cluster"},
+		{Role: "role1"},
+		{Role: "role2"},
+		{Role: "mapped-role"},
+	}
+	require.ElementsMatch(t, authContext.LockTargets(), expected)
+}
+
 func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

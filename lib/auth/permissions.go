@@ -95,25 +95,46 @@ type Context struct {
 	UnmappedIdentity IdentityGetter
 }
 
+// LockTargets returns a list of LockTargets inferred from the context's
+// Identity and UnmappedIdentity.
+func (c *Context) LockTargets() []types.LockTarget {
+	lockTargets := services.LockTargetsFromTLSIdentity(c.Identity.GetIdentity())
+Loop:
+	for _, unmappedTarget := range services.LockTargetsFromTLSIdentity(c.UnmappedIdentity.GetIdentity()) {
+		// Append a lock target from UnmappedIdentity only if it is not already
+		// known from Identity.
+		for _, knownTarget := range lockTargets {
+			if unmappedTarget.Equals(knownTarget) {
+				continue Loop
+			}
+		}
+		lockTargets = append(lockTargets, unmappedTarget)
+	}
+	if r, ok := c.Identity.(BuiltinRole); ok && r.Role == types.RoleNode {
+		lockTargets = append(lockTargets, types.LockTarget{Node: r.GetServerID()})
+	}
+	return lockTargets
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
 	userI := ctx.Value(ContextUser)
-	authContext, lockTargets, err := a.fromUser(ctx, userI)
+	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Enforce applicable locks in force.
-	lock := a.lockWatcher.FindLockInForce(lockTargets...)
+	lock := a.lockWatcher.FindLockInForce(authContext.LockTargets()...)
 	if lock != nil {
 		return nil, trace.AccessDenied(services.LockInForceMessage(lock))
 	}
 	return authContext, nil
 }
 
-func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, []types.LockTarget, error) {
+func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, error) {
 	switch user := userI.(type) {
 	case LocalUser:
 		return a.authorizeLocalUser(user)
@@ -124,34 +145,30 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 	case RemoteBuiltinRole:
 		return a.authorizeRemoteBuiltinRole(user)
 	default:
-		return nil, nil, trace.AccessDenied("unsupported context type %T", userI)
+		return nil, trace.AccessDenied("unsupported context type %T", userI)
 	}
 }
 
 // authorizeLocalUser returns authz context based on the username
-func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, []types.LockTarget, error) {
-	context, err := contextForLocalUser(u, a.accessPoint)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return context, services.LockTargetsFromTLSIdentity(u.Identity), nil
+func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
+	return contextForLocalUser(u, a.accessPoint)
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
-func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, []types.LockTarget, error) {
+func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 	ca, err := a.accessPoint.GetCertAuthority(types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: u.ClusterName,
 	}, false)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	roleNames, err := services.MapRoles(ca.CombinedMapping(), u.RemoteRoles)
 	if err != nil {
-		return nil, nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q with remote roles %v", u.Username, u.ClusterName, u.RemoteRoles)
+		return nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q with remote roles %v", u.Username, u.ClusterName, u.RemoteRoles)
 	}
 	if len(roleNames) == 0 {
-		return nil, nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q with remote roles %v", u.Username, u.ClusterName, u.RemoteRoles)
+		return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q with remote roles %v", u.Username, u.ClusterName, u.RemoteRoles)
 	}
 	// Set internal traits for the remote user. This allows Teleport to work by
 	// passing exact logins, Kubernetes users/groups and database users/names
@@ -181,13 +198,13 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, []types.LockTa
 		u.RemoteRoles, u.Username, roleNames, traits)
 	checker, err := services.FetchRoles(roleNames, a.accessPoint, traits)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// The user is prefixed with "remote-" and suffixed with cluster name with
 	// the hope that it does not match a real local user.
 	user, err := types.NewUser(fmt.Sprintf("remote-%v-%v", u.Username, u.ClusterName))
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	user.SetTraits(traits)
 
@@ -203,11 +220,11 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, []types.LockTa
 	// in many cases. The downstream k8s handler will ensure that users/groups
 	// are set if this is a k8s request.
 	if err != nil && !trace.IsNotFound(err) {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	principals, err := checker.CheckLoginDuration(ttl)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// Convert u.Identity into the mapped local identity.
 	//
@@ -239,29 +256,21 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, []types.LockTa
 		Checker:          RemoteUserRoleSet{checker},
 		Identity:         WrapIdentity(identity),
 		UnmappedIdentity: u,
-	}, services.LockTargetsFromTLSIdentity(u.Identity), nil
+	}, nil
 }
 
 // authorizeBuiltinRole authorizes builtin role
-func (a *authorizer) authorizeBuiltinRole(ctx context.Context, r BuiltinRole) (*Context, []types.LockTarget, error) {
+func (a *authorizer) authorizeBuiltinRole(ctx context.Context, r BuiltinRole) (*Context, error) {
 	recConfig, err := r.GetSessionRecordingConfig(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	context, err := contextForBuiltinRole(r, recConfig)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	lockTargets := services.LockTargetsFromTLSIdentity(r.Identity)
-	if r.Role == types.RoleNode {
-		lockTargets = append(lockTargets, types.LockTarget{Node: r.GetServerID()})
-	}
-	return context, lockTargets, nil
+	return contextForBuiltinRole(r, recConfig)
 }
 
-func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, []types.LockTarget, error) {
+func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, error) {
 	if r.Role != types.RoleProxy {
-		return nil, nil, trace.AccessDenied("access denied for remote %v connecting to cluster", r.Role)
+		return nil, trace.AccessDenied("access denied for remote %v connecting to cluster", r.Role)
 	}
 	roles, err := services.FromSpec(
 		string(types.RoleRemoteProxy),
@@ -299,11 +308,11 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 			},
 		})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	user, err := types.NewUser(r.Username)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	user.SetRoles([]string{string(types.RoleRemoteProxy)})
 	return &Context{
@@ -311,7 +320,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 		Checker:          RemoteBuiltinRoleSet{roles},
 		Identity:         r,
 		UnmappedIdentity: r,
-	}, services.LockTargetsFromTLSIdentity(r.Identity), nil
+	}, nil
 }
 
 // GetCheckerForBuiltinRole returns checkers for embedded builtin role
