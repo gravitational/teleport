@@ -101,6 +101,7 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 	defer stream.SendAndClose(&empty.Empty{})
 	firstIteration := true
 	for {
+		// Authenticate within the loop to block locked-out nodes from heartbeating.
 		auth, err := g.authenticate(stream.Context())
 		if err != nil {
 			return trace.Wrap(err)
