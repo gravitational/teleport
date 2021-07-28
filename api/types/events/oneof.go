@@ -133,9 +133,9 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_RoleDelete{
 			RoleDelete: e,
 		}
-	case *ResetPasswordTokenCreate:
-		out.Event = &OneOf_ResetPasswordTokenCreate{
-			ResetPasswordTokenCreate: e,
+	case *UserTokenCreate:
+		out.Event = &OneOf_UserTokenCreate{
+			UserTokenCreate: e,
 		}
 	case *TrustedClusterCreate:
 		out.Event = &OneOf_TrustedClusterCreate{
@@ -275,7 +275,7 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 		return e, nil
 	} else if e := in.GetAccessRequestCreate(); e != nil {
 		return e, nil
-	} else if e := in.GetResetPasswordTokenCreate(); e != nil {
+	} else if e := in.GetUserTokenCreate(); e != nil {
 		return e, nil
 	} else if e := in.GetRoleCreate(); e != nil {
 		return e, nil
