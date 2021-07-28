@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -336,8 +337,54 @@ func TestListNodes(t *testing.T) {
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
 }
 
+// TestAPILockedOut tests Auth API when there are locks involved.
+func TestAPILockedOut(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create user, role and client.
+	user, role, err := CreateUserAndRole(srv.Auth(), "test-user", nil)
+	require.NoError(t, err)
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Prepare an operation requiring authorization.
+	testOp := func() error {
+		_, err := clt.GetUser(user.GetName(), false)
+		return err
+	}
+
+	// With no locks, the operation should pass with no error.
+	require.NoError(t, testOp())
+
+	// With a lock targeting the user, the operation should be denied.
+	lock, err := types.NewLock("user-lock", types.LockSpecV2{
+		Target: types.LockTarget{User: user.GetName()},
+	})
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().UpsertLock(ctx, lock))
+	err = testOp()
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Delete the lock.
+	require.NoError(t, srv.Auth().DeleteLock(ctx, lock.GetName()))
+	require.NoError(t, testOp())
+
+	// Create a new lock targeting the user's role.
+	roleLock, err := types.NewLock("role-lock", types.LockSpecV2{
+		Target: types.LockTarget{Role: role.GetName()},
+	})
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().UpsertLock(ctx, roleLock))
+	err = testOp()
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+}
+
 func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.Rule) *ServerWithRoles {
-	username := "some-user"
+	username := "test-user"
 	_, role, err := CreateUserAndRoleWithoutRoles(srv.AuthServer, username, nil)
 	require.NoError(t, err)
 	role.SetRules(types.Allow, allowRules)
