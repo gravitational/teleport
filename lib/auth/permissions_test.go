@@ -42,8 +42,8 @@ func TestContextLockTargets(t *testing.T) {
 		},
 		UnmappedIdentity: WrapIdentity(tlsca.Identity{
 			Username: "node.cluster",
-			Groups:   []string{"mapped-role"}},
-		),
+			Groups:   []string{"mapped-role"},
+		}),
 	}
 	expected := []types.LockTarget{
 		{Node: "node"},
