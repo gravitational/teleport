@@ -2311,9 +2311,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
 			err := checker.CheckAccessToServer(t.Node.Login, n, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
-			if err != nil {
+			if err == nil {
+				continue
+			} else if errors.Is(err, services.ErrSessionMFARequired) {
 				noMFAAccessErr = err
 				break
+			} else {
+				log.Debugf("ignoring unrelated error while checking access to server: %v", err)
 			}
 		}
 
@@ -2375,8 +2379,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// most likely access denied.
 	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
 		if trace.IsAccessDenied(noMFAAccessErr) {
-			log.Infof("Access to resource denied: %v", noMFAAccessErr)
-
 			// Mask the access denied errors by returning false to prevent
 			// resource name oracles. Auth will be denied (and generate an
 			// audit log entry) when the client attempts to connect.
