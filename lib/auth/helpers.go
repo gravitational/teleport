@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/client"
+	"github.com/gravitational/teleport/api/v7/constants"
+	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/v7/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -175,6 +175,8 @@ type TestAuthServer struct {
 	Backend backend.Backend
 	// Authorizer is an authorizer used in tests
 	Authorizer Authorizer
+	// LockWatcher is a lock watcher used in tests.
+	LockWatcher *services.LockWatcher
 }
 
 // NewTestAuthServer returns new instances of Auth server
@@ -320,10 +322,20 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer)
+	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentAuth,
+			Client:    srv.AuthServer,
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer, srv.LockWatcher)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return srv, nil
 }
 

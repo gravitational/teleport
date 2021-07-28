@@ -19,7 +19,7 @@ package services
 import (
 	"fmt"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -38,10 +38,11 @@ func LockInForceMessage(lock types.Lock) string {
 
 // LockTargetsFromTLSIdentity infers a list of LockTargets from tlsca.Identity.
 func LockTargetsFromTLSIdentity(id tlsca.Identity) []types.LockTarget {
-	return append([]types.LockTarget{
-		{User: id.Username},
-		{MFADevice: id.MFAVerified},
-	}, RolesToLockTargets(id.Groups)...)
+	lockTargets := append(RolesToLockTargets(id.Groups), types.LockTarget{User: id.Username})
+	if id.MFAVerified != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: id.MFAVerified})
+	}
+	return lockTargets
 }
 
 // RolesToLockTargets converts a list of roles to a list of LockTargets

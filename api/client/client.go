@@ -26,13 +26,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/metadata"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v7/client/proto"
+	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/v7/metadata"
+	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/v7/utils"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
@@ -1615,14 +1615,15 @@ func (c *Client) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	return resp, nil
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
-func (c *Client) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	targetPtrs := make([]*types.LockTarget, len(targets))
 	for i := range targets {
 		targetPtrs[i] = &targets[i]
 	}
 	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
-		Targets: targetPtrs,
+		InForceOnly: inForceOnly,
+		Targets:     targetPtrs,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)

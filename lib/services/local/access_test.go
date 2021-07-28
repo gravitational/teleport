@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/backend/lite"
 )
 
@@ -52,7 +52,7 @@ func TestLockCRUD(t *testing.T) {
 
 	t.Run("CreateLock", func(t *testing.T) {
 		// Initially expect no locks to be returned.
-		locks, err := access.GetLocks(ctx)
+		locks, err := access.GetLocks(ctx, false)
 		require.NoError(t, err)
 		require.Empty(t, locks)
 
@@ -67,16 +67,18 @@ func TestLockCRUD(t *testing.T) {
 	t.Run("LockGetters", func(t *testing.T) {
 		t.Run("GetLocks", func(t *testing.T) {
 			t.Parallel()
-			locks, err := access.GetLocks(ctx)
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			for _, inForceOnly := range []bool{true, false} {
+				locks, err := access.GetLocks(ctx, inForceOnly)
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			}
 		})
 		t.Run("GetLocks with targets", func(t *testing.T) {
 			t.Parallel()
 			// Match both locks with the targets.
-			locks, err := access.GetLocks(ctx, lock1.Target(), lock2.Target())
+			locks, err := access.GetLocks(ctx, false, lock1.Target(), lock2.Target())
 			require.NoError(t, err)
 			require.Len(t, locks, 2)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
@@ -84,14 +86,14 @@ func TestLockCRUD(t *testing.T) {
 
 			// Match only one of the locks.
 			roleTarget := types.LockTarget{Role: "role-A"}
-			locks, err = access.GetLocks(ctx, lock1.Target(), roleTarget)
+			locks, err = access.GetLocks(ctx, false, lock1.Target(), roleTarget)
 			require.NoError(t, err)
 			require.Len(t, locks, 1)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 			// Match none of the locks.
-			locks, err = access.GetLocks(ctx, roleTarget)
+			locks, err = access.GetLocks(ctx, false, roleTarget)
 			require.NoError(t, err)
 			require.Empty(t, locks)
 		})
@@ -143,7 +145,7 @@ func TestLockCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		// Expect no locks to be returned.
-		locks, err := access.GetLocks(ctx)
+		locks, err := access.GetLocks(ctx, false)
 		require.NoError(t, err)
 		require.Empty(t, locks)
 	})

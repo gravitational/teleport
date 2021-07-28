@@ -22,13 +22,13 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v7/client/proto"
+	"github.com/gravitational/teleport/api/v7/constants"
+	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/v7/types"
+	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/v7/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/v7/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -3145,15 +3145,15 @@ func (a *ServerWithRoles) GetLock(ctx context.Context, name string) (types.Lock,
 	return a.authServer.GetLock(ctx, name)
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
-func (a *ServerWithRoles) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetLocks(ctx, targets...)
+	return a.authServer.GetLocks(ctx, inForceOnly, targets...)
 }
 
 // UpsertLock upserts a lock.

@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v7/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
@@ -222,6 +222,10 @@ func (t LockTarget) Match(lock Lock) bool {
 
 // String returns string representation of the LockTarget.
 func (t LockTarget) String() string {
-	p := &t
-	return strings.TrimSpace(proto.CompactTextString(p))
+	return strings.TrimSpace(proto.CompactTextString(&t))
+}
+
+// Equals returns true when the two lock targets are equal.
+func (t LockTarget) Equals(t2 LockTarget) bool {
+	return proto.Equal(&t, &t2)
 }

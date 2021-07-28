@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -443,9 +443,10 @@ func (p *lockCollector) Subscribe(ctx context.Context, targets ...types.LockTarg
 	return sub, nil
 }
 
-// GetSomeLockInForce returns one of the matching locks that are in force,
-// nil if not found.
-func (p *lockCollector) GetSomeLockInForce(targets ...types.LockTarget) types.Lock {
+// FindLockInForce returns a lock in force that matches at least one of the
+// targets, nil if not found.
+// TODO(andrej): Return error if the local lock view becomes stale.
+func (p *lockCollector) FindLockInForce(targets ...types.LockTarget) types.Lock {
 	p.currentRW.RLock()
 	defer p.currentRW.RUnlock()
 
@@ -473,15 +474,13 @@ func (p *lockCollector) resourceKind() string {
 // getResourcesAndUpdateCurrent is called when the resources should be
 // (re-)fetched directly.
 func (p *lockCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	locks, err := p.LockGetter.GetLocks(ctx)
+	locks, err := p.LockGetter.GetLocks(ctx, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	newCurrent := map[string]types.Lock{}
 	for _, lock := range locks {
-		if lock.IsInForce(p.Clock.Now()) {
-			newCurrent[lock.GetName()] = lock
-		}
+		newCurrent[lock.GetName()] = lock
 	}
 
 	p.currentRW.Lock()
@@ -525,6 +524,9 @@ func (p *lockCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 }
 
 func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, error) {
+	if len(targets) == 0 {
+		return []types.WatchKind{{Kind: types.KindLock}}, nil
+	}
 	watchKinds := make([]types.WatchKind, 0, len(targets))
 	for _, target := range targets {
 		filter, err := target.IntoMap()

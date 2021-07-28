@@ -17,7 +17,7 @@ limitations under the License.
 package restrictedsession
 
 import (
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/services"
 )

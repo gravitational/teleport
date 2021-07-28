@@ -30,8 +30,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/v7/defaults"
 	"github.com/gravitational/trace"
 )
 
