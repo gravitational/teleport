@@ -28,7 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 )
 
 // DeviceStorage is a persistent storage for MFA devices.

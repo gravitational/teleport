@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/v7/types/events"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 )
