@@ -1615,14 +1615,15 @@ func (c *Client) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	return resp, nil
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
-func (c *Client) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	targetPtrs := make([]*types.LockTarget, len(targets))
 	for i := range targets {
 		targetPtrs[i] = &targets[i]
 	}
 	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
-		Targets: targetPtrs,
+		InForceOnly: inForceOnly,
+		Targets:     targetPtrs,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)

@@ -175,6 +175,8 @@ type TestAuthServer struct {
 	Backend backend.Backend
 	// Authorizer is an authorizer used in tests
 	Authorizer Authorizer
+	// LockWatcher is a lock watcher used in tests.
+	LockWatcher *services.LockWatcher
 }
 
 // NewTestAuthServer returns new instances of Auth server
@@ -320,10 +322,20 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer)
+	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentAuth,
+			Client:    srv.AuthServer,
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer, srv.LockWatcher)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return srv, nil
 }
 
