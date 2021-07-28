@@ -2272,7 +2272,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	var noMFAAccessErr, notFoundErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
-		notFoundErr = trace.NotFound("node %q not found", t.Node)
 		if t.Node.Node == "" {
 			return nil, trace.BadParameter("empty Node field")
 		}
