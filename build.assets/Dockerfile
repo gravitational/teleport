@@ -110,7 +110,7 @@ ARG GOGO_PROTO_TAG
 ENV PROTOC_TARBALL protoc-${PROTOC_VER}-${PROTOC_PLATFORM}.zip
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
-RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/google/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      rm /tmp/${PROTOC_TARBALL})
 RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && go install golang.org/x/tools/cmd/goimports@latest && \
