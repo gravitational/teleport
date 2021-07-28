@@ -24,6 +24,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -52,6 +55,7 @@ type ResourceCommand struct {
 	namespace   string
 	withSecrets bool
 	force       bool
+	confirm     bool
 	ttl         string
 	labels      string
 
@@ -81,17 +85,23 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
-		services.KindUser:            rc.createUser,
-		services.KindRole:            rc.createRole,
-		services.KindTrustedCluster:  rc.createTrustedCluster,
-		services.KindGithubConnector: rc.createGithubConnector,
-		services.KindCertAuthority:   rc.createCertAuthority,
+		types.KindUser:                    rc.createUser,
+		types.KindRole:                    rc.createRole,
+		types.KindTrustedCluster:          rc.createTrustedCluster,
+		types.KindGithubConnector:         rc.createGithubConnector,
+		types.KindCertAuthority:           rc.createCertAuthority,
+		types.KindClusterAuthPreference:   rc.createAuthPreference,
+		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
+		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
+		types.KindLock:                    rc.createLock,
+		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
 	}
 	rc.config = config
 
 	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file")
 	rc.createCmd.Arg("filename", "resource definition file, empty for stdin").StringVar(&rc.filename)
 	rc.createCmd.Flag("force", "Overwrite the resource if already exists").Short('f').BoolVar(&rc.force)
+	rc.createCmd.Flag("confirm", "Confirm an unsafe or temporary resource update").Hidden().BoolVar(&rc.confirm)
 
 	rc.updateCmd = app.Command("update", "Update resource fields")
 	rc.updateCmd.Arg("resource type/resource name", `Resource to update
@@ -115,11 +125,10 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources")
 	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").Required().SetValue(&rc.refs)
 	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&rc.format)
-	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(defaults.Namespace).StringVar(&rc.namespace)
+	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(apidefaults.Namespace).StringVar(&rc.namespace)
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
 
 	rc.getCmd.Alias(getHelp)
-
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -186,7 +195,7 @@ func (rc *ResourceCommand) GetMany(client auth.ClientI) error {
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
-	var resources []services.Resource
+	var resources []types.Resource
 	for _, ref := range rc.refs {
 		rc.ref = ref
 		collection, err := rc.getCollection(client)
@@ -341,7 +350,7 @@ func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw servic
 	return nil
 }
 
-// createConnector implements 'tctl create role.yaml' command
+// createRole implements `tctl create role.yaml` command.
 func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownResource) error {
 	ctx := context.TODO()
 	role, err := services.UnmarshalRole(raw.Raw)
@@ -374,7 +383,7 @@ func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownR
 	return nil
 }
 
-// createUser implements 'tctl create user.yaml' command.
+// createUser implements `tctl create user.yaml` command.
 func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownResource) error {
 	user, err := services.UnmarshalUser(raw.Raw)
 	if err != nil {
@@ -412,67 +421,186 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 	return nil
 }
 
+// createAuthPreference implements `tctl create cap.yaml` command.
+func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedAuthPref, err := client.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkCreateResourceWithOrigin(storedAuthPref, "cluster auth preference", rc.force, rc.confirm); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.SetAuthPreference(ctx, newAuthPref); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster auth preference has been updated\n")
+	return nil
+}
+
+// createClusterNetworkingConfig implements `tctl create netconfig.yaml` command.
+func (rc *ResourceCommand) createClusterNetworkingConfig(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+
+	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkCreateResourceWithOrigin(storedNetConfig, "cluster networking configuration", rc.force, rc.confirm); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.SetClusterNetworkingConfig(ctx, newNetConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster networking configuration has been updated\n")
+	return nil
+}
+
+// createSessionRecordingConfig implements `tctl create recconfig.yaml` command.
+func (rc *ResourceCommand) createSessionRecordingConfig(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+
+	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkCreateResourceWithOrigin(storedRecConfig, "session recording configuration", rc.force, rc.confirm); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.SetSessionRecordingConfig(ctx, newRecConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("session recording configuration has been updated\n")
+	return nil
+}
+
+// createLock implements `tctl create lock.yaml` command.
+func (rc *ResourceCommand) createLock(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+	lock, err := services.UnmarshalLock(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Check if a lock of the name already exists.
+	name := lock.GetName()
+	_, err = client.GetLock(ctx, name)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	exists := (err == nil)
+	if !rc.force && exists {
+		return trace.AlreadyExists("lock %q already exists", name)
+	}
+
+	if err := client.UpsertLock(ctx, lock); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("lock %q has been %s\n", name, UpsertVerb(exists, rc.force))
+	return nil
+}
+
+// createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
+func (rc *ResourceCommand) createNetworkRestrictions(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+
+	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.SetNetworkRestrictions(ctx, newNetRestricts); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("network restrictions have been updated\n")
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
-	if rc.ref.Kind == "" || rc.ref.Name == "" {
+	singletonResources := []string{
+		types.KindClusterAuthPreference,
+		types.KindClusterNetworkingConfig,
+		types.KindSessionRecordingConfig,
+	}
+	if !apiutils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
 	ctx := context.TODO()
 	switch rc.ref.Kind {
-	case services.KindNode:
-		if err = client.DeleteNode(defaults.Namespace, rc.ref.Name); err != nil {
+	case types.KindNode:
+		if err = client.DeleteNode(ctx, apidefaults.Namespace, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("node %v has been deleted\n", rc.ref.Name)
-	case services.KindUser:
+	case types.KindUser:
 		if err = client.DeleteUser(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user %q has been deleted\n", rc.ref.Name)
-	case services.KindRole:
+	case types.KindRole:
 		if err = client.DeleteRole(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("role %q has been deleted\n", rc.ref.Name)
-	case services.KindSAMLConnector:
+	case types.KindSAMLConnector:
 		if err = client.DeleteSAMLConnector(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("SAML connector %v has been deleted\n", rc.ref.Name)
-	case services.KindOIDCConnector:
+	case types.KindOIDCConnector:
 		if err = client.DeleteOIDCConnector(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("OIDC connector %v has been deleted\n", rc.ref.Name)
-	case services.KindGithubConnector:
+	case types.KindGithubConnector:
 		if err = client.DeleteGithubConnector(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("github connector %q has been deleted\n", rc.ref.Name)
-	case services.KindReverseTunnel:
+	case types.KindReverseTunnel:
 		if err := client.DeleteReverseTunnel(rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("reverse tunnel %v has been deleted\n", rc.ref.Name)
-	case services.KindTrustedCluster:
+	case types.KindTrustedCluster:
 		if err = client.DeleteTrustedCluster(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("trusted cluster %q has been deleted\n", rc.ref.Name)
-	case services.KindRemoteCluster:
+	case types.KindRemoteCluster:
 		if err = client.DeleteRemoteCluster(rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("remote cluster %q has been deleted\n", rc.ref.Name)
-	case services.KindSemaphore:
+	case types.KindSemaphore:
 		if rc.ref.SubKind == "" || rc.ref.Name == "" {
 			return trace.BadParameter(
 				"full semaphore path must be specified (e.g. '%s/%s/alice@example.com')",
-				services.KindSemaphore, services.SemaphoreKindConnection,
+				types.KindSemaphore, types.SemaphoreKindConnection,
 			)
 		}
-		err := client.DeleteSemaphore(ctx, services.SemaphoreFilter{
+		err := client.DeleteSemaphore(ctx, types.SemaphoreFilter{
 			SemaphoreKind: rc.ref.SubKind,
 			SemaphoreName: rc.ref.Name,
 		})
@@ -480,15 +608,86 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
-	case services.KindKubeService:
+	case types.KindKubeService:
 		if err = client.DeleteKubeService(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("kubernetes service %v has been deleted\n", rc.ref.Name)
+	case types.KindClusterAuthPreference:
+		if err = resetAuthPreference(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("cluster auth preference has been reset to defaults\n")
+	case types.KindClusterNetworkingConfig:
+		if err = resetClusterNetworkingConfig(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("cluster networking configuration has been reset to defaults\n")
+	case types.KindSessionRecordingConfig:
+		if err = resetSessionRecordingConfig(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("session recording configuration has been reset to defaults\n")
+	case types.KindLock:
+		if err = client.DeleteLock(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("lock %q has been deleted\n", rc.ref.Name)
+	case types.KindNetworkRestrictions:
+		if err = resetNetworkRestrictions(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
 	return nil
+}
+
+func resetAuthPreference(ctx context.Context, client auth.ClientI) error {
+	storedAuthPref, err := client.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
+	if managedByStaticConfig {
+		return trace.BadParameter(managedByStaticDeleteMsg)
+	}
+
+	return trace.Wrap(client.ResetAuthPreference(ctx))
+}
+
+func resetClusterNetworkingConfig(ctx context.Context, client auth.ClientI) error {
+	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	managedByStaticConfig := storedNetConfig.Origin() == types.OriginConfigFile
+	if managedByStaticConfig {
+		return trace.BadParameter(managedByStaticDeleteMsg)
+	}
+
+	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
+}
+
+func resetSessionRecordingConfig(ctx context.Context, client auth.ClientI) error {
+	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	managedByStaticConfig := storedRecConfig.Origin() == types.OriginConfigFile
+	if managedByStaticConfig {
+		return trace.BadParameter(managedByStaticDeleteMsg)
+	}
+
+	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
+}
+
+func resetNetworkRestrictions(ctx context.Context, client auth.ClientI) error {
+	return trace.Wrap(client.DeleteNetworkRestrictions(ctx))
 }
 
 // Update updates select resource fields: expiry and labels
@@ -522,7 +721,7 @@ func (rc *ResourceCommand) Update(clt auth.ClientI) error {
 	// TODO: pass the context from CLI to terminate requests on Ctrl-C
 	ctx := context.TODO()
 	switch rc.ref.Kind {
-	case services.KindRemoteCluster:
+	case types.KindRemoteCluster:
 		cluster, err := clt.GetRemoteCluster(rc.ref.Name)
 		if err != nil {
 			return trace.Wrap(err)
@@ -540,7 +739,7 @@ func (rc *ResourceCommand) Update(clt auth.ClientI) error {
 		}
 		fmt.Printf("cluster %v has been updated\n", rc.ref.Name)
 	default:
-		return trace.BadParameter("updating resources of type %q is not supported, supported are: %q", rc.ref.Kind, services.KindRemoteCluster)
+		return trace.BadParameter("updating resources of type %q is not supported, supported are: %q", rc.ref.Kind, types.KindRemoteCluster)
 	}
 	return nil
 }
@@ -551,126 +750,154 @@ func (rc *ResourceCommand) IsForced() bool {
 }
 
 // getCollection lists all resources of a given type
-func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollection, err error) {
-	ctx := context.TODO()
+func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollection, error) {
 	if rc.ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
+
+	// TODO: pass the context from CLI to terminate requests on Ctrl-C
+	ctx := context.TODO()
 	switch rc.ref.Kind {
-	// load user(s)
-	case services.KindUser:
-		var users services.Users
-		// just one?
-		if !rc.ref.IsEmpty() {
-			user, err := client.GetUser(rc.ref.Name, rc.withSecrets)
+	case types.KindUser:
+		if rc.ref.Name == "" {
+			users, err := client.GetUsers(rc.withSecrets)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			users = services.Users{user}
-			// all of them?
-		} else {
-			users, err = client.GetUsers(rc.withSecrets)
-			if err != nil {
-				return nil, trace.Wrap(err)
+			return &userCollection{users: users}, nil
+		}
+		user, err := client.GetUser(rc.ref.Name, rc.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &userCollection{users: services.Users{user}}, nil
+	case types.KindConnectors:
+		sc, scErr := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
+		oc, ocErr := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
+		gc, gcErr := getGithubConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
+		errs := []error{scErr, ocErr, gcErr}
+		allEmpty := len(sc) == 0 && len(oc) == 0 && len(gc) == 0
+		reportErr := false
+		for _, err := range errs {
+			if err != nil && !trace.IsNotFound(err) {
+				reportErr = true
+				break
 			}
 		}
-		return &userCollection{users: users}, nil
-	case services.KindConnectors:
-		sc, err := client.GetSAMLConnectors(ctx, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		oc, err := client.GetOIDCConnectors(ctx, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		gc, err := client.GetGithubConnectors(ctx, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var finalErr error
+		if allEmpty || reportErr {
+			finalErr = trace.NewAggregate(errs...)
 		}
 		return &connectorsCollection{
 			saml:   sc,
 			oidc:   oc,
 			github: gc,
-		}, nil
-	case services.KindSAMLConnector:
-		connectors, err := client.GetSAMLConnectors(ctx, rc.withSecrets)
+		}, finalErr
+	case types.KindSAMLConnector:
+		connectors, err := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &samlCollection{connectors: connectors}, nil
-	case services.KindOIDCConnector:
-		connectors, err := client.GetOIDCConnectors(ctx, rc.withSecrets)
+		return &samlCollection{connectors}, nil
+	case types.KindOIDCConnector:
+		connectors, err := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &oidcCollection{connectors: connectors}, nil
-	case services.KindGithubConnector:
-		connectors, err := client.GetGithubConnectors(ctx, rc.withSecrets)
+		return &oidcCollection{connectors}, nil
+	case types.KindGithubConnector:
+		connectors, err := getGithubConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &githubCollection{connectors: connectors}, nil
-	case services.KindReverseTunnel:
-		tunnels, err := client.GetReverseTunnels()
+		return &githubCollection{connectors}, nil
+	case types.KindReverseTunnel:
+		if rc.ref.Name == "" {
+			tunnels, err := client.GetReverseTunnels()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &reverseTunnelCollection{tunnels: tunnels}, nil
+		}
+		tunnel, err := client.GetReverseTunnel(rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &reverseTunnelCollection{tunnels: tunnels}, nil
-	case services.KindCertAuthority:
-		var authorities []services.CertAuthority
-
-		userAuthorities, err := client.GetCertAuthorities(services.UserCA, rc.withSecrets)
+		return &reverseTunnelCollection{tunnels: []types.ReverseTunnel{tunnel}}, nil
+	case types.KindCertAuthority:
+		if rc.ref.SubKind == "" && rc.ref.Name == "" {
+			var allAuthorities []types.CertAuthority
+			for _, caType := range types.CertAuthTypes {
+				authorities, err := client.GetCertAuthorities(caType, rc.withSecrets)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				allAuthorities = append(allAuthorities, authorities...)
+			}
+			return &authorityCollection{cas: allAuthorities}, nil
+		}
+		id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
+		authority, err := client.GetCertAuthority(id, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authorities = append(authorities, userAuthorities...)
-
-		hostAuthorities, err := client.GetCertAuthorities(services.HostCA, rc.withSecrets)
+		return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
+	case types.KindNode:
+		nodes, err := client.GetNodes(ctx, rc.namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authorities = append(authorities, hostAuthorities...)
-
-		jwtSigners, err := client.GetCertAuthorities(services.JWTSigner, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if rc.ref.Name == "" {
+			return &serverCollection{servers: nodes}, nil
 		}
-		authorities = append(authorities, jwtSigners...)
-
-		return &authorityCollection{cas: authorities}, nil
-	case services.KindNode:
-		nodes, err := client.GetNodes(rc.namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		for _, node := range nodes {
+			if node.GetName() == rc.ref.Name || node.GetHostname() == rc.ref.Name {
+				return &serverCollection{servers: []types.Server{node}}, nil
+			}
 		}
-		return &serverCollection{servers: nodes}, nil
-	case services.KindAuthServer:
+		return nil, trace.NotFound("node with ID %q not found", rc.ref.Name)
+	case types.KindAuthServer:
 		servers, err := client.GetAuthServers()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &serverCollection{servers: servers}, nil
-	case services.KindProxy:
+		if rc.ref.Name == "" {
+			return &serverCollection{servers: servers}, nil
+		}
+		for _, server := range servers {
+			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
+				return &serverCollection{servers: []types.Server{server}}, nil
+			}
+		}
+		return nil, trace.NotFound("auth server with ID %q not found", rc.ref.Name)
+	case types.KindProxy:
 		servers, err := client.GetProxies()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &serverCollection{servers: servers}, nil
-	case services.KindRole:
 		if rc.ref.Name == "" {
-			roles, err := client.GetRoles(context.TODO())
+			return &serverCollection{servers: servers}, nil
+		}
+		for _, server := range servers {
+			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
+				return &serverCollection{servers: []types.Server{server}}, nil
+			}
+		}
+		return nil, trace.NotFound("proxy with ID %q not found", rc.ref.Name)
+	case types.KindRole:
+		if rc.ref.Name == "" {
+			roles, err := client.GetRoles(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &roleCollection{roles: roles}, nil
 		}
-		role, err := client.GetRole(context.TODO(), rc.ref.Name)
+		role, err := client.GetRole(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &roleCollection{roles: []services.Role{role}}, nil
-	case services.KindNamespace:
+		return &roleCollection{roles: []types.Role{role}}, nil
+	case types.KindNamespace:
 		if rc.ref.Name == "" {
 			namespaces, err := client.GetNamespaces()
 			if err != nil {
@@ -682,8 +909,8 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &namespaceCollection{namespaces: []services.Namespace{*ns}}, nil
-	case services.KindTrustedCluster:
+		return &namespaceCollection{namespaces: []types.Namespace{*ns}}, nil
+	case types.KindTrustedCluster:
 		if rc.ref.Name == "" {
 			trustedClusters, err := client.GetTrustedClusters(ctx)
 			if err != nil {
@@ -695,8 +922,8 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &trustedClusterCollection{trustedClusters: []services.TrustedCluster{trustedCluster}}, nil
-	case services.KindRemoteCluster:
+		return &trustedClusterCollection{trustedClusters: []types.TrustedCluster{trustedCluster}}, nil
+	case types.KindRemoteCluster:
 		if rc.ref.Name == "" {
 			remoteClusters, err := client.GetRemoteClusters()
 			if err != nil {
@@ -708,9 +935,9 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &remoteClusterCollection{remoteClusters: []services.RemoteCluster{remoteCluster}}, nil
-	case services.KindSemaphore:
-		sems, err := client.GetSemaphores(context.TODO(), services.SemaphoreFilter{
+		return &remoteClusterCollection{remoteClusters: []types.RemoteCluster{remoteCluster}}, nil
+	case types.KindSemaphore:
+		sems, err := client.GetSemaphores(ctx, types.SemaphoreFilter{
 			SemaphoreKind: rc.ref.SubKind,
 			SemaphoreName: rc.ref.Name,
 		})
@@ -718,21 +945,113 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 			return nil, trace.Wrap(err)
 		}
 		return &semaphoreCollection{sems: sems}, nil
-	case services.KindKubeService:
-		servers, err := client.GetKubeServices(context.TODO())
+	case types.KindKubeService:
+		servers, err := client.GetKubeServices(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &serverCollection{servers: servers}, nil
-	case services.KindClusterAuthPreference:
-		authPref, err := client.GetAuthPreference()
+		if rc.ref.Name == "" {
+			return &serverCollection{servers: servers}, nil
+		}
+		for _, server := range servers {
+			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
+				return &serverCollection{servers: []types.Server{server}}, nil
+			}
+		}
+		return nil, trace.NotFound("kube_service with ID %q not found", rc.ref.Name)
+	case types.KindClusterAuthPreference:
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterAuthPreference)
+		}
+		authPref, err := client.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authPrefs := []services.AuthPreference{authPref}
-		return &authPrefCollection{authPrefs: authPrefs}, nil
+		return &authPrefCollection{authPref}, nil
+	case types.KindClusterNetworkingConfig:
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterNetworkingConfig)
+		}
+		netConfig, err := client.GetClusterNetworkingConfig(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &netConfigCollection{netConfig}, nil
+	case types.KindSessionRecordingConfig:
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindSessionRecordingConfig)
+		}
+		recConfig, err := client.GetSessionRecordingConfig(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &recConfigCollection{recConfig}, nil
+	case types.KindLock:
+		if rc.ref.Name == "" {
+			locks, err := client.GetLocks(ctx, false)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &lockCollection{locks: locks}, nil
+		}
+		lock, err := client.GetLock(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &lockCollection{locks: []types.Lock{lock}}, nil
+	case types.KindNetworkRestrictions:
+		nr, err := client.GetNetworkRestrictions(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &netRestrictionsCollection{nr}, nil
 	}
-	return nil, trace.BadParameter("'%v' is not supported", rc.ref.Kind)
+	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+}
+
+func getSAMLConnectors(ctx context.Context, client auth.ClientI, name string, withSecrets bool) ([]types.SAMLConnector, error) {
+	if name == "" {
+		connectors, err := client.GetSAMLConnectors(ctx, withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return connectors, nil
+	}
+	connector, err := client.GetSAMLConnector(ctx, name, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []types.SAMLConnector{connector}, nil
+}
+
+func getOIDCConnectors(ctx context.Context, client auth.ClientI, name string, withSecrets bool) ([]types.OIDCConnector, error) {
+	if name == "" {
+		connectors, err := client.GetOIDCConnectors(ctx, withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return connectors, nil
+	}
+	connector, err := client.GetOIDCConnector(ctx, name, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []types.OIDCConnector{connector}, nil
+}
+
+func getGithubConnectors(ctx context.Context, client auth.ClientI, name string, withSecrets bool) ([]types.GithubConnector, error) {
+	if name == "" {
+		connectors, err := client.GetGithubConnectors(ctx, withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return connectors, nil
+	}
+	connector, err := client.GetGithubConnector(ctx, name, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []types.GithubConnector{connector}, nil
 }
 
 // UpsertVerb generates the correct string form of a verb based on the action taken
@@ -751,3 +1070,17 @@ func UpsertVerb(exists bool, force bool) string {
 		return "unknown"
 	}
 }
+
+func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, force, confirm bool) error {
+	if exists := (storedRes.Origin() != types.OriginDefaults); exists && !force {
+		return trace.AlreadyExists("non-default %s already exists", resDesc)
+	}
+	if managedByStatic := (storedRes.Origin() == types.OriginConfigFile); managedByStatic && !confirm {
+		return trace.BadParameter(`The %s resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
+
+If you would still like to proceed, re-run the command with both --force and --confirm flags.`, resDesc)
+	}
+	return nil
+}
+
+const managedByStaticDeleteMsg = `This resource is managed by static configuration. In order to reset it to defaults, remove relevant configuration from teleport.yaml and restart the servers.`

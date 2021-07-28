@@ -131,13 +131,28 @@ spec:
       '*': '*'
 ```
 
+### Provider-Specific Workarounds
+
+Certain SSO providers may require or benefit from changes to Teleport's SSO
+flow. These provider-specific changes can be enabled by setting the
+`spec.provider` property of the connector definition to one of the following
+values to match your identity provider:
+
+- `adfs` (SAML): Required for compatibility with Active Directory (ADFS); refer
+  to the full [ADFS guide](./ssh-adfs.mdx#create-teleport-roles) for details.
+- `netiq` (OIDC): Used to enable NetIQ-specific ACR value processing; refer to
+  the [OIDC guide](./oidc.mdx#optional-acr-values) for details.
+- `ping` (SAML): Required for compatibility with Ping Identity (including
+  PingOne and PingFederate) when "Enforced Signed Authn Requests" is enabled in
+  the application settings.
+
+At this time, the `spec.provider` field should not be set for any other identity providers.
+
 ## Working with External Email Identity
 
 Along with sending groups, an SSO provider will also provide a user's email address.
 In many organizations, the username that a person uses to log into a system is the
-same as the first part of their email address - the 'local' part. For example, `dave.smith@acme.com` might log in with the username `dave.smith`. Teleport 4.2.6+ adds an easy way to
-extract the first part of an email address so it can be used as a username - this
-is the `{{email.local}}` function.
+same as the first part of their email address - the 'local' part. For example, `dave.smith@acme.com` might log in with the username `dave.smith`. Teleport provides an easy way to extract the first part of an email address so it can be used as a username - this is the `{{email.local}}` function.
 
 If the email claim from the identity provider (which can be accessed via `{{external.email}}`) is sent and contains an email address, you can extract the 'local' part of the email address before the @ sign like this: `{{email.local(external.email)}}`
 

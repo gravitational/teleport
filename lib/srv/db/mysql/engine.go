@@ -18,13 +18,17 @@ package mysql
 
 import (
 	"context"
+	"fmt"
 	"net"
-	"strings"
+	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/siddontang/go-mysql/client"
 	"github.com/siddontang/go-mysql/packet"
@@ -42,9 +46,11 @@ import (
 // Implements common.Engine.
 type Engine struct {
 	// Auth handles database access authentication.
-	Auth *common.Auth
+	Auth common.Auth
 	// Audit emits database access audit events.
-	Audit *common.Audit
+	Audit common.Audit
+	// AuthClient is the cluster auth server client.
+	AuthClient *auth.Client
 	// Context is the database server close context.
 	Context context.Context
 	// Clock is the clock interface.
@@ -64,19 +70,22 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	proxyConn := server.Conn{Conn: packet.NewConn(clientConn)}
 	defer func() {
 		if err != nil {
-			if err := proxyConn.WriteError(err); err != nil {
-				e.Log.WithError(err).Error("Failed to send error to client.")
+			if writeErr := proxyConn.WriteError(err); writeErr != nil {
+				e.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
 			}
 		}
 	}()
 	// Perform authorization checks.
-	err = e.checkAccess(sessionCtx)
+	err = e.checkAccess(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Establish connection to the MySQL server.
 	serverConn, err := e.connect(ctx, sessionCtx)
 	if err != nil {
+		if trace.IsLimitExceeded(err) {
+			return trace.LimitExceeded("could not connect to the database, please try again later")
+		}
 		return trace.Wrap(err)
 	}
 	defer func() {
@@ -91,16 +100,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = e.Audit.OnSessionStart(e.Context, *sessionCtx, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer func() {
-		err := e.Audit.OnSessionEnd(e.Context, *sessionCtx)
-		if err != nil {
-			e.Log.WithError(err).Error("Failed to emit audit event.")
-		}
-	}()
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 	// Copy between the connections.
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
@@ -118,8 +119,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 }
 
 // checkAccess does authorization check for MySQL connection about to be established.
-func (e *Engine) checkAccess(sessionCtx *common.Session) error {
-	ap, err := e.Auth.GetAuthPreference()
+func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
+	ap, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -141,9 +142,7 @@ func (e *Engine) checkAccess(sessionCtx *common.Session) error {
 		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Server.GetAllLabels()},
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
 	if err != nil {
-		if err := e.Audit.OnSessionStart(e.Context, *sessionCtx, err); err != nil {
-			e.Log.WithError(err).Error("Failed to emit audit event.")
-		}
+		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
 	}
 	return nil
@@ -156,8 +155,33 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		return nil, trace.Wrap(err)
 	}
 	var password string
-	if sessionCtx.Server.IsRDS() {
+	switch {
+	case sessionCtx.Server.IsRDS():
 		password, err = e.Auth.GetRDSAuthToken(sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case sessionCtx.Server.IsCloudSQL():
+		// For Cloud SQL MySQL there is no IAM auth so we use one-time passwords
+		// by resetting the database user password for each connection. Thus,
+		// acquire a lock to make sure all connection attempts to the same
+		// database and user are serialized.
+		retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
+		defer cancel()
+		lease, err := services.AcquireSemaphoreWithRetry(retryCtx, e.makeAcquireSemaphoreConfig(sessionCtx))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Only release the semaphore after the connection has been established
+		// below. If the semaphore fails to release for some reason, it will
+		// expire in a minute on its own.
+		defer func() {
+			err := e.AuthClient.CancelSemaphoreLease(ctx, *lease)
+			if err != nil {
+				e.Log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
+			}
+		}()
+		password, err = e.Auth.GetCloudSQLPassword(ctx, sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -171,6 +195,17 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			conn.SetTLSConfig(tlsConfig)
 		})
 	if err != nil {
+		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Server.IsRDS() {
+			return nil, trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure that IAM auth is enabled for MySQL user %q and Teleport database
+agent's IAM policy has "rds-connect" permissions:
+
+%v
+`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
+		}
 		return nil, trace.Wrap(err)
 	}
 	return conn, nil
@@ -184,22 +219,25 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		"client": clientConn.RemoteAddr(),
 		"server": serverConn.RemoteAddr(),
 	})
-	defer log.Debug("Stop receiving from client.")
+	defer func() {
+		log.Debug("Stop receiving from client.")
+		close(clientErrCh)
+	}()
 	for {
 		packet, err := protocol.ParsePacket(clientConn)
 		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				log.Debug("Client connection closed.")
+				return
+			}
 			log.WithError(err).Error("Failed to read client packet.")
 			clientErrCh <- err
 			return
 		}
 		switch pkt := packet.(type) {
 		case *protocol.Query:
-			err := e.Audit.OnQuery(e.Context, *sessionCtx, pkt.Query())
-			if err != nil {
-				log.WithError(err).Error("Failed to emit audit event.")
-			}
+			e.Audit.OnQuery(e.Context, sessionCtx, common.Query{Query: pkt.Query()})
 		case *protocol.Quit:
-			clientErrCh <- nil
 			return
 		}
 		_, err = protocol.WritePacket(packet.Bytes(), serverConn)
@@ -219,13 +257,15 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 		"client": clientConn.RemoteAddr(),
 		"server": serverConn.RemoteAddr(),
 	})
-	defer log.Debug("Stop receiving from server.")
+	defer func() {
+		log.Debug("Stop receiving from server.")
+		close(serverErrCh)
+	}()
 	for {
 		packet, err := protocol.ParsePacket(serverConn)
 		if err != nil {
-			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+			if utils.IsOKNetworkError(err) {
 				log.Debug("Server connection closed.")
-				serverErrCh <- nil
 				return
 			}
 			log.WithError(err).Error("Failed to read server packet.")
@@ -238,5 +278,29 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 			serverErrCh <- err
 			return
 		}
+	}
+}
+
+// makeAcquireSemaphoreConfig builds parameters for acquiring a semaphore
+// for connecting to a MySQL Cloud SQL instance for this session.
+func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services.AcquireSemaphoreWithRetryConfig {
+	return services.AcquireSemaphoreWithRetryConfig{
+		Service: e.AuthClient,
+		// The semaphore will serialize connections to the database as specific
+		// user. If we fail to release the lock for some reason, it will expire
+		// in a minute anyway.
+		Request: types.AcquireSemaphoreRequest{
+			SemaphoreKind: "gcp-mysql-token",
+			SemaphoreName: fmt.Sprintf("%v-%v", sessionCtx.Server.GetName(), sessionCtx.DatabaseUser),
+			MaxLeases:     1,
+			Expires:       e.Clock.Now().Add(time.Minute),
+		},
+		// If multiple connections are being established simultaneously to the
+		// same database as the same user, retry for a few seconds.
+		Retry: utils.LinearConfig{
+			Step:  time.Second,
+			Max:   time.Second,
+			Clock: e.Clock,
+		},
 	}
 }

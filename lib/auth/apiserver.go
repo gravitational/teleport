@@ -29,9 +29,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -52,7 +53,7 @@ type APIConfig struct {
 	SessionService session.Service
 	AuditLog       events.IAuditLog
 	Authorizer     Authorizer
-	Emitter        events.Emitter
+	Emitter        apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
 	KeepAlivePeriod time.Duration
 	// KeepAliveCount specifies amount of missed keep alives
@@ -66,10 +67,10 @@ type APIConfig struct {
 // CheckAndSetDefaults checks and sets default values
 func (a *APIConfig) CheckAndSetDefaults() error {
 	if a.KeepAlivePeriod == 0 {
-		a.KeepAlivePeriod = defaults.ServerKeepAliveTTL
+		a.KeepAlivePeriod = apidefaults.ServerKeepAliveTTL
 	}
 	if a.KeepAliveCount == 0 {
-		a.KeepAliveCount = defaults.KeepAliveCountMax
+		a.KeepAliveCount = apidefaults.KeepAliveCountMax
 	}
 	return nil
 }
@@ -332,19 +333,19 @@ type upsertServerRawReq struct {
 }
 
 // upsertServer is a common utility function
-func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (s *APIServer) upsertServer(auth services.Presence, role types.SystemRole, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req upsertServerRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var kind string
 	switch role {
-	case teleport.RoleNode:
-		kind = services.KindNode
-	case teleport.RoleAuth:
-		kind = services.KindAuthServer
-	case teleport.RoleProxy:
-		kind = services.KindProxy
+	case types.RoleNode:
+		kind = types.KindNode
+	case types.RoleAuth:
+		kind = types.KindAuthServer
+	case types.RoleProxy:
+		kind = types.KindProxy
 	default:
 		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
 	}
@@ -359,22 +360,22 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 		server.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
 	switch role {
-	case teleport.RoleNode:
+	case types.RoleNode:
 		namespace := p.ByName("namespace")
-		if !services.IsValidNamespace(namespace) {
+		if !types.IsValidNamespace(namespace) {
 			return nil, trace.BadParameter("invalid namespace %q", namespace)
 		}
 		server.SetNamespace(namespace)
-		handle, err := auth.UpsertNode(server)
+		handle, err := auth.UpsertNode(r.Context(), server)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return handle, nil
-	case teleport.RoleAuth:
+	case types.RoleAuth:
 		if err := auth.UpsertAuthServer(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case teleport.RoleProxy:
+	case types.RoleProxy:
 		if err := auth.UpsertProxy(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -386,7 +387,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 
 // keepAliveNode updates node TTL in the backend
 func (s *APIServer) keepAliveNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var handle services.KeepAlive
+	var handle types.KeepAlive
 	if err := httplib.ReadJSON(r, &handle); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -407,7 +408,8 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !services.IsValidNamespace(req.Namespace) {
+
+	if !types.IsValidNamespace(req.Namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", req.Namespace)
 	}
 
@@ -426,25 +428,17 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 
 // upsertNode is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleNode, r, p)
+	return s.upsertServer(auth, types.RoleNode, r, p)
 }
 
 // getNodes returns registered SSH nodes
 func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
+	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	skipValidation, _, err := httplib.ParseBool(r.URL.Query(), "skip_validation")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var opts []services.MarshalOption
-	if skipValidation {
-		opts = append(opts, services.SkipValidation())
-	}
 
-	servers, err := auth.GetNodes(namespace, opts...)
+	servers, err := auth.GetNodes(r.Context(), namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -454,10 +448,10 @@ func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Reques
 // deleteAllNodes deletes all nodes
 func (s *APIServer) deleteAllNodes(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
+	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	err := auth.DeleteAllNodes(namespace)
+	err := auth.DeleteAllNodes(r.Context(), namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -467,14 +461,14 @@ func (s *APIServer) deleteAllNodes(auth ClientI, w http.ResponseWriter, r *http.
 // deleteNode deletes node
 func (s *APIServer) deleteNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
+	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	name := p.ByName("name")
 	if name == "" {
 		return nil, trace.BadParameter("missing node name")
 	}
-	err := auth.DeleteNode(namespace, name)
+	err := auth.DeleteNode(r.Context(), namespace, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -483,7 +477,7 @@ func (s *APIServer) deleteNode(auth ClientI, w http.ResponseWriter, r *http.Requ
 
 // upsertProxy is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertProxy(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleProxy, r, p)
+	return s.upsertServer(auth, types.RoleProxy, r, p)
 }
 
 // getProxies returns registered proxies
@@ -519,7 +513,7 @@ func (s *APIServer) deleteProxy(auth ClientI, w http.ResponseWriter, r *http.Req
 
 // upsertAuthServer is called by remote Auth servers when they ping back into the auth service
 func (s *APIServer) upsertAuthServer(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleAuth, r, p)
+	return s.upsertServer(auth, types.RoleAuth, r, p)
 }
 
 // getAuthServers returns registered auth servers
@@ -531,7 +525,7 @@ func (s *APIServer) getAuthServers(auth ClientI, w http.ResponseWriter, r *http.
 	return marshalServers(servers, version)
 }
 
-func marshalServers(servers []services.Server, version string) (interface{}, error) {
+func marshalServers(servers []types.Server, version string) (interface{}, error) {
 	items := make([]json.RawMessage, len(servers))
 	for i, server := range servers {
 		data, err := services.MarshalServer(server, services.WithVersion(version), services.PreserveResourceID())
@@ -670,7 +664,7 @@ func (s *APIServer) getTokens(auth ClientI, w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.ProvisionTokensToV1(tokens), nil
+	return types.ProvisionTokensToV1(tokens), nil
 }
 
 // getTokens returns provisioning token by name
@@ -760,25 +754,39 @@ func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.
 	return u2fSignReq, nil
 }
 
-type createWebSessionReq struct {
-	PrevSessionID   string `json:"prev_session_id"`
+type WebSessionReq struct {
+	// User is the user name associated with the session id.
+	User string `json:"user"`
+	// PrevSessionID is the id of current session.
+	PrevSessionID string `json:"prev_session_id"`
+	// AccessRequestID is an optional field that holds the id of an approved access request.
 	AccessRequestID string `json:"access_request_id"`
+	// Switchback is a flag to indicate if user is wanting to switchback from an assumed role
+	// back to their default role.
+	Switchback bool `json:"switchback"`
 }
 
 func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createWebSessionReq
+	var req WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user := p.ByName("user")
+
+	// DELETE IN 8.0: proxy v5 sends request with no user field.
+	// And since proxy v6, request will come with user field set, so grabbing user
+	// by param is not required.
+	if req.User == "" {
+		req.User = p.ByName("user")
+	}
+
 	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(user, req.PrevSessionID, req.AccessRequestID)
+		sess, err := auth.ExtendWebSession(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return sess, nil
 	}
-	sess, err := auth.CreateWebSession(user)
+	sess, err := auth.CreateWebSession(req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -944,13 +952,13 @@ func (s *APIServer) generateKeyPair(auth ClientI, w http.ResponseWriter, r *http
 }
 
 type generateHostCertReq struct {
-	Key         []byte         `json:"key"`
-	HostID      string         `json:"hostname"`
-	NodeName    string         `json:"node_name"`
-	Principals  []string       `json:"principals"`
-	ClusterName string         `json:"auth_domain"`
-	Roles       teleport.Roles `json:"roles"`
-	TTL         time.Duration  `json:"ttl"`
+	Key         []byte            `json:"key"`
+	HostID      string            `json:"hostname"`
+	NodeName    string            `json:"node_name"`
+	Principals  []string          `json:"principals"`
+	ClusterName string            `json:"auth_domain"`
+	Roles       types.SystemRoles `json:"roles"`
+	TTL         time.Duration     `json:"ttl"`
 }
 
 func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
@@ -1089,7 +1097,7 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := auth.GetCertAuthorities(services.CertAuthType(p.ByName("type")), loadKeys)
+	certs, err := auth.GetCertAuthorities(types.CertAuthType(p.ByName("type")), loadKeys)
 
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1110,8 +1118,8 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	id := services.CertAuthID{
-		Type:       services.CertAuthType(p.ByName("type")),
+	id := types.CertAuthID{
+		Type:       types.CertAuthType(p.ByName("type")),
 		DomainName: p.ByName("domain"),
 	}
 	ca, err := auth.GetCertAuthority(id, loadKeys)
@@ -1156,7 +1164,7 @@ func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter,
 
 // getU2FAppID returns the U2F AppID in the auth configuration
 func (s *APIServer) getU2FAppID(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cap, err := auth.GetAuthPreference()
+	cap, err := auth.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1171,9 +1179,9 @@ func (s *APIServer) getU2FAppID(auth ClientI, w http.ResponseWriter, r *http.Req
 }
 
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	id := services.CertAuthID{
+	id := types.CertAuthID{
 		DomainName: p.ByName("domain"),
-		Type:       services.CertAuthType(p.ByName("type")),
+		Type:       types.CertAuthType(p.ByName("type")),
 	}
 	if err := auth.DeleteCertAuthority(id); err != nil {
 		return nil, trace.Wrap(err)
@@ -1191,7 +1199,7 @@ func (s *APIServer) createSession(auth ClientI, w http.ResponseWriter, r *http.R
 		return nil, trace.Wrap(err)
 	}
 	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
+	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	req.Session.Namespace = namespace
@@ -1211,7 +1219,7 @@ func (s *APIServer) updateSession(auth ClientI, w http.ResponseWriter, r *http.R
 		return nil, trace.Wrap(err)
 	}
 	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
+	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	req.Update.Namespace = namespace
@@ -1231,7 +1239,7 @@ func (s *APIServer) deleteSession(auth ClientI, w http.ResponseWriter, r *http.R
 
 func (s *APIServer) getSessions(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
+	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	sessions, err := auth.GetSessions(namespace)
@@ -1247,7 +1255,7 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
+	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	se, err := auth.GetSession(namespace, *sid)
@@ -1359,7 +1367,7 @@ type oidcAuthRawResponse struct {
 	// Username is authenticated teleport username
 	Username string `json:"username"`
 	// Identity contains validated OIDC identity
-	Identity services.ExternalIdentity `json:"identity"`
+	Identity types.ExternalIdentity `json:"identity"`
 	// Web session will be generated by auth server if requested in OIDCAuthRequest
 	Session json.RawMessage `json:"session,omitempty"`
 	// Cert will be generated by certificate authority
@@ -1519,7 +1527,7 @@ type samlAuthRawResponse struct {
 	// Username is authenticated teleport username
 	Username string `json:"username"`
 	// Identity contains validated OIDC identity
-	Identity services.ExternalIdentity `json:"identity"`
+	Identity types.ExternalIdentity `json:"identity"`
 	// Web session will be generated by auth server if requested in OIDCAuthRequest
 	Session json.RawMessage `json:"session,omitempty"`
 	// Cert will be generated by certificate authority
@@ -1714,7 +1722,7 @@ type githubAuthRawResponse struct {
 	// Username is authenticated teleport username
 	Username string `json:"username"`
 	// Identity contains validated OIDC identity
-	Identity services.ExternalIdentity `json:"identity"`
+	Identity types.ExternalIdentity `json:"identity"`
 	// Web session will be generated by auth server if requested in OIDCAuthRequest
 	Session json.RawMessage `json:"session,omitempty"`
 	// Cert will be generated by certificate authority
@@ -1804,12 +1812,9 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 			return nil, trace.BadParameter("failed to parse limit: %q", limit)
 		}
 	}
-	// remove 'to', 'from' and 'limit' fields, passing the rest of the query unmodified
-	// to whatever pluggable search is implemented by the backend
-	query.Del("to")
-	query.Del("from")
-	query.Del("limit")
-	eventsList, err := auth.SearchEvents(from, to, query.Encode(), limit)
+
+	eventTypes := query[events.EventType]
+	eventsList, _, err := auth.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, types.EventOrderDescending, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1849,7 +1854,7 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, err := auth.SearchSessionEvents(from, to, limit)
+	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1959,7 +1964,7 @@ func (s *APIServer) uploadSessionRecording(auth ClientI, w http.ResponseWriter, 
 	if r.MultipartForm != nil {
 		defer r.MultipartForm.RemoveAll()
 	}
-	if !services.IsValidNamespace(namespace) {
+	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	if len(files) != 1 {
@@ -2011,7 +2016,7 @@ func (s *APIServer) getSessionChunk(auth ClientI, w http.ResponseWriter, r *http
 		return nil, trace.BadParameter("missing parameter id")
 	}
 	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
+	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 
@@ -2048,7 +2053,7 @@ func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
+	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	afterN, err := strconv.Atoi(r.URL.Query().Get("after"))
@@ -2064,7 +2069,7 @@ func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *htt
 }
 
 type upsertNamespaceReq struct {
-	Namespace services.Namespace `json:"namespace"`
+	Namespace types.Namespace `json:"namespace"`
 }
 
 func (s *APIServer) upsertNamespace(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -2088,7 +2093,7 @@ func (s *APIServer) getNamespaces(auth ClientI, w http.ResponseWriter, r *http.R
 
 func (s *APIServer) getNamespace(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	name := p.ByName("namespace")
-	if !services.IsValidNamespace(name) {
+	if !types.IsValidNamespace(name) {
 		return nil, trace.BadParameter("invalid namespace %q", name)
 	}
 
@@ -2101,7 +2106,7 @@ func (s *APIServer) getNamespace(auth ClientI, w http.ResponseWriter, r *http.Re
 
 func (s *APIServer) deleteNamespace(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	name := p.ByName("namespace")
-	if !services.IsValidNamespace(name) {
+	if !types.IsValidNamespace(name) {
 		return nil, trace.BadParameter("invalid namespace %q", name)
 	}
 
@@ -2116,6 +2121,7 @@ type upsertRoleRawReq struct {
 	Role json.RawMessage `json:"role"`
 }
 
+// DELETE IN 7.0
 func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertRoleRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -2135,14 +2141,24 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	return message(fmt.Sprintf("'%v' role upserted", role.GetName())), nil
 }
 
+// DELETE IN 7.0
 func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	role, err := auth.GetRole(r.Context(), p.ByName("role"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID()))
+	roleV4, ok := role.(*types.RoleV4)
+	if !ok {
+		return nil, trace.BadParameter("unrecognized role version")
+	}
+	downgraded, err := downgradeRole(context.Background(), roleV4)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rawMessage(services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID()))
 }
 
+// DELETE IN 7.0
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	roles, err := auth.GetRoles(r.Context())
 	if err != nil {
@@ -2150,7 +2166,15 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	}
 	out := make([]json.RawMessage, len(roles))
 	for i, role := range roles {
-		raw, err := services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID())
+		roleV4, ok := role.(*types.RoleV4)
+		if !ok {
+			return nil, trace.BadParameter("unrecognized role version")
+		}
+		downgraded, err := downgradeRole(r.Context(), roleV4)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw, err := services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2159,6 +2183,7 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	return out, nil
 }
 
+// DELETE IN 7.0
 func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	role := p.ByName("role")
 	if err := auth.DeleteRole(r.Context(), role); err != nil {
@@ -2278,7 +2303,7 @@ func (s *APIServer) setStaticTokens(auth ClientI, w http.ResponseWriter, r *http
 }
 
 func (s *APIServer) getClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cap, err := auth.GetAuthPreference()
+	cap, err := auth.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2302,8 +2327,9 @@ func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cap.SetOrigin(types.OriginDynamic)
 
-	err = auth.SetAuthPreference(cap)
+	err = auth.SetAuthPreference(r.Context(), cap)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

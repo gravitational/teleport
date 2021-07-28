@@ -19,7 +19,7 @@ package ui
 import (
 	"sort"
 
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Label describes label for webapp
@@ -62,7 +62,7 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []services.Server) []Server {
+func MakeServers(clusterName string, servers []types.Server) []Server {
 	uiServers := []Server{}
 	for _, server := range servers {
 		uiLabels := []Label{}
@@ -91,6 +91,103 @@ func MakeServers(clusterName string, servers []services.Server) []Server {
 			Hostname:    server.GetHostname(),
 			Addr:        server.GetAddr(),
 			Tunnel:      server.GetUseTunnel(),
+		})
+	}
+
+	return uiServers
+}
+
+// Kube describes a kube cluster.
+type Kube struct {
+	// Name is the name of the kube cluster.
+	Name string `json:"name"`
+	// Labels is a map of static and dynamic labels associated with an kube cluster.
+	Labels []Label `json:"labels"`
+}
+
+// MakeKubes creates ui kube objects and returns a list..
+func MakeKubes(clusterName string, servers []types.Server) []Kube {
+	kubeClusters := map[string]*types.KubernetesCluster{}
+
+	// Get unique kube clusters
+	for _, server := range servers {
+		// Process each kube cluster.
+		for _, cluster := range server.GetKubernetesClusters() {
+			kubeClusters[cluster.Name] = cluster
+		}
+	}
+
+	uiKubeClusters := make([]Kube, 0, len(kubeClusters))
+	for _, cluster := range kubeClusters {
+		uiLabels := []Label{}
+
+		for name, value := range cluster.StaticLabels {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: value,
+			})
+		}
+
+		for name, cmd := range cluster.DynamicLabels {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: cmd.GetResult(),
+			})
+		}
+
+		sort.Sort(sortedLabels(uiLabels))
+
+		uiKubeClusters = append(uiKubeClusters, Kube{
+			Name:   cluster.Name,
+			Labels: uiLabels,
+		})
+	}
+
+	return uiKubeClusters
+}
+
+// Database describes a database server.
+type Database struct {
+	// Name is the name of the database.
+	Name string `json:"name"`
+	// Desc is the database description.
+	Desc string `json:"desc"`
+	// Protocol is the database description.
+	Protocol string `json:"protocol"`
+	// Type is the database type, self-hosted or cloud-hosted.
+	Type string `json:"type"`
+	// Labels is a map of static and dynamic labels associated with an database.
+	Labels []Label `json:"labels"`
+}
+
+// MakeDatabases creates server database objects.
+func MakeDatabases(clusterName string, servers []types.DatabaseServer) []Database {
+	uiServers := make([]Database, 0, len(servers))
+	for _, server := range servers {
+		uiLabels := []Label{}
+
+		for name, value := range server.GetStaticLabels() {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: value,
+			})
+		}
+
+		for name, cmd := range server.GetDynamicLabels() {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: cmd.GetResult(),
+			})
+		}
+
+		sort.Sort(sortedLabels(uiLabels))
+
+		uiServers = append(uiServers, Database{
+			Name:     server.GetName(),
+			Desc:     server.GetDescription(),
+			Protocol: server.GetProtocol(),
+			Type:     server.GetType(),
+			Labels:   uiLabels,
 		})
 	}
 

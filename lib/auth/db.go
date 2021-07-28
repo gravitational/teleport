@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,7 +22,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -41,8 +42,8 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	hostCA, err := s.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	hostCA, err := s.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
@@ -68,11 +69,10 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	re := &proto.DatabaseCertResponse{Cert: cert}
-	for _, ca := range hostCA.GetTLSKeyPairs() {
-		re.CACerts = append(re.CACerts, ca.Cert)
-	}
-	return re, nil
+	return &proto.DatabaseCertResponse{
+		Cert:    cert,
+		CACerts: services.GetTLSCerts(hostCA),
+	}, nil
 }
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking
@@ -80,7 +80,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
 	if !modules.GetModules().Features().DB {
 		return nil, trace.AccessDenied(
-			"this Teleport cluster doesn't support database access, please contact the cluster administrator")
+			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
 
 	log.Debugf("Signing database CSR for cluster %v.", req.ClusterName)
@@ -90,8 +90,8 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	hostCA, err := s.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	hostCA, err := s.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: req.ClusterName,
 	}, false)
 	if err != nil {
@@ -129,11 +129,11 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	// Get the correct cert TTL based on roles.
-	ttl := roles.AdjustSessionTTL(defaults.CertDuration)
+	ttl := roles.AdjustSessionTTL(apidefaults.CertDuration)
 
 	// Generate the TLS certificate.
-	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
-		Type:       services.UserCA,
+	userCA, err := s.Trust.GetCertAuthority(types.CertAuthID{
+		Type:       types.UserCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
@@ -155,10 +155,8 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	re := &proto.DatabaseCSRResponse{Cert: tlsCert}
-	for _, ca := range hostCA.GetTLSKeyPairs() {
-		re.CACerts = append(re.CACerts, ca.Cert)
-	}
-
-	return re, nil
+	return &proto.DatabaseCSRResponse{
+		Cert:    tlsCert,
+		CACerts: services.GetTLSCerts(hostCA),
+	}, nil
 }

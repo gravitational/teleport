@@ -17,7 +17,7 @@ administrators to define policies like:
   type="warning"
   title="Version Warning"
 >
-  This guide requires an Enterprise edition of Teleport. The Community
+  This guide requires an Enterprise edition of Teleport. The Open Source
   edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
   an SSO provider.
 </Admonition>
@@ -190,8 +190,7 @@ spec:
 By default, Teleport will prompt end users to select an account each time they log in
 even if the user only has one account.
 
-Teleport 4.2 now lets Teleport Admins configure this option. Since `prompt` is optional,
-by setting the variable to an empty string Teleport will override the default `select_account`.
+Teleport now lets Teleport Admins configure this option. Since `prompt` is optional, by setting the variable to `none`, Teleport will override the default `select_account`.
 
 ```yaml
 kind: oidc
@@ -199,7 +198,7 @@ version: v2
 metadata:
   name: connector
 spec:
-  prompt: ''
+  prompt: 'none'
 ```
 
 The below example will prompt the end-user for reauthentication and will require consent

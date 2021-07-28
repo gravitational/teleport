@@ -1,4 +1,4 @@
-/* 
+/*
 An IAM Role and Policies are used to permit
 EC2 instances to communicate with various AWS
 resources.
@@ -43,7 +43,8 @@ resource "aws_iam_role_policy" "cluster_s3" {
        "Effect": "Allow",
        "Action": [
          "s3:ListBucket",
-         "s3:ListBucketVersions"
+         "s3:ListBucketVersions",
+         "s3:ListBucketMultipartUploads"
       ],
        "Resource": ["arn:aws:s3:::${aws_s3_bucket.storage.bucket}"]
      },
@@ -58,7 +59,7 @@ resource "aws_iam_role_policy" "cluster_s3" {
      }
    ]
  }
- 
+
 EOF
 
 }

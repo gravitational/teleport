@@ -44,16 +44,15 @@ type Resource interface {
 	Expiry() time.Time
 	// SetExpiry sets object expiry
 	SetExpiry(time.Time)
-	// SetTTL sets Expires header using the provided clock.
-	// Use SetExpiry instead.
-	// DELETE IN 7.0.0
-	SetTTL(clock Clock, ttl time.Duration)
 	// GetMetadata returns object metadata
 	GetMetadata() Metadata
 	// GetResourceID returns resource ID
 	GetResourceID() int64
 	// SetResourceID sets resource ID
 	SetResourceID(int64)
+	// CheckAndSetDefaults validates the Resource and sets any empty fields to
+	// default values.
+	CheckAndSetDefaults() error
 }
 
 // ResourceWithSecrets includes additional properties which must
@@ -66,11 +65,14 @@ type ResourceWithSecrets interface {
 	WithoutSecrets() Resource
 }
 
-// Clock is used to track TTL of resources.
-// This is only used in SetTTL which is deprecated.
-// DELETE IN 7.0.0
-type Clock interface {
-	Now() time.Time
+// ResourceWithOrigin provides information on the origin of the resource
+// (defaults, config-file, dynamic).
+type ResourceWithOrigin interface {
+	Resource
+	// Origin returns the origin value of the resource.
+	Origin() string
+	// SetOrigin sets the origin value of the resource.
+	SetOrigin(string)
 }
 
 // GetVersion returns resource version
@@ -108,13 +110,6 @@ func (h *ResourceHeader) SetExpiry(t time.Time) {
 	h.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (h *ResourceHeader) SetTTL(clock Clock, ttl time.Duration) {
-	h.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (h *ResourceHeader) GetMetadata() Metadata {
 	return h.Metadata
@@ -133,6 +128,16 @@ func (h *ResourceHeader) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (h *ResourceHeader) SetSubKind(s string) {
 	h.SubKind = s
+}
+
+func (h *ResourceHeader) CheckAndSetDefaults() error {
+	if h.Kind == "" {
+		return trace.BadParameter("resource has an empty Kind field")
+	}
+	if h.Version == "" {
+		return trace.BadParameter("resource has an empty Version field")
+	}
+	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
 }
 
 // GetID returns resource ID
@@ -173,12 +178,20 @@ func (m *Metadata) Expiry() time.Time {
 	return *m.Expires
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (m *Metadata) SetTTL(clock Clock, ttl time.Duration) {
-	expireTime := clock.Now().UTC().Add(ttl)
-	m.Expires = &expireTime
+// Origin returns the origin value of the resource.
+func (m *Metadata) Origin() string {
+	if m.Labels == nil {
+		return ""
+	}
+	return m.Labels[OriginLabel]
+}
+
+// SetOrigin sets the origin value of the resource.
+func (m *Metadata) SetOrigin(origin string) {
+	if m.Labels == nil {
+		m.Labels = map[string]string{}
+	}
+	m.Labels[OriginLabel] = origin
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
@@ -198,6 +211,13 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	for key := range m.Labels {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("invalid label key: %q", key)
+		}
+	}
+
+	// Check the origin value.
+	if m.Origin() != "" {
+		if !utils.SliceContainsStr(OriginValues, m.Origin()) {
+			return trace.BadParameter("invalid origin value %q, must be one of %v", m.Origin(), OriginValues)
 		}
 	}
 

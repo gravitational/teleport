@@ -43,6 +43,33 @@ const (
 	// MetricTrustedClusters counts trusted clusters
 	MetricTrustedClusters = "trusted_clusters"
 
+	// MetricClusterNameNotFound counts times a cluster name was not found
+	MetricClusterNameNotFound = "cluster_name_not_found_total"
+
+	// MetricFailedLoginAttempts counts failed login attempts
+	MetricFailedLoginAttempts = "failed_login_attempts_total"
+
+	// MetricFailedConnectToNodeAttempts counts failed ssh attempts
+	MetricFailedConnectToNodeAttempts = "failed_connect_to_node_attempts_total"
+
+	// MetricUserMaxConcurrentSessionsHit counts number of times a user exceeded their max concurrent ssh connections
+	MetricUserMaxConcurrentSessionsHit = "user_max_concurrent_sessions_hit_total"
+
+	// MetricProxyConnectionLimitHit counts the number of times the proxy connection limit was exceeded
+	MetricProxyConnectionLimitHit = "proxy_connection_limit_exceeded_total"
+
+	// MetricUserLoginCount counts user logins
+	MetricUserLoginCount = "user_login_total"
+
+	// MetricHeartbeatConnectionsReceived counts heartbeat connections received by auth
+	MetricHeartbeatConnectionsReceived = "heartbeat_connections_received_total"
+
+	// MetricCertificateMistmatch counts login failures due to certificate mismatch
+	MetricCertificateMistmatch = "certificate_mismatch_total"
+
+	// MetricHeartbeatsMissed counts the nodes that failed to heartbeat
+	MetricHeartbeatsMissed = "heartbeats_missed_total"
+
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
 )
@@ -134,6 +161,9 @@ const (
 
 	// MetricLostNetworkEvents measures the number of network events that were lost.
 	MetricLostNetworkEvents = "bpf_lost_network_events"
+
+	// MetricLostRestrictedEvents measures the number of restricted events that were lost
+	MetricLostRestrictedEvents = "bpf_lost_restricted_events"
 
 	// MetricState tracks the state of the teleport process.
 	MetricState = "process_state"

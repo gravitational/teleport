@@ -1,7 +1,12 @@
+#
+# Warning to maintainers, any changes to this file that are not specific to the Deployment need to also be duplicated
+# in the statefulset.yaml file.
+#
+{{- if not .Values.storage.enabled }}
 {{- if .Values.teleportVersionOverride }}
   {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
 {{- else }}
-  {{- $_ := set . "teleportVersion" .Chart.AppVersion }}
+  {{- $_ := set . "teleportVersion" .Chart.Version }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
@@ -10,6 +15,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+  {{- if .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml .Values.annotations.deployment | nindent 4 }}
+  {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -20,9 +29,51 @@ spec:
       annotations:
         # ConfigMap checksum, to recreate the pod on config changes.
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+{{- if .Values.annotations.pod }}
+  {{- toYaml .Values.annotations.pod | nindent 8 }}
+{{- end }}
       labels:
         app: {{ .Release.Name }}
     spec:
+      {{- if .Values.affinity }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 6 }}
+      {{- end }}
+{{- if .Values.initContainers }}
+      initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
+  {{- if .Values.resources }}
+        resources:
+    {{- toYaml .Values.resources | nindent 10 }}
+  {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 9807
+        volumeMounts:
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /etc/teleport-secrets
+          name: "auth-token"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: "data"
+  {{- if .Values.extraVolumeMounts }}
+    {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+  {{- end }}
+{{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
       containers:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
@@ -57,6 +108,10 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to register
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
+{{- if .Values.resources }}
+        resources:
+  {{- toYaml .Values.resources | nindent 10 }}
+{{- end }}
         volumeMounts:
         - mountPath: /etc/teleport
           name: "config"
@@ -66,6 +121,9 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
+{{- if .Values.extraVolumeMounts }}
+  {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+{{- end }}
       volumes:
       - name: "config"
         configMap:
@@ -75,4 +133,8 @@ spec:
           secretName: {{ .Values.secretName }}
       - name: "data"
         emptyDir: {}
-      serviceAccountName: {{ .Values.serviceAccountName }}
+{{- if .Values.extraVolumes }}
+  {{- toYaml .Values.extraVolumes | nindent 6 }}
+{{- end }}
+      serviceAccountName: {{ .Values.serviceAccountName | default .Release.Name }}
+{{- end }}

@@ -88,7 +88,7 @@ type TLSCredentials struct {
 	Cert       []byte
 }
 
-// GenerateSelfSignedCert generates a self signed certificate that
+// GenerateSelfSignedCert generates a self-signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
 func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)

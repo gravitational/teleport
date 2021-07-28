@@ -14,7 +14,7 @@ AWS_REGION ?= us-west-2
 # This must be a _released_ version of Teleport, i.e. one which has binaries
 # available for download on https://gravitational.com/teleport/download
 # Unreleased versions will fail to build.
-TELEPORT_VERSION ?= 6.0.2
+TELEPORT_VERSION ?= 6.2.0
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -23,22 +23,19 @@ TELEPORT_UID ?= 1007
 INSTANCE_TYPE ?= t2.medium
 
 # Use comma-separated values without spaces for multiple regions
-# For now, limit AMI to regions with DynamoDB encryption at rest enabled
-# https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html
-# https://aws.amazon.com/about-aws/whats-new/2018/04/amazon-dynamodb-encryption-at-rest-now-available-in-additonal-regions/
-DESTINATION_REGIONS ?= us-east-1,us-east-2,us-west-1,us-west-2,ap-south-1,ap-northeast-2,ap-southeast-1,ap-southeast-2,ap-northeast-1,ca-central-1,eu-central-1,eu-west-1,eu-west-2,sa-east-1
+# For now, limit AMI publishing to non opt-in regions
+# https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html
+# You can get this with $(AWS_DEFAULT_REGION=us-west-2 aws ec2 describe-regions | jq -r '.Regions | map(.RegionName) | join(",")')
+DESTINATION_REGIONS ?= eu-north-1,ap-south-1,eu-west-3,eu-west-2,eu-west-1,ap-northeast-3,ap-northeast-2,ap-northeast-1,sa-east-1,ca-central-1,ap-southeast-1,ap-southeast-2,eu-central-1,us-east-1,us-east-2,us-west-1,us-west-2
 
 # Generate timestamp for builds
 BUILD_TIMESTAMP := $(shell TZ=UTC /bin/date "+%Y%m%d-%H%M%S%Z")
-
-# S3 Bucket ID
-S3_BUCKET_ID ?=
 
 # Telegraf version
 TELEGRAF_VERSION ?= 1.9.3
 
 # InfluxDB version
-INFLUXDB_VERSION ?= 1.7.1
+INFLUXDB_VERSION ?= 1.8.5
 
 # Grafana version
 GRAFANA_VERSION ?= 5.4.3
@@ -74,7 +71,7 @@ oss-ci-build:
 .PHONY: change-amis-to-public-oss
 change-amis-to-public-oss:
 	@echo "Making OSS AMIs public"
-	bash files/make-amis-public.sh oss
+	bash files/make-amis-public.sh oss $(DESTINATION_REGIONS)
 
 # Build local 'debug' AMI
 .PHONY: ent
@@ -102,12 +99,12 @@ ent-ci-build:
 .PHONY: change-amis-to-public-ent
 change-amis-to-public-ent:
 	@echo "Making Enterprise AMIs public"
-	bash files/make-amis-public.sh ent
+	bash files/make-amis-public.sh ent $(DESTINATION_REGIONS)
 
 .PHONY: change-amis-to-public-ent-fips
 change-amis-to-public-ent-fips:
 	@echo "Making FIPS Enterprise AMIs public"
-	bash files/make-amis-public.sh ent-fips
+	bash files/make-amis-public.sh ent-fips $(DESTINATION_REGIONS)
 
 
 # Other helpers

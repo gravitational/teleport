@@ -25,29 +25,32 @@ import (
 
 // GetCheckers returns public keys that can be used to check cert authorities
 func GetCheckers(ca types.CertAuthority) ([]ssh.PublicKey, error) {
-	out := make([]ssh.PublicKey, 0, len(ca.GetCheckingKeys()))
-	for _, keyBytes := range ca.GetCheckingKeys() {
-		key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
+	keys := ca.GetTrustedSSHKeyPairs()
+	out := make([]ssh.PublicKey, 0, len(keys))
+	for _, kp := range keys {
+		key, _, _, _, err := ssh.ParseAuthorizedKey(kp.PublicKey)
 		if err != nil {
-			return nil, trace.BadParameter("invalid authority public key (len=%d): %v", len(keyBytes), err)
+			return nil, trace.BadParameter("invalid authority public key (len=%d): %v", len(kp.PublicKey), err)
 		}
 		out = append(out, key)
 	}
 	return out, nil
 }
 
-// GetSigners returns a list of signers that could be used to sign keys.
-func GetSigners(ca types.CertAuthority) ([]ssh.Signer, error) {
-	out := make([]ssh.Signer, 0, len(ca.GetSigningKeys()))
-	for _, keyBytes := range ca.GetSigningKeys() {
-		signer, err := ssh.ParsePrivateKey(keyBytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
+// ValidateSigners returns a list of signers that could be used to sign keys.
+func ValidateSigners(ca types.CertAuthority) error {
+	keys := ca.GetActiveKeys().SSH
+	for _, kp := range keys {
+		// PrivateKeys may be missing when loaded for use outside of the auth
+		// server.
+		if len(kp.PrivateKey) == 0 {
+			continue
 		}
-		signer = AlgSigner(signer, GetSigningAlgName(ca))
-		out = append(out, signer)
+		if _, err := ssh.ParsePrivateKey(kp.PrivateKey); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	return out, nil
+	return nil
 }
 
 // GetSigningAlgName returns the CA's signing algorithm type

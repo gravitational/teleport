@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -35,7 +34,7 @@ import (
 // of it.
 type AuthPreference interface {
 	// Resource provides common resource properties.
-	Resource
+	ResourceWithOrigin
 
 	// GetType gets the type of authentication: local, saml, or oidc.
 	GetType() string
@@ -63,64 +62,60 @@ type AuthPreference interface {
 	// require an MFA check.
 	GetRequireSessionMFA() bool
 
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for AuthPreference.
-	CheckAndSetDefaults() error
+	// GetDisconnectExpiredCert returns disconnect expired certificate setting
+	GetDisconnectExpiredCert() bool
+	// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
+	SetDisconnectExpiredCert(bool)
+
+	// GetAllowLocalAuth gets if local authentication is allowed.
+	GetAllowLocalAuth() bool
+	// SetAllowLocalAuth sets if local authentication is allowed.
+	SetAllowLocalAuth(bool)
 
 	// String represents a human readable version of authentication settings.
 	String() string
+
+	// GetMessageOfTheDay fetches the MOTD
+	GetMessageOfTheDay() string
+
+	// SetMessageOfTheDay sets the MOTD
+	SetMessageOfTheDay(string)
 }
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
 func NewAuthPreference(spec AuthPreferenceSpecV2) (AuthPreference, error) {
-	pref := AuthPreferenceV2{
-		Kind:    KindClusterAuthPreference,
-		Version: V2,
+	return newAuthPreferenceWithLabels(spec, map[string]string{})
+}
+
+// NewAuthPreferenceFromConfigFile is a convenience method to create
+// AuthPreferenceV2 labelled as originating from config file.
+func NewAuthPreferenceFromConfigFile(spec AuthPreferenceSpecV2) (AuthPreference, error) {
+	return newAuthPreferenceWithLabels(spec, map[string]string{
+		OriginLabel: OriginConfigFile,
+	})
+}
+
+// NewAuthPreferenceWithLabels is a convenience method to create
+// AuthPreferenceV2 with a specific map of labels.
+func newAuthPreferenceWithLabels(spec AuthPreferenceSpecV2, labels map[string]string) (AuthPreference, error) {
+	pref := &AuthPreferenceV2{
 		Metadata: Metadata{
-			Name:      MetaNameClusterAuthPreference,
-			Namespace: defaults.Namespace,
+			Labels: labels,
 		},
 		Spec: spec,
 	}
-
 	if err := pref.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pref, nil
+	return pref, nil
 }
 
 // DefaultAuthPreference returns the default authentication preferences.
 func DefaultAuthPreference() AuthPreference {
-	return &AuthPreferenceV2{
-		Kind:    KindClusterAuthPreference,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameClusterAuthPreference,
-			Namespace: defaults.Namespace,
-		},
-		Spec: AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOTP,
-		},
-	}
-}
-
-// AuthPreferenceV2 implements AuthPreference.
-type AuthPreferenceV2 struct {
-	// Kind is a resource kind - always resource.
-	Kind string `json:"kind"`
-
-	// SubKind is a resource sub kind.
-	SubKind string `json:"sub_kind,omitempty"`
-
-	// Version is a resource version.
-	Version string `json:"version"`
-
-	// Metadata is metadata about the resource.
-	Metadata Metadata `json:"metadata"`
-
-	// Spec is the specification of the resource.
-	Spec AuthPreferenceSpecV2 `json:"spec"`
+	authPref, _ := newAuthPreferenceWithLabels(AuthPreferenceSpecV2{}, map[string]string{
+		OriginLabel: OriginDefaults,
+	})
+	return authPref
 }
 
 // GetVersion returns resource version.
@@ -148,13 +143,6 @@ func (c *AuthPreferenceV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *AuthPreferenceV2) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata.
 func (c *AuthPreferenceV2) GetMetadata() Metadata {
 	return c.Metadata
@@ -168,6 +156,16 @@ func (c *AuthPreferenceV2) GetResourceID() int64 {
 // SetResourceID sets resource ID.
 func (c *AuthPreferenceV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// Origin returns the origin value of the resource.
+func (c *AuthPreferenceV2) Origin() string {
+	return c.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (c *AuthPreferenceV2) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
 }
 
 // GetKind returns resource kind.
@@ -220,7 +218,7 @@ func (c *AuthPreferenceV2) SetConnectorName(cn string) {
 // GetU2F gets the U2F configuration settings.
 func (c *AuthPreferenceV2) GetU2F() (*U2F, error) {
 	if c.Spec.U2F == nil {
-		return nil, trace.NotFound("U2F configuration not found")
+		return nil, trace.NotFound("U2F is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/u2f/")
 	}
 	return c.Spec.U2F, nil
 }
@@ -236,20 +234,64 @@ func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
 	return c.Spec.RequireSessionMFA
 }
 
+// GetDisconnectExpiredCert returns disconnect expired certificate setting
+func (c *AuthPreferenceV2) GetDisconnectExpiredCert() bool {
+	return c.Spec.DisconnectExpiredCert.Value
+}
+
+// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
+func (c *AuthPreferenceV2) SetDisconnectExpiredCert(b bool) {
+	c.Spec.DisconnectExpiredCert = NewBoolOption(b)
+}
+
+// GetAllowLocalAuth gets if local authentication is allowed.
+func (c *AuthPreferenceV2) GetAllowLocalAuth() bool {
+	return c.Spec.AllowLocalAuth.Value
+}
+
+// SetAllowLocalAuth gets if local authentication is allowed.
+func (c *AuthPreferenceV2) SetAllowLocalAuth(b bool) {
+	c.Spec.AllowLocalAuth = NewBoolOption(b)
+}
+
+// GetMessageOfTheDay gets the current Message Of The Day. May be empty.
+func (c *AuthPreferenceV2) GetMessageOfTheDay() string {
+	return c.Spec.MessageOfTheDay
+}
+
+// SetMessageOfTheDay sets the current Message Of The Day. May be empty.
+func (c *AuthPreferenceV2) SetMessageOfTheDay(motd string) {
+	c.Spec.MessageOfTheDay = motd
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (c *AuthPreferenceV2) setStaticFields() {
+	c.Kind = KindClusterAuthPreference
+	c.Version = V2
+	c.Metadata.Name = MetaNameClusterAuthPreference
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
-	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// if nothing is passed in, set defaults
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
 	}
 	if c.Spec.SecondFactor == "" {
 		c.Spec.SecondFactor = constants.SecondFactorOTP
+	}
+	if c.Spec.AllowLocalAuth == nil {
+		c.Spec.AllowLocalAuth = NewBoolOption(true)
+	}
+	if c.Spec.DisconnectExpiredCert == nil {
+		c.Spec.DisconnectExpiredCert = NewBoolOption(false)
+	}
+	if c.Origin() == "" {
+		c.SetOrigin(OriginDynamic)
 	}
 
 	// make sure type makes sense
@@ -281,39 +323,6 @@ func (c *AuthPreferenceV2) String() string {
 	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.Spec.SecondFactor)
 }
 
-// AuthPreferenceSpecV2 is the actual data we care about for AuthPreferenceV2.
-type AuthPreferenceSpecV2 struct {
-	// Type is the type of authentication.
-	Type string `json:"type"`
-
-	// SecondFactor is the type of second factor.
-	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
-
-	// ConnectorName is the name of the OIDC or SAML connector. If this value is
-	// not set the first connector in the backend will be used.
-	ConnectorName string `json:"connector_name,omitempty"`
-
-	// U2F are the settings for the U2F device.
-	U2F *U2F `json:"u2f,omitempty"`
-
-	// RequireSessionMFA causes all sessions in this cluster to require MFA
-	// checks.
-	RequireSessionMFA bool `json:"require_session_mfa,omitempty"`
-}
-
-// U2F defines settings for U2F device.
-type U2F struct {
-	// AppID returns the application ID for universal second factor.
-	AppID string `json:"app_id,omitempty"`
-
-	// Facets returns the facets for universal second factor.
-	Facets []string `json:"facets,omitempty"`
-
-	// DeviceAttestationCAs contains the trusted attestation CAs for U2F
-	// devices.
-	DeviceAttestationCAs []string `json:"device_attestation_cas,omitempty"`
-}
-
 func (u *U2F) Check() error {
 	if u.AppID == "" {
 		return trace.BadParameter("u2f configuration missing app_id")
@@ -333,7 +342,6 @@ func (u *U2F) Check() error {
 // the Device field in the returned MFADevice.
 func NewMFADevice(name, id string, addedAt time.Time) *MFADevice {
 	return &MFADevice{
-		Kind: KindMFADevice,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -343,17 +351,18 @@ func NewMFADevice(name, id string, addedAt time.Time) *MFADevice {
 	}
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (d *MFADevice) setStaticFields() {
+	d.Kind = KindMFADevice
+	d.Version = V1
+}
+
 // CheckAndSetDefaults validates MFADevice fields and populates empty fields
 // with default values.
 func (d *MFADevice) CheckAndSetDefaults() error {
+	d.setStaticFields()
 	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if d.Kind == "" {
-		return trace.BadParameter("MFADevice missing Kind field")
-	}
-	if d.Version == "" {
-		d.Version = V1
 	}
 	if d.Id == "" {
 		return trace.BadParameter("MFADevice missing ID field")
@@ -373,18 +382,17 @@ func (d *MFADevice) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (d *MFADevice) GetKind() string                       { return d.Kind }
-func (d *MFADevice) GetSubKind() string                    { return d.SubKind }
-func (d *MFADevice) SetSubKind(sk string)                  { d.SubKind = sk }
-func (d *MFADevice) GetVersion() string                    { return d.Version }
-func (d *MFADevice) GetMetadata() Metadata                 { return d.Metadata }
-func (d *MFADevice) GetName() string                       { return d.Metadata.GetName() }
-func (d *MFADevice) SetName(n string)                      { d.Metadata.SetName(n) }
-func (d *MFADevice) GetResourceID() int64                  { return d.Metadata.ID }
-func (d *MFADevice) SetResourceID(id int64)                { d.Metadata.SetID(id) }
-func (d *MFADevice) Expiry() time.Time                     { return d.Metadata.Expiry() }
-func (d *MFADevice) SetExpiry(exp time.Time)               { d.Metadata.SetExpiry(exp) }
-func (d *MFADevice) SetTTL(clock Clock, ttl time.Duration) { d.Metadata.SetTTL(clock, ttl) }
+func (d *MFADevice) GetKind() string         { return d.Kind }
+func (d *MFADevice) GetSubKind() string      { return d.SubKind }
+func (d *MFADevice) SetSubKind(sk string)    { d.SubKind = sk }
+func (d *MFADevice) GetVersion() string      { return d.Version }
+func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
+func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
+func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
+func (d *MFADevice) GetResourceID() int64    { return d.Metadata.ID }
+func (d *MFADevice) SetResourceID(id int64)  { d.Metadata.SetID(id) }
+func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }
+func (d *MFADevice) SetExpiry(exp time.Time) { d.Metadata.SetExpiry(exp) }
 
 // MFAType returns the human-readable name of the MFA protocol of this device.
 func (d *MFADevice) MFAType() string {

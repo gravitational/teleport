@@ -18,13 +18,14 @@ limitations under the License.
 package identityfile
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
 
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -56,12 +57,16 @@ const (
 	// database instance for mutual TLS.
 	FormatDatabase Format = "db"
 
+	// FormatMongo produces CA and key pair in the format suitable for
+	// configuring a MongoDB database for mutual TLS authentication.
+	FormatMongo Format = "mongodb"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
 
 // KnownFormats is a list of all above formats.
-var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase}
+var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo}
 
 // WriteConfig holds the necessary information to write an identity file.
 type WriteConfig struct {
@@ -97,9 +102,9 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		idFile := &apiclient.IdentityFile{
+		idFile := &identityfile.IdentityFile{
 			PrivateKey: cfg.Key.Priv,
-			Certs: apiclient.Certs{
+			Certs: identityfile.Certs{
 				SSH: cfg.Key.Cert,
 				TLS: cfg.Key.TLSCert,
 			},
@@ -119,25 +124,25 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			idFile.CACerts.TLS = append(idFile.CACerts.TLS, ca.TLSCertificates...)
 		}
 
-		if err := apiclient.WriteIdentityFile(idFile, cfg.OutputPath); err != nil {
+		if err := identityfile.Write(idFile, cfg.OutputPath); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 	// dump user identity into separate files:
 	case FormatOpenSSH:
 		keyPath := cfg.OutputPath
-		certPath := keyPath + constants.FileExtSSHCert
+		certPath := keypaths.IdentitySSHCertPath(keyPath)
 		filesWritten = append(filesWritten, keyPath, certPath)
 		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(certPath, cfg.Key.Cert, apiclient.IdentityFilePermissions)
+		err = ioutil.WriteFile(certPath, cfg.Key.Cert, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, apiclient.IdentityFilePermissions)
+		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -151,12 +156,12 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(certPath, cfg.Key.TLSCert, apiclient.IdentityFilePermissions)
+		err = ioutil.WriteFile(certPath, cfg.Key.TLSCert, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, apiclient.IdentityFilePermissions)
+		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -166,7 +171,31 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				caCerts = append(caCerts, cert...)
 			}
 		}
-		err = ioutil.WriteFile(casPath, caCerts, apiclient.IdentityFilePermissions)
+		err = ioutil.WriteFile(casPath, caCerts, identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	// FormatMongo is the same as FormatTLS or FormatDatabase certificate and
+	// key are concatenated in the same .crt file which is what Mongo expects.
+	case FormatMongo:
+		certPath := cfg.OutputPath + ".crt"
+		casPath := cfg.OutputPath + ".cas"
+		filesWritten = append(filesWritten, certPath, casPath)
+		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = ioutil.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.Priv...), identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var caCerts []byte
+		for _, ca := range cfg.Key.TrustedCA {
+			for _, cert := range ca.TLSCertificates {
+				caCerts = append(caCerts, cert...)
+			}
+		}
+		err = ioutil.WriteFile(casPath, caCerts, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -219,7 +248,7 @@ func checkOverwrite(force bool, paths ...string) error {
 	}
 
 	// Some files exist, prompt user whether to overwrite.
-	overwrite, err := prompt.Confirmation(os.Stderr, os.Stdin, fmt.Sprintf("Destination file(s) %s exist. Overwrite?", strings.Join(existingFiles, ", ")))
+	overwrite, err := prompt.Confirmation(context.Background(), os.Stderr, prompt.Stdin(), fmt.Sprintf("Destination file(s) %s exist. Overwrite?", strings.Join(existingFiles, ", ")))
 	if err != nil {
 		return trace.Wrap(err)
 	}

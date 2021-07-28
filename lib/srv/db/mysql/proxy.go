@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 
@@ -51,10 +53,23 @@ type Proxy struct {
 // HandleConnection accepts connection from a MySQL client, authenticates
 // it and proxies it to an appropriate database service.
 func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
-	server := p.makeServer(clientConn)
+	// Wrap the client connection in the connection that can detect the protocol
+	// by peeking into the first few bytes. This is needed to be able to detect
+	// proxy protocol which otherwise would interfere with MySQL protocol.
+	conn := multiplexer.NewConn(clientConn)
+	server := p.makeServer(conn)
+	// If any error happens, make sure to send it back to the client so it
+	// has a chance to close the connection from its side.
+	defer func() {
+		if err != nil {
+			if writeErr := server.WriteError(err); writeErr != nil {
+				p.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
+			}
+		}
+	}()
 	// Perform first part of the handshake, up to the point where client sends
 	// us certificate and connection upgrades to TLS.
-	tlsConn, err := p.performHandshake(server)
+	tlsConn, err := p.performHandshake(conn, server)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -62,7 +77,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serviceConn, err := p.Service.Connect(ctx, server.GetUser(), server.GetDatabase())
+	serviceConn, authContext, err := p.Service.Connect(ctx, server.GetUser(), server.GetDatabase())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -74,9 +89,10 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// Auth has completed, the client enters command phase, start proxying
 	// all messages back-and-forth.
-	err = p.Service.Proxy(ctx, tlsConn, serviceConn)
+	err = p.Service.Proxy(ctx, authContext, tlsConn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -109,11 +125,20 @@ func (p *Proxy) makeServer(clientConn net.Conn) *server.Conn {
 // performHandshake performs the initial handshake between MySQL client and
 // this server, up to the point where the client sends us a certificate for
 // authentication, and returns the upgraded connection.
-func (p *Proxy) performHandshake(server *server.Conn) (*tls.Conn, error) {
+func (p *Proxy) performHandshake(conn *multiplexer.Conn, server *server.Conn) (*tls.Conn, error) {
+	// MySQL protocol is server-initiated which means the client will expect
+	// server to send initial handshake message.
 	err := server.WriteInitialHandshake()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// See if we need to read the proxy-line which could happen if Teleport
+	// is running behind a load balancer with proxy protocol enabled.
+	err = p.maybeReadProxyLine(conn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Then proceed normally to MySQL handshake.
 	err = server.ReadHandshakeResponse()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -128,10 +153,29 @@ func (p *Proxy) performHandshake(server *server.Conn) (*tls.Conn, error) {
 	return tlsConn, nil
 }
 
+// maybeReadProxyLine peeks into the connection to see if instead of regular
+// MySQL protocol we were sent a proxy-line. This usually happens when Teleport
+// is running behind a load balancer with proxy protocol enabled.
+func (p *Proxy) maybeReadProxyLine(conn *multiplexer.Conn) error {
+	proto, err := conn.Detect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if proto != multiplexer.ProtoProxy {
+		return nil
+	}
+	proxyLine, err := conn.ReadProxyLine()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	p.Log.Debugf("MySQL listener proxy-line: %s.", proxyLine)
+	return nil
+}
+
 // waitForOK waits for OK_PACKET from the database service which indicates
 // that auth on the other side completed successfully.
 func (p *Proxy) waitForOK(server *server.Conn, serviceConn net.Conn) error {
-	err := serviceConn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	err := serviceConn.SetReadDeadline(time.Now().Add(2 * defaults.DatabaseConnectTimeout))
 	if err != nil {
 		return trace.Wrap(err)
 	}

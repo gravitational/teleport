@@ -85,7 +85,7 @@ spec:
   client_secret: Secret
   display: GitLab
   issuer_url: https://gitlab.com
-  prompt: ""
+  prompt: "none"
   redirect_url: https://teleport.example.com:3080/v1/webapi/oidc/callback
   scope:
   - email
@@ -96,7 +96,7 @@ version: v2
   type="note"
   title="IMPORTANT"
 >
-  The `prompt` value must be blank.  Setting to blank means Teleport will not send this as a parameter sending the `select_account` parameter will result in an error from GitLab.
+  The `prompt` value must be `none`.  Setting to `none` means Teleport will not send this as a parameter sending the `select_account` parameter will result in an error from GitLab.
 </Admonition>
 
 Create the connector using `tctl` tool:

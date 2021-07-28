@@ -26,12 +26,12 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 )
 
@@ -42,12 +42,12 @@ type UserCommand struct {
 	login         string
 	allowedLogins []string
 	createRoles   []string
+	kubeUsers     string
+	kubeGroups    string
 
 	// DELETE IN (7.0)
 	// We keep legacy flags used in tctl users add --k8s-users command
 	legacyAllowedLogins string
-	legacyKubeUsers     string
-	legacyKubeGroups    string
 
 	ttl time.Duration
 
@@ -85,9 +85,9 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 		u.userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 			Default("").StringVar(&u.legacyAllowedLogins)
 		u.userAdd.Flag("k8s-users", "Kubernetes users to assign to a user.").
-			Default("").Hidden().StringVar(&u.legacyKubeUsers)
+			Default("").StringVar(&u.kubeUsers)
 		u.userAdd.Flag("k8s-groups", "Kubernetes groups to assign to a user.").
-			Default("").Hidden().StringVar(&u.legacyKubeGroups)
+			Default("").StringVar(&u.kubeGroups)
 	} else {
 		// Roles flag is required in Enterprise
 		u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.createRoles)
@@ -159,7 +159,7 @@ func (u *UserCommand) ResetPassword(client auth.ClientI) error {
 }
 
 // PrintResetPasswordToken prints ResetPasswordToken
-func (u *UserCommand) PrintResetPasswordToken(token services.ResetPasswordToken, format string) error {
+func (u *UserCommand) PrintResetPasswordToken(token types.ResetPasswordToken, format string) error {
 	err := u.printResetPasswordToken(token,
 		format,
 		"User %q has been reset. Share this URL with the user to complete password reset, link is valid for %v:\n%v\n\n",
@@ -173,7 +173,7 @@ func (u *UserCommand) PrintResetPasswordToken(token services.ResetPasswordToken,
 }
 
 // PrintResetPasswordTokenAsInvite prints ResetPasswordToken as Invite
-func (u *UserCommand) PrintResetPasswordTokenAsInvite(token services.ResetPasswordToken, format string) error {
+func (u *UserCommand) PrintResetPasswordTokenAsInvite(token types.ResetPasswordToken, format string) error {
 	err := u.printResetPasswordToken(token,
 		format,
 		"User %q has been created but requires a password. Share this URL with the user to complete user setup, link is valid for %v:\n%v\n\n")
@@ -185,7 +185,7 @@ func (u *UserCommand) PrintResetPasswordTokenAsInvite(token services.ResetPasswo
 }
 
 // PrintResetPasswordToken prints ResetPasswordToken
-func (u *UserCommand) printResetPasswordToken(token services.ResetPasswordToken, format string, messageFormat string) (err error) {
+func (u *UserCommand) printResetPasswordToken(token types.ResetPasswordToken, format string, messageFormat string) (err error) {
 	switch strings.ToLower(u.format) {
 	case teleport.JSON:
 		err = printTokenAsJSON(token)
@@ -209,13 +209,14 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	// Delete these legacy flags after OSS migration to RBAC.
 	if modules.GetModules().BuildType() == modules.BuildOSS {
 		switch {
-		case u.legacyAllowedLogins != "" || u.legacyKubeUsers != "" || u.legacyKubeGroups != "":
+		case u.legacyAllowedLogins != "":
 			// A caller has attempted to mix legacy and new format.
 			if len(u.allowedLogins) != 0 || len(u.createRoles) != 0 {
 				return trace.BadParameter(
-					`please use --roles and --logins flags instead of deprecated positional arguments, --k8s-users and k8s-groups flags`)
+					`please use --roles and --logins flags instead of deprecated positional arguments.`)
 			}
 			return u.legacyAdd(client)
+
 			// This is a legacy OSS scenario: `tctl users add bob`
 			// with no other arguments. In this case, CLI assumed allowed logins
 			// to be `bob` as well.
@@ -243,16 +244,19 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	}
 
 	traits := map[string][]string{
-		teleport.TraitLogins: u.allowedLogins,
+		teleport.TraitLogins:     u.allowedLogins,
+		teleport.TraitKubeUsers:  flattenSlice([]string{u.kubeUsers}),
+		teleport.TraitKubeGroups: flattenSlice([]string{u.kubeGroups}),
 	}
 
-	user, err := services.NewUser(u.login)
+	user, err := types.NewUser(u.login)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	user.SetTraits(traits)
 	user.SetRoles(u.createRoles)
+
 	if err := client.CreateUser(context.TODO(), user); err != nil {
 		return trace.Wrap(err)
 
@@ -275,7 +279,8 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 }
 
 // addLegacy creates a new sign-up token and prints a token URL to stdout.
-// A user is not created until he visits the sign-up URL and completes the process
+// A user is not created until they visit the sign-up URL and completes the
+// process
 func (u *UserCommand) legacyAdd(client auth.ClientI) error {
 	fmt.Printf(`NOTE: Teleport 6.0 added RBAC in Open Source edition.
 
@@ -293,19 +298,19 @@ Meanwhile we are going to assign user %q to role %q created during migration.
 	if u.legacyAllowedLogins == "" {
 		u.legacyAllowedLogins = u.login
 	}
-	if u.legacyKubeUsers == "" {
-		u.legacyKubeUsers = u.login
+	if u.kubeUsers == "" {
+		u.kubeUsers = u.login
 	}
 
-	user, err := services.NewUser(u.login)
+	user, err := types.NewUser(u.login)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	traits := map[string][]string{
 		teleport.TraitLogins:     flattenSlice([]string{u.legacyAllowedLogins}),
-		teleport.TraitKubeUsers:  flattenSlice([]string{u.legacyKubeUsers}),
-		teleport.TraitKubeGroups: flattenSlice([]string{u.legacyKubeGroups}),
+		teleport.TraitKubeUsers:  flattenSlice([]string{u.kubeUsers}),
+		teleport.TraitKubeGroups: flattenSlice([]string{u.kubeGroups}),
 	}
 
 	user.SetTraits(traits)
@@ -343,7 +348,7 @@ func flattenSlice(slice []string) (retval []string) {
 	return retval
 }
 
-func printTokenAsJSON(token services.ResetPasswordToken) error {
+func printTokenAsJSON(token types.ResetPasswordToken) error {
 	out, err := json.MarshalIndent(token, "", "  ")
 	if err != nil {
 		return trace.Wrap(err, "failed to marshal reset password token")
@@ -352,7 +357,7 @@ func printTokenAsJSON(token services.ResetPasswordToken) error {
 	return nil
 }
 
-func printTokenAsText(token services.ResetPasswordToken, messageFormat string) error {
+func printTokenAsText(token types.ResetPasswordToken, messageFormat string) error {
 	url, err := url.Parse(token.GetURL())
 	if err != nil {
 		return trace.Wrap(err, "failed to parse reset password token url")

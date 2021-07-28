@@ -1,0 +1,56 @@
+---
+title: Kubernetes Access
+description: Teleport Kubernetes Access introduction, demo, and resources.
+---
+
+Teleport provides secure access for Kubernetes clusters.
+
+- Users can receive short-lived kubeconfigs (and certificates) using Single Sign-On (SSO) and switch between clusters without logging in twice.
+- Admins can use *roles* to implement policies like the best practice that *developers must not access production* and enforce dual authorization using [access requests](../enterprise/workflow/index.mdx) for privileged operations.
+- Organizations can achieve compliance by capturing `kubectl` events and session recordings for `kubectl`.
+
+## SSO and Audit for Kubernetes Clusters
+
+Set up SSO, capture audit events, and sessions with Teleport running in a Kubernetes cluster.
+
+<video
+  muted
+  playsInline
+  controls
+>
+  <source
+    src="https://goteleport.com/teleport/videos/kubernetes-access/kubelogin.mp4"
+    type="video/mp4"
+  />
+
+  <source
+    src="https://goteleport.com/teleport/videos/kubernetes-access/kubelogin.webm"
+    type="video/webm"
+  />
+
+  Your browser does not support the video tag.
+</video>
+
+## Getting started
+
+Configure Kubernetes Access in a 10 minute [Getting Started](./getting-started.mdx) guide.
+
+## Guides
+
+<TileSet>
+  <Tile icon="kubernetes" title="Teleport Kubernetes Access for CI/CD" href="./guides/cicd.mdx">
+    Teleport Kubernetes Access for CI/CD.
+  </Tile>
+  <Tile icon="kubernetes" title="Teleport Kubernetes Access and Trusted Clusters" href="./guides/federation.mdx">
+    Federated Access using Teleport Trusted Clusters.
+  </Tile>
+  <Tile icon="kubernetes" title="Kubernetes Migration Guide" href="./guides/migration.mdx">
+    Kubernetes Pre-5.0 Migration Guide.
+  </Tile>
+  <Tile icon="kubernetes" title="Kubernetes Access Multiple Clusters" href="./guides/multiple-clusters.mdx">
+    Connecting Multiple Clusters with Teleport Kubernetes Access.
+  </Tile>
+  <Tile icon="kubernetes" title="Kubernetes Access from standalone Teleport" href="./guides/standalone-teleport.mdx">
+    Connecting standalone Teleport installations to Kubernetes clusters
+  </Tile>
+</TileSet>

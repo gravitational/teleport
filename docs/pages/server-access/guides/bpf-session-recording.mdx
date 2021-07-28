@@ -1,0 +1,180 @@
+---
+title: Enhanced Session Recording for SSH with BPF
+description: How to record your SSH session commands using BPF.
+h1: Enhanced Session Recording with BPF
+---
+
+Teleport's default [SSH and Kubernetes session recording](../../architecture/nodes.mdx#session-recording)
+feature captures what is echoed to a terminal.
+
+This has inherent advantages, for example, because no input is captured, Teleport
+session recordings typically do not contain passwords that were entered into a terminal.
+
+The disadvantage is that session recordings can be bypassed using several techniques:
+
+- **Obfuscation**. For example, even though the command
+  `echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
+  `curl http://www.example.com`, when decoded, that is what is run.
+- **Shell scripts**. For example, if a user uploads and executes a script, the commands run within the script are not captured, simply the output.
+- **Terminal controls**. Terminals support a wide variety of controls including the ability for users to disable terminal echo. This is frequently used when requesting credentials. Disabling terminal echo allows commands to be run without being captured.
+
+Furthermore, due to their unstructured nature, session recordings are difficult to
+ingest and perform monitoring/alerting on.
+
+Teleport Enhanced Session Recording mitigates all three concerns by providing advanced security, greater logging capabilities, and better correlates a user with their activities.
+
+## Prerequisites
+
+Teleport 7.0+ with Enhanced Session Recording requires Linux kernel 5.8 (or above).
+
+<Admonition type="tip">
+  Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../../architecture/authentication.mdx#audit-log) for more details.
+</Admonition>
+
+You can check your kernel version using the `uname` command. The output should look
+something like the following.
+
+```bash
+$ uname -r
+5.8.17
+```
+
+### Linux distributions and supported kernels
+
+<table>
+<thead>
+  <tr><td>Distro name</td><td>Distro version</td><td>Kernel version</td></tr>
+</thead>
+<tbody>
+  <tr><td>Ubuntu "Groovy Gorilla"</td><td>20.10</td><td>5.8+</td></tr>
+  <tr><td>Fedora</td><td>33</td><td>5.8+</td></tr>
+  <tr><td>Archlinux</td><td>2020.09.01</td><td>5.8.5+</td></tr>
+  <tr><td>Flatcar</td><td>2765.2.2</td><td>5.10.25+</td></tr>
+</tbody>
+</table>
+
+## Step 1/3. Install and configure Teleport node
+
+Follow our [installation instructions](../../installation.mdx) to install Teleport Auth, Proxy
+and Nodes.
+
+Set up the Teleport node with this `etc/teleport.yaml`. See our [configuration file setup](../../admin-guide.mdx#configuration) for more instructions.
+
+```yaml
+# Example config to be saved as etc/teleport.yaml
+teleport:
+  nodename: graviton-node
+  auth_token: exampletoken
+  auth_servers:
+  # Replace with IP of Teleport Auth server.
+  - 127.0.0.1:3025
+  data_dir: /var/lib/teleport
+proxy_service:
+  enabled: false
+auth_service:
+  enabled: false
+ssh_service:
+  enabled: true
+  enhanced_recording:
+    # Enable or disable enhanced auditing for this node. Default value: false.
+    enabled: true
+
+    # Optional: command_buffer_size is optional with a default value of 8 pages.
+    command_buffer_size: 8
+
+    # Optional: disk_buffer_size is optional with default value of 128 pages.
+    disk_buffer_size: 128
+
+    # Optional: network_buffer_size is optional with default value of 8 pages.
+    network_buffer_size: 8
+
+    # Optional: Controls where cgroupv2 hierarchy is mounted. Default value:
+    # /cgroup2.
+    cgroup_path: /cgroup2
+```
+
+## Step 2/3. Test by logging into node via Teleport
+
+**Session with Enhanced Session Recording will be marked as 'true' in the logs.**
+
+```json
+{
+  "code": "T2004I",
+  "ei": 23,
+  "enhanced_recording": true,
+  "event": "session.end",
+  "interactive": true,
+  "namespace": "default",
+  "participants": [
+    "benarent"
+  ],
+  "server_id": "585fc225-5cf9-4e9f-8ff6-1b0fd6885b09",
+  "sid": "ca82b98d-1d30-11ea-8244-cafde5327a6c",
+  "time": "2019-12-12T22:44:46.218Z",
+  "uid": "83e67464-a93a-4c7c-8ce6-5a3d8802c3b2",
+  "user": "benarent"
+}
+```
+
+## Step 3/3. Inspect logs
+
+The resulting enhanced session recording will be shown in [Teleport's Audit Log](../../architecture/authentication.mdx#audit-log).
+
+```bash
+$ teleport-auth ~:  tree /var/lib/teleport/log
+/var/lib/teleport/log
+├── 1048a649-8f3f-4431-9529-0c53339b65a5
+│   ├── 2020-01-13.00:00:00.log
+│   └── sessions
+│       └── default
+│           ├── fad07202-35bb-11ea-83aa-125400432324-0.chunks.gz
+│           ├── fad07202-35bb-11ea-83aa-125400432324-0.events.gz
+│           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.command-events.gz
+│           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.network-events.gz
+│           └── fad07202-35bb-11ea-83aa-125400432324.index
+├── events.log -> /var/lib/teleport/log/1048a649-8f3f-4431-9529-0c53339b65a5/2020-01-13.00:00:00.log
+├── playbacks
+│   └── sessions
+│       └── default
+└── upload
+    └── sessions
+        └── default
+```
+
+To quickly check the status of the audit log, you can simply tail the logs with
+`tail -f /var/lib/teleport/log/events.log`, the resulting capture from Teleport will
+be a JSON log for each command and network request.
+
+<Tabs>
+  <TabItem label="json">
+    ```json
+    {"argv":["google.com"],"cgroup_id":4294968064,"code":"T4000I","ei":5,"event":"session.command","login":"root","namespace":"default","path":"/bin/ping","pid":2653,"ppid":2660,"program":"ping","return_code":0,"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644","sid":"44c6cea8-362f-11ea-83aa-125400432324","time":"2020-01-13T18:05:53.919Z","uid":"734930bb-00e6-4ee6-8798-37f1e9473fac","user":"benarent"}
+    ```
+  </TabItem>
+
+  <TabItem label="json formatted">
+    ```json
+    {
+      "argv":[
+        "google.com"
+        ],
+      "cgroup_id":4294968064,
+      "code":"T4000I",
+      "ei":5,
+      "event":"session.command",
+      "login":"root",
+      "namespace":"default",
+      "path":"/bin/ping",
+      "pid":2653,
+      "ppid":2660,
+      "program":"ping",
+      "return_code":0,
+      "server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644",
+      "sid":"44c6cea8-362f-11ea-83aa-125400432324",
+      "time":"2020-01-13T18:05:53.919Z",
+      "uid":"734930bb-00e6-4ee6-8798-37f1e9473fac",
+      "user":"benarent"
+    }
+    ```
+  </TabItem>
+</Tabs>

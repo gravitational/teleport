@@ -14,7 +14,7 @@ Finally, the actual implementation is discussed.
 
 ## Why
 
-Some resources like `services.AuthPreference` or `services.ClusterConfig` are
+Some resources like `types.AuthPreference` or `services.ClusterConfig` are
 live representations of parts of the `auth_service` configuration section.
 These resources can be understood to constitute *dynamic* configuration of
 an auth server, as opposed to *static* configuration defined by the
@@ -34,7 +34,7 @@ This RFD allows the dynamic configuration to be created/updated explicitly via
 
 We use the example of the `authentication` subsection of `auth_service`
 in `teleport.yaml` (as "the" static configuration) and the corresponding
-resource `services.AuthPreference` (as "the" dynamic configuration).
+resource `types.AuthPreference` (as "the" dynamic configuration).
 The latter is assumed to be manipulable via `tctl` using the identifier `cap`.
 
 ### Scenario 1: static configuration specified
@@ -246,7 +246,7 @@ This logic implies Choices 2.B and 3.B.
    configuration from teleport.yaml, restarting the servers and trying this
    command again.
 
-   If you would still like to proceed, re-run the comand with both --force and
+   If you would still like to proceed, re-run the command with both --force and
    --confirm flags.
    ```
 
@@ -271,3 +271,19 @@ The `tctl rm` subcommand can be used to reset dynamic resources back to their de
    configuration from teleport.yaml and restarting the servers in order to
    reset the resource to its default.
    ```
+
+### RBAC verbs
+
+Reading any configuration resource requires the RBAC verb `read`.
+
+Performing any dynamic overwrite of a configuration resource requires the RBAC
+verb `update`.  In addition, if the overwrite is to replace a resource with
+`origin: config-file`, the RBAC verb `create` is also required.
+
+|                                     |     **`read`**     |    **`update`**    |    **`create`**    |
+|                :---:                |        :---:       |        :---:       |        :---:       |
+|            **`tctl get`**           | :heavy_check_mark: |                    |                    |
+|          **`tctl create`**          |                    | :heavy_check_mark: |                    |
+|      **`tctl create --force`**      |                    | :heavy_check_mark: |                    |
+| **`tctl create --force --confirm`** |                    | :heavy_check_mark: | :heavy_check_mark: |
+|            **`tctl rm`**            |                    | :heavy_check_mark: |                    |

@@ -25,6 +25,10 @@ import (
 	"path"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -33,6 +37,7 @@ import (
 
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // transportConfig is configuration for a rewriting transport.
@@ -43,8 +48,11 @@ type transportConfig struct {
 	insecureSkipVerify bool
 	cipherSuites       []uint16
 	jwt                string
-	rewrite            *services.Rewrite
+	rewrite            *types.Rewrite
 	w                  events.StreamWriter
+	traits             wrappers.Traits
+	log                logrus.FieldLogger
+	user               string
 }
 
 // Check validates configuration.
@@ -63,6 +71,9 @@ func (c *transportConfig) Check() error {
 	}
 	if c.jwt == "" {
 		return trace.BadParameter("jwt missing")
+	}
+	if c.log == nil {
+		c.log = logrus.WithField(trace.Component, "transport")
 	}
 
 	return nil
@@ -166,11 +177,61 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Scheme = t.uri.Scheme
 	r.URL.Host = t.uri.Host
 
-	// Add in JWT header.
+	// Add headers from rewrite configuration.
+	if t.c.rewrite != nil && len(t.c.rewrite.Headers) > 0 {
+		t.rewriteHeaders(r)
+	}
+
+	// Add in JWT headers.
 	r.Header.Set(teleport.AppJWTHeader, t.c.jwt)
 	r.Header.Set(teleport.AppCFHeader, t.c.jwt)
 
 	return nil
+}
+
+// rewriteHeaders applies headers rewrites from the application configuration.
+func (t *transport) rewriteHeaders(r *http.Request) {
+	for _, header := range t.c.rewrite.Headers {
+		if IsReservedHeader(header.Name) {
+			t.c.log.Debugf("Not rewriting Teleport header %q.", header.Name)
+			continue
+		}
+		values, err := services.ApplyValueTraits(header.Value, t.c.traits)
+		if err != nil {
+			t.c.log.Debugf("Failed to apply traits to %q: %v.", header.Value, err)
+			continue
+		}
+		r.Header.Del(header.Name)
+		for _, value := range values {
+			switch http.CanonicalHeaderKey(header.Name) {
+			case teleport.HostHeader:
+				r.Host = value
+			default:
+				r.Header.Add(header.Name, value)
+			}
+		}
+	}
+}
+
+// ReservedHeaders is a list of headers injected by Teleport.
+var ReservedHeaders = []string{
+	teleport.AppJWTHeader,
+	teleport.AppCFHeader,
+	forward.XForwardedFor,
+	forward.XForwardedHost,
+	forward.XForwardedProto,
+	forward.XForwardedServer,
+}
+
+// IsReservedHeader returns true if the provided header is one of headers
+// injected by Teleport.
+func IsReservedHeader(header string) bool {
+	for _, h := range ReservedHeaders {
+		if http.CanonicalHeaderKey(header) == http.CanonicalHeaderKey(h) {
+			return true
+		}
+	}
+	return false
 }
 
 // needsPathRedirect checks if the request should be redirected to a different path.
@@ -228,7 +289,7 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 
 		// If the redirect location is one of the hosts specified in the list of
 		// redirects, rewrite the header.
-		if utils.SliceContainsStr(t.c.rewrite.Redirect, host(u.Host)) {
+		if apiutils.SliceContainsStr(t.c.rewrite.Redirect, host(u.Host)) {
 			u.Scheme = "https"
 			u.Host = net.JoinHostPort(t.c.publicAddr, t.c.publicPort)
 		}
@@ -239,8 +300,8 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 
 // emitAuditEvent writes the request and response to audit stream.
 func (t *transport) emitAuditEvent(req *http.Request, resp *http.Response) error {
-	appSessionRequestEvent := &events.AppSessionRequest{
-		Metadata: events.Metadata{
+	appSessionRequestEvent := &apievents.AppSessionRequest{
+		Metadata: apievents.Metadata{
 			Type: events.AppSessionRequestEvent,
 			Code: events.AppSessionRequestCode,
 		},

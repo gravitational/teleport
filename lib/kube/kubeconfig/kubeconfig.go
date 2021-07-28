@@ -3,7 +3,6 @@ package kubeconfig
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -58,75 +56,6 @@ type ExecValues struct {
 	// exec plugin arguments. This is used when the proxy doesn't have a
 	// trusted TLS cert during login.
 	TshBinaryInsecure bool
-}
-
-// UpdateWithClient adds Teleport configuration to kubeconfig based on the
-// configured TeleportClient. This will use the exec plugin model and must only
-// be called from tsh.
-//
-// If `path` is empty, UpdateWithClient will try to guess it based on the
-// environment or known defaults.
-func UpdateWithClient(ctx context.Context, path string, tc *client.TeleportClient, tshBinary string) error {
-	var v Values
-
-	v.ClusterAddr = tc.KubeClusterAddr()
-	v.TeleportClusterName, _ = tc.KubeProxyHostPort()
-	if tc.SiteName != "" {
-		v.TeleportClusterName = tc.SiteName
-	}
-	var err error
-	v.Credentials, err = tc.LocalAgent().GetCoreKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Fetch proxy's advertised ports to check for k8s support.
-	if _, err := tc.Ping(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-	if tc.KubeProxyAddr == "" {
-		// Kubernetes support disabled, don't touch kubeconfig.
-		return nil
-	}
-
-	// TODO(awly): unit test this.
-	if tshBinary != "" {
-		v.Exec = &ExecValues{
-			TshBinaryPath:     tshBinary,
-			TshBinaryInsecure: tc.InsecureSkipVerify,
-		}
-
-		// Fetch the list of known kubernetes clusters.
-		pc, err := tc.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer pc.Close()
-		ac, err := pc.ConnectToCurrentCluster(ctx, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer ac.Close()
-		v.Exec.KubeClusters, err = kubeutils.KubeClusterNames(ctx, ac)
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// Use the same defaulting as the auth server.
-		v.Exec.SelectCluster, err = kubeutils.CheckOrSetKubeCluster(ctx, ac, tc.KubernetesCluster, v.TeleportClusterName)
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-
-		// If there are no registered k8s clusters, we may have an older
-		// teleport cluster. Fall back to the old kubeconfig, with static
-		// credentials from v.Credentials.
-		if len(v.Exec.KubeClusters) == 0 {
-			log.Debug("Disabling exec plugin mode for kubeconfig because this Teleport cluster has no Kubernetes clusters.")
-			v.Exec = nil
-		}
-	}
-
-	return Update(path, v)
 }
 
 // Update adds Teleport configuration to kubeconfig.

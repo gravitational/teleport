@@ -18,10 +18,12 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"sort"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -31,7 +33,7 @@ import (
 )
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
-func ValidateAccessRequest(ar AccessRequest) error {
+func ValidateAccessRequest(ar types.AccessRequest) error {
 	if err := ar.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -42,7 +44,7 @@ func ValidateAccessRequest(ar AccessRequest) error {
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
-func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
+func NewAccessRequest(user string, roles ...string) (types.AccessRequest, error) {
 	req, err := types.NewAccessRequest(uuid.New(), user, roles...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -89,25 +91,25 @@ func (r *RequestIDs) IsEmpty() bool {
 // DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
 type DynamicAccessCore interface {
 	// CreateAccessRequest stores a new access request.
-	CreateAccessRequest(ctx context.Context, req AccessRequest) error
-	// SetAccessRequestState updates the state of an existing access request.
-	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) error
+	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
 	// GetAccessRequests gets all currently active access requests.
-	GetAccessRequests(ctx context.Context, filter AccessRequestFilter) ([]AccessRequest, error)
+	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
 	DeleteAccessRequest(ctx context.Context, reqID string) error
 	// GetPluginData loads all plugin data matching the supplied filter.
-	GetPluginData(ctx context.Context, filter PluginDataFilter) ([]PluginData, error)
+	GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error)
 	// UpdatePluginData updates a per-resource PluginData entry.
-	UpdatePluginData(ctx context.Context, params PluginDataUpdateParams) error
+	UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error
 }
 
 // DynamicAccess is a service which manages dynamic RBAC.  Specifically, this is the
 // dynamic access interface implemented by remote clients.
 type DynamicAccess interface {
 	DynamicAccessCore
+	// SetAccessRequestState updates the state of an existing access request.
+	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
-	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (AccessRequest, error)
+	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 }
 
 // DynamicAccessOracle is a service capable of answering questions related
@@ -115,13 +117,13 @@ type DynamicAccess interface {
 // list of roles a user is allowed to request) can not be calculated by
 // actors with limited privileges.
 type DynamicAccessOracle interface {
-	GetAccessCapabilities(ctx context.Context, req AccessCapabilitiesRequest) (*AccessCapabilities, error)
+	GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error)
 }
 
 // CalculateAccessCapabilities aggregates the requested capabilities using the supplied getter
 // to load relevant resources.
-func CalculateAccessCapabilities(ctx context.Context, clt UserAndRoleGetter, req AccessCapabilitiesRequest) (*AccessCapabilities, error) {
-	var caps AccessCapabilities
+func CalculateAccessCapabilities(ctx context.Context, clt UserAndRoleGetter, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
+	var caps types.AccessCapabilities
 	// all capabilities require use of a request validator.  calculating suggested reviewers
 	// requires that the validator be configured for variable expansion.
 	v, err := NewRequestValidator(clt, req.User, ExpandVars(req.SuggestedReviewers))
@@ -145,11 +147,13 @@ func CalculateAccessCapabilities(ctx context.Context, clt UserAndRoleGetter, req
 type DynamicAccessExt interface {
 	DynamicAccessCore
 	// ApplyAccessReview applies a review to a request in the backend and returns the post-application state.
-	ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker ReviewPermissionChecker) (AccessRequest, error)
+	ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker ReviewPermissionChecker) (types.AccessRequest, error)
 	// UpsertAccessRequest creates or updates an access request.
-	UpsertAccessRequest(ctx context.Context, req AccessRequest) error
+	UpsertAccessRequest(ctx context.Context, req types.AccessRequest) error
 	// DeleteAllAccessRequests deletes all existent access requests.
 	DeleteAllAccessRequests(ctx context.Context) error
+	// SetAccessRequestState updates the state of an existing access request.
+	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) (types.AccessRequest, error)
 }
 
 // reviewParamsContext is a simplified view of an access review
@@ -203,7 +207,7 @@ type reviewPermissionContext struct {
 // checks in order to allow us to extend the available namespaces without breaking
 // backwards compatibility with older nodes/proxies (which never need to evaluate
 // these predicates).
-func ValidateAccessPredicates(role Role) error {
+func ValidateAccessPredicates(role types.Role) error {
 	tp, err := NewJSONBoolParser(thresholdFilterContext{})
 	if err != nil {
 		return trace.Wrap(err, "failed to build empty threshold predicate parser (this is a bug)")
@@ -247,13 +251,13 @@ func ValidateAccessPredicates(role Role) error {
 }
 
 // ApplyAccessReview attempts to apply the specified access review to the specified request.
-func ApplyAccessReview(req AccessRequest, rev types.AccessReview, author User) error {
+func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author types.User) error {
 	if rev.Author != author.GetName() {
 		return trace.BadParameter("mismatched review author (expected %q, got %q)", rev.Author, author)
 	}
 
 	// role lists must be deduplicated and sorted
-	rev.Roles = utils.Deduplicate(rev.Roles)
+	rev.Roles = apiutils.Deduplicate(rev.Roles)
 	sort.Strings(rev.Roles)
 
 	// basic compatibility/sanity checks
@@ -294,7 +298,7 @@ func ApplyAccessReview(req AccessRequest, rev types.AccessReview, author User) e
 
 // checkReviewCompat performs basic checks to ensure that the specified review can be
 // applied to the specified request (part of review application logic).
-func checkReviewCompat(req AccessRequest, rev types.AccessReview) error {
+func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
 	// we currently only support reviews that propose approval/denial.  future iterations
 	// may support additional states (e.g. None for comment-only reviews).
 	if !rev.ProposedState.IsApproved() && !rev.ProposedState.IsDenied() {
@@ -341,7 +345,7 @@ func checkReviewCompat(req AccessRequest, rev types.AccessReview) error {
 
 // collectReviewThresholdIndexes aggregates the indexes of all thresholds whose filters match
 // the supplied review (part of review application logic).
-func collectReviewThresholdIndexes(req AccessRequest, rev types.AccessReview, author User) ([]uint32, error) {
+func collectReviewThresholdIndexes(req types.AccessRequest, rev types.AccessReview, author types.User) ([]uint32, error) {
 	parser, err := newThresholdFilterParser(req, rev, author)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -390,7 +394,7 @@ func accessReviewThresholdMatchesFilter(t types.AccessReviewThreshold, parser pr
 
 // newThresholdFilterParser creates a custom parser context which exposes a simplified view of the review author
 // and the request for evaluation of review threshold filters.
-func newThresholdFilterParser(req AccessRequest, rev types.AccessReview, author User) (BoolPredicateParser, error) {
+func newThresholdFilterParser(req types.AccessRequest, rev types.AccessReview, author types.User) (BoolPredicateParser, error) {
 	return NewJSONBoolParser(thresholdFilterContext{
 		Reviewer: reviewAuthorContext{
 			Roles:  author.GetRoles(),
@@ -411,13 +415,13 @@ func newThresholdFilterParser(req AccessRequest, rev types.AccessReview, author 
 // requestResolution describes a request state-transition from
 // PENDING to some other state.
 type requestResolution struct {
-	state  RequestState
+	state  types.RequestState
 	reason string
 }
 
 // calculateReviewBasedResolution calculates the request resolution based upon
 // a request's reviews.  Returns (nil,nil) in the event no resolution has been reached.
-func calculateReviewBasedResolution(req AccessRequest) (*requestResolution, error) {
+func calculateReviewBasedResolution(req types.AccessRequest) (*requestResolution, error) {
 	// thresholds and reviews must be populated before state-transitions are possible
 	thresholds, reviews := req.GetThresholds(), req.GetReviews()
 	if len(thresholds) == 0 || len(reviews) == 0 {
@@ -540,8 +544,8 @@ ProcessReviews:
 }
 
 // GetAccessRequest is a helper function assists with loading a specific request by ID.
-func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (AccessRequest, error) {
-	reqs, err := acc.GetAccessRequests(ctx, AccessRequestFilter{
+func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (types.AccessRequest, error) {
+	reqs, err := acc.GetAccessRequests(ctx, types.AccessRequestFilter{
 		ID: reqID,
 	})
 	if err != nil {
@@ -554,22 +558,22 @@ func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (Acc
 }
 
 // GetTraitMappings gets the AccessRequestConditions' claims as a TraitMappingsSet
-func GetTraitMappings(cms []types.ClaimMapping) TraitMappingSet {
-	tm := make([]TraitMapping, 0, len(cms))
+func GetTraitMappings(cms []types.ClaimMapping) types.TraitMappingSet {
+	tm := make([]types.TraitMapping, 0, len(cms))
 	for _, mapping := range cms {
-		tm = append(tm, TraitMapping{
+		tm = append(tm, types.TraitMapping{
 			Trait: mapping.Claim,
 			Value: mapping.Value,
 			Roles: mapping.Roles,
 		})
 	}
-	return TraitMappingSet(tm)
+	return types.TraitMappingSet(tm)
 }
 
 type UserAndRoleGetter interface {
 	UserGetter
 	RoleGetter
-	GetRoles(ctx context.Context) ([]Role, error)
+	GetRoles(ctx context.Context) ([]types.Role, error)
 }
 
 // appendRoleMatchers constructs all role matchers for a given
@@ -597,7 +601,7 @@ func appendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.Cl
 // insertAnnotations constructs all annotations for a given
 // AccessRequestConditions instance and adds them to the
 // supplied annotations mapping.
-func insertAnnotations(annotations map[string][]string, conditions AccessRequestConditions, traits map[string][]string) {
+func insertAnnotations(annotations map[string][]string, conditions types.AccessRequestConditions, traits map[string][]string) {
 	for key, vals := range conditions.Annotations {
 		// get any previous values at key
 		allVals := annotations[key]
@@ -606,7 +610,7 @@ func insertAnnotations(annotations map[string][]string, conditions AccessRequest
 		// variable interpolation syntax they contain.
 	ApplyTraits:
 		for _, v := range vals {
-			applied, err := applyValueTraits(v, traits)
+			applied, err := ApplyValueTraits(v, traits)
 			if err != nil {
 				// skip values that failed variable expansion
 				continue ApplyTraits
@@ -621,7 +625,7 @@ func insertAnnotations(annotations map[string][]string, conditions AccessRequest
 // ReviewPermissionChecker is a helper for validating whether or not a user
 // is allowed to review specific access requests.
 type ReviewPermissionChecker struct {
-	User  User
+	User  types.User
 	Roles struct {
 		// allow/deny mappings sort role matches into lists based on their
 		// constraining predicate (where) expression.
@@ -644,7 +648,7 @@ func (c *ReviewPermissionChecker) HasAllowDirectives() bool {
 // note that the ability to review a request does not necessarily imply that any specific
 // approval/denial thresholds will actually match the user's review.  Matching one or more
 // thresholds is not a pre-requisite for review submission.
-func (c *ReviewPermissionChecker) CanReviewRequest(req AccessRequest) (bool, error) {
+func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (bool, error) {
 	// TODO(fspmarshall): Refactor this to improve readability when
 	// adding role subselection support.
 
@@ -772,7 +776,7 @@ func NewReviewPermissionChecker(ctx context.Context, getter UserAndRoleGetter, u
 	return c, nil
 }
 
-func (c *ReviewPermissionChecker) push(role Role) error {
+func (c *ReviewPermissionChecker) push(role types.Role) error {
 
 	allow, deny := role.GetAccessReviewConditions(Allow), role.GetAccessReviewConditions(Deny)
 
@@ -799,7 +803,7 @@ func (c *ReviewPermissionChecker) push(role Role) error {
 // are used to validate and expand the access request.
 type RequestValidator struct {
 	getter        UserAndRoleGetter
-	user          User
+	user          types.User
 	requireReason bool
 	opts          struct {
 		expandVars bool
@@ -855,7 +859,7 @@ func NewRequestValidator(getter UserAndRoleGetter, username string, opts ...Vali
 
 // Validate validates an access request and potentially modifies it depending on how
 // the validator was configured.
-func (m *RequestValidator) Validate(req AccessRequest) error {
+func (m *RequestValidator) Validate(req types.AccessRequest) error {
 	if m.user.GetName() != req.GetUser() {
 		return trace.BadParameter("request validator configured for different user (this is a bug)")
 	}
@@ -867,7 +871,7 @@ func (m *RequestValidator) Validate(req AccessRequest) error {
 	// check for "wildcard request" (`roles=*`).  wildcard requests
 	// need to be expanded into a list consisting of all existing roles
 	// that the user does not hold and is allowed to request.
-	if r := req.GetRoles(); len(r) == 1 && r[0] == Wildcard {
+	if r := req.GetRoles(); len(r) == 1 && r[0] == types.Wildcard {
 
 		if !req.GetState().IsPending() {
 			// expansion is only permitted in pending requests.  once resolved,
@@ -928,7 +932,7 @@ func (m *RequestValidator) Validate(req AccessRequest) error {
 		// if no suggested reviewers were provided by the user then
 		// use the defaults suggested by the user's static roles.
 		if len(req.GetSuggestedReviewers()) == 0 {
-			req.SetSuggestedReviewers(utils.Deduplicate(m.SuggestedReviewers))
+			req.SetSuggestedReviewers(apiutils.Deduplicate(m.SuggestedReviewers))
 		}
 	}
 	return nil
@@ -946,7 +950,7 @@ func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
 
 	var expanded []string
 	for _, role := range allRoles {
-		if n := role.GetName(); !utils.SliceContainsStr(m.user.GetRoles(), n) && m.CanRequestRole(n) {
+		if n := role.GetName(); !apiutils.SliceContainsStr(m.user.GetRoles(), n) && m.CanRequestRole(n) {
 			// user does not currently hold this role, and is allowed to request it.
 			expanded = append(expanded, n)
 		}
@@ -957,7 +961,7 @@ func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
 // push compiles a role's configuration into the request validator.
 // All of the requesint user's statically assigned roles must be pushed
 // before validation begins.
-func (m *RequestValidator) push(role Role) error {
+func (m *RequestValidator) push(role types.Role) error {
 	var err error
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
@@ -1049,7 +1053,7 @@ func (c *thresholdCollector) pushThreshold(t types.AccessReviewThreshold) (uint3
 
 	// don't bother double-storing equivalent thresholds
 	for i, threshold := range c.Thresholds {
-		if t.Equals(threshold) {
+		if cmp.Equal(t, threshold) {
 			return uint32(i), nil
 		}
 	}
@@ -1116,7 +1120,7 @@ func (m *RequestValidator) SystemAnnotations() map[string][]string {
 	for k, va := range m.Annotations.Allow {
 		var filtered []string
 		for _, v := range va {
-			if !utils.SliceContainsStr(m.Annotations.Deny[k], v) {
+			if !apiutils.SliceContainsStr(m.Annotations.Deny[k], v) {
 				filtered = append(filtered, v)
 			}
 		}
@@ -1144,7 +1148,7 @@ func ExpandVars(expand bool) ValidateRequestOption {
 // *statically assigned* roles. If expandRoles is true, it will also expand wildcard
 // requests, setting their role list to include all roles the user is allowed to request.
 // Expansion should be performed before an access request is initially placed in the backend.
-func ValidateAccessRequestForUser(getter UserAndRoleGetter, req AccessRequest, opts ...ValidateRequestOption) error {
+func ValidateAccessRequestForUser(getter UserAndRoleGetter, req types.AccessRequest, opts ...ValidateRequestOption) error {
 	v, err := NewRequestValidator(getter, req.GetUser(), opts...)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1152,50 +1156,15 @@ func ValidateAccessRequestForUser(getter UserAndRoleGetter, req AccessRequest, o
 	return trace.Wrap(v.Validate(req))
 }
 
-// AccessRequestSpecSchema is JSON schema for AccessRequestSpec
-const AccessRequestSpecSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"user": { "type": "string" },
-		"roles": {
-			"type": "array",
-			"items": { "type": "string" }
-		},
-		"state": { "type": "integer" },
-		"created": { "type": "string" },
-		"expires": { "type": "string" },
-		"request_reason": { "type": "string" },
-		"resolve_reason": { "type": "string" },
-		"resolve_annotations": { "type": "object" },
-		"system_annotations": { "type": "object" },
-		"thresholds": { "type": "array" },
-		"rtm": { "type": "object" },
-		"reviews": { "type": "array" },
-		"suggested_reviewers": { "type": "array" }
-	}
-}`
-
-// GetAccessRequestSchema gets the full AccessRequest JSON schema
-func GetAccessRequestSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, AccessRequestSpecSchema, DefaultDefinitions)
-}
-
 // UnmarshalAccessRequest unmarshals the AccessRequest resource from JSON.
-func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, error) {
+func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (types.AccessRequest, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req AccessRequestV3
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(data, &req); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := utils.UnmarshalWithSchema(GetAccessRequestSchema(), &req, data); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	var req types.AccessRequestV3
+	if err := utils.FastUnmarshal(data, &req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := ValidateAccessRequest(&req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1210,17 +1179,18 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, 
 }
 
 // MarshalAccessRequest marshals the AccessRequest resource to JSON.
-func MarshalAccessRequest(accessRequest AccessRequest, opts ...MarshalOption) ([]byte, error) {
+func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidateAccessRequest(accessRequest); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch accessRequest := accessRequest.(type) {
-	case *AccessRequestV3:
-		if version := accessRequest.GetVersion(); version != V3 {
-			return nil, trace.BadParameter("mismatched access request version %v and type %T", version, accessRequest)
-		}
+	case *types.AccessRequestV3:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

@@ -46,11 +46,14 @@ import (
 	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -88,6 +91,16 @@ func ValidateAgentKeyOption(supplied string) error {
 
 	return trace.BadParameter("invalid value %q, must be one of %v", supplied, AllAddKeysOptions)
 }
+
+// AgentForwardingMode  describes how the user key agent will be forwarded
+// to a remote machine, if at all.
+type AgentForwardingMode int
+
+const (
+	ForwardAgentNo AgentForwardingMode = iota
+	ForwardAgentYes
+	ForwardAgentLocal
+)
 
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentClient,
@@ -180,6 +193,9 @@ type Config struct {
 	// KubeProxyAddr is the host:port the Kubernetes proxy can be accessed at.
 	KubeProxyAddr string
 
+	// PostgresProxyAddr is the host:port the Postgres proxy can be accessed at.
+	PostgresProxyAddr string
+
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string
 
@@ -198,7 +214,7 @@ type Config struct {
 	Agent agent.Agent
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
-	ForwardAgent bool
+	ForwardAgent AgentForwardingMode
 
 	// AuthMethods are used to login into the cluster. If specified, the client will
 	// use them in addition to certs stored in its local agent (from disk)
@@ -302,6 +318,9 @@ type Config struct {
 
 	// MockSSOLogin is used in tests for mocking the SSO login response.
 	MockSSOLogin SSOLoginFunc
+
+	// HomePath is where tsh stores profiles
+	HomePath string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -348,9 +367,6 @@ type ProfileStatus struct {
 	// kubernetes cluster.
 	KubeEnabled bool
 
-	// KubeCluster is the name of the kubernetes cluster used by this profile.
-	KubeCluster string
-
 	// KubeUsers are the kubernetes users used by this profile.
 	KubeUsers []string
 
@@ -389,14 +405,14 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 //
 // It's stored in ~/.tsh/keys/<proxy>/certs.pem by default.
 func (p *ProfileStatus) CACertPath() string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name, constants.FileNameTLSCerts)
+	return keypaths.TLSCAsPath(p.Dir, p.Name)
 }
 
 // KeyPath returns path to the private key for this profile.
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>.
 func (p *ProfileStatus) KeyPath() string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name, p.Username)
+	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
 }
 
 // DatabaseCertPath returns path to the specified database access certificate
@@ -404,10 +420,7 @@ func (p *ProfileStatus) KeyPath() string {
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) DatabaseCertPath(name string) string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name,
-		fmt.Sprintf("%v%v", p.Username, dbDirSuffix),
-		p.Cluster,
-		fmt.Sprintf("%v%v", name, constants.FileExtTLSCert))
+	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
 // AppCertPath returns path to the specified app access certificate
@@ -415,10 +428,8 @@ func (p *ProfileStatus) DatabaseCertPath(name string) string {
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) AppCertPath(name string) string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name,
-		fmt.Sprintf("%v%v", p.Username, appDirSuffix),
-		p.Cluster,
-		fmt.Sprintf("%v%v", name, constants.FileExtTLSCert))
+	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+
 }
 
 // DatabaseServices returns a list of database service names for this profile.
@@ -484,7 +495,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}
 
 	// Read in the profile for this proxy.
-	profile, err := client.ProfileFromDir(profileDir, profileName)
+	profile, err := profile.FromDir(profileDir, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -611,7 +622,6 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		Traits:         traits,
 		ActiveRequests: activeRequests,
 		KubeEnabled:    profile.KubeProxyAddr != "",
-		KubeCluster:    tlsID.KubernetesCluster,
 		KubeUsers:      tlsID.KubernetesUsers,
 		KubeGroups:     tlsID.KubernetesGroups,
 		Databases:      databases,
@@ -650,7 +660,7 @@ func StatusFor(profileDir, proxyHost, username string) (*ProfileStatus, error) {
 // If no profile is active, Status returns a nil error and nil profile.
 func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
-	var profile *ProfileStatus
+	var profileStatus *ProfileStatus
 	var others []*ProfileStatus
 
 	// remove ports from proxy host, because profile name is stored
@@ -663,7 +673,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	}
 
 	// Construct the full path to the profile requested and make sure it exists.
-	profileDir = client.FullProfilePath(profileDir)
+	profileDir = profile.FullProfilePath(profileDir)
 	stat, err := os.Stat(profileDir)
 	if err != nil {
 		log.Debugf("Failed to stat file: %v.", err)
@@ -683,7 +693,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	// no proxyHost was supplied.
 	profileName := proxyHost
 	if profileName == "" {
-		profileName, err = client.GetCurrentProfileName(profileDir)
+		profileName, err = profile.GetCurrentProfileName(profileDir)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return nil, nil, trace.NotFound("not logged in")
@@ -695,7 +705,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	// Read in the target profile first. If readProfile returns trace.NotFound,
 	// that means the profile may have been corrupted (for example keys were
 	// deleted but profile exists), treat this as the user not being logged in.
-	profile, err = readProfile(profileDir, profileName)
+	profileStatus, err = readProfile(profileDir, profileName)
 	if err != nil {
 		log.Debug(err)
 		if !trace.IsNotFound(err) {
@@ -703,11 +713,11 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 		}
 		// Make sure the profile is nil, which tsh uses to detect that no
 		// active profile exists.
-		profile = nil
+		profileStatus = nil
 	}
 
 	// load the rest of the profiles
-	profiles, err := client.ListProfileNames(profileDir)
+	profiles, err := profile.ListProfileNames(profileDir)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -729,7 +739,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 		others = append(others, ps)
 	}
 
-	return profile, others, nil
+	return profileStatus, others, nil
 }
 
 // LoadProfile populates Config with the values stored in the given
@@ -737,7 +747,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 // directory ~/.tsh is used.
 func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	// read the profile:
-	cp, err := client.ProfileFromDir(profileDir, ProxyHost(proxyName))
+	cp, err := profile.FromDir(profileDir, ProxyHost(proxyName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil
@@ -750,6 +760,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.KubeProxyAddr = cp.KubeProxyAddr
 	c.WebProxyAddr = cp.WebProxyAddr
 	c.SSHProxyAddr = cp.SSHProxyAddr
+	c.PostgresProxyAddr = cp.PostgresProxyAddr
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
@@ -772,13 +783,14 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 		return nil
 	}
 
-	dir = client.FullProfilePath(dir)
+	dir = profile.FullProfilePath(dir)
 
-	var cp client.Profile
+	var cp profile.Profile
 	cp.Username = c.Username
 	cp.WebProxyAddr = c.WebProxyAddr
 	cp.SSHProxyAddr = c.SSHProxyAddr
 	cp.KubeProxyAddr = c.KubeProxyAddr
+	cp.PostgresProxyAddr = c.PostgresProxyAddr
 	cp.MySQLProxyAddr = c.MySQLProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
@@ -789,49 +801,91 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	return nil
 }
 
-// ParseProxyHost parses the proxyHost string and updates the config.
+// ParsedProxyHost holds the hostname and Web & SSH proxy addresses
+// parsed out of a WebProxyAddress string.
+type ParsedProxyHost struct {
+	Host string
+
+	// UsingDefaultWebProxyPort means that the port in WebProxyAddr was
+	// supplied by ParseProxyHost function rather than ProxyHost string
+	// itself.
+	UsingDefaultWebProxyPort bool
+	WebProxyAddr             string
+	SSHProxyAddr             string
+}
+
+// ParseProxyHost parses a ProxyHost string of the format <hostname>:<proxy_web_port>,<proxy_ssh_port>
+// and returns the parsed components.
 //
-// Format of proxyHost string:
-//   proxy_web_addr:<proxy_web_port>,<proxy_ssh_port>
-func (c *Config) ParseProxyHost(proxyHost string) error {
+// There are several "default" ports that the Web Proxy service may use, and if the port is not
+// specified in the supplied proxyHost string
+//
+// If a definitive answer is not possible (e.g.  no proxy port is specified in
+// the supplied string), ParseProxyHost() will supply default versions and flag
+// that a default value is being used in the returned `ParsedProxyHost`
+func ParseProxyHost(proxyHost string) (*ParsedProxyHost, error) {
 	host, port, err := net.SplitHostPort(proxyHost)
 	if err != nil {
 		host = proxyHost
 		port = ""
 	}
 
-	// Split on comma.
+	// set the default values of the port strings. One, both, or neither may
+	// be overridden by the port string parsing below.
+	usingDefaultWebProxyPort := true
+	webPort := strconv.Itoa(defaults.HTTPListenPort)
+	sshPort := strconv.Itoa(defaults.SSHProxyListenPort)
+
+	// Split the port string out into at most two parts, the proxy port and
+	// ssh port. Any more that 2 parts will be considered an error.
 	parts := strings.Split(port, ",")
 
 	switch {
 	// Default ports for both the SSH and Web proxy.
 	case len(parts) == 0:
-		c.WebProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.HTTPListenPort))
-		c.SSHProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.SSHProxyListenPort))
+		break
+
 	// User defined HTTP proxy port, default SSH proxy port.
 	case len(parts) == 1:
-		webPort := parts[0]
-		if webPort == "" {
-			webPort = strconv.Itoa(defaults.HTTPListenPort)
+		if text := strings.TrimSpace(parts[0]); len(text) > 0 {
+			webPort = text
+			usingDefaultWebProxyPort = false
 		}
-		c.WebProxyAddr = net.JoinHostPort(host, webPort)
-		c.SSHProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.SSHProxyListenPort))
+
 	// User defined HTTP and SSH proxy ports.
 	case len(parts) == 2:
-		webPort := parts[0]
-		if webPort == "" {
-			webPort = strconv.Itoa(defaults.HTTPListenPort)
+		if text := strings.TrimSpace(parts[0]); len(text) > 0 {
+			webPort = text
+			usingDefaultWebProxyPort = false
 		}
-		sshPort := parts[1]
-		if sshPort == "" {
-			sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
+		if text := strings.TrimSpace(parts[1]); len(text) > 0 {
+			sshPort = text
 		}
-		c.WebProxyAddr = net.JoinHostPort(host, webPort)
-		c.SSHProxyAddr = net.JoinHostPort(host, sshPort)
+
 	default:
-		return trace.BadParameter("unable to parse port: %v", port)
+		return nil, trace.BadParameter("unable to parse port: %v", port)
 	}
 
+	result := &ParsedProxyHost{
+		Host:                     host,
+		UsingDefaultWebProxyPort: usingDefaultWebProxyPort,
+		WebProxyAddr:             net.JoinHostPort(host, webPort),
+		SSHProxyAddr:             net.JoinHostPort(host, sshPort),
+	}
+	return result, nil
+}
+
+// ParseProxyHost parses the proxyHost string and updates the config.
+//
+// Format of proxyHost string:
+//   proxy_web_addr:<proxy_web_port>,<proxy_ssh_port>
+func (c *Config) ParseProxyHost(proxyHost string) error {
+	parsedAddrs, err := ParseProxyHost(proxyHost)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.WebProxyAddr = parsedAddrs.WebProxyAddr
+	c.SSHProxyAddr = parsedAddrs.SSHProxyAddr
 	return nil
 }
 
@@ -849,7 +903,7 @@ func (c *Config) KubeProxyHostPort() (string, int) {
 }
 
 // KubeClusterAddr returns a public HTTPS address of the proxy for use by
-// Kubernetes clients.
+// Kubernetes client.
 func (c *Config) KubeClusterAddr() string {
 	host, port := c.KubeProxyHostPort()
 	return fmt.Sprintf("https://%s:%d", host, port)
@@ -863,9 +917,13 @@ func (c *Config) WebProxyHostPort() (string, int) {
 			return addr.Host(), addr.Port(defaults.HTTPListenPort)
 		}
 	}
+	return "unknown", defaults.HTTPListenPort
+}
 
-	webProxyHost, _ := c.WebProxyHostPort()
-	return webProxyHost, defaults.HTTPListenPort
+// WebProxyHost returns the web proxy host without the port number.
+func (c *Config) WebProxyHost() string {
+	host, _ := c.WebProxyHostPort()
+	return host
 }
 
 // WebProxyPort returns the port of the web proxy.
@@ -885,6 +943,17 @@ func (c *Config) SSHProxyHostPort() (string, int) {
 
 	webProxyHost, _ := c.WebProxyHostPort()
 	return webProxyHost, defaults.SSHProxyListenPort
+}
+
+// PostgresProxyHostPort returns the host and port of Postgres proxy.
+func (c *Config) PostgresProxyHostPort() (string, int) {
+	if c.PostgresProxyAddr != "" {
+		addr, err := utils.ParseAddr(c.PostgresProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(c.WebProxyPort())
+		}
+	}
+	return c.WebProxyHostPort()
 }
 
 // MySQLProxyHostPort returns the host and port of MySQL proxy.
@@ -930,7 +999,7 @@ type TeleportClient struct {
 
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
-	lastPing *client.PingResponse
+	lastPing *webclient.PingResponse
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -964,9 +1033,9 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		log.Infof("no host login given. defaulting to %s", c.HostLogin)
 	}
 	if c.KeyTTL == 0 {
-		c.KeyTTL = defaults.CertDuration
+		c.KeyTTL = apidefaults.CertDuration
 	}
-	c.Namespace = services.ProcessNamespace(c.Namespace)
+	c.Namespace = types.ProcessNamespace(c.Namespace)
 
 	tc = &TeleportClient{Config: *c}
 
@@ -1047,7 +1116,7 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 		return trace.Wrap(err)
 	}
 	// Reissuing also loads the new key.
-	err = tc.ReissueUserCerts(ctx, ReissueParams{RouteToCluster: clusterName})
+	err = tc.ReissueUserCerts(ctx, CertCacheKeep, ReissueParams{RouteToCluster: clusterName})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1059,7 +1128,7 @@ func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string
 	// If no caching policy was set or on Windows (where Teleport does not
 	// support file locking at the moment), return direct access to the access
 	// point.
-	if tc.CachePolicy == nil || runtime.GOOS == teleport.WindowsOS {
+	if tc.CachePolicy == nil || runtime.GOOS == constants.WindowsOS {
 		log.Debugf("not using caching access point")
 		return clt, nil
 	}
@@ -1076,7 +1145,7 @@ func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
 	var (
 		err    error
-		nodes  []services.Server
+		nodes  []types.Server
 		retval = make([]string, 0)
 	)
 	if tc.Labels != nil && len(tc.Labels) > 0 {
@@ -1110,14 +1179,14 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 
 // ReissueUserCerts issues new user certs based on params and stores them in
 // the local key agent (usually on disk in ~/.tsh).
-func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
+func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) error {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.ReissueUserCerts(ctx, params)
+	return proxyClient.ReissueUserCerts(ctx, cachePolicy, params)
 }
 
 // IssueUserCertsWithMFA issues a single-use SSH or TLS certificate for
@@ -1136,13 +1205,16 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.IssueUserCertsWithMFA(ctx, params, func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-		return PromptMFAChallenge(ctx, proxyAddr, c, "")
-	})
+	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params,
+		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return PromptMFAChallenge(ctx, proxyAddr, c, "")
+		})
+
+	return key, err
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
-func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
+func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1153,7 +1225,7 @@ func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.
 }
 
 // GetAccessRequests loads all access requests matching the supplied filter.
-func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1164,7 +1236,7 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services
 }
 
 // GetRole loads a role resource by name.
-func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Role, error) {
+func (tc *TeleportClient) GetRole(ctx context.Context, name string) (types.Role, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1178,7 +1250,7 @@ func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Ro
 // which holds a closer that must be called after the watcher
 // is closed.
 type watchCloser struct {
-	services.Watcher
+	types.Watcher
 	io.Closer
 }
 
@@ -1187,7 +1259,7 @@ func (w watchCloser) Close() error {
 }
 
 // NewWatcher sets up a new event watcher.
-func (tc *TeleportClient) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+func (tc *TeleportClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1376,11 +1448,11 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	serverID := session.Parties[0].ServerID
 
 	// find a server address by its ID
-	nodes, err := site.GetNodes(namespace, services.SkipValidation())
+	nodes, err := site.GetNodes(ctx, namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var node services.Server
+	var node types.Server
 	for _, n := range nodes {
 		if n.GetName() == serverID {
 			node = n
@@ -1465,7 +1537,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 }
 
 // PlayFile plays the recorded session from a tar file
-func (tc *TeleportClient) PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
+func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	var sessionEvents []events.EventFields
 	var stream []byte
 	protoReader := events.NewProtoReader(tarFile)
@@ -1697,7 +1769,7 @@ func isRemoteDest(name string) bool {
 }
 
 // ListNodes returns a list of nodes connected to a proxy
-func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, error) {
+func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error) {
 	var err error
 	// userhost is specified? that must be labels
 	if tc.Host != "" {
@@ -1718,7 +1790,7 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, err
 }
 
 // ListAppServers returns a list of application servers.
-func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]services.Server, error) {
+func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1759,7 +1831,7 @@ func (tc *TeleportClient) ListDatabaseServers(ctx context.Context) ([]types.Data
 }
 
 // ListAllNodes is the same as ListNodes except that it ignores labels.
-func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]services.Server, error) {
+func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2126,6 +2198,13 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if pr.Auth.HasMessageOfTheDay {
+		err = tc.ShowMOTD(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// generate a new keypair. the public key will be signed via proxy if client's
 	// password+OTP are valid
 	key, err := NewKey()
@@ -2136,13 +2215,13 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	var response *auth.SSHLoginResponse
 
 	switch pr.Auth.Type {
-	case teleport.Local:
+	case constants.Local:
 		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.Pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case teleport.OIDC:
-		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.Pub, teleport.OIDC)
+	case constants.OIDC:
+		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.Pub, constants.OIDC)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2151,8 +2230,8 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if tc.localAgent != nil {
 			tc.localAgent.username = response.Username
 		}
-	case teleport.SAML:
-		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, teleport.SAML)
+	case constants.SAML:
+		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, constants.SAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2161,8 +2240,8 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if tc.localAgent != nil {
 			tc.localAgent.username = response.Username
 		}
-	case teleport.Github:
-		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, teleport.Github)
+	case constants.Github:
+		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, constants.Github)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2253,14 +2332,14 @@ func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
 //
 // Ping can be called for its side-effect of applying the proxy-provided
 // settings (such as various listening addresses).
-func (tc *TeleportClient) Ping(ctx context.Context) (*client.PingResponse, error) {
+func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, error) {
 	// If, at some point, there's a need to bypass this caching, consider
 	// adding a bool argument. At the time of writing this we always want to
 	// cache.
 	if tc.lastPing != nil {
 		return tc.lastPing, nil
 	}
-	pr, err := client.Ping(
+	pr, err := webclient.Ping(
 		ctx,
 		tc.WebProxyAddr,
 		tc.InsecureSkipVerify,
@@ -2273,7 +2352,8 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*client.PingResponse, error
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
 		if err := utils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil {
-			return nil, trace.Wrap(err)
+			fmt.Printf("\nWARNING: %v\n", err)
+			fmt.Printf("Future versions of tsh will fail when incompatible versions are detected.\n\n")
 		}
 	}
 
@@ -2287,9 +2367,37 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*client.PingResponse, error
 	return pr, nil
 }
 
+// ShowMOTD fetches the cluster MotD, displays it (if any) and waits for
+// confirmation from the user.
+func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
+	motd, err := webclient.GetMOTD(
+		ctx,
+		tc.WebProxyAddr,
+		tc.InsecureSkipVerify,
+		loopbackPool(tc.WebProxyAddr))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if motd.Text != "" {
+		fmt.Printf("%s\nPress [ENTER] to continue.\n", motd.Text)
+		// We're re-using the password reader for user acknowledgment for
+		// aesthetic purposes, because we want to hide any garbage the
+		// use might enter at the prompt. Whatever the user enters will
+		// be simply discarded, and the user can still CTRL+C out if they
+		// disagree.
+		_, err := passwordFromConsole()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // GetTrustedCA returns a list of host certificate authorities
 // trusted by the cluster client is authenticated with.
-func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]services.CertAuthority, error) {
+func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]types.CertAuthority, error) {
 	// Connect to the proxy.
 	if !tc.Config.ProxySpecified() {
 		return nil, trace.BadParameter("proxy server is not specified")
@@ -2307,7 +2415,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	}
 
 	// Get the list of host certificates that this cluster knows about.
-	return clt.GetCertAuthorities(services.HostCA, false)
+	return clt.GetCertAuthorities(types.HostCA, false)
 }
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
@@ -2341,7 +2449,7 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName strin
 
 // applyProxySettings updates configuration changes based on the advertised
 // proxy settings, overriding existing fields in tc.
-func (tc *TeleportClient) applyProxySettings(proxySettings client.ProxySettings) error {
+func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettings) error {
 	// Kubernetes proxy settings.
 	if proxySettings.Kube.Enabled {
 		switch {
@@ -2424,16 +2532,36 @@ func (tc *TeleportClient) applyProxySettings(proxySettings client.ProxySettings)
 		tc.SSHProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaults.SSHProxyListenPort)))
 	}
 
+	// Read Postgres proxy settings.
+	switch {
+	case proxySettings.DB.PostgresPublicAddr != "":
+		addr, err := utils.ParseAddr(proxySettings.DB.PostgresPublicAddr)
+		if err != nil {
+			return trace.BadParameter("failed to parse Postgres public address received from server: %q, contact your administrator for help",
+				proxySettings.DB.PostgresPublicAddr)
+		}
+		tc.PostgresProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(tc.WebProxyPort())))
+	default:
+		webProxyHost, webProxyPort := tc.WebProxyHostPort()
+		tc.PostgresProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(webProxyPort))
+	}
+
 	// Read MySQL proxy settings if enabled on the server.
-	if proxySettings.DB.MySQLListenAddr != "" {
+	switch {
+	case proxySettings.DB.MySQLPublicAddr != "":
+		addr, err := utils.ParseAddr(proxySettings.DB.MySQLPublicAddr)
+		if err != nil {
+			return trace.BadParameter("failed to parse MySQL public address received from server: %q, contact your administrator for help",
+				proxySettings.DB.MySQLPublicAddr)
+		}
+		tc.MySQLProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
+	case proxySettings.DB.MySQLListenAddr != "":
 		addr, err := utils.ParseAddr(proxySettings.DB.MySQLListenAddr)
 		if err != nil {
-			return trace.BadParameter(
-				"failed to parse value received from the server: %q, contact your administrator for help",
+			return trace.BadParameter("failed to parse MySQL listen address received from server: %q, contact your administrator for help",
 				proxySettings.DB.MySQLListenAddr)
 		}
-		webProxyHost, _ := tc.WebProxyHostPort()
-		tc.MySQLProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
+		tc.MySQLProxyAddr = net.JoinHostPort(tc.WebProxyHost(), strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
 	}
 
 	return nil
@@ -2465,19 +2593,19 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants
 }
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests
-func (tc *TeleportClient) AddTrustedCA(ca services.CertAuthority) error {
+func (tc *TeleportClient) AddTrustedCA(ca types.CertAuthority) error {
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.AddTrustedCA called on a client without localAgent")
 	}
-	err := tc.localAgent.AddHostSignersToCache(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
+	err := tc.localAgent.AddHostSignersToCache(auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// only host CA has TLS certificates, user CA will overwrite trusted certs
 	// to empty file if called
-	if ca.GetType() == services.HostCA {
-		err = tc.localAgent.SaveTrustedCerts(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
+	if ca.GetType() == types.HostCA {
+		err = tc.localAgent.SaveTrustedCerts(auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
 		if err != nil {
 			return trace.Wrap(err)
 		}

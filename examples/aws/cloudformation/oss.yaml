@@ -97,21 +97,24 @@ Mappings:
     t2.xlarge: {Arch: HVM64}
 
   AWSRegionArch2AMI:
-    # All AMIs from AWS - gravitational-teleport-ami-oss-6.0.2
-    eu-west-1: {HVM64 : ami-01fb303b9d3ed6e6e}
-    eu-west-2: {HVM64 : ami-0fe50b996a5de236e}
-    us-east-1: {HVM64 : ami-03ea11a9030d743f7}
-    us-east-2: {HVM64 : ami-03a6f0406f904f5e0}
-    us-west-2: {HVM64 : ami-0226e43c16ebdc913}
-    us-west-1: {HVM64 : ami-073a0fb5af141ee60}
-    ap-south-1: {HVM64 : ami-05e4c581e8ed1aff1}
-    ap-northeast-2: {HVM64 : ami-01eceef32e28b922a}
-    ap-southeast-1: {HVM64 : ami-0212cce94a761f9fa}
-    ap-southeast-2: {HVM64 : ami-02f7eb20742a2c766}
-    ap-northeast-1: {HVM64 : ami-0535e53234f3af001}
-    ca-central-1: {HVM64 : ami-0848f22c493b90a5d}
-    eu-central-1: {HVM64 : ami-0de583abcab304f4a}
-    sa-east-1: {HVM64 : ami-02219a04cfa8b7a52}
+    # All AMIs from AWS - gravitational-teleport-ami-oss-6.2.0
+    eu-north-1: {HVM64: ami-0eef7480d85b07d78}
+    ap-south-1: {HVM64 : ami-0d6449bf7fc103c8f}
+    eu-west-1: {HVM64 : ami-02030ad502e2e822b}
+    eu-west-2: {HVM64 : ami-023264050aa2a562f}
+    eu-west-3: {HVM64: ami-0211c6e2e821dd249}
+    ap-northeast-1: {HVM64 : ami-0738b06d49be46ab2}
+    ap-northeast-2: {HVM64 : ami-00a439b2218e9cbcd}
+    ap-northeast-3: {HVM64: ami-02bb8618b75d025aa}
+    sa-east-1: {HVM64 : ami-004f6e5a6e2dba915}
+    ca-central-1: {HVM64 : ami-09eda1c3961d66075}
+    ap-southeast-1: {HVM64 : ami-0c22d9c6ae40b1c80}
+    ap-southeast-2: {HVM64 : ami-0fc0d65a14b4b8ae6}
+    eu-central-1: {HVM64 : ami-096b74806fa379c51}
+    us-east-1: {HVM64 : ami-03078e35a35dce03c}
+    us-east-2: {HVM64 : ami-0aa7027f2a2ee0b05}
+    us-west-1: {HVM64 : ami-0644d8fa06ad60960}
+    us-west-2: {HVM64 : ami-02150067a5fef0196}
 
 Resources:
 # Auth server setup
@@ -727,6 +730,7 @@ Resources:
             Action:
             - "s3:ListBucket"
             - "s3:ListBucketVersions"
+            - "s3:ListBucketMultipartUploads"
 
           -
             Effect: "Allow"
@@ -813,6 +817,7 @@ Resources:
             Action:
             - "s3:ListBucket"
             - "s3:ListBucketVersions"
+            - "s3:ListBucketMultipartUploads"
 
           -
             Effect: "Allow"
@@ -995,15 +1000,15 @@ Resources:
       AttributeDefinitions:
       - {AttributeName: "SessionID", AttributeType: "S"}
       - {AttributeName: "EventIndex", AttributeType: "N"}
-      - {AttributeName: "EventNamespace", AttributeType: "S"}
+      - {AttributeName: "CreatedAtDate", AttributeType: "S"}
       - {AttributeName: "CreatedAt", AttributeType: "N"}
 
       TimeToLiveSpecification: {AttributeName: "Expires", Enabled: true}
 
       GlobalSecondaryIndexes:
-      - IndexName: "timesearch"
+      - IndexName: "timesearchV2"
         KeySchema:
-        - AttributeName: "EventNamespace"
+        - AttributeName: "CreatedAtDate"
           KeyType: "HASH"
         - AttributeName: "CreatedAt"
           KeyType: "RANGE"

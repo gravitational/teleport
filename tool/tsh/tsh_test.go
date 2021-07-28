@@ -29,16 +29,17 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -85,9 +86,9 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 func TestFailedLogin(t *testing.T) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 	t.Cleanup(func() {
-		os.RemoveAll(apiclient.FullProfilePath(""))
+		os.RemoveAll(profile.FullProfilePath(""))
 	})
 
 	connector := mockConnector(t)
@@ -117,9 +118,9 @@ func TestFailedLogin(t *testing.T) {
 }
 
 func TestOIDCLogin(t *testing.T) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 	t.Cleanup(func() {
-		os.RemoveAll(apiclient.FullProfilePath(""))
+		os.RemoveAll(profile.FullProfilePath(""))
 	})
 
 	modules.SetModules(&cliModules{})
@@ -129,7 +130,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	// set up an initial role with `request_access: always` in order to
 	// trigger automatic post-login escalation.
-	populist, err := types.NewRole("populist", types.RoleSpecV3{
+	populist, err := types.NewRole("populist", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"dictator"},
@@ -142,7 +143,7 @@ func TestOIDCLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// empty role which serves as our escalation target
-	dictator, err := types.NewRole("dictator", types.RoleSpecV3{})
+	dictator, err := types.NewRole("dictator", types.RoleSpecV4{})
 	require.NoError(t, err)
 
 	alice, err := types.NewUser("alice@example.com")
@@ -213,9 +214,9 @@ func TestOIDCLogin(t *testing.T) {
 }
 
 func TestRelogin(t *testing.T) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 	t.Cleanup(func() {
-		os.RemoveAll(apiclient.FullProfilePath(""))
+		os.RemoveAll(profile.FullProfilePath(""))
 	})
 
 	connector := mockConnector(t)
@@ -271,9 +272,9 @@ func TestRelogin(t *testing.T) {
 }
 
 func TestMakeClient(t *testing.T) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 	t.Cleanup(func() {
-		os.RemoveAll(apiclient.FullProfilePath(""))
+		os.RemoveAll(profile.FullProfilePath(""))
 	})
 
 	var conf CLIConf
@@ -296,7 +297,7 @@ func TestMakeClient(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, localUser, tc.Config.HostLogin)
-	require.Equal(t, defaults.CertDuration, tc.Config.KeyTTL)
+	require.Equal(t, apidefaults.CertDuration, tc.Config.KeyTTL)
 
 	// specific configuration
 	conf.MinsToLive = 5
@@ -442,76 +443,101 @@ func TestIdentityRead(t *testing.T) {
 }
 
 func TestOptions(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
-		inOptions  []string
-		outError   bool
-		outOptions Options
+		desc        string
+		inOptions   []string
+		assertError require.ErrorAssertionFunc
+		outOptions  Options
 	}{
-		// Valid
+		// Generic option-parsing tests
 		{
-			inOptions: []string{
-				"AddKeysToAgent yes",
-			},
-			outError: false,
+			desc:        "Space Delimited",
+			inOptions:   []string{"AddKeysToAgent yes"},
+			assertError: require.NoError,
 			outOptions: Options{
 				AddKeysToAgent:        true,
-				ForwardAgent:          false,
+				ForwardAgent:          client.ForwardAgentNo,
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		},
-		// Valid
-		{
-			inOptions: []string{
-				"AddKeysToAgent=yes",
-			},
-			outError: false,
+		}, {
+			desc:        "Equals Sign Delimited",
+			inOptions:   []string{"AddKeysToAgent=yes"},
+			assertError: require.NoError,
 			outOptions: Options{
 				AddKeysToAgent:        true,
-				ForwardAgent:          false,
+				ForwardAgent:          client.ForwardAgentNo,
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
+		}, {
+			desc:        "Invalid key",
+			inOptions:   []string{"foo foo"},
+			assertError: require.Error,
+			outOptions:  Options{},
+		}, {
+			desc:        "Incomplete option",
+			inOptions:   []string{"AddKeysToAgent"},
+			assertError: require.Error,
+			outOptions:  Options{},
 		},
-		// Invalid value.
+		// AddKeysToAgent Tests
 		{
-			inOptions: []string{
-				"AddKeysToAgent foo",
-			},
-			outError:   true,
-			outOptions: Options{},
+			desc:        "AddKeysToAgent Invalid Value",
+			inOptions:   []string{"AddKeysToAgent foo"},
+			assertError: require.Error,
+			outOptions:  Options{},
 		},
-		// Invalid key.
+		// ForwardAgent Tests
 		{
-			inOptions: []string{
-				"foo foo",
+			desc:        "Forward Agent Yes",
+			inOptions:   []string{"ForwardAgent yes"},
+			assertError: require.NoError,
+			outOptions: Options{
+				AddKeysToAgent:        true,
+				ForwardAgent:          client.ForwardAgentYes,
+				RequestTTY:            false,
+				StrictHostKeyChecking: true,
 			},
-			outError:   true,
-			outOptions: Options{},
-		},
-		// Incomplete option.
-		{
-			inOptions: []string{
-				"AddKeysToAgent",
+		}, {
+			desc:        "Forward Agent No",
+			inOptions:   []string{"ForwardAgent no"},
+			assertError: require.NoError,
+			outOptions: Options{
+				AddKeysToAgent:        true,
+				ForwardAgent:          client.ForwardAgentNo,
+				RequestTTY:            false,
+				StrictHostKeyChecking: true,
 			},
-			outError:   true,
-			outOptions: Options{},
+		}, {
+			desc:        "Forward Agent Local",
+			inOptions:   []string{"ForwardAgent local"},
+			assertError: require.NoError,
+			outOptions: Options{
+				AddKeysToAgent:        true,
+				ForwardAgent:          client.ForwardAgentLocal,
+				RequestTTY:            false,
+				StrictHostKeyChecking: true,
+			},
+		}, {
+			desc:        "Forward Agent InvalidValue",
+			inOptions:   []string{"ForwardAgent potato"},
+			assertError: require.Error,
+			outOptions:  Options{},
 		},
 	}
 
 	for _, tt := range tests {
-		options, err := parseOptions(tt.inOptions)
-		if tt.outError {
-			require.Error(t, err)
-			continue
-		} else {
-			require.NoError(t, err)
-		}
+		t.Run(tt.desc, func(t *testing.T) {
+			options, err := parseOptions(tt.inOptions)
+			tt.assertError(t, err)
 
-		require.Equal(t, tt.outOptions.AddKeysToAgent, options.AddKeysToAgent)
-		require.Equal(t, tt.outOptions.ForwardAgent, options.ForwardAgent)
-		require.Equal(t, tt.outOptions.RequestTTY, options.RequestTTY)
-		require.Equal(t, tt.outOptions.StrictHostKeyChecking, options.StrictHostKeyChecking)
+			require.Equal(t, tt.outOptions.AddKeysToAgent, options.AddKeysToAgent)
+			require.Equal(t, tt.outOptions.ForwardAgent, options.ForwardAgent)
+			require.Equal(t, tt.outOptions.RequestTTY, options.RequestTTY)
+			require.Equal(t, tt.outOptions.StrictHostKeyChecking, options.StrictHostKeyChecking)
+		})
 	}
 }
 
@@ -528,7 +554,7 @@ func TestFormatConnectCommand(t *testing.T) {
 				ServiceName: "test",
 				Protocol:    defaults.ProtocolPostgres,
 			},
-			command: `psql "service=root-test user=<user> dbname=<database>"`,
+			command: `tsh db connect --db-user=<user> --db-name=<name> test`,
 		},
 		{
 			comment: "default user is specified",
@@ -537,7 +563,7 @@ func TestFormatConnectCommand(t *testing.T) {
 				Protocol:    defaults.ProtocolPostgres,
 				Username:    "postgres",
 			},
-			command: `psql "service=root-test dbname=<database>"`,
+			command: `tsh db connect --db-name=<name> test`,
 		},
 		{
 			comment: "default database is specified",
@@ -546,7 +572,7 @@ func TestFormatConnectCommand(t *testing.T) {
 				Protocol:    defaults.ProtocolPostgres,
 				Database:    "postgres",
 			},
-			command: `psql "service=root-test user=<user>"`,
+			command: `tsh db connect --db-user=<user> test`,
 		},
 		{
 			comment: "default user/database are specified",
@@ -556,15 +582,7 @@ func TestFormatConnectCommand(t *testing.T) {
 				Username:    "postgres",
 				Database:    "postgres",
 			},
-			command: `psql "service=root-test"`,
-		},
-		{
-			comment: "unsupported database protocol",
-			db: tlsca.RouteToDatabase{
-				ServiceName: "test",
-				Protocol:    "mongodb",
-			},
-			command: "",
+			command: `tsh db connect test`,
 		},
 	}
 	for _, test := range tests {
@@ -638,7 +656,133 @@ func TestReadClusterFlag(t *testing.T) {
 	}
 }
 
-func makeTestServers(t *testing.T, bootstrap ...services.Resource) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
+func TestKubeConfigUpdate(t *testing.T) {
+	t.Parallel()
+	// don't need real creds for this test, just something to compare against
+	creds := &client.Key{KeyIndex: client.KeyIndex{ProxyHost: "a.example.com"}}
+	tests := []struct {
+		desc           string
+		cf             *CLIConf
+		kubeStatus     *kubernetesStatus
+		errorAssertion require.ErrorAssertionFunc
+		expectedValues *kubeconfig.Values
+	}{
+		{
+			desc: "selected cluster",
+			cf: &CLIConf{
+				executablePath:    "/bin/tsh",
+				KubernetesCluster: "dev",
+			},
+			kubeStatus: &kubernetesStatus{
+				clusterAddr:         "https://a.example.com:3026",
+				teleportClusterName: "a.example.com",
+				kubeClusters:        []string{"dev", "prod"},
+				credentials:         creds,
+			},
+			errorAssertion: require.NoError,
+			expectedValues: &kubeconfig.Values{
+				Credentials:         creds,
+				ClusterAddr:         "https://a.example.com:3026",
+				TeleportClusterName: "a.example.com",
+				Exec: &kubeconfig.ExecValues{
+					TshBinaryPath: "/bin/tsh",
+					KubeClusters:  []string{"dev", "prod"},
+					SelectCluster: "dev",
+				},
+			},
+		},
+		{
+			desc: "no selected cluster",
+			cf: &CLIConf{
+				executablePath:    "/bin/tsh",
+				KubernetesCluster: "",
+			},
+			kubeStatus: &kubernetesStatus{
+				clusterAddr:         "https://a.example.com:3026",
+				teleportClusterName: "a.example.com",
+				kubeClusters:        []string{"dev", "prod"},
+				credentials:         creds,
+			},
+			errorAssertion: require.NoError,
+			expectedValues: &kubeconfig.Values{
+				Credentials:         creds,
+				ClusterAddr:         "https://a.example.com:3026",
+				TeleportClusterName: "a.example.com",
+				Exec: &kubeconfig.ExecValues{
+					TshBinaryPath: "/bin/tsh",
+					KubeClusters:  []string{"dev", "prod"},
+					SelectCluster: "",
+				},
+			},
+		},
+		{
+			desc: "invalid selected cluster",
+			cf: &CLIConf{
+				executablePath:    "/bin/tsh",
+				KubernetesCluster: "invalid",
+			},
+			kubeStatus: &kubernetesStatus{
+				clusterAddr:         "https://a.example.com:3026",
+				teleportClusterName: "a.example.com",
+				kubeClusters:        []string{"dev", "prod"},
+				credentials:         creds,
+			},
+			errorAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+			expectedValues: nil,
+		},
+		{
+			desc: "no kube clusters",
+			cf: &CLIConf{
+				executablePath:    "/bin/tsh",
+				KubernetesCluster: "",
+			},
+			kubeStatus: &kubernetesStatus{
+				clusterAddr:         "https://a.example.com:3026",
+				teleportClusterName: "a.example.com",
+				kubeClusters:        []string{},
+				credentials:         creds,
+			},
+			errorAssertion: require.NoError,
+			expectedValues: &kubeconfig.Values{
+				Credentials:         creds,
+				ClusterAddr:         "https://a.example.com:3026",
+				TeleportClusterName: "a.example.com",
+				Exec:                nil,
+			},
+		},
+		{
+			desc: "no tsh path",
+			cf: &CLIConf{
+				executablePath:    "",
+				KubernetesCluster: "dev",
+			},
+			kubeStatus: &kubernetesStatus{
+				clusterAddr:         "https://a.example.com:3026",
+				teleportClusterName: "a.example.com",
+				kubeClusters:        []string{"dev", "prod"},
+				credentials:         creds,
+			},
+			errorAssertion: require.NoError,
+			expectedValues: &kubeconfig.Values{
+				Credentials:         creds,
+				ClusterAddr:         "https://a.example.com:3026",
+				TeleportClusterName: "a.example.com",
+				Exec:                nil,
+			},
+		},
+	}
+	for _, testcase := range tests {
+		t.Run(testcase.desc, func(t *testing.T) {
+			values, err := buildKubeConfigUpdate(testcase.cf, testcase.kubeStatus)
+			testcase.errorAssertion(t, err)
+			require.Equal(t, testcase.expectedValues, values)
+		})
+	}
+}
+
+func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
 	var err error
 	// Set up a test auth server.
 	//
@@ -651,9 +795,9 @@ func makeTestServers(t *testing.T, bootstrap ...services.Resource) (auth *servic
 	cfg.AuthServers = []utils.NetAddr{randomLocalAddr}
 	cfg.Auth.Resources = bootstrap
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
-	cfg.Auth.StaticTokens, err = services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{{
-			Roles:   []teleport.Role{teleport.RoleProxy},
+	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Roles:   []types.SystemRole{types.RoleProxy},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
@@ -663,6 +807,7 @@ func makeTestServers(t *testing.T, bootstrap ...services.Resource) (auth *servic
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = randomLocalAddr
 	cfg.Proxy.Enabled = false
+	cfg.Log = utils.NewLoggerForTests()
 
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -700,6 +845,7 @@ func makeTestServers(t *testing.T, bootstrap ...services.Resource) (auth *servic
 	cfg.Proxy.SSHAddr = randomLocalAddr
 	cfg.Proxy.ReverseTunnelListenAddr = randomLocalAddr
 	cfg.Proxy.DisableWebInterface = true
+	cfg.Log = utils.NewLoggerForTests()
 
 	proxy, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -723,12 +869,12 @@ func makeTestServers(t *testing.T, bootstrap ...services.Resource) (auth *servic
 func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
-	connector := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
 	})
-	require.NoError(t, connector.CheckAndSetDefaults())
+	require.NoError(t, err)
 	return connector
 }
 
@@ -737,14 +883,14 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		// generate certificates for our user
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
 			pub, user.GetName(), time.Hour,
-			teleport.CertificateFormatStandard,
+			constants.CertificateFormatStandard,
 			"localhost",
 		)
 		require.NoError(t, err)
 
 		// load CA cert
-		authority, err := authServer.GetCertAuthority(services.CertAuthID{
-			Type:       services.HostCA,
+		authority, err := authServer.GetCertAuthority(types.CertAuthID{
+			Type:       types.HostCA,
 			DomainName: "localhost",
 		}, false)
 		require.NoError(t, err)
@@ -754,7 +900,37 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 			Username:    user.GetName(),
 			Cert:        sshCert,
 			TLSCert:     tlsCert,
-			HostSigners: auth.AuthoritiesToTrustedCerts([]services.CertAuthority{authority}),
+			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
+	}
+}
+
+func TestReadTeleportHome(t *testing.T) {
+	var tests = []struct {
+		comment   string
+		inCLIConf CLIConf
+		input     string
+		result    string
+	}{
+		{
+			comment:   "Environment is set",
+			inCLIConf: CLIConf{},
+			input:     "teleport-data/",
+			result:    "teleport-data",
+		},
+		{
+			comment:   "Environment not is set",
+			inCLIConf: CLIConf{},
+			input:     "",
+			result:    "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.comment, func(t *testing.T) {
+			readTeleportHome(&tt.inCLIConf, func(homeEnvVar string) string {
+				return tt.input
+			})
+			require.Equal(t, tt.result, tt.inCLIConf.HomePath)
+		})
 	}
 }

@@ -18,15 +18,18 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ValidateUser validates the User and sets default values
-func ValidateUser(u User) error {
+func ValidateUser(u types.User) error {
 	if err := u.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -39,38 +42,13 @@ func ValidateUser(u User) error {
 }
 
 // UsersEquals checks if the users are equal
-func UsersEquals(u User, other User) bool {
-	if u.GetName() != other.GetName() {
-		return false
-	}
-	otherIdentities := other.GetOIDCIdentities()
-	if len(u.GetOIDCIdentities()) != len(otherIdentities) {
-		return false
-	}
-	for i := range u.GetOIDCIdentities() {
-		if !u.GetOIDCIdentities()[i].Equals(&otherIdentities[i]) {
-			return false
-		}
-	}
-	otherSAMLIdentities := other.GetSAMLIdentities()
-	if len(u.GetSAMLIdentities()) != len(otherSAMLIdentities) {
-		return false
-	}
-	for i := range u.GetSAMLIdentities() {
-		if !u.GetSAMLIdentities()[i].Equals(&otherSAMLIdentities[i]) {
-			return false
-		}
-	}
-	otherGithubIdentities := other.GetGithubIdentities()
-	if len(u.GetGithubIdentities()) != len(otherGithubIdentities) {
-		return false
-	}
-	for i := range u.GetGithubIdentities() {
-		if !u.GetGithubIdentities()[i].Equals(&otherGithubIdentities[i]) {
-			return false
-		}
-	}
-	return LocalAuthSecretsEquals(u.GetLocalAuth(), other.GetLocalAuth())
+func UsersEquals(u types.User, other types.User) bool {
+	return cmp.Equal(u, other,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
+			return a.Metadata.Name < b.Metadata.Name
+		}),
+	)
 }
 
 // LoginAttempt represents successful or unsuccessful attempt for user to login
@@ -89,108 +67,9 @@ func (la *LoginAttempt) Check() error {
 	return nil
 }
 
-// UserSpecV2SchemaTemplate is JSON schema for V2 user
-const UserSpecV2SchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"expires": {"type": "string"},
-		"roles": {
-			"type": "array",
-			"items": {
-				"type": "string"
-			}
-		},
-		"traits": {
-			"type": "object",
-			"additionalProperties": false,
-			"patternProperties": {
-				"^.+$": {
-					"type": ["array", "null"],
-					"items": {
-						"type": "string"
-					}
-				}
-			}
-		},
-		"oidc_identities": {
-			"type": "array",
-			"items": %v
-		},
-		"saml_identities": {
-			"type": "array",
-			"items": %v
-		},
-		"github_identities": {
-			"type": "array",
-			"items": %v
-		},
-		"status": %v,
-		"created_by": %v,
-		"local_auth": %v%v
-	}
-}`
-
-// CreatedBySchema is JSON schema for CreatedBy
-const CreatedBySchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"connector": {
-			"additionalProperties": false,
-			"type": "object",
-			"properties": {
-			"type": {"type": "string"},
-			"id": {"type": "string"},
-			"identity": {"type": "string"}
-			}
-		},
-		"time": {"type": "string"},
-		"user": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {"name": {"type": "string"}}
-		}
-	}
-}`
-
-// ExternalIdentitySchema is JSON schema for ExternalIdentity
-const ExternalIdentitySchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"connector_id": {"type": "string"},
-		"username": {"type": "string"}
-	}
-}`
-
-// LoginStatusSchema is JSON schema for LoginStatus
-const LoginStatusSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"is_locked": {"type": "boolean"},
-		"locked_message": {"type": "string"},
-		"locked_time": {"type": "string"},
-		"lock_expires": {"type": "string"}
-	}
-}`
-
-// GetUserSchema returns role schema with optionally injected
-// schema for extensions
-func GetUserSchema(extensionSchema string) string {
-	var userSchema string
-	if extensionSchema == "" {
-		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, LocalAuthSecretsSchema, ``)
-	} else {
-		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, LocalAuthSecretsSchema, ", "+extensionSchema)
-	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, userSchema, DefaultDefinitions)
-}
-
 // UnmarshalUser unmarshals the User resource from JSON.
-func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
-	var h ResourceHeader
+func UnmarshalUser(bytes []byte, opts ...MarshalOption) (types.User, error) {
+	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -202,16 +81,10 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
 	}
 
 	switch h.Version {
-	case V2:
-		var u UserV2
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &u); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
+	case types.V2:
+		var u types.UserV2
+		if err := utils.FastUnmarshal(bytes, &u); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
 
 		if err := ValidateUser(&u); err != nil {
@@ -230,17 +103,18 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
 }
 
 // MarshalUser marshals the User resource to JSON.
-func MarshalUser(user User, opts ...MarshalOption) ([]byte, error) {
+func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidateUser(user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch user := user.(type) {
-	case *UserV2:
-		if version := user.GetVersion(); version != V2 {
-			return nil, trace.BadParameter("mismatched user version %v and type %T", version, user)
-		}
+	case *types.UserV2:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

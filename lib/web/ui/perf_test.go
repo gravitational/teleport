@@ -25,11 +25,12 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -41,42 +42,35 @@ import (
 const clusterName = "bench.example.com"
 
 func BenchmarkGetClusterDetails(b *testing.B) {
+	ctx := context.Background()
+
 	const authCount = 6
 	const proxyCount = 6
 
 	type testCase struct {
-		validation, memory bool
-		nodes              int
+		memory bool
+		nodes  int
 	}
 
 	var tts []testCase
 
-	for _, validation := range []bool{true, false} {
-		for _, memory := range []bool{true, false} {
-			for _, nodes := range []int{100, 1000, 10000} {
-				tts = append(tts, testCase{
-					validation: validation,
-					memory:     memory,
-					nodes:      nodes,
-				})
-			}
+	for _, memory := range []bool{true, false} {
+		for _, nodes := range []int{100, 1000, 10000} {
+			tts = append(tts, testCase{
+				memory: memory,
+				nodes:  nodes,
+			})
 		}
 	}
 
 	for _, tt := range tts {
 		// create a descriptive name for the sub-benchmark.
-		name := fmt.Sprintf("tt(validation=%v,memory=%v,nodes=%d)", tt.validation, tt.memory, tt.nodes)
+		name := fmt.Sprintf("tt(memory=%v,nodes=%d)", tt.memory, tt.nodes)
 
 		// run the sub benchmark
 		b.Run(name, func(sb *testing.B) {
 
 			sb.StopTimer() // stop timer while running setup
-
-			// set up marshal options
-			var opts []services.MarshalOption
-			if !tt.validation {
-				opts = append(opts, services.SkipValidation())
-			}
 
 			// configure the backend instance
 			var bk backend.Backend
@@ -99,9 +93,9 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 			svc := local.NewPresenceService(bk)
 
 			// seed the test nodes
-			insertServers(b, svc, services.KindNode, tt.nodes)
-			insertServers(b, svc, services.KindProxy, proxyCount)
-			insertServers(b, svc, services.KindAuthServer, authCount)
+			insertServers(ctx, b, svc, types.KindNode, tt.nodes)
+			insertServers(ctx, b, svc, types.KindProxy, proxyCount)
+			insertServers(ctx, b, svc, types.KindAuthServer, authCount)
 
 			site := &mockRemoteSite{
 				accessPoint: &mockAccessPoint{
@@ -111,7 +105,7 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 
 			sb.StartTimer() // restart timer for benchmark operations
 
-			benchmarkGetClusterDetails(sb, site, tt.nodes, opts...)
+			benchmarkGetClusterDetails(ctx, sb, site, tt.nodes)
 
 			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
@@ -119,7 +113,7 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 }
 
 // insertServers inserts a collection of servers into a backend.
-func insertServers(t assert.TestingT, svc services.Presence, kind string, count int) {
+func insertServers(ctx context.Context, t assert.TestingT, svc services.Presence, kind string, count int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := 0; i < labelCount; i++ {
@@ -128,15 +122,15 @@ func insertServers(t assert.TestingT, svc services.Presence, kind string, count 
 	for i := 0; i < count; i++ {
 		name := uuid.New()
 		addr := fmt.Sprintf("%s.%s", name, clusterName)
-		server := &services.ServerV2{
+		server := &types.ServerV2{
 			Kind:    kind,
-			Version: services.V2,
-			Metadata: services.Metadata{
+			Version: types.V2,
+			Metadata: types.Metadata{
 				Name:      name,
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 				Labels:    labels,
 			},
-			Spec: services.ServerSpecV2{
+			Spec: types.ServerSpecV2{
 				Addr:       addr,
 				PublicAddr: addr,
 				Version:    teleport.Version,
@@ -144,11 +138,11 @@ func insertServers(t assert.TestingT, svc services.Presence, kind string, count 
 		}
 		var err error
 		switch kind {
-		case services.KindNode:
-			_, err = svc.UpsertNode(server)
-		case services.KindProxy:
+		case types.KindNode:
+			_, err = svc.UpsertNode(ctx, server)
+		case types.KindProxy:
 			err = svc.UpsertProxy(server)
-		case services.KindAuthServer:
+		case types.KindAuthServer:
 			err = svc.UpsertAuthServer(server)
 		default:
 			t.Errorf("Unexpected server kind: %s", kind)
@@ -157,11 +151,11 @@ func insertServers(t assert.TestingT, svc services.Presence, kind string, count 
 	}
 }
 
-func benchmarkGetClusterDetails(b *testing.B, site reversetunnel.RemoteSite, nodes int, opts ...services.MarshalOption) {
+func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reversetunnel.RemoteSite, nodes int, opts ...services.MarshalOption) {
 	var cluster *Cluster
 	var err error
 	for i := 0; i < b.N; i++ {
-		cluster, err = GetClusterDetails(site, opts...)
+		cluster, err = GetClusterDetails(ctx, site, opts...)
 		assert.NoError(b, err)
 	}
 	assert.NotNil(b, cluster)
@@ -194,14 +188,14 @@ type mockAccessPoint struct {
 	presence *local.PresenceService
 }
 
-func (m *mockAccessPoint) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
-	return m.presence.GetNodes(namespace, opts...)
+func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	return m.presence.GetNodes(ctx, namespace, opts...)
 }
 
-func (m *mockAccessPoint) GetProxies() ([]services.Server, error) {
+func (m *mockAccessPoint) GetProxies() ([]types.Server, error) {
 	return m.presence.GetProxies()
 }
 
-func (m *mockAccessPoint) GetAuthServers() ([]services.Server, error) {
+func (m *mockAccessPoint) GetAuthServers() ([]types.Server, error) {
 	return m.presence.GetAuthServers()
 }

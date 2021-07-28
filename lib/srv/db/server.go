@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -31,13 +32,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
-
-	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -57,25 +55,32 @@ type Config struct {
 	AccessPoint auth.AccessPoint
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
+	// NewAudit allows to override audit logger in tests.
+	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
 	// Authorizer is used to authorize requests coming from proxy.
 	Authorizer auth.Authorizer
 	// GetRotation returns the certificate rotation state.
-	GetRotation func(role teleport.Role) (*services.Rotation, error)
+	GetRotation func(role types.SystemRole) (*types.Rotation, error)
 	// Servers contains a list of database servers this service proxies.
 	Servers types.DatabaseServers
-	// AWSCredentials are credentials to AWS API.
-	AWSCredentials *credentials.Credentials
-	// GCPIAM is the GCP IAM client.
-	GCPIAM *gcpcredentials.IamCredentialsClient
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
+	// Auth is responsible for generating database auth tokens.
+	Auth common.Auth
+	// CADownloader automatically downloads root certs for cloud hosted databases.
+	CADownloader CADownloader
+	// LockWatcher is a lock watcher.
+	LockWatcher *services.LockWatcher
 }
+
+// NewAuditFn defines a function that creates an audit logger.
+type NewAuditFn func(common.AuditConfig) (common.Audit, error)
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
 // to function.
-func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
+func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
@@ -91,6 +96,18 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	if c.StreamEmitter == nil {
 		return trace.BadParameter("missing StreamEmitter")
 	}
+	if c.NewAudit == nil {
+		c.NewAudit = common.NewAudit
+	}
+	if c.Auth == nil {
+		c.Auth, err = common.NewAuth(common.AuthConfig{
+			AuthClient: c.AuthClient,
+			Clock:      c.Clock,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing TLSConfig")
 	}
@@ -103,23 +120,11 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	if len(c.Servers) == 0 {
 		return trace.BadParameter("missing Servers")
 	}
-	// Only initialize AWS session if this service is proxying any RDS databases.
-	if c.AWSCredentials == nil && c.Servers.HasRDS() {
-		session, err := awssession.NewSessionWithOptions(awssession.Options{
-			SharedConfigState: awssession.SharedConfigEnable,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.AWSCredentials = session.Config.Credentials
+	if c.CADownloader == nil {
+		c.CADownloader = NewRealDownloader(c.DataDir)
 	}
-	// Only initialize GCP IAM client if this service is proxying any Cloud SQL databases.
-	if c.GCPIAM == nil && c.Servers.HasGCP() {
-		iamClient, err := gcpcredentials.NewIamCredentialsClient(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.GCPIAM = iamClient
+	if c.LockWatcher == nil {
+		return trace.BadParameter("missing LockWatcher")
 	}
 	return nil
 }
@@ -139,8 +144,6 @@ type Server struct {
 	dynamicLabels map[string]*labels.Dynamic
 	// heartbeats holds hearbeats for database servers.
 	heartbeats map[string]*srv.Heartbeat
-	// rdsCACerts contains loaded RDS root certificates for required regions.
-	rdsCACerts map[string][]byte
 	// mu protects access to server infos.
 	mu sync.RWMutex
 	// log is used for logging.
@@ -162,7 +165,6 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		closeFunc:     cancel,
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		heartbeats:    make(map[string]*srv.Heartbeat),
-		rdsCACerts:    make(map[string][]byte),
 		middleware: &auth.Middleware{
 			AccessPoint:   config.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
@@ -178,7 +180,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// starting up dynamic labels and loading root certs for RDS dbs.
 	for _, db := range server.cfg.Servers {
 		if err := server.initDatabaseServer(ctx, db); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "failed to initialize %v", server)
 		}
 	}
 
@@ -192,9 +194,10 @@ func (s *Server) initDatabaseServer(ctx context.Context, server types.DatabaseSe
 	if err := s.initHeartbeat(ctx, server); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.initRDSRootCert(ctx, server); err != nil {
+	if err := s.initCACert(ctx, server); err != nil {
 		return trace.Wrap(err)
 	}
+	s.log.Debugf("Initialized %v.", server)
 	return nil
 }
 
@@ -221,10 +224,10 @@ func (s *Server) initHeartbeat(ctx context.Context, server types.DatabaseServer)
 		Mode:            srv.HeartbeatModeDB,
 		Announcer:       s.cfg.AccessPoint,
 		GetServerInfo:   s.getServerInfoFunc(server),
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
-		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		ServerTTL:       defaults.ServerAnnounceTTL,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
 		OnHeartbeat:     s.cfg.OnHeartbeat,
 	})
 	if err != nil {
@@ -234,8 +237,8 @@ func (s *Server) initHeartbeat(ctx context.Context, server types.DatabaseServer)
 	return nil
 }
 
-func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services.Resource, error) {
-	return func() (services.Resource, error) {
+func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (types.Resource, error) {
+	return func() (types.Resource, error) {
 		// Make sure to return a new object, because it gets cached by
 		// heartbeat and will always compare as equal otherwise.
 		s.mu.RLock()
@@ -247,7 +250,7 @@ func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services
 			server.SetDynamicLabels(labels.Get())
 		}
 		// Update CA rotation state.
-		rotation, err := s.cfg.GetRotation(teleport.RoleDatabase)
+		rotation, err := s.cfg.GetRotation(types.RoleDatabase)
 		if err != nil && !trace.IsNotFound(err) {
 			s.log.WithError(err).Warn("Failed to get rotation state.")
 		} else {
@@ -256,7 +259,7 @@ func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services
 			}
 		}
 		// Update TTL.
-		server.SetExpiry(s.cfg.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
+		server.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 		return server, nil
 	}
 }
@@ -286,10 +289,7 @@ func (s *Server) Close() error {
 	for _, heartbeat := range s.heartbeats {
 		errors = append(errors, heartbeat.Close())
 	}
-	// Close the GCP IAM client if needed.
-	if s.cfg.GCPIAM != nil {
-		errors = append(errors, s.cfg.GCPIAM.Close())
-	}
+	errors = append(errors, s.cfg.Auth.Close())
 	return trace.NewAggregate(errors...)
 }
 
@@ -329,7 +329,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Dispatch the connection for processing by an appropriate database
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
-	if err != nil {
+	if err != nil && !utils.IsOKNetworkError(err) && !trace.IsAccessDenied(err) {
 		log.WithError(err).Error("Failed to handle connection.")
 		return
 	}
@@ -362,6 +362,26 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Wrap a client connection into monitor that auto-terminates
+	// idle connection and connection with expired cert.
+	conn, err = monitorConn(ctx, monitorConnConfig{
+		conn:         conn,
+		lockWatcher:  s.cfg.LockWatcher,
+		identity:     sessionCtx.Identity,
+		checker:      sessionCtx.Checker,
+		clock:        s.cfg.Clock,
+		serverID:     sessionCtx.Server.GetHostID(),
+		authClient:   s.cfg.AuthClient,
+		teleportUser: sessionCtx.Identity.Username,
+		emitter:      s.cfg.AuthClient,
+		log:          s.log,
+		ctx:          s.closeContext,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	err = engine.HandleConnection(ctx, sessionCtx, conn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -371,18 +391,8 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 
 // dispatch returns an appropriate database engine for the session.
 func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter) (common.Engine, error) {
-	auth, err := common.NewAuth(common.AuthConfig{
-		AuthClient:     s.cfg.AuthClient,
-		AWSCredentials: s.cfg.AWSCredentials,
-		GCPIAM:         s.cfg.GCPIAM,
-		RDSCACerts:     s.rdsCACerts,
-		Clock:          s.cfg.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	audit, err := common.NewAudit(common.AuditConfig{
-		StreamWriter: streamWriter,
+	audit, err := s.cfg.NewAudit(common.AuditConfig{
+		Emitter: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -390,7 +400,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	switch sessionCtx.Server.GetProtocol() {
 	case defaults.ProtocolPostgres:
 		return &postgres.Engine{
-			Auth:    auth,
+			Auth:    s.cfg.Auth,
 			Audit:   audit,
 			Context: s.closeContext,
 			Clock:   s.cfg.Clock,
@@ -398,7 +408,16 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 		}, nil
 	case defaults.ProtocolMySQL:
 		return &mysql.Engine{
-			Auth:    auth,
+			Auth:       s.cfg.Auth,
+			Audit:      audit,
+			AuthClient: s.cfg.AuthClient,
+			Context:    s.closeContext,
+			Clock:      s.cfg.Clock,
+			Log:        sessionCtx.Log,
+		}, nil
+	case defaults.ProtocolMongoDB:
+		return &mongodb.Engine{
+			Auth:    s.cfg.Auth,
 			Audit:   audit,
 			Context: s.closeContext,
 			Clock:   s.cfg.Clock,
@@ -447,6 +466,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		DatabaseName:      identity.RouteToDatabase.Database,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
+		Statements:        common.NewStatementsCache(),
 		Log: s.log.WithFields(logrus.Fields{
 			"id": id,
 			"db": server.GetName(),

@@ -1,0 +1,249 @@
+---
+title: Terraform Provider
+description: Configuration as a code with Terraform Provider
+---
+
+This section will cover:
+
+- Setting up Teleport's terraform provider on Linux and Mac.
+- Configuring users and roles using terraform provider for Cloud, Enterprise and Open Source editions.
+
+## Follow along with our video guide
+
+<iframe
+  width="712"
+  height="400"
+  src="https://www.youtube-nocookie.com/embed/YgNHD4SS8dg?rel=0&modestbranding=1"
+  frameBorder="0"
+  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
+
+## Prerequisites
+
+- [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+- Teleport (=teleport.version=) Cloud, Open Source or Enterprise
+
+```bash
+terraform version
+Terraform v(=terraform.version=)
+```
+
+```bash
+tctl version
+Teleport v(=teleport.version=) go(teleport.golang)
+```
+
+Create a folder `teleport-terraform` to hold some temporary files:
+
+```bash
+mkdir -p teleport-terraform
+cd teleport-terraform
+```
+
+## Step 1/4. Install terraform provider
+
+<Tabs>
+  <TabItem label="Linux">
+  ```bash
+  mkdir -p ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/linux_amd64
+  curl -L -O https://get.gravitational.com/terraform-provider-teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  tar -zxvf terraform-provider-teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz -C ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/linux_amd64
+  ```
+  </TabItem>
+
+  <TabItem label="MacOS">
+  ```bash
+  mkdir -p ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/darwin_amd64
+  curl -L -O https://get.gravitational.com/terraform-provider-teleport-v(=teleport.version=)-darwin-amd64-bin.tar.gz
+  tar -zxvf terraform-provider-teleport-v(=teleport.version=)-darwin-amd64-bin.tar.gz -C ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/darwin_amd64
+  ```
+  </TabItem>
+</Tabs>
+  
+## Step 2/4. Create a terraform user
+
+Put the following content into `terraform.yaml`:
+
+```
+kind: role
+metadata:
+  name: terraform
+spec:
+  allow:
+    rules:
+      - resources: ['user', 'role', 'token', 'trusted_cluster', 'github', 'oidc', 'saml']
+        verbs: ['list','create','read','update','delete']
+version: v3
+---
+kind: user
+metadata:
+  name: terraform
+spec:
+  roles: ['terraform']
+version: v2
+```
+
+Run:
+
+```bash
+tctl create terraform.yaml
+tctl auth sign --format=file --user=terraform --out=terraform-identity --ttl=10h
+```
+
+<Admonition type="note">
+Clients missing impersonation privileges when trying to use `tctl auth sign`,
+will get the following error:
+
+```bash
+ERROR: access denied: impersonation is not allowed
+```
+
+Create the following file with role: `terraform-impersonator.yaml`:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: terraform-impersonator
+spec:
+  # SSH options used for user sessions 
+  options:
+    # max_session_ttl defines the TTL (time to live) of SSH certificates 
+    # issued to the users with this role.
+    max_session_ttl: 10h
+
+  # allow section declares a list of resource/verb combinations that are
+  # allowed for the users of this role. by default nothing is allowed.
+  allow:
+    impersonate:
+      users: ['terraform']
+      roles: ['terraform']
+
+  # the deny section uses the identical format as the 'allow' section.
+  # the deny rules always override allow rules.
+  deny:
+    node_labels:
+      '*': '*'
+```
+
+```bash
+tctl create terraform-impersonator.yaml
+```
+
+Assign this role to the current user. Re-login to assume the new role and try
+to issue certificate for terraform user again.
+
+</Admonition>
+
+## Step 3/4. Create Terraform configuration
+
+Create a `main.tf` terraform file:
+
+```
+terraform {
+  required_providers {
+    teleport = {
+      version = ">= (=teleport.version=)"
+      source  = "gravitational.com/teleport/teleport"
+    }
+  }
+}
+
+provider "teleport" {
+  # Update addr to point to Teleport Auth/Proxy
+  # addr               = "auth.example.com:3025"
+  addr               = "proxy.example.com:443"
+  identity_file_path = "terraform-identity"
+}
+
+resource "teleport_role" "terraform-test" {
+  metadata {
+    name        = "terraform-test"
+    description = "Terraform test role"
+    labels = {
+      example  = "yes"
+    }
+  }
+  
+  spec {
+    options {
+      forward_agent           = false
+      max_session_ttl         = "30m"
+      port_forwarding         = false
+      client_idle_timeout     = "1h"
+      disconnect_expired_cert = true
+      permit_x11forwarding    = false
+      request_access          = "denied"
+    }
+
+    allow {
+      logins = ["this-user-does-not-exist"]
+
+      rules {
+        resources = ["user", "role"]
+        verbs = ["list"]
+      }
+
+      request {
+        roles = ["example"]
+        claims_to_roles {
+          claim = "example"
+          value = "example"
+          roles = ["example"]
+        }
+      }
+
+      node_labels {
+         key = "example"
+         value = ["yes"]
+      }
+    }
+
+    deny {
+      logins = ["anonymous"]
+    }
+  }
+}
+
+resource "teleport_user" "terraform-test" {
+  metadata {
+    name        = "terraform-test"
+    description = "Test terraform user"
+    expires     = "2022-10-12T07:20:50.52Z"
+
+    labels = {
+      test      = "true"
+    }
+  }
+
+  spec {
+    roles = ["terraform-test"]
+  }
+}
+```
+
+<Admonition type="note">
+Update `teleport.example.com:443` with the address of your Teleport cluster.
+</Admonition>
+
+## Step 4/4. Apply the configuration
+
+Check the contents of `teleport-terraform` folder:
+
+```bash
+ls 
+main.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
+```
+
+Init terraform and apply the spec:
+
+```bash
+terraform init
+terraform apply
+```
+
+## Next Steps
+
+- Find the full list of [supported terraform provider resources](../reference/terraform-provider.mdx).
+- Read more about [impersonation](../../access-controls/guides/impersonation.mdx).

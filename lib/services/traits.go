@@ -17,6 +17,10 @@ limitations under the License.
 package services
 
 import (
+	"fmt"
+
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -25,19 +29,20 @@ import (
 )
 
 // TraitsToRoles maps the supplied traits to a list of teleport role names.
-func TraitsToRoles(ms TraitMappingSet, traits map[string][]string) []string {
-	var roles []string
-	traitsToRoles(ms, traits, func(role string, expanded bool) {
+// Returns the list of roles mapped from traits.
+// `warnings` optionally contains the list of warnings potentially interesting to the user.
+func TraitsToRoles(ms types.TraitMappingSet, traits map[string][]string) (warnings []string, roles []string) {
+	warnings = traitsToRoles(ms, traits, func(role string, expanded bool) {
 		roles = append(roles, role)
 	})
-	return utils.Deduplicate(roles)
+	return warnings, apiutils.Deduplicate(roles)
 }
 
 // TraitsToRoleMatchers maps the supplied traits to a list of role matchers. Prefer calling
 // this function directly rather than calling TraitsToRoles and then building matchers from
 // the resulting list since this function forces any roles which include substitutions to
 // be literal matchers.
-func TraitsToRoleMatchers(ms TraitMappingSet, traits map[string][]string) ([]parse.Matcher, error) {
+func TraitsToRoleMatchers(ms types.TraitMappingSet, traits map[string][]string) ([]parse.Matcher, error) {
 	var matchers []parse.Matcher
 	var firstErr error
 	traitsToRoles(ms, traits, func(role string, expanded bool) {
@@ -68,7 +73,7 @@ func TraitsToRoleMatchers(ms TraitMappingSet, traits map[string][]string) ([]par
 }
 
 // traitsToRoles maps the supplied traits to teleport role names and passes them to a collector.
-func traitsToRoles(ms TraitMappingSet, traits map[string][]string, collect func(role string, expanded bool)) {
+func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect func(role string, expanded bool)) (warnings []string) {
 	for _, mapping := range ms {
 		for traitName, traitValues := range traits {
 			if traitName != mapping.Trait {
@@ -77,16 +82,27 @@ func traitsToRoles(ms TraitMappingSet, traits map[string][]string, collect func(
 		TraitLoop:
 			for _, traitValue := range traitValues {
 				for _, role := range mapping.Roles {
-					outRole, err := utils.ReplaceRegexp(mapping.Value, role, traitValue)
+					// Run the initial replacement case-insensitively. Doing so will filter out all literal non-matches
+					// but will match on case discrepancies. We do another case-sensitive match below to see if the
+					// case is different
+					outRole, err := utils.ReplaceRegexpWithConfig(mapping.Value, role, traitValue, utils.RegexpConfig{IgnoreCase: true})
 					switch {
 					case err != nil:
 						if trace.IsNotFound(err) {
-							log.WithError(err).Debugf("Failed to match expression %v, replace with: %v input: %v", mapping.Value, role, traitValue)
+							log.WithError(err).Debugf("Failed to match expression %q, replace with: %q input: %q.", mapping.Value, role, traitValue)
 						}
 						// this trait value clearly did not match, move on to another
 						continue TraitLoop
 					case outRole == "":
 					case outRole != "":
+						// Run the replacement case-sensitively to see if it matches.
+						// If there's no match, the trait specifies a mapping which is case-sensitive;
+						// we should log a warning but return an error.
+						// See https://github.com/gravitational/teleport/issues/6016 for details.
+						if _, err := utils.ReplaceRegexp(mapping.Value, role, traitValue); err != nil {
+							warnings = append(warnings, fmt.Sprintf("trait %q matches value %q case-insensitively and would have yielded %q role", traitValue, mapping.Value, outRole))
+							continue
+						}
 						// skip empty replacement or empty role
 						collect(outRole, outRole != role)
 					}
@@ -94,6 +110,7 @@ func traitsToRoles(ms TraitMappingSet, traits map[string][]string, collect func(
 			}
 		}
 	}
+	return warnings
 }
 
 // literalMatcher is used to "escape" values which are not allowed to

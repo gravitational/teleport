@@ -22,10 +22,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -177,7 +176,7 @@ func TestReviewThresholds(t *testing.T) {
 	roles := make(map[string]types.Role)
 
 	for name, conditions := range roleDesc {
-		role, err := types.NewRole(name, types.RoleSpecV3{
+		role, err := types.NewRole(name, types.RoleSpecV4{
 			Allow: conditions,
 		})
 		require.NoError(t, err)
@@ -630,7 +629,7 @@ func TestAccessRequestMarshaling(t *testing.T) {
 	req2, err := UnmarshalAccessRequest(marshaled)
 	require.NoError(t, err)
 
-	require.True(t, req1.Equals(req2))
+	require.True(t, cmp.Equal(req1, req2))
 }
 
 // TestPluginDataExpectations verifies the correct behavior of the `Expect` mapping.
@@ -640,12 +639,12 @@ func TestAccessRequestMarshaling(t *testing.T) {
 func TestPluginDataExpectations(t *testing.T) {
 	const rname = "my-resource"
 	const pname = "my-plugin"
-	data, err := NewPluginData(rname, KindAccessRequest)
+	data, err := types.NewPluginData(rname, types.KindAccessRequest)
 	require.NoError(t, err)
 
 	// Set two keys, expecting them to be unset.
-	err = data.Update(PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+	err = data.Update(types.PluginDataUpdateParams{
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{
@@ -660,8 +659,8 @@ func TestPluginDataExpectations(t *testing.T) {
 	require.NoError(t, err)
 
 	// Expect a value which does not exist.
-	err = data.Update(PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+	err = data.Update(types.PluginDataUpdateParams{
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{
@@ -674,8 +673,8 @@ func TestPluginDataExpectations(t *testing.T) {
 	fixtures.AssertCompareFailed(t, err)
 
 	// Expect a value to not exist when it does exist.
-	err = data.Update(PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+	err = data.Update(types.PluginDataUpdateParams{
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{
@@ -689,8 +688,8 @@ func TestPluginDataExpectations(t *testing.T) {
 	fixtures.AssertCompareFailed(t, err)
 
 	// Expect the correct state, updating one key and removing another.
-	err = data.Update(PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+	err = data.Update(types.PluginDataUpdateParams{
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{
@@ -705,8 +704,8 @@ func TestPluginDataExpectations(t *testing.T) {
 	require.NoError(t, err)
 
 	// Expect the new updated state.
-	err = data.Update(PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+	err = data.Update(types.PluginDataUpdateParams{
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{
@@ -724,10 +723,10 @@ func TestPluginDataExpectations(t *testing.T) {
 func TestPluginDataFilterMatching(t *testing.T) {
 	const rname = "my-resource"
 	const pname = "my-plugin"
-	data, err := NewPluginData(rname, KindAccessRequest)
+	data, err := types.NewPluginData(rname, types.KindAccessRequest)
 	require.NoError(t, err)
 
-	var f PluginDataFilter
+	var f types.PluginDataFilter
 
 	// Filter for a different resource
 	f.Resource = "other-resource"
@@ -742,8 +741,8 @@ func TestPluginDataFilterMatching(t *testing.T) {
 	require.False(t, f.Match(data))
 
 	// Add some data
-	err = data.Update(PluginDataUpdateParams{
-		Kind:     KindAccessRequest,
+	err = data.Update(types.PluginDataUpdateParams{
+		Kind:     types.KindAccessRequest,
 		Resource: rname,
 		Plugin:   pname,
 		Set: map[string]string{
@@ -776,7 +775,7 @@ func TestRequestFilterMatching(t *testing.T) {
 		{"carol", "", false, false},
 	}
 	for _, tc := range testCases {
-		m := AccessRequestFilter{
+		m := types.AccessRequestFilter{
 			User: tc.user,
 			ID:   tc.id,
 		}
@@ -793,41 +792,36 @@ func TestRequestFilterMatching(t *testing.T) {
 // maps correctly.
 func TestRequestFilterConversion(t *testing.T) {
 	testCases := []struct {
-		f AccessRequestFilter
+		f types.AccessRequestFilter
 		m map[string]string
 	}{
 		{
-			AccessRequestFilter{User: "alice", ID: "foo", State: RequestState_PENDING},
+			types.AccessRequestFilter{User: "alice", ID: "foo", State: types.RequestState_PENDING},
 			map[string]string{"user": "alice", "id": "foo", "state": "PENDING"},
 		},
 		{
-			AccessRequestFilter{User: "bob"},
+			types.AccessRequestFilter{User: "bob"},
 			map[string]string{"user": "bob"},
 		},
 		{
-			AccessRequestFilter{},
+			types.AccessRequestFilter{},
 			map[string]string{},
 		},
 	}
 	for _, tc := range testCases {
-
-		if m := tc.f.IntoMap(); !utils.StringMapsEqual(m, tc.m) {
-			t.Errorf("bad map encoding: expected %+v, got %+v", tc.m, m)
-		}
-		var f AccessRequestFilter
-		if err := f.FromMap(tc.m); err != nil {
-			t.Errorf("failed to parse %+v: %s", tc.m, err)
-		}
-		if !f.Equals(tc.f) {
-			t.Errorf("bad map decoding: expected %+v, got %+v", tc.f, f)
-		}
+		m := tc.f.IntoMap()
+		require.Empty(t, cmp.Diff(m, tc.m))
+		var f types.AccessRequestFilter
+		err := f.FromMap(tc.m)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(f, tc.f))
 	}
 	badMaps := []map[string]string{
 		{"food": "carrots"},
 		{"state": "homesick"},
 	}
 	for _, m := range badMaps {
-		var f AccessRequestFilter
+		var f types.AccessRequestFilter
 		require.Error(t, f.FromMap(m))
 	}
 }

@@ -37,8 +37,11 @@ import (
 	"github.com/pborman/uuid"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -58,19 +61,20 @@ type Suite struct {
 	tlsServer    *auth.TestTLSServer
 	authClient   *auth.Client
 	appServer    *Server
-	server       services.Server
+	server       types.Server
 	hostCertPool *x509.CertPool
 
-	hostUUID          string
-	closeContext      context.Context
-	closeFunc         context.CancelFunc
-	message           string
-	hostport          string
-	testhttp          *httptest.Server
-	clientCertificate tls.Certificate
+	hostUUID              string
+	closeContext          context.Context
+	closeFunc             context.CancelFunc
+	message               string
+	hostport              string
+	testhttp              *httptest.Server
+	clientCertificate     tls.Certificate
+	awsConsoleCertificate tls.Certificate
 
-	user services.User
-	role services.Role
+	user types.User
+	role types.Role
 }
 
 var _ = check.Suite(&Suite{})
@@ -97,12 +101,13 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Grant the user's role access to the application label "bar: baz".
-	s.role.SetAppLabels(services.Allow, services.Labels{"bar": []string{"baz"}})
+	s.role.SetAppLabels(services.Allow, types.Labels{"bar": []string{"baz"}})
+	s.role.SetAWSRoleARNs(services.Allow, []string{"readonly"})
 	err = s.tlsServer.Auth().UpsertRole(context.Background(), s.role)
 	c.Assert(err, check.IsNil)
 
-	rootCA, err := s.tlsServer.Auth().GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	rootCA, err := s.tlsServer.Auth().GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: "root.example.com",
 	}, false)
 	c.Assert(err, check.IsNil)
@@ -115,6 +120,21 @@ func (s *Suite) TearDownSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+var (
+	staticLabels = map[string]string{
+		"bar": "baz",
+	}
+	dynamicLabelName    = "qux"
+	dynamicLabelPeriod  = types.NewDuration(time.Second)
+	dynamicLabelCommand = []string{"expr", "1", "+", "3"}
+	dynamicLabels       = map[string]types.CommandLabel{
+		dynamicLabelName: &types.CommandLabelV2{
+			Period:  dynamicLabelPeriod,
+			Command: dynamicLabelCommand,
+		},
+	}
+)
+
 func (s *Suite) SetUpTest(c *check.C) {
 	s.closeContext, s.closeFunc = context.WithCancel(context.Background())
 
@@ -124,7 +144,6 @@ func (s *Suite) SetUpTest(c *check.C) {
 
 	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, s.message)
-		s.closeFunc()
 	}))
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
 	s.testhttp.Start()
@@ -135,42 +154,39 @@ func (s *Suite) SetUpTest(c *check.C) {
 	s.hostport = u.Host
 
 	// Create a services.App that will be used for each test.
-	staticLabels := map[string]string{
-		"bar": "baz",
-	}
-	dynamicLabels := map[string]services.CommandLabel{
-		"qux": &services.CommandLabelV2{
-			Period:  services.NewDuration(time.Second),
-			Command: []string{"expr", "1", "+", "3"},
-		},
-	}
 	s.hostUUID = uuid.New()
-	s.server = &services.ServerV2{
-		Kind:    services.KindAppServer,
-		Version: services.V2,
-		Metadata: services.Metadata{
+	s.server = &types.ServerV2{
+		Kind:    types.KindAppServer,
+		Version: types.V2,
+		Metadata: types.Metadata{
 			Namespace: defaults.Namespace,
 			Name:      s.hostUUID,
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Version: teleport.Version,
-			Apps: []*services.App{
+			Apps: []*types.App{
 				{
 					Name:          "foo",
 					URI:           s.testhttp.URL,
 					PublicAddr:    "foo.example.com",
 					StaticLabels:  staticLabels,
-					DynamicLabels: services.LabelsToV2(dynamicLabels),
+					DynamicLabels: types.LabelsToV2(dynamicLabels),
+				},
+				{
+					Name:         "awsconsole",
+					URI:          constants.AWSConsoleURL,
+					PublicAddr:   "aws.example.com",
+					StaticLabels: staticLabels,
 				},
 			},
 		},
 	}
 
 	// Create a client with a machine role of RoleApp.
-	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(teleport.RoleApp, s.hostUUID))
+	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
 	c.Assert(err, check.IsNil)
 
-	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, teleport.RoleApp)
+	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
 	c.Assert(err, check.IsNil)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	c.Assert(err, check.IsNil)
@@ -190,17 +206,39 @@ func (s *Suite) SetUpTest(c *check.C) {
 	s.clientCertificate, err = tls.X509KeyPair(certificate, privateKey)
 	c.Assert(err, check.IsNil)
 
+	// Generate certificate for AWS console application.
+	privateKey, publicKey, err = s.tlsServer.Auth().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+	certificate, err = s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
+		PublicKey:   publicKey,
+		Username:    s.user.GetName(),
+		TTL:         1 * time.Hour,
+		PublicAddr:  "aws.example.com",
+		ClusterName: "root.example.com",
+		AWSRoleARN:  "readonly",
+	})
+	c.Assert(err, check.IsNil)
+	s.awsConsoleCertificate, err = tls.X509KeyPair(certificate, privateKey)
+	c.Assert(err, check.IsNil)
+
 	// Make sure the upload directory is created.
 	err = os.MkdirAll(filepath.Join(
 		s.dataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, defaults.Namespace,
+		events.StreamingLogsDir, apidefaults.Namespace,
 	), 0755)
 	c.Assert(err, check.IsNil)
 
-	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, s.authClient, s.authClient)
+	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentApp,
+			Client:    s.authClient,
+		},
+	})
+	c.Assert(err, check.IsNil)
+	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, lockWatcher)
 	c.Assert(err, check.IsNil)
 
-	s.appServer, err = New(context.Background(), &Config{
+	s.appServer, err = New(s.closeContext, &Config{
 		Clock:        s.clock,
 		DataDir:      s.dataDir,
 		AccessPoint:  s.authClient,
@@ -211,6 +249,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 		GetRotation:  testRotationGetter,
 		Server:       s.server,
 		OnHeartbeat:  func(err error) {},
+		Cloud:        &testCloud{},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -228,37 +267,49 @@ func (s *Suite) TearDownTest(c *check.C) {
 
 	s.testhttp.Close()
 
-	err = s.tlsServer.Auth().DeleteAllAppServers(context.Background(), defaults.Namespace)
+	err = s.tlsServer.Auth().DeleteAllAppServers(s.closeContext, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
+
+	s.closeFunc()
 }
 
 // TestStart makes sure that after the server has started, a correct services.App
 // has been created.
 func (s *Suite) TestStart(c *check.C) {
 	// Fetch the services.App that the service heartbeat.
-	servers, err := s.authServer.AuthServer.GetAppServers(context.Background(), defaults.Namespace)
+	servers, err := s.authServer.AuthServer.GetAppServers(s.closeContext, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(servers, check.HasLen, 1)
 	server := servers[0]
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	c.Assert(server.GetApps(), check.HasLen, 1)
-	app := server.GetApps()[0]
 
-	c.Assert(app.Name, check.Equals, "foo")
-	c.Assert(app.URI, check.Equals, s.testhttp.URL)
-	c.Assert(app.PublicAddr, check.Equals, "foo.example.com")
-	c.Assert(app.StaticLabels, check.DeepEquals, map[string]string{
-		"bar": "baz",
+	c.Assert(server.GetApps(), check.DeepEquals, []*types.App{
+		{
+			Name:         "foo",
+			URI:          s.testhttp.URL,
+			PublicAddr:   "foo.example.com",
+			StaticLabels: staticLabels,
+			DynamicLabels: map[string]types.CommandLabelV2{
+				dynamicLabelName: {
+					Period:  dynamicLabelPeriod,
+					Command: dynamicLabelCommand,
+					Result:  "4",
+				},
+			},
+		},
+		{
+			Name:         "awsconsole",
+			URI:          constants.AWSConsoleURL,
+			PublicAddr:   "aws.example.com",
+			StaticLabels: staticLabels,
+		},
 	})
-	dynamicLabel, ok := app.DynamicLabels["qux"]
-	c.Assert(ok, check.Equals, true)
-	c.Assert(dynamicLabel.GetResult(), check.Equals, "4")
 
 	// Check the expiry time is correct.
 	c.Assert(s.clock.Now().Before(server.Expiry()), check.Equals, true)
-	c.Assert(s.clock.Now().Add(2*defaults.ServerAnnounceTTL).After(server.Expiry()), check.Equals, true)
+	c.Assert(s.clock.Now().Add(2*apidefaults.ServerAnnounceTTL).After(server.Expiry()), check.Equals, true)
 }
 
 // TestWaitStop makes sure the server will block and unlock.
@@ -284,61 +335,37 @@ func (s *Suite) TestWaitStop(c *check.C) {
 
 // TestHandleConnection verifies that requests with valid certificates are forwarded.
 func (s *Suite) TestHandleConnection(c *check.C) {
-	pr, pw := net.Pipe()
-	defer pw.Close()
-	defer pr.Close()
-
-	// Create an HTTP client authenticated with the user's credentials. This acts
-	// like the proxy does.
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return pr, nil
-			},
-			TLSClientConfig: &tls.Config{
-				// RootCAs is a pool of host certificates used to verify the identity of
-				// the server this client is connecting to.
-				RootCAs: s.hostCertPool,
-				// Certificates is the user's application specific certificate.
-				Certificates: []tls.Certificate{s.clientCertificate},
-				// Time defines the time anchor for certificate validation
-				Time: s.clock.Now,
-			},
-		},
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// Handle the connection in another goroutine.
-	go func() {
-		s.appServer.HandleConnection(pw)
-		wg.Done()
-	}()
-
-	// Issue request.
-	resp, err := httpClient.Get("https://" + teleport.APIDomain)
-	c.Assert(err, check.IsNil)
-
-	// Check response.
-	buf, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	err = resp.Body.Close()
-	c.Assert(err, check.IsNil)
-	c.Assert(strings.TrimSpace(string(buf)), check.Equals, s.message)
-
-	// Context will close because of the net.Pipe, expect a context canceled
-	// error here.
-	err = s.appServer.Close()
-	c.Assert(err, check.NotNil)
-
-	// Wait for the application server to actually stop serving before
-	// closing the test. This will make sure the server removes the listeners
-	wg.Wait()
+	s.checkHTTPResponse(c, s.clientCertificate, func(resp *http.Response) {
+		c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+		buf, err := ioutil.ReadAll(resp.Body)
+		c.Assert(err, check.IsNil)
+		c.Assert(strings.TrimSpace(string(buf)), check.Equals, s.message)
+	})
 }
 
 // TestAuthorize verifies that only authorized requests are handled.
 func (s *Suite) TestAuthorize(c *check.C) {
+}
+
+// TestAuthorizeWithLocks verifies that requests are forbidden when there is
+// a matching lock in force.
+func (s *Suite) TestAuthorizeWithLocks(c *check.C) {
+	// Create a lock targeting the user.
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{User: s.user.GetName()},
+	})
+	c.Assert(err, check.IsNil)
+	s.tlsServer.Auth().UpsertLock(s.closeContext, lock)
+	defer func() {
+		s.tlsServer.Auth().DeleteLock(s.closeContext, lock.GetName())
+	}()
+
+	s.checkHTTPResponse(c, s.clientCertificate, func(resp *http.Response) {
+		c.Assert(resp.StatusCode, check.Equals, http.StatusForbidden)
+		buf, err := ioutil.ReadAll(resp.Body)
+		c.Assert(err, check.IsNil)
+		c.Assert(strings.TrimSpace(string(buf)), check.Equals, "Forbidden")
+	})
 }
 
 // TestGetConfigForClient verifies that only the CAs of the requested cluster are returned.
@@ -357,6 +384,80 @@ func (s *Suite) TestRewriteResponse(c *check.C) {
 func (s *Suite) TestSessionClose(c *check.C) {
 }
 
-func testRotationGetter(role teleport.Role) (*services.Rotation, error) {
-	return &services.Rotation{}, nil
+// TestAWSConsoleRedirect verifies AWS management console access.
+func (s *Suite) TestAWSConsoleRedirect(c *check.C) {
+	s.checkHTTPResponse(c, s.awsConsoleCertificate, func(resp *http.Response) {
+		c.Assert(resp.StatusCode, check.Equals, http.StatusFound)
+		location, err := resp.Location()
+		c.Assert(err, check.IsNil)
+		c.Assert(location.String(), check.Equals, "https://signin.aws.amazon.com")
+	})
+}
+
+// checkHTTPResponse checks expected HTTP response.
+func (s *Suite) checkHTTPResponse(c *check.C, clientCert tls.Certificate, checkResp func(*http.Response)) {
+	pr, pw := net.Pipe()
+	defer pw.Close()
+	defer pr.Close()
+
+	// Create an HTTP client authenticated with the user's credentials. This acts
+	// like the proxy does.
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return pr, nil
+			},
+			TLSClientConfig: &tls.Config{
+				// RootCAs is a pool of host certificates used to verify the identity of
+				// the server this client is connecting to.
+				RootCAs: s.hostCertPool,
+				// Certificates is the user's application specific certificate.
+				Certificates: []tls.Certificate{clientCert},
+				// Time defines the time anchor for certificate validation
+				Time: s.clock.Now,
+			},
+		},
+		// Prevent client from following redirect to be able to test redirect locations.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// Handle the connection in another goroutine.
+	go func() {
+		s.appServer.HandleConnection(pw)
+		wg.Done()
+	}()
+
+	// Issue request.
+	resp, err := httpClient.Get("https://" + constants.APIDomain)
+	c.Assert(err, check.IsNil)
+
+	// Check response.
+	checkResp(resp)
+	c.Assert(resp.Body.Close(), check.IsNil)
+
+	// Context will close because of the net.Pipe, expect a context canceled
+	// error here.
+	err = s.appServer.Close()
+	c.Assert(err, check.NotNil)
+
+	// Wait for the application server to actually stop serving before
+	// closing the test. This will make sure the server removes the listeners
+	wg.Wait()
+}
+
+func testRotationGetter(role types.SystemRole) (*types.Rotation, error) {
+	return &types.Rotation{}, nil
+}
+
+type testCloud struct{}
+
+func (c *testCloud) GetAWSSigninURL(_ AWSSigninRequest) (*AWSSigninResponse, error) {
+	return &AWSSigninResponse{
+		SigninURL: "https://signin.aws.amazon.com",
+	}, nil
 }

@@ -21,13 +21,15 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -38,7 +40,7 @@ func (process *TeleportProcess) initKubernetes() {
 		trace.Component: teleport.Component(teleport.ComponentKube, process.id),
 	})
 
-	process.registerWithAuthServer(teleport.RoleKube, KubeIdentityEvent)
+	process.registerWithAuthServer(types.RoleKube, KubeIdentityEvent)
 	process.RegisterCriticalFunc("kube.init", func() error {
 		eventsC := make(chan Event)
 		process.WaitForEvent(process.ExitContext(), KubeIdentityEvent, eventsC)
@@ -176,8 +178,19 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	teleportClusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
+	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentKube,
+			Log:       log,
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create the kube server to service listener.
-	authorizer, err := auth.NewAuthorizer(teleportClusterName, conn.Client, conn.Client, conn.Client)
+	authorizer, err := auth.NewAuthorizer(teleportClusterName, accessPoint, lockWatcher)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -207,7 +220,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
-			Namespace:         defaults.Namespace,
+			Namespace:         apidefaults.Namespace,
 			Keygen:            cfg.Keygen,
 			ClusterName:       teleportClusterName,
 			Authz:             authorizer,
@@ -219,10 +232,11 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			Context:           process.ExitContext(),
 			KubeconfigPath:    cfg.Kube.KubeconfigPath,
 			KubeClusterName:   cfg.Kube.KubeClusterName,
-			NewKubeService:    true,
+			KubeServiceType:   kubeproxy.KubeService,
 			Component:         teleport.ComponentKube,
 			StaticLabels:      cfg.Kube.StaticLabels,
 			DynamicLabels:     dynLabels,
+			LockWatcher:       lockWatcher,
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,

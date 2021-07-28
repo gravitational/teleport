@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -258,7 +259,7 @@ func (w *PlaybackWriter) Write(ctx context.Context) error {
 	}
 }
 
-func (w *PlaybackWriter) writeEvent(event AuditEvent) error {
+func (w *PlaybackWriter) writeEvent(event apievents.AuditEvent) error {
 	switch event.GetType() {
 	// Timing events for TTY playback go to both a chunks file (the raw bytes) as
 	// well as well as the events file (structured events).
@@ -275,8 +276,8 @@ func (w *PlaybackWriter) writeEvent(event AuditEvent) error {
 	}
 }
 
-func (w *PlaybackWriter) writeSessionPrintEvent(event AuditEvent) error {
-	print, ok := event.(*SessionPrint)
+func (w *PlaybackWriter) writeSessionPrintEvent(event apievents.AuditEvent) error {
+	print, ok := event.(*apievents.SessionPrint)
 	if !ok {
 		return trace.BadParameter("expected session print event, got %T", event)
 	}
@@ -305,7 +306,7 @@ func (w *PlaybackWriter) writeSessionPrintEvent(event AuditEvent) error {
 	return nil
 }
 
-func (w *PlaybackWriter) writeRegularEvent(event AuditEvent) error {
+func (w *PlaybackWriter) writeRegularEvent(event apievents.AuditEvent) error {
 	w.eventIndex++
 	event.SetIndex(w.eventIndex)
 	if err := w.openEventsFile(0); err != nil {

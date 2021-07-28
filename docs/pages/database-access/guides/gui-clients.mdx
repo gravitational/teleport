@@ -1,79 +1,108 @@
 ---
 title: Database Access GUI Clients
-description: How to configure graphical database clients
+description: How to configure graphical database clients for Teleport Database Access.
 ---
 
 # Graphical Database Clients
 
-This page provides instructions on how to configure various graphical database
-clients to work with Teleport Database Access.
+This article describes how to configure popular graphical database clients to
+work with Teleport Database Access.
 
-Pick the client you're interested in from the table of contents on the right.
+## Obtain local certificate/key-pair
 
-## pgAdmin 4
+Issue the following command after you login with `tsh`:
+
+```bash
+# View configuration for the database you're logged in to.
+tsh db config
+# View configuration for the specific database when you're logged into multiple.
+tsh db config example
+```
+
+It will display the path to your locally cached PEM files:
+
+```
+Name:      example
+Host:      teleport.example.com
+Port:      3036
+User:      alice
+Database:
+CA:        /Users/alice/.tsh/keys/teleport.example.com/certs.pem
+Cert:      /Users/alice/.tsh/keys/teleport.example.com/alice-db/root/example-x509.pem
+Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
+```
+
+The displayed `CA`, `Cert`, and `Key` files are used to connect through pgAdmin
+4, MySQL Workbench, and other graphical database clients that support mutual
+TLS authentication.
+
+## PostgreSQL pgAdmin 4
 
 [pgAdmin 4](https://www.pgadmin.org/) is a popular graphical client for
 PostgreSQL servers.
 
-pgAdmin runs as a server that stores connection information for databases and
-serves a management web UI. As such, pgAdmin server must run on the machine
-where `tsh db login` is executed and have access to the certificate authority
-and client certificate/key pair produced by that command.
-
-To configure a new connection, right-click on Servers in the main browser view
+To configure a new connection, right-click on "Servers" in the main browser view
 and create a new server:
 
 ![pgAdmin Add Server](../../../img/database-access/pgadmin-add-server@2x.png)
 
-On the General tab of the new server dialog, enter the server connection name:
+In the "General" tab of the new server dialog, enter the server connection name:
 
 ![pgAdmin General](../../../img/database-access/pgadmin-general@2x.png)
 
-On the Connection tab, enter the default database name (Maintenance database)
-and the connection service name, same as when you specify connecting using
-`psql`. Leave all the other fields blank:
+In the "Connection" tab, enter the default database name (the *maintenance
+database*) and the connection service name (the same one that you specify when
+connecting through `psql`). Leave all the other fields blank:
 
 ![pgAdmin Connection](../../../img/database-access/pgadmin-connection@2x.png)
 
-On the SSL tab, set SSL mode to "full":
+In the "SSL" tab, set "SSL Mode" to `Verify-Full`:
 
 ![pgAdmin SSL](../../../img/database-access/pgadmin-ssl@2x.png)
 
-Click Save, and pgAdmin should immediately connect.
+Click "Save", and pgAdmin should immediately connect.
 
 ## MySQL Workbench
 
 [MySQL Workbench](https://www.mysql.com/products/workbench/) is a visual tool
 that provides comprehensive MySQL administration and SQL development tools.
 
-To connect to a database using MySQL Workbench, first retrieve the database
-credentials using `tsh db login` command. After logging in, take a note of
-the database configuration parameters shown by `tsh db config` command:
+In MySQL Workbench "Setup New Connection" dialog, fill out "Connection Name",
+"Hostname", "Port", and "Username":
 
-```bash
-$ tsh db config
-Name:      aurora
-Host:      root.gravitational.io
-Port:      3036
-User:      r0mant
-Database:
-CA:        /Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-Cert:      /Users/r0mant/.tsh/keys/root.gravitational.io/r0mant-db/root/aurora-x509.pem
-Key:       /Users/r0mant/.tsh/keys/root.gravitational.io/r0mant
-```
+![MySQL Workbench
+Parameters](../../../img/database-access/workbench-parameters@2x.png)
 
-In MySQL Workbench Setup New Connection dialog, fill out Connection Name, Hostname,
-Port and Username:
-
-![MySQL Workbench Parameters](../../../img/database-access/workbench-parameters@2x.png)
-
-On the SSL tab, set SSL mode to "Require and Verify Identity" and enter paths
-to CA, certificate and private key files from `tsh db config` command:
+In the "SSL" tab, set "Use SSL" to `Require and Verify Identity` and enter paths
+to  your CA, certificate, and private key files from `tsh db config` command:
 
 ![MySQL Workbench SSL](../../../img/database-access/workbench-ssl@2x.png)
 
-Optionally, click Test Connection to verify connectivity:
+Optionally, click "Test Connection" to verify connectivity:
 
 ![MySQL Workbench Test](../../../img/database-access/workbench-test@2x.png)
 
 Save the connection, and connect to the database.
+
+## MongoDB Compass
+
+[Compass](https://www.mongodb.com/products/compass) is the official MongoDB
+graphical client.
+
+On the "New Connection" panel, click on "Fill in connection fields individually".
+
+![MongoDB Compass new connection](../../../img/database-access/compass-new-connection@2x.png)
+
+On the "Hostname" tab, enter your Teleport proxy's hostname and port shown
+by `tsh db config`. Leave "Authentication" as None.
+
+![MongoDB Compass hostname](../../../img/database-access/compass-hostname@2x.png)
+
+On the "More Options" tab set SSL to "Client and Server Validation" and set
+CA as well as client key and certificate. Note the CA path must be provided
+and be able to validate certificate presented by your Teleport proxy's web
+endpoint. Client key and certificate locations are shown by `tsh db config`.
+
+![MongoDB Compass more options](../../../img/database-access/compass-more-options@2x.png)
+
+Click on the "Connect" button.

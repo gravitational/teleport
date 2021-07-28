@@ -38,32 +38,36 @@ Log into Teleport Authentication Server, this is where you normally run `tctl`. 
 new user and role that only has API access to the `access_request` API. The below script
 will create a yaml resource file for a new user and role.
 
+Create a non-interactive bot `access-plugin` user and role.
+
 ```bash
-# Copy and Paste the below on the Teleport Auth server.
-$ cat > rscs.yaml <<EOF
 kind: user
 metadata:
-  name: access-plugin-slack
+  name: access-plugin
 spec:
-  roles: ['access-plugin-slack']
+  roles: ['access-plugin']
 version: v2
 ---
 kind: role
+version: v3
 metadata:
-  name: access-plugin-slack
+  name: access-plugin
 spec:
   allow:
     rules:
       - resources: ['access_request']
-        verbs: ['list','read','update']
+        verbs: ['list', 'read']
+      - resources: ['access_plugin_data']
+        verbs: ['update']
     # teleport currently refuses to issue certs for a user with 0 logins,
     # this restriction may be lifted in future versions.
-    logins: ['access-plugin-slack']
-version: v3
-EOF
+    logins: ['access-plugin-not-used']
+```
 
-# Use tctl to create the user and role within Teleport.
-$ tctl create -f rscs.yaml
+Here and below follow along and create yaml resources using `tctl create -f`:
+
+```
+$ tctl create -f access.yaml
 ```
 
 <Admonition type="tip">
@@ -72,10 +76,10 @@ $ tctl create -f rscs.yaml
 
 #### Export access-plugin Certificate
 
-Teleport Plugin use the `access-plugin-slack` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
+Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
 ```bash
-$ tctl auth sign --format=tls --user=access-plugin-slack --out=auth --ttl=8760h
+tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=2190h
 # ...
 ```
 
@@ -95,9 +99,8 @@ We'll create a new Slack app and setup auth tokens and callback URLs, so that Sl
 You'll need to:
 
 1. Create a new app, pick a name and select a workspace it belongs to.
-2. Select “app features”: we'll enable interactivity and setup the callback URL here.
-3. Add OAuth Scopes. This is required by Slack for the app to be installed — we'll only need a single scope to post messages to your Slack account.
-4. Obtain OAuth token and callback signing secret for the Teleport plugin config.
+2. Add OAuth Scopes. This is required by Slack for the app to be installed — we'll only need a single scope to post messages to your Slack account.
+3. Obtain OAuth token
 
 #### Creating a New Slack app
 
@@ -109,16 +112,6 @@ Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new S
 
 ![Create Slack App](../../../img/enterprise/plugins/slack/Create-a-Slack-App.png)
 
-#### Setup Interactive Components
-
-This URL must match the URL setting in Teleport Plugin settings file (we'll cover that later), and be publicly accessible.
-
-For now, just think of the URL you'll use and set it in the Slack App's settings screen in Features > Interactive Components > Request URL.
-
-Request URL: `https://[cluster-url]:8081`
-
-![Interactive Components](../../../img/enterprise/plugins/slack/setup-interactive-component.png)
-
 #### Selecting OAuth Scopes
 
 On the App screen, go to “OAuth and Permissions” under Features in the sidebar menu. Then scroll to Scopes, and add `chat:write, incoming-webhook, users:read, users:read.email` scopes so that our plugin can post messages to your Slack channels.
@@ -128,12 +121,6 @@ On the App screen, go to “OAuth and Permissions” under Features in the sideb
 #### Obtain OAuth Token
 
 ![OAuth Tokens](../../../img/enterprise/plugins/slack/OAuth.png)
-
-#### Getting the secret signing token
-
-In the sidebar of the app screen, click on Basic. Scroll to App Credentials section, and grab the app's Signing Secret. We'll use it in the config file later.
-
-![Secret Signing Token](../../../img/enterprise/plugins/slack/SlackSigningSecret.png)
 
 #### Add to Workspace
 
@@ -149,14 +136,29 @@ location as plugins have a low memory footprint, and will require both public in
 and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/slack).
 
-```bash
-$ wget https://get.gravitational.com/teleport-access-slack-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-access-slack-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-$ cd teleport-access-slack/
-$ ./install
-$ which teleport-slack
-/usr/local/bin/teleport-slack
-```
+**Install the plugin**
+
+<Tabs>
+<TabItem label="Download">
+  ```bash
+  $ curl -L https://get.gravitational.com/teleport-access-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ cd teleport-access-slack
+  $ ./install
+  ```
+</TabItem>
+<TabItem label="From Source">
+  To install from source you need `git` and `go >= (=teleport.golang=)` installed.
+
+  ```bash
+  # Checkout teleport-plugins
+  $ git clone https://github.com/gravitational/teleport-plugins.git
+  $ cd teleport-plugins/access/slack
+  $ make
+  ```
+</TabItem>
+</Tabs>
+
 
 Run `./install` in from 'teleport-slack' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
@@ -182,9 +184,6 @@ In the Teleport section, use the certificates you've generated with `tctl auth s
 
 In Slack section, use the OAuth token, signing token, setup the desired channel name. The listen URL is the URL the plugin will listen for Slack callbacks.
 
-Then set the plugin callback (where Slack sends its requests) to an address you like, and provide the TLS certificates for that http server to use.
-
-By default, Teleport Slack plugin will run with TLS on.
 
 ```conf
 (!examples/resources/plugins/teleport-slack.toml!)

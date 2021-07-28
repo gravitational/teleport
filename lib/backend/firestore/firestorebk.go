@@ -30,6 +30,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -139,7 +141,7 @@ func newRecord(from backend.Item, clock clockwork.Clock) record {
 		Key:       from.Key,
 		Value:     from.Value,
 		Timestamp: clock.Now().UTC().Unix(),
-		ID:        clock.Now().UTC().UnixNano(),
+		ID:        id(clock.Now()),
 	}
 	if !from.Expires.IsZero() {
 		r.Expires = from.Expires.UTC().Unix()
@@ -169,12 +171,12 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 }
 
 // isExpired returns 'true' if the given object (record) has a TTL and it's due
-func (r *record) isExpired() bool {
+func (r *record) isExpired(now time.Time) bool {
 	if r.Expires == 0 {
 		return false
 	}
 	expiryDateUTC := time.Unix(r.Expires, 0).UTC()
-	return time.Now().UTC().After(expiryDateUTC)
+	return now.UTC().After(expiryDateUTC)
 }
 
 func (r *record) backendItem() backend.Item {
@@ -196,10 +198,12 @@ const (
 	defaultPurgeInterval = time.Minute
 	// keyDocProperty is used internally to query for records and matches the key in the record struct tag
 	keyDocProperty = "key"
-	// expiresDocProperty is used internally to query for records and matches the key in the record struct tag
+	// expiresDocProperty is used internally to query for records and matches the expiration timestamp in the record struct tag
 	expiresDocProperty = "expires"
-	// timestampDocProperty is used internally to query for records and matches the key in the record struct tag
+	// timestampDocProperty is used internally to query for records and matches the timestamp in the record struct tag
 	timestampDocProperty = "timestamp"
+	// idDocProperty references the record's internal ID
+	idDocProperty = "id"
 	// timeInBetweenIndexCreationStatusChecks
 	timeInBetweenIndexCreationStatusChecks = time.Second * 10
 )
@@ -241,7 +245,7 @@ func CreateFirestoreClients(ctx context.Context, projectID string, endPoint stri
 func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
 	var cfg *backendConfig
-	err := utils.ObjectToStruct(params, &cfg)
+	err := apiutils.ObjectToStruct(params, &cfg)
 	if err != nil {
 		return nil, trace.BadParameter("firestore: configuration is invalid: %v", err)
 	}
@@ -260,7 +264,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	// It won't be needed after New returns.
 	defer firestoreAdminClient.Close()
 
-	buf, err := backend.NewCircularBuffer(ctx, cfg.BufferSize)
+	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -306,7 +310,7 @@ func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease
 	return b.newLease(item), nil
 }
 
-// Put puts value into backend (creates if it does not exists, updates it otherwise)
+// Put puts value into backend (creates if it does not exist, updates it otherwise)
 func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	r := newRecord(item, b.clock)
 	_, err := b.svc.Collection(b.CollectionName).Doc(b.keyToDocumentID(item.Key)).Set(ctx, r)
@@ -372,7 +376,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 			return nil, trace.Wrap(err)
 		}
 
-		if r.isExpired() {
+		if r.isExpired(b.clock.Now()) {
 			if _, err := docSnap.Ref.Delete(ctx); err != nil {
 				return nil, ConvertGRPCError(err)
 			}
@@ -420,7 +424,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if r.isExpired() {
+	if r.isExpired(b.clock.Now()) {
 		if _, err := docSnap.Ref.Delete(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -490,11 +494,6 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 
 // NewWatcher returns a new event watcher
 func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
-	select {
-	case <-b.watchStarted.Done():
-	case <-ctx.Done():
-		return nil, trace.ConnectionProblem(ctx.Err(), "context is closing")
-	}
 	return b.buf.NewWatcher(ctx, watch)
 }
 
@@ -520,11 +519,15 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 		return trace.Wrap(err)
 	}
 
-	if r.isExpired() {
+	if r.isExpired(b.clock.Now()) {
 		return trace.NotFound("key %s has already expired, cannot extend lease", lease.Key)
 	}
 
-	updates := []firestore.Update{{Path: expiresDocProperty, Value: expires.UTC().Unix()}, {Path: timestampDocProperty, Value: b.clock.Now().UTC().Unix()}}
+	updates := []firestore.Update{
+		{Path: expiresDocProperty, Value: expires.UTC().Unix()},
+		{Path: timestampDocProperty, Value: b.clock.Now().UTC().Unix()},
+		{Path: idDocProperty, Value: id(b.clock.Now())},
+	}
 	_, err = docSnap.Ref.Update(ctx, updates)
 	if err != nil {
 		return ConvertGRPCError(err)
@@ -544,7 +547,7 @@ func (b *Backend) Close() error {
 
 // CloseWatchers closes all the watchers without closing the backend
 func (b *Backend) CloseWatchers() {
-	b.buf.Reset()
+	b.buf.Clear()
 }
 
 // Clock returns wall clock
@@ -603,14 +606,34 @@ func isCanceled(err error) bool {
 	}
 }
 
+// driftTolerance is the amount of clock drift between auth servers that we
+// will be resilient to.  Clock drift greater than this amount may result
+// in cache inconsistencies due to missing events which aught to have a "happens after"
+// relationship to associated reads.  This is because the firestore event stream
+// starts at a timestamp field that is defined by the auth server.  If a different
+// auth server is lagging behind us, it may modify a document after we established our
+// listener, but we will miss the event because it used an old timestamp.  We combat this
+// issue by starting our query slightly in the past.  If an auth server writes a document
+// and is lagging less than driftTolerance, subscribing caches will be correctly updated.
+// This has the unfortunate side-effect of potentially emitting old events, but this is OK
+// (if somewhat confusing).  All caching logic assumes that it may see some events which
+// happened before it's reads completed.  Missing an event that happened after is what
+// can lead to permanently bad cache state.
+const driftTolerance = time.Millisecond * 2500
+
 // watchCollection watches a firestore collection for changes and pushes those changes, events into the buffer for watchers
 func (b *Backend) watchCollection() error {
 	var snaps *firestore.QuerySnapshotIterator
+
 	if b.LimitWatchQuery {
-		snaps = b.svc.Collection(b.CollectionName).Query.Where(timestampDocProperty, ">=", b.clock.Now().UTC().Unix()).Snapshots(b.clientContext)
+		snaps = b.svc.Collection(b.CollectionName).Query.Where(timestampDocProperty, ">=", b.clock.Now().UTC().Add(-driftTolerance).Unix()).Snapshots(b.clientContext)
 	} else {
 		snaps = b.svc.Collection(b.CollectionName).Snapshots(b.clientContext)
 	}
+
+	b.buf.SetInit()
+	defer b.buf.Reset()
+
 	b.signalWatchStart()
 	defer snaps.Stop()
 	for {
@@ -629,18 +652,18 @@ func (b *Backend) watchCollection() error {
 			switch change.Kind {
 			case firestore.DocumentAdded, firestore.DocumentModified:
 				e = backend.Event{
-					Type: backend.OpPut,
+					Type: types.OpPut,
 					Item: r.backendItem(),
 				}
 			case firestore.DocumentRemoved:
 				e = backend.Event{
-					Type: backend.OpDelete,
+					Type: types.OpDelete,
 					Item: backend.Item{
 						Key: r.Key,
 					},
 				}
 			}
-			b.buf.Push(e)
+			b.buf.Emit(e)
 		}
 	}
 }
@@ -775,4 +798,9 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 	}
 
 	return nil
+}
+
+// id returns a new record ID base on the specified timestamp
+func id(now time.Time) int64 {
+	return now.UTC().UnixNano()
 }

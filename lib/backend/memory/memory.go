@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/google/btree"
@@ -91,11 +92,12 @@ func New(cfg Config) (*Memory, error) {
 		return nil, trace.Wrap(err)
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
-	buf, err := backend.NewCircularBuffer(ctx, cfg.BufferSize)
+	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
 	}
+	buf.SetInit()
 	m := &Memory{
 		Mutex: &sync.Mutex{},
 		Entry: log.WithFields(log.Fields{
@@ -143,7 +145,7 @@ func (m *Memory) Close() error {
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (m *Memory) CloseWatchers() {
-	m.buf.Reset()
+	m.buf.Clear()
 }
 
 // Clock returns clock used by this backend
@@ -163,12 +165,12 @@ func (m *Memory) Create(ctx context.Context, i backend.Item) (*backend.Lease, er
 		return nil, trace.AlreadyExists("key %q already exists", string(i.Key))
 	}
 	event := backend.Event{
-		Type: backend.OpPut,
+		Type: types.OpPut,
 		Item: i,
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return m.newLease(i), nil
 }
@@ -204,18 +206,18 @@ func (m *Memory) Update(ctx context.Context, i backend.Item) (*backend.Lease, er
 		i.ID = m.generateID()
 	}
 	event := backend.Event{
-		Type: backend.OpPut,
+		Type: types.OpPut,
 		Item: i,
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return m.newLease(i), nil
 }
 
 // Put puts value into backend (creates if it does not
-// exists, updates it otherwise)
+// exist, updates it otherwise)
 func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	if len(i.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
@@ -223,19 +225,22 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
+	if !m.Mirror {
+		i.ID = m.generateID()
+	}
 	event := backend.Event{
-		Type: backend.OpPut,
+		Type: types.OpPut,
 		Item: i,
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return m.newLease(i), nil
 }
 
-// PutRange puts range of items into backend (creates if items does not
-// exists, updates it otherwise)
+// PutRange puts range of items into backend (creates if items do not
+// exist, updates it otherwise)
 func (m *Memory) PutRange(ctx context.Context, items []backend.Item) error {
 	for i := range items {
 		if items[i].Key == nil {
@@ -247,7 +252,7 @@ func (m *Memory) PutRange(ctx context.Context, items []backend.Item) error {
 	m.removeExpired()
 	for _, item := range items {
 		event := backend.Event{
-			Type: backend.OpPut,
+			Type: types.OpPut,
 			Item: item,
 		}
 		if !m.Mirror {
@@ -255,7 +260,7 @@ func (m *Memory) PutRange(ctx context.Context, items []backend.Item) error {
 		}
 		m.processEvent(event)
 		if !m.EventsOff {
-			m.buf.Push(event)
+			m.buf.Emit(event)
 		}
 	}
 	return nil
@@ -274,14 +279,14 @@ func (m *Memory) Delete(ctx context.Context, key []byte) error {
 		return trace.NotFound("key %q is not found", string(key))
 	}
 	event := backend.Event{
-		Type: backend.OpDelete,
+		Type: types.OpDelete,
 		Item: backend.Item{
 			Key: key,
 		},
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return nil
 }
@@ -301,12 +306,12 @@ func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey []byte) error
 	re := m.getRange(ctx, startKey, endKey, backend.NoLimit)
 	for _, item := range re.Items {
 		event := backend.Event{
-			Type: backend.OpDelete,
+			Type: types.OpDelete,
 			Item: item,
 		}
 		m.processEvent(event)
 		if !m.EventsOff {
-			m.buf.Push(event)
+			m.buf.Emit(event)
 		}
 	}
 	return nil
@@ -344,13 +349,17 @@ func (m *Memory) KeepAlive(ctx context.Context, lease backend.Lease, expires tim
 	}
 	item := i.(*btreeItem).Item
 	item.Expires = expires
+	if !m.Mirror {
+		// ID is updated on keep alive for consistency with other backends
+		item.ID = m.generateID()
+	}
 	event := backend.Event{
-		Type: backend.OpPut,
+		Type: types.OpPut,
 		Item: item,
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return nil
 }
@@ -378,12 +387,12 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 		return nil, trace.CompareFailed("current value does not match expected for %v", string(expected.Key))
 	}
 	event := backend.Event{
-		Type: backend.OpPut,
+		Type: types.OpPut,
 		Item: replaceWith,
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return m.newLease(replaceWith), nil
 }
@@ -447,13 +456,13 @@ func (m *Memory) removeExpired() int {
 		removed++
 
 		event := backend.Event{
-			Type: backend.OpDelete,
+			Type: types.OpDelete,
 			Item: backend.Item{
 				Key: item.Key,
 			},
 		}
 		if !m.EventsOff {
-			m.buf.Push(event)
+			m.buf.Emit(event)
 		}
 	}
 	if removed > 0 {
@@ -464,7 +473,7 @@ func (m *Memory) removeExpired() int {
 
 func (m *Memory) processEvent(event backend.Event) {
 	switch event.Type {
-	case backend.OpPut:
+	case types.OpPut:
 		item := &btreeItem{Item: event.Item, index: -1}
 		treeItem := m.tree.Get(item)
 		var existingItem *btreeItem
@@ -500,7 +509,7 @@ func (m *Memory) processEvent(event backend.Event) {
 		default:
 			// skip adding or updating the item that has expired
 		}
-	case backend.OpDelete:
+	case types.OpDelete:
 		treeItem := m.tree.Get(&btreeItem{Item: event.Item})
 		if treeItem != nil {
 			item := treeItem.(*btreeItem)

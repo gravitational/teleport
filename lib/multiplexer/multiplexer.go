@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -319,9 +319,12 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 	return nil, trace.BadParameter("unknown protocol")
 }
 
+// Protocol defines detected protocol type.
+type Protocol int
+
 const (
 	// ProtoUnknown is for unknown protocol
-	ProtoUnknown = iota
+	ProtoUnknown Protocol = iota
 	// ProtoTLS is TLS protocol
 	ProtoTLS
 	// ProtoSSH is SSH protocol
@@ -379,7 +382,7 @@ func isHTTP(in []byte) bool {
 	return false
 }
 
-func detectProto(in []byte) (int, error) {
+func detectProto(in []byte) (Protocol, error) {
 	switch {
 	// reader peeks only 3 bytes, slice the longer proxy prefix
 	case bytes.HasPrefix(in, proxyPrefix[:3]):

@@ -20,14 +20,15 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"net"
-	"strings"
 	"sync/atomic"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgproto3/v2"
 
 	"github.com/gravitational/trace"
@@ -62,6 +63,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgcon
 //   - Reply with the same TestQueryResponse to every query the client sends.
 //   - Recognize terminate messages from clients closing connections.
 type TestServer struct {
+	cfg       common.TestServerConfig
 	listener  net.Listener
 	port      string
 	tlsConfig *tls.Config
@@ -89,11 +91,12 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &TestServer{
+		cfg:       config,
 		listener:  listener,
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "postgres",
+			trace.Component: defaults.ProtocolPostgres,
 			"name":          config.Name,
 		}),
 	}, nil
@@ -106,7 +109,7 @@ func (s *TestServer) Serve() error {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
+			if utils.IsOKNetworkError(err) {
 				return nil
 			}
 			s.log.WithError(err).Error("Failed to accept connection.")
@@ -143,16 +146,28 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 			return trace.Wrap(err)
 		}
 		s.log.Debugf("Received %#v.", message)
-		switch msg := message.(type) {
+		switch message.(type) {
 		case *pgproto3.Query:
-			err := s.handleQuery(client, msg)
-			if err != nil {
+			if err := s.handleQuery(client); err != nil {
+				s.log.WithError(err).Error("Failed to handle query.")
+			}
+		// Following messages are for handling Postgres extended query
+		// protocol flow used by prepared statements.
+		case *pgproto3.Parse:
+			// Parse prepares the statement.
+		case *pgproto3.Bind:
+			// Bind binds prepared statement with parameters.
+		case *pgproto3.Describe:
+		case *pgproto3.Sync:
+		case *pgproto3.Execute:
+			// Execute executes prepared statement.
+			if err := s.handleQuery(client); err != nil {
 				s.log.WithError(err).Error("Failed to handle query.")
 			}
 		case *pgproto3.Terminate:
 			return nil
 		default:
-			return trace.BadParameter("unsupported message %#v", msg)
+			return trace.BadParameter("unsupported message %#v", message)
 		}
 	}
 }
@@ -185,6 +200,18 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend) error {
 		return trace.BadParameter("expected *pgproto3.StartupMessage, got: %#v", startupMessage)
 	}
 	s.log.Debugf("Received %#v.", startupMessage)
+	// If auth token is specified, used it for password authentication, this
+	// simulates cloud provider IAM auth.
+	if s.cfg.AuthToken != "" {
+		if err := s.handlePasswordAuth(client); err != nil {
+			if trace.IsAccessDenied(err) {
+				if err := client.Send(&pgproto3.ErrorResponse{Code: pgerrcode.InvalidPassword, Message: err.Error()}); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			return trace.Wrap(err)
+		}
+	}
 	// Accept auth and send ready for query.
 	if err := client.Send(&pgproto3.AuthenticationOk{}); err != nil {
 		return trace.Wrap(err)
@@ -195,7 +222,29 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend) error {
 	return nil
 }
 
-func (s *TestServer) handleQuery(client *pgproto3.Backend, query *pgproto3.Query) error {
+func (s *TestServer) handlePasswordAuth(client *pgproto3.Backend) error {
+	// Request cleartext password.
+	if err := client.Send(&pgproto3.AuthenticationCleartextPassword{}); err != nil {
+		return trace.Wrap(err)
+	}
+	// Wait for response which should be PasswordMessage.
+	message, err := client.Receive()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	passwordMessage, ok := message.(*pgproto3.PasswordMessage)
+	if !ok {
+		return trace.BadParameter("expected *pgproto3.PasswordMessage, got: %#v", message)
+	}
+	// Verify the token.
+	if passwordMessage.Password != s.cfg.AuthToken {
+		// Logging auth tokens just for the tests debugging convenience...
+		return trace.AccessDenied("invalid auth token: got %q, want %q", passwordMessage.Password, s.cfg.AuthToken)
+	}
+	return nil
+}
+
+func (s *TestServer) handleQuery(client *pgproto3.Backend) error {
 	atomic.AddUint32(&s.queryCount, 1)
 	messages := []pgproto3.BackendMessage{
 		&pgproto3.RowDescription{Fields: TestQueryResponse.FieldDescriptions},

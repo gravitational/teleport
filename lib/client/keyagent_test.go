@@ -24,19 +24,22 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -51,6 +54,7 @@ type KeyAgentTestSuite struct {
 	hostname    string
 	clusterName string
 	tlsca       *tlsca.CertAuthority
+	close       func()
 }
 
 var _ = check.Suite(&KeyAgentTestSuite{})
@@ -77,16 +81,16 @@ func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// start a debug agent that will be used in tests
-	err = startDebugAgent()
+	s.close, err = startDebugAgent()
 	c.Assert(err, check.IsNil)
 }
 
 func (s *KeyAgentTestSuite) TearDownSuite(c *check.C) {
 	err := os.RemoveAll(s.keyDir)
 	c.Assert(err, check.IsNil)
-}
-
-func (s *KeyAgentTestSuite) SetUpTest(c *check.C) {
+	if s.close != nil {
+		s.close()
+	}
 }
 
 // TestAddKey ensures correct adding of ssh keys. This test checks the following:
@@ -111,13 +115,13 @@ func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 
 	// check that the key has been written to disk
 	expectedFiles := []string{
-		s.username,                            // private key
-		s.username + constants.FileExtPub,     // public key
-		s.username + constants.FileExtTLSCert, // Teleport TLS certificate
-		filepath.Join(s.username+constants.SSHDirSuffix, s.key.ClusterName+constants.FileExtSSHCert), // SSH certificate
+		keypaths.UserKeyPath(s.keyDir, s.hostname, s.username),                    // private key
+		keypaths.SSHCAsPath(s.keyDir, s.hostname, s.username),                     // public key
+		keypaths.TLSCertPath(s.keyDir, s.hostname, s.username),                    // Teleport TLS certificate
+		keypaths.SSHCertPath(s.keyDir, s.hostname, s.username, s.key.ClusterName), // SSH certificate
 	}
 	for _, file := range expectedFiles {
-		_, err := os.Stat(filepath.Join(s.keyDir, "keys", s.hostname, file))
+		_, err := os.Stat(file)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -239,22 +243,24 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	keygen := testauthority.New()
 	caPriv, caPub, err := keygen.GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
+	caSigner, err := ssh.ParsePrivateKey(caPriv)
+	c.Assert(err, check.IsNil)
 	caPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
 	c.Assert(err, check.IsNil)
-	err = lka.keyStore.AddKnownHostKeys("example.com", []ssh.PublicKey{caPublicKey})
+	err = lka.keyStore.AddKnownHostKeys("example.com", s.hostname, []ssh.PublicKey{caPublicKey})
 	c.Assert(err, check.IsNil)
 
 	// Generate a host certificate for node with role "node".
 	_, hostPub, err := keygen.GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
-	roles, err := teleport.ParseRoles("node")
+	roles, err := types.ParseTeleportRoles("node")
 	c.Assert(err, check.IsNil)
 	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: caPriv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       hostPub,
-		HostID:              "5ff40d80-9007-4f28-8f49-7d4fda2f574d",
-		NodeName:            "server01",
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: hostPub,
+		HostID:        "5ff40d80-9007-4f28-8f49-7d4fda2f574d",
+		NodeName:      "server01",
 		Principals: []string{
 			"127.0.0.1",
 		},
@@ -443,9 +449,13 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 	if !ok {
 		return nil, trace.BadParameter("RSA key not found in fixtures")
 	}
+	caSigner, err := ssh.ParsePrivateKey(pemBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
-		PrivateCASigningKey:   pemBytes,
+		CASigner:              caSigner,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         publicKey,
 		Username:              username,
@@ -471,39 +481,59 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 	}, nil
 }
 
-func startDebugAgent() error {
-	errorC := make(chan error)
+func startDebugAgent() (closer func(), err error) {
 	rand.Seed(time.Now().Unix())
+	socketpath := filepath.Join(os.TempDir(),
+		fmt.Sprintf("teleport-%d-%d.socket", os.Getpid(), rand.Uint32()))
 
+	listener, err := net.Listen("unix", socketpath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	systemAgent := agent.NewKeyring()
+	os.Setenv(teleport.SSHAuthSock, socketpath)
+
+	startedC := make(chan struct{})
+	doneC := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
-		socketpath := filepath.Join(os.TempDir(),
-			fmt.Sprintf("teleport-%d-%d.socket", os.Getpid(), rand.Uint32()))
-
-		systemAgent := agent.NewKeyring()
-
-		listener, err := net.Listen("unix", socketpath)
-		if err != nil {
-			errorC <- trace.Wrap(err)
-			return
-		}
-		defer listener.Close()
-
-		os.Setenv(teleport.SSHAuthSock, socketpath)
-
-		// agent is listeninging and environment variable is set unblock now
-		close(errorC)
-
+		defer wg.Done()
+		defer os.Setenv(teleport.SSHAuthSock, "")
+		// agent is listening and environment variable is set, unblock now
+		close(startedC)
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				log.Warnf("Unexpected response from listener.Accept: %v", err)
-				continue
+				if !utils.IsUseOfClosedNetworkError(err) {
+					log.Warnf("Unexpected response from listener.Accept: %v", err)
+				}
+				return
 			}
-
-			go agent.ServeAgent(systemAgent, conn)
+			wg.Add(2)
+			go func() {
+				agent.ServeAgent(systemAgent, conn)
+				wg.Done()
+			}()
+			go func() {
+				<-doneC
+				conn.Close()
+				wg.Done()
+			}()
 		}
 	}()
 
+	go func() {
+		<-doneC
+		listener.Close()
+		wg.Done()
+	}()
+
 	// block until agent is started
-	return <-errorC
+	<-startedC
+	return func() {
+		close(doneC)
+		wg.Wait()
+	}, nil
 }

@@ -26,7 +26,6 @@ package db
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
@@ -39,16 +38,35 @@ import (
 )
 
 // Add updates database connection profile file.
-func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, quiet bool) error {
+func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus) error {
+	// Out of supported databases, only Postgres and MySQL have a concept
+	// of the connection options file.
+	switch db.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolMySQL:
+	default:
+		return nil
+	}
 	profileFile, err := load(db)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Postgres proxy listens on web proxy port while MySQL proxy listens on
-	// a separate port due to the specifics of the protocol.
-	host, port := tc.WebProxyHostPort()
-	if db.Protocol == defaults.ProtocolMySQL {
+	_, err = add(tc, db, clientProfile, profileFile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, profileFile profile.ConnectProfileFile) (*profile.ConnectProfile, error) {
+	var host string
+	var port int
+	switch db.Protocol {
+	case defaults.ProtocolPostgres:
+		host, port = tc.PostgresProxyHostPort()
+	case defaults.ProtocolMySQL:
 		host, port = tc.MySQLProxyHostPort()
+	default:
+		return nil, trace.BadParameter("unknown database protocol: %q", db)
 	}
 	connectProfile := profile.ConnectProfile{
 		Name:       profileName(tc.SiteName, db.ServiceName),
@@ -61,20 +79,11 @@ func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 		CertPath:   clientProfile.DatabaseCertPath(db.ServiceName),
 		KeyPath:    clientProfile.KeyPath(),
 	}
-	err = profileFile.Upsert(connectProfile)
+	err := profileFile.Upsert(connectProfile)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	if quiet {
-		return nil
-	}
-	switch db.Protocol {
-	case defaults.ProtocolPostgres:
-		return postgres.Message.Execute(os.Stdout, connectProfile)
-	case defaults.ProtocolMySQL:
-		return mysql.Message.Execute(os.Stdout, connectProfile)
-	}
-	return nil
+	return &connectProfile, nil
 }
 
 // Env returns environment variables for the specified database profile.
@@ -92,6 +101,13 @@ func Env(tc *client.TeleportClient, db tlsca.RouteToDatabase) (map[string]string
 
 // Delete removes the specified database connection profile.
 func Delete(tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
+	// Out of supported databases, only Postgres and MySQL have a concept
+	// of the connection options file.
+	switch db.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolMySQL:
+	default:
+		return nil
+	}
 	profileFile, err := load(db)
 	if err != nil {
 		return trace.Wrap(err)

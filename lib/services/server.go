@@ -19,8 +19,11 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -38,24 +41,22 @@ const (
 	Different = iota
 )
 
-// Compare compares two provided resources.
-func Compare(a, b Resource) int {
-	if serverA, ok := a.(Server); ok {
-		if serverB, ok := b.(Server); ok {
-			return CompareServers(serverA, serverB)
+// CompareServers compares two provided servers.
+func CompareServers(a, b types.Resource) int {
+	if serverA, ok := a.(types.Server); ok {
+		if serverB, ok := b.(types.Server); ok {
+			return compareServers(serverA, serverB)
 		}
 	}
 	if dbA, ok := a.(types.DatabaseServer); ok {
 		if dbB, ok := b.(types.DatabaseServer); ok {
-			return CompareDatabaseServers(dbA, dbB)
+			return compareDatabaseServers(dbA, dbB)
 		}
 	}
 	return Different
 }
 
-// CompareServers returns difference between two server
-// objects, Equal (0) if identical, OnlyTimestampsDifferent(1) if only timestamps differ, Different(2) otherwise
-func CompareServers(a, b Server) int {
+func compareServers(a, b types.Server) int {
 	if a.GetKind() != b.GetKind() {
 		return Different
 	}
@@ -84,7 +85,7 @@ func CompareServers(a, b Server) int {
 	if !utils.StringMapsEqual(a.GetLabels(), b.GetLabels()) {
 		return Different
 	}
-	if !CmdLabelMapsEqual(a.GetCmdLabels(), b.GetCmdLabels()) {
+	if !cmp.Equal(a.GetCmdLabels(), b.GetCmdLabels()) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {
@@ -94,58 +95,16 @@ func CompareServers(a, b Server) int {
 		return Different
 	}
 
-	// If this server is proxying applications, compare them to make sure they match.
-	if a.GetKind() == KindAppServer {
-		return CompareApps(a.GetApps(), b.GetApps())
+	if !cmp.Equal(a.GetApps(), b.GetApps()) {
+		return Different
 	}
-
 	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
 		return Different
 	}
-
 	return Equal
 }
 
-// CompareApps compares two slices of apps and returns if they are equal or
-// different.
-func CompareApps(a []*App, b []*App) int {
-	if len(a) != len(b) {
-		return Different
-	}
-	for i := range a {
-		if a[i].Name != b[i].Name {
-			return Different
-		}
-		if a[i].URI != b[i].URI {
-			return Different
-		}
-		if a[i].PublicAddr != b[i].PublicAddr {
-			return Different
-		}
-		if !utils.StringMapsEqual(a[i].StaticLabels, b[i].StaticLabels) {
-			return Different
-		}
-		if !CmdLabelMapsEqual(
-			V2ToLabels(a[i].DynamicLabels),
-			V2ToLabels(b[i].DynamicLabels)) {
-			return Different
-		}
-		if (a[i].Rewrite == nil && b[i].Rewrite != nil) ||
-			(a[i].Rewrite != nil && b[i].Rewrite == nil) {
-			return Different
-		}
-		if a[i].Rewrite != nil && b[i].Rewrite != nil {
-			if !utils.StringSlicesEqual(a[i].Rewrite.Redirect, b[i].Rewrite.Redirect) {
-				return Different
-			}
-		}
-	}
-	return Equal
-}
-
-// CompareDatabaseServers returns whether the two provided database servers
-// are equal or different.
-func CompareDatabaseServers(a, b types.DatabaseServer) int {
+func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if a.GetKind() != b.GetKind() {
 		return Different
 	}
@@ -165,7 +124,7 @@ func CompareDatabaseServers(a, b types.DatabaseServer) int {
 	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
 		return Different
 	}
-	if !CmdLabelMapsEqual(a.GetDynamicLabels(), b.GetDynamicLabels()) {
+	if !cmp.Equal(a.GetDynamicLabels(), b.GetDynamicLabels()) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {
@@ -180,26 +139,8 @@ func CompareDatabaseServers(a, b types.DatabaseServer) int {
 	return Equal
 }
 
-// CmdLabelMapsEqual compares two maps with command labels,
-// returns true if label sets are equal
-func CmdLabelMapsEqual(a, b map[string]CommandLabel) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for key, val := range a {
-		val2, ok := b[key]
-		if !ok {
-			return false
-		}
-		if !val.Equals(val2) {
-			return false
-		}
-	}
-	return true
-}
-
 // CommandLabels is a set of command labels
-type CommandLabels map[string]CommandLabel
+type CommandLabels map[string]types.CommandLabel
 
 // Clone returns copy of the set
 func (c *CommandLabels) Clone() CommandLabels {
@@ -219,7 +160,7 @@ func (c *CommandLabels) SetEnv(v string) error {
 }
 
 // SortedServers is a sort wrapper that sorts servers by name
-type SortedServers []Server
+type SortedServers []types.Server
 
 func (s SortedServers) Len() int {
 	return len(s)
@@ -234,7 +175,7 @@ func (s SortedServers) Swap(i, j int) {
 }
 
 // SortedReverseTunnels sorts reverse tunnels by cluster name
-type SortedReverseTunnels []ReverseTunnel
+type SortedReverseTunnels []types.ReverseTunnel
 
 func (s SortedReverseTunnels) Len() int {
 	return len(s)
@@ -255,7 +196,7 @@ func (s SortedReverseTunnels) Swap(i, j int) {
 // version will also be returned.
 //
 // Returns empty value if there are no proxies.
-func GuessProxyHostAndVersion(proxies []Server) (string, string, error) {
+func GuessProxyHostAndVersion(proxies []types.Server) (string, string, error) {
 	if len(proxies) == 0 {
 		return "", "", trace.NotFound("list of proxies empty")
 	}
@@ -273,129 +214,8 @@ func GuessProxyHostAndVersion(proxies []Server) (string, string, error) {
 	return guessProxyHost, proxies[0].GetTeleportVersion(), nil
 }
 
-// ServerSpecV2Schema is JSON schema for server
-const ServerSpecV2Schema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-	  "version": {"type": "string"},
-	  "addr": {"type": "string"},
-	  "protocol": {"type": "integer"},
-	  "public_addr": {"type": "string"},
-	  "apps":  {
-		"type": ["array"],
-		"items": {
-		  "type": "object",
-		  "additionalProperties": false,
-		  "properties": {
-			  "name": {"type": "string"},
-			  "description": {"type": "string"},
-			  "uri": {"type": "string"},
-			  "public_addr": {"type": "string"},
-			  "insecure_skip_verify": {"type": "boolean"},
-			  "rewrite": {
-			  "type": "object",
-			  "additionalProperties": false,
-			  "properties": {
-				"redirect": {"type": ["array"], "items": {"type": "string"}}
-			  }
-			},
-			"labels": {
-			  "type": "object",
-			  "additionalProperties": false,
-			  "patternProperties": {
-				"^.*$":  { "type": "string" }
-			  }
-			},
-			"commands": {
-			  "type": "object",
-			  "additionalProperties": false,
-			  "patternProperties": {
-				"^.*$": {
-				  "type": "object",
-				  "additionalProperties": false,
-				  "required": ["command"],
-				  "properties": {
-					  "command": {"type": "array", "items": {"type": "string"}},
-					"period": {"type": "string"},
-					"result": {"type": "string"}
-				  }
-				}
-			  }
-			}
-		  }
-		}
-	  },
-	  "hostname": {"type": "string"},
-	  "use_tunnel": {"type": "boolean"},
-	  "labels": {
-		  "type": "object",
-		  "additionalProperties": false,
-		"patternProperties": {
-		  "^.*$":  { "type": "string" }
-		}
-	  },
-	  "cmd_labels": {
-		"type": "object",
-		"additionalProperties": false,
-		"patternProperties": {
-		  "^.*$": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["command"],
-			"properties": {
-			  "command": {"type": "array", "items": {"type": "string"}},
-			  "period": {"type": "string"},
-			  "result": {"type": "string"}
-			}
-		  }
-		}
-	  },
-	  "kube_clusters": {
-		"type": "array",
-		"items": {
-		  "type": "object",
-		  "required": ["name"],
-		  "properties": {
-		  "name": {"type": "string"},
-		  "static_labels": {
-			"type": "object",
-			"additionalProperties": false,
-			"patternProperties": {
-			  "^.*$":  { "type": "string" }
-			}
-		  },
-		  "dynamic_labels": {
-			"type": "object",
-			"additionalProperties": false,
-			"patternProperties": {
-			  "^.*$": {
-				"type": "object",
-				"additionalProperties": false,
-				"required": ["command"],
-				"properties": {
-				  "command": {"type": "array", "items": {"type": "string"}},
-				  "period": {"type": "string"},
-				  "result": {"type": "string"}
-				}
-			  }
-			}
-		  }
-		}
-	  }
-	},
-	"rotation": %v
-  }
-  }`
-
-// GetServerSchema returns role schema with optionally injected
-// schema for extensions
-func GetServerSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(ServerSpecV2Schema, RotationSchema), DefaultDefinitions)
-}
-
 // UnmarshalServer unmarshals the Server resource from JSON.
-func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, error) {
+func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Server, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -405,23 +225,17 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, 
 		return nil, trace.BadParameter("missing server data")
 	}
 
-	var h ResourceHeader
+	var h types.ResourceHeader
 	if err = utils.FastUnmarshal(bytes, &h); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch h.Version {
-	case V2:
-		var s ServerV2
+	case types.V2:
+		var s types.ServerV2
 
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &s); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, bytes); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
+		if err := utils.FastUnmarshal(bytes, &s); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
 		s.Kind = kind
 		if err := s.CheckAndSetDefaults(); err != nil {
@@ -434,32 +248,30 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, 
 			s.SetExpiry(cfg.Expires)
 		}
 		if s.Metadata.Expires != nil {
-			utils.UTC(s.Metadata.Expires)
+			apiutils.UTC(s.Metadata.Expires)
 		}
 		// Force the timestamps to UTC for consistency.
 		// See https://github.com/gogo/protobuf/issues/519 for details on issues this causes for proto.Clone
-		utils.UTC(&s.Spec.Rotation.Started)
-		utils.UTC(&s.Spec.Rotation.LastRotated)
+		apiutils.UTC(&s.Spec.Rotation.Started)
+		apiutils.UTC(&s.Spec.Rotation.LastRotated)
 		return &s, nil
 	}
 	return nil, trace.BadParameter("server resource version %q is not supported", h.Version)
 }
 
 // MarshalServer marshals the Server resource to JSON.
-func MarshalServer(server Server, opts ...MarshalOption) ([]byte, error) {
+func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch server := server.(type) {
-	case *ServerV2:
-		if version := server.GetVersion(); version != V2 {
-			return nil, trace.BadParameter("mismatched server version %v and type %T", version, server)
-		}
+	case *types.ServerV2:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -474,27 +286,33 @@ func MarshalServer(server Server, opts ...MarshalOption) ([]byte, error) {
 }
 
 // UnmarshalServers unmarshals a list of Server resources.
-func UnmarshalServers(bytes []byte) ([]Server, error) {
-	var servers []ServerV2
+func UnmarshalServers(bytes []byte) ([]types.Server, error) {
+	var servers []types.ServerV2
 
 	err := utils.FastUnmarshal(bytes, &servers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out := make([]Server, len(servers))
+	out := make([]types.Server, len(servers))
 	for i, v := range servers {
-		out[i] = Server(&v)
+		out[i] = types.Server(&v)
 	}
 	return out, nil
 }
 
 // MarshalServers marshals a list of Server resources.
-func MarshalServers(s []Server) ([]byte, error) {
+func MarshalServers(s []types.Server) ([]byte, error) {
 	bytes, err := utils.FastMarshal(s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return bytes, nil
+}
+
+// NodeHasMissedKeepAlives checks if node has missed its keep alive
+func NodeHasMissedKeepAlives(s types.Server) bool {
+	serverExpiry := s.Expiry()
+	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL * 2)))
 }

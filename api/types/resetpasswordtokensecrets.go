@@ -39,25 +39,18 @@ type ResetPasswordTokenSecrets interface {
 	GetOTPKey() string
 	// SetOTPKey sets OTP Key
 	SetOTPKey(string)
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 }
 
 // NewResetPasswordTokenSecrets creates an instance of ResetPasswordTokenSecrets.
 func NewResetPasswordTokenSecrets(tokenID string) (ResetPasswordTokenSecrets, error) {
 	secrets := ResetPasswordTokenSecretsV3{
-		Kind:    KindResetPasswordTokenSecrets,
-		Version: V3,
 		Metadata: Metadata{
 			Name: tokenID,
 		},
 	}
-
-	err := secrets.CheckAndSetDefaults()
-	if err != nil {
-		return &ResetPasswordTokenSecretsV3{}, trace.Wrap(err)
+	if err := secrets.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
-
 	return &secrets, nil
 }
 
@@ -106,13 +99,6 @@ func (u *ResetPasswordTokenSecretsV3) SetExpiry(t time.Time) {
 	u.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (u *ResetPasswordTokenSecretsV3) SetTTL(clock Clock, ttl time.Duration) {
-	u.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (u *ResetPasswordTokenSecretsV3) GetMetadata() Metadata {
 	return u.Metadata
@@ -153,9 +139,19 @@ func (u *ResetPasswordTokenSecretsV3) SetSubKind(s string) {
 	u.SubKind = s
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (u *ResetPasswordTokenSecretsV3) setStaticFields() {
+	u.Kind = KindResetPasswordTokenSecrets
+	u.Version = V3
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (u ResetPasswordTokenSecretsV3) CheckAndSetDefaults() error {
-	return u.Metadata.CheckAndSetDefaults()
+	u.setStaticFields()
+	if err := u.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // // String represents a human readable version of the token secrets

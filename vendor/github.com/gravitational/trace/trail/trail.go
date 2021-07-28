@@ -41,14 +41,15 @@ package trail
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/internal"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // Send is a high level function that:
@@ -81,6 +82,11 @@ func ToGRPC(err error) error {
 	if err == nil {
 		return nil
 	}
+	// If err is already a gRPC error, don't modify it.
+	if _, ok := status.FromError(err); ok {
+		return err
+	}
+
 	userMessage := trace.UserMessage(err)
 	if trace.IsNotFound(err) {
 		return grpc.Errorf(codes.NotFound, userMessage)
@@ -138,14 +144,21 @@ func FromGRPC(err error, args ...interface{}) error {
 	case codes.Unimplemented:
 		e = &trace.NotImplementedError{Message: message}
 	default:
-		e = errors.New(message)
+		e = err
 	}
 	if len(args) != 0 {
 		if meta, ok := args[0].(metadata.MD); ok {
 			e = DecodeDebugInfo(e, meta)
+			// We return here because if it's a trace.Error then
+			// frames was already extracted from metadata so
+			// there's no need to capture frames once again.
+			if _, ok := e.(trace.Error); ok {
+				return e
+			}
 		}
 	}
-	return e
+	traces := internal.CaptureTraces(1)
+	return &trace.TraceErr{Err: e, Traces: traces}
 }
 
 // SetDebugInfo adds debug metadata about error (traces, original error)

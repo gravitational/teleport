@@ -1,13 +1,19 @@
 ---
 title: Database Access FAQ
-description: Frequently asked questions about Teleport Database Access
+description: Frequently asked questions about Teleport Database Access.
 ---
 
 # Database Access FAQ
 
 ## Which database protocols does Teleport Database Access support?
 
-Teleport Database Access currently supports PostgreSQL and MySQL protocols.
+Teleport Database Access currently supports PostgreSQL, MySQL, and MongoDB
+protocols.
+
+For PostgreSQL and MySQL, both self-hosted and cloud-hosted versions such as AWS
+RDS, Aurora (except for Serverless version which doesn't support IAM auth),
+Redshift, and GCP Cloud SQL are supported. See available [guides](./guides.mdx)
+for all supported configurations.
 
 ## Which PostgreSQL protocol features are not supported?
 
@@ -17,8 +23,19 @@ The following PostgreSQL protocol features aren't currently supported:
   Cancel requests issued by the PostgreSQL clients connected to Teleport proxy
   won't be passed to the database server.
 - Any of the [authentication methods](https://www.postgresql.org/docs/current/auth-methods.html)
-  except for client certificate authentication and IAM authentication for AWS
-  RDS and Aurora databases.
+  except for client certificate authentication and IAM authentication for cloud
+  databases.
+
+## Can database clients use public address different from web public address?
+
+Teleport administrators can set `postgres_public_addr` and `mysql_public_addr`
+proxy configuration fields to public addresses over which respective database
+clients should connect. See [Proxy Configuration](./reference/configuration.mdx#proxy-configuration)
+for more details.
+
+This is useful when Teleport web proxy UI is running behind an L7 load balancer
+(e.g. ALB in AWS) in which case PostgreSQL/MySQL proxy need to be exposed on a
+plain TCP load balancer (e.g. NLB in AWS).
 
 ## Do you support X database client?
 
@@ -26,13 +43,12 @@ Teleport relies on client certificates for authentication so any database client
 that supports this method of authentication and uses modern TLS (1.2+) should
 work.
 
-Standard command-line clients such as `psql` and `mysql` are supported, there
-are also instructions for configuring select [graphical clients](./guides/gui-clients.mdx).
+Standard command-line clients such as `psql`, `mysql`, or `mongo` are supported,
+there are also instructions for configuring select [graphical clients](./guides/gui-clients.mdx).
 
 ## When will you support X database?
 
-We're focusing on PostgreSQL and MySQL initially but planning to support more
-databases in the future based on the customer demand.
+We plan to support more databases in the future based on customer demand.
 
 See if the database you're interested in has already been requested among
 [Github issues](https://github.com/gravitational/teleport/labels/database-access)

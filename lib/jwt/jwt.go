@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -34,11 +33,6 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 	josejwt "gopkg.in/square/go-jose.v2/jwt"
 )
-
-// GenerateAppTokenRequest are the parameters used to generate an application token.
-// Moved to /api/types/jwt.go, aliased here for backwards compatibility.
-// DELETE IN 7.0.0
-type GenerateAppTokenRequest = types.GenerateAppTokenRequest
 
 // Config defines the clock and PEM encoded bytes of a public and private
 // key that form a *jwt.Key.

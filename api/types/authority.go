@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -42,10 +41,16 @@ type CertAuthority interface {
 	// GetClusterName returns cluster name this cert authority
 	// is associated with
 	GetClusterName() string
-	// GetCheckingKeys returns public keys to check signature
-	GetCheckingKeys() [][]byte
-	// GetSigningKeys returns signing keys
-	GetSigningKeys() [][]byte
+
+	GetActiveKeys() CAKeySet
+	SetActiveKeys(CAKeySet) error
+	GetAdditionalTrustedKeys() CAKeySet
+	SetAdditionalTrustedKeys(CAKeySet) error
+
+	GetTrustedSSHKeyPairs() []*SSHKeyPair
+	GetTrustedTLSKeyPairs() []*TLSKeyPair
+	GetTrustedJWTKeyPairs() []*JWTKeyPair
+
 	// CombinedMapping is used to specify combined mapping from legacy property Roles
 	// and new property RoleMap
 	CombinedMapping() RoleMap
@@ -57,27 +62,10 @@ type CertAuthority interface {
 	GetRoles() []string
 	// SetRoles sets assigned roles for this certificate authority
 	SetRoles(roles []string)
-	// FirstSigningKey returns first signing key or returns error if it's not here
-	// The first key is returned because multiple keys can exist during key rotation.
-	FirstSigningKey() ([]byte, error)
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
-	// SetSigningKeys sets signing keys
-	SetSigningKeys([][]byte) error
-	// SetCheckingKeys sets signing keys
-	SetCheckingKeys([][]byte) error
 	// AddRole adds a role to ca role list
 	AddRole(name string)
 	// String returns human readable version of the CertAuthority
 	String() string
-	// SetTLSKeyPairs sets TLS key pairs
-	SetTLSKeyPairs(keyPairs []TLSKeyPair)
-	// GetTLSKeyPairs returns first PEM encoded TLS cert
-	GetTLSKeyPairs() []TLSKeyPair
-	// GetJWTKeyPairs gets all JWT key pairs.
-	GetJWTKeyPairs() []JWTKeyPair
-	// SetJWTKeyPairs sets all JWT key pairs.
-	SetJWTKeyPairs(keyPairs []JWTKeyPair)
 	// GetRotation returns rotation state.
 	GetRotation() Rotation
 	// SetRotation sets rotation state.
@@ -91,17 +79,12 @@ type CertAuthority interface {
 }
 
 // NewCertAuthority returns new cert authority
-func NewCertAuthority(spec CertAuthoritySpecV2) CertAuthority {
-	return &CertAuthorityV2{
-		Kind:    KindCertAuthority,
-		Version: V2,
-		SubKind: string(spec.Type),
-		Metadata: Metadata{
-			Name:      spec.ClusterName,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
+func NewCertAuthority(spec CertAuthoritySpecV2) (CertAuthority, error) {
+	ca := &CertAuthorityV2{Spec: spec}
+	if err := ca.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return ca, nil
 }
 
 // GetVersion returns resource version
@@ -129,19 +112,21 @@ func (ca *CertAuthorityV2) Clone() CertAuthority {
 	out := *ca
 	out.Spec.CheckingKeys = utils.CopyByteSlices(ca.Spec.CheckingKeys)
 	out.Spec.SigningKeys = utils.CopyByteSlices(ca.Spec.SigningKeys)
-	for i, kp := range ca.Spec.TLSKeyPairs {
-		out.Spec.TLSKeyPairs[i] = TLSKeyPair{
-			Key:  utils.CopyByteSlice(kp.Key),
-			Cert: utils.CopyByteSlice(kp.Cert),
+	if len(ca.Spec.TLSKeyPairs) > 0 {
+		out.Spec.TLSKeyPairs = make([]TLSKeyPair, len(ca.Spec.TLSKeyPairs))
+		for i, kp := range ca.Spec.TLSKeyPairs {
+			out.Spec.TLSKeyPairs[i] = *kp.Clone()
 		}
 	}
-	for i, kp := range ca.Spec.JWTKeyPairs {
-		out.Spec.JWTKeyPairs[i] = JWTKeyPair{
-			PublicKey:  utils.CopyByteSlice(kp.PublicKey),
-			PrivateKey: utils.CopyByteSlice(kp.PrivateKey),
+	if len(ca.Spec.JWTKeyPairs) > 0 {
+		out.Spec.JWTKeyPairs = make([]JWTKeyPair, len(ca.Spec.JWTKeyPairs))
+		for i, kp := range ca.Spec.JWTKeyPairs {
+			out.Spec.JWTKeyPairs[i] = *kp.Clone()
 		}
 	}
 	out.Spec.Roles = utils.CopyStrings(ca.Spec.Roles)
+	out.Spec.ActiveKeys = ca.Spec.ActiveKeys.Clone()
+	out.Spec.AdditionalTrustedKeys = ca.Spec.AdditionalTrustedKeys.Clone()
 	return &out
 }
 
@@ -156,26 +141,6 @@ func (ca *CertAuthorityV2) GetRotation() Rotation {
 // SetRotation sets rotation state.
 func (ca *CertAuthorityV2) SetRotation(r Rotation) {
 	ca.Spec.Rotation = &r
-}
-
-// SetTLSKeyPairs sets TLS key pairs
-func (ca *CertAuthorityV2) SetTLSKeyPairs(pairs []TLSKeyPair) {
-	ca.Spec.TLSKeyPairs = pairs
-}
-
-// GetTLSKeyPairs returns TLS key pairs
-func (ca *CertAuthorityV2) GetTLSKeyPairs() []TLSKeyPair {
-	return ca.Spec.TLSKeyPairs
-}
-
-// GetJWTKeyPairs gets all JWT keypairs used to sign a JWT.
-func (ca *CertAuthorityV2) GetJWTKeyPairs() []JWTKeyPair {
-	return ca.Spec.JWTKeyPairs
-}
-
-// SetJWTKeyPairs sets all JWT keypairs used to sign a JWT.
-func (ca *CertAuthorityV2) SetJWTKeyPairs(keyPairs []JWTKeyPair) {
-	ca.Spec.JWTKeyPairs = keyPairs
 }
 
 // SetMetadata sets object metadata
@@ -198,13 +163,6 @@ func (ca *CertAuthorityV2) Expiry() time.Time {
 	return ca.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (ca *CertAuthorityV2) SetTTL(clock Clock, ttl time.Duration) {
-	ca.Metadata.SetTTL(clock, ttl)
-}
-
 // GetResourceID returns resource ID
 func (ca *CertAuthorityV2) GetResourceID() int64 {
 	return ca.Metadata.ID
@@ -217,7 +175,7 @@ func (ca *CertAuthorityV2) SetResourceID(id int64) {
 
 // WithoutSecrets returns an instance of resource without secrets.
 func (ca *CertAuthorityV2) WithoutSecrets() Resource {
-	ca2 := ca.Clone()
+	ca2 := ca.Clone().(*CertAuthorityV2)
 	RemoveCASecrets(ca2)
 	return ca2
 }
@@ -225,19 +183,22 @@ func (ca *CertAuthorityV2) WithoutSecrets() Resource {
 // RemoveCASecrets removes private (SSH, TLS, and JWT) keys from certificate
 // authority.
 func RemoveCASecrets(ca CertAuthority) {
-	ca.SetSigningKeys(nil)
-
-	tlsKeyPairs := ca.GetTLSKeyPairs()
-	for i := range tlsKeyPairs {
-		tlsKeyPairs[i].Key = nil
+	cav2, ok := ca.(*CertAuthorityV2)
+	if !ok {
+		return
 	}
-	ca.SetTLSKeyPairs(tlsKeyPairs)
+	cav2.Spec.SigningKeys = nil
 
-	jwtKeyPairs := ca.GetJWTKeyPairs()
-	for i := range jwtKeyPairs {
-		jwtKeyPairs[i].PrivateKey = nil
+	for i := range cav2.Spec.TLSKeyPairs {
+		cav2.Spec.TLSKeyPairs[i].Key = nil
 	}
-	ca.SetJWTKeyPairs(jwtKeyPairs)
+
+	for i := range cav2.Spec.JWTKeyPairs {
+		cav2.Spec.JWTKeyPairs[i].PrivateKey = nil
+	}
+
+	cav2.Spec.ActiveKeys = cav2.Spec.ActiveKeys.WithoutSecrets()
+	cav2.Spec.AdditionalTrustedKeys = cav2.Spec.AdditionalTrustedKeys.WithoutSecrets()
 }
 
 // String returns human readable version of the CertAuthorityV2.
@@ -253,23 +214,6 @@ func (ca *CertAuthorityV2) AddRole(name string) {
 		}
 	}
 	ca.Spec.Roles = append(ca.Spec.Roles, name)
-}
-
-// GetSigningKeys returns signing keys
-func (ca *CertAuthorityV2) GetSigningKeys() [][]byte {
-	return ca.Spec.SigningKeys
-}
-
-// SetSigningKeys sets signing keys
-func (ca *CertAuthorityV2) SetSigningKeys(keys [][]byte) error {
-	ca.Spec.SigningKeys = keys
-	return nil
-}
-
-// SetCheckingKeys sets SSH public keys
-func (ca *CertAuthorityV2) SetCheckingKeys(keys [][]byte) error {
-	ca.Spec.CheckingKeys = keys
-	return nil
 }
 
 // GetID returns certificate authority ID -
@@ -297,11 +241,6 @@ func (ca *CertAuthorityV2) GetType() CertAuthType {
 // is associated with.
 func (ca *CertAuthorityV2) GetClusterName() string {
 	return ca.Spec.ClusterName
-}
-
-// GetCheckingKeys returns public keys to check signature
-func (ca *CertAuthorityV2) GetCheckingKeys() [][]byte {
-	return ca.Spec.CheckingKeys
 }
 
 // GetRoles returns a list of roles assumed by users signed by this CA
@@ -333,14 +272,6 @@ func (ca *CertAuthorityV2) SetRoleMap(m RoleMap) {
 	ca.Spec.RoleMap = []RoleMapping(m)
 }
 
-// FirstSigningKey returns first signing key or returns error if it's not here
-func (ca *CertAuthorityV2) FirstSigningKey() ([]byte, error) {
-	if len(ca.Spec.SigningKeys) == 0 {
-		return nil, trace.NotFound("%v has no signing keys", ca.Metadata.Name)
-	}
-	return ca.Spec.SigningKeys[0], nil
-}
-
 // ID returns id (consisting of domain name and type) that
 // identifies the authority this key belongs to
 func (ca *CertAuthorityV2) ID() *CertAuthID {
@@ -357,23 +288,142 @@ func (ca *CertAuthorityV2) SetSigningAlg(alg CertAuthoritySpecV2_SigningAlgType)
 	ca.Spec.SigningAlg = alg
 }
 
+func (ca *CertAuthorityV2) getOldKeySet(index int) (keySet CAKeySet) {
+	// in the "old" CA schema, index 0 contains the active keys and index 1 the
+	// additional trusted keys
+	if index < 0 || index > 1 {
+		return
+	}
+	if len(ca.Spec.CheckingKeys) > index {
+		kp := &SSHKeyPair{
+			PrivateKeyType: PrivateKeyType_RAW,
+			PublicKey:      utils.CopyByteSlice(ca.Spec.CheckingKeys[index]),
+		}
+		if len(ca.Spec.SigningKeys) > index {
+			kp.PrivateKey = utils.CopyByteSlice(ca.Spec.SigningKeys[index])
+		}
+		keySet.SSH = []*SSHKeyPair{kp}
+	}
+	if len(ca.Spec.TLSKeyPairs) > index {
+		keySet.TLS = []*TLSKeyPair{ca.Spec.TLSKeyPairs[index].Clone()}
+	}
+	if len(ca.Spec.JWTKeyPairs) > index {
+		keySet.JWT = []*JWTKeyPair{ca.Spec.JWTKeyPairs[index].Clone()}
+	}
+	return keySet
+}
+
+func (ca *CertAuthorityV2) GetActiveKeys() CAKeySet {
+	haveNewCAKeys := len(ca.Spec.ActiveKeys.SSH) > 0 || len(ca.Spec.ActiveKeys.TLS) > 0 || len(ca.Spec.ActiveKeys.JWT) > 0
+	if haveNewCAKeys {
+		return ca.Spec.ActiveKeys
+	}
+	// fall back to old schema
+	return ca.getOldKeySet(0)
+}
+
+func (ca *CertAuthorityV2) SetActiveKeys(ks CAKeySet) error {
+	if err := ks.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	ca.Spec.ActiveKeys = ks
+	return nil
+}
+
+func (ca *CertAuthorityV2) GetAdditionalTrustedKeys() CAKeySet {
+	haveNewCAKeys := len(ca.Spec.AdditionalTrustedKeys.SSH) > 0 || len(ca.Spec.AdditionalTrustedKeys.TLS) > 0 || len(ca.Spec.AdditionalTrustedKeys.JWT) > 0
+	if haveNewCAKeys {
+		return ca.Spec.AdditionalTrustedKeys
+	}
+	// fall back to old schema
+	return ca.getOldKeySet(1)
+}
+
+func (ca *CertAuthorityV2) SetAdditionalTrustedKeys(ks CAKeySet) error {
+	if err := ks.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	ca.Spec.AdditionalTrustedKeys = ks
+	return nil
+}
+
+func (ca *CertAuthorityV2) GetTrustedSSHKeyPairs() []*SSHKeyPair {
+	var kps []*SSHKeyPair
+	for _, k := range ca.GetActiveKeys().SSH {
+		kps = append(kps, k.Clone())
+	}
+	for _, k := range ca.GetAdditionalTrustedKeys().SSH {
+		kps = append(kps, k.Clone())
+	}
+	return kps
+}
+
+func (ca *CertAuthorityV2) GetTrustedTLSKeyPairs() []*TLSKeyPair {
+	var kps []*TLSKeyPair
+	for _, k := range ca.GetActiveKeys().TLS {
+		kps = append(kps, k.Clone())
+	}
+	for _, k := range ca.GetAdditionalTrustedKeys().TLS {
+		kps = append(kps, k.Clone())
+	}
+	return kps
+}
+
+func (ca *CertAuthorityV2) GetTrustedJWTKeyPairs() []*JWTKeyPair {
+	var kps []*JWTKeyPair
+	for _, k := range ca.GetActiveKeys().JWT {
+		kps = append(kps, k.Clone())
+	}
+	for _, k := range ca.GetAdditionalTrustedKeys().JWT {
+		kps = append(kps, k.Clone())
+	}
+	return kps
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (ca *CertAuthorityV2) setStaticFields() {
+	ca.Kind = KindCertAuthority
+	ca.Version = V2
+	// ca.Metadata.Name and ca.Spec.ClusterName should always be equal.
+	if ca.Metadata.Name == "" {
+		ca.Metadata.Name = ca.Spec.ClusterName
+	} else {
+		ca.Spec.ClusterName = ca.Metadata.Name
+	}
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
-	err := ca.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	ca.setStaticFields()
+	if err := ca.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err = ca.ID().Check(); err != nil {
+	if ca.SubKind == "" {
+		ca.SubKind = string(ca.Spec.Type)
+	}
+
+	if err := ca.ID().Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := ca.Spec.ActiveKeys.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.Spec.AdditionalTrustedKeys.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.Spec.Rotation.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch ca.GetType() {
 	case UserCA, HostCA, JWTSigner:
-		return nil
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
+
+	return nil
 }
 
 const (
@@ -475,8 +525,11 @@ func (r *Rotation) String() string {
 
 // CheckAndSetDefaults checks and sets default rotation parameters.
 func (r *Rotation) CheckAndSetDefaults() error {
+	if r == nil {
+		return nil
+	}
 	switch r.Phase {
-	case "", RotationPhaseRollback, RotationPhaseUpdateClients, RotationPhaseUpdateServers:
+	case "", RotationPhaseInit, RotationPhaseStandby, RotationPhaseRollback, RotationPhaseUpdateClients, RotationPhaseUpdateServers:
 	default:
 		return trace.BadParameter("unsupported phase: %q", r.Phase)
 	}
@@ -543,4 +596,123 @@ type CertRoles struct {
 	Version string `json:"version"`
 	// Roles is a list of roles
 	Roles []string `json:"roles"`
+}
+
+// Clone returns a deep copy of TLSKeyPair that can be mutated without
+// modifying the original.
+func (k *TLSKeyPair) Clone() *TLSKeyPair {
+	return &TLSKeyPair{
+		KeyType: k.KeyType,
+		Key:     utils.CopyByteSlice(k.Key),
+		Cert:    utils.CopyByteSlice(k.Cert),
+	}
+}
+
+// Clone returns a deep copy of JWTKeyPair that can be mutated without
+// modifying the original.
+func (k *JWTKeyPair) Clone() *JWTKeyPair {
+	return &JWTKeyPair{
+		PrivateKeyType: k.PrivateKeyType,
+		PrivateKey:     utils.CopyByteSlice(k.PrivateKey),
+		PublicKey:      utils.CopyByteSlice(k.PublicKey),
+	}
+}
+
+// Clone returns a deep copy of SSHKeyPair that can be mutated without
+// modifying the original.
+func (k *SSHKeyPair) Clone() *SSHKeyPair {
+	return &SSHKeyPair{
+		PrivateKeyType: k.PrivateKeyType,
+		PrivateKey:     utils.CopyByteSlice(k.PrivateKey),
+		PublicKey:      utils.CopyByteSlice(k.PublicKey),
+	}
+}
+
+// Clone returns a deep copy of CAKeySet that can be mutated without modifying
+// the original.
+func (ks CAKeySet) Clone() CAKeySet {
+	var out CAKeySet
+	if len(ks.TLS) > 0 {
+		out.TLS = make([]*TLSKeyPair, 0, len(ks.TLS))
+		for _, k := range ks.TLS {
+			out.TLS = append(out.TLS, k.Clone())
+		}
+	}
+	if len(ks.JWT) > 0 {
+		out.JWT = make([]*JWTKeyPair, 0, len(ks.JWT))
+		for _, k := range ks.JWT {
+			out.JWT = append(out.JWT, k.Clone())
+		}
+	}
+	if len(ks.SSH) > 0 {
+		out.SSH = make([]*SSHKeyPair, 0, len(ks.SSH))
+		for _, k := range ks.SSH {
+			out.SSH = append(out.SSH, k.Clone())
+		}
+	}
+	return out
+}
+
+// WithoutSecrets returns a deep copy of CAKeySet with all secret fields
+// (private keys) removed.
+func (ks CAKeySet) WithoutSecrets() CAKeySet {
+	ks = ks.Clone()
+	for _, k := range ks.SSH {
+		k.PrivateKey = nil
+	}
+	for _, k := range ks.TLS {
+		k.Key = nil
+	}
+	for _, k := range ks.JWT {
+		k.PrivateKey = nil
+	}
+	return ks
+}
+
+// CheckAndSetDefaults validates CAKeySet and sets defaults on any empty fields
+// as needed.
+func (ks CAKeySet) CheckAndSetDefaults() error {
+	for _, kp := range ks.SSH {
+		if err := kp.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	for _, kp := range ks.TLS {
+		if err := kp.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	for _, kp := range ks.JWT {
+		if err := kp.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// CheckAndSetDefaults validates SSHKeyPair and sets defaults on any empty
+// fields as needed.
+func (k *SSHKeyPair) CheckAndSetDefaults() error {
+	if len(k.PublicKey) == 0 {
+		return trace.BadParameter("SSH key pair missing public key")
+	}
+	return nil
+}
+
+// CheckAndSetDefaults validates TLSKeyPair and sets defaults on any empty
+// fields as needed.
+func (k *TLSKeyPair) CheckAndSetDefaults() error {
+	if len(k.Cert) == 0 {
+		return trace.BadParameter("TLS key pair missing certificate")
+	}
+	return nil
+}
+
+// CheckAndSetDefaults validates JWTKeyPair and sets defaults on any empty
+// fields as needed.
+func (k *JWTKeyPair) CheckAndSetDefaults() error {
+	if len(k.PublicKey) == 0 {
+		return trace.BadParameter("JWT key pair missing public key")
+	}
+	return nil
 }

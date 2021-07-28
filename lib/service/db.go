@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -33,7 +34,7 @@ func (process *TeleportProcess) initDatabases() {
 	if len(process.Config.Databases.Databases) == 0 {
 		return
 	}
-	process.registerWithAuthServer(teleport.RoleDatabase, DatabasesIdentityEvent)
+	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
@@ -84,26 +85,49 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	// Create database server for each of the proxied databases.
 	var databaseServers []types.DatabaseServer
 	for _, db := range process.Config.Databases.Databases {
-		databaseServers = append(databaseServers, types.NewDatabaseServerV3(
+		db, err := types.NewDatabaseServerV3(
 			db.Name,
 			db.StaticLabels,
 			types.DatabaseServerSpecV3{
-				Description:   db.Description,
-				Protocol:      db.Protocol,
-				URI:           db.URI,
-				CACert:        db.CACert,
-				AWS:           types.AWS{Region: db.AWS.Region},
-				GCP:           types.GCPCloudSQL{ProjectID: db.GCP.ProjectID, InstanceID: db.GCP.InstanceID},
+				Description: db.Description,
+				Protocol:    db.Protocol,
+				URI:         db.URI,
+				CACert:      db.CACert,
+				AWS: types.AWS{
+					Region: db.AWS.Region,
+					Redshift: types.Redshift{
+						ClusterID: db.AWS.Redshift.ClusterID,
+					},
+				},
+				GCP: types.GCPCloudSQL{
+					ProjectID:  db.GCP.ProjectID,
+					InstanceID: db.GCP.InstanceID,
+				},
 				DynamicLabels: types.LabelsToV2(db.DynamicLabels),
 				Version:       teleport.Version,
 				Hostname:      process.Config.Hostname,
 				HostID:        process.Config.HostUUID,
-			}))
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		databaseServers = append(databaseServers, db)
 	}
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
-	authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
+	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentDatabase,
+			Log:       log,
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -133,6 +157,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
+		Clock:       process.Clock,
 		DataDir:     process.Config.DataDir,
 		AuthClient:  conn.Client,
 		AccessPoint: accessPoint,
@@ -151,6 +176,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentDatabase})
 			}
 		},
+		LockWatcher: lockWatcher,
 	})
 	if err != nil {
 		return trace.Wrap(err)

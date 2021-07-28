@@ -17,9 +17,11 @@ limitations under the License.
 package ui
 
 import (
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type access struct {
@@ -33,7 +35,7 @@ type access struct {
 type accessStrategy struct {
 	// Type determines how a user should access teleport resources.
 	// ie: does the user require a request to access resources?
-	Type services.RequestStrategy `json:"type"`
+	Type types.RequestStrategy `json:"type"`
 	// Prompt is the optional dialogue shown to user,
 	// when the access strategy type requires a reason.
 	Prompt string `json:"prompt"`
@@ -66,6 +68,10 @@ type userACL struct {
 	Nodes access `json:"nodes"`
 	// AppServers defines access to application servers
 	AppServers access `json:"appServers"`
+	// DBServers defines access to database servers.
+	DBServers access `json:"dbServers"`
+	// KubeServers defines access to kubernetes servers.
+	KubeServers access `json:"kubeServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 	// AccessRequests defines access to access requests
@@ -105,8 +111,8 @@ func getLogins(roleSet services.RoleSet) []string {
 		allowed = append(allowed, role.GetLogins(services.Allow)...)
 	}
 
-	allowed = utils.Deduplicate(allowed)
-	denied = utils.Deduplicate(denied)
+	allowed = apiutils.Deduplicate(allowed)
+	denied = apiutils.Deduplicate(denied)
 	userLogins := []string{}
 	for _, login := range allowed {
 		loginMatch, _ := services.MatchLogin(denied, login)
@@ -122,7 +128,7 @@ func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, ver
 	for _, verb := range verbs {
 		// Since this check occurs often and it does not imply the caller is trying
 		// to access any resource, silence any logging done on the proxy.
-		err := roleSet.CheckAccessToRule(ctx, defaults.Namespace, kind, verb, true)
+		err := roleSet.CheckAccessToRule(ctx, apidefaults.Namespace, kind, verb, true)
 		if err != nil {
 			return false
 		}
@@ -133,29 +139,29 @@ func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, ver
 
 func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) access {
 	return access{
-		List:   hasAccess(roleSet, ctx, kind, services.VerbList),
-		Read:   hasAccess(roleSet, ctx, kind, services.VerbRead),
-		Edit:   hasAccess(roleSet, ctx, kind, services.VerbUpdate),
-		Create: hasAccess(roleSet, ctx, kind, services.VerbCreate),
-		Delete: hasAccess(roleSet, ctx, kind, services.VerbDelete),
+		List:   hasAccess(roleSet, ctx, kind, types.VerbList),
+		Read:   hasAccess(roleSet, ctx, kind, types.VerbRead),
+		Edit:   hasAccess(roleSet, ctx, kind, types.VerbUpdate),
+		Create: hasAccess(roleSet, ctx, kind, types.VerbCreate),
+		Delete: hasAccess(roleSet, ctx, kind, types.VerbDelete),
 	}
 }
 
 func getAccessStrategy(roleset services.RoleSet) accessStrategy {
-	strategy := services.RequestStrategyOptional
+	strategy := types.RequestStrategyOptional
 	prompt := ""
 
 	for _, role := range roleset {
 		options := role.GetOptions()
 
-		if options.RequestAccess == services.RequestStrategyReason {
-			strategy = services.RequestStrategyReason
+		if options.RequestAccess == types.RequestStrategyReason {
+			strategy = types.RequestStrategyReason
 			prompt = options.RequestPrompt
 			break
 		}
 
-		if options.RequestAccess == services.RequestStrategyAlways {
-			strategy = services.RequestStrategyAlways
+		if options.RequestAccess == types.RequestStrategyAlways {
+			strategy = types.RequestStrategyAlways
 		}
 	}
 
@@ -166,19 +172,25 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContext, error) {
+func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features) (*UserContext, error) {
 	ctx := &services.Context{User: user}
-	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
-	roleAccess := newAccess(userRoles, ctx, services.KindRole)
-	authConnectors := newAccess(userRoles, ctx, services.KindAuthConnector)
-	trustedClusterAccess := newAccess(userRoles, ctx, services.KindTrustedCluster)
-	eventAccess := newAccess(userRoles, ctx, services.KindEvent)
-	userAccess := newAccess(userRoles, ctx, services.KindUser)
-	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
-	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
-	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
-	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
-	billingAccess := newAccess(userRoles, ctx, services.KindBilling)
+	sessionAccess := newAccess(userRoles, ctx, types.KindSession)
+	roleAccess := newAccess(userRoles, ctx, types.KindRole)
+	authConnectors := newAccess(userRoles, ctx, types.KindAuthConnector)
+	trustedClusterAccess := newAccess(userRoles, ctx, types.KindTrustedCluster)
+	eventAccess := newAccess(userRoles, ctx, types.KindEvent)
+	userAccess := newAccess(userRoles, ctx, types.KindUser)
+	tokenAccess := newAccess(userRoles, ctx, types.KindToken)
+	nodeAccess := newAccess(userRoles, ctx, types.KindNode)
+	appServerAccess := newAccess(userRoles, ctx, types.KindAppServer)
+	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
+	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
+	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
+
+	var billingAccess access
+	if features.Cloud {
+		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
+	}
 
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
@@ -186,6 +198,8 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	acl := userACL{
 		AccessRequests:  requestAccess,
 		AppServers:      appServerAccess,
+		DBServers:       dbServerAccess,
+		KubeServers:     kubeServerAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,

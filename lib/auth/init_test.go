@@ -38,9 +38,12 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -57,23 +60,25 @@ func TestReadIdentity(t *testing.T) {
 	a := testauthority.NewWithClock(clock)
 	priv, pub, err := a.GenerateKeyPair("")
 	require.NoError(t, err)
+	caSigner, err := ssh.ParsePrivateKey(priv)
+	require.NoError(t, err)
 
 	cert, err := a.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       pub,
-		HostID:              "id1",
-		NodeName:            "node-name",
-		ClusterName:         "example.com",
-		Roles:               teleport.Roles{teleport.RoleNode},
-		TTL:                 0,
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: pub,
+		HostID:        "id1",
+		NodeName:      "node-name",
+		ClusterName:   "example.com",
+		Roles:         types.SystemRoles{types.RoleNode},
+		TTL:           0,
 	})
 	require.NoError(t, err)
 
 	id, err := ReadSSHIdentityFromKeyPair(priv, cert)
 	require.NoError(t, err)
 	require.Equal(t, id.ClusterName, "example.com")
-	require.Equal(t, id.ID, IdentityID{HostUUID: "id1.example.com", Role: teleport.RoleNode})
+	require.Equal(t, id.ID, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode})
 	require.Equal(t, id.CertBytes, cert)
 	require.Equal(t, id.KeyBytes, priv)
 
@@ -81,14 +86,14 @@ func TestReadIdentity(t *testing.T) {
 	ttl := 10 * time.Second
 	expiryDate := clock.Now().Add(ttl)
 	bytes, err := a.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       pub,
-		HostID:              "id1",
-		NodeName:            "node-name",
-		ClusterName:         "example.com",
-		Roles:               teleport.Roles{teleport.RoleNode},
-		TTL:                 ttl,
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: pub,
+		HostID:        "id1",
+		NodeName:      "node-name",
+		ClusterName:   "example.com",
+		Roles:         types.SystemRoles{types.RoleNode},
+		TTL:           ttl,
 	})
 	require.NoError(t, err)
 	copy, err := apisshutils.ParseCertificate(bytes)
@@ -100,6 +105,8 @@ func TestBadIdentity(t *testing.T) {
 	a := testauthority.New()
 	priv, pub, err := a.GenerateKeyPair("")
 	require.NoError(t, err)
+	caSigner, err := ssh.ParsePrivateKey(priv)
+	require.NoError(t, err)
 
 	// bad cert type
 	_, err = ReadSSHIdentityFromKeyPair(priv, pub)
@@ -107,14 +114,14 @@ func TestBadIdentity(t *testing.T) {
 
 	// missing authority domain
 	cert, err := a.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       pub,
-		HostID:              "id2",
-		NodeName:            "",
-		ClusterName:         "",
-		Roles:               teleport.Roles{teleport.RoleNode},
-		TTL:                 0,
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: pub,
+		HostID:        "id2",
+		NodeName:      "",
+		ClusterName:   "",
+		Roles:         types.SystemRoles{types.RoleNode},
+		TTL:           0,
 	})
 	require.NoError(t, err)
 
@@ -123,14 +130,14 @@ func TestBadIdentity(t *testing.T) {
 
 	// missing host uuid
 	cert, err = a.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       pub,
-		HostID:              "example.com",
-		NodeName:            "",
-		ClusterName:         "",
-		Roles:               teleport.Roles{teleport.RoleNode},
-		TTL:                 0,
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: pub,
+		HostID:        "example.com",
+		NodeName:      "",
+		ClusterName:   "",
+		Roles:         types.SystemRoles{types.RoleNode},
+		TTL:           0,
 	})
 	require.NoError(t, err)
 
@@ -139,14 +146,14 @@ func TestBadIdentity(t *testing.T) {
 
 	// unrecognized role
 	cert, err = a.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       pub,
-		HostID:              "example.com",
-		NodeName:            "",
-		ClusterName:         "id1",
-		Roles:               teleport.Roles{teleport.Role("bad role")},
-		TTL:                 0,
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: pub,
+		HostID:        "example.com",
+		NodeName:      "",
+		ClusterName:   "id1",
+		Roles:         types.SystemRoles{types.SystemRole("bad role")},
+		TTL:           0,
 	})
 	require.NoError(t, err)
 
@@ -154,203 +161,310 @@ func TestBadIdentity(t *testing.T) {
 	require.IsType(t, trace.BadParameter(""), err)
 }
 
-// TestAuthPreference ensures that the act of creating an AuthServer sets
-// the AuthPreference (type and second factor) on the backend.
+type testDynamicallyConfigurableParams struct {
+	withDefaults, withConfigFile, withAnotherConfigFile func(*testing.T, *InitConfig) types.ResourceWithOrigin
+	setDynamic                                          func(*testing.T, *Server)
+	getStored                                           func(*testing.T, *Server) types.ResourceWithOrigin
+}
+
+func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurableParams) {
+	initAuthServer := func(t *testing.T, conf InitConfig) *Server {
+		authServer, err := Init(conf)
+		require.NoError(t, err)
+		t.Cleanup(func() { authServer.Close() })
+		return authServer
+	}
+
+	resourceDiff := func(res1, res2 types.Resource) string {
+		return cmp.Diff(res1, res2,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+			cmpopts.EquateEmpty())
+	}
+
+	t.Run("start with config file, reinit with defaults", func(t *testing.T) {
+		t.Parallel()
+		conf := setupConfig(t)
+
+		// Simulate a server with a config-file resource.
+		configFileRes := p.withConfigFile(t, &conf)
+		authServer := initAuthServer(t, conf)
+
+		stored := p.getStored(t, authServer)
+		require.Equal(t, types.OriginConfigFile, stored.Origin())
+		require.Empty(t, resourceDiff(configFileRes, stored))
+
+		// Reinitialize with the default resource.
+		defaultRes := p.withDefaults(t, &conf)
+		authServer = initAuthServer(t, conf)
+
+		// Verify the stored resource is now labelled as originating from defaults.
+		stored = p.getStored(t, authServer)
+		require.Equal(t, types.OriginDefaults, stored.Origin())
+		require.Empty(t, resourceDiff(defaultRes, stored))
+	})
+
+	t.Run("start with dynamic, reinit with defaults", func(t *testing.T) {
+		t.Parallel()
+		conf := setupConfig(t)
+
+		// Simulate a server with dynamic configuration.
+		authServer := initAuthServer(t, conf)
+		p.setDynamic(t, authServer)
+
+		dynamic := p.getStored(t, authServer)
+		require.Equal(t, types.OriginDynamic, dynamic.Origin())
+
+		// Attempt to reinitialize with the default resource should be a no-op.
+		p.withDefaults(t, &conf)
+		authServer = initAuthServer(t, conf)
+
+		// Verify the stored resource remains unchanged.
+		stored := p.getStored(t, authServer)
+		require.Equal(t, types.OriginDynamic, stored.Origin())
+		require.Empty(t, resourceDiff(dynamic, stored))
+	})
+
+	t.Run("start with dynamic, reinit with config file", func(t *testing.T) {
+		t.Parallel()
+		conf := setupConfig(t)
+
+		// Simulate a server with dynamic configuration.
+		authServer := initAuthServer(t, conf)
+		p.setDynamic(t, authServer)
+
+		dynamic := p.getStored(t, authServer)
+		require.Equal(t, types.OriginDynamic, dynamic.Origin())
+
+		// Reinitialize with a config-file resource.
+		configFileRes := p.withConfigFile(t, &conf)
+		authServer = initAuthServer(t, conf)
+
+		// Verify the stored resource is updated.
+		stored := p.getStored(t, authServer)
+		require.Equal(t, types.OriginConfigFile, stored.Origin())
+		require.Empty(t, resourceDiff(configFileRes, stored))
+	})
+
+	t.Run("start with defaults, reinit with config file", func(t *testing.T) {
+		t.Parallel()
+		conf := setupConfig(t)
+
+		// Simulate a server with the default resource.
+		defaultRes := p.withDefaults(t, &conf)
+		authServer := initAuthServer(t, conf)
+
+		stored := p.getStored(t, authServer)
+		require.Equal(t, types.OriginDefaults, stored.Origin())
+		require.Empty(t, resourceDiff(defaultRes, stored))
+
+		// Reinitialize with a config-file resource.
+		configFileRes := p.withConfigFile(t, &conf)
+		authServer = initAuthServer(t, conf)
+
+		// Verify the stored resource is updated.
+		stored = p.getStored(t, authServer)
+		require.Equal(t, types.OriginConfigFile, stored.Origin())
+		require.Empty(t, resourceDiff(configFileRes, stored))
+	})
+
+	t.Run("start with config file, reinit with another config file", func(t *testing.T) {
+		t.Parallel()
+		conf := setupConfig(t)
+
+		// Simulate a server with a config-file resource.
+		configFileRes := p.withConfigFile(t, &conf)
+		authServer := initAuthServer(t, conf)
+
+		stored := p.getStored(t, authServer)
+		require.Equal(t, types.OriginConfigFile, stored.Origin())
+		require.Empty(t, resourceDiff(configFileRes, stored))
+
+		// Reinitialize with another config-file resource.
+		anotherConfigFileRes := p.withAnotherConfigFile(t, &conf)
+		authServer = initAuthServer(t, conf)
+
+		// Verify the stored resource is updated.
+		stored = p.getStored(t, authServer)
+		require.Equal(t, types.OriginConfigFile, stored.Origin())
+		require.Empty(t, resourceDiff(anotherConfigFileRes, stored))
+	})
+}
+
 func TestAuthPreference(t *testing.T) {
-	tempDir := t.TempDir()
+	t.Parallel()
+	ctx := context.Background()
 
-	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
-	require.NoError(t, err)
-
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         "local",
-		SecondFactor: "u2f",
-		U2F: &services.U2F{
-			AppID:  "foo",
-			Facets: []string{"bar", "baz"},
+	testDynamicallyConfigurable(t, testDynamicallyConfigurableParams{
+		withDefaults: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+			conf.AuthPreference = types.DefaultAuthPreference()
+			return conf.AuthPreference
+		},
+		withConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+			fromConfigFile, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+				Type: constants.OIDC,
+			})
+			require.NoError(t, err)
+			conf.AuthPreference = fromConfigFile
+			return conf.AuthPreference
+		},
+		withAnotherConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+			conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
+			return conf.AuthPreference
+		},
+		setDynamic: func(t *testing.T, authServer *Server) {
+			dynamically, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				SecondFactor: constants.SecondFactorOff,
+			})
+			require.NoError(t, err)
+			err = authServer.SetAuthPreference(ctx, dynamically)
+			require.NoError(t, err)
+		},
+		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
+			authPref, err := authServer.GetAuthPreference(ctx)
+			require.NoError(t, err)
+			return authPref
 		},
 	})
-	require.NoError(t, err)
+}
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
+func TestClusterNetworkingConfig(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	testDynamicallyConfigurable(t, testDynamicallyConfigurableParams{
+		withDefaults: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+			conf.ClusterNetworkingConfig = types.DefaultClusterNetworkingConfig()
+			return conf.ClusterNetworkingConfig
+		},
+		withConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+			fromConfigFile, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+				ClientIdleTimeout: types.Duration(7 * time.Minute),
+			})
+			require.NoError(t, err)
+			conf.ClusterNetworkingConfig = fromConfigFile
+			return conf.ClusterNetworkingConfig
+		},
+		withAnotherConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+			anotherFromConfigFile, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+				ClientIdleTimeout: types.Duration(10 * time.Minute),
+				KeepAliveInterval: types.Duration(3 * time.Minute),
+			})
+			require.NoError(t, err)
+			conf.ClusterNetworkingConfig = anotherFromConfigFile
+			return conf.ClusterNetworkingConfig
+		},
+		setDynamic: func(t *testing.T, authServer *Server) {
+			dynamically, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+				KeepAliveInterval: types.Duration(4 * time.Minute),
+			})
+			require.NoError(t, err)
+			dynamically.SetOrigin(types.OriginDynamic)
+			err = authServer.SetClusterNetworkingConfig(ctx, dynamically)
+			require.NoError(t, err)
+		},
+		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
+			authPref, err := authServer.GetClusterNetworkingConfig(ctx)
+			require.NoError(t, err)
+			return authPref
+		},
 	})
-	require.NoError(t, err)
+}
 
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{},
+func TestSessionRecordingConfig(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	testDynamicallyConfigurable(t, testDynamicallyConfigurableParams{
+		withDefaults: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+			conf.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
+			return conf.SessionRecordingConfig
+		},
+		withConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+			fromConfigFile, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: types.RecordOff,
+			})
+			require.NoError(t, err)
+			conf.SessionRecordingConfig = fromConfigFile
+			return conf.SessionRecordingConfig
+		},
+		withAnotherConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+			anotherFromConfigFile, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: types.RecordAtProxySync,
+			})
+			require.NoError(t, err)
+			conf.SessionRecordingConfig = anotherFromConfigFile
+			return conf.SessionRecordingConfig
+		},
+		setDynamic: func(t *testing.T, authServer *Server) {
+			dynamically, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: types.RecordAtNodeSync,
+			})
+			require.NoError(t, err)
+			dynamically.SetOrigin(types.OriginDynamic)
+			err = authServer.SetSessionRecordingConfig(ctx, dynamically)
+			require.NoError(t, err)
+		},
+		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
+			authPref, err := authServer.GetSessionRecordingConfig(ctx)
+			require.NoError(t, err)
+			return authPref
+		},
 	})
-	require.NoError(t, err)
-
-	ac := InitConfig{
-		DataDir:        tempDir,
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   staticTokens,
-		AuthPreference: ap,
-	}
-	as, err := Init(ac)
-	require.NoError(t, err)
-	defer as.Close()
-
-	cap, err := as.GetAuthPreference()
-	require.NoError(t, err)
-	require.Equal(t, cap.GetType(), "local")
-	require.Equal(t, cap.GetSecondFactor(), constants.SecondFactorU2F)
-
-	u, err := cap.GetU2F()
-	require.NoError(t, err)
-	require.Equal(t, u.AppID, "foo")
-	require.Equal(t, u.Facets, []string{"bar", "baz"})
 }
 
 func TestClusterID(t *testing.T) {
-	tempDir := t.TempDir()
-
-	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
-	require.NoError(t, err)
-
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
-	require.NoError(t, err)
-
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type: "local",
-	})
-	require.NoError(t, err)
-
-	authServer, err := Init(InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   services.DefaultStaticTokens(),
-		AuthPreference: authPreference,
-	})
+	conf := setupConfig(t)
+	authServer, err := Init(conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterConfig()
+	cc, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEqual(t, clusterID, "")
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   services.DefaultStaticTokens(),
-		AuthPreference: authPreference,
-	})
+	authServer, err = Init(conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterConfig()
+	cc, err = authServer.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, cc.GetClusterID(), clusterID)
 }
 
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
-	bk, err := lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
-	require.NoError(t, err)
-
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
-	require.NoError(t, err)
-
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type: "local",
-	})
-	require.NoError(t, err)
-
-	authServer, err := Init(InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   services.DefaultStaticTokens(),
-		AuthPreference: authPreference,
-	})
+	conf := setupConfig(t)
+	authServer, err := Init(conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
 	// Start the auth server with a different cluster name. The auth server
 	// should start, but with the original name.
-	clusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
+	newConfig := conf
+	newConfig.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "dev.localhost",
 	})
 	require.NoError(t, err)
-
-	authServer, err = Init(InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   services.DefaultStaticTokens(),
-		AuthPreference: authPreference,
-	})
+	authServer, err = Init(newConfig)
 	require.NoError(t, err)
 	defer authServer.Close()
 
 	cn, err := authServer.GetClusterName()
 	require.NoError(t, err)
-	require.Equal(t, cn.GetClusterName(), "me.localhost")
+	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
+	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
 }
 
 func TestCASigningAlg(t *testing.T) {
-	bk, err := lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
-	require.NoError(t, err)
-
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
-	require.NoError(t, err)
-
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type: "local",
-	})
-	require.NoError(t, err)
-
-	conf := InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   services.DefaultStaticTokens(),
-		AuthPreference: authPreference,
-	}
-
 	verifyCAs := func(auth *Server, alg string) {
-		hostCAs, err := auth.GetCertAuthorities(services.HostCA, false)
+		hostCAs, err := auth.GetCertAuthorities(types.HostCA, false)
 		require.NoError(t, err)
 		for _, ca := range hostCAs {
 			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
 		}
-		userCAs, err := auth.GetCertAuthorities(services.UserCA, false)
+		userCAs, err := auth.GetCertAuthorities(types.UserCA, false)
 		require.NoError(t, err)
 		for _, ca := range userCAs {
 			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
@@ -358,8 +472,10 @@ func TestCASigningAlg(t *testing.T) {
 	}
 
 	// Start a new server without specifying a signing alg.
+	conf := setupConfig(t)
 	auth, err := Init(conf)
 	require.NoError(t, err)
+	defer auth.Close()
 	verifyCAs(auth, ssh.SigAlgoRSASHA2512)
 
 	require.NoError(t, auth.Close())
@@ -387,7 +503,7 @@ func TestCASigningAlg(t *testing.T) {
 
 func TestMigrateMFADevices(t *testing.T) {
 	ctx := context.Background()
-	as := newTestAuthServer(t)
+	as := newTestAuthServer(ctx, t)
 	clock := clockwork.NewFakeClock()
 	as.SetClock(clock)
 
@@ -419,7 +535,7 @@ func TestMigrateMFADevices(t *testing.T) {
 			)),
 		},
 	} {
-		u, err := services.NewUser(name)
+		u, err := types.NewUser(name)
 		require.NoError(t, err)
 		// Set a fake but valid bcrypt password hash.
 		u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: fakePasswordHash})
@@ -441,7 +557,7 @@ func TestMigrateMFADevices(t *testing.T) {
 		require.NoError(t, err)
 		return []*types.MFADevice{d}
 	}
-	wantUsers := []services.User{
+	wantUsers := []types.User{
 		newUserWithAuth(t, "no-mfa-user", &types.LocalAuthSecrets{PasswordHash: fakePasswordHash}),
 		newUserWithAuth(t, "totp-user", &types.LocalAuthSecrets{
 			PasswordHash: fakePasswordHash,
@@ -463,6 +579,7 @@ func TestMigrateMFADevices(t *testing.T) {
 	cmpOpts := []cmp.Option{
 		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
 		cmpopts.IgnoreFields(types.MFADevice{}, "Id"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.SortSlices(func(a, b types.User) bool { return a.GetName() < b.GetName() }),
 	}
 
@@ -483,13 +600,13 @@ func TestMigrateMFADevices(t *testing.T) {
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
-	roles := []services.Role{
+	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole()}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -509,7 +626,7 @@ func TestPresets(t *testing.T) {
 
 	// Makes sure that existing role with the same name is not modified
 	t.Run("ExistingRole", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -539,7 +656,7 @@ func TestMigrateOSS(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("EmptyCluster", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -561,7 +678,7 @@ func TestMigrateOSS(t *testing.T) {
 	})
 
 	t.Run("User", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -586,7 +703,7 @@ func TestMigrateOSS(t *testing.T) {
 
 	t.Run("TrustedCluster", func(t *testing.T) {
 		clusterName := "test.localhost"
-		as := newTestAuthServer(t, clusterName)
+		as := newTestAuthServer(ctx, t, clusterName)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -594,7 +711,7 @@ func TestMigrateOSS(t *testing.T) {
 		err := as.CreateRole(services.NewAdminRole())
 		require.NoError(t, err)
 
-		foo, err := services.NewTrustedCluster("foo", services.TrustedClusterSpecV2{
+		foo, err := types.NewTrustedCluster("foo", types.TrustedClusterSpecV2{
 			Enabled:              false,
 			Token:                "qux",
 			ProxyAddress:         "quux",
@@ -612,7 +729,7 @@ func TestMigrateOSS(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, name := range []string{clusterName, foo.GetName()} {
-			for _, catype := range []services.CertAuthType{services.UserCA, services.HostCA} {
+			for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
 				causer := suite.NewTestCA(catype, name)
 				err = as.UpsertCertAuthority(causer)
 				require.NoError(t, err)
@@ -627,16 +744,16 @@ func TestMigrateOSS(t *testing.T) {
 		mapping := types.RoleMap{{Remote: teleport.AdminRoleName, Local: []string{teleport.AdminRoleName}}}
 		require.Equal(t, mapping, out.GetRoleMap())
 
-		for _, catype := range []services.CertAuthType{services.UserCA, services.HostCA} {
-			ca, err := as.GetCertAuthority(services.CertAuthID{Type: catype, DomainName: foo.GetName()}, true)
+		for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
+			ca, err := as.GetCertAuthority(types.CertAuthID{Type: catype, DomainName: foo.GetName()}, true)
 			require.NoError(t, err)
 			require.Equal(t, mapping, ca.GetRoleMap())
 			require.Equal(t, types.True, ca.GetMetadata().Labels[teleport.OSSMigratedV6])
 		}
 
 		// root cluster CA are not updated
-		for _, catype := range []services.CertAuthType{services.UserCA, services.HostCA} {
-			ca, err := as.GetCertAuthority(services.CertAuthID{Type: catype, DomainName: clusterName}, true)
+		for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
+			ca, err := as.GetCertAuthority(types.CertAuthID{Type: catype, DomainName: clusterName}, true)
 			require.NoError(t, err)
 			_, found := ca.GetMetadata().Labels[teleport.OSSMigratedV6]
 			require.False(t, found)
@@ -647,7 +764,7 @@ func TestMigrateOSS(t *testing.T) {
 	})
 
 	t.Run("GithubConnector", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -655,7 +772,7 @@ func TestMigrateOSS(t *testing.T) {
 		err := as.CreateRole(services.NewAdminRole())
 		require.NoError(t, err)
 
-		connector := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 			ClientID:     "aaa",
 			ClientSecret: "bbb",
 			RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
@@ -676,6 +793,7 @@ func TestMigrateOSS(t *testing.T) {
 				},
 			},
 		})
+		require.NoError(t, err)
 
 		err = as.CreateGithubConnector(connector)
 		require.NoError(t, err)
@@ -716,12 +834,185 @@ func TestMigrateOSS(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, mappings, out.GetTeamsToLogins())
 	})
-
 }
 
-func newUserWithAuth(t *testing.T, name string, auth *types.LocalAuthSecrets) services.User {
-	u, err := services.NewUser(name)
+func TestMigrateClusterID(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	as := newTestAuthServer(ctx, t)
+
+	const legacyClusterID = "legacy-cluster-id"
+	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
+		ClusterID: legacyClusterID,
+	})
+	require.NoError(t, err)
+	err = as.ClusterConfiguration.(*local.ClusterConfigurationService).ForceSetClusterConfig(clusterConfig)
+	require.NoError(t, err)
+
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+	})
+	require.NoError(t, err)
+	require.Error(t, as.SetClusterName(clusterName))
+	require.NoError(t, as.ClusterConfiguration.(*local.ClusterConfigurationService).ForceSetClusterName(clusterName))
+
+	clusterName, err = as.GetClusterName()
+	require.NoError(t, err)
+	require.Empty(t, clusterName.GetClusterID())
+
+	require.NoError(t, migrateClusterID(ctx, as))
+
+	clusterName, err = as.GetClusterName()
+	require.NoError(t, err)
+	require.Equal(t, legacyClusterID, clusterName.GetClusterID())
+}
+
+func setupConfig(t *testing.T) InitConfig {
+	tempDir := t.TempDir()
+
+	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
+	require.NoError(t, err)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	require.NoError(t, err)
+
+	return InitConfig{
+		DataDir:                 tempDir,
+		HostUUID:                "00000000-0000-0000-0000-000000000000",
+		NodeName:                "foo",
+		Backend:                 bk,
+		Authority:               testauthority.New(),
+		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
+		ClusterConfig:           types.DefaultClusterConfig(),
+		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
+		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
+		ClusterName:             clusterName,
+		StaticTokens:            types.DefaultStaticTokens(),
+		AuthPreference:          types.DefaultAuthPreference(),
+		SkipPeriodicOperations:  true,
+	}
+}
+
+func newUserWithAuth(t *testing.T, name string, auth *types.LocalAuthSecrets) types.User {
+	u, err := types.NewUser(name)
 	require.NoError(t, err)
 	u.SetLocalAuth(auth)
 	return u
+}
+
+func newU2FAuthPreferenceFromConfigFile(t *testing.T) types.AuthPreference {
+	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorU2F,
+		U2F: &types.U2F{
+			AppID:  "foo",
+			Facets: []string{"bar", "baz"},
+		},
+	})
+	require.NoError(t, err)
+	return ap
+}
+
+func TestMigrateCertAuthorities(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	as := newTestAuthServer(ctx, t)
+	clock := clockwork.NewFakeClock()
+	as.SetClock(clock)
+
+	for _, spec := range []types.CertAuthoritySpecV2{
+		{
+			Type:         types.HostCA,
+			ClusterName:  "localhost",
+			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
+			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
+			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
+			Rotation:     nil, // Rotation was never performed.
+		},
+		{
+			Type:         types.UserCA,
+			ClusterName:  "localhost",
+			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
+			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
+			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
+			Rotation:     &types.Rotation{State: types.RotationStateStandby},
+		},
+		{
+			Type:        types.JWTSigner,
+			ClusterName: "localhost",
+			JWTKeyPairs: []types.JWTKeyPair{{PublicKey: []byte(fixtures.JWTSignerPublicKey), PrivateKey: []byte(fixtures.JWTSignerPrivateKey)}},
+			Rotation:    &types.Rotation{State: types.RotationStateStandby},
+		},
+	} {
+		t.Run(fmt.Sprintf("create %v CA", spec.Type), func(t *testing.T) {
+			ca, err := types.NewCertAuthority(spec)
+			require.NoError(t, err)
+			// Do NOT use services.MarshalCertAuthority to keep all fields as-is.
+			enc, err := utils.FastMarshal(ca)
+			require.NoError(t, err)
+
+			_, err = as.bk.Put(ctx, backend.Item{
+				Key:   backend.Key("authorities", string(ca.GetType()), ca.GetName()),
+				Value: enc,
+			})
+			require.NoError(t, err)
+		})
+	}
+
+	err := migrateCertAuthorities(ctx, as)
+	require.NoError(t, err)
+
+	var caSpecs []types.CertAuthoritySpecV2
+	for _, typ := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
+		t.Run(fmt.Sprintf("verify %v CA", typ), func(t *testing.T) {
+			cas, err := as.GetCertAuthorities(typ, true)
+			require.NoError(t, err)
+			require.Len(t, cas, 1)
+			caSpecs = append(caSpecs, cas[0].(*types.CertAuthorityV2).Spec)
+		})
+	}
+	require.Empty(t, cmp.Diff(caSpecs, []types.CertAuthoritySpecV2{
+		{
+			Type:        types.HostCA,
+			ClusterName: "localhost",
+			ActiveKeys: types.CAKeySet{
+				SSH: []*types.SSHKeyPair{{
+					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+					PublicKey:  []byte(fixtures.SSHCAPublicKey),
+				}},
+				TLS: []*types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
+			},
+			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
+			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
+			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
+			Rotation:     nil,
+		},
+		{
+			Type:        types.UserCA,
+			ClusterName: "localhost",
+			ActiveKeys: types.CAKeySet{
+				SSH: []*types.SSHKeyPair{{
+					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+					PublicKey:  []byte(fixtures.SSHCAPublicKey),
+				}},
+				TLS: []*types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
+			},
+			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
+			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
+			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
+			Rotation:     &types.Rotation{State: types.RotationStateStandby},
+		},
+		{
+			Type:        types.JWTSigner,
+			ClusterName: "localhost",
+			ActiveKeys: types.CAKeySet{
+				JWT: []*types.JWTKeyPair{{PublicKey: []byte(fixtures.JWTSignerPublicKey), PrivateKey: []byte(fixtures.JWTSignerPrivateKey)}},
+			},
+			JWTKeyPairs: []types.JWTKeyPair{{PublicKey: []byte(fixtures.JWTSignerPublicKey), PrivateKey: []byte(fixtures.JWTSignerPrivateKey)}},
+			Rotation:    &types.Rotation{State: types.RotationStateStandby},
+		},
+	}))
 }

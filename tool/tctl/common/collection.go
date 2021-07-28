@@ -24,8 +24,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -36,14 +37,14 @@ import (
 
 type ResourceCollection interface {
 	writeText(w io.Writer) error
-	resources() []services.Resource
+	resources() []types.Resource
 }
 
 type roleCollection struct {
-	roles []services.Role
+	roles []types.Role
 }
 
-func (r *roleCollection) resources() (res []services.Resource) {
+func (r *roleCollection) resources() (res []types.Resource) {
 	for _, resource := range r.roles {
 		res = append(res, resource)
 	}
@@ -53,7 +54,7 @@ func (r *roleCollection) resources() (res []services.Resource) {
 func (r *roleCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Role", "Allowed to login as", "Node Labels", "Access to resources"})
 	for _, r := range r.roles {
-		if r.GetName() == teleport.DefaultImplicitRole {
+		if r.GetName() == constants.DefaultImplicitRole {
 			continue
 		}
 		t.AddRow([]string{
@@ -67,10 +68,10 @@ func (r *roleCollection) writeText(w io.Writer) error {
 }
 
 type namespaceCollection struct {
-	namespaces []services.Namespace
+	namespaces []types.Namespace
 }
 
-func (n *namespaceCollection) resources() (r []services.Resource) {
+func (n *namespaceCollection) resources() (r []types.Resource) {
 	for _, resource := range n.namespaces {
 		r = append(r, &resource)
 	}
@@ -86,7 +87,7 @@ func (n *namespaceCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func printActions(rules []services.Rule) string {
+func printActions(rules []types.Rule) string {
 	pairs := []string{}
 	for _, rule := range rules {
 		pairs = append(pairs, fmt.Sprintf("%v:%v", strings.Join(rule.Resources, ","), strings.Join(rule.Verbs, ",")))
@@ -102,10 +103,10 @@ func printMetadataLabels(labels map[string]string) string {
 	return strings.Join(pairs, ",")
 }
 
-func printNodeLabels(labels services.Labels) string {
+func printNodeLabels(labels types.Labels) string {
 	pairs := []string{}
 	for key, values := range labels {
-		if key == services.Wildcard {
+		if key == types.Wildcard {
 			return "<all nodes>"
 		}
 		pairs = append(pairs, fmt.Sprintf("%v=%v", key, values))
@@ -114,10 +115,10 @@ func printNodeLabels(labels services.Labels) string {
 }
 
 type serverCollection struct {
-	servers []services.Server
+	servers []types.Server
 }
 
-func (s *serverCollection) resources() (r []services.Resource) {
+func (s *serverCollection) resources() (r []types.Resource) {
 	for _, resource := range s.servers {
 		r = append(r, resource)
 	}
@@ -136,10 +137,10 @@ func (s *serverCollection) writeText(w io.Writer) error {
 }
 
 type userCollection struct {
-	users []services.User
+	users []types.User
 }
 
-func (u *userCollection) resources() (r []services.Resource) {
+func (u *userCollection) resources() (r []types.Resource) {
 	for _, resource := range u.users {
 		r = append(r, resource)
 	}
@@ -156,10 +157,10 @@ func (u *userCollection) writeText(w io.Writer) error {
 }
 
 type authorityCollection struct {
-	cas []services.CertAuthority
+	cas []types.CertAuthority
 }
 
-func (a *authorityCollection) resources() (r []services.Resource) {
+func (a *authorityCollection) resources() (r []types.Resource) {
 	for _, resource := range a.cas {
 		r = append(r, resource)
 	}
@@ -169,13 +170,13 @@ func (a *authorityCollection) resources() (r []services.Resource) {
 func (a *authorityCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Cluster Name", "CA Type", "Fingerprint", "Role Map"})
 	for _, a := range a.cas {
-		for _, keyBytes := range a.GetCheckingKeys() {
-			fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
+		for _, key := range a.GetTrustedSSHKeyPairs() {
+			fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey)
 			if err != nil {
 				fingerprint = fmt.Sprintf("<bad key: %v>", err)
 			}
 			var roles string
-			if a.GetType() == services.HostCA {
+			if a.GetType() == types.HostCA {
 				roles = "N/A"
 			} else {
 				roles = fmt.Sprintf("%v", a.CombinedMapping())
@@ -193,10 +194,10 @@ func (a *authorityCollection) writeText(w io.Writer) error {
 }
 
 type reverseTunnelCollection struct {
-	tunnels []services.ReverseTunnel
+	tunnels []types.ReverseTunnel
 }
 
-func (r *reverseTunnelCollection) resources() (res []services.Resource) {
+func (r *reverseTunnelCollection) resources() (res []types.Resource) {
 	for _, resource := range r.tunnels {
 		res = append(res, resource)
 	}
@@ -215,10 +216,10 @@ func (r *reverseTunnelCollection) writeText(w io.Writer) error {
 }
 
 type oidcCollection struct {
-	connectors []services.OIDCConnector
+	connectors []types.OIDCConnector
 }
 
-func (c *oidcCollection) resources() (r []services.Resource) {
+func (c *oidcCollection) resources() (r []types.Resource) {
 	for _, resource := range c.connectors {
 		r = append(r, resource)
 	}
@@ -237,10 +238,10 @@ func (c *oidcCollection) writeText(w io.Writer) error {
 }
 
 type samlCollection struct {
-	connectors []services.SAMLConnector
+	connectors []types.SAMLConnector
 }
 
-func (c *samlCollection) resources() (r []services.Resource) {
+func (c *samlCollection) resources() (r []types.Resource) {
 	for _, resource := range c.connectors {
 		r = append(r, resource)
 	}
@@ -257,12 +258,12 @@ func (c *samlCollection) writeText(w io.Writer) error {
 }
 
 type connectorsCollection struct {
-	oidc   []services.OIDCConnector
-	saml   []services.SAMLConnector
-	github []services.GithubConnector
+	oidc   []types.OIDCConnector
+	saml   []types.SAMLConnector
+	github []types.GithubConnector
 }
 
-func (c *connectorsCollection) resources() (r []services.Resource) {
+func (c *connectorsCollection) resources() (r []types.Resource) {
 	for _, resource := range c.oidc {
 		r = append(r, resource)
 	}
@@ -316,10 +317,10 @@ func (c *connectorsCollection) writeText(w io.Writer) error {
 }
 
 type trustedClusterCollection struct {
-	trustedClusters []services.TrustedCluster
+	trustedClusters []types.TrustedCluster
 }
 
-func (c *trustedClusterCollection) resources() (r []services.Resource) {
+func (c *trustedClusterCollection) resources() (r []types.Resource) {
 	for _, resource := range c.trustedClusters {
 		r = append(r, resource)
 	}
@@ -344,10 +345,10 @@ func (c *trustedClusterCollection) writeText(w io.Writer) error {
 }
 
 type githubCollection struct {
-	connectors []services.GithubConnector
+	connectors []types.GithubConnector
 }
 
-func (c *githubCollection) resources() (r []services.Resource) {
+func (c *githubCollection) resources() (r []types.Resource) {
 	for _, resource := range c.connectors {
 		r = append(r, resource)
 	}
@@ -364,7 +365,7 @@ func (c *githubCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func formatTeamsToLogins(mappings []services.TeamMapping) string {
+func formatTeamsToLogins(mappings []types.TeamMapping) string {
 	var result []string
 	for _, m := range mappings {
 		result = append(result, fmt.Sprintf("@%v/%v: %v",
@@ -374,10 +375,10 @@ func formatTeamsToLogins(mappings []services.TeamMapping) string {
 }
 
 type remoteClusterCollection struct {
-	remoteClusters []services.RemoteCluster
+	remoteClusters []types.RemoteCluster
 }
 
-func (c *remoteClusterCollection) resources() (r []services.Resource) {
+func (c *remoteClusterCollection) resources() (r []types.Resource) {
 	for _, resource := range c.remoteClusters {
 		r = append(r, resource)
 	}
@@ -398,7 +399,7 @@ func formatLastHeartbeat(t time.Time) string {
 	if t.IsZero() {
 		return "not available"
 	}
-	return utils.HumanTimeFormat(t)
+	return apiutils.HumanTimeFormat(t)
 }
 
 func writeJSON(c ResourceCollection, w io.Writer) error {
@@ -415,10 +416,10 @@ func writeYAML(c ResourceCollection, w io.Writer) error {
 }
 
 type semaphoreCollection struct {
-	sems []services.Semaphore
+	sems []types.Semaphore
 }
 
-func (c *semaphoreCollection) resources() (r []services.Resource) {
+func (c *semaphoreCollection) resources() (r []types.Resource) {
 	for _, resource := range c.sems {
 		r = append(r, resource)
 	}
@@ -439,10 +440,10 @@ func (c *semaphoreCollection) writeText(w io.Writer) error {
 }
 
 type appCollection struct {
-	servers []services.Server
+	servers []types.Server
 }
 
-func (a *appCollection) resources() (r []services.Resource) {
+func (a *appCollection) resources() (r []types.Resource) {
 	for _, resource := range a.servers {
 		r = append(r, resource)
 	}
@@ -454,7 +455,7 @@ func (a *appCollection) writeText(w io.Writer) error {
 	for _, server := range a.servers {
 		for _, app := range server.GetApps() {
 			t.AddRow([]string{
-				app.Name, server.GetName(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+				app.Name, server.GetName(), app.PublicAddr, app.URI, types.LabelsAsString(app.StaticLabels, app.DynamicLabels),
 			})
 		}
 	}
@@ -480,30 +481,97 @@ func (a *appCollection) writeYAML(w io.Writer) error {
 }
 
 type authPrefCollection struct {
-	authPrefs []services.AuthPreference
+	authPref types.AuthPreference
 }
 
-func (c *authPrefCollection) resources() (r []services.Resource) {
-	for _, resource := range c.authPrefs {
-		r = append(r, resource)
-	}
-	return r
+func (c *authPrefCollection) resources() (r []types.Resource) {
+	return []types.Resource{c.authPref}
 }
 
 func (c *authPrefCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Type", "Second Factor"})
-	for _, authPref := range c.authPrefs {
-		t.AddRow([]string{authPref.GetType(), string(authPref.GetSecondFactor())})
-	}
+	t.AddRow([]string{c.authPref.GetType(), string(c.authPref.GetSecondFactor())})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+type netConfigCollection struct {
+	netConfig types.ClusterNetworkingConfig
+}
+
+func (c *netConfigCollection) resources() (r []types.Resource) {
+	return []types.Resource{c.netConfig}
+}
+
+func (c *netConfigCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Client Idle Timeout", "Keep Alive Interval", "Keep Alive Count Max", "Session Control Timeout"})
+	t.AddRow([]string{
+		c.netConfig.GetClientIdleTimeout().String(),
+		c.netConfig.GetKeepAliveInterval().String(),
+		strconv.FormatInt(c.netConfig.GetKeepAliveCountMax(), 10),
+		c.netConfig.GetSessionControlTimeout().String(),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type recConfigCollection struct {
+	recConfig types.SessionRecordingConfig
+}
+
+func (c *recConfigCollection) resources() (r []types.Resource) {
+	return []types.Resource{c.recConfig}
+}
+
+func (c *recConfigCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Mode", "Proxy Checks Host Keys"})
+	t.AddRow([]string{c.recConfig.GetMode(), strconv.FormatBool(c.recConfig.GetProxyChecksHostKeys())})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type netRestrictionsCollection struct {
+	netRestricts types.NetworkRestrictions
+}
+
+type writer struct {
+	w   io.Writer
+	err error
+}
+
+func (w *writer) write(s string) {
+	if w.err == nil {
+		_, w.err = w.w.Write([]byte(s))
+	}
+}
+
+func (c *netRestrictionsCollection) resources() (r []types.Resource) {
+	r = append(r, c.netRestricts)
+	return
+}
+
+func (c *netRestrictionsCollection) writeList(as []types.AddressCondition, w *writer) {
+	for _, a := range as {
+		w.write(a.CIDR)
+		w.write("\n")
+	}
+}
+
+func (c *netRestrictionsCollection) writeText(w io.Writer) error {
+	out := &writer{w: w}
+	out.write("ALLOW\n")
+	c.writeList(c.netRestricts.GetAllow(), out)
+
+	out.write("\nDENY\n")
+	c.writeList(c.netRestricts.GetDeny(), out)
+	return trace.Wrap(out.err)
 }
 
 type dbCollection struct {
 	servers []types.DatabaseServer
 }
 
-func (c *dbCollection) resources() (r []services.Resource) {
+func (c *dbCollection) resources() (r []types.Resource) {
 	for _, resource := range c.servers {
 		r = append(r, resource)
 	}
@@ -536,4 +604,29 @@ func (c *dbCollection) toMarshal() interface{} {
 
 func (c *dbCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.toMarshal())
+}
+
+type lockCollection struct {
+	locks []types.Lock
+}
+
+func (c *lockCollection) resources() (r []types.Resource) {
+	for _, resource := range c.locks {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *lockCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"ID", "Target", "Message", "Expires"})
+	for _, lock := range c.locks {
+		target := lock.Target()
+		expires := "never"
+		if lock.LockExpiry() != nil {
+			expires = apiutils.HumanTimeFormat(*lock.LockExpiry())
+		}
+		t.AddRow([]string{lock.GetName(), target.String(), lock.Message(), expires})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }

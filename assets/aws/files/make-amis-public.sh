@@ -1,17 +1,17 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
-# Define list of regions to run in
-REGION_LIST="us-east-1 us-east-2 us-west-1 us-west-2 ap-south-1 ap-northeast-2 ap-southeast-1 ap-southeast-2 ap-northeast-1 ca-central-1 eu-central-1 eu-west-1 eu-west-2 sa-east-1"
-
-# Exit if oss/ent parameters not provided
-if [[ "$1" == "" ]]; then
-    echo "Usage: $(basename $0) [oss/ent/ent-fips]"
+# Exit if required parameters not provided
+if [[ "$1" == "" ]] || [[ "$2" == "" ]]; then
+    echo "Usage: $(basename $0) [oss/ent/ent-fips] [comma-separated-destination-region-list]"
     exit 1
 else
     RUN_MODE="$1"
+    REGION_LIST="$2"
 fi
 
+# Note: to run this script on MacOS you will need to install coreutils (using Brew), then edit the PATH in your shell's
+# RC file to use coreutils versions first (something like "export PATH=/usr/local/opt/coreutils/libexec/gnubin:$PATH")
 ABSPATH=$(readlink -f "$0")
 SCRIPT_DIR=$(dirname "${ABSPATH}")
 BUILD_DIR=$(readlink -f "${SCRIPT_DIR}/build")
@@ -42,6 +42,7 @@ fi
 BUILD_TIMESTAMP=$(<"${TIMESTAMP_FILE}")
 
 # Iterate through AMIs
+IFS=","
 for REGION in ${REGION_LIST}; do
     AMI_ID=$(aws ec2 describe-images --region ${REGION} --filters "Name=name,Values=${NAME_FILTER}" "Name=tag:BuildTimestamp,Values=${BUILD_TIMESTAMP}" "Name=tag:BuildType,Values=${AMI_TAG}"| jq -r '.Images[0].ImageId')
     if [[ "${AMI_ID}" == "" || "${AMI_ID}" == "null" ]]; then

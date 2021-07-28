@@ -31,6 +31,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace/internal"
+
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -165,7 +167,7 @@ type JSONFormatter struct {
 // Format implements logrus.Formatter interface
 func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 	if cursor := findFrame(); cursor != nil {
-		t := newTraceFromFrames(*cursor, nil)
+		t := internal.GetTracesFromCursor(*cursor)
 		new := e.WithFields(log.Fields{
 			FileField:     t.Loc(),
 			FunctionField: t.FuncName(),
@@ -182,7 +184,7 @@ func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 // for output in the log
 func formatCallerWithPathAndLine() (path string) {
 	if cursor := findFrame(); cursor != nil {
-		t := newTraceFromFrames(*cursor, nil)
+		t := internal.GetTracesFromCursor(*cursor)
 		return t.Loc()
 	}
 	return ""
@@ -193,7 +195,7 @@ var frameIgnorePattern = regexp.MustCompile(`github\.com/(S|s)irupsen/logrus`)
 // findFrames positions the stack pointer to the first
 // function that does not match the frameIngorePattern
 // and returns the rest of the stack frames
-func findFrame() *frameCursor {
+func findFrame() *internal.FrameCursor {
 	var buf [32]uintptr
 	// Skip enough frames to start at user code.
 	// This number is a mere hint to the following loop
@@ -206,10 +208,10 @@ func findFrame() *frameCursor {
 	for i := 0; i < n; i++ {
 		frame, _ := frames.Next()
 		if !frameIgnorePattern.MatchString(frame.File) {
-			return &frameCursor{
-				current: &frame,
-				rest:    frames,
-				n:       n,
+			return &internal.FrameCursor{
+				Current: &frame,
+				Rest:    frames,
+				N:       n,
 			}
 		}
 	}

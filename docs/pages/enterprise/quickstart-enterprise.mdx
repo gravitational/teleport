@@ -281,7 +281,7 @@ allow:
   type="note"
   title="Note"
 >
-  See the [Kubernetes Guide](../kubernetes-access.mdx) and [Application Guide](../application-access.mdx) for enabling access to additional resources.
+  See the [Kubernetes Guide](../kubernetes-access/introduction.mdx) and [Application Guide](../application-access/introduction.mdx) for enabling access to additional resources.
 </Admonition>
 
 Then send it back into Teleport:
@@ -406,7 +406,7 @@ This table gives an idea of how our image naming scheme works. We offer images w
 automatically rebuilt every night. These nightly images point to the latest version of Teleport Enterprise from the three most recent release branches.
 They are stable, and we recommend their use to easily keep your Teleport Enterprise installation up to date.
 
-| Image name | Community or Enterprise? | Teleport version | Image automatically updated? | Image base |
+| Image name | Open Source or Enterprise? | Teleport version | Image automatically updated? | Image base |
 | - | - | - | - | - |
 | `quay.io/gravitational/teleport-ent:(=version=)` | Enterprise | The latest version of Teleport Enterprise (=version=) | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
 | `quay.io/gravitational/teleport-ent:(=version=)-fips` | Enterprise FIPS | The latest version of Teleport Enterprise (=version=) FIPS | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |

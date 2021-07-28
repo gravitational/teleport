@@ -80,7 +80,8 @@ spec:
   teams_to_logins: null
 version: v3
 `
-	githubConn := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
+	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
+	require.NoError(t, err)
 	item, err := ui.NewResourceItem(githubConn)
 	require.Nil(t, err)
 	require.Equal(t, item, &ui.ResourceItem{
@@ -118,7 +119,7 @@ spec:
     port_forwarding: true
 version: v3
 `
-	role, err := types.NewRole("roleName", types.RoleSpecV3{
+	role, err := types.NewRole("roleName", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{"test"},
 		},
@@ -163,7 +164,7 @@ func TestGetRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetRoles = func(ctx context.Context) ([]types.Role, error) {
-		role, err := types.NewRole("test", types.RoleSpecV3{
+		role, err := types.NewRole("test", types.RoleSpecV4{
 			Allow: types.RoleConditions{
 				Logins: []string{"test"},
 			},
@@ -224,7 +225,8 @@ func TestGetGithubConnectors(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-		connector := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
+		connector, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
+		require.NoError(t, err)
 
 		return []types.GithubConnector{connector}, nil
 	}

@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
 )
 
@@ -36,26 +34,19 @@ type ClusterName interface {
 	// GetClusterName gets the name of the cluster.
 	GetClusterName() string
 
-	// CheckAndSetDefaults checks and set default values for missing fields.
-	CheckAndSetDefaults() error
+	// SetClusterID sets the ID of the cluster.
+	SetClusterID(string)
+	// GetClusterID gets the ID of the cluster.
+	GetClusterID() string
 }
 
 // NewClusterName is a convenience wrapper to create a ClusterName resource.
 func NewClusterName(spec ClusterNameSpecV2) (ClusterName, error) {
-	cn := ClusterNameV2{
-		Kind:    KindClusterName,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameClusterName,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
-	}
+	cn := &ClusterNameV2{Spec: spec}
 	if err := cn.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return &cn, nil
+	return cn, nil
 }
 
 // GetVersion returns resource version
@@ -108,13 +99,6 @@ func (c *ClusterNameV2) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *ClusterNameV2) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (c *ClusterNameV2) GetMetadata() Metadata {
 	return c.Metadata
@@ -130,11 +114,27 @@ func (c *ClusterNameV2) GetClusterName() string {
 	return c.Spec.ClusterName
 }
 
+// SetClusterID sets the ID of the cluster.
+func (c *ClusterNameV2) SetClusterID(id string) {
+	c.Spec.ClusterID = id
+}
+
+// GetClusterID gets the ID of the cluster.
+func (c *ClusterNameV2) GetClusterID() string {
+	return c.Spec.ClusterID
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (c *ClusterNameV2) setStaticFields() {
+	c.Kind = KindClusterName
+	c.Version = V2
+	c.Metadata.Name = MetaNameClusterName
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterNameV2) CheckAndSetDefaults() error {
-	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -147,5 +147,5 @@ func (c *ClusterNameV2) CheckAndSetDefaults() error {
 
 // String represents a human readable version of the cluster name.
 func (c *ClusterNameV2) String() string {
-	return fmt.Sprintf("ClusterName(%v)", c.Spec.ClusterName)
+	return fmt.Sprintf("ClusterName(%v, ID=%v)", c.Spec.ClusterName, c.Spec.ClusterID)
 }

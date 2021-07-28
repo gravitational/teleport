@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -14,9 +16,10 @@ import (
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
-	a := newTestAuthServer(t)
+	ctx := context.Background()
+	a := newTestAuthServer(ctx, t)
 
-	rc, err := services.NewRemoteCluster("rc")
+	rc, err := types.NewRemoteCluster("rc")
 	require.NoError(t, err)
 	require.NoError(t, a.CreateRemoteCluster(rc))
 
@@ -30,21 +33,21 @@ func TestRemoteClusterStatus(t *testing.T) {
 
 	// Create several tunnel connections.
 	lastHeartbeat := a.clock.Now().UTC()
-	tc1, err := services.NewTunnelConnection("conn-1", services.TunnelConnectionSpecV2{
+	tc1, err := types.NewTunnelConnection("conn-1", types.TunnelConnectionSpecV2{
 		ClusterName:   rc.GetName(),
 		ProxyName:     "proxy-1",
 		LastHeartbeat: lastHeartbeat,
-		Type:          services.ProxyTunnel,
+		Type:          types.ProxyTunnel,
 	})
 	require.NoError(t, err)
 	require.NoError(t, a.UpsertTunnelConnection(tc1))
 
 	lastHeartbeat = lastHeartbeat.Add(time.Minute)
-	tc2, err := services.NewTunnelConnection("conn-2", services.TunnelConnectionSpecV2{
+	tc2, err := types.NewTunnelConnection("conn-2", types.TunnelConnectionSpecV2{
 		ClusterName:   rc.GetName(),
 		ProxyName:     "proxy-2",
 		LastHeartbeat: lastHeartbeat,
-		Type:          services.ProxyTunnel,
+		Type:          types.ProxyTunnel,
 	})
 	require.NoError(t, err)
 	require.NoError(t, a.UpsertTunnelConnection(tc2))
@@ -82,7 +85,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	require.Empty(t, cmp.Diff(rc, gotRC))
 }
 
-func newTestAuthServer(t *testing.T, name ...string) *Server {
+func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { bk.Close() })
@@ -92,7 +95,7 @@ func newTestAuthServer(t *testing.T, name ...string) *Server {
 		clusterName = name[0]
 	}
 	// Create a cluster with minimal viable config.
-	clusterNameRes, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterNameRes, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
@@ -105,7 +108,11 @@ func newTestAuthServer(t *testing.T, name ...string) *Server {
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
 	t.Cleanup(func() { a.Close() })
-	require.NoError(t, a.SetClusterConfig(services.DefaultClusterConfig()))
+	require.NoError(t, a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
+	require.NoError(t, a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
+	require.NoError(t, a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
+	require.NoError(t, a.SetAuthPreference(ctx, types.DefaultAuthPreference()))
+	require.NoError(t, a.SetClusterConfig(types.DefaultClusterConfig()))
 
 	return a
 }

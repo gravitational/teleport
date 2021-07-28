@@ -27,6 +27,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
@@ -118,9 +120,10 @@ func Run(commands []CLICommand) {
 	app.Flag("config-string",
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	app.Flag("auth-server",
-		fmt.Sprintf("Address of the auth server or the proxy [%v]. Can be supplied multiple times", defaults.AuthConnectAddr().Addr)).
+		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
 		StringsVar(&ccf.AuthServerAddr)
-	app.Flag("identity", "Path to the identity file exported with 'tctl auth sign'").
+	app.Flag("identity",
+		"Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'").
 		Short('i').
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
@@ -259,7 +262,7 @@ func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		resp, err := apiclient.Find(ctx, addr.String(), insecureTLS, nil)
+		resp, err := webclient.Find(ctx, addr.String(), insecureTLS, nil)
 		if err == nil {
 			return tunnelAddr(addr, resp.Proxy)
 		}
@@ -273,7 +276,7 @@ func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 //  2. SSH Proxy Public Address.
 //  3. HTTP Proxy Public Address.
 //  4. Tunnel Listen Address.
-func tunnelAddr(webAddr utils.NetAddr, settings apiclient.ProxySettings) (string, error) {
+func tunnelAddr(webAddr utils.NetAddr, settings webclient.ProxySettings) (string, error) {
 	// Extract the port the tunnel server is listening on.
 	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
 	if err != nil {
@@ -395,7 +398,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientCo
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: teleport.RoleAdmin, HostUUID: cfg.HostUUID})
+		identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
 		if err != nil {
 			// The "admin" identity is not present? This means the tctl is running
 			// NOT on the auth server
@@ -422,7 +425,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
-		proxyAddr = cfg.AuthServers[0].Addr
+		proxyAddr = ccf.AuthServerAddr[0]
 	}
 
 	profile, _, err := client.Status("", proxyAddr)
@@ -439,7 +442,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
 	}
 
-	log.Debugf("Found active profile: %v %v.", profile.ProxyURL, profile.Username)
+	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found active profile.")
 
 	c := client.MakeDefaultConfig()
 	if err := c.LoadProfile("", proxyAddr); err != nil {
@@ -454,6 +457,15 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 	key, err := keyStore.GetKey(idx, client.WithSSHCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Auth config can be created only using a key associated with the root cluster.
+	rootCluster, err := key.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if profile.Cluster != rootCluster {
+		return nil, trace.BadParameter("your credentials are for cluster %q, please run `tsh login %q` to log in to the root cluster", profile.Cluster, rootCluster)
 	}
 
 	authConfig := &AuthServiceClientConfig{}

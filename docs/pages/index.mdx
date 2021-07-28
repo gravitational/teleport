@@ -2,26 +2,37 @@
 title: Introduction to Teleport
 description: How to install and quickly get up and running with Teleport to set up SSH and Kubernetes access to cloud environments.
 h1: Introduction
+layout: tocless-doc
 ---
 
 ## What is Teleport
 
-Teleport is a Certificate Authority and an Access Plane for your infrastructure.
-With Teleport you can:
+Teleport is a Certificate Authority and an Access Plane for your infrastructure. With Teleport you can:
 
-- Set up single sign-on and have one place to access your SSH servers, Kubernetes, Databases and Web Apps.
+- Set up Single Sign-On and have one place to access your SSH servers, Kubernetes, Databases, and Web Apps.
 - Use your favorite programming language to define access policies to your infrastructure.
 - Share and record interactive sessions across all environments.
 
-## What Makes Teleport Different
-
-- Teleport replaces legacy keys and shared secrets with short-lived X.509 and SSH certificates
-  for services and users.
-- It proxies and inspects SSH, Kubernetes, Web and Database protocols.
-  For example for SSH, it controls the session from the start
-  and captures a session recording and in-kernel system calls using BPF.
-- It removes a need for VPN and can connect multiple regions and organizations
-  in a decentralized network using mutual TLS and SSH tunnels.
+<TileSet>
+  <Tile icon="bolt" title="Server Access" href="./getting-started.mdx">
+    Single Sign-On, short-lived certificates, and audit for SSH servers.
+  </Tile>
+  <Tile icon="window" title="Application Access" href="./application-access/introduction.mdx">
+    Provide secure access to internal dashboards and web applications.
+  </Tile>
+  <Tile icon="kubernetes" title="Kubernetes Access" href="./kubernetes-access/introduction.mdx">
+    Single Sign-On, audit and unified access for Kubernetes clusters.
+  </Tile>
+  <Tile icon="database" title="Database Access" href="./database-access/introduction.mdx">
+    Secure access to PostgreSQL, MySQL and MongoDB databases.
+  </Tile>
+  <Tile icon="cloud" title="Cloud" href="./cloud/introduction.mdx">
+    Connect your nodes, web apps, kubernetes clusters and databases to Teleport as a service.
+  </Tile>
+  <Tile icon="building" title="Enterprise" href="./enterprise/introduction.mdx">
+    OIDC, SAML, compliance controls and commercial support.
+  </Tile>
+</TileSet>
 
 <iframe
   width="712"
@@ -32,58 +43,44 @@ With Teleport you can:
   allowFullScreen
 />
 
-## Get started with Open Source
-
-- Install Teleport Open Source [in 5 minutes](getting-started.mdx).
-- Join the [Teleport Discussions](https://github.com/gravitational/teleport/discussions) and ask a question.
-- Create an issue in [Github](https://github.com/gravitational/teleport/).
-- Reach out for [Teleport Enterprise](https://goteleport.com/get-started).
-- [FAQ](faq.mdx) - Common questions about Teleport.
-
-## Popular Use-Cases
-
-Here are some of the most popular use-cases for Teleport:
-
-- Use short lived certificates instead of static keys for SSH, Kubernetes, Databases and Web Apps.
-- Gather structured events and session recording/replay for `ssh` and `kubectl`.
-- Centralized SSH and Kubernetes Certificate Authority.
-- Enforce 2nd factor auth with U2F or TOTP.
-- Connect to computing resources located behind firewalls or without static IPs.
-- Collaboratively troubleshoot issues through [session sharing](user-manual.mdx#sharing-sessions).
-- Discover online servers and Docker containers within a cluster with [dynamic node labels](admin-guide.mdx#labeling-nodes-and-applications).
-- Capture sessions and manage certificates for existing [OpenSSH fleet](openssh-teleport.mdx).
-- Secure access to internal web applications and services with [application access](application-access.mdx).
-
-## Teleport Enterprise
-
-Teleport Enterprise is built around the open-source core in Teleport Open Source,
-with the added benefits of role-based access control (RBAC) and easy
-integration with identity managers for single sign-on (SSO).
-
-- [Teleport Enterprise Introduction](enterprise/introduction.mdx) - Overview of the additional capabilities of Teleport Enterprise.
-- [Teleport Enterprise Quick Start](enterprise/quickstart-enterprise.mdx) - A quick tutorial to show off the basic capabilities of Teleport Enterprise.
-  A good place to start if you want to jump right in.
-- [SSO for SSH](enterprise/sso/ssh-sso.mdx) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
-
-Teleport is available through the free, open source edition ("Teleport Community Edition")
-or a commercial edition ("Teleport Enterprise Edition").
-
-## Operating System Support
-
-Teleport is officially supported on the platforms listed below. It is worth noting
-that the open source community has been successful in building and running Teleport on
-UNIX variants other than Linux \[2].
-
-| Operating System | Teleport Client | Teleport Server |
-| - | - | - |
-| Linux v2.6+ | yes | yes |
-| MacOS v10.12+ | yes | yes |
-| Windows \[1] | yes \[1] | no |
-
-\[1] *Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
-can be used on Windows to execute `tsh login` to retrieve a user's SSH
-certificate and use it with `ssh`, the OpenSSH client, running on a Windows
-client machine.*
-
-\[2] *Teleport is written in Go and it is theoretically possible to build it on
-any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
+<TileSet>
+  <TileList title="Reach out" icon="question">
+  <TileListItem href="https://github.com/gravitational/teleport/discussions">
+    Ask a question in the discussions forum.
+    </TileListItem>
+  <TileListItem href="https://goteleport.com/slack">
+    Join our Slack channel to get help with your setup.
+  </TileListItem>
+  <TileListItem href="https://github.com/gravitational/teleport/">
+    Create an issue in GitHub.
+  </TileListItem>
+  <TileListItem href="https://goteleport.com/get-started/">
+    Reach out sales for a demo of Teleport Enterprise.
+  </TileListItem>
+  </TileList>
+  <TileList title="For security teams" icon="lock">
+    <TileListItem href="./openssh.mdx">
+     Capture sessions and manage certificates for existing OpenSSH fleet.
+    </TileListItem>
+    <TileListItem href="./architecture/authentication.mdx#issuing-user-certificates">
+      Replace static keys and passwords with short-lived certificates.
+    </TileListItem>
+    <TileListItem href="./cli-docs.mdx#tsh-play">
+     Gather structured events and session recording/replay for `ssh` and `kubectl`.
+     </TileListItem>
+    <TileListItem href="./access-controls/guides/u2f.mdx">
+     Enforce two-factor auth with U2F or TOTP.
+    </TileListItem>
+  </TileList>
+  <TileList title="For developers" icon="stack">
+    <TileListItem href="./user-manual.mdx#sharing-sessions">
+      Collaborate through session sharing.
+    </TileListItem>
+    <TileListItem href="./admin-guide.mdx#labeling-nodes-and-applications">
+      Discover servers and clusters with dynamic node labels.
+    </TileListItem>
+    <TileListItem href="./admin-guide.mdx#adding-a-node-located-behind-nat">
+     Connect to computing resources located behind firewalls or without static IPs.
+    </TileListItem>
+  </TileList>
+</TileSet>

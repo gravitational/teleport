@@ -52,7 +52,7 @@ func onAppLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
+	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: tc.SiteName,
 		RouteToApp: proto.RouteToApp{
 			Name:        app.Name,

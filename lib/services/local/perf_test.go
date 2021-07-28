@@ -23,10 +23,11 @@ import (
 	"os"
 	"testing"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/stretchr/testify/assert"
@@ -35,40 +36,32 @@ import (
 // BenchmarkGetNodes verifies the performance of the GetNodes operation
 // on local (sqlite) databases (as used by the cache system).
 func BenchmarkGetNodes(b *testing.B) {
+	ctx := context.Background()
 
 	type testCase struct {
-		validation, memory bool
-		nodes              int
+		memory bool
+		nodes  int
 	}
 
 	var tts []testCase
 
-	for _, validation := range []bool{true, false} {
-		for _, memory := range []bool{true, false} {
-			for _, nodes := range []int{100, 1000, 10000} {
-				tts = append(tts, testCase{
-					validation: validation,
-					memory:     memory,
-					nodes:      nodes,
-				})
-			}
+	for _, memory := range []bool{true, false} {
+		for _, nodes := range []int{100, 1000, 10000} {
+			tts = append(tts, testCase{
+				memory: memory,
+				nodes:  nodes,
+			})
 		}
 	}
 
 	for _, tt := range tts {
 		// create a descriptive name for the sub-benchmark.
-		name := fmt.Sprintf("tt(validation=%v,memory=%v,nodes=%d)", tt.validation, tt.memory, tt.nodes)
+		name := fmt.Sprintf("tt(memory=%v,nodes=%d)", tt.memory, tt.nodes)
 
 		// run the sub benchmark
 		b.Run(name, func(sb *testing.B) {
 
 			sb.StopTimer() // stop timer while running setup
-
-			// set up marshal options
-			var opts []services.MarshalOption
-			if !tt.validation {
-				opts = append(opts, services.SkipValidation())
-			}
 
 			// configure the backend instance
 			var bk backend.Backend
@@ -90,11 +83,11 @@ func BenchmarkGetNodes(b *testing.B) {
 
 			svc := NewPresenceService(bk)
 			// seed the test nodes
-			insertNodes(b, svc, tt.nodes)
+			insertNodes(ctx, b, svc, tt.nodes)
 
 			sb.StartTimer() // restart timer for benchmark operations
 
-			benchmarkGetNodes(sb, svc, tt.nodes, opts...)
+			benchmarkGetNodes(ctx, sb, svc, tt.nodes)
 
 			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
@@ -102,7 +95,7 @@ func BenchmarkGetNodes(b *testing.B) {
 }
 
 // insertNodes inserts a collection of test nodes into a backend.
-func insertNodes(t assert.TestingT, svc services.Presence, nodeCount int) {
+func insertNodes(ctx context.Context, t assert.TestingT, svc services.Presence, nodeCount int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := 0; i < labelCount; i++ {
@@ -110,30 +103,30 @@ func insertNodes(t assert.TestingT, svc services.Presence, nodeCount int) {
 	}
 	for i := 0; i < nodeCount; i++ {
 		name, addr := fmt.Sprintf("node-%d", i), fmt.Sprintf("node%d.example.com", i)
-		node := &services.ServerV2{
-			Kind:    services.KindNode,
-			Version: services.V2,
-			Metadata: services.Metadata{
+		node := &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
 				Name:      name,
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 				Labels:    labels,
 			},
-			Spec: services.ServerSpecV2{
+			Spec: types.ServerSpecV2{
 				Addr:       addr,
 				PublicAddr: addr,
 			},
 		}
-		_, err := svc.UpsertNode(node)
+		_, err := svc.UpsertNode(ctx, node)
 		assert.NoError(t, err)
 	}
 }
 
 // benchmarkGetNodes runs GetNodes b.N times.
-func benchmarkGetNodes(b *testing.B, svc services.Presence, nodeCount int, opts ...services.MarshalOption) {
-	var nodes []services.Server
+func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int, opts ...services.MarshalOption) {
+	var nodes []types.Server
 	var err error
 	for i := 0; i < b.N; i++ {
-		nodes, err = svc.GetNodes(defaults.Namespace, opts...)
+		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace, opts...)
 		assert.NoError(b, err)
 	}
 	// do *something* with the loop result.  probably unnecessary since the loop

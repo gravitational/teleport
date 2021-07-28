@@ -60,8 +60,8 @@ With every user combination, try to login and signup with invalid second factor,
 - [ ] Backends
   - [ ] Teleport runs with etcd
   - [ ] Teleport runs with dynamodb
-  - [ ] Teleport runs with boltdb
-  - [ ] Teleport runs with dir
+  - [ ] Teleport runs with SQLite
+  - [ ] Teleport runs with Firestore
 
 - [ ] Session Recording
   - [ ] Session recording can be disabled
@@ -74,11 +74,32 @@ With every user combination, try to login and signup with invalid second factor,
 - [ ] Audit Log
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
-    - [ ] Server ID is the ID of the node in regular mode
-    - [ ] Server ID is randomly generated for proxy node
+    - [ ] Server ID is the ID of the node in "session_recording: node" mode
+    - [ ] Server ID is the ID of the proxy in "session_recording: proxy" mode
+
+    Node/Proxy ID may be found at `/var/lib/teleport/host_uuid` in the
+    corresponding machine.
+
+    Node IDs may also be queried via `tctl nodes ls`.
+
   - [ ] Exec commands are recorded
   - [ ] `scp` commands are recorded
   - [ ] Subsystem results are recorded
+
+    Subsystem testing may be achieved using both
+    [Recording Proxy mode](
+    https://goteleport.com/teleport/docs/architecture/proxy/#recording-proxy-mode)
+    and
+    [OpenSSH integration](
+    https://goteleport.com/docs/server-access/guides/openssh/).
+
+    Assuming the proxy is `proxy.example.com:3023` and `node1` is a node running
+    OpenSSH/sshd, you may use the following command to trigger a subsystem audit
+    log:
+
+    ```shell
+    sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
+    ```
 
 - [ ] Interact with a cluster using `tsh`
 
@@ -173,10 +194,19 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
   * [ ] Verify that the audit log recorded the above request and session
 * [ ] Deploy combo auth/proxy/kubernetes_service outside of a Kubernetes cluster, using a kubeconfig with multiple clusters in it
   * [ ] Login with `tsh login`, check that `tsh kube ls` has all clusters
+* [ ] Test Kubernetes screen in the web UI (tab is located on left side nav on dashboard):
+  * [ ] Verify that all kubes registered are shown with correct `name` and `labels`
+  * [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
+  * [ ] Verify searching for `name` or `labels` in the search bar works
+  * [ ] Verify you can sort by `name` colum
 
 ### Teleport with FIPS mode
 
 * [ ] Perform trusted clusters, Web and SSH sanity check with all teleport components deployed in FIPS mode.
+
+### ACME
+
+- [ ] Teleport can fetch TLS certificate automatically using ACME protocol.
 
 ### Migrations
 
@@ -250,7 +280,7 @@ For main, test with admin role that has access to all resources.
 #### Top Nav
 - [ ] Verify that cluster selector displays all (root + leaf) clusters
 - [ ] Verify that user name is displayed
-- [ ] Verify that user menu shows logout, help&support, and account settings
+- [ ] Verify that user menu shows logout, help&support, and account settings (for local users)
 
 #### Side Nav
 - [ ] Verify that each item has an icon
@@ -270,14 +300,14 @@ For main, test with admin role that has access to all resources.
   - [ ] Verify that clicking back to `Automatically` tab renders bash command
 
 #### Applications
-- [ ] Verify that all apps registered are shown
-- [ ] Verify that clicking on the app icon takes you to another tab
 - [ ] Verify that clicking on `Add Application` button renders dialogue
   - [ ] Verify input validation (prevent empty value and invalid url)
   - [ ] Verify after input and clicking on `Generate Script`, bash command is rendered
   - [ ] Verify clicking on `Regenerate` button regenerates token value in bash command
-  - [ ] Verify using the bash command successfully adds the application (refresh app list)
 
+#### Databases
+- [ ] Verify that clicking on `Add Database` button renders dialogue for manual instructions:
+  - [ ] Verify selecting different options on `Step 4` changes `Step 5` commands
 #### Active Sessions
 - [ ] Verify that "empty" state is handled
 - [ ] Verify that it displays the session when session is active
@@ -290,13 +320,51 @@ For main, test with admin role that has access to all resources.
 - [ ] Verify event detail dialogue renders when clicking on events `details` button
 - [ ] Verify searching by type, description, created works
 
-#### Access Requests
+
+#### Users
+- [ ] Verify that users are shown
+- [ ] Verify that creating a new user works
+- [ ] Verify that editing user roles works
+- [ ] Verify that removing a user works
+- [ ] Verify resetting a user's password works
+- [ ] Verify search by username, roles, and type works
+
+#### Auth Connectors
+- [ ] Verify that creating OIDC/SAML/GITHUB connectors works
+- [ ] Verify that editing  OIDC/SAML/GITHUB connectors works
+- [ ] Verify that error is shown when saving an invalid YAML
+- [ ] Verify that correct hint text is shown on the right side
+- [ ] Verify that encrypted SAML assertions work with an identity provider that supports it (Azure).
+
+#### Auth Connectors Card Icons
+- [ ] Verify that GITHUB card has github icon
+- [ ] Verify that SAML card has SAML icon
+- [ ] Verify that OIDC card has OIDC icon
+- [ ] Verify when there are no connectors, empty state renders
+
+
+#### Roles
+- [ ] Verify that roles are shown
+- [ ] Verify that "Create New Role" dialog works
+- [ ] Verify that deleting and editing works
+- [ ] Verify that error is shown when saving an invalid YAML
+- [ ] Verify that correct hint text is shown on the right side
+
+#### Managed Clusters
+- [ ] Verify that it displays a list of clusters (root + leaf)
+- [ ] Verify that every menu item works: nodes, apps, audit events, session recordings.
+
+#### Help & Support
+- [ ] Verify that all URLs work and correct (no 404)
+
+## Access Requests
+
+### Creating Access Rquests
 1. Create a role with limited permissions (defined below as `allow-roles`). This role allows you to see the Role screen and ssh into all nodes.
 1. Create another role with limited permissions (defined below as `allow-users`). This role session expires in 4 minutes, allows you to see Users screen, and denies access to all nodes.
 1. Create another role with no permissions other than being able to create requests (defined below as `default`)
 1. Create a user with role `default` assigned
-1. Create a few requests under this user:
-  - Update requests to at least: one pending, two approved (for each requestable role), and one denied
+1. Create a few requests under this user to test pending/approved/denied state.
 ```
 kind: role
 metadata:
@@ -346,66 +414,50 @@ spec:
       roles:
       - allow-roles
       - allow-users
-    rules:
-    - resources:
-      - access_request
-      verbs:
-      - list
-      - read
-      - create
+      suggested_reviewers:
+      - random-user-1
+      - random-user-2
   options:
     max_session_ttl: 8h0m0s
 version: v3
 ```
-- [ ] Verify that requests are shown and that correct states are applied to each request (pending, approved, denied)
 - [ ] Verify that creating a new request works
-  - [ ] Verify that under requestable roles, only `allow-roles` and `allow-users` are listed
-  - [ ] Verify input validation requires at least one role to be selected
+- [ ] Verify that under requestable roles, only `allow-roles` and `allow-users` are listed
+- [ ] Verify input validation requires at least one role to be selected
+- [ ] Verify you can select/input/modify reviewers
+- [ ] Verify after creating, requests are listed in pending states
+- [ ] Verify you can't review own requests
+
+### Viewing & Approving/Denying Requests
+Create a user with the role `reviewer` that allows you to review all requests, and delete them.
+```
+kind: role
+version: v3
+metadata:
+  name: reviewer
+spec:
+  allow:
+    review_requests:
+      roles: ['*']
+```
+- [ ] Verify you can view access request from request list
+- [ ] Verify there is list of reviewers you selected (empty list if none selected AND none wasn't defined in roles)
+- [ ] Verify threshold name is there (it will be `default` if thresholds weren't defined in role, or blank if not named)
+- [ ] Verify you can approve a request with message, and immediately see updated state with your review stamp (green checkmark) and message box
+- [ ] Verify you can deny a request, and immediately see updated state with your review stamp (red cross)
+- [ ] Verify deleting the denied request is removed from list
+
+### Assuming Approved Requests
 - [ ] Verify assume buttons are only present for approved request and for logged in user
-  - [ ] Verify that assuming `allow-roles` allows you to see roles screen and ssh into nodes
-  - [ ] Verify that after clicking on the assume button, it is disabled
-  - [ ] After assuming `allow-roles`, verify that assuming `allow-users` allows you to see users screen, and denies access to nodes.
-    - [ ] Verify that after 4 minutes, the user is automatically logged out
-- [ ] Verify that after logging out (or getting logged out automatically) and relogging in, permissions are reset to `default`, and requests that are not expired and are approved are assumable again.
-
-#### Users
-- [ ] Verify that users are shown
-- [ ] Verify that creating a new user works
-- [ ] Verify that editing user roles works
-- [ ] Verify that removing a user works
-- [ ] Verify resetting a user's password works
-- [ ] Verify search by username, roles, and type works
-
-#### Auth Connectors
-- [ ] Verify that creating OIDC/SAML/GITHUB connectors works
-- [ ] Verify that editing  OIDC/SAML/GITHUB connectors works
-- [ ] Verify that error is shown when saving an invalid YAML
-- [ ] Verify that correct hint text is shown on the right side
-- [ ] Verify that encrypted SAML assertions work with an identity provider that supports it (Azure).
-
-#### Auth Connectors Card Icons
-- [ ] Verify that GITHUB card has github icon
-- [ ] Verify that SAML card has SAML icon
-- [ ] Verify that OIDC card has OIDC icon
-- [ ] Verify when there are no connectors, empty state renders
-
-
-#### Roles
-- [ ] Verify that roles are shown
-- [ ] Verify that "Create New Role" dialog works
-- [ ] Verify that deleting and editing works
-- [ ] Verify that error is shown when saving an invalid YAML
-- [ ] Verify that correct hint text is shown on the right side
-
-#### Managed Clusters
-- [ ] Verify that it displays a list of clusters (root + leaf)
-- [ ] Verify that every menu item works: nodes, apps, audit events, session recordings.
-
-#### Help&Support
-- [ ] Verify that all URLs work and correct (no 404)
+- [ ] Verify that assuming `allow-roles` allows you to see roles screen and ssh into nodes
+- [ ] Verify that after clicking on the assume button, it is disabled in both the list and in viewing
+- [ ] After assuming `allow-roles`, verify that assuming `allow-users` allows you to see users screen, and denies access to nodes
+  - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
+  - [ ] Verify `switching back` goes back to your default static role
+  - [ ] Verify after re-assuming this role, the user is automatically logged out after the expiry is met (4 minutes)
+- [ ] Verify that after logging out (or getting logged out automatically) and relogging in, permissions are reset to `default`, and requests that are not expired and are approved are assumable again
 
 ## Access Request Waiting Room
-
 #### Strategy Reason
 Create the following role:
 ```
@@ -425,22 +477,21 @@ version: v3
 ```
 - [ ] Verify after login, reason dialogue is rendered with prompt set to `request_prompt` setting
 - [ ] Verify after clicking `send request`, pending dialogue renders
-- [ ] Verify after `tctl requests approve <request-id>`, dashboard is rendered
+- [ ] Verify after approving a request, dashboard is rendered
 - [ ] Verify the correct role was assigned
 
 #### Strategy Always
 With the previous role you created from `Strategy Reason`, change `request_access` to `always`:
 - [ ] Verify after login, pending dialogue is rendered
-- [ ] Verify after `tctl requests approve <request-id>`, dashboard is rendered
-- [ ] Verify after login, `tctl requests deny <request-id>`, access denied dialogue is rendered
+- [ ] Verify after approving a request, dashboard is rendered
+- [ ] Verify after denying a request, access denied dialogue is rendered
+- [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
+- [ ] Verify switchback button says `Logout` and clicking goes back to the login screen
 
 #### Strategy Optional
 With the previous role you created from `Strategy Reason`, change `request_access` to `optional`:
 - [ ] Verify after login, dashboard is rendered
-
-## Account
-- [ ] Verify that Account screen is accessibly from the user menu for local users.
-- [ ] Verify that changing a local password works (OTP, U2F)
+- [ ] Verify switchback button says `Switch Back` and clicking goes back to the login screen
 
 ## Terminal
 - [ ] Verify that top nav has a user menu (Main and Logout)
@@ -484,11 +535,42 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 ## Login Form
 - [ ] Verify that input validates
 - [ ] Verify that login works with 2FA disabled
+- [ ] Verify that changing passwords works for 2FA disabled
 - [ ] Verify that login works with OTP enabled
+- [ ] Verify that changing passwords works for OTP enabled
 - [ ] Verify that login works with U2F enabled
+- [ ] Verify that changing passwords works for U2F enabled
 - [ ] Verify that login works for Github/SAML/OIDC
 - [ ] Verify that account is locked after several unsuccessful attempts
 - [ ] Verify that redirect to original URL works after successful login
+
+## Multi-factor Authentication (mfa)
+Create/modify `teleport.yaml` and set the following authentication settings under `auth_service`
+```
+authentication:
+  type: local
+  second_factor: optional
+  require_session_mfa: yes
+  u2f:
+    app_id: https://example.com:443
+    facets:
+    - https://example.com:443
+    - https://example.com
+    - example.com:443
+    - example.com
+```
+#### MFA create, login, password reset
+- [ ] Verify when creating a user, and setting password, required 2nd factor is `totp` (TODO: temporary hack, ideally want to allow user to select)
+- [ ] Verify at login page, there is a mfa dropdown menu (none, u2f, otp), and can login with `otp`
+- [ ] Verify at reset password page, there is the same dropdown to select your mfa, and can reset with `otp`
+
+#### MFA require auth
+Through the CLI, `tsh login` and register a u2f key with `tsh mfa add` (not supported in UI yet).
+
+Using the same user as above:
+- [ ] Verify logging in with registered u2f key works
+- [ ] Verify connecting to a ssh node prompts you to tap your registered u2f key
+- [ ] Verify in the web terminal, you can scp upload/download files
 
 ## RBAC
 Create a role, with no `allow.rules` defined:
@@ -508,10 +590,11 @@ spec:
     max_session_ttl: 8h0m0s
 version: v3
 ```
-- [ ] Verify that a user has access only to: "Servers", "Applications", "Active Sessions" and "Manage Clusters"
-- [ ] Verify there is no `Add Server` button in Server view
-- [ ] Verify there is no `Add Application` button in Applications view
-- [ ] Verify only `Nodes` and `Apps` are listed under `options` button in `Manage Clusters`
+- [ ] Verify that a user has access only to: "Servers", "Applications", "Databases", "Kubernetes", "Active Sessions", "Access Requests" and "Manage Clusters"
+- [ ] Verify there is no `Add Server, Application, Databases, Kubernetes` button in each respective view
+- [ ] Verify only `Nodes`, `Apps`, `Databases`, and `Kubernetes` are listed under `options` button in `Manage Clusters`
+
+Note: User has read/create access_request access to their own requests, despite resource settings
 
 Add the following under `spec.allow.rules` to enable read access to the audit log:
 ```
@@ -565,7 +648,7 @@ Add the following to enable read access to users
       - read
 ```
 - [ ] Verify that a user can access the "Users" screen
-- [ ] Verify that a user cannot create/delete/update a user
+- [ ] Verify that a user cannot reset password and create/delete/update a user
 
 Add the following to enable read access to trusted clusters
 ```
@@ -578,17 +661,6 @@ Add the following to enable read access to trusted clusters
 - [ ] Verify that a user can access the "Trust" screen
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
-Add the following to enable read access to the access_request resource
-
-```
-- resources:
-      - access_request
-      verbs:
-      - list
-      - read
-```
-- [ ] Verify that a user can see the "Access Request" screen
-* Note: users are always allowed to create their own requests, if they have any requestable roles
 
 ## Performance/Soak Test
 
@@ -656,19 +728,32 @@ and non interactive tsh bench loads.
   - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
+- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
+- [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
+  - [ ] Verify that all apps registered are shown
+  - [ ] Verify that clicking on the app icon takes you to another tab
+  - [ ] Verify using the bash command produced from `Add Application` dialogue works (refresh app screen to see it registered)
 
 ## Database Access
 
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MongoDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS Redshift.
+  - [ ] GCP Cloud SQL Postgres.
+  - [ ] GCP Cloud SQL MySQL.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MongoDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS Redshift.
+  - [ ] GCP Cloud SQL Postgres.
+  - [ ] GCP Cloud SQL MySQL.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -677,4 +762,11 @@ and non interactive tsh bench loads.
   - [ ] `tsh db ls` shows only databases matching role's `db_labels`.
   - [ ] Can only connect as users from `db_users`.
   - [ ] _(Postgres only)_ Can only connect to databases from `db_names`.
-  - [ ] `db.session.start` is emitted when connection attempt is denied.
+    - [ ] `db.session.start` is emitted when connection attempt is denied.
+  - [ ] _(MongoDB only)_ Can only execute commands in databases from `db_names`.
+    - [ ] `db.session.query` is emitted when command fails due to permissions.
+- [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
+  - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
+  - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
+  - [ ] Verify searching for all columns in the search bar works
+  - [ ] Verify you can sort by all columns except `labels`

@@ -186,8 +186,11 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 	// if agent forwarding was requested (and we have a agent to forward),
 	// forward the agent to endpoint.
 	tc := ns.nodeClient.Proxy.teleportClient
-	if tc.ForwardAgent && tc.localAgent.Agent != nil {
-		err = agent.ForwardToAgent(ns.nodeClient.Client, tc.localAgent.Agent)
+	targetAgent := selectKeyAgent(tc)
+
+	if targetAgent != nil {
+		log.Debugf("Forwarding Selected Key Agent")
+		err = agent.ForwardToAgent(ns.nodeClient.Client, targetAgent)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -198,6 +201,22 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 	}
 
 	return sess, nil
+}
+
+// selectKeyAgent picks the appropriate key agent for forwarding to the
+// server, if any.
+func selectKeyAgent(tc *TeleportClient) agent.Agent {
+	switch tc.ForwardAgent {
+	case ForwardAgentYes:
+		log.Debugf("Selecting system key agent.")
+		return tc.localAgent.sshAgent
+	case ForwardAgentLocal:
+		log.Debugf("Selecting local Teleport key agent.")
+		return tc.localAgent.Agent
+	default:
+		log.Debugf("No Key Agent selected.")
+		return nil
+	}
 }
 
 // interactiveSession creates an interactive session on the remote node, executes

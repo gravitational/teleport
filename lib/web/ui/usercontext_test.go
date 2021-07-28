@@ -3,7 +3,9 @@ package ui
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"gopkg.in/check.v1"
 )
@@ -15,36 +17,40 @@ var _ = check.Suite(&UserContextSuite{})
 func TestUserContext(t *testing.T) { check.TestingT(t) }
 
 func (s *UserContextSuite) TestNewUserContext(c *check.C) {
-	user := &services.UserV2{
-		Metadata: services.Metadata{
+	user := &types.UserV2{
+		Metadata: types.Metadata{
 			Name: "root",
 		},
 	}
 
 	// set some rules
-	role1 := &services.RoleV3{}
-	role1.SetNamespaces(services.Allow, []string{defaults.Namespace})
-	role1.SetRules(services.Allow, []services.Rule{
+	role1 := &types.RoleV4{}
+	role1.SetNamespaces(services.Allow, []string{apidefaults.Namespace})
+	role1.SetRules(services.Allow, []types.Rule{
 		{
-			Resources: []string{services.KindAuthConnector},
+			Resources: []string{types.KindAuthConnector},
 			Verbs:     services.RW(),
 		},
 	})
 
 	// not setting the rule, or explicitly denying, both denies access
-	role1.SetRules(services.Deny, []services.Rule{
+	role1.SetRules(services.Deny, []types.Rule{
 		{
-			Resources: []string{services.KindEvent},
+			Resources: []string{types.KindEvent},
 			Verbs:     services.RW(),
 		},
 	})
 
-	role2 := &services.RoleV3{}
-	role2.SetNamespaces(services.Allow, []string{defaults.Namespace})
-	role2.SetRules(services.Allow, []services.Rule{
+	role2 := &types.RoleV4{}
+	role2.SetNamespaces(services.Allow, []string{apidefaults.Namespace})
+	role2.SetRules(services.Allow, []types.Rule{
 		{
-			Resources: []string{services.KindTrustedCluster},
+			Resources: []string{types.KindTrustedCluster},
 			Verbs:     services.RW(),
+		},
+		{
+			Resources: []string{types.KindBilling},
+			Verbs:     services.RO(),
 		},
 	})
 
@@ -53,8 +59,8 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	role1.SetLogins(services.Deny, []string{"c"})
 	role2.SetLogins(services.Allow, []string{"d"})
 
-	roleSet := []services.Role{role1, role2}
-	userContext, err := NewUserContext(user, roleSet)
+	roleSet := []types.Role{role1, role2}
+	userContext, err := NewUserContext(user, roleSet, proto.Features{})
 	c.Assert(err, check.IsNil)
 
 	allowed := access{true, true, true, true, true}
@@ -65,6 +71,8 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.ACL.AuthConnectors, check.DeepEquals, allowed)
 	c.Assert(userContext.ACL.TrustedClusters, check.DeepEquals, allowed)
 	c.Assert(userContext.ACL.AppServers, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.DBServers, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.KubeServers, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Events, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Sessions, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Roles, check.DeepEquals, denied)
@@ -74,16 +82,21 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.ACL.AccessRequests, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.SSHLogins, check.DeepEquals, []string{"a", "b", "d"})
 	c.Assert(userContext.AccessStrategy, check.DeepEquals, accessStrategy{
-		Type:   services.RequestStrategyOptional,
+		Type:   types.RequestStrategyOptional,
 		Prompt: "",
 	})
+	c.Assert(userContext.ACL.Billing, check.DeepEquals, denied)
 
 	// test local auth type
 	c.Assert(userContext.AuthType, check.Equals, authLocal)
 
 	// test sso auth type
-	user.Spec.GithubIdentities = []services.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
-	userContext, err = NewUserContext(user, roleSet)
+	user.Spec.GithubIdentities = []types.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
+	userContext, err = NewUserContext(user, roleSet, proto.Features{})
 	c.Assert(err, check.IsNil)
 	c.Assert(userContext.AuthType, check.Equals, authSSO)
+
+	userContext, err = NewUserContext(user, roleSet, proto.Features{Cloud: true})
+	c.Assert(err, check.IsNil)
+	c.Assert(userContext.ACL.Billing, check.DeepEquals, access{true, true, false, false, false})
 }

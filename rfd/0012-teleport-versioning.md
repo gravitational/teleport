@@ -9,6 +9,9 @@ state: implemented
 
 Versioning scheme for Teleport releases (post-5.0).
 
+**NOTE**: these are guidelines, rather than strict rules. In some cases we will
+ignore these guidelines based on customer needs.
+
 ### Terminology
 
 Quick note on terminology used below. I'll use naming from

@@ -25,12 +25,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ProxyGetter is a service that gets proxies
-type ProxyGetter interface {
-	// GetProxies returns a list of registered proxies
-	GetProxies() ([]Server, error)
-}
-
 // Site represents a cluster of teleport nodes who collectively trust the same
 // certificate authority (CA) and have a common name.
 //
@@ -64,11 +58,11 @@ func (s *KeepAlive) GetType() string {
 
 // CheckAndSetDefaults validates this KeepAlive value and sets default values
 func (s *KeepAlive) CheckAndSetDefaults() error {
-	if s.IsEmpty() {
-		return trace.BadParameter("invalid keep alive, missing lease ID and resource name")
-	}
 	if s.Namespace == "" {
 		s.Namespace = defaults.Namespace
+	}
+	if s.IsEmpty() {
+		return trace.BadParameter("invalid keep alive, missing lease ID and resource name")
 	}
 	return nil
 }

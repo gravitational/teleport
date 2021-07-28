@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,8 +22,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -40,10 +38,10 @@ import (
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
-func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest, user services.User, identity tlsca.Identity, checker services.AccessChecker) (services.WebSession, error) {
+func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest, user types.User, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
 	if !modules.GetModules().Features().App {
 		return nil, trace.AccessDenied(
-			"this Teleport cluster doesn't support application access, please contact the cluster administrator")
+			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
 	}
 
 	// Don't let the app session go longer than the identity expiration,
@@ -55,6 +53,13 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 	// that will be used to establish the connection.
 	ttl := checker.AdjustSessionTTL(identity.Expires.Sub(s.clock.Now()))
 
+	// Encode user traits in the app access certificate. This will allow to
+	// pass user traits when talking to app servers in leaf clusters.
+	_, traits, err := services.ExtractFromIdentity(s, identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create certificate for this session.
 	privateKey, publicKey, err := s.GetNewKeyPairFromPool()
 	if err != nil {
@@ -65,18 +70,14 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 		publicKey: publicKey,
 		checker:   checker,
 		ttl:       ttl,
-		// Set the login to be a random string. Application certificates are never
-		// used to log into servers but SSH certificate generation code requires a
-		// principal be in the certificate.
-		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: {uuid.New()},
-		}),
+		traits:    traits,
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
 		appSessionID:   uuid.New(),
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
+		awsRoleARN:     req.AWSRoleARN,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -87,25 +88,28 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session := services.NewWebSession(sessionID, services.KindWebSession, services.KindAppSession, services.WebSessionSpecV2{
+	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
 		User:    req.Username,
 		Priv:    privateKey,
 		Pub:     certs.ssh,
 		TLSCert: certs.tls,
 		Expires: s.clock.Now().Add(ttl),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err = s.Identity.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
-
+	UserLoginCount.Inc()
 	return session, nil
 }
 
 // WaitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
 func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoint) error {
-	_, err := ap.GetAppSession(ctx, services.GetAppSessionRequest{SessionID: sessionID})
+	_, err := ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
 	if err == nil {
 		return nil
 	}
@@ -114,12 +118,12 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoi
 		logger.WithError(err).Debug("Failed to query application session.")
 	}
 	// Establish a watch on application session.
-	watcher, err := ap.NewWatcher(ctx, services.Watch{
+	watcher, err := ap.NewWatcher(ctx, types.Watch{
 		Name: teleport.ComponentAppProxy,
-		Kinds: []services.WatchKind{
+		Kinds: []types.WatchKind{
 			{
-				Kind:    services.KindWebSession,
-				SubKind: services.KindAppSession,
+				Kind:    types.KindWebSession,
+				SubKind: types.KindAppSession,
 				Filter:  (&types.WebSessionFilter{User: user}).IntoMap(),
 			},
 		},
@@ -129,10 +133,10 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoi
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
-	matchEvent := func(event services.Event) (services.Resource, error) {
-		if event.Type == backend.OpPut &&
-			event.Resource.GetKind() == services.KindWebSession &&
-			event.Resource.GetSubKind() == services.KindAppSession &&
+	matchEvent := func(event types.Event) (types.Resource, error) {
+		if event.Type == types.OpPut &&
+			event.Resource.GetKind() == types.KindWebSession &&
+			event.Resource.GetSubKind() == types.KindAppSession &&
 			event.Resource.GetName() == sessionID {
 			return event.Resource, nil
 		}
@@ -142,7 +146,7 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoi
 	if err != nil {
 		logger.WithError(err).Warn("Failed to wait for application session.")
 		// See again if we maybe missed the event but the session was actually created.
-		if _, err := ap.GetAppSession(ctx, services.GetAppSessionRequest{SessionID: sessionID}); err == nil {
+		if _, err := ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID}); err == nil {
 			return nil
 		}
 	}
@@ -157,8 +161,8 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	ca, err := s.GetCertAuthority(services.CertAuthID{
-		Type:       services.JWTSigner,
+	ca, err := s.GetCertAuthority(types.CertAuthID{
+		Type:       types.JWTSigner,
 		DomainName: clusterName,
 	}, true)
 	if err != nil {
@@ -181,4 +185,47 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 	}
 
 	return token, nil
+}
+
+func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
+	// It's safe to extract the roles and traits directly from services.User
+	// because this occurs during the user creation process and services.User
+	// is not fetched from the backend.
+	session, err := s.NewWebSession(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.upsertWebSession(ctx, req.User, session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
+}
+
+func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string) ([]byte, []byte, error) {
+	// It's safe to extract the roles and traits directly from services.User
+	// because this occurs during the user creation process and services.User
+	// is not fetched from the backend.
+	checker, err := services.FetchRoles(user.GetRoles(), s.Access, user.GetTraits())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	certs, err := s.generateUserCert(certRequest{
+		user:              user,
+		ttl:               sessionTTL,
+		publicKey:         publicKey,
+		compatibility:     compatibility,
+		checker:           checker,
+		traits:            user.GetTraits(),
+		routeToCluster:    routeToCluster,
+		kubernetesCluster: kubernetesCluster,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return certs.ssh, certs.tls, nil
 }

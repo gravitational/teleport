@@ -21,6 +21,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
@@ -34,7 +35,7 @@ type ContextDialer interface {
 	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
-// ContextDialerFunc is a function wrapper that implements the ContextDialer interface
+// ContextDialerFunc is a function wrapper that implements the ContextDialer interface.
 type ContextDialerFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 // DialContext is a function that dials to the specified address
@@ -42,17 +43,40 @@ func (f ContextDialerFunc) DialContext(ctx context.Context, network, addr string
 	return f(ctx, network, addr)
 }
 
-// NewDialer makes a new dialer.
-func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+// NewDirectDialer makes a new dialer to connect directly to an Auth server.
+func NewDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return &net.Dialer{
 		Timeout:   dialTimeout,
 		KeepAlive: keepAlivePeriod,
 	}
 }
 
-// NewTunnelDialer make a new ssh tunnel dialer.
-func NewTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
-	dialer := NewDialer(keepAlivePeriod, dialTimeout)
+// NewProxyDialer makes a dialer to connect to an Auth server through the SSH reverse tunnel on the proxy.
+// The dialer will ping the web client to discover the tunnel proxy address on each dial.
+func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
+	dialer := newTunnelDialer(ssh, keepAlivePeriod, dialTimeout)
+	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
+		// Ping web proxy to retrieve tunnel proxy address.
+		pr, err := webclient.Find(ctx, discoveryAddr, insecure, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if pr.Proxy.SSH.TunnelPublicAddr == "" {
+			return nil, trace.BadParameter("reverse tunnel address not discoverable, 'tunnel_public_addr' is not set")
+		}
+
+		conn, err = dialer.DialContext(ctx, network, pr.Proxy.SSH.TunnelPublicAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
+	})
+}
+
+// newTunnelDialer makes a dialer to connect to an Auth server through the SSH reverse tunnel on the proxy.
+func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+	dialer := NewDirectDialer(keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 		conn, err = dialer.DialContext(ctx, network, addr)
 		if err != nil {

@@ -109,6 +109,28 @@ func TestVariable(t *testing.T) {
 			in:    "{{email.local(internal.bar)}}",
 			out:   Expression{namespace: "internal", variable: "bar", transform: emailLocalTransformer{}},
 		},
+		{
+			title: "regexp replace",
+			in:    `{{regexp.replace(internal.foo, "bar-(.*)", "$1")}}`,
+			out: Expression{
+				namespace: "internal",
+				variable:  "foo",
+				transform: &regexpReplaceTransformer{
+					re:          regexp.MustCompile("bar-(.*)"),
+					replacement: "$1",
+				},
+			},
+		},
+		{
+			title: "regexp replace with variable expression",
+			in:    `{{regexp.replace(internal.foo, internal.bar, "baz")}}`,
+			err:   trace.BadParameter(""),
+		},
+		{
+			title: "regexp replace with variable replacement",
+			in:    `{{regexp.replace(internal.foo, "bar", internal.baz)}}`,
+			err:   trace.BadParameter(""),
+		},
 	}
 
 	for _, tt := range tests {
@@ -119,7 +141,7 @@ func TestVariable(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(tt.out, *variable, cmp.AllowUnexported(Expression{})))
+			require.Equal(t, tt.out, *variable)
 		})
 	}
 }
@@ -173,6 +195,54 @@ func TestInterpolate(t *testing.T) {
 			traits: map[string][]string{"foo": []string{"a", "b"}, "bar": []string{"c"}},
 			res:    result{values: []string{"foo"}},
 		},
+		{
+			title: "regexp replacement with numeric match",
+			in: Expression{
+				variable: "foo",
+				transform: regexpReplaceTransformer{
+					re:          regexp.MustCompile("bar-(.*)"),
+					replacement: "$1",
+				},
+			},
+			traits: map[string][]string{"foo": []string{"bar-baz"}},
+			res:    result{values: []string{"baz"}},
+		},
+		{
+			title: "regexp replacement with named match",
+			in: Expression{
+				variable: "foo",
+				transform: regexpReplaceTransformer{
+					re:          regexp.MustCompile("bar-(?P<suffix>.*)"),
+					replacement: "${suffix}",
+				},
+			},
+			traits: map[string][]string{"foo": []string{"bar-baz"}},
+			res:    result{values: []string{"baz"}},
+		},
+		{
+			title: "regexp replacement with multiple matches",
+			in: Expression{
+				variable: "foo",
+				transform: regexpReplaceTransformer{
+					re:          regexp.MustCompile("foo-(.*)-(.*)"),
+					replacement: "$1.$2",
+				},
+			},
+			traits: map[string][]string{"foo": []string{"foo-bar-baz"}},
+			res:    result{values: []string{"bar.baz"}},
+		},
+		{
+			title: "regexp replacement with no match",
+			in: Expression{
+				variable: "foo",
+				transform: regexpReplaceTransformer{
+					re:          regexp.MustCompile("^bar-(.*)$"),
+					replacement: "$1-matched",
+				},
+			},
+			traits: map[string][]string{"foo": []string{"foo-test1", "bar-test2"}},
+			res:    result{values: []string{"test2-matched"}},
+		},
 	}
 
 	for _, tt := range tests {
@@ -184,7 +254,7 @@ func TestInterpolate(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(tt.res.values, values))
+			require.Equal(t, tt.res.values, values)
 		})
 	}
 }

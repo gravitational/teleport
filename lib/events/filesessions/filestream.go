@@ -119,11 +119,11 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.Wrap(err)
 	}
 	defer func() {
-		if err := f.Close(); err != nil {
-			h.WithError(err).Errorf("Failed to close file %q.", uploadPath)
-		}
 		if err := utils.FSUnlock(f); err != nil {
 			h.WithError(err).Errorf("Failed to unlock filesystem lock.")
+		}
+		if err := f.Close(); err != nil {
+			h.WithError(err).Errorf("Failed to close file %q.", uploadPath)
 		}
 	}()
 

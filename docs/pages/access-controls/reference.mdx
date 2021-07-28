@@ -1,8 +1,10 @@
 ---
-title: Access Controls Reference
-description: Access Controls - Role options and properties
+title: Access Controls Reference Documentation
+description: Access Controls reference documentation for role options and properties.
 h1: Teleport Access Controls Reference
 ---
+
+This document describes Teleport Roles, Role Options, and Role-Based Access Control (RBAC) for Teleport Access Controls.
 
 ## Roles
 
@@ -22,7 +24,7 @@ allow:
       verbs: [list]
 ```
 
-If this rule was declared in `deny` section of a role definition, it effectively
+If this rule was declared in the `deny` section of a role definition, it effectively 
 prohibits users from getting a list of trusted clusters and sessions. You can see
 all of the available resources and verbs under the `allow` section in the `admin` role configuration
 below.
@@ -31,9 +33,11 @@ To manage cluster roles, a Teleport administrator can use the Web UI or the comm
 line using [tctl resource commands](../admin-guide.mdx#resources). To see the list of
 roles in a Teleport cluster, an administrator can execute:
 
-```bsh
-$ tctl get roles
+```bash
+tctl get roles
 ```
+
+(!docs/pages/includes/backup-warning.mdx!)
 
 By default there is always one role called `admin` which looks like this:
 
@@ -56,58 +60,58 @@ spec:
     # terminated after no activity from a client (idle client). it overrides the
     # global cluster setting. examples: "30m", "1h" or "1h30m"
     client_idle_timeout: never
-    # determines if the clients will be forcefully disconnected when their
+    # Determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active SSH session.
-    # it overrides the global cluster setting.
+    # It overrides the global cluster setting.
     disconnect_expired_cert: no
-    # Optional: max_connections Per user limit of concurrent sessions within a
+    # Optional: max_connections Per-user limit of concurrent sessions within a
     # cluster.
     max_connections: 2
-    # Optional: max_sessions total number of session channels which can be established
+    # Optional: max_sessions total number of session channels that can be established
     # across a single connection. 10 will match OpenSSH default behavior.
     max_sessions: 10
     # permit_x11_forwarding allows users to use X11 forwarding with openssh clients and servers through the proxy
     permit_x11_forwarding: true
 
-  # allow section declares a list of resource/verb combinations that are
-  # allowed for the users of this role. by default nothing is allowed.
+  # The allow section declares a list of resource/verb combinations that are
+  # allowed for the users of this role. By default, nothing is allowed.
   allow:
-    # logins array defines the OS/UNIX logins a user is allowed to use.
+    # The logins array defines the OS/UNIX logins a user is allowed to use.
     # a few special variables are supported here (see below)
     logins: [root, '{{internal.logins}}']
-    # if kubernetes integration is enabled, this setting configures which
+    # If kubernetes integration is enabled, this setting configures which 
     # kubernetes groups the users of this role will be assigned to.
-    # note that you can refer to a SAML/OIDC trait via the "external" property bag,
-    # this allows you to specify Kubernetes group membership in an identity manager:
+    # Note that you can refer to a SAML/OIDC trait via the "external" property bag.
+    # This allows you to specify Kubernetes group membership in an identity manager:
     kubernetes_groups: ["system:masters", "{{external.trait_name}}"]]
 
-    # list of node labels a user will be allowed to connect to:
+    # List of node labels a user will be allowed to connect to:
     node_labels:
-      # a user can only connect to a node marked with 'test' label:
+      # A user can only connect to a node marked with 'test' label:
       'environment': 'test'
-      # the wildcard ('*') means "any node"
+      # The wildcard ('*') means "any node"
       '*': '*'
-      # labels can be specified as a list:
+      # Labels can be specified as a list:
       'environment': ['test', 'staging']
-      # regular expressions are also supported, for example the equivalent
+      # Regular expressions are also supported, for example, the equivalent
       # of the list example above can be expressed as:
       'environment': '^test|staging$'
 
     kubernetes_labels:
-      # a user can only acess prod enviroments
+      # A user can only access prod enviroments
       'env': 'prod'
-      # user can access any region in us-west, e.g us-west-1, us-west-2
+      # User can access any region in us-west, e.g us-west-1, us-west-2
       'region': 'us-west-*'
       'cluster_name': '^us.*\.example\.com$'
 
-    # defines roles that this user can can request.
-    # needed for teleport's request workflow
+    # Defines roles that this user can request.
+    # Needed for teleport's access request workflow
     # https://goteleport.com/teleport/docs/enterprise/workflow/
     request:
       roles:
       - dba
 
-    # list of allow-rules. see below for more information.
+    # List of allow-rules. See below for more information.
     rules:
     - resources: [role]
       verbs: [list, create, read, update, delete]
@@ -124,8 +128,8 @@ spec:
     - resources: [token]
       verbs: [list,create,read,update,delete]
 
-  # the deny section uses the identical format as the 'allow' section.
-  # the deny rules always override allow rules.
+  # The deny section uses the identical format as the 'allow' section.
+  # The deny rules always override allow rules.
   deny: {}
 ```
 
@@ -157,7 +161,7 @@ logins:
    - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
 ```
 
-### Role Options
+### Role options
 
 As shown above, a role can define certain restrictions on SSH sessions initiated by users.
 The table below documents the behavior of each option if multiple roles are assigned to a user.
@@ -172,7 +176,32 @@ The table below documents the behavior of each option if multiple roles are assi
 | `max_connections` | Limit on how many active SSH sessions can be started via Teleport | |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
 
-## RBAC for Hosts
+## Preset roles
+
+Teleport provides several pre-defined roles out-of-the-box:
+
+| Role | Description |
+| --- | --- |
+| `admin` | Allows complete control over cluster settings, resources, and events. |
+| `editor` | Allows editing of cluster configuration settings. |
+| `auditor`| Allows reading cluster events, audit logs, and playing back session records. | 
+| `access`| Allows access to cluster resources. |
+
+### Role versions
+
+There are currently two supported role versions: `v3` and `v4`. `v4` roles are
+completely backwards-compatible with `v3`, the only difference lies in the
+default allow labels which will be applied to the role if they are not
+explicitly set.
+
+Label              | `v3` Default   | `v4` Default
+------------------ | -------------- | ---------------
+`node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
+`app_labels`        | `[{"*": "*"}]` | `[]`
+`kubernetes_labels` | `[{"*": "*"}]` | `[]`
+`database_labels`   | `[{"*": "*"}]` | `[]`
+
+## RBAC for hosts
 
 A Teleport role can also define which hosts (nodes) a user can have access to.
 This works by [labeling nodes](../admin-guide.mdx#labeling-nodes-and-applications) and listing
@@ -182,8 +211,7 @@ Consider the following use case:
 
 The infrastructure is split into staging/production environments using labels
 like `environment=production` and `environment=staging`. You can create roles
-that only have access to one environment. Let's say you create an intern role
-with allow rule for label `environment=staging`.
+that only have access to one environment. Let's say you create an intern role with the allow rule for label `environment=staging`.
 
 ### Example
 
@@ -213,13 +241,12 @@ spec:
   type="tip"
   title="Dynamic RBAC"
 >
-  Node labels can be dynamic, i.e. determined at runtime by an output
-  of an executable. In this case, you can implement "permissions follow workload"
+  Node labels can be dynamic, i.e. determined at runtime by an output of an executable. In this case, you can implement "permissions follow workload"
   policies (eg., any server where PostgreSQL is running becomes *automatically*
   accessible only by the members of the "DBA" group and nobody else).
 </Admonition>
 
-### Extended Node Labels Syntax
+### Extended Node labels syntax
 
 Below are a few examples for more complex filtering using various regexes.
 
@@ -242,7 +269,7 @@ spec:
       'environment': '^test|staging$'
 ```
 
-## Teleport Resources
+## Teleport resources
 
 RBAC lets teams limit what resources are available to Teleport users. This can be helpful if, for example,
 you don't want regular users editing SSO (`auth_connector`) or creating and editing new roles
