@@ -16,12 +16,17 @@ darwin
 .vscode
 *.swp
 
-# Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
+# Compiled binaries, Object files, Static and Dynamic libs (Shared Objects).
 out
 build
 *.o
 *.a
 *.so
+
+# Object files are excluded above, but allow checking in object files
+# specifically in the bpf/bytecode directory. This is needed to allow external
+# tools to vendor teleport/lib.
+!lib/bpf/bytecode/*.o
 
 # Folders
 _obj
