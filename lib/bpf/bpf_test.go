@@ -34,8 +34,8 @@ import (
 
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/teleport/api/v7/constants"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
 	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
+	apievents "github.com/gravitational/teleport/api/v7/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -45,9 +45,6 @@ import (
 )
 
 type Suite struct{}
-
-//go:embed bytecode/counter_test.bpf.o
-var counterTestBPF []byte
 
 var _ = check.Suite(&Suite{})
 
@@ -394,6 +391,11 @@ func (s *Suite) TestBPFCounter(c *check.C) {
 
 	// Check that the host is capable of running BPF programs.
 	err := IsHostCompatible()
+	if err != nil {
+		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
+	}
+
+	counterTestBPF, err := embedFS.ReadFile("bytecode/counter_test.bpf.o")
 	if err != nil {
 		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}
