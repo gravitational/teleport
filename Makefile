@@ -741,8 +741,8 @@ update-vendor:
 	go mod vendor
 	# delete the vendored api package. In its place
 	# create a symlink to the the original api package
-	rm -r vendor/github.com/gravitational/teleport/api
-	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+	rm -r vendor/github.com/gravitational/teleport/api/v7
+	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport/api/v7
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.

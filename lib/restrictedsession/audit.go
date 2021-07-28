@@ -25,7 +25,7 @@ import (
 	"net"
 	"unsafe"
 
-	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/v7/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	api "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
