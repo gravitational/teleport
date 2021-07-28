@@ -194,6 +194,9 @@ single session per user per host. If a user starts a new session on the host
 that they are already logged into, they will log out the other session. This is
 RDP behavior we cannot change.
 
+All the usual controls on Teleport sessions apply to Desktop Access, like user
+locking, concurrent session limits and idle timeouts.
+
 ### Session recording
 
 RDP video output uses bitmaps and not a standard video encoding format.
@@ -217,8 +220,9 @@ New `teleport.yaml` section for `windows_desktop_service`:
 ```yaml
 windows_desktop_service:
   enabled: yes # default false
-  listen_addr: 0.0.0.0:3028
-  public_addrs: [rdp.example.com:3028]
+  # listen_addr can share the port with the proxy web port using SNI.
+  listen_addr: 0.0.0.0:3080
+  public_addrs: [rdp.example.com:3080]
   mode: "gateway" # or "agent"
   # (optional) ldap contains hostname and credentials for the LDAP server on
   # the Active Directory domain controller.
@@ -232,10 +236,10 @@ windows_desktop_service:
     password: "ldap_pass"
     # optional CA cert to use for LDAP server certificate validation.
     ca_cert: "/var/lib/teleport/ldap_ca.pem"
-  # (optional) static_hosts is a list of hostnames to register as
-  # WindowsDesktop objects in Teleport.
+  # (optional) hosts is a list of hostnames to register as WindowsDesktop
+  # objects in Teleport.
   # These are usually non-AD hosts.
-  static_hosts:
+  hosts:
   - win1.example.com
   - win2.example.com
   - ...
