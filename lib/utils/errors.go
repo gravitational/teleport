@@ -19,7 +19,7 @@ package utils
 import (
 	"strings"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/v7/constants"
 	"github.com/gravitational/trace"
 )
 
