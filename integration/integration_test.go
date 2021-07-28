@@ -33,6 +33,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime/pprof"
 	"strconv"
@@ -47,6 +48,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -5566,4 +5568,90 @@ func TestTraitsPropagation(t *testing.T) {
 	}, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello leaf", strings.TrimSpace(outputLeaf))
+}
+
+// TestSessionStreaming tests streaming events from session recordings.
+func TestSessionStreaming(t *testing.T) {
+	ctx := context.Background()
+	sessionID := session.ID(uuid.New())
+	log := testlog.FailureOnly(t)
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	teleport := NewInstance(InstanceConfig{
+		ClusterName: Site,
+		HostID:      "00000000-0000-0000-0000-000000000000",
+		NodeName:    Host,
+		Ports:       ports.PopIntSlice(6),
+		Priv:        privateKey,
+		Pub:         publicKey,
+		log:         log,
+	})
+
+	if err := teleport.Create(nil, true, nil); err != nil {
+		t.Fatalf("Unexpected response from Create: %v", err)
+	}
+
+	if err := teleport.Start(); err != nil {
+		t.Fatalf("Unexpected response from Start: %v", err)
+	}
+
+	defer teleport.StopAll()
+
+	api := teleport.GetSiteAPI(Site)
+	uploadStream, err := api.CreateAuditStream(ctx, sessionID)
+	require.Nil(t, err)
+
+	generatedSession := events.GenerateTestSession(events.SessionParams{
+		PrintEvents: 100,
+		SessionID:   string(sessionID),
+		ServerID:    "00000000-0000-0000-0000-000000000000",
+	})
+
+	for _, event := range generatedSession {
+		err := uploadStream.EmitAuditEvent(ctx, event)
+		require.NoError(t, err)
+	}
+
+	err = uploadStream.Complete(ctx)
+	require.Nil(t, err)
+	start := time.Now()
+
+	// retry in case of error
+outer:
+	for time.Since(start) < time.Minute*5 {
+		time.Sleep(time.Second * 5)
+
+		receivedSession := make([]apievents.AuditEvent, 0)
+		sessionPlayback, e := api.StreamSessionEvents(ctx, sessionID, 0)
+
+	inner:
+		for {
+			select {
+			case event, more := <-sessionPlayback:
+				if !more {
+					break inner
+				}
+
+				receivedSession = append(receivedSession, event)
+			case <-ctx.Done():
+				require.Nil(t, ctx.Err())
+			case err := <-e:
+				require.Nil(t, err)
+			case <-time.After(time.Minute * 5):
+				t.FailNow()
+			}
+		}
+
+		for i := range generatedSession {
+			receivedSession[i].SetClusterName("")
+			if !reflect.DeepEqual(generatedSession[i], receivedSession[i]) {
+				continue outer
+			}
+		}
+
+		return
+	}
+
+	t.FailNow()
 }

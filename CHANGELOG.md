@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.2.8
+
+This release of Teleport contains an improvement and new feature.
+
+* Improved Web UI performance for DynamoDB users. [#7587](https://github.com/gravitational/teleport/pull/7587)
+* Added API to export session recordings. [#7360](https://github.com/gravitational/teleport/pull/7360)
+
 ## 6.2.7
 
 This release of Teleport contains multiple fixes.
