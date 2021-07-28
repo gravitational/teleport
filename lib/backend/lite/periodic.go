@@ -128,8 +128,13 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 				return trace.Wrap(err)
 			}
 			row := q.QueryRow()
+			prevRowID := rowid
 			if err := row.Scan(&rowid); err != nil {
 				if err != sql.ErrNoRows {
+					// Scan does not explicitly promise not to modify its inputs if it returns an error (though this is likely
+					// how it behaves).  Just in case, make sure that rowid is preserved so that we don't accidentally skip
+					// some init logic on retry.
+					rowid = prevRowID
 					return trace.Wrap(err)
 				}
 				rowid = -1
@@ -143,6 +148,7 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 		}
 		l.Debugf("Initialized event ID iterator to %v", rowid)
 		l.signalWatchStart()
+		l.buf.SetInit()
 	}
 
 	var events []backend.Event
@@ -178,7 +184,7 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 	if err != nil {
 		return rowid, trace.Wrap(err)
 	}
-	l.buf.PushBatch(events)
+	l.buf.Emit(events...)
 	if len(events) != 0 {
 		return lastID, nil
 	}

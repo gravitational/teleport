@@ -60,8 +60,8 @@ With every user combination, try to login and signup with invalid second factor,
 - [ ] Backends
   - [ ] Teleport runs with etcd
   - [ ] Teleport runs with dynamodb
-  - [ ] Teleport runs with boltdb
-  - [ ] Teleport runs with dir
+  - [ ] Teleport runs with SQLite
+  - [ ] Teleport runs with Firestore
 
 - [ ] Session Recording
   - [ ] Session recording can be disabled
@@ -74,11 +74,32 @@ With every user combination, try to login and signup with invalid second factor,
 - [ ] Audit Log
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
-    - [ ] Server ID is the ID of the node in regular mode
-    - [ ] Server ID is randomly generated for proxy node
+    - [ ] Server ID is the ID of the node in "session_recording: node" mode
+    - [ ] Server ID is the ID of the proxy in "session_recording: proxy" mode
+
+    Node/Proxy ID may be found at `/var/lib/teleport/host_uuid` in the
+    corresponding machine.
+
+    Node IDs may also be queried via `tctl nodes ls`.
+
   - [ ] Exec commands are recorded
   - [ ] `scp` commands are recorded
   - [ ] Subsystem results are recorded
+
+    Subsystem testing may be achieved using both
+    [Recording Proxy mode](
+    https://goteleport.com/teleport/docs/architecture/proxy/#recording-proxy-mode)
+    and
+    [OpenSSH integration](
+    https://goteleport.com/docs/server-access/guides/openssh/).
+
+    Assuming the proxy is `proxy.example.com:3023` and `node1` is a node running
+    OpenSSH/sshd, you may use the following command to trigger a subsystem audit
+    log:
+
+    ```shell
+    sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
+    ```
 
 - [ ] Interact with a cluster using `tsh`
 

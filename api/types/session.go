@@ -283,6 +283,8 @@ type CreateAppSessionRequest struct {
 	PublicAddr string `json:"public_addr"`
 	// ClusterName is the name of the cluster within which the application is running.
 	ClusterName string `json:"cluster_name"`
+	// AWSRoleARN is AWS role this the user wants to assume.
+	AWSRoleARN string `json:"aws_role_arn"`
 }
 
 // Check validates the request.
