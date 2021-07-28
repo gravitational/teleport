@@ -163,6 +163,8 @@ func NewImplicitRole() types.Role {
 }
 
 // RoleForUser creates an admin role for a services.User.
+//
+// Used in tests only.
 func RoleForUser(u types.User) types.Role {
 	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV4{
 		Options: types.RoleOptions{
@@ -187,6 +189,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindClusterAuthPreference, RW()),
 				types.NewRule(types.KindClusterNetworkingConfig, RW()),
 				types.NewRule(types.KindSessionRecordingConfig, RW()),
+				types.NewRule(types.KindDatabase, RW()),
 			},
 		},
 	})
