@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -140,6 +141,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	g.NodeName = conf.Hostname
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
+	g.Logger.Format.Output = "text"
 	g.DataDir = defaults.DataDir
 
 	// SSH config:
@@ -246,15 +248,63 @@ type ConnectionLimits struct {
 	Rates          []ConnectionRate `yaml:"rates,omitempty"`
 }
 
+// LegacyLog contains the old format of the 'format' field
+// It is kept here for backwards compatibility and should always be maintained
+// The custom yaml unmarshaler should automatically convert it into the new
+// expected format.
+type LegacyLog struct {
+	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
+	// a path to a log file
+	Output string `yaml:"output,omitempty"`
+	// Severity defines how verbose the log will be. Possible values are "error", "info", "warn"
+	Severity string `yaml:"severity,omitempty"`
+	// Format lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
+	Format []string `yaml:"format,omitempty"`
+}
+
 // Log configures teleport logging
 type Log struct {
 	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
 	// a path to a log file
 	Output string `yaml:"output,omitempty"`
-	// Severity defines how verbose the log will be. Possible valus are "error", "info", "warn"
+	// Severity defines how verbose the log will be. Possible values are "error", "info", "warn"
 	Severity string `yaml:"severity,omitempty"`
-	// Format lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
-	Format []string `yaml:"format,omitempty"`
+	// Format defines the logs output format and extra fields
+	Format LogFormat `yaml:"format,omitempty"`
+}
+
+// LogFormat specifies the logs output format and extra fields
+type LogFormat struct {
+	// Output defines the output format. Possible values are 'text' and 'json'.
+	Output string `yaml:"output,omitempty"`
+	// ExtraFields lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
+	ExtraFields []string `yaml:"extra_fields,omitempty"`
+}
+
+func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// the next two lines are needed because of an infinite loop issue
+	// https://github.com/go-yaml/yaml/issues/107
+	type logYAML Log
+	log := (*logYAML)(l)
+	if err := unmarshal(log); err != nil {
+		if _, ok := err.(*yaml.TypeError); !ok {
+			return err
+		}
+
+		var legacyLog LegacyLog
+		if lerr := unmarshal(&legacyLog); lerr != nil {
+			// return the original unmarshal error
+			return err
+		}
+
+		l.Output = legacyLog.Output
+		l.Severity = legacyLog.Severity
+		l.Format.Output = "text"
+		l.Format.ExtraFields = legacyLog.Format
+		return nil
+	}
+
+	return nil
 }
 
 // Global is 'teleport' (global) section of the config file
@@ -294,6 +344,9 @@ type Global struct {
 
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
 	CAPin string `yaml:"ca_pin"`
+
+	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
+	DiagAddr string `yaml:"diag_addr"`
 }
 
 // CachePolicy is used to control  local cache
@@ -386,10 +439,9 @@ func (s *Service) Disabled() bool {
 type Auth struct {
 	Service `yaml:",inline"`
 
-	// ProxyProtocol turns on support for HAProxy proxy protocol
-	// this is the option that has be turned on only by administrator,
-	// as only admin knows whether service is in front of trusted load balancer
-	// or not.
+	// ProxyProtocol enables support for HAProxy proxy protocol version 1 when it is turned 'on'.
+	// Verify whether the service is in front of a trusted load balancer.
+	// The default value is 'on'.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 
 	// ClusterName is the name of the CA who manages this cluster
@@ -468,6 +520,13 @@ type Auth struct {
 	// expires. The empty string implies no message should be sent prior to
 	// disconnection.
 	ClientIdleTimeoutMessage string `yaml:"client_idle_timeout_message,omitempty"`
+
+	// MessageOfTheDay is a banner that a user must acknowledge during a `tsh login`.
+	MessageOfTheDay string `yaml:"message_of_the_day,omitempty"`
+
+	// WebIdleTimeout sets global cluster default setting for WebUI client
+	// idle timeouts
+	WebIdleTimeout types.Duration `yaml:"web_idle_timeout,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -620,6 +679,9 @@ type SSH struct {
 	// BPF is used to configure BPF-based auditing for this node.
 	BPF *BPF `yaml:"enhanced_recording,omitempty"`
 
+	// RestrictedSession is used to restrict access to kernel objects
+	RestrictedSession *RestrictedSession `yaml:"restricted_session,omitempty"`
+
 	// MaybeAllowTCPForwarding enables or disables TCP port forwarding. We're
 	// using a pointer-to-bool here because the system default is to allow TCP
 	// forwarding, we need to distinguish between an unset value and a false
@@ -705,6 +767,29 @@ func (b *BPF) Parse() *bpf.Config {
 		NetworkBufferSize: b.NetworkBufferSize,
 		CgroupPath:        b.CgroupPath,
 	}
+}
+
+// RestrictedSession is a configuration for limiting access to kernel objects
+type RestrictedSession struct {
+	// Enabled enables or disables enforcemant for this node.
+	Enabled string `yaml:"enabled"`
+
+	// EventsBufferSize is the size in bytes of the channel to report events
+	// from the kernel to us.
+	EventsBufferSize *int `yaml:"events_buffer_size,omitempty"`
+}
+
+// Parse will parse the enhanced session recording configuration.
+func (r *RestrictedSession) Parse() (*restricted.Config, error) {
+	enabled, err := apiutils.ParseBool(r.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &restricted.Config{
+		Enabled:          enabled,
+		EventsBufferSize: r.EventsBufferSize,
+	}, nil
 }
 
 // Databases represents the database proxy service configuration.

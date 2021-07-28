@@ -1,11 +1,11 @@
 ---
 title: Database Access Configuration Reference
-description: Configuration reference for Teleport Database Access
+description: Configuration reference for Teleport Database Access.
 ---
 
 # Database Access Configuration Reference
 
-## Database Service Configuration
+## Database service configuration
 
 The following snippet shows full YAML configuration of a Database Service
 appearing in `teleport.yaml` configuration file:
@@ -21,7 +21,7 @@ db_service:
   - name: "prod"
     # Free-form description of the database proxy instance.
     description: "Production database"
-    # Database protocol. Can be "postgres" or "mysql".
+    # Database protocol. Can be "postgres", "mysql" or "mongodb".
     protocol: "postgres"
     # Database connection endpoint. Must be reachable from Database Service.
     uri: "postgres.example.com:5432"
@@ -51,7 +51,7 @@ db_service:
       period: 1m0s
 ```
 
-## Proxy Configuration
+## Proxy configuration
 
 The following Proxy service configuration is relevant for Database Access:
 

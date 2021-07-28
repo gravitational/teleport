@@ -19,16 +19,18 @@ package auth
 import (
 	"context"
 	"crypto/x509/pkix"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -126,96 +128,263 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	}
 }
 
-// TestSetAuthPreference tests the dynamic configuration rules described
+type testDynamicallyConfigurableRBACParams struct {
+	kind                          string
+	storeDefault, storeConfigFile func(*Server)
+	get, set, reset               func(*ServerWithRoles) error
+	alwaysReadable                bool
+}
+
+// TestDynamicConfigurationRBACVerbs tests the dynamic configuration RBAC verbs described
 // in rfd/0016-dynamic-configuration.md § Implementation.
-func TestSetAuthPreference(t *testing.T) {
-	ctx := context.Background()
+func testDynamicallyConfigurableRBAC(t *testing.T, p testDynamicallyConfigurableRBACParams) {
 	testAuth, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	// Initialize with the default auth preference.
-	err = testAuth.AuthServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
-	require.NoError(t, err)
-	storedAuthPref, err := testAuth.AuthServer.GetAuthPreference(ctx)
-	require.NoError(t, err)
-	require.Empty(t, resourceDiff(storedAuthPref, types.DefaultAuthPreference()))
-
-	// Grant VerbRead and VerbUpdate privileges for cluster_auth_preference.
-	allowRules := []types.Rule{
-		{
-			Resources: []string{"cluster_auth_preference"},
-			Verbs:     []string{types.VerbRead, types.VerbUpdate},
-		},
-	}
-	server := withAllowRules(t, testAuth, allowRules)
-
-	dynamicAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		SecondFactor: constants.SecondFactorOff,
-	})
-	require.NoError(t, err)
-	t.Run("from default to dynamic", func(t *testing.T) {
-		err = server.SetAuthPreference(ctx, dynamicAuthPref)
-		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference(ctx)
-		require.NoError(t, err)
-		require.Empty(t, resourceDiff(storedAuthPref, dynamicAuthPref))
-	})
-
-	newDynamicAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		SecondFactor: constants.SecondFactorOTP,
-	})
-	require.NoError(t, err)
-	t.Run("from dynamic to another dynamic", func(t *testing.T) {
-		err = server.SetAuthPreference(ctx, newDynamicAuthPref)
-		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference(ctx)
-		require.NoError(t, err)
-		require.Empty(t, resourceDiff(storedAuthPref, newDynamicAuthPref))
-	})
-
-	staticAuthPref := newU2FAuthPreferenceFromConfigFile(t)
-	t.Run("from dynamic to static", func(t *testing.T) {
-		err = server.SetAuthPreference(ctx, staticAuthPref)
-		require.NoError(t, err)
-		storedAuthPref, err = server.GetAuthPreference(ctx)
-		require.NoError(t, err)
-		require.Empty(t, resourceDiff(storedAuthPref, staticAuthPref))
-	})
-
-	newAuthPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		SecondFactor: constants.SecondFactorOTP,
-	})
-	require.NoError(t, err)
-	replaceStatic := func(success bool) func(t *testing.T) {
+	testOperation := func(op func(*ServerWithRoles) error, allowRules []types.Rule, expectErr, withConfigFile bool) func(*testing.T) {
 		return func(t *testing.T) {
-			err = server.SetAuthPreference(ctx, newAuthPref)
-			checkSetResult := require.Error
-			if success {
-				checkSetResult = require.NoError
+			if withConfigFile {
+				p.storeConfigFile(testAuth.AuthServer)
+			} else {
+				p.storeDefault(testAuth.AuthServer)
 			}
-			checkSetResult(t, err)
-
-			storedAuthPref, err = server.GetAuthPreference(ctx)
-			require.NoError(t, err)
-			expectedStored := staticAuthPref
-			if success {
-				expectedStored = newAuthPref
+			server := serverWithAllowRules(t, testAuth, allowRules)
+			opErr := op(server)
+			if expectErr {
+				require.Error(t, opErr)
+			} else {
+				require.NoError(t, opErr)
 			}
-			require.Empty(t, resourceDiff(storedAuthPref, expectedStored))
 		}
 	}
 
-	t.Run("replacing static fails without VerbCreate privilege", replaceStatic(false))
+	// runTestCases generates all non-empty RBAC verb combinations and checks the expected
+	// error for each operation.
+	runTestCases := func(withConfigFile bool) {
+		for _, canCreate := range []bool{false, true} {
+			for _, canUpdate := range []bool{false, true} {
+				for _, canRead := range []bool{false, true} {
+					if !canRead && !canUpdate && !canCreate {
+						continue
+					}
+					verbs := []string{}
+					expectGetErr, expectSetErr, expectResetErr := true, true, true
+					if canRead || p.alwaysReadable {
+						verbs = append(verbs, types.VerbRead)
+						expectGetErr = false
+					}
+					if canUpdate {
+						verbs = append(verbs, types.VerbUpdate)
+						if !withConfigFile {
+							expectSetErr, expectResetErr = false, false
+						}
+					}
+					if canCreate {
+						verbs = append(verbs, types.VerbCreate)
+						if canUpdate {
+							expectSetErr = false
+						}
+					}
+					allowRules := []types.Rule{
+						{
+							Resources: []string{p.kind},
+							Verbs:     verbs,
+						},
+					}
+					t.Run(fmt.Sprintf("get %v %v", verbs, withConfigFile), testOperation(p.get, allowRules, expectGetErr, withConfigFile))
+					t.Run(fmt.Sprintf("set %v %v", verbs, withConfigFile), testOperation(p.set, allowRules, expectSetErr, withConfigFile))
+					t.Run(fmt.Sprintf("reset %v %v", verbs, withConfigFile), testOperation(p.reset, allowRules, expectResetErr, withConfigFile))
+				}
+			}
+		}
+	}
 
-	// Grant VerbCreate privilege for cluster_auth_preference.
-	allowRules[0].Verbs = append(allowRules[0].Verbs, types.VerbCreate)
-	server = withAllowRules(t, testAuth, allowRules)
-
-	t.Run("replacing static success with VerbCreate privilege", replaceStatic(true))
+	runTestCases(false)
+	runTestCases(true)
 }
 
-func withAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.Rule) *ServerWithRoles {
-	username := "some-user"
+func TestAuthPreferenceRBAC(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	testDynamicallyConfigurableRBAC(t, testDynamicallyConfigurableRBACParams{
+		kind: types.KindClusterAuthPreference,
+		storeDefault: func(s *Server) {
+			s.SetAuthPreference(ctx, types.DefaultAuthPreference())
+		},
+		storeConfigFile: func(s *Server) {
+			authPref := types.DefaultAuthPreference()
+			authPref.SetOrigin(types.OriginConfigFile)
+			s.SetAuthPreference(ctx, authPref)
+		},
+		get: func(s *ServerWithRoles) error {
+			_, err := s.GetAuthPreference(ctx)
+			return err
+		},
+		set: func(s *ServerWithRoles) error {
+			return s.SetAuthPreference(ctx, types.DefaultAuthPreference())
+		},
+		reset: func(s *ServerWithRoles) error {
+			return s.ResetAuthPreference(ctx)
+		},
+		alwaysReadable: true,
+	})
+}
+
+func TestClusterNetworkingConfigRBAC(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	testDynamicallyConfigurableRBAC(t, testDynamicallyConfigurableRBACParams{
+		kind: types.KindClusterNetworkingConfig,
+		storeDefault: func(s *Server) {
+			s.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		},
+		storeConfigFile: func(s *Server) {
+			netConfig := types.DefaultClusterNetworkingConfig()
+			netConfig.SetOrigin(types.OriginConfigFile)
+			s.SetClusterNetworkingConfig(ctx, netConfig)
+		},
+		get: func(s *ServerWithRoles) error {
+			_, err := s.GetClusterNetworkingConfig(ctx)
+			return err
+		},
+		set: func(s *ServerWithRoles) error {
+			return s.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		},
+		reset: func(s *ServerWithRoles) error {
+			return s.ResetClusterNetworkingConfig(ctx)
+		},
+	})
+}
+
+func TestSessionRecordingConfigRBAC(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	testDynamicallyConfigurableRBAC(t, testDynamicallyConfigurableRBACParams{
+		kind: types.KindSessionRecordingConfig,
+		storeDefault: func(s *Server) {
+			s.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		},
+		storeConfigFile: func(s *Server) {
+			recConfig := types.DefaultSessionRecordingConfig()
+			recConfig.SetOrigin(types.OriginConfigFile)
+			s.SetSessionRecordingConfig(ctx, recConfig)
+		},
+		get: func(s *ServerWithRoles) error {
+			_, err := s.GetSessionRecordingConfig(ctx)
+			return err
+		},
+		set: func(s *ServerWithRoles) error {
+			return s.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		},
+		reset: func(s *ServerWithRoles) error {
+			return s.ResetSessionRecordingConfig(ctx)
+		},
+	})
+}
+
+// TestListNodes users can retrieve nodes with the appropriate permissions.
+func TestListNodes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	for i := 0; i < 10; i++ {
+		name := uuid.New()
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to list all nodes
+	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// listing nodes 0-4 should list first 5 nodes
+	nodes, _, err := clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	require.NoError(t, err)
+	require.EqualValues(t, 5, len(nodes))
+	expectedNodes := testNodes[:5]
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+
+	// remove permission for third node
+	role.SetNodeLabels(types.Deny, types.Labels{"name": {testNodes[3].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// listing nodes 0-4 should skip the third node and add the fifth to the end.
+	nodes, _, err = clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	require.NoError(t, err)
+	require.EqualValues(t, 5, len(nodes))
+	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+}
+
+// TestAPILockedOut tests Auth API when there are locks involved.
+func TestAPILockedOut(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create user, role and client.
+	user, role, err := CreateUserAndRole(srv.Auth(), "test-user", nil)
+	require.NoError(t, err)
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Prepare an operation requiring authorization.
+	testOp := func() error {
+		_, err := clt.GetUser(user.GetName(), false)
+		return err
+	}
+
+	// With no locks, the operation should pass with no error.
+	require.NoError(t, testOp())
+
+	// With a lock targeting the user, the operation should be denied.
+	lock, err := types.NewLock("user-lock", types.LockSpecV2{
+		Target: types.LockTarget{User: user.GetName()},
+	})
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().UpsertLock(ctx, lock))
+	err = testOp()
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Delete the lock.
+	require.NoError(t, srv.Auth().DeleteLock(ctx, lock.GetName()))
+	require.NoError(t, testOp())
+
+	// Create a new lock targeting the user's role.
+	roleLock, err := types.NewLock("role-lock", types.LockSpecV2{
+		Target: types.LockTarget{Role: role.GetName()},
+	})
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().UpsertLock(ctx, roleLock))
+	err = testOp()
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+}
+
+func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.Rule) *ServerWithRoles {
+	username := "test-user"
 	_, role, err := CreateUserAndRoleWithoutRoles(srv.AuthServer, username, nil)
 	require.NoError(t, err)
 	role.SetRules(types.Allow, allowRules)
@@ -223,7 +392,7 @@ func withAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.Rule) 
 	require.NoError(t, err)
 
 	localUser := LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := contextForLocalUser(localUser, srv.AuthServer.Identity, srv.AuthServer.Access)
+	authContext, err := contextForLocalUser(localUser, srv.AuthServer)
 	require.NoError(t, err)
 
 	return &ServerWithRoles{
@@ -234,8 +403,151 @@ func withAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.Rule) 
 	}
 }
 
-func resourceDiff(res1, res2 types.Resource) string {
-	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
-		cmpopts.EquateEmpty())
+func TestGetDatabaseServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test databases.
+	for i := 0; i < 5; i++ {
+		name := uuid.New()
+		db, err := types.NewDatabaseServerV3(name, map[string]string{"name": name}, types.DatabaseServerSpecV3{
+			Protocol: "postgres",
+			URI:      "example.com",
+			Hostname: "host",
+			HostID:   "hostid",
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to get the first database
+	role.SetDatabaseLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, len(servers))
+	require.Empty(t, cmp.Diff(testServers[0:1], servers))
+
+	// permit user to get all databases
+	role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+
+	// deny user to get the first database
+	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Empty(t, cmp.Diff(testServers[1:], servers))
+
+	// deny user to get all databases
+	role.SetDatabaseLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, len(servers))
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{}, servers))
+}
+
+func TestGetAppServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test apps.
+	for i := 0; i < 5; i++ {
+		name := uuid.New()
+		app, err := types.NewServerWithLabels(
+			name,
+			types.KindAppServer,
+			types.ServerSpecV2{
+				Apps: []*types.App{{
+					Name:         name,
+					StaticLabels: map[string]string{"name": name},
+				}},
+			},
+			nil,
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertAppServer(ctx, app)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetAppServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to get the first app
+	role.SetAppLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetAppServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	for i := 1; i < len(servers); i++ {
+		// servers other than the first should have no apps
+		require.Empty(t, servers[i].GetApps())
+		// set apps to be equal to compare other fields
+		servers[i].SetApps(testServers[i].GetApps())
+	}
+	require.Empty(t, cmp.Diff(testServers, servers))
+
+	// permit user to get all apps
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetAppServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+
+	// deny user to get the first app
+	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetAppServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	// first server should have no apps
+	require.Empty(t, servers[0].GetApps())
+	// set apps to be equal to compare other fields
+	servers[0].SetApps(testServers[0].GetApps())
+	require.Empty(t, cmp.Diff(testServers, servers))
+
+	// deny user to get all apps
+	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetAppServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	for i := 0; i < len(servers); i++ {
+		// servers other than the first should have no apps
+		require.Empty(t, servers[i].GetApps())
+		// set apps to be equal to compare other fields
+		servers[i].SetApps(testServers[i].GetApps())
+	}
+	require.Empty(t, cmp.Diff(testServers, servers))
 }

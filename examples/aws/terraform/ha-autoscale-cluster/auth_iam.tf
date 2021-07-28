@@ -135,7 +135,8 @@ resource "aws_iam_role_policy" "auth_s3" {
        "Effect": "Allow",
        "Action": [
          "s3:ListBucket",
-         "s3:ListBucketVersions"
+         "s3:ListBucketVersions",
+         "s3:ListBucketMultipartUploads"
         ],
        "Resource": ["arn:aws:s3:::${aws_s3_bucket.certs.bucket}"]
      },
@@ -150,7 +151,7 @@ resource "aws_iam_role_policy" "auth_s3" {
      }
    ]
  }
- 
+
 EOF
 
 }

@@ -60,16 +60,18 @@ func TestReadIdentity(t *testing.T) {
 	a := testauthority.NewWithClock(clock)
 	priv, pub, err := a.GenerateKeyPair("")
 	require.NoError(t, err)
+	caSigner, err := ssh.ParsePrivateKey(priv)
+	require.NoError(t, err)
 
 	cert, err := a.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       pub,
-		HostID:              "id1",
-		NodeName:            "node-name",
-		ClusterName:         "example.com",
-		Roles:               types.SystemRoles{types.RoleNode},
-		TTL:                 0,
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: pub,
+		HostID:        "id1",
+		NodeName:      "node-name",
+		ClusterName:   "example.com",
+		Roles:         types.SystemRoles{types.RoleNode},
+		TTL:           0,
 	})
 	require.NoError(t, err)
 
@@ -84,14 +86,14 @@ func TestReadIdentity(t *testing.T) {
 	ttl := 10 * time.Second
 	expiryDate := clock.Now().Add(ttl)
 	bytes, err := a.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       pub,
-		HostID:              "id1",
-		NodeName:            "node-name",
-		ClusterName:         "example.com",
-		Roles:               types.SystemRoles{types.RoleNode},
-		TTL:                 ttl,
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: pub,
+		HostID:        "id1",
+		NodeName:      "node-name",
+		ClusterName:   "example.com",
+		Roles:         types.SystemRoles{types.RoleNode},
+		TTL:           ttl,
 	})
 	require.NoError(t, err)
 	copy, err := apisshutils.ParseCertificate(bytes)
@@ -103,6 +105,8 @@ func TestBadIdentity(t *testing.T) {
 	a := testauthority.New()
 	priv, pub, err := a.GenerateKeyPair("")
 	require.NoError(t, err)
+	caSigner, err := ssh.ParsePrivateKey(priv)
+	require.NoError(t, err)
 
 	// bad cert type
 	_, err = ReadSSHIdentityFromKeyPair(priv, pub)
@@ -110,14 +114,14 @@ func TestBadIdentity(t *testing.T) {
 
 	// missing authority domain
 	cert, err := a.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       pub,
-		HostID:              "id2",
-		NodeName:            "",
-		ClusterName:         "",
-		Roles:               types.SystemRoles{types.RoleNode},
-		TTL:                 0,
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: pub,
+		HostID:        "id2",
+		NodeName:      "",
+		ClusterName:   "",
+		Roles:         types.SystemRoles{types.RoleNode},
+		TTL:           0,
 	})
 	require.NoError(t, err)
 
@@ -126,14 +130,14 @@ func TestBadIdentity(t *testing.T) {
 
 	// missing host uuid
 	cert, err = a.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       pub,
-		HostID:              "example.com",
-		NodeName:            "",
-		ClusterName:         "",
-		Roles:               types.SystemRoles{types.RoleNode},
-		TTL:                 0,
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: pub,
+		HostID:        "example.com",
+		NodeName:      "",
+		ClusterName:   "",
+		Roles:         types.SystemRoles{types.RoleNode},
+		TTL:           0,
 	})
 	require.NoError(t, err)
 
@@ -142,14 +146,14 @@ func TestBadIdentity(t *testing.T) {
 
 	// unrecognized role
 	cert, err = a.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       pub,
-		HostID:              "example.com",
-		NodeName:            "",
-		ClusterName:         "id1",
-		Roles:               types.SystemRoles{types.SystemRole("bad role")},
-		TTL:                 0,
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: pub,
+		HostID:        "example.com",
+		NodeName:      "",
+		ClusterName:   "id1",
+		Roles:         types.SystemRoles{types.SystemRole("bad role")},
+		TTL:           0,
 	})
 	require.NoError(t, err)
 
@@ -169,6 +173,12 @@ func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurablePara
 		require.NoError(t, err)
 		t.Cleanup(func() { authServer.Close() })
 		return authServer
+	}
+
+	resourceDiff := func(res1, res2 types.Resource) string {
+		return cmp.Diff(res1, res2,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+			cmpopts.EquateEmpty())
 	}
 
 	t.Run("start with config file, reinit with defaults", func(t *testing.T) {

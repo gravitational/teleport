@@ -87,8 +87,8 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		panic(err)
 	}
 
-	key, cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		PrivateKey: rsaKey.(*rsa.PrivateKey),
+	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: rsaKey.(*rsa.PrivateKey),
 		Entity: pkix.Name{
 			CommonName:   config.ClusterName,
 			Organization: []string{config.ClusterName},
@@ -121,7 +121,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 					PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
 					PrivateKey: keyBytes,
 				}},
-				TLS: []*types.TLSKeyPair{{Cert: cert, Key: key}},
+				TLS: []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}},
 				JWT: []*types.JWTKeyPair{{
 					PublicKey:  publicKey,
 					PrivateKey: privateKey,
@@ -139,17 +139,17 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 // for services. It is used for local implementations and implementations
 // using GRPC to guarantee consistency between local and remote services
 type ServicesTestSuite struct {
-	Access          services.Access
-	CAS             services.Trust
-	PresenceS       services.Presence
-	ProvisioningS   services.Provisioner
-	WebS            services.Identity
-	ConfigS         services.ClusterConfiguration
-	EventsS         types.Events
-	UsersS          services.UsersService
-	ChangesC        chan interface{}
-	Clock           clockwork.FakeClock
-	NewProxyWatcher services.NewProxyWatcherFunc
+	Access        services.Access
+	CAS           services.Trust
+	PresenceS     services.Presence
+	ProvisioningS services.Provisioner
+	WebS          services.Identity
+	ConfigS       services.ClusterConfiguration
+	EventsS       types.Events
+	UsersS        services.UsersService
+	RestrictionsS services.Restrictions
+	ChangesC      chan interface{}
+	Clock         clockwork.FakeClock
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
@@ -1157,57 +1157,25 @@ func CollectOptions(opts ...Option) Options {
 }
 
 // ClusterConfig tests cluster configuration.
-// DELETE IN 8.0.0: Test only the individual resources.
+// DELETE IN 8.0.0: Remove ClusterConfig and related tests
+// and test only the individual resources.
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	ctx := context.Background()
 
-	// DELETE IN 8.0.0
 	clusterName, err := s.ConfigS.GetClusterName()
-	if trace.IsNotFound(err) {
-		clusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-			ClusterName: "example.com",
-		})
-		c.Assert(err, check.IsNil)
-		err = s.ConfigS.SetClusterName(clusterName)
-		c.Assert(err, check.IsNil)
-	} else {
-		c.Assert(err, check.IsNil)
-	}
+	c.Assert(err, check.IsNil)
 	clusterID := clusterName.GetClusterID()
 
-	// DELETE IN 8.0.0
-	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-		Region:           "us-west-1",
-		Type:             "dynamodb",
-		AuditSessionsURI: "file:///home/log",
-		AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
-	})
-	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetClusterAuditConfig(context.TODO(), auditConfig)
+	auditConfig, err := s.ConfigS.GetClusterAuditConfig(ctx)
 	c.Assert(err, check.IsNil)
 
-	// DELETE IN 8.0.0
-	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout: types.NewDuration(17 * time.Second),
-	})
-	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetClusterNetworkingConfig(ctx, netConfig)
+	netConfig, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
 	c.Assert(err, check.IsNil)
 
-	// DELETE IN 8.0.0
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtProxy,
-	})
-	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetSessionRecordingConfig(ctx, recConfig)
+	recConfig, err := s.ConfigS.GetSessionRecordingConfig(ctx)
 	c.Assert(err, check.IsNil)
 
-	// DELETE IN 8.0.0
-	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		DisconnectExpiredCert: types.NewBoolOption(true),
-	})
-	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetAuthPreference(ctx, authPref)
+	authPref, err := s.ConfigS.GetAuthPreference(ctx)
 	c.Assert(err, check.IsNil)
 
 	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
@@ -1941,64 +1909,46 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 	s.runEventsTests(c, testCases)
 }
 
-// ProxyWatcher tests proxy watcher
-func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
-	w, err := s.NewProxyWatcher()
+// NetworkRestrictions tests network restrictions.
+func (s *ServicesTestSuite) NetworkRestrictions(c *check.C, opts ...Option) {
+	ctx := context.Background()
+
+	// blank slate, should be get/delete should fail
+	_, err := s.RestrictionsS.GetNetworkRestrictions(ctx)
+	fixtures.ExpectNotFound(c, err)
+
+	err = s.RestrictionsS.DeleteNetworkRestrictions(ctx)
+	fixtures.ExpectNotFound(c, err)
+
+	allow := []types.AddressCondition{
+		{CIDR: "10.0.1.0/24"},
+		{CIDR: "10.0.2.2"},
+	}
+	deny := []types.AddressCondition{
+		{CIDR: "10.1.0.0/16"},
+		{CIDR: "8.8.8.8"},
+	}
+
+	expected := types.NewNetworkRestrictions()
+	expected.SetAllow(allow)
+	expected.SetDeny(deny)
+
+	// set and make sure we get it back
+	err = s.RestrictionsS.SetNetworkRestrictions(ctx, expected)
 	c.Assert(err, check.IsNil)
-	defer w.Close()
 
-	// since no proxy is yet present, the ProxyWatcher should immediately
-	// yield back to its retry loop.
-	select {
-	case <-w.Reset():
-	case <-time.After(time.Second):
-		c.Fatalf("Timeout waiting for ProxyWatcher reset")
-	}
+	actual, err := s.RestrictionsS.GetNetworkRestrictions(ctx)
+	c.Assert(err, check.IsNil)
 
-	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
-	c.Assert(s.PresenceS.UpsertProxy(proxy), check.IsNil)
+	fixtures.DeepCompare(c, expected.GetAllow(), actual.GetAllow())
+	fixtures.DeepCompare(c, expected.GetDeny(), actual.GetDeny())
 
-	// the first event is always the current list of proxies
-	select {
-	case changeset := <-w.ProxiesC:
-		c.Assert(changeset, check.HasLen, 1)
-		out, err := s.PresenceS.GetProxies()
-		c.Assert(err, check.IsNil)
-		fixtures.DeepCompare(c, changeset[0], out[0])
-	case <-w.Done():
-		c.Fatalf("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for the first event")
-	}
+	// now delete should work ok and get should fail again
+	err = s.RestrictionsS.DeleteNetworkRestrictions(ctx)
+	c.Assert(err, check.IsNil)
 
-	// add a second proxy
-	proxy2 := NewServer(types.KindProxy, "proxy2", "127.0.0.1:2023", apidefaults.Namespace)
-	c.Assert(s.PresenceS.UpsertProxy(proxy2), check.IsNil)
-
-	// watcher should detect the proxy list change
-	select {
-	case changeset := <-w.ProxiesC:
-		c.Assert(changeset, check.HasLen, 2)
-	case <-w.Done():
-		c.Fatalf("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for the first event")
-	}
-
-	c.Assert(s.PresenceS.DeleteProxy(proxy.GetName()), check.IsNil)
-
-	// watcher should detect the proxy list change
-	select {
-	case changeset := <-w.ProxiesC:
-		c.Assert(changeset, check.HasLen, 1)
-		out, err := s.PresenceS.GetProxies()
-		c.Assert(err, check.IsNil)
-		fixtures.DeepCompare(c, changeset[0], out[0])
-	case <-w.Done():
-		c.Fatalf("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for the first event")
-	}
+	err = s.RestrictionsS.DeleteNetworkRestrictions(ctx)
+	fixtures.ExpectNotFound(c, err)
 }
 
 func (s *ServicesTestSuite) runEventsTests(c *check.C, testCases []eventTest) {

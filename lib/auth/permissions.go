@@ -48,20 +48,18 @@ func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
 }
 
 // NewAuthorizer returns new authorizer using backends
-func NewAuthorizer(clusterName string, access services.Access, identity services.UserGetter, trust services.Trust) (Authorizer, error) {
+func NewAuthorizer(clusterName string, accessPoint ReadAccessPoint, lockWatcher *services.LockWatcher) (Authorizer, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing parameter clusterName")
 	}
-	if access == nil {
-		return nil, trace.BadParameter("missing parameter access")
+	if accessPoint == nil {
+		return nil, trace.BadParameter("missing parameter accessPoint")
 	}
-	if identity == nil {
-		return nil, trace.BadParameter("missing parameter identity")
-	}
-	if trust == nil {
-		return nil, trace.BadParameter("missing parameter trust")
-	}
-	return &authorizer{clusterName: clusterName, access: access, identity: identity, trust: trust}, nil
+	return &authorizer{
+		clusterName: clusterName,
+		accessPoint: accessPoint,
+		lockWatcher: lockWatcher,
+	}, nil
 }
 
 // Authorizer authorizes identity and returns auth context
@@ -73,9 +71,8 @@ type Authorizer interface {
 // authorizer creates new local authorizer
 type authorizer struct {
 	clusterName string
-	access      services.Access
-	identity    services.UserGetter
-	trust       services.Trust
+	accessPoint ReadAccessPoint
+	lockWatcher *services.LockWatcher
 }
 
 // AuthContext is authorization context
@@ -98,6 +95,27 @@ type Context struct {
 	UnmappedIdentity IdentityGetter
 }
 
+// LockTargets returns a list of LockTargets inferred from the context's
+// Identity and UnmappedIdentity.
+func (c *Context) LockTargets() []types.LockTarget {
+	lockTargets := services.LockTargetsFromTLSIdentity(c.Identity.GetIdentity())
+Loop:
+	for _, unmappedTarget := range services.LockTargetsFromTLSIdentity(c.UnmappedIdentity.GetIdentity()) {
+		// Append a lock target from UnmappedIdentity only if it is not already
+		// known from Identity.
+		for _, knownTarget := range lockTargets {
+			if unmappedTarget.Equals(knownTarget) {
+				continue Loop
+			}
+		}
+		lockTargets = append(lockTargets, unmappedTarget)
+	}
+	if r, ok := c.Identity.(BuiltinRole); ok && r.Role == types.RoleNode {
+		lockTargets = append(lockTargets, types.LockTarget{Node: r.GetServerID()})
+	}
+	return lockTargets
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
@@ -107,6 +125,11 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// Enforce applicable locks in force.
+	lock := a.lockWatcher.FindLockInForce(authContext.LockTargets()...)
+	if lock != nil {
+		return nil, trace.AccessDenied(services.LockInForceMessage(lock))
 	}
 	return authContext, nil
 }
@@ -128,12 +151,15 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 
 // authorizeLocalUser returns authz context based on the username
 func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
-	return contextForLocalUser(u, a.identity, a.access)
+	return contextForLocalUser(u, a.accessPoint)
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
 func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
-	ca, err := a.trust.GetCertAuthority(types.CertAuthID{Type: types.UserCA, DomainName: u.ClusterName}, false)
+	ca, err := a.accessPoint.GetCertAuthority(types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: u.ClusterName,
+	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,7 +196,7 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 	}
 	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.",
 		u.RemoteRoles, u.Username, roleNames, traits)
-	checker, err := services.FetchRoles(roleNames, a.access, traits)
+	checker, err := services.FetchRoles(roleNames, a.accessPoint, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -338,6 +364,8 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindNetworkRestrictions, services.RO()),
 					},
 				},
 			})
@@ -367,6 +395,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindWebSession, services.RO()),
 						types.NewRule(types.KindWebToken, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
+						types.NewRule(types.KindLock, services.RO()),
 					},
 				},
 			})
@@ -394,6 +423,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindLock, services.RO()),
 					},
 				},
 			})
@@ -441,6 +471,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 							types.NewRule(types.KindWebToken, services.RW()),
 							types.NewRule(types.KindKubeService, services.RW()),
 							types.NewRule(types.KindDatabaseServer, services.RO()),
+							types.NewRule(types.KindLock, services.RO()),
 							// this rule allows local proxy to update the remote cluster's host certificate authorities
 							// during certificates renewal
 							{
@@ -501,6 +532,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindWebToken, services.RW()),
 						types.NewRule(types.KindKubeService, services.RW()),
 						types.NewRule(types.KindDatabaseServer, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
 						// this rule allows local proxy to update the remote cluster's host certificate authorities
 						// during certificates renewal
 						{
@@ -578,6 +610,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindUser, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
 					},
 				},
 			})
@@ -604,17 +637,17 @@ func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 	}, nil
 }
 
-func contextForLocalUser(u LocalUser, identity services.UserGetter, access services.Access) (*Context, error) {
+func contextForLocalUser(u LocalUser, accessPoint ReadAccessPoint) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
-	user, err := identity.GetUser(u.Username, false)
+	user, err := accessPoint.GetUser(u.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, traits, err := services.ExtractFromIdentity(identity, u.Identity)
+	roles, traits, err := services.ExtractFromIdentity(accessPoint, u.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(roles, access, traits)
+	checker, err := services.FetchRoles(roles, accessPoint, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

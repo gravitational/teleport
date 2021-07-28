@@ -1,62 +1,28 @@
 ---
 title: Database Access with Self-Hosted PostgreSQL
-description: How to configure Teleport Database Access with self-hosted PostgreSQL
+description: How to configure Teleport Database Access with self-hosted PostgreSQL.
 ---
 
 # Self-Hosted PostgreSQL
 
-## Create Certificate/Key Pair
+## Create certificate/key pair
 
-Teleport uses mutual TLS for authentication to PostgreSQL instances. As such,
-self-hosted PostgreSQL instances must be configured with Teleport's certificate
-authority and a certificate/key pair that Teleport can validate.
+(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
-To create these secrets, use `tctl auth sign` command. It can be run either
-[locally](../../architecture/overview.mdx#tctl) on the auth server, or from the
-client machine after logging in with `tsh login` (for example, when using
-[Teleport Cloud](../../cloud/introduction.mdx)).
-
-In the latter case, user must be allowed to impersonate the system role `Db` in
-order to be able to generate the database certificate, by having the following
-allow rule in their role:
-
-```yaml
-allow:
-  impersonate:
-    users: ["Db"]
-    roles: ["Db"]
-```
-
-Run the command:
+Create the secrets:
 
 ```bash
 # Export Teleport's certificate authority and generate certificate/key pair
-# for host db.example.com with a 3-month validity period.
-tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
+# for host db.example.com with a 1-year validity period.
+$ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 ```
 
-Flag descriptions:
+(!docs/pages/includes/database-access/ttl-note.mdx!)
 
-- `--format=db`: instructs the command to produce secrets in the format suitable
-  for configuring a database server.
-- `--host=db.example.com`: server name to encode in the certificate, should
-  match the hostname Teleport will be connecting to the database at.
-- `--out=server`: name prefix for output files.
-  `--ttl=2190h`: certificate validity period.
+The command will create 3 files: `server.cas`, `server.crt` and `server.key`
+which you'll need to enable mutual TLS on your PostgreSQL server.
 
-The command will create 3 files: `server.cas` with Teleport's certificate
-authority and `server.crt`/`server.key` with generated certificate/key pair.
-
-<Admonition
-  type="note"
-  title="Certificate Rotation"
->
-  Teleport signs database certificates with the host authority. As such,
-  when performing [host certificates rotation](../../admin-guide.mdx#certificate-rotation),
-  the database certificates must be updated as well.
-</Admonition>
-
-## Configure PostgreSQL Server
+## Configure PostgreSQL server
 
 To configure PostgreSQL server to accept TLS connections, add the following
 to PostgreSQL configuration file `postgresql.conf`:
@@ -87,54 +53,16 @@ certificate-based Teleport login will fail.
 See [The pg_hba.conf File](https://www.postgresql.org/docs/current/auth-pg-hba-conf.html)
 in PostgreSQL documentation for more details.
 
-## Configure Teleport
+## Setup Teleport Auth and Proxy services
 
-Teleport Database Access is available starting from `6.0` release.
+Teleport Database Access for PostgreSQL is available starting from `6.0`
+release.
 
-Download the appropriate version of Teleport for your platform from
-our [downloads page](https://goteleport.com/teleport/download).
+(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-Follow the installation [instructions](../../installation.mdx).
+(!docs/pages/includes/database-access/token.mdx!)
 
-### Start Auth and Proxy Services
-
-Create a configuration file for a Teleport service that will be running
-auth and proxy servers:
-
-```yaml
-teleport:
-  data_dir: /var/lib/teleport
-  nodename: test
-auth_service:
-  enabled: "yes"
-proxy_service:
-  enabled: "yes"
-  # Set public address proxy will be reachable at.
-  public_addr: teleport.example.com:3080
-  # PostgreSQL proxy is listening on a regular web proxy port.
-  web_listen_addr: 0.0.0.0:3080
-ssh_service:
-  enabled: "no"
-```
-
-Start the service:
-
-```sh
-$ teleport start --config=/path/to/teleport.yaml
-```
-
-Generate a short-lived join token for the database service and save it for
-example in `/tmp/token`:
-
-```sh
-$ tctl --config=/path/to/teleport.yaml tokens add \
-    --type=db \
-    --db-name=test \
-    --db-protocol=postgres \
-    --db-uri=postgres.example.com:5432
-```
-
-### Create Role and User
+### Create role and user
 
 Create the role that will allow a user to connect to any database using any
 database account:
@@ -162,7 +90,7 @@ Create the user assigned the `db` role we've just created:
 $ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
 ```
 
-### Start Database Service with CLI Flags
+### Start Database service with CLI flags
 
 You can start Teleport database service without configuration file, using a
 CLI command:
@@ -181,7 +109,7 @@ Note that the `--auth-server` flag must point to the Teleport cluster's proxy en
 because database service always connects back to the cluster over a reverse
 tunnel.
 
-### Start Database Service with Config File
+### Start Database service with config file
 
 Below is an example of a database service configuration file that proxies
 a single self-hosted PostgreSQL database:
@@ -274,18 +202,21 @@ when connecting to the database instance:
 $ tsh db login --db-user=postgres --db-name=postgres example
 ```
 
-When logging into a PostgreSQL database, `tsh` automatically configures a section
-in the [connection service file](https://www.postgresql.org/docs/current/libpq-pgservice.html)
-with the name of `<cluster-name>-<database-service-name>`.
+Once logged in, connect to the database:
 
-Suppose the cluster name is "root", then you can connect to the database using
-the following `psql` command:
+```bash
+$ tsh db connect aurora
+```
 
-```sh
-# Use default database user and database name.
-$ psql "service=root-example"
-# Specify database user and database name explicitly.
-$ psql "service=root-example user=alice dbname=metrics"
+<Admonition type="note" title="Note">
+  The `psql` command-line client should be available in PATH in order to be
+  able to connect.
+</Admonition>
+
+If you would like to see the native `psql` shell connect command, run:
+
+```bash
+$ tsh db config --format=cmd aurora
 ```
 
 To log out of the database and remove credentials:

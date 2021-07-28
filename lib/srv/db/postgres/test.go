@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgproto3/v2"
 
 	"github.com/gravitational/trace"
@@ -203,6 +204,11 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend) error {
 	// simulates cloud provider IAM auth.
 	if s.cfg.AuthToken != "" {
 		if err := s.handlePasswordAuth(client); err != nil {
+			if trace.IsAccessDenied(err) {
+				if err := client.Send(&pgproto3.ErrorResponse{Code: pgerrcode.InvalidPassword, Message: err.Error()}); err != nil {
+					return trace.Wrap(err)
+				}
+			}
 			return trace.Wrap(err)
 		}
 	}

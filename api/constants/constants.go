@@ -97,6 +97,11 @@ const (
 	//
 	// TODO(r0mant): See if we can use net.ErrClosed and errors.Is() instead.
 	UseOfClosedNetworkConnection = "use of closed network connection"
+
+	// AWSConsoleURL is the URL of AWS management console.
+	AWSConsoleURL = "https://console.aws.amazon.com"
+	// AWSAccountIDLabel is the key of the label containing AWS account ID.
+	AWSAccountIDLabel = "aws_account_id"
 )
 
 // SecondFactorType is the type of 2FA authentication.
