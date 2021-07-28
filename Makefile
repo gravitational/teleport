@@ -478,18 +478,17 @@ version: $(VERSRC)
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
-	make update-api-version
+	$(MAKE) update-api-module-path
 
-# This rule updates the api module path to use the latest major version upon release.
-# e.g. github.com/gravitational/teleport/api/v7 -> github.com/gravitational/teleport/api/v8
-# the go binary called will skip update if:
+# This rule updates the api module path to be in sync with the current api release version.
+# e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
+# the go program called will skip update if:
 #  1. The major version hasn't changed - e.g. 7.0.0 -> 7.1.0
 #  2. A suffix is present in the version - e.g. "-alpha"
-.PHONY: update-api-version
-update-api-version: 
-	@go run build.assets/updateapiversion/main.go \
-		&& echo "successfully updated api version" \
-		|| echo "continue without updating api version"
+.PHONY: update-api-module-path
+update-api-module-path: 
+	@echo updating api module path
+	@go run build.assets/update_api_module_path/main.go
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -560,6 +559,8 @@ enter:
 	make -C build.assets enter
 
 # grpc generates GRPC stubs from service definitions
+# Note: protoc reads the proto files from /vendor/.../teleport/api/vX rather than
+# /api because protoc does not understand go modules, and reads vX as a directory.
 .PHONY: grpc
 grpc:
 	$(MAKE) -C build.assets grpc
@@ -747,8 +748,8 @@ init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
 
-# Update go.mod and vendor files. Note: make update-vendor is called by 
-# "build.assets/updateapiversion" which is called by "make update-api-version"
+# Update go.mod and vendor files. 
+# Note: update-api-module-path calls update-vendor within its go program
 .PHONY: update-vendor
 update-vendor:
 	# update modules in api/
@@ -756,9 +757,10 @@ update-vendor:
 	# update modules in root directory
 	go mod tidy
 	go mod vendor
-	# delete the vendored api package. In its place
-	# create a symlink to the the original api package
-	rm -rf vendor/github.com/gravitational/teleport/api/*
+	# delete the vendored api package.
+	rm -rf vendor/github.com/gravitational/teleport/api
+	# create a symlink to the the original api package - /api or /api/vX if X > 1
+	if [ $(shell echo $(VERSION) | cut -d "." -f1) \> 1 ]; then mkdir -p vendor/github.com/gravitational/teleport/api; fi;
 	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport/api/v7
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps

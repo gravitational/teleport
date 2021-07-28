@@ -37,71 +37,67 @@ const (
 	makefilePath   = "./Makefile"
 )
 
-func exitWithError(err error) {
-	if err != nil {
-		log.New(os.Stderr, "", 0).Print(err)
-	}
-	os.Exit(1)
-}
-
-func exitWithMessage(message string) {
-	if message != "" {
-		log.New(os.Stdout, "", 0).Print(message)
-	}
-	os.Exit(0)
-}
-
 func main() {
-	// the api mod path should only be updated on releases
+	// the api mod path should only be updated on releases, check for non-release suffixes
 	if strings.Contains(api.Version, "-") {
 		exitWithMessage("the current api version is not a release, continue without updating")
 	}
 
-	// get current module name from `go.mod`
+	// get old api mod path from `go.mod`
 	oldModPath, err := getModPath(apiModFilePath)
 	if err != nil {
 		exitWithError(trace.Wrap(err, "could not get mod path"))
 	}
 
-	// get new module name from using updated version in `version.go`
+	// get new api mod path using version in `version.go`
 	newModPath, isNew := getNewPath(oldModPath)
 	if !isNew {
 		exitWithMessage("the api module path has not changed, continue without updating")
 	}
 
-	// update *.go and go.mod files
+	// replace old mod path with new mod path in .go, .proto, and go.mod files.
 	if err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
 		if strings.HasSuffix(path, ".go") {
-			err := updateGoFile(path, oldModPath, newModPath)
+			err := replaceInFile(path, oldModPath, newModPath)
+			return trace.Wrap(err)
+		}
+		if strings.HasSuffix(path, ".proto") {
+			err := replaceInFile(path, oldModPath, newModPath)
 			return trace.Wrap(err)
 		}
 		if strings.HasSuffix(path, "go.mod") {
-			err := updateModFile(path, oldModPath, newModPath)
+			err := replaceInModFile(path, oldModPath, newModPath)
 			return trace.Wrap(err)
 		}
 		return nil
 	}); err != nil {
-		exitWithError(trace.Wrap(err, "failed to update go and go.mod files"))
+		exitWithError(trace.Wrap(err, "failed to update files"))
 	}
 
-	// update `make update-vendor` to use the new import path and then run it.
-	data, err := ioutil.ReadFile(makefilePath)
-	if err != nil {
+	// update the api vendor symlink line in `make update-vendor`
+	oldLinkLine := "ln -s -r $(shell readlink -f api) vendor/" + oldModPath
+	newLinkLine := "ln -s -r $(shell readlink -f api) vendor/" + newModPath
+	if err := replaceInFile(makefilePath, oldLinkLine, newLinkLine); err != nil {
 		exitWithError(trace.Wrap(err, "failed to update Makefile"))
 	}
-	fileString := strings.ReplaceAll(string(data), oldModPath, newModPath)
-	if err := ioutil.WriteFile(makefilePath, []byte(fileString), 0660); err != nil {
-		exitWithError(trace.Wrap(err, "failed to update Makefile"))
-	}
+
+	// run `make update-vendor` to re-vendor the api
+	// Note: this must occur before `make grpc`, or else
+	// `protoc` won't be able to find the api module
 	if err := exec.Command("make", "update-vendor").Run(); err != nil {
 		exitWithError(trace.Wrap(err, "failed to update vendor"))
+	}
+
+	// run `make grpc` to generate updated proto files
+	if err := exec.Command("make", "grpc").Run(); err != nil {
+		exitWithError(trace.Wrap(err, "failed to generate grpc files"))
 	}
 
 	exitWithMessage("successfully updated api version")
 }
 
-// updateGoFile updates instances of oldModPath to newModPath in a .go file.
-func updateGoFile(path, oldModPath, newModPath string) error {
+// replaceInFile updates instances of oldModPath to newModPath in a .go file.
+func replaceInFile(path, oldModPath, newModPath string) error {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return err
@@ -111,9 +107,9 @@ func updateGoFile(path, oldModPath, newModPath string) error {
 	return trace.Wrap(err)
 }
 
-// updateModFile updates instances of oldModPath to newModPath in a go.mod file.
+// replaceInModFile updates instances of oldModPath to newModPath in a go.mod file.
 // The modFile is updated in place by updating the syntax fields directly.
-func updateModFile(path, oldModPath, newModPath string) error {
+func replaceInModFile(path, oldModPath, newModPath string) error {
 	modFile, err := getModFile(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -122,7 +118,7 @@ func updateModFile(path, oldModPath, newModPath string) error {
 	if modFile.Module.Syntax.Token[1] == oldModPath {
 		modFile.Module.Syntax.Token[1] = newModPath
 	}
-	// Update require statements in place if needed
+	// Update require statements if needed
 	for _, r := range modFile.Require {
 		if r.Mod.Path == oldModPath {
 			pathI, versionI := 0, 1
@@ -132,7 +128,7 @@ func updateModFile(path, oldModPath, newModPath string) error {
 			r.Syntax.Token[pathI], r.Syntax.Token[versionI] = newModPath, currentVersionString()
 		}
 	}
-	// Update replace statements in place if needed
+	// Update replace statements if needed
 	for _, r := range modFile.Replace {
 		if r.Old.Path == oldModPath {
 			pathI := 0
@@ -203,7 +199,26 @@ func currentVersionString() string {
 	return "v" + api.Version
 }
 
-// currentVersionSuffix returns the current api version in the format "/vX"
+// currentVersionSuffix returns the current api version in the format "/vX", or empty if < v2
 func currentVersionSuffix() string {
-	return "/" + strings.Split(currentVersionString(), ".")[0]
+	versionSuffix := "/" + strings.Split(currentVersionString(), ".")[0]
+	switch versionSuffix {
+	case "/v0", "/v1":
+		return ""
+	}
+	return versionSuffix
+}
+
+func exitWithError(err error) {
+	if err != nil {
+		log.New(os.Stderr, "", 0).Print(err)
+	}
+	os.Exit(1)
+}
+
+func exitWithMessage(message string) {
+	if message != "" {
+		log.New(os.Stdout, "", 0).Print(message)
+	}
+	os.Exit(0)
 }
