@@ -1367,7 +1367,7 @@ func TestLocksCRUD(t *testing.T) {
 
 	t.Run("CreateLock", func(t *testing.T) {
 		// Initially expect no locks to be returned.
-		locks, err := clt.GetLocks(ctx)
+		locks, err := clt.GetLocks(ctx, false)
 		require.NoError(t, err)
 		require.Empty(t, locks)
 
@@ -1383,7 +1383,7 @@ func TestLocksCRUD(t *testing.T) {
 	t.Run("LockGetters", func(t *testing.T) {
 		t.Run("GetLocks", func(t *testing.T) {
 			t.Parallel()
-			locks, err := clt.GetLocks(ctx)
+			locks, err := clt.GetLocks(ctx, false)
 			require.NoError(t, err)
 			require.Len(t, locks, 2)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
@@ -1392,7 +1392,7 @@ func TestLocksCRUD(t *testing.T) {
 		t.Run("GetLocks with targets", func(t *testing.T) {
 			t.Parallel()
 			// Match both locks with the targets.
-			locks, err := clt.GetLocks(ctx, lock1.Target(), lock2.Target())
+			locks, err := clt.GetLocks(ctx, false, lock1.Target(), lock2.Target())
 			require.NoError(t, err)
 			require.Len(t, locks, 2)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
@@ -1400,14 +1400,14 @@ func TestLocksCRUD(t *testing.T) {
 
 			// Match only one of the locks.
 			roleTarget := types.LockTarget{Role: "role-A"}
-			locks, err = clt.GetLocks(ctx, lock1.Target(), roleTarget)
+			locks, err = clt.GetLocks(ctx, false, lock1.Target(), roleTarget)
 			require.NoError(t, err)
 			require.Len(t, locks, 1)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 			// Match none of the locks.
-			locks, err = clt.GetLocks(ctx, roleTarget)
+			locks, err = clt.GetLocks(ctx, false, roleTarget)
 			require.NoError(t, err)
 			require.Empty(t, locks)
 		})

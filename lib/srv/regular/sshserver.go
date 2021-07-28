@@ -243,7 +243,7 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 
 // isLockedOut returns an error if the identity is matched by an active lock.
 func (s *Server) isLockedOut(id srv.IdentityContext) error {
-	lock := s.lockWatcher.GetSomeLockInForce(srv.ComputeLockTargets(s, id)...)
+	lock := s.lockWatcher.FindLockInForce(srv.ComputeLockTargets(s, id)...)
 	// TODO(andrej): Handle stale lock views.
 	if lock != nil {
 		return trace.AccessDenied(services.LockInForceMessage(lock))

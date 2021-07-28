@@ -48,7 +48,7 @@ func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
 }
 
 // NewAuthorizer returns new authorizer using backends
-func NewAuthorizer(clusterName string, accessPoint ReadAccessPoint) (Authorizer, error) {
+func NewAuthorizer(clusterName string, accessPoint ReadAccessPoint, lockWatcher *services.LockWatcher) (Authorizer, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing parameter clusterName")
 	}
@@ -58,6 +58,7 @@ func NewAuthorizer(clusterName string, accessPoint ReadAccessPoint) (Authorizer,
 	return &authorizer{
 		clusterName: clusterName,
 		accessPoint: accessPoint,
+		lockWatcher: lockWatcher,
 	}, nil
 }
 
@@ -71,6 +72,7 @@ type Authorizer interface {
 type authorizer struct {
 	clusterName string
 	accessPoint ReadAccessPoint
+	lockWatcher *services.LockWatcher
 }
 
 // AuthContext is authorization context
@@ -93,6 +95,27 @@ type Context struct {
 	UnmappedIdentity IdentityGetter
 }
 
+// LockTargets returns a list of LockTargets inferred from the context's
+// Identity and UnmappedIdentity.
+func (c *Context) LockTargets() []types.LockTarget {
+	lockTargets := services.LockTargetsFromTLSIdentity(c.Identity.GetIdentity())
+Loop:
+	for _, unmappedTarget := range services.LockTargetsFromTLSIdentity(c.UnmappedIdentity.GetIdentity()) {
+		// Append a lock target from UnmappedIdentity only if it is not already
+		// known from Identity.
+		for _, knownTarget := range lockTargets {
+			if unmappedTarget.Equals(knownTarget) {
+				continue Loop
+			}
+		}
+		lockTargets = append(lockTargets, unmappedTarget)
+	}
+	if r, ok := c.Identity.(BuiltinRole); ok && r.Role == types.RoleNode {
+		lockTargets = append(lockTargets, types.LockTarget{Node: r.GetServerID()})
+	}
+	return lockTargets
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
@@ -102,6 +125,11 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// Enforce applicable locks in force.
+	lock := a.lockWatcher.FindLockInForce(authContext.LockTargets()...)
+	if lock != nil {
+		return nil, trace.AccessDenied(services.LockInForceMessage(lock))
 	}
 	return authContext, nil
 }

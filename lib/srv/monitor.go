@@ -154,7 +154,7 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 		}
 	}()
 	// If an applicable lock is already in force, close the connection immediately.
-	if lock := w.LockWatcher.GetSomeLockInForce(w.LockTargets...); lock != nil {
+	if lock := w.LockWatcher.FindLockInForce(w.LockTargets...); lock != nil {
 		w.handleLockInForce(lock)
 		return
 	}

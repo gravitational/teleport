@@ -178,8 +178,19 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	teleportClusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
+	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentKube,
+			Log:       log,
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create the kube server to service listener.
-	authorizer, err := auth.NewAuthorizer(teleportClusterName, accessPoint)
+	authorizer, err := auth.NewAuthorizer(teleportClusterName, accessPoint, lockWatcher)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -205,17 +216,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	streamEmitter := &events.StreamerAndEmitter{
 		Emitter:  asyncEmitter,
 		Streamer: streamer,
-	}
-
-	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentKube,
-			Log:       log,
-			Client:    conn.Client,
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{

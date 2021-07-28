@@ -96,7 +96,7 @@ func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, ku
 	if trace.IsNotFound(err) || len(cfg.Contexts) == 0 {
 		switch serviceType {
 		case KubeService:
-			return nil, trace.BadParameter("no Kubernetes credentials found; Kubernetes_service requires either a valid kubeconfig_path or to run inside of a Kubernetes pod")
+			return nil, trace.BadParameter("no Kubernetes credentials found; Kubernetes_service requires either a valid kubeconfig_file or to run inside of a Kubernetes pod")
 		case LegacyProxyService:
 			log.Debugf("Could not load Kubernetes credentials. This proxy will still handle Kubernetes requests for trusted teleport clusters or Kubernetes nodes in this teleport cluster")
 		}
@@ -114,7 +114,7 @@ func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, ku
 				tpClusterName: currentContext,
 			}
 		} else {
-			return nil, trace.BadParameter("no Kubernetes current-context found; Kubernetes proxy service requires either a valid kubeconfig_path with a current-context or to run inside of a Kubernetes pod")
+			return nil, trace.BadParameter("no Kubernetes current-context found; Kubernetes proxy service requires either a valid kubeconfig_file with a current-context or to run inside of a Kubernetes pod")
 		}
 	}
 
@@ -144,7 +144,7 @@ func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, ku
 			// Since this is no longer necessary, recommend them to clean up
 			// via logs.
 			if kubeconfigPath != "" {
-				log.Info("If this is a proxy and you provided a dummy kubeconfig_path, you can remove it from teleport.yaml to get rid of this warning")
+				log.Info("If this is a proxy and you provided a dummy kubeconfig_file, you can remove it from teleport.yaml to get rid of this warning")
 			}
 		} else {
 			log.Debug("Have all necessary Kubernetes impersonation permissions.")

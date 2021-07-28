@@ -26,8 +26,8 @@ import (
 type LockGetter interface {
 	// GetLock gets a lock by name.
 	GetLock(ctx context.Context, name string) (types.Lock, error)
-	// GetLocks gets all locks, matching at least one of the targets when specified.
-	GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error)
+	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 }
 
 // Access service manages roles and permissions.
@@ -50,6 +50,6 @@ type Access interface {
 	UpsertLock(context.Context, types.Lock) error
 	// DeleteLock deletes a lock.
 	DeleteLock(context.Context, string) error
-	// DeleteLock deletes all locks.
+	// DeleteLock deletes all/in-force locks.
 	DeleteAllLocks(context.Context) error
 }
