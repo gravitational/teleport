@@ -35,6 +35,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 )
@@ -185,8 +186,8 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 
 // HostCertParams defines all parameters needed to generate a host certificate
 type HostCertParams struct {
-	// PrivateCASigningKey is the private key of the CA that will sign the public key of the host
-	PrivateCASigningKey []byte
+	// CASigner is the signer that will sign the public key of the host with the CA private key.
+	CASigner ssh.Signer
 	// CASigningAlg is the signature algorithm used by the CA private key.
 	CASigningAlg string
 	// PublicHostKey is the public key of the host
@@ -207,8 +208,8 @@ type HostCertParams struct {
 
 // Check checks parameters for errors
 func (c HostCertParams) Check() error {
-	if len(c.PrivateCASigningKey) == 0 || c.CASigningAlg == "" {
-		return trace.BadParameter("PrivateCASigningKey and CASigningAlg are required")
+	if c.CASigner == nil || c.CASigningAlg == "" {
+		return trace.BadParameter("CASigner and CASigningAlg are required")
 	}
 	if c.HostID == "" && len(c.Principals) == 0 {
 		return trace.BadParameter("HostID [%q] or Principals [%q] are required",
@@ -241,8 +242,8 @@ type ChangePasswordReq struct {
 
 // UserCertParams defines OpenSSH user certificate parameters
 type UserCertParams struct {
-	// PrivateCASigningKey is the private key of the CA that will sign the public key of the user
-	PrivateCASigningKey []byte
+	// CASigner is the signer that will sign the public key of the user with the CA private key
+	CASigner ssh.Signer
 	// CASigningAlg is the signature algorithm used by the CA private key.
 	CASigningAlg string
 	// PublicUserKey is the public key of the user
@@ -283,8 +284,8 @@ type UserCertParams struct {
 
 // Check checks the user certificate parameters
 func (c *UserCertParams) CheckAndSetDefaults() error {
-	if len(c.PrivateCASigningKey) == 0 || c.CASigningAlg == "" {
-		return trace.BadParameter("PrivateCASigningKey and CASigningAlg are required")
+	if c.CASigner == nil || c.CASigningAlg == "" {
+		return trace.BadParameter("CASigner and CASigningAlg are required")
 	}
 	if c.TTL < defaults.MinCertDuration {
 		c.TTL = defaults.MinCertDuration
@@ -408,6 +409,17 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}
+}
+
+// CertAuthorityNeedsMigrations returns true if the given CertAuthority needs to be migrated
+func CertAuthorityNeedsMigration(cai types.CertAuthority) (bool, error) {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return false, trace.BadParameter("unknown type %T", cai)
+	}
+	haveOldCAKeys := len(ca.Spec.CheckingKeys) > 0 || len(ca.Spec.TLSKeyPairs) > 0 || len(ca.Spec.JWTKeyPairs) > 0
+	haveNewCAKeys := len(ca.Spec.ActiveKeys.SSH) > 0 || len(ca.Spec.ActiveKeys.TLS) > 0 || len(ca.Spec.ActiveKeys.JWT) > 0
+	return haveOldCAKeys && !haveNewCAKeys, nil
 }
 
 // SyncCertAuthorityKeys backfills the old or new key formats, if one of them

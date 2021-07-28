@@ -32,7 +32,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/aquasecurity/tracee/libbpfgo"
+	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -201,7 +201,7 @@ func (s *Suite) TestObfuscate(c *check.C) {
 			c.Assert(err, check.IsNil)
 
 			// Check the event is what we expect, in this case "ls".
-			if convertString(unsafe.Pointer(&event.Command)) == "ls" {
+			if ConvertString(unsafe.Pointer(&event.Command)) == "ls" {
 				doneFunc()
 				break
 			}
@@ -275,7 +275,7 @@ func (s *Suite) TestScript(c *check.C) {
 			c.Assert(err, check.IsNil)
 
 			// Check the event is what we expect, in this case "ls".
-			if convertString(unsafe.Pointer(&event.Command)) == "ls" {
+			if ConvertString(unsafe.Pointer(&event.Command)) == "ls" {
 				doneFunc()
 				break
 			}

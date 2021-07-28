@@ -16,3 +16,4 @@ This checklist is to be run after cutting a release.
   - Example: https://github.com/gravitational/teleport/pull/4602
 - [ ] Create PR to update default Teleport image referenced in docker/teleport-quickstart.yml and docker/teleport-ent-quickstart.yml
   - Example: https://github.com/gravitational/teleport/pull/4655
+- [ ] Create PR to update default Teleport image referenced in docker/teleport-lab.yml

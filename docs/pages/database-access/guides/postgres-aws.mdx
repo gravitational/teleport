@@ -1,11 +1,11 @@
 ---
 title: Database Access with PostgreSQL on AWS
-description: How to configure Teleport Database Access with AWS RDS/Aurora PostgreSQL
+description: How to configure Teleport Database Access with AWS RDS/Aurora PostgreSQL.
 ---
 
 # AWS RDS/Aurora PostgreSQL
 
-## Enable IAM Authentication
+## Enable IAM authentication
 
 Teleport Database Access for AWS RDS and Aurora uses IAM authentication which
 can be enabled with the following steps.
@@ -22,7 +22,7 @@ turn it on. Make sure to use PostgreSQL database type.
 See [Enabling and disabling IAM database authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Enabling.html)
 for more information.
 
-## Create IAM Policy
+## Create IAM policy
 
 To allow Teleport database service to log into the database instance using auth
 token, create an IAM policy and attach it to the user whose credentials the
@@ -63,7 +63,7 @@ Parameters:
 See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
 for more information.
 
-## Create Database User
+## Create database user
 
 Database users must have a `rds_iam` role in order to be allowed access. For
 PostgreSQL:
@@ -76,54 +76,16 @@ GRANT rds_iam TO alice;
 See [Creating a database account using IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html)
 for more information.
 
-## Configure Teleport
+## Setup Teleport Auth and Proxy services
 
-Teleport Database Access is available starting from `6.0` release.
+Teleport Database Access for PostgreSQL on AWS is available starting from `6.0`
+release.
 
-Download the appropriate version of Teleport for your platform from
-our [downloads page](https://goteleport.com/teleport/download).
+(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-Follow the installation [instructions](../../installation.mdx).
+(!docs/pages/includes/database-access/token.mdx!)
 
-### Start Auth/Proxy Service
-
-Create a configuration file for a Teleport service that will be running
-auth and proxy servers:
-
-```yaml
-teleport:
-  data_dir: /var/lib/teleport
-  nodename: test
-auth_service:
-  enabled: "yes"
-proxy_service:
-  enabled: "yes"
-  # Set public address proxy will be reachable at.
-  public_addr: teleport.example.com:3080
-  # PostgreSQL proxy is listening on a regular web proxy port.
-  web_listen_addr: 0.0.0.0:3080
-ssh_service:
-  enabled: "no"
-```
-
-Start the service:
-
-```sh
-$ teleport start --config=/path/to/teleport.yaml
-```
-
-Generate a short-lived join token for the database service and save it for
-example in `/tmp/token`:
-
-```sh
-$ tctl tokens add \
-    --type=db \
-    --db-name=test \
-    --db-protocol=postgres \
-    --db-uri=postgres.example.com:5432
-```
-
-### Create Role and User
+### Create role and user
 
 Create the role that will allow a user to connect to any database using any
 database account:
@@ -151,7 +113,7 @@ Create the user assigned the `db` role we've just created:
 $ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
 ```
 
-### Start Database Service with CLI Flags
+### Start Database service with CLI flags
 
 For a quick try-out, Teleport database service doesn't require a configuration
 file and can be launched using a single CLI command:
@@ -171,7 +133,7 @@ Note that the `--auth-server` flag must point to the Teleport cluster's proxy en
 because database service always connects back to the cluster over a reverse
 tunnel.
 
-### Start Database Service with Config File
+### Start Database service with config file
 
 Below is an example of a database service configuration file that proxies
 a single AWS Aurora PostgreSQL database:
@@ -228,7 +190,7 @@ Start the database service:
 $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ```
 
-### AWS Credentials
+### AWS credentials
 
 When setting up Teleport database service with AWS RDS or Aurora, it must have
 an IAM role allowing it to connect to that particular database instance. An
@@ -277,18 +239,21 @@ when connecting to the database instance:
 $ tsh db login --db-user=postgres --db-name=postgres aurora
 ```
 
-When logging into a PostgreSQL database, `tsh` automatically configures a section
-in the [connection service file](https://www.postgresql.org/docs/current/libpq-pgservice.html)
-with the name of `<cluster-name>-<database-service-name>`.
+Once logged in, connect to the database:
 
-Suppose the cluster name is "root", then you can connect to the database using
-the following `psql` command:
+```bash
+$ tsh db connect aurora
+```
 
-```sh
-# Use default database user and database name.
-$ psql "service=root-aurora"
-# Specify database user and database name explicitly.
-$ psql "service=root-aurora user=alice dbname=metrics"
+<Admonition type="note" title="Note">
+  The `psql` command-line client should be available in PATH in order to be
+  able to connect.
+</Admonition>
+
+If you would like to see the native `psql` shell connect command, run:
+
+```bash
+$ tsh db config --format=cmd aurora
 ```
 
 To log out of the database and remove credentials:

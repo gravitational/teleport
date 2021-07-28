@@ -23,10 +23,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -162,11 +164,11 @@ func TestKnownHosts(t *testing.T) {
 	_, p2, _ := s.keygen.GenerateKeyPair("")
 	pub2, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
-	err = s.store.AddKnownHostKeys("example.com", []ssh.PublicKey{pub})
+	err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub})
 	require.NoError(t, err)
-	err = s.store.AddKnownHostKeys("example.com", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub2})
 	require.NoError(t, err)
-	err = s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
 	require.NoError(t, err)
 
 	keys, err := s.store.GetKnownHostKeys("")
@@ -176,9 +178,9 @@ func TestKnownHosts(t *testing.T) {
 
 	// check against dupes:
 	before, _ := s.store.GetKnownHostKeys("")
-	err = s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
 	require.NoError(t, err)
-	err = s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
 	require.NoError(t, err)
 	after, _ := s.store.GetKnownHostKeys("")
 	require.Equal(t, len(before), len(after))
@@ -188,6 +190,14 @@ func TestKnownHosts(t *testing.T) {
 	require.Equal(t, len(keys), 0)
 	keys, _ = s.store.GetKnownHostKeys("example.org")
 	require.Equal(t, len(keys), 1)
+	require.True(t, apisshutils.KeysEqual(keys[0], pub2))
+
+	// check for proxy and wildcard as well:
+	keys, _ = s.store.GetKnownHostKeys("proxy.example.org")
+	require.Equal(t, 1, len(keys))
+	require.True(t, apisshutils.KeysEqual(keys[0], pub2))
+	keys, _ = s.store.GetKnownHostKeys("*.example.org")
+	require.Equal(t, 1, len(keys))
 	require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 }
 
@@ -224,7 +234,7 @@ func TestProxySSHConfig(t *testing.T) {
 	caPub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 	require.NoError(t, err)
 
-	err = s.store.AddKnownHostKeys("127.0.0.1", []ssh.PublicKey{caPub})
+	err = s.store.AddKnownHostKeys("127.0.0.1", idx.ProxyHost, []ssh.PublicKey{caPub})
 	require.NoError(t, err)
 
 	clientConfig, err := key.ProxyClientSSHConfig(s.store)
@@ -239,14 +249,17 @@ func TestProxySSHConfig(t *testing.T) {
 	hostPriv, hostPub, err := s.keygen.GenerateKeyPair("")
 	require.NoError(t, err)
 
+	caSigner, err := ssh.ParsePrivateKey(CAPriv)
+	require.NoError(t, err)
+
 	hostCert, err := s.keygen.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: CAPriv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       hostPub,
-		HostID:              "127.0.0.1",
-		NodeName:            "127.0.0.1",
-		ClusterName:         "host-cluster-name",
-		Roles:               types.SystemRoles{types.RoleNode},
+		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: hostPub,
+		HostID:        "127.0.0.1",
+		NodeName:      "127.0.0.1",
+		ClusterName:   "host-cluster-name",
+		Roles:         types.SystemRoles{types.RoleNode},
 	})
 	require.NoError(t, err)
 
@@ -314,6 +327,32 @@ func TestCheckKeyFIPS(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 }
 
+func TestGetTrustedCertsPEM_nonCertificateBlocks(t *testing.T) {
+	s, cleanup := newTest(t)
+	defer cleanup()
+
+	// Make sure we behave correctly if someone writes a non-CERTIFICATE block to
+	// certs.pem. During regular use this shouldn't happen, but a bug was lurking
+	// around here.
+	proxy := "proxy.example.com"
+	certsFile := keypaths.TLSCAsPath(s.storeDir, proxy)
+	err := os.MkdirAll(filepath.Dir(certsFile), 0700)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(certsFile, []byte(`-----BEGIN RSA PUBLIC KEY-----
+MIIBCgKCAQEAp2eO39fYnpUI4PplyoS/bHrr5Yiy98t+1sdDwGIG01UPlkxAxzIi
+VVQmel1NrSh4lF4t3b8KUUNM+5pk241F7Olr/4DIRTPQHDGWO0nciEieZ8IpFigz
+kUQRvKjNIw4zZbZSsZu0QE7hCU6O8VwEwSFrEsCCrPw4+28pp2IEYOqe0chZosO/
+6kXdJa/ZjC/Edjep1XVdoM+BSFXR5qwY4WtU/Ha4SNRbaktzMZgrkOLgD5TALGoN
+DYxXLyVgxD6BvRxlaQft75Bwg1KJ6nKqYAAtu/Me98BXDt+1GFwltLsjeY68untS
+hRdXE63PXwAfzj0P/H4qWsFfwdeCo/fuIQIDAQAB
+-----END RSA PUBLIC KEY-----`), 0600)
+	require.NoError(t, err)
+
+	blocks, err := s.store.GetTrustedCertsPEM(proxy)
+	require.Empty(t, blocks)
+	require.NoError(t, err)
+}
+
 type keyStoreTest struct {
 	storeDir  string
 	store     *FSLocalKeyStore
@@ -360,8 +399,11 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	})
 	require.NoError(t, err)
 
+	caSigner, err := ssh.ParsePrivateKey(CAPriv)
+	require.NoError(t, err)
+
 	cert, err = s.keygen.GenerateUserCert(services.UserCertParams{
-		PrivateCASigningKey:   CAPriv,
+		CASigner:              caSigner,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              idx.Username,
@@ -387,14 +429,14 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
-	key, cert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
+	cert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey.(*rsa.PrivateKey), pkix.Name{
 		CommonName:   "localhost",
 		Organization: []string{"localhost"},
 	}, nil, defaults.CATTL)
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
-	ca, err := tlsca.FromKeys(cert, key)
+	ca, err := tlsca.FromKeys(cert, privateKey)
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
@@ -503,4 +545,27 @@ func TestMemLocalKeyStore(t *testing.T) {
 	retrievedKey, err = keystore.GetKey(idx)
 	require.Error(t, err)
 	require.Nil(t, retrievedKey)
+}
+
+func TestMatchesWildcard(t *testing.T) {
+	// Not a wildcard pattern.
+	require.False(t, matchesWildcard("foo.example.com", "example.com"))
+
+	// Not a match.
+	require.False(t, matchesWildcard("foo.example.org", "*.example.com"))
+
+	// Too many levels deep.
+	require.False(t, matchesWildcard("a.b.example.com", "*.example.com"))
+
+	// Single-part hostnames never match.
+	require.False(t, matchesWildcard("example", "*.example.com"))
+	require.False(t, matchesWildcard("example", "*.example"))
+	require.False(t, matchesWildcard("example", "example"))
+	require.False(t, matchesWildcard("example", "*."))
+
+	// Valid wildcard matches.
+	require.True(t, matchesWildcard("foo.example.com", "*.example.com"))
+	require.True(t, matchesWildcard("bar.example.com", "*.example.com"))
+	require.True(t, matchesWildcard("bar.example.com.", "*.example.com"))
+	require.True(t, matchesWildcard("bar.foo", "*.foo"))
 }

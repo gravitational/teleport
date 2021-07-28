@@ -692,6 +692,11 @@ message ClusterNetworkingConfigSpecV2 {
 
     // ClientIdleTimeoutMessage is the message sent to the user when a connection times out.
     string ClientIdleTimeoutMessage = 5 [ (gogoproto.jsontag) = "idle_timeout_message" ];
+
+    // WebIdleTimeout sets global cluster default setting for the web UI idle
+    // timeouts.
+    int64 WebIdleTimeout = 6
+        [ (gogoproto.jsontag) = "web_idle_timeout", (gogoproto.casttype) = "Duration" ];
 }
 
 // SessionRecordingConfigV2 contains session recording configuration.
@@ -787,6 +792,8 @@ message AuthPreferenceSpecV2 {
         (gogoproto.jsontag) = "allow_local_auth,omitempty",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    string MessageOfTheDay = 8 [ (gogoproto.jsontag) = "message_of_the_day,omitempty" ];
 }
 
 // LegacyClusterConfigAuthFields facilitates a backward compatible transition
@@ -1338,6 +1345,9 @@ message RoleConditions {
     // ReviewRequests defines conditions for submitting access reviews.
     AccessReviewConditions ReviewRequests = 15
         [ (gogoproto.jsontag) = "review_requests,omitempty" ];
+
+    // AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
+    repeated string AWSRoleARNs = 16 [ (gogoproto.jsontag) = "aws_role_arns,omitempty" ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
@@ -2185,4 +2195,90 @@ message TrustedClusterSpecV2 {
     // RoleMap specifies role mappings to remote roles.
     repeated RoleMapping RoleMap = 6
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "role_map,omitempty" ];
+}
+
+// LockV2 represents a lock.
+message LockV2 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a Lock specification.
+    LockSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// LockSpecV2 is a Lock specification.
+message LockSpecV2 {
+    // Target describes the set of interactions that the lock applies to.
+    LockTarget Target = 1 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "target" ];
+    // Message is the message displayed to locked-out users.
+    string Message = 2 [ (gogoproto.jsontag) = "message,omitempty" ];
+    // Expires if set specifies when the lock ceases to be in force.
+    google.protobuf.Timestamp Expires = 3 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "expires,omitempty"
+    ];
+}
+
+// LockTarget lists the attributes of interactions to be disabled.
+message LockTarget {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // User specifies the name of a Teleport user.
+    string User = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
+
+    // Role specifies the name of an RBAC role known to the root cluster.
+    // In remote clusters, this constraint is evaluated before translating to local roles.
+    string Role = 2 [ (gogoproto.jsontag) = "role,omitempty" ];
+
+    // Login specifies the name of a local UNIX user.
+    string Login = 3 [ (gogoproto.jsontag) = "login,omitempty" ];
+
+    // Node specifies the UUID of a Teleport node.
+    // A matching node is also prevented from heartbeating to the auth server.
+    string Node = 4 [ (gogoproto.jsontag) = "node,omitempty" ];
+
+    // MFADevice specifies the UUID of a user MFA device.
+    string MFADevice = 5 [ (gogoproto.jsontag) = "mfa_device,omitempty" ];
+}
+
+// AddressCondition represents a set of addresses. Presently the addresses are specfied
+// exclusively in terms of IPv4/IPv6 ranges.
+message AddressCondition {
+    // CIDR is IPv4 or IPv6 address. Valid value are either CIDR ranges (e.g. "10.0.1.0/24",
+    // "fe::/8") or a single IP address (e.g "10.1.2.3")
+    string CIDR = 1 [ (gogoproto.jsontag) = "cidr" ];
+}
+
+message NetworkRestrictionsSpecV4 {
+    // Allow lists the addresses that should be allowed.
+    repeated AddressCondition Allow = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "allow" ];
+    // Deny lists the addresses that should be denied even if they're allowed by Allow condition.
+    repeated AddressCondition Deny = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "deny" ];
+}
+
+// NetworkRestrictions specifies a list of addresses to restrict (block). The deny
+// list is checked first and the allow lists overrides it. Thus an empty allow
+// list does not mean that no addresses will be allowed, that will only be the
+// case if the deny list covers the whole address range.
+message NetworkRestrictionsV4 {
+    // Kind is the network restrictions resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the network restrictions metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec contains the network restrictions data
+    NetworkRestrictionsSpecV4 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }

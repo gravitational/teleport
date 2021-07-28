@@ -318,6 +318,11 @@
             "type": "array",
             "default": []
         },
+        "kubeClusterName": {
+            "$id": "#/properties/kubeClusterName",
+            "type": "string",
+            "default": ""
+        },
         "resources": {
             "$id": "#/properties/resources",
             "type": "object",

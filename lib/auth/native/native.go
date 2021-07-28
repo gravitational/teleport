@@ -194,11 +194,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 		return nil, trace.Wrap(err)
 	}
 
-	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	signer = sshutils.AlgSigner(signer, c.CASigningAlg)
+	signer := sshutils.AlgSigner(c.CASigner, c.CASigningAlg)
 
 	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
@@ -321,11 +317,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		}
 	}
 
-	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	signer = sshutils.AlgSigner(signer, c.CASigningAlg)
+	signer := sshutils.AlgSigner(c.CASigner, c.CASigningAlg)
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
 		return nil, trace.Wrap(err)
 	}

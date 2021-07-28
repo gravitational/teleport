@@ -75,7 +75,7 @@ type LocalKeyStore interface {
 
 	// AddKnownHostKeys adds the public key to the list of known hosts for
 	// a hostname.
-	AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error
+	AddKnownHostKeys(hostname, proxyHost string, keys []ssh.PublicKey) error
 
 	// GetKnownHostKeys returns all public keys for a hostname.
 	GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error)
@@ -513,7 +513,7 @@ func (fs *fsLocalNonSessionKeyStore) kubeCertPath(idx KeyIndex, kubename string)
 }
 
 // AddKnownHostKeys adds a new entry to `known_hosts` file.
-func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.PublicKey) (retErr error) {
+func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname, proxyHost string, hostKeys []ssh.PublicKey) (retErr error) {
 	fp, err := os.OpenFile(fs.knownHostsPath(), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -536,13 +536,28 @@ func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname string, hostKeys 
 	}
 	// add every host key to the list of entries
 	for i := range hostKeys {
-		fs.log.Debugf("Adding known host %s with key: %v", hostname, sshutils.Fingerprint(hostKeys[i]))
+		fs.log.Debugf("Adding known host %s with proxy %s and key: %v", hostname, proxyHost, sshutils.Fingerprint(hostKeys[i]))
 		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
-		line := strings.TrimSpace(fmt.Sprintf("%s %s", hostname, bytes))
+
+		// Write keys in an OpenSSH-compatible format. A previous format was not
+		// quite OpenSSH-compatible, so we may write a duplicate entry here. Any
+		// duplicates will be pruned below.
+		// We include both the proxy server and original hostname as well as the
+		// root domain wildcard. OpenSSH clients match against both the proxy
+		// host and nodes (via the wildcard). Teleport itself occasionally uses
+		// the root cluster name.
+		line := fmt.Sprintf(
+			"@cert-authority %s,%s,*.%s %s type=host",
+			proxyHost, hostname, hostname, strings.TrimSpace(string(bytes)),
+		)
 		if _, exists := entries[line]; !exists {
 			output = append(output, line)
 		}
 	}
+	// Prune any duplicate host entries for migrated hosts. Note that only
+	// duplicates matching the current hostname/proxyHost will be pruned; others
+	// will be cleaned up at subsequent logins.
+	output = pruneOldHostKeys(output)
 	// re-create the file:
 	_, err = fp.Seek(0, 0)
 	if err != nil {
@@ -555,6 +570,36 @@ func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname string, hostKeys 
 		fmt.Fprintf(fp, "%s\n", line)
 	}
 	return fp.Sync()
+}
+
+// matchesWildcard ensures the given `hostname` matches the given `pattern`.
+// The `pattern` may be prefixed with `*.` which will match exactly one domain
+// segment, meaning `*.example.com` will match `foo.example.com` but not
+// `foo.bar.example.com`.
+func matchesWildcard(hostname, pattern string) bool {
+	// Trim any trailing "." in case of an absolute domain.
+	hostname = strings.TrimSuffix(hostname, ".")
+
+	// Don't allow non-wildcard patterns.
+	if !strings.HasPrefix(pattern, "*.") {
+		return false
+	}
+
+	// Never match a top-level hostname.
+	if !strings.Contains(hostname, ".") {
+		return false
+	}
+
+	// Don't allow empty matches.
+	pattern = pattern[2:]
+	if strings.TrimSpace(pattern) == "" {
+		return false
+	}
+
+	hostnameParts := strings.Split(hostname, ".")
+	hostnameRoot := strings.Join(hostnameParts[1:], ".")
+
+	return hostnameRoot == pattern
 }
 
 // GetKnownHostKeys returns all known public keys from `known_hosts`.
@@ -578,7 +623,7 @@ func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) ([]ssh.Pu
 			hostMatch = (hostname == "")
 			if !hostMatch {
 				for i := range hosts {
-					if hosts[i] == hostname {
+					if hosts[i] == hostname || matchesWildcard(hostname, hosts[i]) {
 						hostMatch = true
 						break
 					}
@@ -635,6 +680,7 @@ func (fs *fsLocalNonSessionKeyStore) GetTrustedCertsPEM(proxyHost string) ([][]b
 		}
 		if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
 			fs.log.Debugf("Skipping PEM block type=%v headers=%v.", block.Type, block.Headers)
+			data = rest
 			continue
 		}
 		// rest contains the remainder of data after reading a block.
@@ -666,7 +712,7 @@ func (noLocalKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
 	return errNoLocalKeyStore
 }
 func (noLocalKeyStore) DeleteKeys() error { return errNoLocalKeyStore }
-func (noLocalKeyStore) AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error {
+func (noLocalKeyStore) AddKnownHostKeys(hostname, proxyHost string, keys []ssh.PublicKey) error {
 	return errNoLocalKeyStore
 }
 func (noLocalKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {

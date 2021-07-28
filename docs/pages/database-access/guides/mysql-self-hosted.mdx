@@ -1,60 +1,26 @@
 ---
 title: Database Access with Self-Hosted MySQL
-description: How to configure Teleport Database Access with self-hosted MySQL
+description: How to configure Teleport Database Access with self-hosted MySQL.
 ---
 
 # Self-Hosted MySQL
 
 ## Create Certificate/Key Pair
 
-Teleport uses mutual TLS for authentication to MySQL instances. As such,
-self-hosted MySQL instances must be configured with Teleport's certificate
-authority and a certificate/key pair that Teleport can validate.
+(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
-To create these secrets, use `tctl auth sign` command. It can be run either
-[locally](../../architecture/overview.mdx#tctl) on the auth server, or from the
-client machine after logging in with `tsh login` (for example, when using
-[Teleport Cloud](../../cloud/introduction.mdx)).
-
-In the latter case, user must be allowed to impersonate the system role `Db` in
-order to be able to generate the database certificate, by having the following
-allow rule in their role:
-
-```yaml
-allow:
-  impersonate:
-    users: ["Db"]
-    roles: ["Db"]
-```
-
-Run the command:
+Create the secrets:
 
 ```sh
 # Export Teleport's certificate authority and generate certificate/key pair
 # for host db.example.com with a 3-month validity period.
-tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
+$ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 ```
 
-Flag descriptions:
+(!docs/pages/includes/database-access/ttl-note.mdx!)
 
-- `--format=db`: instructs the command to produce secrets in the format suitable
-  for configuring a database server.
-- `--host=db.example.com`: server name to encode in the certificate, should
-  match the hostname Teleport will be connecting to the database at.
-- `--out=server`: name prefix for output files.
-- `--ttl=2190h`: certificate validity period.
-
-The command will create 3 files: `server.cas` with Teleport's certificate
-authority and `server.crt`/`server.key` with generated certificate/key pair.
-
-<Admonition
-  type="note"
-  title="Certificate Rotation"
->
-  Teleport signs database certificates with the host authority. As such,
-  when performing [host certificates rotation](../../admin-guide.mdx#certificate-rotation),
-  the database certificates must be updated as well.
-</Admonition>
+The command will create 3 files: `server.cas`, `server.crt` and `server.key`
+which you'll need to enable mutual TLS on your MySQL server.
 
 ## Configure MySQL Server
 
@@ -87,53 +53,13 @@ GRANT ALL ON `%`.* TO 'alice'@'%';
 See [Configuring MySQL to Use Encrypted Connections](https://dev.mysql.com/doc/refman/8.0/en/using-encrypted-connections.html)
 in MySQL documentation for more details.
 
-## Configure Teleport
+## Setup Teleport Auth and Proxy Services
 
-Teleport Database Access is available starting from `6.0` release.
+Teleport Database Access for MySQL is available starting from `6.0` release.
 
-Download the appropriate version of Teleport for your platform from
-our [downloads page](https://goteleport.com/teleport/download).
+(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-Follow the installation [instructions](../../installation.mdx).
-
-### Start Auth/Proxy Service
-
-Create a configuration file for a Teleport service that will be running
-auth and proxy servers:
-
-```yaml
-teleport:
-  data_dir: /var/lib/teleport
-  nodename: test
-auth_service:
-  enabled: "yes"
-proxy_service:
-  enabled: "yes"
-  # Set public address proxy will be reachable at.
-  public_addr: teleport.example.com:3080
-  # MySQL proxy is listening on a separate port and needs to be enabled
-  # on the proxy server.
-  mysql_listen_addr: 0.0.0.0:3036
-ssh_service:
-  enabled: "no"
-```
-
-Start the service:
-
-```sh
-$ teleport start --config=/path/to/teleport.yaml
-```
-
-Generate a short-lived join token for the database service and save it for
-example in `/tmp/token`:
-
-```sh
-$ tctl tokens add \
-    --type=db \
-    --db-name=test \
-    --db-protocol=mysql \
-    --db-uri=postgres.example.com:5432
-```
+(!docs/pages/includes/database-access/token.mdx!)
 
 ### Create Role and User
 
@@ -280,19 +206,21 @@ when connecting to the database instance:
 $ tsh db login --db-user=root --db-name=mysql example
 ```
 
-When logging into a MySQL database, `tsh` automatically configures a section
-in the [option file](https://dev.mysql.com/doc/refman/8.0/en/option-files.html)
-with the name of `client_<cluster-name>-<database-service-name>` which `mysql`
-client can refer to via "group suffix" flag.
+Once logged in, connect to the database:
 
-Suppose the cluster name is "root", then you can connect to the database using
-the following `mysql` command:
+```bash
+$ tsh db connect example
+```
 
-```sh
-# Use default database user and database name.
-$ mysql --defaults-group-suffix=_root-example
-# Specify database user and database name explicitly.
-$ mysql --defaults-group-suffix=_root-example --user=alice --database=metrics
+<Admonition type="note" title="Note">
+  The `mysql` command-line client should be available in PATH in order to be
+  able to connect.
+</Admonition>
+
+If you would like to see the native `mysql` shell connect command, run:
+
+```bash
+$ tsh db config --format=cmd example
 ```
 
 To log out of the database and remove credentials:

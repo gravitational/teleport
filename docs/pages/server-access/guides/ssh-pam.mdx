@@ -30,11 +30,11 @@ and is identified for configuration purposes by a service name, which is often (
 not necessarily) the program name.
 
 The user requesting authentication is called the applicant, while the user (usually, root)
-charged with verifying his identity and granting them the requested credentials is
+charged with verifying their identity and granting them the requested credentials is
 called the arbitrator.
 
 The sequence of operations the server goes through to authenticate a user and perform
-whatever task their requested is a PAM transaction; the context within which the server
+whatever task they requested is a PAM transaction; the context within which the server
 performs the requested task is called a session.
 
 The functionality embodied by PAM is divided into six primitives grouped into four
@@ -71,8 +71,26 @@ own PAM service file like `/etc/pam.d/teleport` and specifying it as
 
 ## Set Message of the Day (motd) with Teleport
 
-The file `/etc/motd` is normally displayed by login(1) after a user has logged in
-but before the shell is run. It is generally used for important system-wide announcements.
+A cluster-wide Message of the Day can be set in the `auth_service` configuration.
+
+```yaml
+auth_service:
+    message_of_the_day: "Welcome to the cluster. All activity will be logged."
+```
+
+This will be shown during the `tsh login` process, and must be positively acknowledged 
+before the user is allowed to log into the cluster.
+
+```bash
+$ tsh login --proxy teleport.example.com
+Welcome to the cluster. All activity will be logged. 
+Press [ENTER] to continue.
+```
+
+Alternatively, a per-node Message of the Day can be set using the traditional unix 
+`/etc/motd` file. The `/etc/motd` file is normally displayed by login(1) after a user 
+has logged in but before the shell is run. It is generally used for important system-wide
+announcements.
 
 This feature can help you inform users that activity on the node is being audited
 and recorded.

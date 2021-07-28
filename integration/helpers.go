@@ -194,24 +194,27 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	rsaKey, err := ssh.ParseRawPrivateKey(cfg.Priv)
 	fatalIf(err)
 
-	tlsCAKey, tlsCACert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
+	tlsCACert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey.(*rsa.PrivateKey), pkix.Name{
 		CommonName:   cfg.ClusterName,
 		Organization: []string{cfg.ClusterName},
 	}, nil, defaults.CATTL)
 	fatalIf(err)
 
+	signer, err := ssh.ParsePrivateKey(cfg.Priv)
+	fatalIf(err)
+
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: cfg.Priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       cfg.Pub,
-		HostID:              cfg.HostID,
-		NodeName:            cfg.NodeName,
-		ClusterName:         cfg.ClusterName,
-		Roles:               types.SystemRoles{types.RoleAdmin},
-		TTL:                 24 * time.Hour,
+		CASigner:      signer,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: cfg.Pub,
+		HostID:        cfg.HostID,
+		NodeName:      cfg.NodeName,
+		ClusterName:   cfg.ClusterName,
+		Roles:         types.SystemRoles{types.RoleAdmin},
+		TTL:           24 * time.Hour,
 	})
 	fatalIf(err)
-	tlsCA, err := tlsca.FromKeys(tlsCACert, tlsCAKey)
+	tlsCA, err := tlsca.FromKeys(tlsCACert, cfg.Priv)
 	fatalIf(err)
 	cryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)

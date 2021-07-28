@@ -12,7 +12,7 @@ whether the Teleport Cloud is ready for strict compliance use-cases.
 
 ## Compliance
 
-We are going through SOC2 audit that should wrap up by June 2021.
+(!docs/pages/includes/soc2.mdx!)
 
 ## Managed Teleport Settings
 
@@ -34,7 +34,5 @@ This retention period is not configurable.
 Clusters are deployed in a single AWS region in 2 availability zones.
 AWS guarantees [99.99%](https://aws.amazon.com/compute/sla/) of monthly uptime percentage.
 
-Teleport Cloud preview version does not commit to any SLA. It sets availability
-objective to 99.7% of monthly uptime percentage (a maximum of two hours of downtime per month).
-
-Our goal is to achieve 99.99% uptime once Teleport Cloud graduates preview.
+Teleport Cloud commits to SLA of (=cloud.sla.monthly_percentage=)% of monthly uptime percentage,
+a maximum of (=cloud.sla.monthly_downtime=) of downtime per month.

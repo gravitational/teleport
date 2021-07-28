@@ -530,6 +530,43 @@ func (c *recConfigCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
+type netRestrictionsCollection struct {
+	netRestricts types.NetworkRestrictions
+}
+
+type writer struct {
+	w   io.Writer
+	err error
+}
+
+func (w *writer) write(s string) {
+	if w.err == nil {
+		_, w.err = w.w.Write([]byte(s))
+	}
+}
+
+func (c *netRestrictionsCollection) resources() (r []types.Resource) {
+	r = append(r, c.netRestricts)
+	return
+}
+
+func (c *netRestrictionsCollection) writeList(as []types.AddressCondition, w *writer) {
+	for _, a := range as {
+		w.write(a.CIDR)
+		w.write("\n")
+	}
+}
+
+func (c *netRestrictionsCollection) writeText(w io.Writer) error {
+	out := &writer{w: w}
+	out.write("ALLOW\n")
+	c.writeList(c.netRestricts.GetAllow(), out)
+
+	out.write("\nDENY\n")
+	c.writeList(c.netRestricts.GetDeny(), out)
+	return trace.Wrap(out.err)
+}
+
 type dbCollection struct {
 	servers []types.DatabaseServer
 }
@@ -567,4 +604,29 @@ func (c *dbCollection) toMarshal() interface{} {
 
 func (c *dbCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.toMarshal())
+}
+
+type lockCollection struct {
+	locks []types.Lock
+}
+
+func (c *lockCollection) resources() (r []types.Resource) {
+	for _, resource := range c.locks {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *lockCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"ID", "Target", "Message", "Expires"})
+	for _, lock := range c.locks {
+		target := lock.Target()
+		expires := "never"
+		if lock.LockExpiry() != nil {
+			expires = apiutils.HumanTimeFormat(*lock.LockExpiry())
+		}
+		t.AddRow([]string{lock.GetName(), target.String(), lock.Message(), expires})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }
