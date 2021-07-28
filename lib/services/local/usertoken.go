@@ -27,21 +27,21 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// GetResetPasswordTokens returns all ResetPasswordTokens
-func (s *IdentityService) GetResetPasswordTokens(ctx context.Context) ([]types.ResetPasswordToken, error) {
-	startKey := backend.Key(passwordTokensPrefix)
+// GetUserTokens returns all user tokens.
+func (s *IdentityService) GetUserTokens(ctx context.Context) ([]types.UserToken, error) {
+	startKey := backend.Key(userTokenPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var tokens []types.ResetPasswordToken
+	var tokens []types.UserToken
 	for _, item := range result.Items {
 		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
 			continue
 		}
 
-		token, err := services.UnmarshalResetPasswordToken(item.Value)
+		token, err := services.UnmarshalUserToken(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -52,29 +52,29 @@ func (s *IdentityService) GetResetPasswordTokens(ctx context.Context) ([]types.R
 	return tokens, nil
 }
 
-// DeleteResetPasswordToken deletes ResetPasswordToken by ID
-func (s *IdentityService) DeleteResetPasswordToken(ctx context.Context, tokenID string) error {
-	_, err := s.GetResetPasswordToken(ctx, tokenID)
+// DeleteUserToken deletes user token by ID.
+func (s *IdentityService) DeleteUserToken(ctx context.Context, tokenID string) error {
+	_, err := s.GetUserToken(ctx, tokenID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	startKey := backend.Key(passwordTokensPrefix, tokenID)
+	startKey := backend.Key(userTokenPrefix, tokenID)
 	err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
 
-// GetResetPasswordToken returns a token by its ID
-func (s *IdentityService) GetResetPasswordToken(ctx context.Context, tokenID string) (types.ResetPasswordToken, error) {
-	item, err := s.Get(ctx, backend.Key(passwordTokensPrefix, tokenID, paramsPrefix))
+// GetUserToken returns a token by its ID.
+func (s *IdentityService) GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error) {
+	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("reset password token(%v) not found", tokenID)
+			return nil, trace.NotFound("user token(%v) not found", tokenID)
 		}
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := services.UnmarshalResetPasswordToken(item.Value)
+	token, err := services.UnmarshalUserToken(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -82,19 +82,19 @@ func (s *IdentityService) GetResetPasswordToken(ctx context.Context, tokenID str
 	return token, nil
 }
 
-// CreateResetPasswordToken creates a token that is used for signups and resets
-func (s *IdentityService) CreateResetPasswordToken(ctx context.Context, token types.ResetPasswordToken) (types.ResetPasswordToken, error) {
+// CreateUserToken creates a user token.
+func (s *IdentityService) CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error) {
 	if err := token.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	value, err := services.MarshalResetPasswordToken(token)
+	value, err := services.MarshalUserToken(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(passwordTokensPrefix, token.GetName(), paramsPrefix),
+		Key:     backend.Key(userTokenPrefix, token.GetName(), paramsPrefix),
 		Value:   value,
 		Expires: token.Expiry(),
 	}
@@ -106,17 +106,17 @@ func (s *IdentityService) CreateResetPasswordToken(ctx context.Context, token ty
 	return token, nil
 }
 
-// GetResetPasswordTokenSecrets returns token secrets
-func (s *IdentityService) GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error) {
-	item, err := s.Get(ctx, backend.Key(passwordTokensPrefix, tokenID, secretsPrefix))
+// GetUserTokenSecrets returns token secrets.
+func (s *IdentityService) GetUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
+	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, secretsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("reset password token(%v) secrets not found", tokenID)
+			return nil, trace.NotFound("user token(%v) secrets not found", tokenID)
 		}
 		return nil, trace.Wrap(err)
 	}
 
-	secrets, err := services.UnmarshalResetPasswordTokenSecrets(item.Value)
+	secrets, err := services.UnmarshalUserTokenSecrets(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -124,18 +124,18 @@ func (s *IdentityService) GetResetPasswordTokenSecrets(ctx context.Context, toke
 	return secrets, nil
 }
 
-// UpsertResetPasswordTokenSecrets upserts token secrets
-func (s *IdentityService) UpsertResetPasswordTokenSecrets(ctx context.Context, secrets types.ResetPasswordTokenSecrets) error {
+// UpsertUserTokenSecrets upserts token secrets
+func (s *IdentityService) UpsertUserTokenSecrets(ctx context.Context, secrets types.UserTokenSecrets) error {
 	if err := secrets.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	value, err := services.MarshalResetPasswordTokenSecrets(secrets)
+	value, err := services.MarshalUserTokenSecrets(secrets)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(passwordTokensPrefix, secrets.GetName(), secretsPrefix),
+		Key:     backend.Key(userTokenPrefix, secrets.GetName(), secretsPrefix),
 		Value:   value,
 		Expires: secrets.Expiry(),
 	}
@@ -145,6 +145,6 @@ func (s *IdentityService) UpsertResetPasswordTokenSecrets(ctx context.Context, s
 }
 
 const (
-	passwordTokensPrefix = "resetpasswordtokens"
-	secretsPrefix        = "secrets"
+	userTokenPrefix = "usertoken"
+	secretsPrefix   = "secrets"
 )

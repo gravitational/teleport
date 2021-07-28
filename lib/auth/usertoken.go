@@ -30,75 +30,81 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
+
+	"github.com/gravitational/trace"
 )
 
 const (
-	// ResetPasswordTokenTypeInvite indicates invite UI flow
-	ResetPasswordTokenTypeInvite = "invite"
-	// ResetPasswordTokenTypePassword indicates set new password UI flow
-	ResetPasswordTokenTypePassword = "password"
+	// UserTokenTypeResetPasswordInvite is a token type used for the UI invite flow that
+	// allows users to change their password and set second factor (if enabled).
+	UserTokenTypeResetPasswordInvite = "invite"
+	// UserTokenTypeResetPassword is a token type used for the UI flow where user
+	// re-sets their password and second factor (if enabled).
+	UserTokenTypeResetPassword = "password"
 )
 
-// CreateResetPasswordTokenRequest is a request to create a new reset password token
-type CreateResetPasswordTokenRequest struct {
-	// Name is the user name to reset.
+// CreateUserTokenRequest is a request to create a new user token.
+type CreateUserTokenRequest struct {
+	// Name is the user name for token.
 	Name string `json:"name"`
-	// TTL specifies how long the generated reset token is valid for.
+	// TTL specifies how long the generated token is valid for.
 	TTL time.Duration `json:"ttl"`
-	// Type is a token type.
+	// Type is the token type.
 	Type string `json:"type"`
 }
 
-// CheckAndSetDefaults checks and sets the defaults
-func (r *CreateResetPasswordTokenRequest) CheckAndSetDefaults() error {
+// CheckAndSetDefaults checks and sets the defaults.
+func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 	if r.Name == "" {
 		return trace.BadParameter("user name can't be empty")
 	}
+
 	if r.TTL < 0 {
 		return trace.BadParameter("TTL can't be negative")
 	}
 
 	if r.Type == "" {
-		r.Type = ResetPasswordTokenTypePassword
+		r.Type = UserTokenTypeResetPassword
 	}
 
-	// We use the same mechanism to handle invites and password resets
-	// as both allow setting up a new password based on auth preferences.
-	// The only difference is default TTL values and URLs to web UI.
 	switch r.Type {
-	case ResetPasswordTokenTypeInvite:
+	case UserTokenTypeResetPasswordInvite:
 		if r.TTL == 0 {
 			r.TTL = defaults.SignupTokenTTL
 		}
 
 		if r.TTL > defaults.MaxSignupTokenTTL {
 			return trace.BadParameter(
-				"failed to create user invite token: maximum token TTL is %v hours",
+				"failed to create user token for reset password invite: maximum token TTL is %v hours",
 				defaults.MaxSignupTokenTTL)
 		}
-	case ResetPasswordTokenTypePassword:
+
+	case UserTokenTypeResetPassword:
 		if r.TTL == 0 {
 			r.TTL = defaults.ChangePasswordTokenTTL
 		}
+
 		if r.TTL > defaults.MaxChangePasswordTokenTTL {
 			return trace.BadParameter(
-				"failed to create reset password token: maximum token TTL is %v hours",
+				"failed to create user token for reset password: maximum token TTL is %v hours",
 				defaults.MaxChangePasswordTokenTTL)
 		}
+
 	default:
-		return trace.BadParameter("unknown reset password token request type(%v)", r.Type)
+		return trace.BadParameter("unknown user token request type(%v)", r.Type)
 	}
 
 	return nil
 }
 
 // CreateResetPasswordToken creates a reset password token
-func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error) {
+func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
+	if req.Type != UserTokenTypeResetPassword && req.Type != UserTokenTypeResetPasswordInvite {
+		return nil, trace.BadParameter("invalid user token request type")
+	}
+
 	err := req.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -118,23 +124,23 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := s.newResetPasswordToken(req)
+	token, err := s.newUserToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// remove any other existing tokens for this user
-	err = s.deleteResetPasswordTokens(ctx, req.Name)
+	err = s.deleteUserTokens(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.Identity.CreateResetPasswordToken(ctx, token)
+	_, err = s.Identity.CreateUserToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.ResetPasswordTokenCreate{
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
 		Metadata: apievents.Metadata{
 			Type: events.ResetPasswordTokenCreateEvent,
 			Code: events.ResetPasswordTokenCreateCode,
@@ -152,7 +158,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 		log.WithError(err).Warn("Failed to emit create reset password token event.")
 	}
 
-	return s.GetResetPasswordToken(ctx, token.GetName())
+	return s.GetUserToken(ctx, token.GetName())
 }
 
 func (s *Server) resetMFA(ctx context.Context, user string) error {
@@ -209,13 +215,13 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 	return fmt.Sprintf("%v@%v", username, proxyHost), nil
 }
 
-// RotateResetPasswordTokenSecrets rotates secrets for a given tokenID.
+// RotateUserTokenSecrets rotates secrets for a given tokenID.
 // It gets called every time a user fetches 2nd-factor secrets during registration attempt.
-// This ensures that an attacker that gains the ResetPasswordToken link can not view it,
+// This ensures that an attacker that gains the user token link can not view it,
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
-func (s *Server) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error) {
-	token, err := s.GetResetPasswordToken(ctx, tokenID)
+func (s *Server) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
+	token, err := s.GetUserToken(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -235,13 +241,13 @@ func (s *Server) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID st
 		return nil, trace.Wrap(err)
 	}
 
-	secrets, err := types.NewResetPasswordTokenSecrets(tokenID)
+	secrets, err := types.NewUserTokenSecrets(tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	secrets.SetOTPKey(key.Secret())
 	secrets.SetQRCode(otpQRBuf.Bytes())
-	err = s.UpsertResetPasswordTokenSecrets(ctx, secrets)
+	err = s.UpsertUserTokenSecrets(ctx, secrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -274,7 +280,7 @@ func (s *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
 	return key, &opts, nil
 }
 
-func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error) {
+func (s *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, error) {
 	var err error
 	var proxyHost string
 
@@ -298,16 +304,17 @@ func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (typ
 		}
 	}
 
-	url, err := formatResetPasswordTokenURL(proxyHost, tokenID, req.Type)
+	url, err := formatUserTokenURL(proxyHost, tokenID, req.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := types.NewResetPasswordToken(tokenID)
+	token, err := types.NewUserToken(tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	token.SetSubKind(req.Type)
 	token.SetExpiry(s.clock.Now().UTC().Add(req.TTL))
 	token.SetUser(req.Name)
 	token.SetCreated(s.clock.Now().UTC())
@@ -315,24 +322,26 @@ func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (typ
 	return token, nil
 }
 
-func formatResetPasswordTokenURL(proxyHost string, tokenID string, reqType string) (string, error) {
+func formatUserTokenURL(proxyHost string, tokenID string, reqType string) (string, error) {
 	u := &url.URL{
 		Scheme: "https",
 		Host:   proxyHost,
 	}
 
-	// We have 2 different UI flows to process password reset tokens
-	if reqType == ResetPasswordTokenTypeInvite {
+	// Defines different UI flows that process user tokens.
+	switch reqType {
+	case UserTokenTypeResetPasswordInvite:
 		u.Path = fmt.Sprintf("/web/invite/%v", tokenID)
-	} else if reqType == ResetPasswordTokenTypePassword {
+	case UserTokenTypeResetPassword:
 		u.Path = fmt.Sprintf("/web/reset/%v", tokenID)
 	}
 
 	return u.String(), nil
 }
 
-func (s *Server) deleteResetPasswordTokens(ctx context.Context, username string) error {
-	tokens, err := s.GetResetPasswordTokens(ctx)
+// deleteUserTokens deletes all user tokens for the specified user.
+func (s *Server) deleteUserTokens(ctx context.Context, username string) error {
+	tokens, err := s.GetUserTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -342,11 +351,27 @@ func (s *Server) deleteResetPasswordTokens(ctx context.Context, username string)
 			continue
 		}
 
-		err = s.DeleteResetPasswordToken(ctx, token.GetName())
+		err = s.DeleteUserToken(ctx, token.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	return nil
+}
+
+// getResetPasswordToken returns user token with subkind set to reset or invite, both
+// types which allows users to change their password and set new second factors (if enabled).
+func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error) {
+	token, err := s.GetUserToken(ctx, tokenID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// DELETE IN 9.0.0: remove checking for empty string.
+	if token.GetSubKind() != "" && token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
+		return nil, trace.BadParameter("invalid token")
+	}
+
+	return token, nil
 }

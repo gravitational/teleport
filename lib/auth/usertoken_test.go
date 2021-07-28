@@ -54,7 +54,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	err = srv.Auth().UpsertMFADevice(ctx, username, mfaDev)
 	require.NoError(t, err)
 
-	req := CreateResetPasswordTokenRequest{
+	req := CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
 	}
@@ -66,8 +66,8 @@ func TestCreateResetPasswordToken(t *testing.T) {
 
 	event := mockEmitter.LastEvent()
 	require.Equal(t, event.GetType(), events.ResetPasswordTokenCreateEvent)
-	require.Equal(t, event.(*apievents.ResetPasswordTokenCreate).Name, "joe@example.com")
-	require.Equal(t, event.(*apievents.ResetPasswordTokenCreate).User, teleport.UserSystem)
+	require.Equal(t, event.(*apievents.UserTokenCreate).Name, "joe@example.com")
+	require.Equal(t, event.(*apievents.UserTokenCreate).User, teleport.UserSystem)
 
 	// verify that user has no MFA devices
 	devs, err := srv.Auth().GetMFADevices(ctx, username)
@@ -83,7 +83,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// previous token must be deleted
-	tokens, err := srv.Auth().GetResetPasswordTokens(ctx)
+	tokens, err := srv.Auth().GetUserTokens(ctx)
 	require.NoError(t, err)
 	require.Len(t, tokens, 1)
 	require.Equal(t, tokens[0].GetName(), token.GetName())
@@ -98,43 +98,43 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 
 	type testCase struct {
 		desc string
-		req  CreateResetPasswordTokenRequest
+		req  CreateUserTokenRequest
 	}
 
 	testCases := []testCase{
 		{
 			desc: "Reset Password: TTL < 0",
-			req: CreateResetPasswordTokenRequest{
+			req: CreateUserTokenRequest{
 				Name: username,
 				TTL:  -1,
 			},
 		},
 		{
 			desc: "Reset Password: TTL > max",
-			req: CreateResetPasswordTokenRequest{
+			req: CreateUserTokenRequest{
 				Name: username,
 				TTL:  defaults.MaxChangePasswordTokenTTL + time.Hour,
 			},
 		},
 		{
 			desc: "Reset Password: empty user name",
-			req: CreateResetPasswordTokenRequest{
+			req: CreateUserTokenRequest{
 				TTL: time.Hour,
 			},
 		},
 		{
 			desc: "Reset Password: user does not exist",
-			req: CreateResetPasswordTokenRequest{
+			req: CreateUserTokenRequest{
 				Name: "doesnotexist@example.com",
 				TTL:  time.Hour,
 			},
 		},
 		{
 			desc: "Invite: TTL > max",
-			req: CreateResetPasswordTokenRequest{
+			req: CreateUserTokenRequest{
 				Name: username,
 				TTL:  defaults.MaxSignupTokenTTL + time.Hour,
-				Type: ResetPasswordTokenTypeInvite,
+				Type: UserTokenTypeResetPasswordInvite,
 			},
 		},
 	}
@@ -145,6 +145,7 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+
 }
 
 // TestFormatAccountName makes sure that the OTP account name fallback values
