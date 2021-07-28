@@ -627,12 +627,12 @@ exports[`rendering of Session Recordings 1`] = `
             </strong>
              - 
             <strong>
-              2
+              4
             </strong>
              
             of 
             <strong>
-              2
+              4
             </strong>
           </div>
         </div>
@@ -699,6 +699,56 @@ exports[`rendering of Session Recordings 1`] = `
         <tbody>
           <tr>
             <td>
+              im-a-nodename
+            </td>
+            <td
+              style="word-break: break-word;"
+            >
+              test
+            </td>
+            <td>
+              10 minutes
+            </td>
+            <td>
+              2021-07-27 23:20:05
+            </td>
+            <td>
+              d183ca84-dd94-434a-afee5c2c5f38
+            </td>
+            <td
+              align="right"
+              style="color: rgb(159, 159, 159);"
+            >
+              recording disabled
+            </td>
+          </tr>
+          <tr>
+            <td>
+              ip-172-31-30-254
+            </td>
+            <td
+              style="word-break: break-word;"
+            >
+              foo
+            </td>
+            <td>
+              a few seconds
+            </td>
+            <td>
+              2021-05-21 22:54:27
+            </td>
+            <td>
+              9d92ad96-a45c-4add-463cc7bc48b1
+            </td>
+            <td
+              align="right"
+              style="color: rgb(159, 159, 159);"
+            >
+              non-interactive
+            </td>
+          </tr>
+          <tr>
+            <td>
               peach-node
             </td>
             <td
@@ -706,7 +756,9 @@ exports[`rendering of Session Recordings 1`] = `
             >
               one, two
             </td>
-            <td />
+            <td>
+              a few seconds
+            </td>
             <td>
               2019-04-22 00:00:51
             </td>
@@ -736,7 +788,9 @@ exports[`rendering of Session Recordings 1`] = `
             >
               one, two
             </td>
-            <td />
+            <td>
+              19 minutes
+            </td>
             <td>
               2019-04-22 00:00:51
             </td>

@@ -49,12 +49,7 @@ export default function RecordList(props: Props) {
   // sort and filter
   const data = React.useMemo(() => {
     const rows = events
-      .filter(
-        e =>
-          e.code === 'T2004I' &&
-          e.raw.interactive &&
-          e.raw.session_recording !== 'off'
-      )
+      .filter(e => e.code === 'T2004I')
       .map(makeRows(clusterId));
 
     const filtered = rows.filter(obj =>
@@ -141,6 +136,12 @@ const makeRows = (clusterId: string) => (event: SessionEnd) => {
     hostname = `${raw.kubernetes_cluster}/${raw.kubernetes_pod_namespace}/${raw.kubernetes_pod_name}`;
   }
 
+  // Description set to play for interactive so users can search by "play".
+  let description = raw.interactive ? 'play' : 'non-interactive';
+  if (raw.session_recording === 'off') {
+    description = 'recording disabled';
+  }
+
   return {
     clusterId,
     duration,
@@ -150,6 +151,7 @@ const makeRows = (clusterId: string) => (event: SessionEnd) => {
     createdText: displayDateTime(time),
     users: users.join(', '),
     hostname: hostname,
+    description,
   };
 };
 
@@ -176,6 +178,15 @@ function SidCell(props) {
 const PlayCell = props => {
   const { rowIndex, data } = props;
   const row = data[rowIndex] as Row;
+
+  if (row.description !== 'play') {
+    return (
+      <Table.Cell align="right" style={{ color: '#9F9F9F' }}>
+        {row.description}
+      </Table.Cell>
+    );
+  }
+
   const url = cfg.getSessionAuditPlayerRoute(row);
   return (
     <Table.Cell align="right">
@@ -208,4 +219,5 @@ const searchableProps = [
   'users',
   'durationText',
   'hostname',
+  'description',
 ];

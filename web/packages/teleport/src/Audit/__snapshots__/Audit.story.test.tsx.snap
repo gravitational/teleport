@@ -896,6 +896,41 @@ exports[`loaded 1`] = `
           <td
             style="word-break: break-word;"
           >
+            User [foo] has ended a non-interactive session [9d92ad96-a45c-4add-463cc7bc48b1] on node [ip-172-31-30-254] 
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-05-21 22:54:27
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-terminal c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Session Ended
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
             User [root] has ended an interactive session lasting a few seconds [5ef7244c-0f7b-4f57-80b0-26a79f960aae] on node [im-a-nodename]
           </td>
           <td
@@ -939,41 +974,6 @@ exports[`loaded 1`] = `
             style="word-break: break-word;"
           >
             User [root] has ended an interactive session lasting 2 minutes [941a4c65-c6cd-11ea-9bef-482ae3513733] on node [im-a-nodename]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2021-05-12 01:26:22
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c17"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c15"
-            >
-              <span
-                class="c11 c16 icon icon-terminal c11 c16"
-                color="light"
-                font-size="3"
-              />
-              Session Ended
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [root] has ended a non-interactive session [9febab45-6491-11e9-80a1-427cfde50f5a] on node [node-hostname] 
           </td>
           <td
             style="min-width: 120px;"
