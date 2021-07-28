@@ -45,7 +45,8 @@ message LockTarget {
     string User;
 
     // Role specifies the name of an RBAC role known to the root cluster.
-    // In remote clusters, this constraint is evaluated before translating to local roles.
+    // In remote clusters, this constraint is evaluated with both original
+    // and mapped roles.
     string Role;
 
     // Login specifies the name of a local UNIX user.
@@ -143,23 +144,16 @@ in the proper sense and that makes use of `srv.Monitor`: SSH, k8s and DB.
 ### Replication to leaf clusters
 
 `Lock` resources are replicated from the root cluster to leaf clusters
-in a similar manner to how CAs are shared between trusted clusters.
-
-The goal should be achieved by introducing a routine similar to
-`periodicUpdateCertAuthorities`. However instead of polling the backend (with
-the default period of 10 minutes defined in `defaults.LowResPollingPeriod`)
-a `types.Watcher`-based algorithm should be preferred.
+in a similar manner to how CAs are shared between trusted clusters (the
+`periodicUpdateCertAuthorities` routine), i.e. by periodically invoking
+a leaf cluster's API to replace the locks associated with the root cluster
+with the most recent set of locks active at the root cluster.
 
 `Lock` resources received from the root cluster should be stored under
 a separate backend key namespace:
 ```
-/locks/remote/<clustername>/<lockname>
+/locks/<clusterName>/<lockName>
 ```
-
-A tolerance interval similar to the case of intra-cluster propagation should be used.
-When a leaf cluster's reverse tunnel connection exhibits intolerable failures,
-the leaf cluster's fallback mode will be enforced with respect to the connections
-authenticated with a user certificate issued by the root cluster's CA.
 
 ### Scenarios
 
