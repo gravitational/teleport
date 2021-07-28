@@ -60,8 +60,8 @@ With every user combination, try to login and signup with invalid second factor,
 - [ ] Backends
   - [ ] Teleport runs with etcd
   - [ ] Teleport runs with dynamodb
-  - [ ] Teleport runs with boltdb
-  - [ ] Teleport runs with dir
+  - [ ] Teleport runs with SQLite
+  - [ ] Teleport runs with Firestore
 
 - [ ] Session Recording
   - [ ] Session recording can be disabled
