@@ -1558,14 +1558,16 @@ func TestDatabasesCRUD(t *testing.T) {
 
 	// Create a couple databases.
 	db1, err := types.NewDatabaseV3(types.Metadata{
-		Name: "db1",
+		Name:   "db1",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
 	})
 	require.NoError(t, err)
 	db2, err := types.NewDatabaseV3(types.Metadata{
-		Name: "db2",
+		Name:   "db2",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
 		URI:      "localhost:3306",

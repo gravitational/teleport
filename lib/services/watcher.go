@@ -631,3 +631,119 @@ func lockMapValues(lockMap map[string]types.Lock) []types.Lock {
 	}
 	return locks
 }
+
+// DatabaseWatcherConfig is a DatabaseWatcher configuration.
+type DatabaseWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// DatabaseGetter is responsible for fetching database resources.
+	DatabaseGetter
+	// DatabasesC receives up-to-date list of all database resources.
+	DatabasesC chan []types.Database
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *DatabaseWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.DatabaseGetter == nil {
+		getter, ok := cfg.Client.(DatabaseGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter DatabaseGetter and Client not usable as DatabaseGetter")
+		}
+		cfg.DatabaseGetter = getter
+	}
+	if cfg.DatabasesC == nil {
+		cfg.DatabasesC = make(chan []types.Database)
+	}
+	return nil
+}
+
+// NewDatabaseWatcher returns a new instance of DatabaseWatcher.
+func NewDatabaseWatcher(ctx context.Context, cfg DatabaseWatcherConfig) (*DatabaseWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &databaseCollector{
+		DatabaseWatcherConfig: cfg,
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &DatabaseWatcher{watcher, collector}, nil
+}
+
+// DatabaseWatcher is built on top of resourceWatcher to monitor database resources.
+type DatabaseWatcher struct {
+	*resourceWatcher
+	*databaseCollector
+}
+
+// databaseCollector accompanies resourceWatcher when monitoring database resources..
+type databaseCollector struct {
+	// DatabaseWatcherConfig is the watcher configuration.
+	DatabaseWatcherConfig
+	// current holds a map of the currently known database resources.
+	current map[string]types.Database
+	// lock protects the "current" map.
+	lock sync.RWMutex
+}
+
+// resourceKind specifies the resource kind to watch.
+func (p *databaseCollector) resourceKind() string {
+	return types.KindDatabase
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *databaseCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	databases, err := p.DatabaseGetter.GetDatabases(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newCurrent := make(map[string]types.Database, len(databases))
+	for _, database := range databases {
+		newCurrent[database.GetName()] = database
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.current = newCurrent
+	p.DatabasesC <- databases
+	return nil
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindDatabase {
+		p.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	switch event.Type {
+	case types.OpDelete:
+		delete(p.current, event.Resource.GetName())
+		p.DatabasesC <- databasesToSlice(p.current)
+	case types.OpPut:
+		database, ok := event.Resource.(types.Database)
+		if !ok {
+			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		p.current[database.GetName()] = database
+		p.DatabasesC <- databasesToSlice(p.current)
+	default:
+		p.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*databaseCollector) notifyStale() {}
+
+func databasesToSlice(databases map[string]types.Database) (slice []types.Database) {
+	for _, database := range databases {
+		slice = append(slice, database)
+	}
+	return slice
+}

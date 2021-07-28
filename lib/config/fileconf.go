@@ -891,6 +891,14 @@ type Databases struct {
 	Service `yaml:",inline"`
 	// Databases is a list of databases proxied by the service.
 	Databases []*Database `yaml:"databases"`
+	// Selectors defines resource monitor selectors.
+	Selectors []Selector `yaml:"selectors,omitempty"`
+}
+
+// Selector represents a single resource monitor selector.
+type Selector struct {
+	// MatchLabels represents a selector that matches labels.
+	MatchLabels map[string]apiutils.Strings `yaml:"match_labels,omitempty"`
 }
 
 // Database represents a single database proxied by the service.

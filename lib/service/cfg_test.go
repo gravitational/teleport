@@ -281,7 +281,7 @@ func TestCheckDatabase(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			err := test.inDatabase.Check()
+			err := test.inDatabase.CheckAndSetDefaults()
 			if test.outErr {
 				require.Error(t, err)
 			} else {

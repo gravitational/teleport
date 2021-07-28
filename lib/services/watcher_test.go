@@ -365,3 +365,100 @@ func resourceDiff(res1, res2 types.Resource) string {
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.EquateEmpty())
 }
+
+// TestDatabaseWatcher tests that database resource watcher properly receives
+// and dispatches updates to database resources.
+func TestDatabaseWatcher(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Databases
+		types.Events
+	}
+
+	databasesService := local.NewDatabasesService(bk)
+	w, err := services.NewDatabaseWatcher(ctx, services.DatabaseWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:   "test",
+			RetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Databases: databasesService,
+				Events:    local.NewEventsService(bk, nil),
+			},
+		},
+		DatabasesC: make(chan []types.Database, 10),
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Initially there are no databases so watcher should send an empty list.
+	select {
+	case changeset := <-w.DatabasesC:
+		require.Len(t, changeset, 0)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add a database.
+	database1 := newDatabase(t, "db1")
+	require.NoError(t, databasesService.CreateDatabase(ctx, database1))
+
+	// The first event is always the current list of databases.
+	select {
+	case changeset := <-w.DatabasesC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], database1))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add a second database.
+	database2 := newDatabase(t, "db2")
+	require.NoError(t, databasesService.CreateDatabase(ctx, database2))
+
+	// Watcher should detect the database list change.
+	select {
+	case changeset := <-w.DatabasesC:
+		require.Len(t, changeset, 2)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+
+	// Delete the first database.
+	require.NoError(t, databasesService.DeleteDatabase(ctx, database1.GetName()))
+
+	// Watcher should detect the database list change.
+	select {
+	case changeset := <-w.DatabasesC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], database2))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+}
+
+func newDatabase(t *testing.T, name string) types.Database {
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: name,
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+	return database
+}
