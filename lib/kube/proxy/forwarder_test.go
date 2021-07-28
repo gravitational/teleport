@@ -20,13 +20,13 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
-	"k8s.io/client-go/transport"
-
 	"github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
+	"k8s.io/client-go/transport"
 )
 
 type ForwarderSuite struct{}

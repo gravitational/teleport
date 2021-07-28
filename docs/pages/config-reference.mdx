@@ -54,11 +54,11 @@ teleport:
 
     # Logging configuration. Possible output values to disk via '/var/lib/teleport/teleport.log',
     # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN
-    # and ERROR (default).
+    # and ERROR (default). Possible format values include: timestamp, component, caller, and level.
     log:
         output: /var/lib/teleport/teleport.log
         severity: ERROR
-
+        format: [level, timestamp, component, caller]
     # Configuration for the storage back-end used for the cluster state and the
     # audit log. Several back-end types are supported. See "High Availability"
     # section of this Admin Manual below to learn how to configure DynamoDB,

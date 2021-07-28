@@ -164,6 +164,7 @@ var (
 		"disk_buffer_size":        false,
 		"network_buffer_size":     false,
 		"cgroup_path":             false,
+		"format":                  false,
 	}
 )
 
@@ -378,6 +379,8 @@ type Log struct {
 	Output string `yaml:"output,omitempty"`
 	// Severity defines how verbose the log will be. Possible valus are "error", "info", "warn"
 	Severity string `yaml:"severity,omitempty"`
+	// Format lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
+	Format []string `yaml:"format,omitempty"`
 }
 
 // Global is 'teleport' (global) section of the config file
