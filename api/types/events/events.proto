@@ -49,6 +49,9 @@ message UserMetadata {
 
     // Impersonator is a user acting on behalf of another user
     string Impersonator = 3 [ (gogoproto.jsontag) = "impersonator,omitempty" ];
+
+    // AWSRoleARN is AWS IAM role user assumes when accessing AWS console.
+    string AWSRoleARN = 4 [ (gogoproto.jsontag) = "aws_role_arn,omitempty" ];
 }
 
 // Server is a server metadata
