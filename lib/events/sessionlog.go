@@ -105,14 +105,16 @@ func NewDiskSessionLogger(cfg DiskSessionLoggerConfig) (*DiskSessionLogger, erro
 		lastChunkIndex: -1,
 
 		enhancedIndexes: map[string]int64{
-			SessionCommandEvent: -1,
-			SessionDiskEvent:    -1,
-			SessionNetworkEvent: -1,
+			SessionCommandEvent:     -1,
+			SessionDiskEvent:        -1,
+			SessionNetworkEvent:     -1,
+			SessionProcessExitEvent: -1,
 		},
 		enhancedFiles: map[string]*gzipWriter{
-			SessionCommandEvent: nil,
-			SessionDiskEvent:    nil,
-			SessionNetworkEvent: nil,
+			SessionCommandEvent:     nil,
+			SessionDiskEvent:        nil,
+			SessionNetworkEvent:     nil,
+			SessionProcessExitEvent: nil,
 		},
 	}
 	return sessionLogger, nil
@@ -344,7 +346,7 @@ func (sl *DiskSessionLogger) openEnhancedFile(eventType string, eventIndex int64
 	// If the event is an enhanced event overwrite with the type of enhanced event.
 	var indexType string
 	switch eventType {
-	case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
+	case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent, SessionProcessExitEvent:
 		indexType = eventType
 	default:
 		indexType = fileTypeEvents
@@ -440,7 +442,7 @@ func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (
 		}
 		return n, nil
 	// Enhanced session recording events all go to their own events files.
-	case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
+	case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent, SessionProcessExitEvent:
 		return sl.writeEnhancedChunk(sessionID, chunk)
 	// All other events get put into the general events file. These are events like
 	// session.join, session.end, etc.

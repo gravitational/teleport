@@ -196,6 +196,11 @@ var (
 		Name: SessionNetworkEvent,
 		Code: SessionNetworkCode,
 	}
+	// SessionProcessExitE is emitted when the process exits or is terminated
+	SessionProcessExitE = Event{
+		Name: SessionProcessExitEvent,
+		Code: SessionProcessExitCode,
+	}
 	// ResetPasswordTokenCreatedE is emitted when a password reset token is created.
 	ResetPasswordTokenCreatedE = Event{
 		Name: ResetPasswordTokenCreateEvent,
@@ -444,6 +449,8 @@ const (
 	SessionDiskCode = "T4001I"
 	// SessionNetworkCode is a session network code.
 	SessionNetworkCode = "T4002I"
+	// SessionProcessExitCode is a session process exit code.
+	SessionProcessExitCode = "T4003I"
 
 	// AccessRequestCreateCode is the the access request creation code.
 	AccessRequestCreateCode = "T5000I"

@@ -246,6 +246,37 @@ func TestJSON(t *testing.T) {
 			},
 		},
 		{
+			name: "session process_exit event",
+			json: `{"login":"alice","exit_status":2,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4003I","event":"session.process_exit","pid":31639,"server_id":"a7c54b0d-469c-431e-af4d-418cd3ae9694","uid":"4f725f12-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971451,"program":"dirname","namespace":"default","sid":"5b3555dd-729f-11ea-b66a-507b9dd95841","cluster_name":"test","ei":180}`,
+			event: apievents.SessionProcessExit{
+				Metadata: apievents.Metadata{
+					Index:       180,
+					ID:          "4f725f12-e87a-452f-96ec-ef93e9e6a260",
+					Type:        SessionProcessExitEvent,
+					Time:        time.Date(2020, 03, 30, 15, 58, 54, 650*int(time.Millisecond), time.UTC),
+					Code:        SessionProcessExitCode,
+					ClusterName: "test",
+				},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerID:        "a7c54b0d-469c-431e-af4d-418cd3ae9694",
+					ServerNamespace: "default",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "5b3555dd-729f-11ea-b66a-507b9dd95841",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:  "alice@example.com",
+					Login: "alice",
+				},
+				BPFMetadata: apievents.BPFMetadata{
+					CgroupID: 4294971451,
+					Program:  "dirname",
+					PID:      31639,
+				},
+				ExitStatus: 2,
+			},
+		},
+		{
 			name: "successful user.login event",
 			json: `{"ei": 0, "attributes":{"followers_url": "https://api.github.com/users/bob/followers", "err": null, "public_repos": 20, "site_admin": false, "app_metadata":{"roles":["example/admins","example/devc"]}, "emails":[{"email":"bob@example.com","primary":true,"verified":true,"visibility":"public"},{"email":"bob@alternative.com","primary":false,"verified":true,"visibility":null}]},"code":"T1001I","event":"user.login","method":"oidc","success":true,"time":"2020-04-07T18:45:07Z","uid":"019432f1-3021-4860-af41-d9bd1668c3ea","user":"bob@example.com","cluster_name":"testcluster"}`,
 			event: apievents.UserLogin{

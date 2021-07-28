@@ -127,6 +127,8 @@ func (s *Suite) TestWatch(c *check.C) {
 			pid = ev.BPFMetadata.PID
 		case *apievents.SessionNetwork:
 			pid = ev.BPFMetadata.PID
+		case *apievents.SessionProcessExit:
+			pid = ev.BPFMetadata.PID
 		}
 		c.Assert(int(pid), check.Equals, cmd.Process.Pid)
 	}
@@ -191,6 +193,7 @@ func (s *Suite) TestObfuscate(c *check.C) {
 		}
 	}()
 	go func() {
+		execReceived := false
 		for {
 			eventBytes := <-execsnoop.events()
 			// Unmarshal the event.
@@ -198,13 +201,18 @@ func (s *Suite) TestObfuscate(c *check.C) {
 			err := unmarshalEvent(eventBytes, &event)
 			c.Assert(err, check.IsNil)
 
-			// Check the event is what we expect, in this case "ls".
-			if ConvertString(unsafe.Pointer(&event.Command)) == "ls" {
-				doneFunc()
-				break
+			if !execReceived {
+				// Check the event is what we expect, in this case "ls".
+				if ConvertString(unsafe.Pointer(&event.Command)) == "ls" && event.Type == eventRet {
+					execReceived = true
+				}
+			} else {
+				if ConvertString(unsafe.Pointer(&event.Command)) == "ls" && event.Type == eventExit {
+					doneFunc()
+					break
+				}
 			}
 		}
-
 	}()
 
 	// Wait for an event to arrive from execsnoop. If an event does not arrive
