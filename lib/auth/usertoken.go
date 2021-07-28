@@ -101,13 +101,13 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 
 // CreateResetPasswordToken creates a reset password token
 func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
-	if req.Type != UserTokenTypeResetPassword && req.Type != UserTokenTypeResetPasswordInvite {
-		return nil, trace.BadParameter("invalid user token request type")
-	}
-
 	err := req.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if req.Type != UserTokenTypeResetPassword && req.Type != UserTokenTypeResetPasswordInvite {
+		return nil, trace.BadParameter("invalid reset password token request type")
 	}
 
 	_, err = s.GetUser(req.Name, false)
