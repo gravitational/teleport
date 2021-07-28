@@ -58,10 +58,10 @@ type rawOpenEvent struct {
 	ReturnCode int32
 
 	// Command is name of the executable opening the file.
-	Command [commMax]byte
+	Command [CommMax]byte
 
 	// Path is the full path to the file being opened.
-	Path [pathMax]byte
+	Path [PathMax]byte
 
 	// Flags are the flags passed to open.
 	Flags int32

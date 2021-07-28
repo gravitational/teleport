@@ -155,11 +155,8 @@ type ReadAccessPoint interface {
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
-	// GetLock gets a lock by name.
-	GetLock(ctx context.Context, name string) (types.Lock, error)
-
-	// GetLocks gets all locks, matching at least one of the targets when specified.
-	GetLocks(context.Context, ...types.LockTarget) ([]types.Lock, error)
+	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
+	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)

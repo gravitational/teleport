@@ -1751,6 +1751,21 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services
 	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
+// GetNetworkRestrictions retrieves the network restrictions (allow/deny lists)
+func (c *Client) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	return c.APIClient.GetNetworkRestrictions(ctx)
+}
+
+// SetNetworkRestrictions updates the network restrictions (allow/deny lists)
+func (c *Client) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
+	return c.APIClient.SetNetworkRestrictions(ctx, nr)
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions (allow/deny lists)
+func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
+	return c.APIClient.DeleteNetworkRestrictions(ctx)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -1951,6 +1966,7 @@ type ClientI interface {
 	services.Access
 	services.DynamicAccess
 	services.DynamicAccessOracle
+	services.Restrictions
 	WebService
 	session.Service
 	services.ClusterConfiguration

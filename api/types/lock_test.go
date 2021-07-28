@@ -26,12 +26,12 @@ import (
 func TestLockTargetMapConversions(t *testing.T) {
 	lt := LockTarget{
 		User:      "user@sso.tld",
-		Node:      "host-1",
+		Node:      "node-uuid",
 		MFADevice: "mfa-device-uuid",
 	}
 	m := map[string]string{
 		"user":       "user@sso.tld",
-		"node":       "host-1",
+		"node":       "node-uuid",
 		"mfa_device": "mfa-device-uuid",
 	}
 
@@ -48,23 +48,26 @@ func TestLockTargetMapConversions(t *testing.T) {
 func TestLockTargetMatch(t *testing.T) {
 	target := LockTarget{
 		User:      "user@sso.tld",
-		Node:      "host-1",
+		Node:      "node-uuid",
 		MFADevice: "mfa-device-uuid",
 	}
 	lock, err := NewLock("some-lock", LockSpecV2{Target: target})
 	require.NoError(t, err)
 
-	matched, err := target.Match(lock)
-	require.NoError(t, err)
-	require.True(t, matched)
+	require.True(t, target.Match(lock))
 
-	target.Node = "host-2"
-	matched, err = target.Match(lock)
-	require.NoError(t, err)
-	require.False(t, matched)
+	target.Node = "node-uuid-2"
+	require.False(t, target.Match(lock))
 
 	target.Node = ""
-	matched, err = target.Match(lock)
-	require.NoError(t, err)
-	require.True(t, matched)
+	require.True(t, target.Match(lock))
+
+	disjointTarget := LockTarget{
+		Login: "root",
+	}
+	require.False(t, disjointTarget.Match(lock))
+
+	// Empty target should match no lock.
+	emptyTarget := LockTarget{}
+	require.False(t, emptyTarget.Match(lock))
 }

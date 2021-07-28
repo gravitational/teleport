@@ -94,6 +94,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
 		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
 		types.KindLock:                    rc.createLock,
+		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
 	}
 	rc.config = config
 
@@ -518,6 +519,22 @@ func (rc *ResourceCommand) createLock(client auth.ClientI, raw services.UnknownR
 	return nil
 }
 
+// createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
+func (rc *ResourceCommand) createNetworkRestrictions(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+
+	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.SetNetworkRestrictions(ctx, newNetRestricts); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("network restrictions have been updated\n")
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	singletonResources := []string{
@@ -616,6 +633,11 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("lock %q has been deleted\n", rc.ref.Name)
+	case types.KindNetworkRestrictions:
+		if err = resetNetworkRestrictions(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -662,6 +684,10 @@ func resetSessionRecordingConfig(ctx context.Context, client auth.ClientI) error
 	}
 
 	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
+}
+
+func resetNetworkRestrictions(ctx context.Context, client auth.ClientI) error {
+	return trace.Wrap(client.DeleteNetworkRestrictions(ctx))
 }
 
 // Update updates select resource fields: expiry and labels
@@ -962,7 +988,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		return &recConfigCollection{recConfig}, nil
 	case types.KindLock:
 		if rc.ref.Name == "" {
-			locks, err := client.GetLocks(ctx)
+			locks, err := client.GetLocks(ctx, false)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -973,6 +999,12 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.Wrap(err)
 		}
 		return &lockCollection{locks: []types.Lock{lock}}, nil
+	case types.KindNetworkRestrictions:
+		nr, err := client.GetNetworkRestrictions(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &netRestrictionsCollection{nr}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

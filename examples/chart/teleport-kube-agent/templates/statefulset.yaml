@@ -1,0 +1,144 @@
+#
+# Warning to maintainers, any changes to this file that are not specific to the StatefulSet need to also be duplicated
+# in the deployment.yaml file.
+#
+{{- if .Values.storage.enabled }}
+{{- if .Values.teleportVersionOverride }}
+  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
+{{- else }}
+  {{- $_ := set . "teleportVersion" .Chart.Version }}
+{{- end }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  serviceName: {{ .Release.Name }}
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        # ConfigMap checksum, to recreate the pod on config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+{{- if .Values.annotations.pod }}
+  {{- toYaml .Values.annotations.pod | nindent 8 }}
+{{- end }}
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      {{- if .Values.affinity }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 6 }}
+      {{- end }}
+{{- if .Values.initContainers }}
+      initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
+  {{- if .Values.resources }}
+        resources:
+    {{- toYaml .Values.resources | nindent 10 }}
+  {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 9807
+        volumeMounts:
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /etc/teleport-secrets
+          name: "auth-token"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: "data"
+  {{- if .Values.extraVolumeMounts }}
+    {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+  {{- end }}
+{{- end }}
+      serviceAccountName: {{ .Values.serviceAccountName | default .Release.Name }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: "teleport"
+        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
+        args:
+        - "--diag-addr=0.0.0.0:3000"
+        {{- if .Values.insecureSkipProxyTLSVerify }}
+        - "--insecure"
+        {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 9807
+        ports:
+        - name: diag
+          containerPort: 3000
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: diag
+          initialDelaySeconds: 5 # wait 5s for agent to start
+          periodSeconds: 5 # poll health every 5s
+          failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: diag
+          initialDelaySeconds: 5 # wait 5s for agent to register
+          periodSeconds: 5 # poll health every 5s
+          failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
+{{- if .Values.resources }}
+        resources:
+  {{- toYaml .Values.resources | nindent 10 }}
+{{- end }}
+        volumeMounts:
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /etc/teleport-secrets
+          name: "auth-token"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: "{{ .Release.Name }}-teleport-data"
+{{- if .Values.extraVolumeMounts }}
+  {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+{{- end }}
+      volumes:
+      - name: "config"
+        configMap:
+          name: {{ .Release.Name }}
+      - name: "auth-token"
+        secret:
+          secretName: {{ .Values.secretName }}
+{{- if .Values.extraVolumes }}
+  {{- toYaml .Values.extraVolumes | nindent 6 }}
+{{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: "{{ .Release.Name }}-teleport-data"
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ .Values.storage.storageClassName }}
+      resources:
+        requests:
+          storage: {{ .Values.storage.requests }}
+{{- end }}

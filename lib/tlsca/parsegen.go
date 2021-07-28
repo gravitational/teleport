@@ -42,25 +42,25 @@ func ClusterName(subject pkix.Name) (string, error) {
 	return subject.Organization[0], nil
 }
 
-// GenerateSelfSignedCA generates self-signed certificate authority used for internal inter-node communications
-func GenerateSelfSignedCAWithPrivateKey(priv *rsa.PrivateKey, entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
+// GenerateSelfSignedCAWithSigner generates self-signed certificate authority used for internal inter-node communications
+func GenerateSelfSignedCAWithSigner(signer crypto.Signer, entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, error) {
 	return GenerateSelfSignedCAWithConfig(GenerateCAConfig{
-		PrivateKey: priv,
-		Entity:     entity,
-		DNSNames:   dnsNames,
-		TTL:        ttl,
-		Clock:      clockwork.NewRealClock(),
+		Signer:   signer,
+		Entity:   entity,
+		DNSNames: dnsNames,
+		TTL:      ttl,
+		Clock:    clockwork.NewRealClock(),
 	})
 }
 
 // GenerateCAConfig defines the configuration for generating
 // self-signed CA certificates
 type GenerateCAConfig struct {
-	PrivateKey *rsa.PrivateKey
-	Entity     pkix.Name
-	DNSNames   []string
-	TTL        time.Duration
-	Clock      clockwork.Clock
+	Signer   crypto.Signer
+	Entity   pkix.Name
+	DNSNames []string
+	TTL      time.Duration
+	Clock    clockwork.Clock
 }
 
 // setDefaults imposes defaults on this configuration
@@ -73,7 +73,7 @@ func (r *GenerateCAConfig) setDefaults() {
 // GenerateSelfSignedCAWithConfig generates a new CA certificate from the specified
 // configuration.
 // Returns PEM-encoded private key/certificate payloads upon success
-func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (keyPEM []byte, certPEM []byte, err error) {
+func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, err error) {
 	config.setDefaults()
 	notBefore := config.Clock.Now()
 	notAfter := notBefore.Add(config.TTL)
@@ -81,7 +81,7 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (keyPEM []byte, cer
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// this is important, otherwise go will accept certificate authorities
 	// signed by the same private key and having the same subject (happens in tests)
@@ -99,24 +99,24 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (keyPEM []byte, cer
 		DNSNames:              config.DNSNames,
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &config.PrivateKey.PublicKey, config.PrivateKey)
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, config.Signer.Public(), config.Signer)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(config.PrivateKey)})
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-
-	return keyPEM, certPEM, nil
+	return certPEM, nil
 }
 
 // GenerateSelfSignedCA generates self-signed certificate authority used for internal inter-node communications
 func GenerateSelfSignedCA(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return GenerateSelfSignedCAWithPrivateKey(priv, entity, dnsNames, ttl)
+	certPEM, err := GenerateSelfSignedCAWithSigner(priv, entity, dnsNames, ttl)
+	return keyPEM, certPEM, err
 }
 
 // ParseCertificateRequestPEM parses PEM-encoded certificate signing request
@@ -231,6 +231,14 @@ func MarshalPublicKeyFromPrivateKeyPEM(privateKey crypto.PrivateKey) ([]byte, er
 		return nil, trace.Wrap(err)
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: derBytes}), nil
+}
+
+// MarshalPrivateKeyPEM marshals provided rsa.PrivateKey into PEM format.
+func MarshalPrivateKeyPEM(privateKey *rsa.PrivateKey) []byte {
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+	})
 }
 
 // MarshalCertificatePEM takes a *x509.Certificate and returns the PEM

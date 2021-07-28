@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -139,20 +140,27 @@ func NewAdminRole() types.Role {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
-	role, _ := types.NewRole(constants.DefaultImplicitRole, types.RoleSpecV4{
-		Options: types.RoleOptions{
-			MaxSessionTTL: types.MaxDuration(),
-			// PortForwarding has to be set to false in the default-implicit-role
-			// otherwise all roles will be allowed to forward ports (since we default
-			// to true in the check).
-			PortForwarding: types.NewBoolOption(false),
+	return &types.RoleV4{
+		Kind:    types.KindRole,
+		Version: types.V3,
+		Metadata: types.Metadata{
+			Name:      constants.DefaultImplicitRole,
+			Namespace: apidefaults.Namespace,
 		},
-		Allow: types.RoleConditions{
-			Namespaces: []string{defaults.Namespace},
-			Rules:      types.CopyRulesSlice(DefaultImplicitRules),
+		Spec: types.RoleSpecV4{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.MaxDuration(),
+				// PortForwarding has to be set to false in the default-implicit-role
+				// otherwise all roles will be allowed to forward ports (since we default
+				// to true in the check).
+				PortForwarding: types.NewBoolOption(false),
+			},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
+			},
 		},
-	})
-	return role
+	}
 }
 
 // RoleForUser creates an admin role for a services.User.
@@ -337,94 +345,66 @@ func validateRule(r types.Rule) error {
 	return nil
 }
 
+func filterInvalidUnixLogins(candidates []string) []string {
+	// The tests for `ApplyTraits()` require that an empty list is nil
+	// rather than a 0-size slice, and I don't understand the potential
+	// knock-on effects of changing that, so the  default value is `nil`
+	output := []string(nil)
+
+	for _, candidate := range candidates {
+		if !cstrings.IsValidUnixUser(candidate) {
+			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+			continue
+		}
+
+		// A valid variable was found in the traits, append it to the list of logins.
+		output = append(output, candidate)
+	}
+	return output
+}
+
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
 func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 	for _, condition := range []types.RoleConditionType{Allow, Deny} {
 		inLogins := r.GetLogins(condition)
+		outLogins := applyValueTraitsSlice(inLogins, traits, "login")
+		outLogins = filterInvalidUnixLogins(outLogins)
+		r.SetLogins(condition, apiutils.Deduplicate(outLogins))
 
-		var outLogins []string
-		for _, login := range inLogins {
-			variableValues, err := ApplyValueTraits(login, traits)
+		inRoleARNs := r.GetAWSRoleARNs(condition)
+		var outRoleARNs []string
+		for _, arn := range inRoleARNs {
+			variableValues, err := ApplyValueTraits(arn, traits)
 			if err != nil {
 				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping login %v: %v.", login, err)
+					log.Debugf("Skipping AWS role ARN %v: %v.", arn, err)
 				}
 				continue
 			}
-
-			// Filter out logins that come from variables that are not valid Unix logins.
-			for _, variableValue := range variableValues {
-				if !cstrings.IsValidUnixUser(variableValue) {
-					log.Debugf("Skipping login %v, not a valid Unix login.", variableValue)
-					continue
-				}
-
-				// A valid variable was found in the traits, append it to the list of logins.
-				outLogins = append(outLogins, variableValue)
-			}
+			outRoleARNs = append(outRoleARNs, variableValues...)
 		}
-
-		r.SetLogins(condition, apiutils.Deduplicate(outLogins))
+		r.SetAWSRoleARNs(condition, apiutils.Deduplicate(outRoleARNs))
 
 		// apply templates to kubernetes groups
 		inKubeGroups := r.GetKubeGroups(condition)
-		var outKubeGroups []string
-		for _, group := range inKubeGroups {
-			variableValues, err := ApplyValueTraits(group, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping kube group %v: %v.", group, err)
-				}
-				continue
-			}
-			outKubeGroups = append(outKubeGroups, variableValues...)
-		}
+		outKubeGroups := applyValueTraitsSlice(inKubeGroups, traits, "kube group")
 		r.SetKubeGroups(condition, apiutils.Deduplicate(outKubeGroups))
 
 		// apply templates to kubernetes users
 		inKubeUsers := r.GetKubeUsers(condition)
-		var outKubeUsers []string
-		for _, user := range inKubeUsers {
-			variableValues, err := ApplyValueTraits(user, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping kube user %v: %v.", user, err)
-				}
-				continue
-			}
-			outKubeUsers = append(outKubeUsers, variableValues...)
-		}
+		outKubeUsers := applyValueTraitsSlice(inKubeUsers, traits, "kube user")
 		r.SetKubeUsers(condition, apiutils.Deduplicate(outKubeUsers))
 
 		// apply templates to database names
 		inDbNames := r.GetDatabaseNames(condition)
-		var outDbNames []string
-		for _, name := range inDbNames {
-			variableValues, err := ApplyValueTraits(name, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping database name %q: %v.", name, err)
-				}
-				continue
-			}
-			outDbNames = append(outDbNames, variableValues...)
-		}
+		outDbNames := applyValueTraitsSlice(inDbNames, traits, "database name")
 		r.SetDatabaseNames(condition, apiutils.Deduplicate(outDbNames))
 
 		// apply templates to database users
+
 		inDbUsers := r.GetDatabaseUsers(condition)
-		var outDbUsers []string
-		for _, user := range inDbUsers {
-			variableValues, err := ApplyValueTraits(user, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping database user %q: %v.", user, err)
-				}
-				continue
-			}
-			outDbUsers = append(outDbUsers, variableValues...)
-		}
+		outDbUsers := applyValueTraitsSlice(inDbUsers, traits, "database user")
 		r.SetDatabaseUsers(condition, apiutils.Deduplicate(outDbUsers))
 
 		// apply templates to node labels
@@ -460,26 +440,8 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		// apply templates to impersonation conditions
 		inCond := r.GetImpersonateConditions(condition)
 		var outCond types.ImpersonateConditions
-		for _, user := range inCond.Users {
-			variableValues, err := ApplyValueTraits(user, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.WithError(err).Debugf("Skipping impersonate user %q.", user)
-				}
-				continue
-			}
-			outCond.Users = append(outCond.Users, variableValues...)
-		}
-		for _, role := range inCond.Roles {
-			variableValues, err := ApplyValueTraits(role, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.WithError(err).Debugf("Skipping impersonate role %q.", role)
-				}
-				continue
-			}
-			outCond.Roles = append(outCond.Roles, variableValues...)
-		}
+		outCond.Users = applyValueTraitsSlice(inCond.Users, traits, "impersonate user")
+		outCond.Roles = applyValueTraitsSlice(inCond.Roles, traits, "impersonate role")
 		outCond.Users = apiutils.Deduplicate(outCond.Users)
 		outCond.Roles = apiutils.Deduplicate(outCond.Roles)
 		outCond.Where = inCond.Where
@@ -487,6 +449,23 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 	}
 
 	return r
+}
+
+// applyValueTraitsSlice iterates over a slice of input strings, calling
+// ApplyValueTraits on each.
+func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldName string) []string {
+	var output []string
+	for _, value := range inputs {
+		outputs, err := ApplyValueTraits(value, traits)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				log.WithError(err).Debugf("Skipping %s %q.", fieldName, value)
+			}
+			continue
+		}
+		output = append(output, outputs...)
+	}
+	return output
 }
 
 // applyLabelsTraits interpolates variables based on the templates
@@ -742,6 +721,9 @@ type AccessChecker interface {
 	// and returns two lists of combined allowed groups and users
 	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) (groups []string, users []string, err error)
 
+	// CheckAWSRoleARNs returns a list of AWS role ARNs role is allowed to assume.
+	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
+
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
 	AdjustSessionTTL(ttl time.Duration) time.Duration
@@ -783,10 +765,10 @@ type AccessChecker interface {
 	EnhancedRecordingSet() map[string]bool
 
 	// CheckAccessToApp checks access to an application.
-	CheckAccessToApp(login string, app *types.App, mfa AccessMFAParams) error
+	CheckAccessToApp(namespace string, app *types.App, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckAccessToKubernetes checks access to a kubernetes cluster.
-	CheckAccessToKubernetes(login string, app *types.KubernetesCluster, mfa AccessMFAParams) error
+	CheckAccessToKubernetes(namespace string, app *types.KubernetesCluster, mfa AccessMFAParams) error
 
 	// CheckDatabaseNamesAndUsers returns database names and users this role
 	// is allowed to use.
@@ -991,6 +973,16 @@ func MatchLogin(selectors []string, login string) (bool, string) {
 		}
 	}
 	return false, fmt.Sprintf("no match, role selectors %v, login: %v", selectors, login)
+}
+
+// MatchAWSRoleARN returns true if provided role ARN matches selectors.
+func MatchAWSRoleARN(selectors []string, roleARN string) (bool, string) {
+	for _, l := range selectors {
+		if l == roleARN {
+			return true, "matched"
+		}
+	}
+	return false, fmt.Sprintf("no match, role selectors %v, role ARN: %v", selectors, roleARN)
 }
 
 // MatchDatabaseName returns true if provided database name matches selectors.
@@ -1227,6 +1219,33 @@ func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL boo
 	return utils.StringsSliceFromSet(names), utils.StringsSliceFromSet(users), nil
 }
 
+// CheckAWSRoleARNs returns a list of AWS role ARNs this role set is allowed to assume.
+func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error) {
+	arns := make(map[string]struct{})
+	var matchedTTL bool
+	for _, role := range set {
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
+			matchedTTL = true
+			for _, arn := range role.GetAWSRoleARNs(Allow) {
+				arns[arn] = struct{}{}
+			}
+		}
+	}
+	for _, role := range set {
+		for _, arn := range role.GetAWSRoleARNs(Deny) {
+			delete(arns, arn)
+		}
+	}
+	if !matchedTTL {
+		return nil, trace.AccessDenied("this user cannot request AWS management console access for %v", ttl)
+	}
+	if len(arns) == 0 {
+		return nil, trace.NotFound("this user cannot request AWS management console, has no assigned role ARNs")
+	}
+	return utils.StringsSliceFromSet(arns), nil
+}
+
 // CheckLoginDuration checks if role set can login up to given duration and
 // returns a combined list of allowed logins.
 func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
@@ -1441,10 +1460,26 @@ func (set RoleSet) CheckAccessToServer(login string, s types.Server, mfa AccessM
 	return trace.AccessDenied("access to server denied")
 }
 
+// AWSRoleARNMatcher matches a role against AWS role ARN.
+type AWSRoleARNMatcher struct {
+	RoleARN string
+}
+
+// Match matches database account name against provided role and condition.
+func (m *AWSRoleARNMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	match, _ := MatchAWSRoleARN(role.GetAWSRoleARNs(condition), m.RoleARN)
+	return match, nil
+}
+
+// String returns the matcher's string representation.
+func (m *AWSRoleARNMatcher) String() string {
+	return fmt.Sprintf("AWSRoleARNMatcher(RoleARN=%v)", m.RoleARN)
+}
+
 // CheckAccessToApp checks if a role has access to an application. Deny rules
 // are checked first, then allow rules. Access to an application is determined by
 // namespaces and labels.
-func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa AccessMFAParams) error {
+func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa AccessMFAParams, matchers ...RoleMatcher) error {
 	if mfa.AlwaysRequired && !mfa.Verified {
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
@@ -1461,7 +1496,11 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if matchNamespace && matchLabels {
+		matchMatchers, _, err := RoleMatchers(matchers).MatchAny(role, Deny)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && (matchLabels || matchMatchers) {
 			if log.GetLevel() == log.DebugLevel {
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
@@ -1480,7 +1519,11 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if matchNamespace && matchLabels {
+		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, Allow)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && matchLabels && matchMatchers {
 			if mfa.Verified {
 				return nil
 			}

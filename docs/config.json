@@ -6,7 +6,14 @@
       "entries": [
         { "title": "Introduction", "slug": "/" },
         { "title": "Adopters", "slug": "/adopters/" },
-        { "title": "Getting Started", "slug": "/getting-started/" },
+        {
+          "title": "Getting Started",
+          "slug": "/getting-started/",
+           "entries": [
+            { "title": "Linux Server", "slug": "/getting-started/linux-server/" },
+            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" }
+          ]
+        },
         { "title": "Installation", "slug": "/installation/" },
         { "title": "User Manual", "slug": "/user-manual/" },
         { "title": "Admin Manual", "slug": "/admin-guide/" },
@@ -20,11 +27,20 @@
       "title": "Setup",
       "entries": [
         {
-          "title": "Guides",
+          "title": "Deployments",
+          "slug": "/setup/deployments/",
+          "entries": [
+            { "title": "AWS Terraform", "slug": "/setup/deployments/aws-terraform/" },
+            { "title": "GCP", "slug": "/setup/deployments/gcp/" },
+            { "title": "IBM", "slug": "/setup/deployments/ibm/" }
+          ]
+        },
+        {
+          "title": "Integrations",
           "slug": "/setup/guides/",
           "entries": [
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
-            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" },
+            { "title": "Docker", "slug": "/setup/guides/docker/" },
             { "title": "Fluentd", "slug": "/setup/guides/fluentd/" }
           ]
         },
@@ -49,7 +65,8 @@
           "entries": [
             { "title": "Connecting Apps", "slug": "/application-access/guides/connecting-apps/" },
             { "title": "Integrating with JWT", "slug": "/application-access/guides/jwt/" },
-            { "title": "API Access", "slug": "/application-access/guides/api-access/" }
+            { "title": "API Access", "slug": "/application-access/guides/api-access/" },
+            { "title": "AWS Console Access", "slug": "/application-access/guides/aws-console/" }
           ]
         },
         { "title": "Access Controls", "slug": "/application-access/controls/" },
@@ -78,7 +95,14 @@
       "title": "Kubernetes Access",
       "entries": [
         { "title": "Introduction", "slug": "/kubernetes-access/introduction/" },
-        { "title": "Getting Started", "slug": "/kubernetes-access/getting-started/" },
+        {
+          "title": "Getting Started",
+          "slug": "/kubernetes-access/getting-started/",
+           "entries": [
+            { "title": "Cluster", "slug": "/kubernetes-access/getting-started/cluster/" },
+            { "title": "Agent", "slug": "/kubernetes-access/getting-started/agent/" }
+          ]
+        },
         {
           "title": "Guides",
           "slug": "/kubernetes-access/guides/",
@@ -169,14 +193,6 @@
       ]
     },
     {
-      "icon": "book",
-      "title": "Infrastructure Guides",
-      "entries": [
-        { "title": "GCP", "slug": "/gcp-guide/" },
-        { "title": "IBM", "slug": "/ibm-cloud-guide/" }
-      ]
-    },
-    {
       "icon": "building",
       "title": "Teleport Enterprise",
       "entries": [
@@ -200,6 +216,13 @@
       "entries": [
         { "title": "Introduction", "slug": "/cloud/introduction/" },
         { "title": "Getting Started", "slug": "/cloud/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/cloud/guides/",
+          "entries": [
+            { "title": "U2f", "slug": "/cloud/guides/u2f/" }
+          ]
+        },        
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
       ]
@@ -243,11 +266,23 @@
     "terraform": {
       "version": "0.12.0"
     },
+    "soc2": {
+      "last_report": "April 12th, 2021"
+    },
+    "cloud": {
+      "sla": {
+        "monthly_percentage": "99.5%",
+        "monthly_downtime": "3 hours 40 minutes"
+      }
+    },
     "fluentd": {
       "version": "1.12.4"
     },
     "docker": {
-      "version": "20.10.7"
+      "version": "20.10.7",
+      "compose": {
+        "version": "1.25.0"
+      }
     },
     "kubernetes": {
       "major_version": "1",
@@ -268,6 +303,26 @@
     }
   },
   "redirects": [
+    {
+      "source": "/gcp-guide/",
+      "destination": "/setup/deployments/gcp/",
+      "permanent": true
+    },    
+    {
+      "source": "/ibm-cloud-guide/",
+      "destination": "/setup/deployments/ibm/",
+      "permanent": true
+    },
+    {
+      "source": "/aws-terraform-guide/",
+      "destination": "/setup/deployments/aws-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/guides/docker-compose/",
+      "destination": "/setup/guides/docker/",
+      "permanent": true
+    },
     {
       "source": "/cloud/",
       "destination": "/cloud/introduction/",
@@ -335,7 +390,7 @@
     },
     {
       "source": "/quickstart-docker/",
-      "destination": "/setup/guides/docker-compose/",
+      "destination": "/setup/guides/docker/",
       "permanent": true
     }
   ]

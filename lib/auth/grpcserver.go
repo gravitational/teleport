@@ -99,13 +99,18 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 // SendKeepAlives allows node to send a stream of keep alive requests
 func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServer) error {
 	defer stream.SendAndClose(&empty.Empty{})
-	auth, err := g.authenticate(stream.Context())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
-	heartbeatConnectionsReceived.Inc()
+	firstIteration := true
 	for {
+		// Authenticate within the loop to block locked-out nodes from heartbeating.
+		auth, err := g.authenticate(stream.Context())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if firstIteration {
+			g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
+			heartbeatConnectionsReceived.Inc()
+			firstIteration = false
+		}
 		keepAlive, err := stream.Recv()
 		if err == io.EOF {
 			g.Debugf("Connection closed.")
@@ -418,6 +423,10 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 	case *types.LockV2:
 		out.Resource = &proto.Event_Lock{
 			Lock: r,
+		}
+	case *types.NetworkRestrictionsV4:
+		out.Resource = &proto.Event_NetworkRestrictions{
+			NetworkRestrictions: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -1070,6 +1079,7 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppS
 		Username:    req.GetUsername(),
 		PublicAddr:  req.GetPublicAddr(),
 		ClusterName: req.GetClusterName(),
+		AWSRoleARN:  req.GetAWSRoleARN(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2695,6 +2705,49 @@ func (g *GRPCServer) StreamSessionEvents(req *proto.StreamSessionEventsRequest, 
 	}
 }
 
+// GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
+func (g *GRPCServer) GetNetworkRestrictions(ctx context.Context, _ *empty.Empty) (*types.NetworkRestrictionsV4, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	nr, err := auth.ServerWithRoles.GetNetworkRestrictions(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	restrictionsV4, ok := nr.(*types.NetworkRestrictionsV4)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected type %T", nr))
+	}
+	return restrictionsV4, nil
+}
+
+// SetNetworkRestrictions updates the network restrictions.
+func (g *GRPCServer) SetNetworkRestrictions(ctx context.Context, nr *types.NetworkRestrictionsV4) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err = auth.ServerWithRoles.SetNetworkRestrictions(ctx, nr); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions.
+func (g *GRPCServer) DeleteNetworkRestrictions(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err = auth.ServerWithRoles.DeleteNetworkRestrictions(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 // GetEvents searches for events on the backend and sends them back in a response.
 func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest) (*proto.Events, error) {
 	auth, err := g.authenticate(ctx)
@@ -2770,7 +2823,7 @@ func (g *GRPCServer) GetLock(ctx context.Context, req *proto.GetLockRequest) (*t
 	return lockV2, nil
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 func (g *GRPCServer) GetLocks(ctx context.Context, req *proto.GetLocksRequest) (*proto.GetLocksResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2780,7 +2833,7 @@ func (g *GRPCServer) GetLocks(ctx context.Context, req *proto.GetLocksRequest) (
 	for i := range req.Targets {
 		targets[i] = *req.Targets[i]
 	}
-	locks, err := auth.GetLocks(ctx, targets...)
+	locks, err := auth.GetLocks(ctx, req.InForceOnly, targets...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

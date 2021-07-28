@@ -17,11 +17,43 @@ limitations under the License.
 package services
 
 import (
+	"fmt"
+
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
+
+// LockInForceMessage returns an informational message for locked-out users.
+func LockInForceMessage(lock types.Lock) string {
+	s := fmt.Sprintf("lock targeting %v is in force", lock.Target())
+	msg := lock.Message()
+	if len(msg) > 0 {
+		s += ": " + msg
+	}
+	return s
+}
+
+// LockTargetsFromTLSIdentity infers a list of LockTargets from tlsca.Identity.
+func LockTargetsFromTLSIdentity(id tlsca.Identity) []types.LockTarget {
+	lockTargets := append(RolesToLockTargets(id.Groups), types.LockTarget{User: id.Username})
+	if id.MFAVerified != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: id.MFAVerified})
+	}
+	return lockTargets
+}
+
+// RolesToLockTargets converts a list of roles to a list of LockTargets
+// (one LockTarget per role).
+func RolesToLockTargets(roles []string) []types.LockTarget {
+	lockTargets := make([]types.LockTarget, 0, len(roles))
+	for _, role := range roles {
+		lockTargets = append(lockTargets, types.LockTarget{Role: role})
+	}
+	return lockTargets
+}
 
 // UnmarshalLock unmarshals the Lock resource from JSON.
 func UnmarshalLock(bytes []byte, opts ...MarshalOption) (types.Lock, error) {

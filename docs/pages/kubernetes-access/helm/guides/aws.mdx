@@ -106,6 +106,7 @@ You'll need to replace these values in the policy example below:
                 "s3:GetEncryptionConfiguration",
                 "s3:GetObjectRetention",
                 "s3:ListBucketVersions",
+                "s3:ListBucketMultipartUploads",
                 "s3:CreateBucket",
                 "s3:ListBucket",
                 "s3:GetBucketVersioning",
@@ -411,7 +412,7 @@ helm --namespace cert-manager uninstall cert-manager
 
 ## Next steps
 
-You can follow our [Getting Started with Teleport guide](../../../getting-started.mdx#step-24-create-a-teleport-user-and-set-up-two-factor-authentication) to finish setting up your
+You can follow our [Getting Started with Teleport guide](../../../setup/guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
 Teleport cluster.
 
 See the [high availability section of our Helm chart reference](../reference.mdx#highavailability) for more details on high availability.

@@ -104,7 +104,7 @@ You can optionally override this to use a different published Teleport Docker im
 
 See these links for information on Docker image versions:
 
-- [Community Docker image information](../../setup/guides/docker-compose.mdx#pick-your-image)
+- [Community Docker image information](../../setup/guides/docker.mdx#step-14-pick-your-image)
 - [Enterprise Docker image information](../../enterprise/quickstart-enterprise.mdx#run-teleport-enterprise-using-docker)
 
 <Tabs>
@@ -1208,7 +1208,7 @@ Normally the version of Teleport being used will match the version of the chart 
 
 You can optionally override this to use a different published Teleport Docker image tag like `6.0.2` or `7`.
 
-See [this link for information on Community Docker image versions](../../setup/guides/docker-compose.mdx#pick-your-image).
+See [this link for information on Community Docker image versions](../../setup/guides/docker.mdx#step-14-pick-your-image).
 
 <Admonition type="note">
   The `teleport-kube-agent` chart always runs using Teleport Community edition as it does not require any Enterprise features, so it does
@@ -1322,6 +1322,79 @@ These labels can then be used with Teleport's RBAC policies to define access rul
   ```bash
   --set labels.environment=production \
   --set labels.region=us-east
+  ```
+  </TabItem>
+</Tabs>
+
+## `storage`
+
+### `storage.enabled`
+
+| Type | Default value |
+| - | - |
+| `bool` | `false` |
+
+Enables the creation of a Kubernetes persistent volume to hold Teleport agent state.
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  storage:
+    enabled: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```bash
+  --set storage.enabled=true
+  ```
+  </TabItem>
+</Tabs>
+
+### `storage.storageClassName`
+
+| Type | Default value |
+| - | - |
+| `string` | `nil` |
+
+The storage class name the persistent volume should use when creating persistent volume claims. The provided storage class
+name needs to exist on the Kubernetes cluster for Teleport to use.
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/storage/storage-classes/)
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  storage:
+    storageClassName: teleport-storage-class
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```bash
+  --set storage.storageClassName=teleport-storage-class
+  ```
+  </TabItem>
+</Tabs>
+
+### `storage.requests`
+
+| Type | Default value |
+| - | - |
+| `string` | `128Mi` |
+
+The size of persistent volume to create.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  storage:
+    requests: 128Mi
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```bash
+  --set storage.requests=128Mi
   ```
   </TabItem>
 </Tabs>
@@ -1550,6 +1623,32 @@ Kubernetes affinity to set for pod assignments.
   --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=gravitational.io/dedicated \
   --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In \
   --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=teleport
+  ```
+  </TabItem>
+</Tabs>
+
+## `nodeSelector`
+
+| Type | Default value |
+| - | - |
+| `object` | `{}` |
+
+`nodeSelector` can be used to add a map of key-value pairs to constrain the nodes the agent pods will run on. 
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/)
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  nodeSelector:
+    role: node
+    region: us-east
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```bash
+  --set nodeSelector.role=node \
+  --set nodeSelector.region=us-east
   ```
   </TabItem>
 </Tabs>
