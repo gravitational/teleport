@@ -24,7 +24,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 
 	radix "github.com/armon/go-radix"
 	"github.com/gravitational/trace"
