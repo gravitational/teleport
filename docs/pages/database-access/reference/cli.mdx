@@ -70,6 +70,26 @@ $ tctl db ls --format=yaml
 | - | - |
 | `--format` | Output format, one of `text`, `yaml` or `json`. Defaults to `text`. |
 
+## tctl get db
+
+Prints the list of all configured database resources.
+
+| Flag | Description |
+| - | - |
+| `--format` | Output format, one of `text`, `yaml` or `json`. Defaults to `yaml`. |
+
+## tctl get db/database-resource-name
+
+Prints details about `database-resource-name` database resource.
+
+| Flag | Description |
+| - | - |
+| `--format` | Output format, one of `text`, `yaml` or `json`. Defaults to `yaml`. |
+
+## tctl rm db/database-resource-name
+
+Removes database resource called `database-resource-name`.
+
 ## tsh db ls
 
 Lists available databases and their connection information.
