@@ -550,7 +550,7 @@ enter:
 # grpc generates GRPC stubs from service definitions
 .PHONY: grpc
 grpc:
-	make -C build.assets grpc
+	$(MAKE) -C build.assets grpc
 
 # buildbox-grpc generates GRPC stubs inside buildbox
 .PHONY: buildbox-grpc
@@ -744,7 +744,7 @@ update-vendor:
 	go mod vendor
 	# delete the vendored api package. In its place
 	# create a symlink to the the original api package
-	rm -r vendor/github.com/gravitational/teleport/api/v7
+	rm -rf vendor/github.com/gravitational/teleport/api/*
 	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport/api/v7
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
