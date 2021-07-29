@@ -4,9 +4,9 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
-import "github.com/gravitational/teleport/api/types/types.proto";
-import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
-import "github.com/gravitational/teleport/api/types/events/events.proto";
+import "github.com/gravitational/teleport/api/v7/types/types.proto";
+import "github.com/gravitational/teleport/api/v7/types/wrappers/wrappers.proto";
+import "github.com/gravitational/teleport/api/v7/types/events/events.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -259,7 +259,7 @@ message RequestStateSetter {
     wrappers.LabelValues Annotations = 5 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "annotations,omitempty",
-        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/v7/types/wrappers.Traits"
     ];
     // Roles, if present, overrides the existing set of roles associated
     // with the access request.
