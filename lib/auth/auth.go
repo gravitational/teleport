@@ -2313,9 +2313,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			err := checker.CheckAccessToServer(t.Node.Login, n, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
 
 			// Ignore other errors; they'll be caught on the real access attempt.
-			if err == nil {
-				continue
-			} else if errors.Is(err, services.ErrSessionMFARequired) {
+			if err != nil && errors.Is(err, services.ErrSessionMFARequired) {
 				noMFAAccessErr = err
 				break
 			}
