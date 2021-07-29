@@ -1,3 +1,19 @@
+/*
+Copyright 2021 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package keystore
 
 import (
@@ -58,10 +74,7 @@ func NewHSMKeyStore(config *HSMConfig) (KeyStore, error) {
 	}, nil
 }
 
-// GenerateRSA creates a new RSA private key and returns its identifier and a
-// crypto.Signer. The returned identifier can be passed to GetSigner later to
-// get the same crypto.Signer.
-func (c *hsmKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
+func (c *hsmKeyStore) findUnusedID() (uuid.UUID, error) {
 	var id uuid.UUID
 	var err error
 
@@ -77,12 +90,13 @@ func (c *hsmKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
 	for ; iterations < maxIterations; iterations++ {
 		id, err = uuid.NewRandom()
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return id, trace.Wrap(err)
 		}
 		existingSigner, err := c.ctx.FindKeyPair(id[:], label)
-		// some HSMs (like YubiHSM2) will return signer == nil && err == nil if
-		// no match is found
-		if err != nil || existingSigner == nil {
+		if err != nil {
+			return id, trace.Wrap(err)
+		}
+		if existingSigner == nil {
 			// failed to find an existing keypair, so this ID is unique
 			break
 		} else {
@@ -90,7 +104,18 @@ func (c *hsmKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
 		}
 	}
 	if iterations == maxIterations {
-		return nil, nil, trace.AlreadyExists("failed to find unused CKA_ID for HSM")
+		return id, trace.AlreadyExists("failed to find unused CKA_ID for HSM")
+	}
+	return id, nil
+}
+
+// GenerateRSA creates a new RSA private key and returns its identifier and a
+// crypto.Signer. The returned identifier can be passed to GetSigner later to
+// get the same crypto.Signer.
+func (c *hsmKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
+	id, err := c.findUnusedID()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	signer, err := c.ctx.GenerateRSAKeyPairWithLabel(id[:], label, teleport.RSAKeySize)
@@ -105,7 +130,7 @@ func (c *hsmKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
 
 	keyID, err := key.marshal()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, trace.Wrap(err)
 	}
 	return keyID, signer, nil
 }
@@ -120,7 +145,7 @@ func (c *hsmKeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
 			return nil, trace.Wrap(err)
 		}
 		if keyID.HostID != c.hostUUID {
-			return nil, trace.NotFound("pkcs11 key is for different host")
+			return nil, trace.NotFound("given pkcs11 key is for host: %q, but this host is: %q", keyID.HostID, c.hostUUID)
 		}
 		pkcs11ID, err := keyID.pkcs11Key()
 		if err != nil {
@@ -142,9 +167,6 @@ func (c *hsmKeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
 
 func (c *hsmKeyStore) selectTLSKeyPair(ca types.CertAuthority) (*types.TLSKeyPair, error) {
 	keyPairs := ca.GetActiveKeys().TLS
-	if len(keyPairs) == 0 {
-		return nil, trace.NotFound("no TLS key pairs found in CA for %q", ca.GetClusterName())
-	}
 	for _, keyPair := range keyPairs {
 		if keyPair.KeyType == types.PrivateKeyType_PKCS11 {
 			keyID, err := parseKeyID(keyPair.Key)
@@ -157,7 +179,7 @@ func (c *hsmKeyStore) selectTLSKeyPair(ca types.CertAuthority) (*types.TLSKeyPai
 			return keyPair, nil
 		}
 	}
-	return nil, trace.NotFound("no local PKCS#11 TLS key pairs found in CA for %q", ca.GetClusterName())
+	return nil, trace.NotFound("no local PKCS#11 TLS key pairs found in %s CA for %q", ca.GetType(), ca.GetClusterName())
 }
 
 // GetTLSCertAndSigner selects the local TLS keypair and returns the raw TLS cert and crypto.Signer.
@@ -181,9 +203,6 @@ func (c *hsmKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypt
 
 func (c *hsmKeyStore) selectSSHKeyPair(ca types.CertAuthority) (*types.SSHKeyPair, error) {
 	keyPairs := ca.GetActiveKeys().SSH
-	if len(keyPairs) == 0 {
-		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
-	}
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_PKCS11 {
 			keyID, err := parseKeyID(keyPair.PrivateKey)
@@ -196,7 +215,7 @@ func (c *hsmKeyStore) selectSSHKeyPair(ca types.CertAuthority) (*types.SSHKeyPai
 			return keyPair, nil
 		}
 	}
-	return nil, trace.NotFound("no local PKCS#11  SSH key pairs found in CA for %q", ca.GetClusterName())
+	return nil, trace.NotFound("no local PKCS#11 SSH key pairs found in %s CA for %q", ca.GetType(), ca.GetClusterName())
 }
 
 // GetSSHSigner selects the local SSH keypair and returns an ssh.Signer.
@@ -221,9 +240,6 @@ func (c *hsmKeyStore) GetSSHSigner(ca types.CertAuthority) (sshSigner ssh.Signer
 // GetJWTSigner returns the active jwt signer used to sign tokens.
 func (c *hsmKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
 	keyPairs := ca.GetActiveKeys().JWT
-	if len(keyPairs) == 0 {
-		return nil, trace.NotFound("no JWT keypairs found")
-	}
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_PKCS11 {
 			keyID, err := parseKeyID(keyPair.PrivateKey)
@@ -240,7 +256,7 @@ func (c *hsmKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error
 			return signer, nil
 		}
 	}
-	return nil, trace.NotFound("no local PKCS#11 JWT key pairs found in CA for %q", ca.GetClusterName())
+	return nil, trace.NotFound("no local PKCS#11 JWT key pairs found in %s CA for %q", ca.GetType(), ca.GetClusterName())
 }
 
 // DeleteKey deletes the given key from the HSM
@@ -296,7 +312,6 @@ func parseKeyID(key []byte) (keyID, error) {
 	// strip pkcs11: prefix
 	key = key[len(pkcs11Prefix):]
 	if err := json.Unmarshal(key, &keyID); err != nil {
-		//return keyID, trace.BadParameter("unable to parse invalid pkcs11 key")
 		return keyID, trace.Wrap(err)
 	}
 	return keyID, nil
