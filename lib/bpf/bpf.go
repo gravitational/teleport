@@ -25,6 +25,7 @@ import "C"
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/binary"
 	"net"
 	"strconv"
@@ -41,6 +42,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 )
+
+//go:embed bytecode
+var embedFS embed.FS
 
 // SessionWatch is a map of cgroup IDs that the BPF service is watching and
 // emitting events for.
@@ -75,7 +79,6 @@ func (w *SessionWatch) Remove(cgroupID uint64) {
 
 	delete(w.watch, cgroupID)
 }
-
 
 // Service manages BPF and control groups orchestration.
 type Service struct {
