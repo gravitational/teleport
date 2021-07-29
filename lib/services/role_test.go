@@ -1545,6 +1545,8 @@ func TestApplyTraits(t *testing.T) {
 	type rule struct {
 		inLogins       []string
 		outLogins      []string
+		inRoleARNs     []string
+		outRoleARNs    []string
 		inLabels       types.Labels
 		outLabels      types.Labels
 		inKubeLabels   types.Labels
@@ -1609,6 +1611,26 @@ func TestApplyTraits(t *testing.T) {
 			deny: rule{
 				inLogins:  []string{`{{external.foo}}`},
 				outLogins: []string{"bar"},
+			},
+		},
+		{
+			comment: "AWS role ARN substitute in allow rule",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+			},
+			allow: rule{
+				inRoleARNs:  []string{"{{external.foo}}"},
+				outRoleARNs: []string{"bar"},
+			},
+		},
+		{
+			comment: "AWS role ARN substitute in deny rule",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+			},
+			deny: rule{
+				inRoleARNs:  []string{"{{external.foo}}"},
+				outRoleARNs: []string{"bar"},
 			},
 		},
 		{
@@ -2652,6 +2674,111 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 				err := tc.roles.CheckAccessToDatabase(access.server, AccessMFAParams{},
 					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()})
 				if access.access {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			}
+		})
+	}
+}
+
+// TestCheckAccessToAWSConsole verifies AWS role ARNs access checker.
+func TestCheckAccessToAWSConsole(t *testing.T) {
+	app := &types.App{
+		Name: "awsconsole",
+		URI:  constants.AWSConsoleURL,
+	}
+	readOnlyARN := "readonly"
+	fullAccessARN := "fullaccess"
+	roleNoAccess := &types.RoleV4{
+		Metadata: types.Metadata{
+			Name:      "noaccess",
+			Namespace: defaults.Namespace,
+		},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Namespaces:  []string{defaults.Namespace},
+				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AWSRoleARNs: []string{},
+			},
+		},
+	}
+	roleReadOnly := &types.RoleV4{
+		Metadata: types.Metadata{
+			Name:      "readonly",
+			Namespace: defaults.Namespace,
+		},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Namespaces:  []string{defaults.Namespace},
+				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AWSRoleARNs: []string{readOnlyARN},
+			},
+		},
+	}
+	roleFullAccess := &types.RoleV4{
+		Metadata: types.Metadata{
+			Name:      "fullaccess",
+			Namespace: defaults.Namespace,
+		},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Namespaces:  []string{defaults.Namespace},
+				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AWSRoleARNs: []string{readOnlyARN, fullAccessARN},
+			},
+		},
+	}
+	type access struct {
+		roleARN   string
+		hasAccess bool
+	}
+	tests := []struct {
+		name   string
+		roles  RoleSet
+		access []access
+	}{
+		{
+			name:  "empty role set",
+			roles: nil,
+			access: []access{
+				{roleARN: readOnlyARN, hasAccess: false},
+				{roleARN: fullAccessARN, hasAccess: false},
+			},
+		},
+		{
+			name:  "no access role",
+			roles: RoleSet{roleNoAccess},
+			access: []access{
+				{roleARN: readOnlyARN, hasAccess: false},
+				{roleARN: fullAccessARN, hasAccess: false},
+			},
+		},
+		{
+			name:  "readonly role",
+			roles: RoleSet{roleReadOnly},
+			access: []access{
+				{roleARN: readOnlyARN, hasAccess: true},
+				{roleARN: fullAccessARN, hasAccess: false},
+			},
+		},
+		{
+			name:  "full access role",
+			roles: RoleSet{roleFullAccess},
+			access: []access{
+				{roleARN: readOnlyARN, hasAccess: true},
+				{roleARN: fullAccessARN, hasAccess: true},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for _, access := range test.access {
+				err := test.roles.CheckAccessToApp(defaults.Namespace, app, AccessMFAParams{},
+					&AWSRoleARNMatcher{RoleARN: access.roleARN})
+				if access.hasAccess {
 					require.NoError(t, err)
 				} else {
 					require.Error(t, err)
