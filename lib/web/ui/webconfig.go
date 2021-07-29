@@ -16,7 +16,7 @@ limitations under the License.
 
 package ui
 
-import "github.com/gravitational/teleport/api/v7/constants"
+import "github.com/gravitational/teleport/api/constants"
 
 const (
 	// WebConfigAuthProviderOIDCType is OIDC provider type

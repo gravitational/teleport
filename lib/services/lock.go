@@ -19,7 +19,7 @@ package services
 import (
 	"fmt"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 

@@ -19,7 +19,7 @@ package services
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // LockGetter is a service that gets locks.

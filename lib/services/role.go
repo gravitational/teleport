@@ -27,11 +27,12 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -144,7 +145,7 @@ func NewImplicitRole() types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      constants.DefaultImplicitRole,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
@@ -155,7 +156,7 @@ func NewImplicitRole() types.Role {
 				PortForwarding: types.NewBoolOption(false),
 			},
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
 			},
 		},

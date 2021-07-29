@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/stretchr/testify/require"
