@@ -152,3 +152,25 @@ OS-specific backend services are responsible for creating the `${OS}Desktop`
 objects, including their RBAC labels.
 
 The schema for these objects is defined in their respective RFDs.
+
+### Session recording
+
+Video output in our desktop protocol uses bitmaps and not a standard video
+encoding format. We will record the video output data as-is, with timestamps
+added to each protocol message (or perhaps
+[APNG](https://en.wikipedia.org/wiki/APNG)).
+
+To playback session recordings, we will replay them in the same canvas-based JS
+code as the original session used live.
+
+#### Recording export
+
+Some users might want to export the recording for sharing. To allow playback
+outside of the Teleport web UI, the exported recording should use a standard
+video format like MP4 or WebM.
+
+To convert our storage format to the video format, we will use [wasm-based
+ffmpeg](https://github.com/ffmpegwasm/ffmpeg.wasm) in the browser. Conversion
+will happen on-demand during export and Teleport will not store the converted
+video file. The web UI code might need to first convert our internal storage
+format into one of the simpler formats that `ffmpeg` accepts as input.
