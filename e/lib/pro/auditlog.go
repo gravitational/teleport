@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	rclient "github.com/gravitational/reporting/client"
 	"github.com/gravitational/reporting/types"
-	apitypes "github.com/gravitational/teleport/api/v7/types"
+	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )

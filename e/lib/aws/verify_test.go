@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/fixtures"
 
 	check "gopkg.in/check.v1"

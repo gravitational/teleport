@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"

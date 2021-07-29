@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/defaults"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/backend"
 
