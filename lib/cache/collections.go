@@ -20,8 +20,8 @@ import (
 	"context"
 	"strings"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
+	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
@@ -2079,7 +2079,7 @@ func (c *lock) erase(ctx context.Context) error {
 }
 
 func (c *lock) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.Access.GetLocks(ctx)
+	resources, err := c.Access.GetLocks(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

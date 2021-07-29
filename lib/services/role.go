@@ -27,11 +27,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/v7/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/v7/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -139,20 +139,27 @@ func NewAdminRole() types.Role {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
-	role, _ := types.NewRole(constants.DefaultImplicitRole, types.RoleSpecV4{
-		Options: types.RoleOptions{
-			MaxSessionTTL: types.MaxDuration(),
-			// PortForwarding has to be set to false in the default-implicit-role
-			// otherwise all roles will be allowed to forward ports (since we default
-			// to true in the check).
-			PortForwarding: types.NewBoolOption(false),
+	return &types.RoleV4{
+		Kind:    types.KindRole,
+		Version: types.V3,
+		Metadata: types.Metadata{
+			Name:      constants.DefaultImplicitRole,
+			Namespace: defaults.Namespace,
 		},
-		Allow: types.RoleConditions{
-			Namespaces: []string{defaults.Namespace},
-			Rules:      types.CopyRulesSlice(DefaultImplicitRules),
+		Spec: types.RoleSpecV4{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.MaxDuration(),
+				// PortForwarding has to be set to false in the default-implicit-role
+				// otherwise all roles will be allowed to forward ports (since we default
+				// to true in the check).
+				PortForwarding: types.NewBoolOption(false),
+			},
+			Allow: types.RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
+			},
 		},
-	})
-	return role
+	}
 }
 
 // RoleForUser creates an admin role for a services.User.
