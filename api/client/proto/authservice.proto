@@ -460,6 +460,8 @@ message CreateAppSessionRequest {
     string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
     // ClusterName is cluster within which the application is running.
     string ClusterName = 4 [ (gogoproto.jsontag) = "cluster_name" ];
+    // AWSRoleARN is AWS role the user wants to assume.
+    string AWSRoleARN = 5 [ (gogoproto.jsontag) = "aws_role_arn" ];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -916,6 +918,8 @@ message GetLocksRequest {
     // Targets is a list of targets. Every returned lock must match at least
     // one of the targets.
     repeated types.LockTarget Targets = 1;
+    // InForceOnly specifies whether to return only those locks that are in force.
+    bool InForceOnly = 2;
 }
 
 message GetLocksResponse {
@@ -1202,7 +1206,7 @@ service AuthService {
 
     // GetLock gets a lock by name.
     rpc GetLock(GetLockRequest) returns (types.LockV2);
-    // GetLocks gets all locks, matching at least one of the targets when specified.
+    // GetLocks gets all/in-force locks that match at least one of the targets when specified.
     rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
     // UpsertLock upserts a lock.
     rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);

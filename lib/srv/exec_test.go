@@ -35,9 +35,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/v7/types"
+	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	apisshutils "github.com/gravitational/teleport/api/v7/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -515,6 +515,10 @@ func (f *fakeServer) GetBPF() bpf.BPF {
 
 func (f *fakeServer) GetRestrictedSessionManager() restricted.Manager {
 	return &restricted.NOP{}
+}
+
+func (f *fakeServer) GetLockWatcher() *services.LockWatcher {
+	return nil
 }
 
 // fakeLog is used in tests to obtain the last event emit to the Audit Log.

@@ -20,7 +20,7 @@ import (
 	"context"
 	"sort"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -147,8 +147,8 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 	return services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
-func (s *AccessService) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	startKey := backend.Key(locksPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -161,18 +161,17 @@ func (s *AccessService) GetLocks(ctx context.Context, targets ...types.LockTarge
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// If no targets specified, return all of the found locks.
+		if inForceOnly && !lock.IsInForce(s.Clock().Now()) {
+			continue
+		}
+		// If no targets specified, return all of the found/in-force locks.
 		if len(targets) == 0 {
 			out = append(out, lock)
 			continue
 		}
 		// Otherwise, use the targets as filters.
 		for _, target := range targets {
-			match, err := target.Match(lock)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if match {
+			if target.Match(lock) {
 				out = append(out, lock)
 				break
 			}
@@ -214,7 +213,7 @@ func (s *AccessService) DeleteLock(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// DeleteLock deletes all locks.
+// DeleteLock deletes all/in-force locks.
 func (s *AccessService) DeleteAllLocks(ctx context.Context) error {
 	startKey := backend.Key(locksPrefix)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))

@@ -1345,6 +1345,9 @@ message RoleConditions {
     // ReviewRequests defines conditions for submitting access reviews.
     AccessReviewConditions ReviewRequests = 15
         [ (gogoproto.jsontag) = "review_requests,omitempty" ];
+
+    // AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
+    repeated string AWSRoleARNs = 16 [ (gogoproto.jsontag) = "aws_role_arns,omitempty" ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
@@ -2224,6 +2227,9 @@ message LockSpecV2 {
 
 // LockTarget lists the attributes of interactions to be disabled.
 message LockTarget {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
     // User specifies the name of a Teleport user.
     string User = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
 
@@ -2231,20 +2237,15 @@ message LockTarget {
     // In remote clusters, this constraint is evaluated before translating to local roles.
     string Role = 2 [ (gogoproto.jsontag) = "role,omitempty" ];
 
-    // Cluster specifies the name of a leaf Teleport cluster.
-    // This prevents the root cluster's users from connecting to nodes in the leaf cluster
-    // but does not prevent the leaf cluster from heartbeating back to the root cluster.
-    string Cluster = 3 [ (gogoproto.jsontag) = "cluster,omitempty" ];
-
     // Login specifies the name of a local UNIX user.
-    string Login = 4 [ (gogoproto.jsontag) = "login,omitempty" ];
+    string Login = 3 [ (gogoproto.jsontag) = "login,omitempty" ];
 
-    // Node specifies the name or UUID of a node.
-    // A matching node is also unregistered and prevented from registering.
-    string Node = 5 [ (gogoproto.jsontag) = "node,omitempty" ];
+    // Node specifies the UUID of a Teleport node.
+    // A matching node is also prevented from heartbeating to the auth server.
+    string Node = 4 [ (gogoproto.jsontag) = "node,omitempty" ];
 
     // MFADevice specifies the UUID of a user MFA device.
-    string MFADevice = 6 [ (gogoproto.jsontag) = "mfa_device,omitempty" ];
+    string MFADevice = 5 [ (gogoproto.jsontag) = "mfa_device,omitempty" ];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied

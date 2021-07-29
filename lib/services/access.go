@@ -19,8 +19,16 @@ package services
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 )
+
+// LockGetter is a service that gets locks.
+type LockGetter interface {
+	// GetLock gets a lock by name.
+	GetLock(ctx context.Context, name string) (types.Lock, error)
+	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+}
 
 // Access service manages roles and permissions.
 type Access interface {
@@ -37,14 +45,11 @@ type Access interface {
 	// DeleteRole deletes role by name.
 	DeleteRole(ctx context.Context, name string) error
 
-	// GetLock gets a lock by name.
-	GetLock(ctx context.Context, name string) (types.Lock, error)
-	// GetLocks gets all locks, matching at least one of the targets when specified.
-	GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error)
+	LockGetter
 	// UpsertLock upserts a lock.
 	UpsertLock(context.Context, types.Lock) error
 	// DeleteLock deletes a lock.
 	DeleteLock(context.Context, string) error
-	// DeleteLock deletes all locks.
+	// DeleteLock deletes all/in-force locks.
 	DeleteAllLocks(context.Context) error
 }

@@ -24,7 +24,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/v7/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -62,6 +62,9 @@ const (
 
 	// MySQLListenPort is the default listen port for MySQL proxy.
 	MySQLListenPort = 3036
+
+	// MetricsListenPort is the default listen port for the metrics service.
+	MetricsListenPort = 3081
 
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
@@ -573,6 +576,11 @@ func SSHServerListenAddr() *utils.NetAddr {
 // blocks inbound connecions to ssh_nodes
 func ReverseTunnelListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
+}
+
+// MetricsServiceListenAddr returns the default listening address for the metrics service
+func MetricsServiceListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, MetricsListenPort)
 }
 
 func makeAddr(host string, port int16) *utils.NetAddr {

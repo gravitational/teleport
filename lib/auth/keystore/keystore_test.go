@@ -28,11 +28,12 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -348,13 +349,13 @@ func TestKeyStore(t *testing.T) {
 			if tc.hsmConfig != nil {
 				// hsm keyStore should not get any signer from raw keys
 				_, err = keyStore.GetSSHSigner(ca)
-				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
 
 				_, _, err = keyStore.GetTLSCertAndSigner(ca)
-				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
 
 				_, err = keyStore.GetJWTSigner(ca)
-				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
 			} else {
 				// raw keyStore should be able to get a signer
 				sshSigner, err = keyStore.GetSSHSigner(ca)

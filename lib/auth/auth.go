@@ -38,13 +38,13 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v7/client/proto"
+	"github.com/gravitational/teleport/api/v7/constants"
+	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/v7/types"
+	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/v7/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/v7/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -556,6 +556,8 @@ type certRequest struct {
 	appClusterName string
 	// appName is the name of the application to generate cert for.
 	appName string
+	// awsRoleARN is the role ARN to generate certificate for.
+	awsRoleARN string
 	// dbService identifies the name of the database service requests will
 	// be routed to.
 	dbService string
@@ -637,6 +639,8 @@ type AppTestCertRequest struct {
 	ClusterName string
 	// SessionID is the optional session ID to encode. Used for routing.
 	SessionID string
+	// AWSRoleARN is optional AWS role ARN a user wants to assume to encode.
+	AWSRoleARN string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -671,6 +675,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		appSessionID:   sessionID,
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
+		awsRoleARN:     req.AWSRoleARN,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -856,6 +861,12 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// See which AWS role ARNs this user is allowed to assume.
+	roleARNs, err := req.checker.CheckAWSRoleARNs(sessionTTL, req.overrideRoleTTL)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate TLS certificate
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
 	if err != nil {
@@ -881,6 +892,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			PublicAddr:  req.appPublicAddr,
 			ClusterName: req.appClusterName,
 			Name:        req.appName,
+			AWSRoleARN:  req.awsRoleARN,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -893,6 +905,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		DatabaseUsers: dbUsers,
 		MFAVerified:   req.mfaVerified,
 		ClientIP:      req.clientIP,
+		AWSRoleARNs:   roleARNs,
 	}
 	subject, err := identity.Subject()
 	if err != nil {

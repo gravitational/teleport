@@ -18,7 +18,7 @@ limitations under the License.
 package proto
 
 import (
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 )
 
 // FromWatchKind converts the watch kind value between internal

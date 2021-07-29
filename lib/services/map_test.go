@@ -17,8 +17,8 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/v7/types"
 
 	"gopkg.in/check.v1"
 
