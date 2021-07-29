@@ -153,7 +153,7 @@ func waitForLockPut(ctx context.Context, t *testing.T, srv *TestAuthServer, lock
 		require.Equal(t, lock.GetName(), event.Resource.GetName())
 	case <-lockWatch.Done():
 		t.Fatalf("Watcher exited with error: %v.", lockWatch.Error())
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for lock put.")
 	}
 }

@@ -262,6 +262,16 @@ var (
 		Name: SessionRejectedEvent,
 		Code: SessionRejectedCode,
 	}
+	// LockCreatedE is emitted when a lock is created/updated.
+	LockCreatedE = Event{
+		Name: LockCreatedEvent,
+		Code: LockCreatedCode,
+	}
+	// LockDeletedE is emitted when a lock is deleted.
+	LockDeletedE = Event{
+		Name: LockDeletedEvent,
+		Code: LockDeletedCode,
+	}
 )
 
 // There is no strict algorithm for picking an event code, however existing
@@ -419,4 +429,9 @@ const (
 	RoleCreatedCode = "T9000I"
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
+
+	// LockCreatedCode is the lock created event code.
+	LockCreatedCode = "TLK00I"
+	// LockDeletedCode is the lock deleted event code.
+	LockDeletedCode = "TLK01I"
 )

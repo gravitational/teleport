@@ -2554,6 +2554,54 @@ func (a *Server) DeleteNetworkRestrictions(ctx context.Context) error {
 	return a.Services.Restrictions.DeleteNetworkRestrictions(ctx)
 }
 
+// UpsertLock upserts a lock and emits a related audit event.
+func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
+	if err := a.Access.UpsertLock(ctx, lock); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.LockCreate{
+		Metadata: apievents.Metadata{
+			Type: events.LockCreatedEvent,
+			Code: events.LockCreatedCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: lock.GetName(),
+		},
+	}); err != nil {
+		log.WithError(err).Warning("Failed to emit lock create event.")
+	}
+	return nil
+}
+
+// DeleteLock deletes a lock and emits a related audit event.
+func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
+	if err := a.Access.DeleteLock(ctx, lockName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.LockDelete{
+		Metadata: apievents.Metadata{
+			Type: events.LockDeletedEvent,
+			Code: events.LockDeletedCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: lockName,
+		},
+	}); err != nil {
+		log.WithError(err).Warning("Failed to emit lock delete event.")
+	}
+	return nil
+}
+
 // authKeepAliver is a keep aliver using auth server directly
 type authKeepAliver struct {
 	sync.RWMutex

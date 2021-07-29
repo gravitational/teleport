@@ -1292,6 +1292,36 @@ message BillingCardDelete {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// LockCreate is emitted when a lock is created/updated.
+message LockCreate {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ResourceMetadata is a common resource event metadata
+    ResourceMetadata Resource = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// LockDelete is emitted when a lock is deleted
+message LockDelete {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ResourceMetadata is a common resource event metadata
+    ResourceMetadata Resource = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -1344,6 +1374,8 @@ message OneOf {
         events.BillingInformationUpdate BillingInformationUpdate = 46;
         events.BillingCardCreate BillingCardCreate = 47;
         events.BillingCardDelete BillingCardDelete = 48;
+        events.LockCreate LockCreate = 49;
+        events.LockDelete LockDelete = 50;
     }
 }
 

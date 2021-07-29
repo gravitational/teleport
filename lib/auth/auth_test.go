@@ -60,6 +60,94 @@ import (
 	. "gopkg.in/check.v1"
 )
 
+type testPack struct {
+	bk          backend.Backend
+	a           *Server
+	mockEmitter *events.MockEmitter
+}
+
+func newTestPack(ctx context.Context, dir string) (*testPack, error) {
+	s := &testPack{}
+
+	var err error
+	s.bk, err = lite.NewWithConfig(ctx, lite.Config{Path: dir})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authConfig := &InitConfig{
+		ClusterName:            clusterName,
+		Backend:                s.bk,
+		Authority:              authority.New(),
+		SkipPeriodicOperations: true,
+	}
+	s.a, err = NewServer(authConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// set cluster name
+	err = s.a.SetClusterName(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// set static tokens
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = s.a.SetStaticTokens(staticTokens)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOff,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.a.SetAuthPreference(ctx, authPreference)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.a.SetClusterConfig(types.DefaultClusterConfig())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.mockEmitter = &events.MockEmitter{}
+	s.a.emitter = s.mockEmitter
+	return s, nil
+}
+
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
@@ -68,70 +156,15 @@ func TestMain(m *testing.M) {
 func TestAPI(t *testing.T) { TestingT(t) }
 
 type AuthSuite struct {
-	bk          backend.Backend
-	a           *Server
-	dataDir     string
-	mockEmitter *events.MockEmitter
+	*testPack
 }
 
 var _ = Suite(&AuthSuite{})
 
 func (s *AuthSuite) SetUpTest(c *C) {
-	ctx := context.Background()
-
-	var err error
-	s.dataDir = c.MkDir()
-	s.bk, err = lite.NewWithConfig(ctx, lite.Config{Path: s.dataDir})
+	p, err := newTestPack(context.Background(), c.MkDir())
 	c.Assert(err, IsNil)
-
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
-	c.Assert(err, IsNil)
-	authConfig := &InitConfig{
-		ClusterName:            clusterName,
-		Backend:                s.bk,
-		Authority:              authority.New(),
-		SkipPeriodicOperations: true,
-	}
-	s.a, err = NewServer(authConfig)
-	c.Assert(err, IsNil)
-
-	// set cluster name
-	err = s.a.SetClusterName(clusterName)
-	c.Assert(err, IsNil)
-
-	// set static tokens
-	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{},
-	})
-	c.Assert(err, IsNil)
-	err = s.a.SetStaticTokens(staticTokens)
-	c.Assert(err, IsNil)
-
-	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
-	})
-	c.Assert(err, IsNil)
-
-	err = s.a.SetAuthPreference(ctx, authPreference)
-	c.Assert(err, IsNil)
-
-	err = s.a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
-	c.Assert(err, IsNil)
-
-	err = s.a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	c.Assert(err, IsNil)
-
-	err = s.a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
-	c.Assert(err, IsNil)
-
-	err = s.a.SetClusterConfig(types.DefaultClusterConfig())
-	c.Assert(err, IsNil)
-
-	s.mockEmitter = &events.MockEmitter{}
-	s.a.emitter = s.mockEmitter
+	s.testPack = p
 }
 
 func (s *AuthSuite) TearDownTest(c *C) {
@@ -1118,6 +1151,34 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 			UserMessage: "some error",
 		},
 	})
+}
+
+func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{MFADevice: "mfa-device-id"},
+	})
+	require.NoError(t, err)
+
+	err = p.a.UpsertLock(ctx, lock)
+	require.NoError(t, err)
+	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.LockCreatedEvent)
+	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.LockCreate).Name, lock.GetName())
+	p.mockEmitter.Reset()
+
+	err = p.a.DeleteLock(ctx, lock.GetName())
+	require.NoError(t, err)
+	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.LockDeletedEvent)
+	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.LockDelete).Name, lock.GetName())
+	p.mockEmitter.Reset()
+
+	err = p.a.DeleteLock(ctx, lock.GetName())
+	require.True(t, trace.IsNotFound(err))
+	require.Nil(t, p.mockEmitter.LastEvent())
 }
 
 func newTestServices(t *testing.T) Services {
