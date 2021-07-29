@@ -41,6 +41,11 @@ data:
     kubernetes_service:
       enabled: true
       listen_addr: 0.0.0.0:3027
+  {{- if .Values.kubeClusterName }}
+      kube_cluster_name: {{ .Values.kubeClusterName }}
+  {{- else }}
+      kube_cluster_name: {{ .Values.clusterName }}
+  {{- end }}
   {{- if .Values.labels }}
       labels:
     {{ toYaml .Values.labels | indent 8 }}
