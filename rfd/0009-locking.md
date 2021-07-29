@@ -3,7 +3,7 @@ authors: Andrej Tokarčík (andrej@goteleport.com)
 state: draft
 ---
 
-# RFD XY - Locking
+# RFD 9 - Locking
 
 ## What
 
