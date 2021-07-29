@@ -197,22 +197,6 @@ RDP behavior we cannot change.
 All the usual controls on Teleport sessions apply to Desktop Access, like user
 locking, concurrent session limits and idle timeouts.
 
-### Session recording
-
-RDP video output uses bitmaps and not a standard video encoding format.
-To allow playback of session recordings, we have 2 options:
-- record bitmap updates with timestamps and replay them using JS on a canvas.
-- encode finished bitmap recording into MP4 or WebM
-
-The latter allows recording export and sharing, and can be played back in many
-existing applications. However, video encoding is a complex and
-resource-intensive process that has to be done after the session is complete,
-because video container formats must encode the total duration upfront.
-
-Teleport will record active desktop sessions into the simplest possible format
-and then transcode them to MP4 or WebM asynchronously. Transcoding can be done
-using `ffmpeg` if we don't find a solid encoder in Go or Rust.
-
 ### Configuration
 
 New `teleport.yaml` section for `windows_desktop_service`:
