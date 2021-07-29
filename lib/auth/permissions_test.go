@@ -47,6 +47,7 @@ func TestContextLockTargets(t *testing.T) {
 	}
 	expected := []types.LockTarget{
 		{Node: "node"},
+		{Node: "node.cluster"},
 		{User: "node.cluster"},
 		{Role: "role1"},
 		{Role: "role2"},

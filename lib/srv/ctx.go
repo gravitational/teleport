@@ -345,9 +345,13 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		trace.ComponentFields: fields,
 	})
 
+	lockTargets, err := ComputeLockTargets(srv, identityContext)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
-		LockTargets:           ComputeLockTargets(srv, identityContext),
+		LockTargets:           lockTargets,
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
 		Clock:                 child.srv.GetClock(),
@@ -910,11 +914,16 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 
 // ComputeLockTargets computes lock targets inferred from a Server
 // and an IdentityContext.
-func ComputeLockTargets(s Server, id IdentityContext) []types.LockTarget {
+func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error) {
+	clusterName, err := s.GetAccessPoint().GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return append([]types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
 		{Node: s.HostUUID()},
+		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
-	}, services.RolesToLockTargets(id.RoleSet.RoleNames())...)
+	}, services.RolesToLockTargets(id.RoleSet.RoleNames())...), nil
 }

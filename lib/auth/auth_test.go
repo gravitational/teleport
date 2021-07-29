@@ -97,6 +97,16 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	s.a, err = NewServer(authConfig)
 	c.Assert(err, IsNil)
 
+	// set lock watcher
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentAuth,
+			Client:    s.a,
+		},
+	})
+	c.Assert(err, IsNil)
+	s.a.SetLockWatcher(lockWatcher)
+
 	// set cluster name
 	err = s.a.SetClusterName(clusterName)
 	c.Assert(err, IsNil)

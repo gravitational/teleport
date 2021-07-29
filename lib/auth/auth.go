@@ -290,6 +290,9 @@ type Server struct {
 	// streamer is events sessionstreamer, used to create continuous
 	// session related streams
 	streamer events.Streamer
+
+	// lockWatcher is a lock watcher, used to verify cert generation requests.
+	lockWatcher *services.LockWatcher
 }
 
 // SetCache sets cache used by auth server
@@ -307,6 +310,24 @@ func (a *Server) GetCache() Cache {
 		return &a.Services
 	}
 	return a.cache
+}
+
+// SetLockWatcher sets the lock watcher.
+func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.lockWatcher = lockWatcher
+}
+
+// findLockInForce returns a lock in force that matches at least one of the
+// targets, nil if not found.
+func (a *Server) findLockInForce(targets []types.LockTarget) (types.Lock, error) {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	if a.lockWatcher == nil {
+		return nil, trace.BadParameter("lockWatcher is not set")
+	}
+	return a.lockWatcher.FindLockInForce(targets...), nil
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -484,7 +505,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	}
 
 	// create and sign!
-	return a.Authority.GenerateHostCert(services.HostCertParams{
+	return a.generateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
 		CASigningAlg:  sshutils.GetSigningAlgName(ca),
 		PublicHostKey: hostPublicKey,
@@ -495,6 +516,17 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		Roles:         roles,
 		TTL:           ttl,
 	})
+}
+
+func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
+	lock, err := a.findLockInForce([]types.LockTarget{{Node: p.HostID}, {Node: HostFQDN(p.HostID, p.ClusterName)}})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if lock != nil {
+		return nil, trace.AccessDenied(services.LockInForceMessage(lock))
+	}
+	return a.Authority.GenerateHostCert(p)
 }
 
 func sshSigner(ca types.CertAuthority) (ssh.Signer, error) {
@@ -744,6 +776,19 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	err := req.check()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Reject the cert request if there is a matching lock in force.
+	lock, err := a.findLockInForce(append(
+		services.RolesToLockTargets(req.checker.RoleNames()),
+		types.LockTarget{User: req.user.GetName()},
+		types.LockTarget{MFADevice: req.mfaVerified},
+	))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if lock != nil {
+		return nil, trace.AccessDenied(services.LockInForceMessage(lock))
 	}
 
 	// reuse the same RSA keys for SSH and TLS keys
@@ -1435,7 +1480,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// get the certificate authority that will be signing the public key of the host,
 	client := a.GetCache()
 	if req.NoCache {
-		client = &a.Services
+		client = a.Services
 	}
 	ca, err := client.GetCertAuthority(types.CertAuthID{
 		Type:       types.HostCA,
@@ -1473,7 +1518,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		return nil, trace.Wrap(err)
 	}
 	// generate hostSSH certificate
-	hostSSHCert, err := a.Authority.GenerateHostCert(services.HostCertParams{
+	hostSSHCert, err := a.generateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
 		CASigningAlg:  sshutils.GetSigningAlgName(ca),
 		PublicHostKey: pubSSHKey,
@@ -1486,6 +1531,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// generate host TLS certificate
 	identity := tlsca.Identity{
 		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
