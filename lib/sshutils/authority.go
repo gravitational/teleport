@@ -17,7 +17,7 @@ limitations under the License.
 package sshutils
 
 import (
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"

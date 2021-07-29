@@ -17,8 +17,8 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v7/types"
+	apiutils "github.com/gravitational/teleport/api/v7/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
