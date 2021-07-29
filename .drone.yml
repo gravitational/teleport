@@ -1190,6 +1190,29 @@ steps:
       - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
+  - name: Build/push Teleport Lab Docker image
+    image: docker
+    environment:
+      OS: linux
+      ARCH: amd64
+    settings:
+      username:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt)
+      - export TELEPORT_LAB_IMAGE_NAME="quay.io/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+       # Get Dockerfile
+      - curl -Ls -o /go/build/Dockerfile-teleport-lab https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/docker/sshd/Dockerfile
+      # Build and push Teleport lab image
+      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME -f /go/build/Dockerfile-teleport-lab /go/build
+      - docker push $TELEPORT_LAB_IMAGE_NAME
+
 services:
   - name: Start Docker
     image: docker:dind
@@ -2647,6 +2670,12 @@ steps:
     environment:
       OS: darwin
       ARCH: amd64
+      APPLE_USERNAME:
+        from_secret: APPLE_USERNAME
+      APPLE_PASSWORD:
+        from_secret: APPLE_PASSWORD
+      BUILDBOX_PASSWORD:
+        from_secret: BUILDBOX_PASSWORD
       OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
       ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
       WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
@@ -2654,6 +2683,13 @@ steps:
       - set -u
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+      # set HOME explicitly (as Drone overrides it normally)
+      - export HOME=/Users/build
+      # unlock login keychain
+      - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+      # show available certificates
+      - security find-identity -v
+      # build teleport pkg
       - make pkg OS=$OS ARCH=$ARCH
 
   - name: Copy Mac pkg artifacts
@@ -2797,7 +2833,7 @@ steps:
       - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
       # show available certificates
       - security find-identity -v
-      # build pkg
+      # build tsh pkg
       - make pkg-tsh OS=$OS ARCH=$ARCH
 
   - name: Copy Mac tsh pkg artifacts
@@ -4386,6 +4422,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 6fb06de638133160c0989682a9034201405e43ee5b74f6f263cca7b0f69651c6
+hmac: 0fefc46617d44db78e452aa83b1220a3373a832fd76b2f7427a65e674bb8fbeb
 
 ...

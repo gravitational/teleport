@@ -20,7 +20,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/v7/client/webclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 

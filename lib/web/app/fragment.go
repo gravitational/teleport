@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
@@ -56,6 +56,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 			urlParams := launcherURLParams{
 				clusterName: q.Get("cluster"),
 				publicAddr:  q.Get("addr"),
+				awsRole:     q.Get("awsrole"),
 				stateToken:  stateToken,
 			}
 			return h.redirectToLauncher(w, r, urlParams)

@@ -46,14 +46,14 @@ import (
 	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/v7/client/proto"
+	"github.com/gravitational/teleport/api/v7/client/webclient"
+	"github.com/gravitational/teleport/api/v7/constants"
+	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/v7/profile"
+	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/v7/types/wrappers"
+	"github.com/gravitational/teleport/api/v7/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -2198,6 +2198,13 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if pr.Auth.HasMessageOfTheDay {
+		err = tc.ShowMOTD(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// generate a new keypair. the public key will be signed via proxy if client's
 	// password+OTP are valid
 	key, err := NewKey()
@@ -2358,6 +2365,34 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	tc.lastPing = pr
 
 	return pr, nil
+}
+
+// ShowMOTD fetches the cluster MotD, displays it (if any) and waits for
+// confirmation from the user.
+func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
+	motd, err := webclient.GetMOTD(
+		ctx,
+		tc.WebProxyAddr,
+		tc.InsecureSkipVerify,
+		loopbackPool(tc.WebProxyAddr))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if motd.Text != "" {
+		fmt.Printf("%s\nPress [ENTER] to continue.\n", motd.Text)
+		// We're re-using the password reader for user acknowledgment for
+		// aesthetic purposes, because we want to hide any garbage the
+		// use might enter at the prompt. Whatever the user enters will
+		// be simply discarded, and the user can still CTRL+C out if they
+		// disagree.
+		_, err := passwordFromConsole()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 // GetTrustedCA returns a list of host certificate authorities

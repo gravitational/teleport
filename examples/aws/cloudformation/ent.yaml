@@ -730,6 +730,7 @@ Resources:
             Action:
             - "s3:ListBucket"
             - "s3:ListBucketVersions"
+            - "s3:ListBucketMultipartUploads"
 
           -
             Effect: "Allow"
@@ -816,6 +817,7 @@ Resources:
             Action:
             - "s3:ListBucket"
             - "s3:ListBucketVersions"
+            - "s3:ListBucketMultipartUploads"
 
           -
             Effect: "Allow"
@@ -998,15 +1000,15 @@ Resources:
       AttributeDefinitions:
       - {AttributeName: "SessionID", AttributeType: "S"}
       - {AttributeName: "EventIndex", AttributeType: "N"}
-      - {AttributeName: "EventNamespace", AttributeType: "S"}
+      - {AttributeName: "CreatedAtDate", AttributeType: "S"}
       - {AttributeName: "CreatedAt", AttributeType: "N"}
 
       TimeToLiveSpecification: {AttributeName: "Expires", Enabled: true}
 
       GlobalSecondaryIndexes:
-      - IndexName: "timesearch"
+      - IndexName: "timesearchV2"
         KeySchema:
-        - AttributeName: "EventNamespace"
+        - AttributeName: "CreatedAtDate"
           KeyType: "HASH"
         - AttributeName: "CreatedAt"
           KeyType: "RANGE"

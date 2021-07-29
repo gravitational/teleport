@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -207,8 +207,8 @@ const (
 
 To correct the error you can try the following:
 
-  * Make sure this database service GCP IAM role has "cloudsql.instances.get"
-    permission.
+  * Make sure this database service has "Cloud SQL Viewer" GCP IAM role, or
+    "cloudsql.instances.get" IAM permission.
 
   * Download root certificate for your Cloud SQL instance %q manually and set
     it in the database configuration using "ca_cert_file" configuration field.`

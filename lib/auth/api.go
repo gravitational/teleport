@@ -20,8 +20,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/v7/types"
+	apievents "github.com/gravitational/teleport/api/v7/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -98,6 +98,9 @@ type ReadAccessPoint interface {
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
 
+	// ListNodes returns a paginated list of registered servers for this cluster.
+	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
+
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
@@ -151,6 +154,9 @@ type ReadAccessPoint interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
+	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)

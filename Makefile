@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=7.0.0-dev
+VERSION=7.0.0-beta.1
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -83,7 +83,6 @@ BPF_MESSAGE := "without BPF support"
 with_bpf := no
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
-ifeq ("$(FIPS)","")
 ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
@@ -93,7 +92,8 @@ CLANG_FORMAT ?= $(shell which clang-format || which clang-format-10)
 LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
 KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/')
 INCLUDES :=
-BPF_BUILDDIR := lib/bpf/bytecode
+ER_BPF_BUILDDIR := lib/bpf/bytecode
+RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
@@ -107,7 +107,6 @@ CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
 CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -Wl,-Bdynamic"
-endif
 endif
 endif
 endif
@@ -160,16 +159,30 @@ $(BUILDDIR)/tsh:
 # Requires a recent version of clang and libbpf installed.
 #
 ifeq ("$(with_bpf)","yes")
-$(BPF_BUILDDIR):
-	mkdir -p $(BPF_BUILDDIR)
+$(ER_BPF_BUILDDIR):
+	mkdir -p $(ER_BPF_BUILDDIR)
+
+$(RS_BPF_BUILDDIR):
+	mkdir -p $(RS_BPF_BUILDDIR)
 
 # Build BPF code
-$(BPF_BUILDDIR)/%.bpf.o: bpf/%.bpf.c $(wildcard bpf/*.h) | $(BPF_BUILDDIR)
+$(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
 	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
+# Build BPF code
+$(RS_BPF_BUILDDIR)/%.bpf.o: bpf/restrictedsession/%.bpf.c $(wildcard bpf/*.h) | $(RS_BPF_BUILDDIR)
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(LLVM_STRIP) -g $@ # strip useless DWARF info
+
+.PHONY: bpf-rs-bytecode
+bpf-rs-bytecode: $(RS_BPF_BUILDDIR)/restricted.bpf.o
+
+.PHONY: bpf-er-bytecode
+bpf-er-bytecode: $(ER_BPF_BUILDDIR)/command.bpf.o $(ER_BPF_BUILDDIR)/disk.bpf.o $(ER_BPF_BUILDDIR)/network.bpf.o $(ER_BPF_BUILDDIR)/counter_test.bpf.o
+
 .PHONY: bpf-bytecode
-bpf-bytecode: $(BPF_BUILDDIR)/command.bpf.o $(BPF_BUILDDIR)/disk.bpf.o $(BPF_BUILDDIR)/network.bpf.o $(BPF_BUILDDIR)/counter_test.bpf.o
+bpf-bytecode: bpf-er-bytecode bpf-rs-bytecode
 
 # Generate vmlinux.h based on the installed kernel
 .PHONY: update-vmlinux-h
@@ -187,7 +200,7 @@ endif
 # only tsh is built.
 #
 .PHONY:full
-full: $(ASSETS_BUILDDIR)/webassets.zip
+full: $(ASSETS_BUILDDIR)/webassets
 ifneq ("$(OS)", "windows")
 	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
@@ -199,7 +212,7 @@ endif
 full-ent:
 ifneq ("$(OS)", "windows")
 	@if [ -f e/Makefile ]; then \
-	rm $(ASSETS_BUILDDIR)/webassets.zip; \
+	rm $(ASSETS_BUILDDIR)/webassets; \
 	$(MAKE) -C e full; fi
 endif
 
@@ -210,7 +223,8 @@ endif
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-	rm -rf $(BPF_BUILDDIR)
+	rm -rf $(ER_BPF_BUILDDIR)
+	rm -rf $(RS_BPF_BUILDDIR)
 	-go clean -cache
 	rm -rf $(GOPKGDIR)
 	rm -rf teleport
@@ -263,11 +277,11 @@ release-unix: clean full
 		CHANGELOG.md \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
-	tar -czf $(RELEASE).tar.gz teleport
+	tar --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 	@if [ -f e/Makefile ]; then \
-		rm -fr $(ASSETS_BUILDDIR)/webassets.zip; \
+		rm -fr $(ASSETS_BUILDDIR)/webassets; \
 		$(MAKE) -C e release; \
 	fi
 
@@ -335,7 +349,7 @@ test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
 	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover $(ADDFLAGS)
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -344,7 +358,7 @@ UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode
 test-go-root: FLAGS ?= '-race'
-test-go-root: PACKAGES := $(shell go list ./... | grep -v integration)
+test-go-root: PACKAGES := $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
@@ -472,18 +486,21 @@ $(VERSRC): Makefile
 # 		- commit changes to git
 # 		- build binaries with 'make release'
 # 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
-.PHONY: tag
-tag:
-	@echo "Run this:\n> git tag $(GITTAG)\n> git push --tags"
+.PHONY: update-tag
+update-tag:
+	@test $(VERSION)
+	git tag $(GITTAG)
+	git tag api/$(GITTAG)
+	git push origin $(GITTAG) && git push origin api/$(GITTAG)
 
-
-# build/webassets.zip archive contains the web assets (UI) which gets
-# appended to teleport binary
-$(ASSETS_BUILDDIR)/webassets.zip: ensure-webassets $(ASSETS_BUILDDIR)
+# build/webassets directory contains the web assets (UI) which get
+# embedded in the teleport binary
+$(ASSETS_BUILDDIR)/webassets: ensure-webassets $(ASSETS_BUILDDIR)
 ifneq ("$(OS)", "windows")
-	@echo "---> Building OSS web assets."; \
-	rm $(ASSETS_BUILDDIR)/webassets.zip; \
-	cd webassets/teleport/ ; zip -qr ../../$@ .
+	@echo "---> Copying OSS web assets."; \
+	rm -rf $(ASSETS_BUILDDIR)/webassets; \
+	mkdir $(ASSETS_BUILDDIR)/webassets; \
+	cd webassets/teleport/ ; cp -r . ../../$@
 endif
 
 $(ASSETS_BUILDDIR):
@@ -727,8 +744,8 @@ update-vendor:
 	go mod vendor
 	# delete the vendored api package. In its place
 	# create a symlink to the the original api package
-	rm -r vendor/github.com/gravitational/teleport/api
-	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+	rm -r vendor/github.com/gravitational/teleport/api/v7
+	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport/api/v7
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.

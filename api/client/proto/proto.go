@@ -14,10 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package proto provides protobuf api specification for Teleport Auth servers and clients.
 package proto
 
 import (
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 )
 
 // FromWatchKind converts the watch kind value between internal

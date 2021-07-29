@@ -22,9 +22,9 @@ import (
 	"testing"
 	"time"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
+	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/v7/types"
+	apievents "github.com/gravitational/teleport/api/v7/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -330,7 +330,7 @@ func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 		t.Fatalf("failed to create linear backoff: %v", err)
 	}
 	for {
-		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), apidefaults.Namespace, []string{eventType}, 100, "")
+		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), apidefaults.Namespace, []string{eventType}, 100, types.EventOrderAscending, "")
 		if err != nil {
 			t.Fatalf("failed to call SearchEvents: %v", err)
 		}

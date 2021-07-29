@@ -19,17 +19,11 @@ package types
 import (
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/v7/defaults"
 
 	"github.com/gravitational/trace"
 )
-
-// ProxyGetter is a service that gets proxies
-type ProxyGetter interface {
-	// GetProxies returns a list of registered proxies
-	GetProxies() ([]Server, error)
-}
 
 // Site represents a cluster of teleport nodes who collectively trust the same
 // certificate authority (CA) and have a common name.

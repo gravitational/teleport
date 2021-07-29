@@ -38,14 +38,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/v7/client"
+	"github.com/gravitational/teleport/api/v7/client/proto"
+	"github.com/gravitational/teleport/api/v7/constants"
+	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/v7/types"
+	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/v7/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -1349,14 +1349,14 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	// try searching for events with no filter (empty query) - should get all 3 events:
 	to := time.Now().In(time.UTC).Add(time.Hour)
 	from := to.Add(-time.Hour * 2)
-	history, _, err := clt.SearchEvents(from, to, apidefaults.Namespace, nil, 0, "")
+	history, _, err := clt.SearchEvents(from, to, apidefaults.Namespace, nil, 0, types.EventOrderDescending, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	// Extra event is the upload event
 	c.Assert(len(history), check.Equals, 5)
 
 	// try searching for only "session.end" events (real query)
-	history, _, err = clt.SearchEvents(from, to, apidefaults.Namespace, []string{events.SessionEndEvent}, 0, "")
+	history, _, err = clt.SearchEvents(from, to, apidefaults.Namespace, []string{events.SessionEndEvent}, 0, types.EventOrderDescending, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	c.Assert(len(history), check.Equals, 2)
@@ -3161,6 +3161,16 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	clusterNameResource, err = s.server.Auth().ClusterConfiguration.GetClusterName()
 	c.Assert(err, check.IsNil)
 	suite.ExpectResource(c, w, 3*time.Second, clusterNameResource)
+}
+
+func (s *TLSSuite) TestNetworkRestrictions(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	suite := &suite.ServicesTestSuite{
+		RestrictionsS: clt,
+	}
+	suite.NetworkRestrictions(c)
 }
 
 // verifyJWT verifies that the token was signed by one the passed in key pair.

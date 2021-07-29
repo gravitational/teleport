@@ -234,6 +234,9 @@ const (
 	// ComponentBPF is the eBPF packagae.
 	ComponentBPF = "bpf"
 
+	// ComponentRestrictedSession is restriction of user access to kernel objects
+	ComponentRestrictedSession = "restrictedsess"
+
 	// ComponentCgroup is the cgroup package.
 	ComponentCgroup = "cgroups"
 
@@ -242,6 +245,9 @@ const (
 
 	// ComponentSAML is a SAML service provider.
 	ComponentSAML = "saml"
+
+	// ComponentMetrics is a metrics server
+	ComponentMetrics = "metrics"
 
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
