@@ -19,7 +19,7 @@ package web
 import (
 	"net/http"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/trace"
