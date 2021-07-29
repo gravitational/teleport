@@ -219,7 +219,7 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		rotated, err := processRotationRequest(rotationReq{
+		rotated, err := a.processRotationRequest(rotationReq{
 			ca:           existing,
 			clock:        a.clock,
 			targetPhase:  req.TargetPhase,
@@ -228,7 +228,7 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 			mode:         req.Mode,
 			privateKey:   a.privateKey,
 			caSigningAlg: a.caSigningAlg,
-		}, a.keyStore)
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -366,7 +366,7 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 		return trace.BadParameter("phase is not supported: %q", rotation.Phase)
 	}
 	logger.Infof("Setting rotation phase to %q", req.targetPhase)
-	rotated, err := processRotationRequest(*req, a.keyStore)
+	rotated, err := a.processRotationRequest(*req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -379,7 +379,7 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 
 // processRotationRequest processes rotation request based on the target and
 // current phase and state.
-func processRotationRequest(req rotationReq, keyStore keystore.KeyStore) (types.CertAuthority, error) {
+func (a *Server) processRotationRequest(req rotationReq) (types.CertAuthority, error) {
 	rotation := req.ca.GetRotation()
 	ca := req.ca.Clone()
 
@@ -392,7 +392,7 @@ func processRotationRequest(req rotationReq, keyStore keystore.KeyStore) (types.
 		default:
 			return nil, trace.BadParameter("can not initate rotation while another is in progress")
 		}
-		if err := startNewRotation(req, ca, keyStore); err != nil {
+		if err := a.startNewRotation(req, ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return ca, nil
@@ -461,7 +461,7 @@ func processRotationRequest(req rotationReq, keyStore keystore.KeyStore) (types.
 // startNewRotation starts new rotation. In this phase requests will continue
 // to be signed by the old CAKeySet, but a new CAKeySet will be added. This new
 // CA can be used to verify requests.
-func startNewRotation(req rotationReq, ca types.CertAuthority, keyStore keystore.KeyStore) error {
+func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error {
 	clock := req.clock
 	gracePeriod := req.gracePeriod
 
@@ -525,7 +525,7 @@ func startNewRotation(req rotationReq, ca types.CertAuthority, keyStore keystore
 			PrivateKeyType: types.PrivateKeyType_RAW,
 		}
 	} else {
-		sshPrivateKey, sshCryptoSigner, err := keyStore.GenerateRSA()
+		sshPrivateKey, sshCryptoSigner, err := a.keyStore.GenerateRSA()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -540,7 +540,7 @@ func startNewRotation(req rotationReq, ca types.CertAuthority, keyStore keystore
 			PrivateKeyType: keystore.KeyType(sshPrivateKey),
 		}
 
-		tlsPrivateKey, tlsSigner, err := keyStore.GenerateRSA()
+		tlsPrivateKey, tlsSigner, err := a.keyStore.GenerateRSA()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -559,7 +559,7 @@ func startNewRotation(req rotationReq, ca types.CertAuthority, keyStore keystore
 			KeyType: keystore.KeyType(tlsPrivateKey),
 		}
 
-		jwtPrivateKey, jwtSigner, err := keyStore.GenerateRSA()
+		jwtPrivateKey, jwtSigner, err := a.keyStore.GenerateRSA()
 		if err != nil {
 			return trace.Wrap(err)
 		}
