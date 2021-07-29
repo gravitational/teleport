@@ -32,10 +32,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/v7/types"
+	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/v7/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -72,8 +72,12 @@ type FileConfig struct {
 	Apps Apps `yaml:"app_service,omitempty"`
 
 	// Databases is the "db_service" section in Teleport configuration file
-	// that defined database access configuration.
+	// that defines database access configuration.
 	Databases Databases `yaml:"db_service,omitempty"`
+
+	// Metrics is the "metrics_service" section in Teleport configuration file
+	// that defines the metrics service configuration
+	Metrics Metrics `yaml:"metrics_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -1138,4 +1142,23 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 	return v2, nil
+}
+
+// Metrics is a `metrics_service` section of the config file:
+type Metrics struct {
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
+
+	// KeyPairs is a list of x509 serving key pairs used for securing the metrics endpoint with mTLS.
+	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
+	KeyPairs []KeyPair `yaml:"keypairs,omitempty"`
+
+	// CACerts is a list of prometheus CA certificates to validate clients against.
+	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
+	CACerts []string `yaml:"ca_certs,omitempty"`
+}
+
+// MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
+func (m *Metrics) MTLSEnabled() bool {
+	return len(m.KeyPairs) > 0 && len(m.CACerts) > 0
 }
