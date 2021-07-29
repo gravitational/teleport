@@ -20,8 +20,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/client/proto"
+	"github.com/gravitational/teleport/api/v7/types"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -176,6 +176,12 @@ func eventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAuthPreference(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetLock(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetNetworkRestrictions(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

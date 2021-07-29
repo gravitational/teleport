@@ -24,14 +24,11 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/aquasecurity/tracee/libbpfgo"
+	"github.com/aquasecurity/libbpfgo"
 	"github.com/prometheus/client_golang/prometheus"
 
 	_ "embed"
 )
-
-//go:embed bytecode/command.bpf.o
-var commandBPF []byte
 
 var (
 	lostCommandEvents = prometheus.NewCounter(
@@ -56,13 +53,13 @@ type rawExecEvent struct {
 	PPID uint64
 
 	// Command is the executable.
-	Command [commMax]byte
+	Command [CommMax]byte
 
 	// Type is the type of event.
 	Type int32
 
 	// Argv is the list of arguments to the program.
-	Argv [argvMax]byte
+	Argv [ArgvMax]byte
 
 	// ReturnCode is the return code of execve.
 	ReturnCode int32
@@ -87,6 +84,11 @@ func startExec(bufferSize int) (*exec, error) {
 	}
 
 	e := &exec{}
+
+	commandBPF, err := embedFS.ReadFile("bytecode/command.bpf.o")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	e.module, err = libbpfgo.NewModuleFromBuffer(commandBPF, "command")
 	if err != nil {

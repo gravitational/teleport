@@ -23,9 +23,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
+	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/v7/types"
+	apievents "github.com/gravitational/teleport/api/v7/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -81,6 +81,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 			rewrite:            app.Rewrite,
 			traits:             identity.Traits,
 			log:                s.log,
+			user:               identity.Username,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

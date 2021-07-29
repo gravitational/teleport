@@ -21,9 +21,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/v7/client/webclient"
+	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/v7/utils/sshutils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -60,6 +60,10 @@ func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dura
 		pr, err := webclient.Find(ctx, discoveryAddr, insecure, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if pr.Proxy.SSH.TunnelPublicAddr == "" {
+			return nil, trace.BadParameter("reverse tunnel address not discoverable, 'tunnel_public_addr' is not set")
 		}
 
 		conn, err = dialer.DialContext(ctx, network, pr.Proxy.SSH.TunnelPublicAddr)

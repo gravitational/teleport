@@ -37,9 +37,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/v7/types"
+	apiutils "github.com/gravitational/teleport/api/v7/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -210,6 +210,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Databases.Disabled() {
 		cfg.Databases.Enabled = false
 	}
+	if fc.Metrics.Disabled() {
+		cfg.Metrics.Enabled = false
+	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// apply "advertise_ip" setting:
@@ -315,6 +318,16 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.CAPin = fc.CAPin
 	}
 
+	// Set diagnostic address
+	if fc.DiagAddr != "" {
+		// Validate address
+		parsed, err := utils.ParseAddr(fc.DiagAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.DiagnosticAddr = *parsed
+	}
+
 	// apply connection throttling:
 	limiters := []*limiter.Config{
 		&cfg.SSH.Limiter,
@@ -372,6 +385,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Metrics.Enabled() {
+		if err := applyMetricsConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	return nil
 }
@@ -398,6 +416,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		}
 		logger.SetOutput(logFile)
 	}
+
 	switch strings.ToLower(loggerConfig.Severity) {
 	case "", "info":
 		logger.SetLevel(log.InfoLevel)
@@ -411,15 +430,34 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
-	formatter := &textFormatter{
-		LogFormat:    loggerConfig.Format,
-		EnableColors: trace.IsTerminal(os.Stderr),
+	switch strings.ToLower(loggerConfig.Format.Output) {
+	case "":
+		fallthrough // not set. defaults to 'text'
+	case "text":
+		formatter := &textFormatter{
+			ExtraFields:  loggerConfig.Format.ExtraFields,
+			EnableColors: trace.IsTerminal(os.Stderr),
+		}
+
+		if err := formatter.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		logger.SetFormatter(formatter)
+	case "json":
+		formatter := &jsonFormatter{
+			extraFields: loggerConfig.Format.ExtraFields,
+		}
+
+		if err := formatter.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		logger.SetFormatter(formatter)
+	default:
+		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
-	err := formatter.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	logger.Formatter = formatter
+
 	return nil
 }
 
@@ -476,7 +514,9 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		cfg.Auth.Preference.SetMessageOfTheDay(fc.Auth.MessageOfTheDay)
 	}
+
 	if fc.Auth.DisconnectExpiredCert != nil {
 		cfg.Auth.Preference.SetOrigin(types.OriginConfigFile)
 		cfg.Auth.Preference.SetDisconnectExpiredCert(fc.Auth.DisconnectExpiredCert.Value)
@@ -504,6 +544,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
 		ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
+		WebIdleTimeout:           fc.Auth.WebIdleTimeout,
 		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
@@ -726,7 +767,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Proxy.ACME = *acme
 
 	return nil
-
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
@@ -790,6 +830,13 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	}
 	if fc.SSH.BPF != nil {
 		cfg.SSH.BPF = fc.SSH.BPF.Parse()
+	}
+	if fc.SSH.RestrictedSession != nil {
+		rs, err := fc.SSH.RestrictedSession.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.SSH.RestrictedSession = rs
 	}
 
 	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
@@ -958,6 +1005,76 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
+	}
+
+	return nil
+}
+
+// applyMetricsConfig applies file configuration for the "metrics_service" section.
+func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
+	// Metrics is enabled.
+	cfg.Metrics.Enabled = true
+
+	addr, err := utils.ParseHostPortAddr(fc.Metrics.ListenAddress, int(defaults.MetricsListenPort))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.Metrics.ListenAddr = addr
+
+	if !fc.Metrics.MTLSEnabled() {
+		return nil
+	}
+
+	cfg.Metrics.MTLS = true
+
+	if len(fc.Metrics.KeyPairs) == 0 {
+		return trace.BadParameter("at least one keypair shoud be provided when mtls is enabled in the metrics config")
+	}
+
+	if len(fc.Metrics.CACerts) == 0 {
+		return trace.BadParameter("at least one CA cert shoud be provided when mtls is enabled in the metrics config")
+	}
+
+	for _, p := range fc.Metrics.KeyPairs {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(p.PrivateKey) {
+			return trace.NotFound("metrics service private key does not exist: %s", p.PrivateKey)
+		}
+		if !utils.FileExists(p.Certificate) {
+			return trace.NotFound("metrics service cert does not exist: %s", p.Certificate)
+		}
+
+		certificateChainBytes, err := utils.ReadPath(p.Certificate)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !utils.IsSelfSigned(certificateChain) {
+			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
+				return trace.BadParameter("unable to verify the metrics service certificate chain in %v: %s",
+					p.Certificate, utils.UserMessageFromError(err))
+			}
+		}
+
+		cfg.Metrics.KeyPairs = append(cfg.Metrics.KeyPairs, service.KeyPairPath{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
+	}
+
+	for _, caCert := range fc.Metrics.CACerts {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(caCert) {
+			return trace.NotFound("metrics service ca cert does not exist: %s", caCert)
+		}
+
+		cfg.Metrics.CACerts = append(cfg.Metrics.CACerts, caCert)
 	}
 
 	return nil

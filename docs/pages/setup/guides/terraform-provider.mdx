@@ -38,6 +38,7 @@ Create a folder `teleport-terraform` to hold some temporary files:
 
 ```bash
 mkdir -p teleport-terraform
+cd teleport-terraform
 ```
 
 ## Step 1/4. Install terraform provider
@@ -151,6 +152,7 @@ terraform {
 
 provider "teleport" {
   # Update addr to point to Teleport Auth/Proxy
+  # addr               = "auth.example.com:3025"
   addr               = "proxy.example.com:443"
   identity_file_path = "terraform-identity"
 }

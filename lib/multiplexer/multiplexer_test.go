@@ -18,8 +18,11 @@ package multiplexer
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -33,10 +36,12 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/multiplexer/test"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"google.golang.org/grpc"
@@ -545,6 +550,108 @@ func TestMux(t *testing.T) {
 		conn, err = mux.DB().Accept()
 		require.NoError(t, err, "detected Postgres connection")
 		require.Equal(t, ProtoPostgres, conn.(*Conn).Protocol())
+	})
+
+	// WebListener verifies web listener correctly multiplexes connections
+	// between web and database listeners based on the client certificate.
+	t.Run("WebListener", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.Nil(t, err)
+
+		mux, err := New(Config{
+			Listener:            listener,
+			EnableProxyProtocol: true,
+		})
+		require.Nil(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		// Generate self-signed CA.
+		caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "test-ca"}, nil, time.Hour)
+		require.NoError(t, err)
+		ca, err := tlsca.FromKeys(caCert, caKey)
+		require.NoError(t, err)
+		certPool := x509.NewCertPool()
+		certPool.AppendCertsFromPEM(caCert)
+
+		// Sign server certificate.
+		serverRSAKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+		require.NoError(t, err)
+		serverPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+			Subject:   pkix.Name{CommonName: "localhost"},
+			PublicKey: serverRSAKey.Public(),
+			NotAfter:  time.Now().Add(time.Hour),
+			DNSNames:  []string{"127.0.0.1"},
+		})
+		require.NoError(t, err)
+		serverCert, err := tls.X509KeyPair(serverPEM, tlsca.MarshalPrivateKeyPEM(serverRSAKey))
+		require.NoError(t, err)
+
+		// Sign client certificate with database access identity.
+		clientRSAKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+		require.NoError(t, err)
+		subject, err := (&tlsca.Identity{
+			Username: "alice",
+			Groups:   []string{"admin"},
+			RouteToDatabase: tlsca.RouteToDatabase{
+				ServiceName: "postgres",
+			},
+		}).Subject()
+		require.NoError(t, err)
+		clientPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+			Subject:   subject,
+			PublicKey: clientRSAKey.Public(),
+			NotAfter:  time.Now().Add(time.Hour),
+		})
+		require.NoError(t, err)
+		clientCert, err := tls.X509KeyPair(clientPEM, tlsca.MarshalPrivateKeyPEM(clientRSAKey))
+		require.NoError(t, err)
+
+		webLis, err := NewWebListener(WebListenerConfig{
+			Listener: tls.NewListener(mux.TLS(), &tls.Config{
+				ClientCAs:    certPool,
+				ClientAuth:   tls.VerifyClientCertIfGiven,
+				Certificates: []tls.Certificate{serverCert},
+			}),
+		})
+		require.Nil(t, err)
+		go webLis.Serve()
+		defer webLis.Close()
+
+		go func() {
+			conn, err := webLis.Web().Accept()
+			require.NoError(t, err)
+			defer conn.Close()
+			conn.Write([]byte("web listener"))
+		}()
+
+		go func() {
+			conn, err := webLis.DB().Accept()
+			require.NoError(t, err)
+			defer conn.Close()
+			conn.Write([]byte("db listener"))
+		}()
+
+		webConn, err := tls.Dial("tcp", listener.Addr().String(), &tls.Config{
+			RootCAs: certPool,
+		})
+		require.NoError(t, err)
+		defer webConn.Close()
+
+		webBytes, err := io.ReadAll(webConn)
+		require.NoError(t, err)
+		require.Equal(t, "web listener", string(webBytes))
+
+		dbConn, err := tls.Dial("tcp", listener.Addr().String(), &tls.Config{
+			RootCAs:      certPool,
+			Certificates: []tls.Certificate{clientCert},
+		})
+		require.NoError(t, err)
+		defer dbConn.Close()
+
+		dbBytes, err := io.ReadAll(dbConn)
+		require.NoError(t, err)
+		require.Equal(t, "db listener", string(dbBytes))
 	})
 }
 

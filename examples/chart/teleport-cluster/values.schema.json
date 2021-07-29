@@ -271,6 +271,11 @@
             "type": "array",
             "default": []
         },
+        "extraEnv": {
+            "$id": "#/properties/extraEnv",
+            "type": "array",
+            "default": []
+        },
         "extraVolumes": {
             "$id": "#/properties/extraVolumes",
             "type": "array",
@@ -291,6 +296,11 @@
             "$id": "#/properties/initContainers",
             "type": "array",
             "default": []
+        },
+        "kubeClusterName": {
+            "$id": "#/properties/kubeClusterName",
+            "type": "string",
+            "default": ""
         },
         "resources": {
             "$id": "#/properties/resources",

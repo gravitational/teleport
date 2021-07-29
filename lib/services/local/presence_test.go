@@ -21,13 +21,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
+	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -190,4 +192,118 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
+}
+
+func TestNodeCRUD(t *testing.T) {
+	ctx := context.Background()
+	lite, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	presence := NewPresenceService(lite)
+
+	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	node2, err := types.NewServerWithLabels("node2", types.KindNode, types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	t.Run("CreateNode", func(t *testing.T) {
+		// Initially expect no nodes to be returned.
+		nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Equal(t, 0, len(nodes))
+
+		// Create nodes
+		_, err = presence.UpsertNode(ctx, node1)
+		require.NoError(t, err)
+		_, err = presence.UpsertNode(ctx, node2)
+		require.NoError(t, err)
+	})
+
+	// Run NodeGetters in nested subtests to allow parallelization.
+	t.Run("NodeGetters", func(t *testing.T) {
+		t.Run("List Nodes", func(t *testing.T) {
+			t.Parallel()
+			// list nodes one at a time, last page should be empty
+			nodes, nextKey, err := presence.ListNodes(ctx, apidefaults.Namespace, 1, "")
+			require.NoError(t, err)
+			require.EqualValues(t, 1, len(nodes))
+			require.Empty(t, cmp.Diff([]types.Server{node1}, nodes,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			require.EqualValues(t, backend.NextPaginationKey(node1), nextKey)
+
+			nodes, nextKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			require.NoError(t, err)
+			require.EqualValues(t, 1, len(nodes))
+			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			require.EqualValues(t, backend.NextPaginationKey(node2), nextKey)
+
+			nodes, nextKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			require.NoError(t, err)
+			require.EqualValues(t, 0, len(nodes))
+			require.EqualValues(t, "", nextKey)
+
+			// ListNodes should fail if namespace isn't provided
+			_, _, err = presence.ListNodes(ctx, "", 1, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+			// ListNodes should fail if limit is nonpositive
+			_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, 0, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+			_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, -1, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+		})
+		t.Run("GetNodes", func(t *testing.T) {
+			t.Parallel()
+			// Get all nodes, transparently handle limit exceeded errors
+			nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			require.EqualValues(t, len(nodes), 2)
+			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+			// GetNodes should fail if namespace isn't provided
+			_, err = presence.GetNodes(ctx, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+		})
+		t.Run("GetNode", func(t *testing.T) {
+			t.Parallel()
+			// Get Node
+			node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(node1, node,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+			// GetNode should fail if node name isn't provided
+			_, err = presence.GetNode(ctx, apidefaults.Namespace, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+			// GetNode should fail if namespace isn't provided
+			_, err = presence.GetNode(ctx, "", "node1")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+		})
+	})
+
+	t.Run("DeleteNode", func(t *testing.T) {
+		// Delete node.
+		err = presence.DeleteNode(ctx, apidefaults.Namespace, node1.GetName())
+		require.NoError(t, err)
+
+		// Expect node not found
+		_, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
+		require.IsType(t, trace.NotFound(""), err)
+	})
+
+	t.Run("DeleteAllNodes", func(t *testing.T) {
+		// Delete nodes
+		err = presence.DeleteAllNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+
+		// Now expect no nodes to be returned.
+		nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Equal(t, 0, len(nodes))
+	})
 }

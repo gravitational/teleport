@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
@@ -204,6 +204,17 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 	// messages b/w server and client e.g. to get client's password.
 	conn, err := pgconn.ConnectConfig(ctx, connectConfig)
 	if err != nil {
+		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Server.IsRDS() {
+			return nil, nil, trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure that Postgres user %q has "rds_iam" role and Teleport database
+agent's IAM policy has "rds-connect" permissions:
+
+%v
+`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
+		}
 		return nil, nil, trace.Wrap(err)
 	}
 	// Hijacked connection exposes some internal connection data, such as

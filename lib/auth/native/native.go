@@ -28,10 +28,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/v7/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/v7/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -194,11 +194,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 		return nil, trace.Wrap(err)
 	}
 
-	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	signer = sshutils.AlgSigner(signer, c.CASigningAlg)
+	signer := sshutils.AlgSigner(c.CASigner, c.CASigningAlg)
 
 	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
@@ -321,11 +317,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		}
 	}
 
-	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	signer = sshutils.AlgSigner(signer, c.CASigningAlg)
+	signer := sshutils.AlgSigner(c.CASigner, c.CASigningAlg)
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -20,7 +20,7 @@ package defaults
 import (
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/v7/constants"
 )
 
 const (
@@ -68,3 +68,8 @@ func EnhancedEvents() []string {
 		constants.EnhancedRecordingNetwork,
 	}
 }
+
+const (
+	// DefaultChunkSize is the default chunk size for paginated endpoints.
+	DefaultChunkSize = 1000
+)

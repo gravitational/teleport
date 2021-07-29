@@ -19,9 +19,80 @@ package services
 import (
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/types"
+	apiutils "github.com/gravitational/teleport/api/v7/utils"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// ClusterConfigDerivedResources holds a set of the ClusterConfig-derived
+// resources following the reorganization of RFD 28.
+type ClusterConfigDerivedResources struct {
+	types.ClusterAuditConfig
+	types.ClusterNetworkingConfig
+	types.SessionRecordingConfig
+}
+
+// NewDerivedResourcesFromClusterConfig converts a legacy ClusterConfig to the new
+// configuration resources described in RFD 28.
+// DELETE IN 8.0.0
+func NewDerivedResourcesFromClusterConfig(cc types.ClusterConfig) (*ClusterConfigDerivedResources, error) {
+	ccV3, ok := cc.(*types.ClusterConfigV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected ClusterConfig type %T", cc)
+	}
+
+	var (
+		auditConfig types.ClusterAuditConfig
+		netConfig   types.ClusterNetworkingConfig
+		recConfig   types.SessionRecordingConfig
+		err         error
+	)
+	if ccV3.Spec.Audit != nil {
+		auditConfig, err = types.NewClusterAuditConfig(*ccV3.Spec.Audit)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if ccV3.Spec.ClusterNetworkingConfigSpecV2 != nil {
+		netConfig, err = types.NewClusterNetworkingConfigFromConfigFile(*ccV3.Spec.ClusterNetworkingConfigSpecV2)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if ccV3.Spec.LegacySessionRecordingConfigSpec != nil {
+		proxyChecksHostKeys, err := apiutils.ParseBool(ccV3.Spec.LegacySessionRecordingConfigSpec.ProxyChecksHostKeys)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		recConfigSpec := types.SessionRecordingConfigSpecV2{
+			Mode:                ccV3.Spec.LegacySessionRecordingConfigSpec.Mode,
+			ProxyChecksHostKeys: types.NewBoolOption(proxyChecksHostKeys),
+		}
+		recConfig, err = types.NewSessionRecordingConfigFromConfigFile(recConfigSpec)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &ClusterConfigDerivedResources{
+		ClusterAuditConfig:      auditConfig,
+		ClusterNetworkingConfig: netConfig,
+		SessionRecordingConfig:  recConfig,
+	}, nil
+}
+
+// UpdateAuthPreferenceWithLegacyClusterConfig updates an AuthPreference with
+// auth-related values that used to be stored in ClusterConfig.
+// DELETE IN 8.0.0
+func UpdateAuthPreferenceWithLegacyClusterConfig(cc types.ClusterConfig, authPref types.AuthPreference) error {
+	ccV3, ok := cc.(*types.ClusterConfigV3)
+	if !ok {
+		return trace.BadParameter("unexpected ClusterConfig type %T", cc)
+	}
+	authPref.SetDisconnectExpiredCert(ccV3.Spec.DisconnectExpiredCert.Value())
+	authPref.SetAllowLocalAuth(ccV3.Spec.AllowLocalAuth.Value())
+	return nil
+}
 
 // UnmarshalClusterConfig unmarshals the ClusterConfig resource from JSON.
 func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (types.ClusterConfig, error) {

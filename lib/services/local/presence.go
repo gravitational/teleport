@@ -23,8 +23,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -249,6 +249,48 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 	}
 
 	return servers, nil
+}
+
+// ListNodes returns a paginated list of registered servers.
+// StartKey is a resource name, which is the suffix of its key.
+func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+	if namespace == "" {
+		return nil, "", trace.BadParameter("missing namespace value")
+	}
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive limit value")
+	}
+
+	// Get all items in the bucket within the given range.
+	rangeStart := backend.Key(nodesPrefix, namespace, startKey)
+	keyPrefix := backend.Key(nodesPrefix, namespace)
+	rangeEnd := backend.RangeEnd(keyPrefix)
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Marshal values into a []services.Server slice.
+	servers := make([]types.Server, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.UnmarshalServer(
+			item.Value,
+			types.KindNode,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		servers[i] = server
+	}
+
+	// If a full page was filled, set nextKey using the last node.
+	if len(result.Items) == limit {
+		nextKey = backend.NextPaginationKey(servers[len(servers)-1])
+	}
+
+	return servers, nextKey, nil
 }
 
 // UpsertNode registers node presence, permanently if TTL is 0 or for the

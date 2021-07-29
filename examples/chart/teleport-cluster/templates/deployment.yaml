@@ -106,6 +106,10 @@ spec:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
         imagePullPolicy: {{ .Values.imagePullPolicy }}
+        {{- if .Values.extraEnv }}
+        env:
+          {{- toYaml .Values.extraEnv | nindent 8 }}
+        {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}

@@ -25,8 +25,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v7/client/proto"
+	"github.com/gravitational/teleport/api/v7/types"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/defaults"
