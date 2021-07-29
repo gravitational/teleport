@@ -298,7 +298,8 @@ type Server struct {
 	// session related streams
 	streamer events.Streamer
 
-	// keyStore is an interface for interacting with private keys
+	// keyStore is an interface for interacting with private keys in CAs which
+	// may be backed by HSMs
 	keyStore keystore.KeyStore
 }
 
@@ -501,6 +502,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	})
 }
 
+// GetKeyStore returns the KeyStore used by the auth server
 func (a *Server) GetKeyStore() keystore.KeyStore {
 	return a.keyStore
 }
