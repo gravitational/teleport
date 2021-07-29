@@ -26,14 +26,13 @@ import (
 	"testing"
 	"time"
 
-	logrus "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/v7/defaults"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
