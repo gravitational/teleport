@@ -22,8 +22,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/v7/profile"
+	"github.com/gravitational/teleport/api/v7/utils/keypaths"
 	"github.com/gravitational/trace"
 )
 
