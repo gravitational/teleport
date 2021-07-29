@@ -610,7 +610,7 @@ func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (ty
 	if secrets, err := c.grpc.RotateUserTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
 		TokenID: tokenID,
 	}, c.callOpts...); err != nil {
-		if !trace.IsNotImplemented(err) {
+		if !trace.IsNotImplemented(trail.FromGRPC(err)) {
 			return nil, trail.FromGRPC(err)
 		}
 	} else {
