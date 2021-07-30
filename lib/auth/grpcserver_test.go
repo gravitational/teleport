@@ -1004,7 +1004,7 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, true, resp.Required)
+	require.True(t, resp.Required)
 
 	// Call the endpoint for an unauthorized login.
 	resp, err = cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
@@ -1016,7 +1016,7 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 
 	// When unauthorized, expect a silent `false`.
 	require.NoError(t, err)
-	require.Equal(t, false, resp.Required)
+	require.False(t, resp.Required)
 }
 
 func TestDeleteLastMFADevice(t *testing.T) {

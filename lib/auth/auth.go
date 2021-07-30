@@ -2376,17 +2376,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// Errors other than ErrSessionMFARequired mean something else is wrong,
 	// most likely access denied.
 	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
-		if trace.IsAccessDenied(noMFAAccessErr) {
-			// Mask the access denied errors by returning false to prevent
-			// resource name oracles. Auth will be denied (and generate an
-			// audit log entry) when the client attempts to connect.
-			return &proto.IsMFARequiredResponse{Required: false}, nil
+		if !trace.IsAccessDenied(noMFAAccessErr) {
+			log.WithError(err).Warn("Could not determine MFA access: %v", noMFAAccessErr)
 		}
 
-		// As above, return false unless we know for certain the user is both
-		// allowed to access nodes and MFA is required. This must behave the
-		// same as the auth fail case above to prevent resource name oracles.
-		log.Infof("Could not determine MFA access: %v", noMFAAccessErr)
+		// Mask the access denied errors by returning false to prevent resource
+		// name oracles. Auth will be denied (and generate an audit log entry)
+		// when the client attempts to connect.
 		return &proto.IsMFARequiredResponse{Required: false}, nil
 	}
 	// If we reach here, the error from AccessChecker was
