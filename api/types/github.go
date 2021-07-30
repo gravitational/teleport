@@ -224,10 +224,11 @@ func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, 
 		}
 		for _, team := range teams {
 			// see if the user belongs to this team
-			if team == mapping.Team {
+			if team == mapping.Team || mapping.Team == "*" {
 				logins = append(logins, mapping.Logins...)
 				kubeGroups = append(kubeGroups, mapping.KubeGroups...)
 				kubeUsers = append(kubeUsers, mapping.KubeUsers...)
+				break
 			}
 		}
 	}
