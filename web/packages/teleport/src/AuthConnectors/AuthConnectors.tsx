@@ -97,7 +97,7 @@ export function AuthConnectors(props: State) {
                   Please{' '}
                   <Link
                     color="light"
-                    href="https://goteleport.com/teleport/docs/admin-guide/#github-oauth-20"
+                    href="https://goteleport.com/docs/admin-guide/#github-oauth-20"
                     target="_blank"
                   >
                     view our documentation

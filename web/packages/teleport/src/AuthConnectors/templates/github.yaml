@@ -16,6 +16,6 @@ spec:
   # mapping of Github team memberships to Teleport cluster roles
   teams_to_logins:
     - organization: <github-org>
-      team: admins
+      team: <github-team>
       logins:
-        - "admins"
+        - "access"
