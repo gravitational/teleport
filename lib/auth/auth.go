@@ -2377,7 +2377,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// most likely access denied.
 	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
 		if !trace.IsAccessDenied(noMFAAccessErr) {
-			log.WithError(err).Warn("Could not determine MFA access: %v", noMFAAccessErr)
+			log.WithError(noMFAAccessErr).Warn("Could not determine MFA access")
 		}
 
 		// Mask the access denied errors by returning false to prevent resource
