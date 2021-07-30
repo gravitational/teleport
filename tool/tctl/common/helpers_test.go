@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"

@@ -21,7 +21,7 @@ import (
 	"net"
 	"strings"
 
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
