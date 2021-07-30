@@ -21,14 +21,12 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/teleport/api/v7"
 
 	"github.com/gravitational/trace"
-	"github.com/pkg/errors"
 	"golang.org/x/mod/modfile"
 )
 
@@ -81,18 +79,6 @@ func main() {
 		exitWithError(trace.Wrap(err, "failed to update Makefile"))
 	}
 
-	// run `make update-vendor` to re-vendor the api
-	// Note: this must occur before `make grpc`, or else
-	// `protoc` won't be able to find the api module
-	if err := exec.Command("make", "update-vendor").Run(); err != nil {
-		exitWithError(trace.Wrap(err, "failed to update vendor"))
-	}
-
-	// run `make grpc` to generate updated proto files
-	if err := exec.Command("make", "grpc").Run(); err != nil {
-		exitWithError(trace.Wrap(err, "failed to generate grpc files"))
-	}
-
 	exitWithMessage("successfully updated api version")
 }
 
@@ -141,10 +127,10 @@ func replaceInModFile(path, oldModPath, newModPath string) error {
 	// Format and save mod file
 	bts, err := modFile.Format()
 	if err != nil {
-		return errors.Wrap(err, "could not format go.mod file with new import path")
+		return trace.Wrap(err, "could not format go.mod file with new import path")
 	}
 	if err = ioutil.WriteFile(path, bts, 0660); err != nil {
-		return errors.Wrap(err, "could not rewrite go.mod file")
+		return trace.Wrap(err, "could not rewrite go.mod file")
 	}
 	return nil
 }

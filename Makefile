@@ -487,8 +487,9 @@ $(VERSRC): Makefile
 #  2. A suffix is present in the version - e.g. "-alpha"
 .PHONY: update-api-module-path
 update-api-module-path: 
-	@echo updating api module path
-	@go run build.assets/update_api_module_path/main.go
+	go run build.assets/update_api_module_path/main.go
+	$(MAKE) update-vendor
+	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -749,7 +750,6 @@ init-submodules-e: init-webapps-submodules-e
 	git submodule update
 
 # Update go.mod and vendor files. 
-# Note: update-api-module-path calls update-vendor within its go program
 .PHONY: update-vendor
 update-vendor:
 	# update modules in api/
@@ -760,7 +760,7 @@ update-vendor:
 	# delete the vendored api package.
 	rm -rf vendor/github.com/gravitational/teleport/api
 	# create a symlink to the the original api package - /api or /api/vX if X > 1
-	if [ $(shell echo $(VERSION) | cut -d "." -f1) \> 1 ]; then mkdir -p vendor/github.com/gravitational/teleport/api; fi;
+	if [ $(shell echo $(VERSION) | cut -d "." -f1) -gt 1 ]; then mkdir -p vendor/github.com/gravitational/teleport/api; fi
 	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport/api/v7
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
