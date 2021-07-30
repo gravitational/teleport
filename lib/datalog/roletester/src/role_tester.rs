@@ -1,7 +1,7 @@
-use libc::{size_t, c_uchar};
-use crepe::crepe;
-use prost::Message;
 use bytes::BytesMut;
+use crepe::crepe;
+use libc::{c_uchar, size_t};
+use prost::Message;
 use std::{ptr, slice};
 
 pub mod types {
@@ -67,12 +67,17 @@ crepe! {
 }
 
 #[no_mangle]
-pub extern "C" fn process_access(input: *mut c_uchar, output: *mut c_uchar, input_len: size_t, output_len: size_t) -> i32 {
+pub extern "C" fn process_access(
+    input: *mut c_uchar,
+    output: *mut c_uchar,
+    input_len: size_t,
+    output_len: size_t,
+) -> i32 {
     let mut runtime = Crepe::new();
     let b = unsafe { slice::from_raw_parts_mut(input, input_len) };
     let r = match types::Facts::decode(BytesMut::from(&b[..])) {
         Ok(b) => b,
-        Err(_e) => return Errors::InvalidInputError as i32
+        Err(_e) => return Errors::InvalidInputError as i32,
     };
 
     for pred in &r.predicates {
@@ -85,9 +90,17 @@ pub extern "C" fn process_access(input: *mut c_uchar, output: *mut c_uchar, inpu
         } else if pred.name == types::facts::PredicateType::Roledenieslogin as i32 {
             runtime.extend(&[RoleDeniesLogin(pred.atoms[0], pred.atoms[1])]);
         } else if pred.name == types::facts::PredicateType::Roleallowsnodelabel as i32 {
-            runtime.extend(&[RoleAllowsNodeLabel(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
+            runtime.extend(&[RoleAllowsNodeLabel(
+                pred.atoms[0],
+                pred.atoms[1],
+                pred.atoms[2],
+            )]);
         } else if pred.name == types::facts::PredicateType::Roledeniesnodelabel as i32 {
-            runtime.extend(&[RoleDeniesNodeLabel(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
+            runtime.extend(&[RoleDeniesNodeLabel(
+                pred.atoms[0],
+                pred.atoms[1],
+                pred.atoms[2],
+            )]);
         } else if pred.name == types::facts::PredicateType::Nodehaslabel as i32 {
             runtime.extend(&[NodeHasLabel(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
         } else {
@@ -97,21 +110,33 @@ pub extern "C" fn process_access(input: *mut c_uchar, output: *mut c_uchar, inpu
 
     let (accesses, deny_accesses, deny_logins) = runtime.run();
     let mut predicates = vec![];
-    predicates.extend::<Vec<_>>(accesses.into_iter().map(|HasAccess(a, b, c, d)| types::facts::Predicate{
-        name: types::facts::PredicateType::Hasaccess as i32,
-        atoms: vec![a, b, c, d],
-    }).collect());
-    predicates.extend::<Vec<_>>(deny_accesses.into_iter().map(|DenyAccess(a, b, c, d)| types::facts::Predicate{
-        name: types::facts::PredicateType::Denyaccess as i32,
-        atoms: vec![a, b, c, d],
-    }).collect());
-    predicates.extend::<Vec<_>>(deny_logins.into_iter().map(|DenyLogins(a, b, c)| types::facts::Predicate{
-        name: types::facts::PredicateType::Denylogins as i32,
-        atoms: vec![a, b, c],
-    }).collect());
+    predicates.extend(
+        accesses
+            .into_iter()
+            .map(|HasAccess(a, b, c, d)| types::facts::Predicate {
+                name: types::facts::PredicateType::Hasaccess as i32,
+                atoms: vec![a, b, c, d],
+            }),
+    );
+    predicates.extend(
+        deny_accesses
+            .into_iter()
+            .map(|DenyAccess(a, b, c, d)| types::facts::Predicate {
+                name: types::facts::PredicateType::Denyaccess as i32,
+                atoms: vec![a, b, c, d],
+            })
+    );
+    predicates.extend(
+        deny_logins
+            .into_iter()
+            .map(|DenyLogins(a, b, c)| types::facts::Predicate {
+                name: types::facts::PredicateType::Denylogins as i32,
+                atoms: vec![a, b, c],
+            })
+    );
 
     let idb = types::Facts {
-        predicates: predicates
+        predicates,
     };
 
     let mut buf = Vec::with_capacity(idb.encoded_len());
@@ -119,11 +144,17 @@ pub extern "C" fn process_access(input: *mut c_uchar, output: *mut c_uchar, inpu
         Ok(_) => (),
         Err(_e) => return Errors::InvalidOutputError as i32,
     };
+    if buf.is_empty() || buf.len() > output_len {
+        return buf.len() as i32;
+    }
+    // We can't guarantee the memory regions are non-overlapping, but we only need to copy the data to output so
+    // it is able to be presented on the Go end. The necessary checks for length is done before this call.
+    //
+    // buf is valid for reads of len * size_of::<T>() bytes.
+    // output is valid for writes of count * size_of::<T>() bytes.
+    // Both buf and output are properly aligned.
     unsafe {
-        if buf.len() == 0 || buf.len() > output_len {
-            return buf.len() as i32
-        }
-        ptr::copy_nonoverlapping(&(*buf)[0], output, buf.len());
+        ptr::copy(&(*buf)[0], output, buf.len());
     }
 
     buf.len() as i32
