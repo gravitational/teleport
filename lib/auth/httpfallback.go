@@ -684,7 +684,7 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.Mar
 		return auditConfig, nil
 	}
 
-	cfg, err := c.GetClusterConfig()
+	cfg, err := c.GetClusterConfig(opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -703,7 +703,7 @@ func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...service
 		return netConfig, nil
 	}
 
-	cfg, err := c.GetClusterConfig()
+	cfg, err := c.GetClusterConfig(opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -722,7 +722,7 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services
 		return recConfig, nil
 	}
 
-	cfg, err := c.GetClusterConfig()
+	cfg, err := c.GetClusterConfig(opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
