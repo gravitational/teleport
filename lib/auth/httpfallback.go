@@ -632,11 +632,6 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 
 // GetAuthPreference gets cluster auth preference.
 func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	resp, err := c.Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	authPref, err := c.APIClient.GetAuthPreference(ctx)
 	if err != nil {
 		if !trace.IsNotImplemented(err) {
@@ -655,6 +650,10 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	// AuthPreference was updated in 7.0.0 to hold legacy cluster config fields. If the
 	// server version is < 7.0.0, we must update the AuthPreference with the legacy fields.
 	minServerVersion := "7.0.0"
+	resp, err := c.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := utils.CompareVersion(resp.ServerVersion, minServerVersion); err != nil {
 		if !trace.IsBadParameter(err) {
 			return nil, trace.Wrap(err)
