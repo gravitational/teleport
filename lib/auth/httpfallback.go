@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -631,24 +632,43 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 
 // GetAuthPreference gets cluster auth preference.
 func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	if resp, err := c.APIClient.GetAuthPreference(ctx); err != nil {
+	resp, err := c.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPref, err := c.APIClient.GetAuthPreference(ctx)
+	if err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
 		}
-	} else {
-		return resp, nil
-	}
-	out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cap, err := services.UnmarshalAuthPreference(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
+		out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authPref, err = services.UnmarshalAuthPreference(out.Bytes())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	return cap, nil
+	// AuthPreference was updated in 7.0.0 to hold legacy cluster config fields. If the
+	// server version is < 7.0.0, we must update the AuthPreference with the legacy fields.
+	minServerVersion := "7.0.0"
+	if err := utils.CompareVersion(resp.ServerVersion, minServerVersion); err != nil {
+		if !trace.IsBadParameter(err) {
+			return nil, trace.Wrap(err)
+		}
+		legacyConfig, err := c.GetClusterConfig()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := services.UpdateAuthPreferenceWithLegacyClusterConfig(legacyConfig, authPref); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return authPref, nil
 }
 
 // SetAuthPreference sets cluster auth preference.
