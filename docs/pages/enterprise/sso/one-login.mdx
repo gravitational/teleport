@@ -39,9 +39,9 @@ auth_service:
 Using OneLogin control panel, create a SAML 2.0 Web App in SAML configuration
 section:
 
-![Create APP](../../../img/sso/onelogin/onelogin-saml-1.png)
+![SAML Test Connector (SP Shibboleth)](../../../img/sso/onelogin/onelogin-saml-1.png)
 
-![Create APP](../../../img/sso/onelogin/onelogin-saml-1a.png)
+![SAML Config](../../../img/sso/onelogin/onelogin-saml-1a.png)
 
 ### Download Icons
 
@@ -58,17 +58,17 @@ section:
 
 Set `Audience`, `Recipient` and `ACS (Consumer) URL Validator` to the same value:
 
-`https://teleport.example.com/v1/webapi/saml/acs` where `teleport.example.com` is the
+`https://teleport.example.com:3080/v1/webapi/saml/acs` where `teleport.example.com` is the
 public name of the teleport web proxy service:
 
-![Configure APP](../../../img/sso/onelogin/onelogin-saml-2.png)
+![Configure SAML](../../../img/sso/onelogin/onelogin-saml-2.png)
 
 Teleport needs to assign groups to users. Configure the application with some parameters
 exposed as SAML attribute statements:
 
-![Configure APP](../../../img/sso/onelogin/onelogin-saml-3.png)
+![New Field](../../../img/sso/onelogin/onelogin-saml-3.png)
 
-![Configure APP](../../../img/sso/onelogin/onelogin-saml-4.png)
+![New Field Group](../../../img/sso/onelogin/onelogin-saml-4.png)
 
 <Admonition
   type="warning"
@@ -79,13 +79,13 @@ exposed as SAML attribute statements:
 
 Add users to the application:
 
-![Configure APP](../../../img/sso/onelogin/onelogin-saml-5.png)
+![Add User](../../../img/sso/onelogin/onelogin-saml-5.png)
 
 ### Download SAML XML Metadata
 
 Once the application is set up, download `SAML Metadata`.
 
-![Configure APP](../../../img/sso/onelogin/saml-download.png)
+![Download XML](../../../img/sso/onelogin/saml-download.png)
 
 ## Create a SAML Connector
 
@@ -121,29 +121,12 @@ Create the connector using `tctl` tool:
 $ tctl create onelogin-connector.yaml
 ```
 
-## Create Teleport Roles
+## Create a new Teleport Role
 
-We are going to create 2 roles, privileged role admin who is able to login as
-root and is capable of administrating the cluster and non-privileged dev.
+We are going to create a new that'll use external username data from OneLogin
+to map to a host linux login. 
 
-```yaml
-kind: role
-version: v3
-metadata:
-  name: admin
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    logins: [root]
-    node_labels:
-      "*": "*"
-    rules:
-      - resources: ["*"]
-        verbs: ["*"]
-```
-
-Devs are only allowed to login to nodes labelled with `access: relaxed`
+In the below role, Devs are only allowed to login to nodes labelled with `access: relaxed`
 Teleport label. Developers can log in as either `ubuntu` to a username that
 arrives in their assertions. Developers also do not have any rules needed to
 obtain admin access to Teleport.
@@ -165,7 +148,6 @@ spec:
 **Notice:** Replace `ubuntu` with linux login available on your servers!
 
 ```bsh
-$ tctl create admin.yaml
 $ tctl create dev.yaml
 ```
 
