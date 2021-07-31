@@ -316,6 +316,12 @@ auth_service:
     license_file: /var/lib/teleport/license.pem
 
 
+    # Configures a banner message to be displayed to a user logging into the cluster, 
+    # which must be acknowledged before the user is allowed to log in. Note that will
+    # be shown *before* login, so should not contain any confidential information. 
+    # Defaults to the empty string, implying no message or acknowledgment is required.
+    message_of_the_day: ""
+
 # This section configures the 'node service':
 ssh_service:
     # Turns 'ssh' role on. Default is 'yes'
@@ -460,7 +466,7 @@ proxy_service:
     # 'teleport configure --acme --acme-email=email@example.com --cluster-name=tele.example.com -o file'
     #acme:
     #  enabled: yes
-    #  email: "user@example.com"
+    #  email: user@example.com
 
 # This section configures the 'application service'
 app_service:
@@ -541,7 +547,7 @@ db_service:
   - name: "prod"
     # Free-form description of the database proxy instance.
     description: "Production database"
-    # Database protocol. Can be "postgres" or "mysql".
+    # Database protocol. Can be "postgres", "mysql", or "mongodb".
     protocol: "postgres"
     # Database connection endpoint. Must be reachable from Database Service.
     uri: "postgres.example.com:5432"

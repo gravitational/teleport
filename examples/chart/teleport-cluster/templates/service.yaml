@@ -7,13 +7,13 @@ metadata:
     app: {{ .Release.Name }}
   {{- if (or (.Values.annotations.service) (eq .Values.chartMode "aws")) }}
   annotations:
-    {{- if .Values.annotations.service }}
-      {{- toYaml .Values.annotations.service | nindent 4 }}
-    {{- end }}
     {{- if eq .Values.chartMode "aws" }}
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
     service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    {{- end }}
+    {{- if .Values.annotations.service }}
+      {{- toYaml .Values.annotations.service | nindent 4 }}
     {{- end }}
   {{- end }}
 spec:

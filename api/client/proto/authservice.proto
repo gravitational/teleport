@@ -89,6 +89,9 @@ message Event {
             [ (gogoproto.jsontag) = "cluster_audit_config,omitempty" ];
         // Lock is a lock resource.
         types.LockV2 Lock = 24 [ (gogoproto.jsontag) = "lock,omitempty" ];
+        // NetworkRestrictions is a resource for network restrictions
+        types.NetworkRestrictionsV4 NetworkRestrictions = 25
+            [ (gogoproto.jsontag) = "network_restrictions,omitempty" ];
     }
 }
 
@@ -457,6 +460,8 @@ message CreateAppSessionRequest {
     string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
     // ClusterName is cluster within which the application is running.
     string ClusterName = 4 [ (gogoproto.jsontag) = "cluster_name" ];
+    // AWSRoleARN is AWS role the user wants to assume.
+    string AWSRoleARN = 5 [ (gogoproto.jsontag) = "aws_role_arn" ];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -807,6 +812,15 @@ message IsMFARequiredRequest {
     }
 }
 
+// StreamSessionEventsRequest is a request containing needed data to fetch a session recording.
+message StreamSessionEventsRequest {
+    // SessionID is the ID for a given session in an UUIDv4 format.
+    string SessionID = 1;
+    // StartIndex is the index of the event to resume the stream after.
+    // A StartIndex of 0 creates a new stream.
+    int32 StartIndex = 2;
+}
+
 // NodeLogin specifies an SSH node and OS login.
 message NodeLogin {
     // Node can be node's hostname or UUID.
@@ -826,6 +840,13 @@ message SingleUseUserCert {
     }
 }
 
+// Order specifies any ordering of some objects as returned in regards to some aspect
+// of said objects which may be trivially ordered such as a timestamp.
+enum Order {
+    DESCENDING = 0;
+    ASCENDING = 1;
+}
+
 message GetEventsRequest {
     // Namespace, if not set, defaults to 'default'
     string Namespace = 1;
@@ -843,6 +864,9 @@ message GetEventsRequest {
     // If the previous response had LastKey set then this should be
     // set to its value. Otherwise leave empty.
     string StartKey = 6;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 7;
 }
 
 message GetSessionEventsRequest {
@@ -858,6 +882,9 @@ message GetSessionEventsRequest {
     // If the previous response had LastKey set then this should be
     // set to its value. Otherwise leave empty.
     string StartKey = 4;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 5;
 }
 
 message Events {
@@ -891,6 +918,8 @@ message GetLocksRequest {
     // Targets is a list of targets. Every returned lock must match at least
     // one of the targets.
     repeated types.LockTarget Targets = 1;
+    // InForceOnly specifies whether to return only those locks that are in force.
+    bool InForceOnly = 2;
 }
 
 message GetLocksResponse {
@@ -1177,10 +1206,20 @@ service AuthService {
 
     // GetLock gets a lock by name.
     rpc GetLock(GetLockRequest) returns (types.LockV2);
-    // GetLocks gets all locks, matching at least one of the targets when specified.
+    // GetLocks gets all/in-force locks that match at least one of the targets when specified.
     rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
     // UpsertLock upserts a lock.
     rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
     // DeleteLock deletes a lock.
     rpc DeleteLock(DeleteLockRequest) returns (google.protobuf.Empty);
+
+    // StreamSessionEvents streams audit events from a given session recording.
+    rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);
+
+    // GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
+    rpc GetNetworkRestrictions(google.protobuf.Empty) returns (types.NetworkRestrictionsV4);
+    // SetNetworkRestrictions updates the network restrictions.
+    rpc SetNetworkRestrictions(types.NetworkRestrictionsV4) returns (google.protobuf.Empty);
+    // DeleteNetworkRestrictions delete the network restrictions.
+    rpc DeleteNetworkRestrictions(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

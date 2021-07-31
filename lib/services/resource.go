@@ -156,6 +156,10 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindKubeService, nil
 	case types.KindLock, "locks":
 		return types.KindLock, nil
+	case types.KindDatabaseServer, "db":
+		return types.KindDatabaseServer, nil
+	case types.KindNetworkRestrictions:
+		return types.KindNetworkRestrictions, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

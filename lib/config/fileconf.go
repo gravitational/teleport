@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -71,8 +72,12 @@ type FileConfig struct {
 	Apps Apps `yaml:"app_service,omitempty"`
 
 	// Databases is the "db_service" section in Teleport configuration file
-	// that defined database access configuration.
+	// that defines database access configuration.
 	Databases Databases `yaml:"db_service,omitempty"`
+
+	// Metrics is the "metrics_service" section in Teleport configuration file
+	// that defines the metrics service configuration
+	Metrics Metrics `yaml:"metrics_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -519,6 +524,13 @@ type Auth struct {
 	// expires. The empty string implies no message should be sent prior to
 	// disconnection.
 	ClientIdleTimeoutMessage string `yaml:"client_idle_timeout_message,omitempty"`
+
+	// MessageOfTheDay is a banner that a user must acknowledge during a `tsh login`.
+	MessageOfTheDay string `yaml:"message_of_the_day,omitempty"`
+
+	// WebIdleTimeout sets global cluster default setting for WebUI client
+	// idle timeouts
+	WebIdleTimeout types.Duration `yaml:"web_idle_timeout,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -671,6 +683,9 @@ type SSH struct {
 	// BPF is used to configure BPF-based auditing for this node.
 	BPF *BPF `yaml:"enhanced_recording,omitempty"`
 
+	// RestrictedSession is used to restrict access to kernel objects
+	RestrictedSession *RestrictedSession `yaml:"restricted_session,omitempty"`
+
 	// MaybeAllowTCPForwarding enables or disables TCP port forwarding. We're
 	// using a pointer-to-bool here because the system default is to allow TCP
 	// forwarding, we need to distinguish between an unset value and a false
@@ -756,6 +771,29 @@ func (b *BPF) Parse() *bpf.Config {
 		NetworkBufferSize: b.NetworkBufferSize,
 		CgroupPath:        b.CgroupPath,
 	}
+}
+
+// RestrictedSession is a configuration for limiting access to kernel objects
+type RestrictedSession struct {
+	// Enabled enables or disables enforcemant for this node.
+	Enabled string `yaml:"enabled"`
+
+	// EventsBufferSize is the size in bytes of the channel to report events
+	// from the kernel to us.
+	EventsBufferSize *int `yaml:"events_buffer_size,omitempty"`
+}
+
+// Parse will parse the enhanced session recording configuration.
+func (r *RestrictedSession) Parse() (*restricted.Config, error) {
+	enabled, err := apiutils.ParseBool(r.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &restricted.Config{
+		Enabled:          enabled,
+		EventsBufferSize: r.EventsBufferSize,
+	}, nil
 }
 
 // Databases represents the database proxy service configuration.
@@ -1104,4 +1142,23 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 	return v2, nil
+}
+
+// Metrics is a `metrics_service` section of the config file:
+type Metrics struct {
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
+
+	// KeyPairs is a list of x509 serving key pairs used for securing the metrics endpoint with mTLS.
+	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
+	KeyPairs []KeyPair `yaml:"keypairs,omitempty"`
+
+	// CACerts is a list of prometheus CA certificates to validate clients against.
+	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
+	CACerts []string `yaml:"ca_certs,omitempty"`
+}
+
+// MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
+func (m *Metrics) MTLSEnabled() bool {
+	return len(m.KeyPairs) > 0 && len(m.CACerts) > 0
 }

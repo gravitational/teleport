@@ -168,6 +168,11 @@ type Config struct {
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
+
+	// WebIdleTimeout specifies how long a user WebUI session can be left
+	// idle before being logged by the server. A zero value means there
+	// is no idle timeout set.
+	WebIdleTimeout time.Duration
 }
 
 type RewritingHandler struct {
@@ -256,6 +261,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// Unauthenticated access to JWT public keys.
 	h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwks))
+
+	// Unauthenticated access to the message of the day
+	h.GET("/webapi/motd", httplib.MakeHandler(h.motd))
 
 	// DELETE IN: 5.1.0
 	//
@@ -499,7 +507,14 @@ func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 // GET /webapi/sites/:site/context
 //
 func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	roleset, err := c.GetCertRoles()
+	cn, err := h.cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cn.GetClusterName() != site.GetName() {
+		return nil, trace.BadParameter("endpoint only implemented for root cluster")
+	}
+	roleset, err := c.GetUserRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -667,6 +682,8 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 	default:
 		return webclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
 	}
+
+	as.HasMessageOfTheDay = cap.GetMessageOfTheDay() != ""
 
 	return as, nil
 }
@@ -875,6 +892,15 @@ func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		resp.Keys = append(resp.Keys, jwk)
 	}
 	return &resp, nil
+}
+
+func (h *Handler) motd(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	authPrefs, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return webclient.MotD{Text: authPrefs.GetMessageOfTheDay()}, nil
 }
 
 func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
@@ -1235,31 +1261,19 @@ type CreateSessionResponse struct {
 }
 
 func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
-	clt, err := ctx.GetClient()
+	roleset, err := ctx.GetUserRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := ctx.getToken()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err := clt.GetUser(ctx.GetUser(), false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var roles services.RoleSet
-	for _, roleName := range user.GetRoles() {
-		role, err := clt.GetRole(context.TODO(), roleName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		roles = append(roles, role)
-	}
-	_, err = roles.CheckLoginDuration(0)
+	_, err = roleset.CheckLoginDuration(0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	token, err := ctx.getToken()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &CreateSessionResponse{
 		TokenType:      roundtrip.AuthBearer,
 		Token:          token.GetName(),
@@ -1893,7 +1907,9 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 //               empty string means start search from beginning
 //   "include" : optional comma-separated list of event names to return e.g.
 //               include=session.start,session.end, all are returned if empty
-//
+//   "order":    optional ordering of events. Can be either "asc" or "desc"
+//               for ascending and descending respectively.
+//               If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
 
@@ -1912,6 +1928,11 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
+	order, err := queryOrder(values, "order", types.EventOrderDescending)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1923,7 +1944,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	startKey := values.Get("startKey")
-	rawEvents, lastKey, err := clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, startKey)
+	rawEvents, lastKey, err := clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, order, startKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1966,6 +1987,22 @@ func queryLimit(query url.Values, name string, def int) (int, error) {
 		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
 	}
 	return limit, nil
+}
+
+// queryOrder returns the order parameter with the specified name from the
+// query string or a default if the parameter is not provided.
+func queryOrder(query url.Values, name string, def types.EventOrder) (types.EventOrder, error) {
+	value := query.Get(name)
+	switch value {
+	case "desc":
+		return types.EventOrderDescending, nil
+	case "asc":
+		return types.EventOrderAscending, nil
+	case "":
+		return def, nil
+	default:
+		return types.EventOrderAscending, trace.BadParameter("parameter %v is not a valid ordering", value)
+	}
 }
 
 // siteSessionStreamGet returns a byte array from a session's stream
@@ -2369,12 +2406,12 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 // ProxyWithRoles returns a reverse tunnel proxy verifying the permissions
 // of the given user.
 func (h *Handler) ProxyWithRoles(ctx *SessionContext) (reversetunnel.Tunnel, error) {
-	roles, err := ctx.GetCertRoles()
+	roleset, err := ctx.GetUserRoles()
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to get client roles.")
 		return nil, trace.Wrap(err)
 	}
-	return reversetunnel.NewTunnelWithRoles(h.cfg.Proxy, roles, h.cfg.AccessPoint), nil
+	return reversetunnel.NewTunnelWithRoles(h.cfg.Proxy, roleset, h.cfg.AccessPoint), nil
 }
 
 // ProxyHostPort returns the address of the proxy server using --proxy

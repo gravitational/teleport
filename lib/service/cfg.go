@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -103,6 +104,9 @@ type Config struct {
 
 	// Databases defines database proxy service configuration.
 	Databases DatabasesConfig
+
+	// Metrics defines the metrics service configuration.
+	Metrics MetricsConfig
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
@@ -322,7 +326,7 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	//DisableTLS is enabled if we don't want self-signed certs
+	// DisableTLS is enabled if we don't want self signed certs
 	DisableTLS bool
 
 	// DisableWebInterface allows to turn off serving the Web UI interface
@@ -532,6 +536,9 @@ type SSHConfig struct {
 
 	// BPF holds BPF configuration for Teleport.
 	BPF *bpf.Config
+
+	// RestrictedSession holds kernel objects restrictions for Teleport.
+	RestrictedSession *restricted.Config
 
 	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
 	// discovered proxy fails.
@@ -766,6 +773,29 @@ func (a App) Check() error {
 	return nil
 }
 
+// MetricsConfig specifies configuration for the metrics service
+type MetricsConfig struct {
+	// Enabled turns the metrics service role on or off for this process
+	Enabled bool
+
+	// ListenAddr is the address to listen on for incoming metrics requests.
+	// Optional.
+	ListenAddr *utils.NetAddr
+
+	// MTLS turns mTLS on the metrics service on or off
+	MTLS bool
+
+	// KeyPairs are the key and certificate pairs that the metrics service will
+	// use for mTLS.
+	// Used in conjunction with MTLS = true
+	KeyPairs []KeyPairPath
+
+	// CACerts are prometheus ca certs
+	// use for mTLS.
+	// Used in conjunction with MTLS = true
+	CACerts []string
+}
+
 // Rewrite is a list of rewriting rules to apply to requests and responses.
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
@@ -889,6 +919,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+	cfg.SSH.RestrictedSession = &restricted.Config{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
 
 	// Kubernetes service defaults.
@@ -900,6 +931,9 @@ func ApplyDefaults(cfg *Config) {
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false
+
+	// Metrics service defaults.
+	cfg.Metrics.Enabled = false
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

@@ -3,31 +3,18 @@ title: Teleport Cloud FAQ
 description: Teleport cloud frequently asked questions.
 ---
 
-### Can I use Teleport Cloud Preview in production?
+### Can I use Teleport Cloud in production?
 
-We expect Teleport Cloud to be suitable to use in non mission critical systems
-that do not require 24/7 access or a guaranteed SLA. We recommend a
-fallback option be available in the event of error or outage.
+Yes.
+
+## What is the cloud SLA
+
+Teleport Cloud commits to SLA of (=cloud.sla.monthly_percentage=)% of monthly uptime percentage,
+a maximum of (=cloud.sla.monthly_downtime=) of downtime per month.
 
 ### How does Cloud Billing work?
 
-Teleport counts the number of unique Resources connected to the account's Proxy 
-("Connected Resources") at frequent time intervals during the month. 
-The aggregate gross price for each Resource on a monthly invoice is 
-determined by multiplying the maximum number of Connected Resources counted in 
-a given month by the per unit pricing for that Resource. Below is an example:
-
-| Time Interval                   |     | T1 | T2 | T3 | T4 | T5 |
-|---------------------------------|-----|----|----|----|----|----|
-| Connected Resources             |     | 10 | 5  | 7  | 15 | 5  |
-|                                 |     |    |    |    |    |    |
-| Max Connected Resources         | 15  |    |    |    |    |    |
-| Per Unit Monthly Pricing        | $5  |    |    |    |    |    |
-| **Total Gross Price for the Month** | **$75** |    |    |    |    |    |
-
-The current self-serve pricing is available on our [online pricing calculator](https://goteleport.com/pricing).
-
-For larger infrastructure footprints, you can [reach out to us directly](https://goteleport.com/signup/enterprise) to discuss volume discounts.
+[Reach out to sales](https://goteleport.com/signup/enterprise) to discuss pricing.
 
 ### Are you using AWS-managed encryption keys, or CMKs via KMS?
 
@@ -76,9 +63,7 @@ $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
 
 ### When will a security audit be available?
 
-The Teleport Cloud security audit starts in January.
-We will work on fixing any security issues that are identified and
-publish it in Q1 2021.
+Security audit has been completed and is available [here](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/).
 
 ### What does Teleport Cloud run in?
 
@@ -88,14 +73,10 @@ cluster on AWS.
 ### Will Teleport be automatically upgraded with each release?
 
 We will be upgrading the preview version of Teleport Cloud automatically.
-We will add an option to trigger upgrades manually and automatically
-within a configurable maintenance window.
 
 ### Does your SOCII report include Teleport Cloud?
 
-Our current SOCII Type2 report covers our organization, Teleport and Gravity OSS and Enterprise versions.
-We are pursuing SOC2 for cloud and expect to receive our report at the end of Q2 2021
-after our 6 month audit period is completed.
+(!docs/pages/includes/soc2.mdx!)
 
 ### Can a customer deploy multiple clusters in Teleport Cloud?
 

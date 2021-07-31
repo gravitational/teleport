@@ -175,6 +175,8 @@ type TestAuthServer struct {
 	Backend backend.Backend
 	// Authorizer is an authorizer used in tests
 	Authorizer Authorizer
+	// LockWatcher is a lock watcher used in tests.
+	LockWatcher *services.LockWatcher
 }
 
 // NewTestAuthServer returns new instances of Auth server
@@ -320,10 +322,20 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
+	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentAuth,
+			Client:    srv.AuthServer,
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer, srv.LockWatcher)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return srv, nil
 }
 
@@ -781,14 +793,14 @@ func (t *TestTLSServer) Close() error {
 
 // Shutdown closes the listener and HTTP server gracefully
 func (t *TestTLSServer) Shutdown(ctx context.Context) error {
-	err := t.TLSServer.Shutdown(ctx)
+	errs := []error{t.TLSServer.Shutdown(ctx)}
 	if t.Listener != nil {
-		t.Listener.Close()
+		errs = append(errs, t.Listener.Close())
 	}
 	if t.AuthServer.Backend != nil {
-		t.AuthServer.Backend.Close()
+		errs = append(errs, t.AuthServer.Backend.Close())
 	}
-	return err
+	return trace.NewAggregate(errs...)
 }
 
 // Stop stops listening server, but does not close the auth backend
