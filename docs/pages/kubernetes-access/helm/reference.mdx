@@ -50,6 +50,14 @@ This reference details available values for the `teleport-cluster` chart.
   If you are not using ACME certificates, you may also need to accept insecure warnings in your browser to view the page successfully.
 </Admonition>
 
+## `kubeClusterName`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - |
+| `string` | `clusterName` value | no | `kubernetes_service.kube_cluster_name` |  ✅ |
+
+`kubeClusterName` sets the name used for the Kubernetes cluster. This name will be shown to Teleport users connecting to the cluster.
+
 ## `enterprise`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -105,7 +113,7 @@ You can optionally override this to use a different published Teleport Docker im
 See these links for information on Docker image versions:
 
 - [Community Docker image information](../../setup/guides/docker.mdx#step-14-pick-your-image)
-- [Enterprise Docker image information](../../enterprise/quickstart-enterprise.mdx#run-teleport-enterprise-using-docker)
+- [Enterprise Docker image information](../../enterprise/getting-started.mdx#run-teleport-enterprise-using-docker)
 
 <Tabs>
   <TabItem label="values.yaml">
