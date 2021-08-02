@@ -43,7 +43,7 @@ func TestProxySSHHandler(t *testing.T) {
 		ForwardTLS: false,
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			defer conn.Close()
-			_, err := fmt.Fprintf(conn, handlerRespMessage)
+			_, err := fmt.Fprint(conn, handlerRespMessage)
 			require.NoError(t, err)
 			return nil
 		},
@@ -81,7 +81,7 @@ func TestProxyKubeHandler(t *testing.T) {
 		})
 		err := tlsConn.Handshake()
 		require.NoError(t, err)
-		_, err = fmt.Fprintf(tlsConn, kubernetesHandlerResponse)
+		_, err = fmt.Fprint(tlsConn, kubernetesHandlerResponse)
 		require.NoError(t, err)
 		return nil
 	})
@@ -122,7 +122,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 
 	suite.router.AddDBTLSHandler(func(ctx context.Context, conn net.Conn) error {
 		defer conn.Close()
-		_, err := fmt.Fprintf(conn, databaseHandleResponse)
+		_, err := fmt.Fprint(conn, databaseHandleResponse)
 		require.NoError(t, err)
 		return nil
 	})
@@ -150,7 +150,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		conn = tls.Client(conn, &tls.Config{
+		tlsConn := tls.Client(conn, &tls.Config{
 			Certificates: []tls.Certificate{
 				clientCert,
 			},
@@ -158,7 +158,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 			ServerName: "localhost",
 		})
 
-		mustReadFromConnection(t, conn, databaseHandleResponse)
+		mustReadFromConnection(t, tlsConn, databaseHandleResponse)
 		mustCloseConnection(t, conn)
 	})
 }
@@ -177,7 +177,7 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 		Protocols: []string{ProtocolPostgres},
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			defer conn.Close()
-			_, err := fmt.Fprintf(conn, databaseHandleResponse)
+			_, err := fmt.Fprint(conn, databaseHandleResponse)
 			require.NoError(t, err)
 			return nil
 		},
@@ -194,7 +194,6 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
 	}
-
 
 	mustStartLocalProxy(t, localProxyConfig)
 

@@ -144,7 +144,7 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
-	if c.ReadDeadline == 0  {
+	if c.ReadDeadline == 0 {
 		c.ReadDeadline = defaults.HandshakeReadDeadline
 	}
 	return nil

@@ -664,7 +664,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	// apply kubernetes proxy config, by default kube proxy is disabled
 	legacyKube := fc.Proxy.Kube.Configured() && fc.Proxy.Kube.Enabled()
 	newKube := fc.Proxy.KubeAddr != "" || len(fc.Proxy.KubePublicAddr) > 0
-	newKube = fc.Kube.Configured() && fc.Kube.Enabled()
 	switch {
 	case legacyKube && !newKube:
 		cfg.Proxy.Kube.Enabled = true

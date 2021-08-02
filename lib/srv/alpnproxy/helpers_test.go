@@ -40,7 +40,6 @@ import (
 )
 
 type Suite struct {
-	svrCert        tls.Certificate
 	serverListener net.Listener
 	router         *Router
 	ca             *tlsca.CertAuthority
@@ -117,6 +116,7 @@ func mustGenSelfSignedCert(t *testing.T) *tlsca.CertAuthority {
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",
 	}, []string{"localhost"}, defaults.CATTL)
+	require.NoError(t, err)
 
 	ca, err := tlsca.FromKeys(caCert, caKey)
 	require.NoError(t, err)
@@ -187,15 +187,10 @@ func mustCreateLocalListener(t *testing.T) net.Listener {
 	return l
 }
 
-func mustSuccessfullyCallHTTPServer(t *testing.T, addr string) {
-	resp, err := http.DefaultClient.Get(fmt.Sprintf("http://%s", addr))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-}
-
 func mustSuccessfullyCallHTTPSServer(t *testing.T, addr string, client http.Client) {
 	resp, err := client.Get(fmt.Sprintf("https://%s", addr))
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 

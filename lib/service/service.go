@@ -2923,7 +2923,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// the database clients (such as psql or mysql), authenticating them, and
 	// then routing them to a respective database server over the reverse tunnel
 	// framework.
-	if !listeners.db.Empty() || alpnRouter != nil && !process.Config.Proxy.DisableReverseTunnel {
+	if (!listeners.db.Empty() || alpnRouter != nil) && !process.Config.Proxy.DisableReverseTunnel {
 		authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
 		if err != nil {
 			return trace.Wrap(err)

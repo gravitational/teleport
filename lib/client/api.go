@@ -1389,44 +1389,6 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	return tc.runShell(nodeClient, nil)
 }
 
-func (tc *TeleportClient) SSHNodeSSHNodeConnConn(ctx context.Context, command []string, runLocally bool) (*NodeClient, error) {
-	// connect to proxy first:
-	if !tc.Config.ProxySpecified() {
-		return nil, trace.BadParameter("proxy server is not specified")
-	}
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-	siteInfo, err := proxyClient.currentCluster()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(nodeAddrs) == 0 {
-		return nil, trace.BadParameter("no target host specified")
-	}
-
-	nodeClient, err := proxyClient.ConnectToNode(
-		ctx,
-		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},
-		tc.Config.HostLogin,
-		false)
-	if err != nil {
-		tc.ExitStatus = 1
-		return nil, trace.Wrap(err)
-	}
-
-	// If forwarding ports were specified, start port forwarding.
-	tc.startPortForwarding(ctx, nodeClient)
-	return nodeClient, nil
-
-}
-
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
 	if len(tc.Config.LocalForwardPorts) > 0 {
 		for _, fp := range tc.Config.LocalForwardPorts {
