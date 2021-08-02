@@ -634,10 +634,17 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	testCtx.hostCA, err = testCtx.authClient.GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: testCtx.clusterName}, false)
 	require.NoError(t, err)
 
-	// Auth client/authorizer for database proxy.
+	// Auth client, lock watcher and authorizer for database proxy.
 	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient)
+	proxyLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    proxyAuthClient,
+		},
+	})
+	require.NoError(t, err)
+	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient, proxyLockWatcher)
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.
@@ -668,16 +675,6 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	// Create test audit events emitter.
 	testCtx.emitter = newTestEmitter()
 
-	// Create a lock watcher for the DB proxy server.
-	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Client:    proxyAuthClient,
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(lockWatcher.Close)
-
 	// Create database proxy server.
 	testCtx.proxyServer, err = NewProxyServer(ctx, ProxyServerConfig{
 		AuthClient:  proxyAuthClient,
@@ -693,7 +690,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 			sort.Sort(types.SortedDatabaseServers(servers))
 			return servers
 		},
-		LockWatcher: lockWatcher,
+		LockWatcher: proxyLockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -713,8 +710,15 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
 
-	// Database service authorizer.
-	dbAuthorizer, err := auth.NewAuthorizer(c.clusterName, c.authClient)
+	// Lock watcher and authorizer for database service.
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentDatabase,
+			Client:    c.authClient,
+		},
+	})
+	require.NoError(t, err)
+	dbAuthorizer, err := auth.NewAuthorizer(c.clusterName, c.authClient, lockWatcher)
 	require.NoError(t, err)
 
 	// Create test database auth tokens generator.
@@ -726,14 +730,6 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 	require.NoError(t, err)
 
 	// Create a lock watcher for the DB service.
-	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentDatabase,
-			Client:    c.authClient,
-		},
-	})
-	require.NoError(t, err)
-
 	server, err := New(ctx, Config{
 		Clock:         clockwork.NewFakeClockAt(time.Now()),
 		DataDir:       t.TempDir(),
