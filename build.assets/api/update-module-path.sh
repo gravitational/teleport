@@ -8,7 +8,7 @@ MAJ_VER=$(echo ${VERSION} | cut -d "." -f1)
 MAJ_VER_SUF=$( if [ "${MAJ_VER}" -ge 2 ]; then echo "/v${MAJ_VER}"; else echo ""; fi )
 
 # Check if the version is a release, having no "-xxx" suffix
-if [ $(echo "${VERSION}" | grep "-") ]
+if grep -q "-" <<< "${VERSION}"
     then echo "The current version is not a release" && exit 0
 fi
 

@@ -766,8 +766,8 @@ vendor-api:
 	$(eval MOD_PATH=$(shell head -1 api/go.mod | awk '{print $$2;}'))
 	rm -rf vendor/github.com/gravitational/teleport/api
 	# only create api directory if we are linking the api as vX
-	if [ $(shell echo $(MOD_PATH) | grep "/v[0-9]\+") ]; \
-		then mkdir -p vendor/github.com/gravitational/teleport/api; fi
+	if grep -q "/v[0-9]\+" <<< "$(MOD_PATH)"; \
+		then mkdir -p vendor/github.com/gravitational/teleport/api; fi;\
 	ln -s -r $(shell readlink -f api) vendor/$(MOD_PATH)
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
