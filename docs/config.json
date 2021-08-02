@@ -6,7 +6,14 @@
       "entries": [
         { "title": "Introduction", "slug": "/" },
         { "title": "Adopters", "slug": "/adopters/" },
-        { "title": "Getting Started", "slug": "/getting-started/" },
+        {
+          "title": "Getting Started",
+          "slug": "/getting-started/",
+           "entries": [
+            { "title": "Linux Server", "slug": "/getting-started/linux-server/" },
+            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" }
+          ]
+        },
         { "title": "Installation", "slug": "/installation/" },
         { "title": "User Manual", "slug": "/user-manual/" },
         { "title": "Admin Manual", "slug": "/admin-guide/" },
@@ -20,11 +27,20 @@
       "title": "Setup",
       "entries": [
         {
-          "title": "Guides",
+          "title": "Deployments",
+          "slug": "/setup/deployments/",
+          "entries": [
+            { "title": "AWS Terraform", "slug": "/setup/deployments/aws-terraform/" },
+            { "title": "GCP", "slug": "/setup/deployments/gcp/" },
+            { "title": "IBM", "slug": "/setup/deployments/ibm/" }
+          ]
+        },
+        {
+          "title": "Integrations",
           "slug": "/setup/guides/",
           "entries": [
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
-            { "title": "Docker Compose", "slug": "/setup/guides/docker-compose/" },
+            { "title": "Docker", "slug": "/setup/guides/docker/" },
             { "title": "Fluentd", "slug": "/setup/guides/fluentd/" }
           ]
         },
@@ -49,7 +65,8 @@
           "entries": [
             { "title": "Connecting Apps", "slug": "/application-access/guides/connecting-apps/" },
             { "title": "Integrating with JWT", "slug": "/application-access/guides/jwt/" },
-            { "title": "API Access", "slug": "/application-access/guides/api-access/" }
+            { "title": "API Access", "slug": "/application-access/guides/api-access/" },
+            { "title": "AWS Console Access", "slug": "/application-access/guides/aws-console/" }
           ]
         },
         { "title": "Access Controls", "slug": "/application-access/controls/" },
@@ -68,7 +85,8 @@
           "entries": [
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
             { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
-            {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"}
+            {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"},
+            {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"}
           ]
         }
       ]
@@ -78,7 +96,14 @@
       "title": "Kubernetes Access",
       "entries": [
         { "title": "Introduction", "slug": "/kubernetes-access/introduction/" },
-        { "title": "Getting Started", "slug": "/kubernetes-access/getting-started/" },
+        {
+          "title": "Getting Started",
+          "slug": "/kubernetes-access/getting-started/",
+           "entries": [
+            { "title": "Cluster", "slug": "/kubernetes-access/getting-started/cluster/" },
+            { "title": "Agent", "slug": "/kubernetes-access/getting-started/agent/" }
+          ]
+        },
         {
           "title": "Guides",
           "slug": "/kubernetes-access/guides/",
@@ -116,11 +141,14 @@
           "entries": [
             { "title": "AWS RDS/Aurora PostgreSQL", "slug": "/database-access/guides/postgres-aws/" },
             { "title": "AWS RDS/Aurora MySQL", "slug": "/database-access/guides/mysql-aws/" },
-            { "title": "AWS Redshift PostgreSQL", "slug": "/database-access/guides/postgres-redshift/" },
+            { "title": "AWS Redshift", "slug": "/database-access/guides/postgres-redshift/" },
             { "title": "GCP Cloud SQL PostgreSQL", "slug": "/database-access/guides/postgres-cloudsql/" },
+            { "title": "GCP Cloud SQL MySQL", "slug": "/database-access/guides/mysql-cloudsql/" },
             { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
             { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
-            { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" }
+            { "title": "Self-Hosted MongoDB", "slug": "/database-access/guides/mongodb-self-hosted/" },
+            { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" },
+            { "title": "High Availability", "slug": "/database-access/guides/ha/" }
           ]
         },
         { "title": "Access Controls", "slug": "/database-access/rbac/" },
@@ -166,29 +194,31 @@
       ]
     },
     {
-      "icon": "book",
-      "title": "Infrastructure Guides",
-      "entries": [
-        { "title": "GCP", "slug": "/gcp-guide/" },
-        { "title": "IBM", "slug": "/ibm-cloud-guide/" }
-      ]
-    },
-    {
       "icon": "building",
       "title": "Teleport Enterprise",
       "entries": [
         { "title": "Introduction", "slug": "/enterprise/introduction/" },
         {
-          "title": "Quick Start Guide",
-          "slug": "/enterprise/quickstart-enterprise/"
+          "title": "Getting Started",
+          "slug": "/enterprise/getting-started/"
         },
-        { "title": "Single sign-on (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
+        {
+          "title": "Single sign-on (SSO)", "slug": "/enterprise/sso/",
+          "entries": [
+            { "title": "Azure Active Directory (AD)", "slug": "/enterprise/sso/azuread/" },
+            { "title": "Active Directory (ADFS)", "slug": "/enterprise/sso/adfs/" },
+            { "title": "Google Workspace", "slug": "/enterprise/sso/google-workspace/" },
+            { "title": "GitLab", "slug": "/enterprise/sso/gitlab/" },
+            { "title": "OneLogin", "slug": "/enterprise/sso/one-login/" },
+            { "title": "OIDC", "slug": "/enterprise/sso/oidc/" },
+            { "title": "Okta", "slug": "/enterprise/sso/okta/" }
+          ]
+        },
         { "title": "Access Requests", "slug": "/enterprise/workflow/" },
         {
-          "title": "FedRAMP for SSH & K8s",
-          "slug": "/enterprise/ssh-kubernetes-fedramp/"
-        },
-        { "title": "RBAC", "slug": "/enterprise/ssh-rbac/" }
+          "title": "FedRAMP",
+          "slug": "/enterprise/fedramp/"
+        }
       ]
     },
     {
@@ -197,6 +227,13 @@
       "entries": [
         { "title": "Introduction", "slug": "/cloud/introduction/" },
         { "title": "Getting Started", "slug": "/cloud/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/cloud/guides/",
+          "entries": [
+            { "title": "U2f", "slug": "/cloud/guides/u2f/" }
+          ]
+        },        
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
       ]
@@ -240,15 +277,33 @@
     "terraform": {
       "version": "0.12.0"
     },
+    "fedramp": {
+      "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
+    },
+    "soc2": {
+      "last_report": "April 12th, 2021"
+    },
+    "cloud": {
+      "sla": {
+        "monthly_percentage": "99.5%",
+        "monthly_downtime": "3 hours 40 minutes"
+      }
+    },
     "fluentd": {
       "version": "1.12.4"
     },
     "docker": {
-      "version": "20.10.7"
+      "version": "20.10.7",
+      "compose": {
+        "version": "1.25.0"
+      }
     },
     "kubernetes": {
       "major_version": "1",
       "minor_version": "17"
+    },
+    "mongodb": {
+      "min_version": "3.6"
     },
     "teleport": {
       "version": "6.2.7",
@@ -262,6 +317,66 @@
     }
   },
   "redirects": [
+    {
+      "source": "/enterprise/ssh-kubernetes-fedramp/",
+      "destination": "/enterprise/fedramp/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-one-login/",
+      "destination": "/enterprise/sso/one-login/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-okta/",
+      "destination": "/enterprise/sso/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-google-workspace/",
+      "destination": "/enterprise/sso/google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-azuread/",
+      "destination": "/enterprise/sso/azuread/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-adfs/",
+      "destination": "/enterprise/sso/adfs/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-sso/",
+      "destination": "/enterprise/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/quickstart-enterprise/",
+      "destination": "/enterprise/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/gcp-guide/",
+      "destination": "/setup/deployments/gcp/",
+      "permanent": true
+    },    
+    {
+      "source": "/ibm-cloud-guide/",
+      "destination": "/setup/deployments/ibm/",
+      "permanent": true
+    },
+    {
+      "source": "/aws-terraform-guide/",
+      "destination": "/setup/deployments/aws-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/guides/docker-compose/",
+      "destination": "/setup/guides/docker/",
+      "permanent": true
+    },
     {
       "source": "/cloud/",
       "destination": "/cloud/introduction/",
@@ -329,7 +444,7 @@
     },
     {
       "source": "/quickstart-docker/",
-      "destination": "/setup/guides/docker-compose/",
+      "destination": "/setup/guides/docker/",
       "permanent": true
     }
   ]

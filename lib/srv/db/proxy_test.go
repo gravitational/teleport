@@ -86,7 +86,7 @@ func TestProxyProtocolMongo(t *testing.T) {
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
 
 	// Point our proxy to the Teleport's TLS listener.
-	proxy, err := multiplexer.NewTestProxy(testCtx.tlsListener.Addr().String())
+	proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String())
 	require.NoError(t, err)
 	t.Cleanup(func() { proxy.Close() })
 	go proxy.Serve()
@@ -146,6 +146,32 @@ func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
 	require.NoError(t, err)
 
 	testCtx.clock.Advance(ttlClientCert)
+
+	waitForEvent(t, testCtx, events.ClientDisconnectCode)
+	err = mysql.Ping()
+	require.Error(t, err)
+}
+
+// TestProxyClientDisconnectDueToLockInForce ensures that clients will be
+// disconnected when there is a matching lock in force.
+func TestProxyClientDisconnectDueToLockInForce(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
+
+	mysql, err := testCtx.mysqlClient("alice", "mysql", "root")
+	require.NoError(t, err)
+
+	err = mysql.Ping()
+	require.NoError(t, err)
+
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{User: "alice"},
+	})
+	require.NoError(t, err)
+	testCtx.authServer.UpsertLock(ctx, lock)
 
 	waitForEvent(t, testCtx, events.ClientDisconnectCode)
 	err = mysql.Ping()

@@ -1,0 +1,27 @@
+Download the latest version of Teleport for your platform from our
+[downloads page](https://goteleport.com/teleport/download) and follow the
+installation [instructions](../../installation.mdx).
+
+Teleport requires a valid TLS certificate to operate and can fetch one automatically
+using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol. We
+will assume that you have configured DNS records for `teleport.example.com` and
+`*.teleport.example.com` to point to the Teleport node.
+
+Generate Teleport config with ACME enabled:
+
+```bash
+teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
+```
+
+<Admonition type="note" title="Web Proxy Port">
+  Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
+  ACME challenge to validate certificate requests which only works on port `443`.
+  As such, in order to use ACME for certificate management, web proxy needs to
+  be accessible on port `443`.
+</Admonition>
+
+Start Teleport Auth and Proxy services:
+
+```bash
+sudo teleport start
+```

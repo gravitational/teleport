@@ -330,7 +330,7 @@ func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 		t.Fatalf("failed to create linear backoff: %v", err)
 	}
 	for {
-		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), apidefaults.Namespace, []string{eventType}, 100, "")
+		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), apidefaults.Namespace, []string{eventType}, 100, types.EventOrderAscending, "")
 		if err != nil {
 			t.Fatalf("failed to call SearchEvents: %v", err)
 		}

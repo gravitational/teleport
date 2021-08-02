@@ -105,6 +105,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.ClusterConfiguration = clusterConfig
 	}
+	if cfg.Restrictions == nil {
+		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
+	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend, cfg.ClusterConfiguration.GetClusterConfig)
 	}
@@ -147,6 +150,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			Access:               cfg.Access,
 			DynamicAccessExt:     cfg.DynamicAccessExt,
 			ClusterConfiguration: cfg.ClusterConfiguration,
+			Restrictions:         cfg.Restrictions,
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
 		},
@@ -169,6 +173,7 @@ type Services struct {
 	services.Access
 	services.DynamicAccessExt
 	services.ClusterConfiguration
+	services.Restrictions
 	types.Events
 	events.IAuditLog
 }
@@ -563,6 +568,8 @@ type certRequest struct {
 	appClusterName string
 	// appName is the name of the application to generate cert for.
 	appName string
+	// awsRoleARN is the role ARN to generate certificate for.
+	awsRoleARN string
 	// dbService identifies the name of the database service requests will
 	// be routed to.
 	dbService string
@@ -644,6 +651,8 @@ type AppTestCertRequest struct {
 	ClusterName string
 	// SessionID is the optional session ID to encode. Used for routing.
 	SessionID string
+	// AWSRoleARN is optional AWS role ARN a user wants to assume to encode.
+	AWSRoleARN string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -678,6 +687,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		appSessionID:   sessionID,
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
+		awsRoleARN:     req.AWSRoleARN,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -863,6 +873,12 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// See which AWS role ARNs this user is allowed to assume.
+	roleARNs, err := req.checker.CheckAWSRoleARNs(sessionTTL, req.overrideRoleTTL)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate TLS certificate
 	tlsAuthority, err := tlsca.FromAuthority(ca)
 	if err != nil {
@@ -884,6 +900,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			PublicAddr:  req.appPublicAddr,
 			ClusterName: req.appClusterName,
 			Name:        req.appName,
+			AWSRoleARN:  req.awsRoleARN,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -896,6 +913,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		DatabaseUsers: dbUsers,
 		MFAVerified:   req.mfaVerified,
 		ClientIP:      req.clientIP,
+		AWSRoleARNs:   roleARNs,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -2242,16 +2260,6 @@ func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
 }
 
-// GetLock gets a lock by name.
-func (a *Server) GetLock(ctx context.Context, name string) (types.Lock, error) {
-	return a.GetCache().GetLock(ctx, name)
-}
-
-// GetLocks gets all matching locks from the cache.
-func (a *Server) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
-	return a.GetCache().GetLocks(ctx, targets...)
-}
-
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	pref, err := a.GetAuthPreference(ctx)
 	if err != nil {
@@ -2529,6 +2537,21 @@ func (a *Server) upsertWebSession(ctx context.Context, user string, session type
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// GetNetworkRestrictions returns the network restrictions from the cache
+func (a *Server) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	return a.GetCache().GetNetworkRestrictions(ctx)
+}
+
+// SetNetworkRestrictions updates the network restrictions in the backend
+func (a *Server) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
+	return a.Services.Restrictions.SetNetworkRestrictions(ctx, nr)
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions in the backend
+func (a *Server) DeleteNetworkRestrictions(ctx context.Context) error {
+	return a.Services.Restrictions.DeleteNetworkRestrictions(ctx)
 }
 
 // authKeepAliver is a keep aliver using auth server directly

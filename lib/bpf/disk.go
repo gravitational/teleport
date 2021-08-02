@@ -23,14 +23,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
-	"github.com/aquasecurity/tracee/libbpfgo"
+	"github.com/aquasecurity/libbpfgo"
 	"github.com/prometheus/client_golang/prometheus"
 
 	_ "embed"
 )
-
-//go:embed bytecode/disk.bpf.o
-var diskBPF []byte
 
 var (
 	lostDiskEvents = prometheus.NewCounter(
@@ -58,10 +55,10 @@ type rawOpenEvent struct {
 	ReturnCode int32
 
 	// Command is name of the executable opening the file.
-	Command [commMax]byte
+	Command [CommMax]byte
 
 	// Path is the full path to the file being opened.
-	Path [pathMax]byte
+	Path [PathMax]byte
 
 	// Flags are the flags passed to open.
 	Flags int32
@@ -83,6 +80,11 @@ func startOpen(bufferSize int) (*open, error) {
 	}
 
 	o := &open{}
+
+	diskBPF, err := embedFS.ReadFile("bytecode/disk.bpf.o")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	o.module, err = libbpfgo.NewModuleFromBuffer(diskBPF, "disk")
 	if err != nil {

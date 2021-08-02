@@ -69,6 +69,9 @@ type ResourceCommand struct {
 	updateCmd *kingpin.CmdClause
 
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
+
+	// stdout allows to switch standard output source for resource command. Used in tests.
+	stdout io.Writer
 }
 
 const getHelp = `Examples:
@@ -94,6 +97,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
 		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
 		types.KindLock:                    rc.createLock,
+		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
 	}
 	rc.config = config
 
@@ -128,6 +132,10 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
 
 	rc.getCmd.Alias(getHelp)
+
+	if rc.stdout == nil {
+		rc.stdout = os.Stdout
+	}
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -181,11 +189,11 @@ func (rc *ResourceCommand) Get(client auth.ClientI) error {
 	// is experimental.
 	switch rc.format {
 	case teleport.Text:
-		return collection.writeText(os.Stdout)
+		return collection.writeText(rc.stdout)
 	case teleport.YAML:
-		return writeYAML(collection, os.Stdout)
+		return writeYAML(collection, rc.stdout)
 	case teleport.JSON:
-		return writeJSON(collection, os.Stdout)
+		return writeJSON(collection, rc.stdout)
 	}
 	return trace.BadParameter("unsupported format")
 }
@@ -518,6 +526,22 @@ func (rc *ResourceCommand) createLock(client auth.ClientI, raw services.UnknownR
 	return nil
 }
 
+// createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
+func (rc *ResourceCommand) createNetworkRestrictions(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+
+	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.SetNetworkRestrictions(ctx, newNetRestricts); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("network restrictions have been updated\n")
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	singletonResources := []string{
@@ -616,6 +640,29 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("lock %q has been deleted\n", rc.ref.Name)
+	case types.KindDatabaseServer:
+		dbServers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		deleted := false
+		for _, server := range dbServers {
+			if server.GetName() == rc.ref.Name {
+				if err := client.DeleteDatabaseServer(ctx, apidefaults.Namespace, server.GetHostID(), server.GetName()); err != nil {
+					return trace.Wrap(err)
+				}
+				deleted = true
+			}
+		}
+		if !deleted {
+			return trace.NotFound("database server %q not found", rc.ref.Name)
+		}
+		fmt.Printf("database server %q has been deleted\n", rc.ref.Name)
+	case types.KindNetworkRestrictions:
+		if err = resetNetworkRestrictions(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -662,6 +709,10 @@ func resetSessionRecordingConfig(ctx context.Context, client auth.ClientI) error
 	}
 
 	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
+}
+
+func resetNetworkRestrictions(ctx context.Context, client auth.ClientI) error {
+	return trace.Wrap(client.DeleteNetworkRestrictions(ctx))
 }
 
 // Update updates select resource fields: expiry and labels
@@ -962,7 +1013,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		return &recConfigCollection{recConfig}, nil
 	case types.KindLock:
 		if rc.ref.Name == "" {
-			locks, err := client.GetLocks(ctx)
+			locks, err := client.GetLocks(ctx, false)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -973,6 +1024,31 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.Wrap(err)
 		}
 		return &lockCollection{locks: []types.Lock{lock}}, nil
+	case types.KindDatabaseServer:
+		servers, err := client.GetDatabaseServers(ctx, rc.namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if rc.ref.Name == "" {
+			return &dbCollection{servers: servers}, nil
+		}
+
+		var out []types.DatabaseServer
+		for _, server := range servers {
+			if server.GetName() == rc.ref.Name {
+				out = append(out, server)
+			}
+		}
+		if len(out) == 0 {
+			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
+		}
+		return &dbCollection{servers: out}, nil
+	case types.KindNetworkRestrictions:
+		nr, err := client.GetNetworkRestrictions(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &netRestrictionsCollection{nr}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
