@@ -136,8 +136,6 @@ func TestExtract(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.addr, func(t *testing.T) {
-			t.Parallel()
-
 			hostPort, err := extractHostPort(tc.addr)
 			// Expect err if expected value is empty
 			require.True(t, (tc.hostPort == "") == (err != nil))
