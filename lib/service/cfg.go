@@ -452,6 +452,8 @@ type KubeProxyConfig struct {
 	// LegacyKubeProxy specifies that this proxy was configured using the
 	// legacy kubernetes section.
 	LegacyKubeProxy bool
+
+	DisableImpersonationCheck bool
 }
 
 // AuthConfig is a configuration of the auth server
@@ -583,6 +585,8 @@ type KubeConfig struct {
 
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
+
+	DisableImpersonationPermissionsCheck bool
 }
 
 // DatabasesConfig configures the database proxy service.

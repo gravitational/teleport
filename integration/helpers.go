@@ -112,6 +112,8 @@ type TeleInstance struct {
 
 	// log specifies the instance logger
 	log utils.Logger
+
+	DisableKubeImpersonationPermissionsCheck bool
 }
 
 type User struct {
@@ -171,6 +173,8 @@ type InstanceConfig struct {
 
 	// log specifies the logger
 	log utils.Logger
+
+	DisableKubeImpersonationPermissionsCheck bool
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -234,10 +238,11 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	fatalIf(err)
 
 	i := &TeleInstance{
-		Ports:         cfg.Ports,
-		Hostname:      cfg.NodeName,
-		UploadEventsC: make(chan events.UploadEvent, 100),
-		log:           cfg.log,
+		Ports:                                    cfg.Ports,
+		Hostname:                                 cfg.NodeName,
+		UploadEventsC:                            make(chan events.UploadEvent, 100),
+		log:                                      cfg.log,
+		DisableKubeImpersonationPermissionsCheck: cfg.DisableKubeImpersonationPermissionsCheck,
 	}
 	secrets := InstanceSecrets{
 		SiteName:       cfg.ClusterName,
@@ -404,7 +409,7 @@ func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
 	return siteAPI
 }
 
-// Create creates a new instance of Teleport which trusts a lsit of other clusters (other
+// Create creates a new instance of Teleport which trusts a list of other clusters (other
 // instances)
 func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
 	tconf := service.MakeDefaultConfig()
@@ -614,6 +619,8 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		Type:   lite.GetName(),
 		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
 	}
+
+	tconf.Kube.DisableImpersonationPermissionsCheck = i.DisableKubeImpersonationPermissionsCheck
 
 	tconf.Keygen = testauthority.New()
 	i.Config = tconf

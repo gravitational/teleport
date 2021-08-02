@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/events"
-	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -168,13 +167,14 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
 	teleport := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
-		Priv:        suite.priv,
-		Pub:         suite.pub,
-		log:         suite.log,
+		ClusterName:                              Site,
+		HostID:                                   HostID,
+		NodeName:                                 Host,
+		Ports:                                    ports.PopIntSlice(6),
+		Priv:                                     suite.priv,
+		Pub:                                      suite.pub,
+		DisableKubeImpersonationPermissionsCheck: true,
+		log:                                      suite.log,
 	})
 
 	username := suite.me.Username
@@ -338,13 +338,14 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
 	teleport := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
-		Priv:        suite.priv,
-		Pub:         suite.pub,
-		log:         suite.log,
+		ClusterName:                              Site,
+		HostID:                                   HostID,
+		NodeName:                                 Host,
+		Ports:                                    ports.PopIntSlice(6),
+		Priv:                                     suite.priv,
+		Pub:                                      suite.pub,
+		DisableKubeImpersonationPermissionsCheck: true,
+		log:                                      suite.log,
 	})
 
 	username := suite.me.Username
@@ -391,13 +392,14 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
 	teleport := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
-		Priv:        suite.priv,
-		Pub:         suite.pub,
-		log:         suite.log,
+		ClusterName:                              Site,
+		HostID:                                   HostID,
+		NodeName:                                 Host,
+		Ports:                                    ports.PopIntSlice(6),
+		Priv:                                     suite.priv,
+		Pub:                                      suite.pub,
+		DisableKubeImpersonationPermissionsCheck: true,
+		log:                                      suite.log,
 	})
 
 	username := suite.me.Username
@@ -487,13 +489,14 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// cluster.
 	mainConf.Proxy.Kube.KubeconfigPath = ""
 	main := NewInstance(InstanceConfig{
-		ClusterName: clusterMain,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
-		Priv:        suite.priv,
-		Pub:         suite.pub,
-		log:         suite.log,
+		ClusterName:                              clusterMain,
+		HostID:                                   HostID,
+		NodeName:                                 Host,
+		Ports:                                    ports.PopIntSlice(6),
+		Priv:                                     suite.priv,
+		Pub:                                      suite.pub,
+		DisableKubeImpersonationPermissionsCheck: true,
+		log:                                      suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -741,13 +744,14 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	clusterMain := "cluster-main"
 	mainConf := suite.teleKubeConfig(Host)
 	main := NewInstance(InstanceConfig{
-		ClusterName: clusterMain,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
-		Priv:        suite.priv,
-		Pub:         suite.pub,
-		log:         suite.log,
+		ClusterName:                              clusterMain,
+		HostID:                                   HostID,
+		NodeName:                                 Host,
+		Ports:                                    ports.PopIntSlice(6),
+		Priv:                                     suite.priv,
+		Pub:                                      suite.pub,
+		DisableKubeImpersonationPermissionsCheck: true,
+		log:                                      suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -765,13 +769,14 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	clusterAux := "cluster-aux"
 	auxConf := suite.teleKubeConfig(Host)
 	aux := NewInstance(InstanceConfig{
-		ClusterName: clusterAux,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
-		Priv:        suite.priv,
-		Pub:         suite.pub,
-		log:         suite.log,
+		ClusterName:                              clusterAux,
+		HostID:                                   HostID,
+		NodeName:                                 Host,
+		Ports:                                    ports.PopIntSlice(6),
+		Priv:                                     suite.priv,
+		Pub:                                      suite.pub,
+		DisableKubeImpersonationPermissionsCheck: true,
+		log:                                      suite.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -1022,13 +1027,14 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	tconf := suite.teleKubeConfig(Host)
 
 	teleport := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
-		Priv:        suite.priv,
-		Pub:         suite.pub,
-		log:         suite.log,
+		ClusterName:                              Site,
+		HostID:                                   HostID,
+		NodeName:                                 Host,
+		Ports:                                    ports.PopIntSlice(6),
+		Priv:                                     suite.priv,
+		Pub:                                      suite.pub,
+		DisableKubeImpersonationPermissionsCheck: true,
+		log:                                      suite.log,
 	})
 
 	username := suite.me.Username

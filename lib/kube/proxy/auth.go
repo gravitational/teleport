@@ -43,6 +43,8 @@ type kubeCreds struct {
 	kubeClient *kubernetes.Clientset
 }
 
+type ImpersonationPermissionsChecker func(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error
+
 // getKubeCreds fetches the kubernetes API credentials.
 //
 // There are 2 possible sources of credentials:
@@ -213,5 +215,9 @@ func checkImpersonationPermissions(ctx context.Context, cluster string, sarClien
 			return trace.AccessDenied("proxy can't impersonate Kubernetes %s at the cluster level; please make sure that proxy has all the necessary permissions: https://goteleport.com/teleport/docs/kubernetes-ssh/#impersonation", resource)
 		}
 	}
+	return nil
+}
+
+func nullImpersonationPermissionsCheck(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {
 	return nil
 }

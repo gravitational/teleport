@@ -135,7 +135,7 @@ type ForwarderConfig struct {
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 
-	CheckImpersonationPermissions ImpersonationPermissionsChecker
+	DisableImpersonationPermissionsCheck bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -205,9 +205,11 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		trace.Component: cfg.Component,
 	})
 
-	checkImpersonation := cfg.CheckImpersonationPermissions
-	if checkImpersonation == nil {
-		checkImpersonation = checkImpersonationPermissions
+	log.Error("Selecting Impersonation Permissions Check")
+	checkImpersonation := checkImpersonationPermissions
+	if cfg.DisableImpersonationPermissionsCheck {
+		log.Warn("Disabling Impersonation Permissions Check")
+		checkImpersonation = nullImpersonationPermissionsCheck
 	}
 
 	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, checkImpersonation)
