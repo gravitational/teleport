@@ -24,8 +24,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport/api/v7/identityfile"
-	"github.com/gravitational/teleport/api/v7/utils/keypaths"
+	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"

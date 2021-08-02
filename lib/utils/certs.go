@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/utils/tlsutils"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
