@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/events"
+	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -192,8 +193,8 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
 
-	require.NoError(t, err)
 	err = teleport.Start()
+	require.NoError(t, err)
 	defer teleport.StopAll()
 
 	// impersonating client requests will be denied if the headers
