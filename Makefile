@@ -757,8 +757,15 @@ update-vendor:
 	# update modules in root directory
 	go mod tidy
 	go mod vendor
-	# delete the vendored api package.
-	# create a symlink to the the original api package - /api or /api/vX if X > 1
+	$(MAKE) vendor-api
+
+# When teleport is vendoring, Go also vendors the local api sub module. To get
+# around this issue, we replace the vendored api package with a symlink to the
+# local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
+.PHONY: vendor-api
+vendor-api:
+	rm -rf vendor/github.com/gravitational/teleport/api
+	# check the version to avoid creating symlink in /api/api when X < 2.
 	if [ $(shell echo $(VERSION) | cut -d "." -f1) -gt 1 ]; then mkdir -p vendor/github.com/gravitational/teleport/api; fi
 	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport/api
 
