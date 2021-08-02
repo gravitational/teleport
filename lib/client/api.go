@@ -2611,6 +2611,10 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 
 	tc.ALPNSNIListenerEnabled = proxySettings.ALPNSNIListenerEnabled
 
+	if tc.ALPNSNIListenerEnabled {
+		tc.KubeProxyAddr = tc.WebProxyAddr
+	}
+
 	return nil
 }
 

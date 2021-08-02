@@ -17,30 +17,10 @@ limitations under the License.
 package alpnproxy
 
 import (
-	"bytes"
-	"crypto/tls"
 	"io"
 	"net"
 	"time"
 )
-
-// readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
-// incoming TLS connection. After calling readHelloMessageWithoutTLSTermination function a returned
-// net.Conn should be used for further operation.
-func readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.ClientHelloInfo, net.Conn, error) {
-	buff := new(bytes.Buffer)
-	var hello *tls.ClientHelloInfo
-	err := tls.Server(readOnlyConn{reader: io.TeeReader(conn, buff)}, &tls.Config{
-		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-			hello = info
-			return nil, nil
-		},
-	}).Handshake()
-	if hello == nil {
-		return nil, nil, err
-	}
-	return hello, newBufferedConn(conn, buff), nil
-}
 
 // newBufferedConn creates new instance of bufferedConn.
 func newBufferedConn(conn net.Conn, header io.Reader) *bufferedConn {

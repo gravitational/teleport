@@ -3001,13 +3001,13 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 
 	router := alpnproxy.NewRouter()
 	if cfg.Proxy.Kube.Enabled {
-		kubeListener := alpnproxy.NewListenerWrapper(listeners.kube, listeners.web)
+		kubeListener := alpnproxy.NewMuxListenerWrapper(listeners.kube, listeners.web)
 		router.AddKubeHandler(kubeListener.HandleConnection)
 		listeners.kube = kubeListener
 	}
 
 	if !cfg.Proxy.DisableReverseTunnel {
-		reverseTunnel := alpnproxy.NewListenerWrapper(listeners.reverseTunnel, listeners.web)
+		reverseTunnel := alpnproxy.NewMuxListenerWrapper(listeners.reverseTunnel, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
 			Protocols: []string{alpnproxy.ProtocolReverseTunnel},
 			Handler:   reverseTunnel.HandleConnection,
@@ -3016,7 +3016,7 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 	}
 
 	if !cfg.Proxy.DisableWebService {
-		webWrapper := alpnproxy.NewListenerWrapper(nil, listeners.web)
+		webWrapper := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
 			Protocols:  []string{alpnproxy.ProtocolHTTP, alpnproxy.ProtocolHTTP2, alpnproxy.ProtocolDefault},
 			Handler:    webWrapper.HandleConnection,
@@ -3024,14 +3024,14 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 		})
 		listeners.web = webWrapper
 	}
-	sshProxyListener := alpnproxy.NewListenerWrapper(listeners.ssh, listeners.web)
+	sshProxyListener := alpnproxy.NewMuxListenerWrapper(listeners.ssh, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
 		Protocols: []string{alpnproxy.ProtocolProxySSH},
 		Handler:   sshProxyListener.HandleConnection,
 	})
 	listeners.ssh = sshProxyListener
 
-	webTLSDB := alpnproxy.NewListenerWrapper(nil, listeners.web)
+	webTLSDB := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
 	router.AddDBTLSHandler(webTLSDB.HandleConnection)
 	listeners.db.tls = webTLSDB
 

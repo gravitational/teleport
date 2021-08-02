@@ -17,12 +17,18 @@ limitations under the License.
 package alpnproxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"io"
 	"net"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -44,6 +50,13 @@ type ProxyConfig struct {
 	Router *Router
 	// Log is used for logging.
 	Log logrus.FieldLogger
+	// Clock is a clock to override in tests, set to real time clock
+	// by default
+	Clock clockwork.Clock
+	// ReadDeadline is a connection read deadline during the TLS handshake (start
+	// of the connection). It is set to defaults.HandshakeReadDeadline if
+	// unspecified.
+	ReadDeadline time.Duration
 }
 
 // NewRouter creates a ALPN new router.
@@ -128,6 +141,12 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = logrus.WithField(trace.Component, "alpn:proxy")
 	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+	if c.ReadDeadline == 0  {
+		c.ReadDeadline = defaults.HandshakeReadDeadline
+	}
 	return nil
 }
 
@@ -173,7 +192,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 }
 
 func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
-	hello, conn, err := readHelloMessageWithoutTLSTermination(clientConn)
+	hello, conn, err := p.readHelloMessageWithoutTLSTermination(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -183,27 +202,57 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	if !handlerDesc.ForwardTLS {
-		tlsConn := tls.Server(conn, p.cfg.TLSConfig)
-		if err := tlsConn.Handshake(); err != nil {
-			return trace.Wrap(err)
-		}
-		conn = tlsConn
-		if len(hello.SupportedProtos) > 0 && isDBTLSProtocol(hello.SupportedProtos[0]) {
-			return p.databaseHandlerWithTLSTermination(ctx, tlsConn)
-		}
-		if p.isDatabaseConnection(tlsConn.ConnectionState()) {
-			if p.cfg.Router.databaseTLSHandler == nil {
-				return trace.BadParameter("database handle not enabled")
-			}
-			return p.cfg.Router.databaseTLSHandler.Handler(ctx, conn)
-		}
+	if handlerDesc.ForwardTLS {
+		return trace.Wrap(handlerDesc.Handler(ctx, conn))
 	}
 
-	if err = handlerDesc.Handler(ctx, conn); err != nil {
+	tlsConn := tls.Server(conn, p.cfg.TLSConfig)
+	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
+	if err := tlsConn.Handshake(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if p.isDatabaseConnection(tlsConn.ConnectionState()) {
+		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn))
+	}
+	return trace.Wrap(handlerDesc.Handler(ctx, tlsConn))
+}
+
+// readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
+// incoming TLS connection. After calling readHelloMessageWithoutTLSTermination function a returned
+// net.Conn should be used for further operation.
+func (p *Proxy) readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.ClientHelloInfo, net.Conn, error) {
+	buff := new(bytes.Buffer)
+	var hello *tls.ClientHelloInfo
+	tlsConn := tls.Server(readOnlyConn{reader: io.TeeReader(conn, buff)}, &tls.Config{
+		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+			hello = info
+			return nil, nil
+		},
+	})
+	if err := conn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	err := tlsConn.Handshake()
+	if hello == nil {
+		return nil, nil, err
+	}
+	if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return hello, newBufferedConn(conn, buff), nil
+}
+
+func (p *Proxy) handleDatabaseConnection(ctx context.Context, conn net.Conn) error {
+	if p.cfg.Router.databaseTLSHandler == nil {
+		return trace.BadParameter("database handle not enabled")
+	}
+	return p.cfg.Router.databaseTLSHandler.Handler(ctx, conn)
 }
 
 func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.Conn) error {
@@ -211,16 +260,22 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	// First time for custom local proxy connection and the second time from Mongo protocol where TLS connection is used.
 
 	tlsConn := tls.Server(conn, p.cfg.TLSConfig)
+	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
+		tlsConn.Close()
+		return trace.Wrap(err)
+	}
 	if err := tlsConn.Handshake(); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
+		tlsConn.Close()
+		return trace.Wrap(err)
+	}
+
 	if !p.isDatabaseConnection(tlsConn.ConnectionState()) {
 		return trace.BadParameter("not database connection")
 	}
-	if p.cfg.Router.databaseTLSHandler == nil {
-		return trace.BadParameter("database handle not enabled")
-	}
-	return p.cfg.Router.databaseTLSHandler.Handler(ctx, tlsConn)
+	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn))
 }
 
 func isDBTLSProtocol(protocol string) bool {
@@ -248,6 +303,15 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 	if len(clientHelloInfo.SupportedProtos) != 0 {
 		protocol = clientHelloInfo.SupportedProtos[0]
 	}
+
+	if isDBTLSProtocol(protocol) {
+		return &HandlerDecs{
+			Protocols:  []string{protocol},
+			Handler:    p.databaseHandlerWithTLSTermination,
+			ForwardTLS: false,
+		}, nil
+	}
+
 	handlerDesc, ok := p.cfg.Router.alpnHandlers[protocol]
 	if !ok {
 		return nil, trace.BadParameter("unsupported ALPN protocol %q", protocol)

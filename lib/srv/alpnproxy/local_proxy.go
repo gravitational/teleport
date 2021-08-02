@@ -236,7 +236,6 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 		ServerName:         serverName,
 	})
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -244,10 +243,14 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 
 	errC := make(chan error)
 	go func() {
+		defer downstreamConn.Close()
+		defer upstreamConn.Close()
 		_, err := io.Copy(downstreamConn, upstreamConn)
 		errC <- err
 	}()
 	go func() {
+		defer downstreamConn.Close()
+		defer upstreamConn.Close()
 		_, err := io.Copy(upstreamConn, downstreamConn)
 		errC <- err
 	}()

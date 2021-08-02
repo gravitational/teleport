@@ -33,8 +33,8 @@ type ListenerMuxWrapper struct {
 	close chan struct{}
 }
 
-// NewListenerWrapper creates a new instance of ListenerMuxWrapper
-func NewListenerWrapper(serviceListener net.Listener, alpnListener net.Listener) *ListenerMuxWrapper {
+// NewMuxListenerWrapper creates a new instance of ListenerMuxWrapper
+func NewMuxListenerWrapper(serviceListener net.Listener, alpnListener net.Listener) *ListenerMuxWrapper {
 	return &ListenerMuxWrapper{
 		alpnListener: alpnListener,
 		Listener:     serviceListener,

@@ -653,6 +653,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	// apply kubernetes proxy config, by default kube proxy is disabled
 	legacyKube := fc.Proxy.Kube.Configured() && fc.Proxy.Kube.Enabled()
 	newKube := fc.Proxy.KubeAddr != "" || len(fc.Proxy.KubePublicAddr) > 0
+	newKube = fc.Kube.Configured() && fc.Kube.Enabled()
 	switch {
 	case legacyKube && !newKube:
 		cfg.Proxy.Kube.Enabled = true
@@ -683,11 +684,13 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("kube_listen_addr must be set when kube_public_addr is set")
 		}
 		cfg.Proxy.Kube.Enabled = true
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.KubeAddr, int(defaults.KubeListenPort))
-		if err != nil {
-			return trace.Wrap(err)
+		if fc.Proxy.KubeAddr != "" {
+			addr, err := utils.ParseHostPortAddr(fc.Proxy.KubeAddr, int(defaults.KubeListenPort))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			cfg.Proxy.Kube.ListenAddr = *addr
 		}
-		cfg.Proxy.Kube.ListenAddr = *addr
 
 		publicAddrs, err := utils.AddrsFromStrings(fc.Proxy.KubePublicAddr, defaults.KubeListenPort)
 		if err != nil {
