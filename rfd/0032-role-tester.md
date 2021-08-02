@@ -89,12 +89,11 @@ Datalog is a logic programming language that is a subset of Prolog. A common use
 ### Facts
 Facts (or predicates) represent assertions of the world in which we operate.For translating Teleport's RBAC system, we can take everything we know from the role configuration and define what we need.
 
-We will need to determine the labels on the node itself, the role's defined allow/deny labels, the role's define logins, and the user to role pairs.
+We will need to determine the labels on the node itself, the role's defined allow/deny labels, the role's define logins, and the user to role facts.
 
 Fact | Example | Interpretation
 --- | --- | ---
 `HasRole(user, role)` | `HasRole(jean, dev)` | User 'jean' has role 'dev'
-`HasLoginTrait(user)` | `HasLoginTrait(jean)` | User 'jean' has a login trait
 `HasTrait(user, trait_key, trait_value)` | `HasTrait(jean, login, dev)` | User 'jean' has the login trait 'dev'
 `NodeHasLabel(node, label_key, label_value)` | `NodeHasLabel(node-1, environment, staging)` | SSH node 'node-1' has the label 'environment:staging'
 `RoleAllowsNodeLabel(role, label_key, label_value)` | `RoleAllowsNodeLabel(dev, environment, staging)` | Role 'dev' is allowed access to SSH nodes with label 'environment:staging'
@@ -114,7 +113,7 @@ HasRole(jean, admin).
 means that Jean has roles 'dev', 'cloud', and 'admin'. Similarly, this representation also applies to labels and logins for roles and nodes.
 
 ### Rules
-Rules are sentences that allow us to infer new facts from existing ones. We can combine multiple rules to create new rules. The most important question for the role tester is whether a user can access a given node as an os user, and we will define this as HasAccess(User, Login, Node). Other rules will provide other contextually related facts that will help answer this overarching question. I have grouped the rules based on what their queries would mean so it is more clear what each rule is defining.
+Rules are sentences that allow us to infer new facts from existing ones. We can combine multiple rules to create new rules. The most important question for the role tester is whether a user can access a given node as an os user, and we will define this as HasAccess(User, Login, Node, Role). Other rules will provide other contextually related facts that will help answer this overarching question. I have grouped the rules based on what their queries would mean so it is more clear what each rule is defining.
 
 ***Does the given role allow or deny access to a node?***
 Rule | Logical interpretation
