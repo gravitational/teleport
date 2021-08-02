@@ -122,7 +122,7 @@ func (s *DynamoeventsSuite) TestSizeBreak(c *check.C) {
 	}
 
 	var checkpoint string
-	events := make([]apievents.AuditEvent, 0)
+	events := make([]events.AuditEvent, 0)
 
 	for {
 		fetched, lCheckpoint, err := s.log.SearchEvents(s.Clock.Now().UTC().Add(-time.Hour), s.Clock.Now().UTC().Add(time.Hour), apidefaults.Namespace, nil, eventCount, types.EventOrderDescending, checkpoint)
