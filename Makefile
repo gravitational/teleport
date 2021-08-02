@@ -487,9 +487,8 @@ $(VERSRC): Makefile
 #  2. A suffix is present in the version - e.g. "-alpha"
 .PHONY: update-api-module-path
 update-api-module-path: 
-	go run build.assets/update_api_module_path/main.go
-	$(MAKE) update-vendor
-	$(MAKE) grpc
+	@test $(VERSION)
+	./build.assets/api/update-module-path.sh $(VERSION)
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -764,11 +763,11 @@ update-vendor:
 # local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
 .PHONY: vendor-api
 vendor-api:
-	@$(eval MOD_PATH=$(shell head -1 api/go.mod | awk '{print $$2;}' | sed 's;/;\\/;g'))
-	@$(eval MAJ_VER=$(shell echo $(VERSION) | cut -d "." -f1))
+	$(eval MOD_PATH=$(shell head -1 api/go.mod | awk '{print $$2;}'))
 	rm -rf vendor/github.com/gravitational/teleport/api
-	# check the version to avoid creating symlink in /api/api when X < 2.
-	if [ $(MAJ_VER) -gt 1 ]; then mkdir -p vendor/github.com/gravitational/teleport/api; fi
+	# only create api directory if we are linking the api as vX
+	if [ $(shell echo $(MOD_PATH) | grep "/v[0-9]\+") ]; \
+		then mkdir -p vendor/github.com/gravitational/teleport/api; fi
 	ln -s -r $(shell readlink -f api) vendor/$(MOD_PATH)
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
