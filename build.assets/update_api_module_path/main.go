@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport/api/v7"
+	"github.com/gravitational/teleport/api"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/mod/modfile"
