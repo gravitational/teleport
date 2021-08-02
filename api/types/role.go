@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types/wrappers"
-	"github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"

@@ -25,7 +25,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-semver/semver"

@@ -18,7 +18,7 @@ package service
 
 import (
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/events"
