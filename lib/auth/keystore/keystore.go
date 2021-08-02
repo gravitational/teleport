@@ -22,7 +22,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 )
 
 var pkcs11Prefix = []byte("pkcs11:")

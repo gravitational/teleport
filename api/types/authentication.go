@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/utils/tlsutils"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"

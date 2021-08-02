@@ -4,30 +4,36 @@ description: How to set up single sign-on (SSO) for SSH using Gravitational Tele
 h1: Single Sign-On (SSO) for SSH
 ---
 
-The commercial edition of Teleport allows users to login and retrieve their SSH
-credentials through a [Single Sign-On](https://en.wikipedia.org/wiki/Single_sign-on)
-(SSO) system used by the rest of the organization.
+Users of the Enterprise edition of Teleport can login with SSH, Kubernetes, Databases and Web applications
+through a Single Sign-On (SSO) provider used the rest of the organization.
 
-Examples of supported SSO systems include commercial solutions like [Okta](https://www.okta.com),
-[Auth0](https://auth0.com/), [SailPoint](https://www.sailpoint.com/),
-[OneLogin](https://www.onelogin.com/) or [Active Directory](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services), as well as open source products like [Keycloak](http://www.keycloak.org).
-Other identity management systems are supported as long as they provide an
-SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
-or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
+<TileSet>
+  <Tile icon="bolt" title="Azure Active Directory (AD)" href="./sso/azuread.mdx">
+    Configure Azure Active Directory SSO for SSH, Kubernetes, Database and Web apps.
+  </Tile>
+  <Tile icon="bolt" title="Active Directory (ADFS)" href="./sso/adfs.mdx">
+    Configure Windows Active Directory SSO for SSH, Kubernetes, Database and Web apps.
+  </Tile>
+  <Tile icon="bolt" title="Google Workspace" href="./sso/google-workspace.mdx">
+    Configure Gsuite SSO for SSH, Kubernetes, Database and Web apps.
+  </Tile>
+  <Tile icon="bolt" title="GitLab" href="./sso/gitlab.mdx">
+    Configure Gitlab SSO for SSH, Kubernetes, Database and Web apps.
+  </Tile>
+  <Tile icon="bolt" title="OneLogin" href="./sso/one-login.mdx">
+    Configure OneLogin SSO for SSH, Kubernetes, Database and Web apps.
+  </Tile>
+  <Tile icon="bolt" title="OIDC" href="./sso/oidc.mdx">
+    Configure OIDC SSO for SSH, Kubernetes, Database and Web apps.
+  </Tile>
+  <Tile icon="bolt" title="Okta" href="./sso/okta.mdx">
+    Configure Okta SSO for SSH, Kubernetes, Database and Web apps.
+  </Tile>
+</TileSet>
 
-### SSO Setup Guides
+## How does SSO work?
 
-- [Azure Active Directory (AD)](ssh-azuread.mdx)
-- [Active Directory (ADFS)](ssh-adfs.mdx)
-- [Google Workspace](ssh-google-workspace.mdx)
-- [GitLab](gitlab.mdx)
-- [OneLogin](ssh-one-login.mdx)
-- [OIDC](oidc.mdx)
-- [Okta](ssh-okta.mdx)
-
-## How does SSO work with SSH?
-
-From the user's perspective they need to execute the following command login:
+Users need to execute the following command login in the CLI or login using UI:
 
 ```bsh
 # this command will automatically open the default web browser and take a user
@@ -40,9 +46,9 @@ http://127.0.0.1:45235/055a310a-1099-43ea-8cf6-ffc41d88ad1f
 ```
 
 Teleport will wait for up to 3 minutes for a user to authenticate. If authentication
-succeeds, Teleport will retrieve an SSH certificate and will store it in
-`~/.tsh/keys/proxy.example.com` directory and also will add it to an
-[SSH agent](https://en.wikipedia.org/wiki/Ssh-agent) if there's one running.
+succeeds, Teleport will retrieve an SSH and X.509 certificates and will store them in
+`~/.tsh/keys/proxy.example.com` directory. The tool will also will add SSH cert to an
+SSH agent if there's one running.
 
 ## Configuring SSO
 
@@ -59,11 +65,11 @@ The following connectors are supported:
 - `oidc` connector type uses the [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect)
   to authenticate users and query their group membership.
 
-To configure [SSO](https://en.wikipedia.org/wiki/Single_sign-on), a Teleport administrator must:
+To configure SSO, a Teleport administrator must:
 
 - Update `/etc/teleport.yaml` on the auth server to set the default
   authentication connector.
-- Define the connector [resource](../../admin-guide.mdx#resources) and save it into
+- Define the connector [resource](../admin-guide.mdx#resources) and save it into
   a YAML file (like `connector.yaml`)
 - Create the connector using `tctl create connector.yaml`.
 
@@ -139,9 +145,9 @@ flow. These provider-specific changes can be enabled by setting the
 values to match your identity provider:
 
 - `adfs` (SAML): Required for compatibility with Active Directory (ADFS); refer
-  to the full [ADFS guide](./ssh-adfs.mdx#create-teleport-roles) for details.
+  to the full [ADFS guide](./sso/adfs.mdx#create-teleport-roles) for details.
 - `netiq` (OIDC): Used to enable NetIQ-specific ACR value processing; refer to
-  the [OIDC guide](./oidc.mdx#optional-acr-values) for details.
+  the [OIDC guide](./sso/oidc.mdx#optional-acr-values) for details.
 - `ping` (SAML): Required for compatibility with Ping Identity (including
   PingOne and PingFederate) when "Enforced Signed Authn Requests" is enabled in
   the application settings.
@@ -185,7 +191,7 @@ $ tctl get connectors
 ```
 
 To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
-as described in the [Resources section](../../admin-guide.mdx#resources) in the Admin Manual.
+as described in the [Resources section](../admin-guide.mdx#resources) in the Admin Manual.
 
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:
@@ -201,20 +207,20 @@ $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:
 
-- [SSH Authentication with Okta](ssh-okta.mdx)
-- [SSH Authentication with OneLogin](ssh-one-login.mdx)
-- [SSH Authentication with ADFS](ssh-adfs.mdx)
-- [SSH Authentication with OAuth2 / OpenID Connect](oidc.mdx)
+- [SSH Authentication with Okta](./sso/okta.mdx)
+- [SSH Authentication with OneLogin](./sso/one-login.mdx)
+- [SSH Authentication with ADFS](./sso/adfs.mdx)
+- [SSH Authentication with OAuth2 / OpenID Connect](./sso/oidc.mdx)
 
 ## SSO Customization
 
 | Provider | YAML | Example |
 | - | - | - |
-| Github | `display: Github` | ![github](../../../img/teleport-sso/github@2x.png) |
-| Microsoft | `display: Microsoft` | ![microsoft](../../../img/teleport-sso/microsoft@2x.png) |
-| Google | `display: Google` | ![google](../../../img/teleport-sso/google@2x.png) |
-| BitBucket | `display: Bitbucket` | ![bitbucket](../../../img/teleport-sso/bitbucket@2x.png) |
-| OpenID | `display: Okta` | ![Okta](../../../img/teleport-sso/openId@2x.png) |
+| Github | `display: Github` | ![github](../../img/teleport-sso/github@2x.png) |
+| Microsoft | `display: Microsoft` | ![microsoft](../../img/teleport-sso/microsoft@2x.png) |
+| Google | `display: Google` | ![google](../../img/teleport-sso/google@2x.png) |
+| BitBucket | `display: Bitbucket` | ![bitbucket](../../img/teleport-sso/bitbucket@2x.png) |
+| OpenID | `display: Okta` | ![Okta](../../img/teleport-sso/openId@2x.png) |
 
 ## Troubleshooting
 

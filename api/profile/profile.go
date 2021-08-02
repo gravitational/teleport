@@ -27,8 +27,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport/api/v7/utils/keypaths"
-	"github.com/gravitational/teleport/api/v7/utils/sshutils"
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"

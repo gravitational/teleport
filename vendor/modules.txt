@@ -286,24 +286,24 @@ github.com/gravitational/reporting/types
 # github.com/gravitational/roundtrip v1.0.0
 ## explicit
 github.com/gravitational/roundtrip
-# github.com/gravitational/teleport/api/v7 v7.0.0 => ./api
+# github.com/gravitational/teleport/api v0.0.0 => ./api
 ## explicit
-github.com/gravitational/teleport/api/v7
-github.com/gravitational/teleport/api/v7/client
-github.com/gravitational/teleport/api/v7/client/proto
-github.com/gravitational/teleport/api/v7/client/webclient
-github.com/gravitational/teleport/api/v7/constants
-github.com/gravitational/teleport/api/v7/defaults
-github.com/gravitational/teleport/api/v7/identityfile
-github.com/gravitational/teleport/api/v7/metadata
-github.com/gravitational/teleport/api/v7/profile
-github.com/gravitational/teleport/api/v7/types
-github.com/gravitational/teleport/api/v7/types/events
-github.com/gravitational/teleport/api/v7/types/wrappers
-github.com/gravitational/teleport/api/v7/utils
-github.com/gravitational/teleport/api/v7/utils/keypaths
-github.com/gravitational/teleport/api/v7/utils/sshutils
-github.com/gravitational/teleport/api/v7/utils/tlsutils
+github.com/gravitational/teleport/api
+github.com/gravitational/teleport/api/client
+github.com/gravitational/teleport/api/client/proto
+github.com/gravitational/teleport/api/client/webclient
+github.com/gravitational/teleport/api/constants
+github.com/gravitational/teleport/api/defaults
+github.com/gravitational/teleport/api/identityfile
+github.com/gravitational/teleport/api/metadata
+github.com/gravitational/teleport/api/profile
+github.com/gravitational/teleport/api/types
+github.com/gravitational/teleport/api/types/events
+github.com/gravitational/teleport/api/types/wrappers
+github.com/gravitational/teleport/api/utils
+github.com/gravitational/teleport/api/utils/keypaths
+github.com/gravitational/teleport/api/utils/sshutils
+github.com/gravitational/teleport/api/utils/tlsutils
 # github.com/gravitational/trace v1.1.16-0.20210609220119-4855e69c89fc
 ## explicit
 github.com/gravitational/trace
@@ -1103,4 +1103,4 @@ sigs.k8s.io/structured-merge-diff/v4/value
 sigs.k8s.io/yaml
 # github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.4
 # github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
-# github.com/gravitational/teleport/api/v7 => ./api
+# github.com/gravitational/teleport/api => ./api
