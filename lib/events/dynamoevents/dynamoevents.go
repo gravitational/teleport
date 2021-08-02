@@ -770,6 +770,14 @@ func eventFilterList(amount int) string {
 	return "(" + strings.Join(eventTypes, ", ") + ")"
 }
 
+func reverseStrings(slice []string) []string {
+	newSlice := make([]string, 0, len(slice))
+	for i := len(slice) - 1; i >= 0; i-- {
+		newSlice = append(newSlice, slice[i])
+	}
+	return newSlice
+}
+
 // searchEventsRaw is a low level function for searching for events. This is kept
 // separate from the SearchEvents function in order to allow tests to grab more metadata.
 func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]event, string, error) {
@@ -789,8 +797,12 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 	var values []event
 	totalSize := 0
 	dates := daysBetween(fromUTC, toUTC)
+	if order == types.EventOrderDescending {
+		dates = reverseStrings(dates)
+	}
+
 	query := "CreatedAtDate = :date AND CreatedAt BETWEEN :start and :end"
-	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
+	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey, "Order": order})
 	var left int64
 	if limit != 0 {
 		left = int64(limit)
@@ -866,7 +878,8 @@ dateLoop:
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-			g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items)}).Debugf("Query completed.")
+			g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items), "forward": forward, "iterator": checkpoint.Iterator}).Debugf("Query completed.")
+			oldIterator := checkpoint.Iterator
 			checkpoint.Iterator = out.LastEvaluatedKey
 
 			for _, item := range out.Items {
@@ -897,11 +910,15 @@ dateLoop:
 				// checkpoint is needed for sub-page breaks.
 				if totalSize+len(data) >= events.MaxEventBytesInResponse {
 					hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
+
 					key, err := getSubPageCheckpoint(&e)
 					if err != nil {
 						return nil, "", trace.Wrap(err)
 					}
 					checkpoint.EventKey = key
+
+					// We need to reset the iterator so we get the previous page again.
+					checkpoint.Iterator = oldIterator
 					break dateLoop
 				}
 
@@ -911,6 +928,7 @@ dateLoop:
 
 				if left == 0 {
 					hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
+					checkpoint.EventKey = ""
 					break dateLoop
 				}
 			}
@@ -1383,19 +1401,27 @@ func (l *Log) deleteAllItems() error {
 			},
 		})
 	}
-	if len(requests) == 0 {
-		return nil
+
+	for len(requests) > 0 {
+		top := 25
+		if top > len(requests) {
+			top = len(requests)
+		}
+		chunk := requests[:top]
+		requests = requests[top:]
+
+		req, _ := l.svc.BatchWriteItemRequest(&dynamodb.BatchWriteItemInput{
+			RequestItems: map[string][]*dynamodb.WriteRequest{
+				l.Tablename: chunk,
+			},
+		})
+		err = req.Send()
+		err = convertError(err)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	req, _ := l.svc.BatchWriteItemRequest(&dynamodb.BatchWriteItemInput{
-		RequestItems: map[string][]*dynamodb.WriteRequest{
-			l.Tablename: requests,
-		},
-	})
-	err = req.Send()
-	err = convertError(err)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	return nil
 }
 
