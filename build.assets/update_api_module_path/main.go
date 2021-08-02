@@ -30,11 +30,6 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-const (
-	apiModFilePath = "./api/go.mod"
-	makefilePath   = "./Makefile"
-)
-
 func main() {
 	// the api mod path should only be updated on releases, check for non-release suffixes
 	if strings.Contains(api.Version, "-") {
@@ -42,7 +37,7 @@ func main() {
 	}
 
 	// get old api mod path from `go.mod`
-	oldModPath, err := getModPath(apiModFilePath)
+	oldModPath, err := getModPath("./api/go.mod")
 	if err != nil {
 		exitWithError(trace.Wrap(err, "could not get mod path"))
 	}
@@ -70,13 +65,6 @@ func main() {
 		return nil
 	}); err != nil {
 		exitWithError(trace.Wrap(err, "failed to update files"))
-	}
-
-	// update the api vendor symlink line in `make update-vendor`
-	oldLinkLine := "ln -s -r $(shell readlink -f api) vendor/" + oldModPath
-	newLinkLine := "ln -s -r $(shell readlink -f api) vendor/" + newModPath
-	if err := replaceInFile(makefilePath, oldLinkLine, newLinkLine); err != nil {
-		exitWithError(trace.Wrap(err, "failed to update Makefile"))
 	}
 
 	exitWithMessage("successfully updated api version")

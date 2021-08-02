@@ -764,11 +764,12 @@ update-vendor:
 # local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
 .PHONY: vendor-api
 vendor-api:
+	@$(eval MOD_PATH=$(shell head -1 api/go.mod | awk '{print $$2;}' | sed 's;/;\\/;g'))
+	@$(eval MAJ_VER=$(shell echo $(VERSION) | cut -d "." -f1))
 	rm -rf vendor/github.com/gravitational/teleport/api
 	# check the version to avoid creating symlink in /api/api when X < 2.
-	if [ $(shell echo $(VERSION) | cut -d "." -f1) -gt 1 ]; then mkdir -p vendor/github.com/gravitational/teleport/api; fi
-	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport/api
-
+	if [ $(MAJ_VER) -gt 1 ]; then mkdir -p vendor/github.com/gravitational/teleport/api; fi
+	ln -s -r $(shell readlink -f api) vendor/$(MOD_PATH)
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
