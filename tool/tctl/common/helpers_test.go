@@ -110,6 +110,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	}
 
 	cfg.CachePolicy.Enabled = false
+	cfg.Proxy.DisableWebInterface = true
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
