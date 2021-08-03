@@ -482,13 +482,20 @@ $(VERSRC): Makefile
 
 # This rule updates the api module path to be in sync with the current api release version.
 # e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
-# the go program called will skip update if:
-#  1. The major version hasn't changed - e.g. 7.0.0 -> 7.1.0
-#  2. A suffix is present in the version - e.g. "-alpha"
+# it will skip updating if:
+#  1. A suffix is present in the version - e.g. "-alpha"
+#  2. The major version hasn't changed - e.g. 7.0.0 -> 7.1.0
 .PHONY: update-api-module-path
-update-api-module-path: 
-	@test $(VERSION)
-	./build.assets/api/update-module-path.sh $(VERSION)
+update-api-module-path: MAJOR_VERSION := $(shell echo "$(VERSION)" | cut -d"." -f1)
+update-api-module-path: VERSION_SUFFIX := $(shell echo "$(MAJOR_VERSION)" | awk '$$1 >= 2 {print "\\/v"$$1}')
+update-api-module-path:
+	test "$(VERSION)" && echo "$(VERSION)" | grep -vq "-" && head -1 api/go.mod | grep -vq "$(MAJOR_VERSION)"
+	@# update the api mod path and all references of it to use the latest major version suffix
+	find . -type f -iregex '.*\.\(go\|proto\|mod\)' -print0 \
+		| xargs -0 sed -i -E "s/(gravitational\/teleport\/api)(\/v[0-9]+)?/\1$(VERSION_SUFFIX)/"
+	@# fix go.mod require statements - v?.0.0 => vX.0.0
+	sed -i -E "s/(gravitational\/teleport\/api$(VERSION_SUFFIX)) v[0-9]+.0.0/\1 v$(MAJOR_VERSION).0.0/g" go.mod examples/go-client/go.mod
+	$(MAKE) update-vendor grpc
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -765,10 +772,8 @@ update-vendor:
 vendor-api:
 	$(eval MOD_PATH=$(shell head -1 api/go.mod | awk '{print $$2;}'))
 	rm -rf vendor/github.com/gravitational/teleport/api
-	# only create api directory if we are linking the api as vX
-	if grep -q "/v[0-9]\+" <<< "$(MOD_PATH)"; \
-		then mkdir -p vendor/github.com/gravitational/teleport/api; fi;\
-	ln -s -r $(shell readlink -f api) vendor/$(MOD_PATH)
+	mkdir -p vendor/$(shell dirname $(MOD_PATH))
+	ln -rs $(shell readlink -f api) vendor/$(MOD_PATH)
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.

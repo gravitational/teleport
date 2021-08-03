@@ -100,7 +100,7 @@ require (
 	go.uber.org/atomic v1.7.0
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
-	golang.org/x/mod v0.4.1
+	golang.org/x/mod v0.4.1 // indirect
 	golang.org/x/net v0.0.0-20210222171744-9060382bd457
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sys v0.0.0-20210514084401-e8d321eab015
