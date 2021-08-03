@@ -29,6 +29,9 @@ import (
 // TestDatabaseResource tests tctl db rm/get commands.
 func TestDatabaseResource(t *testing.T) {
 	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
 		Databases: config.Databases{
 			Service: config.Service{
 				EnabledFlag: "true",
