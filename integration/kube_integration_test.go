@@ -84,6 +84,7 @@ type KubeSuite struct {
 }
 
 func newKubeSuite(t *testing.T) *KubeSuite {
+	var err error
 
 	testEnabled := os.Getenv(teleport.KubeRunTests)
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
@@ -95,9 +96,32 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 	}
 	require.NotEmpty(t, suite.kubeConfigPath, "This test requires path to valid kubeconfig.")
 
+	suite.Clientset, suite.kubeConfig, err = kubeutils.GetKubeClient(suite.kubeConfigPath)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// assert that the target cluster is ready to run tests against
+	_, err = suite.CoreV1().ServiceAccounts("ci-teleport").Get(ctx, "teleport-sa", metav1.GetOptions{})
+	require.NoError(t, err, "Missing \"teleport-sa\" ServiceAccount. See fixtures/ci-teleport-rbac/README.md")
+
+	_, err = suite.RbacV1().ClusterRoles().Get(ctx, "ci-teleport", metav1.GetOptions{})
+	require.NoError(t, err, "Missing \"ci-teleport\" ClusterRole. Init target cluster with `kubectl create -f fixtures/ci-teleport-rbac/ci-teleport.yaml`")
+
+	// Create test namespace and pod to run k8s commands against.
+	ns := newNamespace(testNamespace)
+	_, err = suite.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	if err != nil {
+		require.True(t, errors.IsAlreadyExists(err), "Failed to create namespace: %v:", err)
+	}
+	p := newPod(testNamespace, testPod)
+	_, err = suite.CoreV1().Pods(testNamespace).Create(ctx, p, metav1.CreateOptions{})
+	if err != nil {
+		require.True(t, errors.IsAlreadyExists(err), "Failed to create test pod: %v", err)
+	}
+
 	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
 
-	var err error
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair("")
@@ -120,21 +144,6 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 		os.Stdin, err = os.Open("/dev/null")
 		require.NoError(t, err)
 	})
-
-	suite.Clientset, suite.kubeConfig, err = kubeutils.GetKubeClient(suite.kubeConfigPath)
-	require.NoError(t, err)
-
-	// Create test namespace and pod to run k8s commands against.
-	ns := newNamespace(testNamespace)
-	_, err = suite.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
-	if err != nil {
-		require.True(t, errors.IsAlreadyExists(err), "Failed to create namespace: %v:", err)
-	}
-	p := newPod(testNamespace, testPod)
-	_, err = suite.CoreV1().Pods(testNamespace).Create(context.Background(), p, metav1.CreateOptions{})
-	if err != nil {
-		require.True(t, errors.IsAlreadyExists(err), "Failed to create test pod: %v", err)
-	}
 
 	return suite
 }
