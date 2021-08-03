@@ -1,0 +1,16 @@
+[package]
+name = "rdp-client"
+version = "0.1.0"
+authors = ["Andrew Lytvynov <andrew@goteleport.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+libc = "0.2.98"
+rdp-rs = "0.1.0"
+lazy_static = "1.4.0"
+
+[build-dependencies]
+cbindgen = "0.20.0"
