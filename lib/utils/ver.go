@@ -22,7 +22,6 @@ import (
 )
 
 // CheckVersion compares a version with a minimum version supported.
-// This is used for comparing server-client compatibility in both direction.
 func CheckVersion(currentVersion, minVersion string) error {
 	currentSemver, err := semver.NewVersion(currentVersion)
 	if err != nil {
@@ -41,8 +40,8 @@ func CheckVersion(currentVersion, minVersion string) error {
 	return nil
 }
 
-// SetVersionBeforeAlpha appends "-aa" to the version so that it comes before <version>-alpha.
+// VersionBeforeAlpha appends "-aa" to the version so that it comes before <version>-alpha.
 // This ban be used to make version checks work during development.
-func SetVersionBeforeAlpha(version string) string {
+func VersionBeforeAlpha(version string) string {
 	return version + "-aa"
 }

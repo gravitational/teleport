@@ -654,7 +654,7 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 
 	// AuthPreference was updated in 7.0.0 to hold legacy cluster config fields. If the
 	// server version is < 7.0.0, we must update the AuthPreference with the legacy fields.
-	if err := utils.CheckVersion(resp.ServerVersion, utils.SetVersionBeforeAlpha("7.0.0")); err != nil {
+	if err := utils.CheckVersion(resp.ServerVersion, utils.VersionBeforeAlpha("7.0.0")); err != nil {
 		if !trace.IsBadParameter(err) {
 			return nil, trace.Wrap(err)
 		}

@@ -1087,7 +1087,7 @@ func isPreV7Cluster(ctx context.Context, conn ssh.Conn) (bool, error) {
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	minClusterVersion, err := semver.NewVersion(utils.SetVersionBeforeAlpha("7.0.0"))
+	minClusterVersion, err := semver.NewVersion(utils.VersionBeforeAlpha("7.0.0"))
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
