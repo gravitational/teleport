@@ -23,6 +23,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/trace"
 )
 
 var pkcs11Prefix = []byte("pkcs11:")
@@ -38,16 +41,79 @@ type KeyStore interface {
 	GetSigner(keyID []byte) (crypto.Signer, error)
 
 	// GetTLSCertAndSigner selects the local TLS keypair and returns the raw TLS cert and crypto.Signer.
-	GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error)
+	GetTLSCertAndSigner(ca types.CertAuthority, allowProvisional bool) ([]byte, crypto.Signer, error)
 
-	// GetSSHSigner selects the local SSH keypair and returns an ssh.Signer.
-	GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error)
+	// GetSSHSigner selects the local SSH keypair from the CA and returns an ssh.Signer.
+	GetSSHSigner(ca types.CertAuthority, allowProvisional bool) (ssh.Signer, error)
 
-	// GetJWTSigner selects the local JWT keypair and returns a crypto.Signer
+	// GetJWTSigner selects the local JWT keypair from the CA and returns a crypto.Signer.
 	GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error)
 
-	// DeleteKey deletes the given key from the KeyStore
+	// NewSSHKeyPair creates and returns a new SSHKeyPair.
+	NewSSHKeyPair() (*types.SSHKeyPair, error)
+
+	// NewTLSKeyPair creates and returns a new TLSKeyPair.
+	NewTLSKeyPair(clusterName string) (*types.TLSKeyPair, error)
+
+	// NewJWTKeyPair creates and returns a new JWTKeyPair.
+	NewJWTKeyPair() (*types.JWTKeyPair, error)
+
+	// HasLocalActiveKeys returns true if the given CA has any active keys that
+	// are usable with this KeyStore.
+	HasLocalActiveKeys(ca types.CertAuthority) bool
+
+	// HasLocalActiveKeys returns true if the given CA has any additional
+	// trusted keys that are usable with this KeyStore.
+	HasLocalAdditionalKeys(ca types.CertAuthority) bool
+
+	// HasLocalProvisionalKeys returns true if the given CA has any active
+	// provisional keys that are usable with this KeyStore.
+	HasLocalProvisionalKeys(ca types.CertAuthority) bool
+
+	// DeleteKey deletes the given key from the KeyStore.
 	DeleteKey(keyID []byte) error
+
+	// DeleteUnusedKeys deletes all keys from the KeyStore if they are:
+	// 1. Labeled by this KeyStore when they were created
+	// 2. Not included in the argument usedKeys
+	DeleteUnusedKeys(usedKeys [][]byte) error
+}
+
+// Config is used to pass KeyStore configuration to NewKeyStore.
+type Config struct {
+	// RSAKeyPairSource is a function which returns raw keypairs to be used if
+	// an hsm is not configured
+	RSAKeyPairSource RSAKeyPairSource
+
+	// Path is the path to the PKCS11 module.
+	Path string
+	// SlotNumber points to the PKCS11 slot to use, or nil if slot is unused.
+	SlotNumber *int
+	// TokenLabel is the label of the PKCS11 token to use.
+	TokenLabel string
+	// Pin is the PKCS11 pin for the given token.
+	Pin string
+	// HostUUID is the UUID of the local auth server this HSM is connected to.
+	HostUUID string
+}
+
+// NewKeyStore returns a new KeyStore
+func NewKeyStore(cfg Config) (KeyStore, error) {
+	if cfg.Path == "" {
+		if cfg.RSAKeyPairSource == nil {
+			return nil, trace.BadParameter("must provide one of Path or RSAKeyPairSource in keystore.Config")
+		}
+		logrus.Debugln("Creating RAW keystore")
+		return NewRawKeyStore(&RawConfig{cfg.RSAKeyPairSource}), nil
+	}
+	logrus.Debugln("Creating HSM keystore")
+	return NewHSMKeyStore(&HSMConfig{
+		Path:       cfg.Path,
+		SlotNumber: cfg.SlotNumber,
+		TokenLabel: cfg.TokenLabel,
+		Pin:        cfg.Pin,
+		HostUUID:   cfg.HostUUID,
+	})
 }
 
 // KeyType returns the type of the given private key.
