@@ -2351,7 +2351,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
-		if err := utils.CompareVersion(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
+		if err := utils.CheckVersion(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
 			fmt.Printf(`
 			WARNING
 			Detected potentially incompatible client and server versions.

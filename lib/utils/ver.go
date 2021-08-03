@@ -21,9 +21,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CompareVersion compares a version with a minimum version supported.
+// CheckVersion compares a version with a minimum version supported.
 // This is used for comparing server-client compatibility in both direction.
-func CompareVersion(currentVersion, minVersion string) error {
+func CheckVersion(currentVersion, minVersion string) error {
 	currentSemver, err := semver.NewVersion(currentVersion)
 	if err != nil {
 		return trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", currentVersion)
@@ -34,9 +34,15 @@ func CompareVersion(currentVersion, minVersion string) error {
 		return trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", minVersion)
 	}
 
-	if currentSemver.Compare(*minSemver) < 0 {
+	if currentSemver.LessThan(*minSemver) {
 		return trace.BadParameter("incompatible versions: %v < %v", currentVersion, minVersion)
 	}
 
 	return nil
+}
+
+// SetVersionBeforeAlpha appends "-aa" to the version so that it comes before <version>-alpha.
+// This ban be used to make version checks work during development.
+func SetVersionBeforeAlpha(version string) string {
+	return version + "-aa"
 }
