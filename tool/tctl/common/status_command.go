@@ -99,6 +99,10 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 			if ca.GetClusterName() != clusterName {
 				continue
 			}
+			if ca.HasProvisionalKeys() {
+				fmt.Printf("WARNING: %s CA has provisional keys, you must perform a CA rotation "+
+					"or the auth server will not be able to sign certificates\n", ca.GetType())
+			}
 			info := fmt.Sprintf("%v CA ", strings.Title(string(ca.GetType())))
 			rotation := ca.GetRotation()
 			if c.config.Debug {

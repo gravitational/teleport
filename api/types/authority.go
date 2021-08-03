@@ -74,6 +74,10 @@ type CertAuthority interface {
 	GetSigningAlg() CertAuthoritySpecV2_SigningAlgType
 	// SetSigningAlg sets the signing algorithm used by signing keys.
 	SetSigningAlg(CertAuthoritySpecV2_SigningAlgType)
+	// HasProvisionalKeys returns true if any active keys in the CA are provisional.
+	HasProvisionalKeys() bool
+	// AllKeyTypesMatch returns true if all keys in the CA are of the same type.
+	AllKeyTypesMatch() bool
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
 }
@@ -424,6 +428,38 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// HasProvisionalKeys returns true if any active keys in the CA are provisional.
+func (ca *CertAuthorityV2) HasProvisionalKeys() bool {
+	for _, keyPair := range ca.Spec.ActiveKeys.SSH {
+		if keyPair.Provisional {
+			return true
+		}
+	}
+	for _, keyPair := range ca.Spec.ActiveKeys.TLS {
+		if keyPair.Provisional {
+			return true
+		}
+	}
+	return false
+}
+
+// AllKeyTypesMatch returns true if all private keys in the given CA are of the same type.
+func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
+	keyTypes := make(map[PrivateKeyType]struct{})
+	for _, keySet := range []CAKeySet{ca.Spec.ActiveKeys, ca.Spec.AdditionalTrustedKeys} {
+		for _, keyPair := range keySet.SSH {
+			keyTypes[keyPair.PrivateKeyType] = struct{}{}
+		}
+		for _, keyPair := range keySet.TLS {
+			keyTypes[keyPair.KeyType] = struct{}{}
+		}
+		for _, keyPair := range keySet.JWT {
+			keyTypes[keyPair.PrivateKeyType] = struct{}{}
+		}
+	}
+	return len(keyTypes) == 1
 }
 
 const (

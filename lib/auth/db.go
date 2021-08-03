@@ -49,7 +49,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(hostCA)
+	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(hostCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -144,7 +144,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
+	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -53,10 +53,13 @@ func (c *rawKeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
 
 // GetTLSCertAndSigner selects the first raw TLS keypair and returns the raw
 // TLS cert and a crypto.Signer.
-func (c *rawKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
+func (c *rawKeyStore) GetTLSCertAndSigner(ca types.CertAuthority, allowProvisional bool) ([]byte, crypto.Signer, error) {
 	keyPairs := ca.GetActiveKeys().TLS
 	for _, keyPair := range keyPairs {
 		if keyPair.KeyType == types.PrivateKeyType_RAW {
+			if keyPair.Provisional && !allowProvisional {
+				continue
+			}
 			// private key may be nil, the cert will only be used for checking
 			if len(keyPair.Key) == 0 {
 				return keyPair.Cert, nil, nil
@@ -72,10 +75,13 @@ func (c *rawKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypt
 }
 
 // GetSSHSigner selects the first raw SSH keypair and returns an ssh.Signer
-func (c *rawKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
+func (c *rawKeyStore) GetSSHSigner(ca types.CertAuthority, allowProvisional bool) (ssh.Signer, error) {
 	keyPairs := ca.GetActiveKeys().SSH
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
+			if keyPair.Provisional && !allowProvisional {
+				continue
+			}
 			signer, err := ssh.ParsePrivateKey(keyPair.PrivateKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -102,7 +108,67 @@ func (c *rawKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error
 	return nil, trace.NotFound("no JWT key pairs found in CA for %q", ca.GetClusterName())
 }
 
+// NewSSHKeyPair creates and returns a new SSHKeyPair.
+func (c *rawKeyStore) NewSSHKeyPair() (*types.SSHKeyPair, error) {
+	return newSSHKeyPair(c)
+}
+
+// NewTLSKeyPair creates and returns a new TLSKeyPair.
+func (c *rawKeyStore) NewTLSKeyPair(clusterName string) (*types.TLSKeyPair, error) {
+	return newTLSKeyPair(c, clusterName)
+}
+
+// NewJWTKeyPair creates and returns a new JWTKeyPair.
+func (c *rawKeyStore) NewJWTKeyPair() (*types.JWTKeyPair, error) {
+	return newJWTKeyPair(c)
+}
+
 // DeleteKey deletes the given key from the KeyStore. This is a no-op for rawKeyStore.
 func (c *rawKeyStore) DeleteKey(rawKey []byte) error {
+	return nil
+}
+
+func (c *rawKeyStore) keySetHasLocalKeys(keySet types.CAKeySet, provisional bool) bool {
+	for _, sshKeyPair := range keySet.SSH {
+		if sshKeyPair.PrivateKeyType == types.PrivateKeyType_RAW && sshKeyPair.Provisional == provisional {
+			return true
+		}
+	}
+	for _, tlsKeyPair := range keySet.TLS {
+		if tlsKeyPair.KeyType == types.PrivateKeyType_RAW && tlsKeyPair.Provisional == provisional {
+			return true
+		}
+	}
+	for _, jwtKeyPair := range keySet.JWT {
+		if jwtKeyPair.PrivateKeyType == types.PrivateKeyType_RAW {
+			return true
+		}
+	}
+	return false
+}
+
+// HasLocalActiveKeys returns true if the given CA has any active keys that
+// are usable with this KeyStore.
+func (c *rawKeyStore) HasLocalActiveKeys(ca types.CertAuthority) bool {
+	return c.keySetHasLocalKeys(ca.GetActiveKeys(), false)
+}
+
+// HasLocalAdditionalKeys returns true if the given CA has any additional
+// trusted keys that are usable with this KeyStore.
+func (c *rawKeyStore) HasLocalAdditionalKeys(ca types.CertAuthority) bool {
+	return c.keySetHasLocalKeys(ca.GetAdditionalTrustedKeys(), false)
+}
+
+// HasLocalActiveKeys returns true if the given CA has any active provisional
+// keys that are usable with this KeyStore.
+func (c *rawKeyStore) HasLocalProvisionalKeys(ca types.CertAuthority) bool {
+	return c.keySetHasLocalKeys(ca.GetActiveKeys(), true)
+}
+
+// DeleteUnusedKeys deletes all keys from the KeyStore if they are:
+// 1. Labeled by this KeyStore when they were created
+// 2. Not included in the argument usedKeys
+// This is a no-op for rawKeyStore.
+func (c *rawKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
 	return nil
 }
