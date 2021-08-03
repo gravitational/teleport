@@ -116,22 +116,23 @@ func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client 
 // no dialer is given, the first address will be used. This address must
 // be an auth server address.
 func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
-	var err error
-	params := connectParams{cfg: cfg}
-
-	params.tlsConfig, err = cfg.Credentials[0].TLSConfig()
+	tlsConfig, err := cfg.Credentials[0].TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if cfg.Dialer != nil {
-		params.dialer = cfg.Dialer
-		return dialerConnect(ctx, params)
+		return dialerConnect(ctx, connectParams{
+			cfg:       cfg,
+			tlsConfig: tlsConfig,
+			dialer:    cfg.Dialer,
+		})
 	} else if len(cfg.Addrs) != 0 {
-		params.addr = cfg.Addrs[0]
-		return authConnect(ctx, params)
+		return authConnect(ctx, connectParams{
+			cfg:       cfg,
+			tlsConfig: tlsConfig,
+			addr:      cfg.Addrs[0],
+		})
 	}
-
 	return nil, trace.BadParameter("must provide Dialer or Addrs in config")
 }
 
@@ -158,7 +159,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	// with the different combination of connection parameters.
 	// The first successful client to be sent to cltChan will be returned.
 	cltChan := make(chan *Client)
-	syncConnect := func(ctx context.Context, params connectParams, connect connectFunc) {
+	syncConnect := func(ctx context.Context, connect connectFunc, params connectParams) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -181,16 +182,13 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 		// Connect with provided credentials.
 		for _, creds := range cfg.Credentials {
-			var err error
-			params := connectParams{cfg: cfg}
-
-			params.tlsConfig, err = creds.TLSConfig()
+			tlsConfig, err := creds.TLSConfig()
 			if err != nil {
 				sendError(trace.Wrap(err))
 				continue
 			}
 
-			params.sshConfig, err = creds.SSHClientConfig()
+			sshConfig, err := creds.SSHClientConfig()
 			if err != nil && !trace.IsNotImplemented(err) {
 				sendError(trace.Wrap(err))
 				continue
@@ -198,16 +196,10 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 			// Connect with dialer provided in config.
 			if cfg.Dialer != nil {
-				params.dialer = cfg.Dialer
-				syncConnect(ctx, params,
-					func(ctx context.Context, params connectParams) (*Client, error) {
-						clt, err := dialerConnect(ctx, params)
-						if err != nil {
-							return nil, trace.Wrap(err, "failed to connect using cfg dialer")
-						}
-						return clt, err
-					},
-				)
+				syncConnect(ctx, dialerConnect, connectParams{
+					cfg:       cfg,
+					tlsConfig: tlsConfig,
+				})
 			}
 
 			// Connect with dialer provided in creds.
@@ -216,25 +208,33 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					sendError(trace.Wrap(err, "failed to retrieve dialer from creds of type %T", creds))
 				}
 			} else {
-				params.dialer = dialer
-				syncConnect(ctx, params,
-					func(ctx context.Context, params connectParams) (*Client, error) {
-						clt, err := dialerConnect(ctx, params)
-						if err != nil {
-							return nil, trace.Wrap(err, "failed to connect using dialer from credentials of type %T", creds)
-						}
-						return clt, err
-					},
-				)
+				syncConnect(ctx, dialerConnect, connectParams{
+					cfg:       cfg,
+					tlsConfig: tlsConfig,
+					dialer:    dialer,
+				})
 			}
 
 			// Attempt to connect to each address as Auth, Proxy, and Tunnel
 			for _, addr := range cfg.Addrs {
-				params.addr = addr
-				syncConnect(ctx, params, authConnect)
-				if params.sshConfig != nil {
-					syncConnect(ctx, params, proxyConnect)
-					syncConnect(ctx, params, tunnelConnect)
+				syncConnect(ctx, authConnect, connectParams{
+					cfg:       cfg,
+					tlsConfig: tlsConfig,
+					addr:      addr,
+				})
+				if sshConfig != nil {
+					syncConnect(ctx, proxyConnect, connectParams{
+						cfg:       cfg,
+						tlsConfig: tlsConfig,
+						sshConfig: sshConfig,
+						addr:      addr,
+					})
+					syncConnect(ctx, tunnelConnect, connectParams{
+						cfg:       cfg,
+						tlsConfig: tlsConfig,
+						sshConfig: sshConfig,
+						addr:      addr,
+					})
 				}
 			}
 		}
@@ -318,6 +318,12 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 }
 
 func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.dialer == nil {
+		if params.cfg.Dialer == nil {
+			return nil, trace.BadParameter("must provide dialer to connectParams.dialer or params.cfg.Dialer")
+		}
+		params.dialer = params.cfg.Dialer
+	}
 	clt := newClient(params.cfg, params.dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, constants.APIDomain); err != nil {
 		return nil, trace.Wrap(err, "failed to connect using pre-defined dialer")
