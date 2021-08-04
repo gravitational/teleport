@@ -67,7 +67,7 @@ const (
 	RecoverType_RECOVER_TOTP RecoverType = 0
 	// RECOVER_U2F indicates user wants to recover a u2f device.
 	RecoverType_RECOVER_U2F RecoverType = 1
-	// RECOVER_PASSWORD indicates user wants to recovery their password.
+	// RECOVER_PASSWORD indicates user wants to recover their password.
 	RecoverType_RECOVER_PASSWORD RecoverType = 2
 )
 
