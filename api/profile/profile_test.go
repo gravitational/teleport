@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/api/v7/profile"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/trace"
 
 	"github.com/stretchr/testify/require"

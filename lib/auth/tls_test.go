@@ -38,14 +38,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client"
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
-	"github.com/gravitational/teleport/api/v7/utils/sshutils"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -2255,7 +2255,9 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 	}, true)
 	c.Assert(err, check.IsNil)
 
-	key, err := services.GetJWTSigner(ca, s.clock)
+	signer, err := s.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ca)
+	c.Assert(err, check.IsNil)
+	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
 	c.Assert(err, check.IsNil)
 
 	var tests = []struct {
@@ -2726,7 +2728,9 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := tlsca.FromAuthority(hostCA)
+	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA)
+	c.Assert(err, check.IsNil)
+	tlsCA, err := tlsca.FromCertAndSigner(cert, signer)
 	c.Assert(err, check.IsNil)
 	caPin := utils.CalculateSPKI(tlsCA.Cert)
 
@@ -2811,7 +2815,9 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := tlsca.FromAuthority(hostCA)
+	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA)
+	c.Assert(err, check.IsNil)
+	tlsCA, err := tlsca.FromCertAndSigner(cert, signer)
 	c.Assert(err, check.IsNil)
 	tlsBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
 	c.Assert(err, check.IsNil)
