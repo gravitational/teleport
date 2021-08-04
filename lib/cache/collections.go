@@ -662,6 +662,13 @@ func (c *node) fetch(ctx context.Context) (apply func(ctx context.Context) error
 				return trace.Wrap(err)
 			}
 		}
+		nodes, err := c.presenceCache.GetNodes(ctx, apidefaults.Namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(nodes) != len(resources) {
+			c.Warnf("Failed to recall full node set (%d/%d).", len(nodes), len(resources))
+		}
 		return nil
 	}, nil
 }
@@ -669,6 +676,7 @@ func (c *node) fetch(ctx context.Context) (apply func(ctx context.Context) error
 func (c *node) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
+		c.Warnf("OpDelete for node: %s", event.Resource.GetName())
 		err := c.presenceCache.DeleteNode(ctx, event.Resource.GetMetadata().Namespace, event.Resource.GetName())
 		if err != nil {
 			// resource could be missing in the cache

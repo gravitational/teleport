@@ -821,6 +821,12 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if !item.Expires.IsZero() {
+		if now := b.clock.Now().UTC(); now.Add(time.Second * 30).After(item.Expires) {
+			b.Warnf("Near-term expiry %s for key %s", item.Expires, item.Key)
+		}
+	}
 	return nil
 }
 
