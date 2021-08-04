@@ -732,6 +732,19 @@ func (s *BackendSuite) Mirror(c *check.C, b backend.Backend) {
 	item, err = b.Get(ctx, prefix("a"))
 	c.Assert(err, check.IsNil)
 	c.Assert(item.ID, check.Equals, originalID)
+
+	// Add item to backend that is already expired.
+	item2 := &backend.Item{
+		Key:     prefix("b"),
+		Value:   []byte("val"),
+		Expires: time.Now().Add(-1 * time.Second),
+	}
+	_, err = b.Put(ctx, *item2)
+	c.Assert(err, check.IsNil)
+
+	// Make sure item was added into backend despite being expired.
+	_, err = b.Get(ctx, item2.Key)
+	c.Assert(err, check.IsNil)
 }
 
 // MakePrefix returns function that appends unique prefix
