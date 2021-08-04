@@ -854,6 +854,7 @@ func NewRequestValidator(getter UserAndRoleGetter, username string, opts ...Vali
 			return RequestValidator{}, trace.Wrap(err)
 		}
 	}
+
 	return m, nil
 }
 
