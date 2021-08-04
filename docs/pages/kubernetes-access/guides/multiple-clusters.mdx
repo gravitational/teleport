@@ -45,7 +45,7 @@ helm repo add teleport https://charts.releases.teleport.dev
 # Install Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
 CLUSTER='cookie'
 PROXY='tele.example.com:443'
-helm install teleport-agent teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
+helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
   --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
 ```
 
