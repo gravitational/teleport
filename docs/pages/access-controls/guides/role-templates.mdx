@@ -355,21 +355,21 @@ For example, given the following rule template:
 kind: role
 version: v3
 metadata:
-  name: employee
+  name: product-admin
 spec:
   allow:
     request:
-      # `roles` is a static list of roles a user with this role may request 
-      # temporary access to
+      # `roles` is a static list of roles a user with the `peodyct-admin` role may 
+      # request temporary access to
       roles: [access]  
 
       claims_to_roles:
-        - claim: 'groups'         
+        - claim: 'projects'         
           value: '^product-(.*)$' # matches all group names with a leading 'product-'
           roles: ['$1-admin']     # gerenerates a role name from the value capture
 ```
 
-and a user "Alice":
+If we grant Alice the `product-admin` role and add some :
 
 ```yaml
 kind: user
@@ -377,8 +377,9 @@ version: v2
 metadata:
   name: alice
 spec:
+  roles: ['dev', 'product-admin']
   traits:
-    groups: ['employees', 'product-alpha', 'product-beta']
+    projects: ['internal-tooling', 'product-alpha', 'product-beta']
 ```
 
 then Alice would be allowed to request access to the RBAC roles `access` (from the static 
