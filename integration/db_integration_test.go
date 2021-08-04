@@ -383,7 +383,7 @@ type testOptions struct {
 
 type testOptionFunc func(*testOptions)
 
-func (o testOptions) setDefaultIfNotSet() {
+func (o *testOptions) setDefaultIfNotSet() {
 	if o.clock == nil {
 		o.clock = clockwork.NewRealClock()
 	}
