@@ -276,6 +276,8 @@ func (ns *NodeSession) allocateTerminal(termType string, s *ssh.Session) (io.Rea
 		Width:  teleport.DefaultTerminalWidth,
 		Height: teleport.DefaultTerminalHeight,
 	}
+	// TODO: if isTerminalAttached() = true but GetWinsize fails, tsize is left
+	// as a nil pointer.
 	if ns.isTerminalAttached() {
 		tsize, err = term.GetWinsize(0)
 		if err != nil {

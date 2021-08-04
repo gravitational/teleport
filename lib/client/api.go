@@ -2811,7 +2811,18 @@ func Username() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return u.Username, nil
+
+	username := u.Username
+
+	// If on Windows, strip the domain name.
+	if runtime.GOOS == "windows" {
+		idx := strings.LastIndex(username, "\\")
+		if idx > -1 {
+			username = username[idx+1:]
+		}
+	}
+
+	return username, nil
 }
 
 // AskOTP prompts the user to enter the OTP token.
