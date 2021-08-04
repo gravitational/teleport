@@ -90,24 +90,6 @@ func (a *RecoveryAttempt) Check() error {
 	return nil
 }
 
-// SortedRecoveryAttempts sorts recovery attempts by time.
-type SortedRecoveryAttempts []RecoveryAttempt
-
-// Len returns length of a role list.
-func (s SortedRecoveryAttempts) Len() int {
-	return len(s)
-}
-
-// Less stacks latest attempts to the end of the list.
-func (s SortedRecoveryAttempts) Less(i, j int) bool {
-	return s[i].Time.Before(s[j].Time)
-}
-
-// Swap swaps two attempts.
-func (s SortedRecoveryAttempts) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 // IsMaxFailedRecoveryAttempt determines if user reached their max failed attempts.
 func IsMaxFailedRecoveryAttempt(maxAttempts int, attempts []RecoveryAttempt, now time.Time) bool {
 	var failed int

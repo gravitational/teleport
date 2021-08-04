@@ -925,7 +925,7 @@ enum RecoverType {
     RECOVER_TOTP = 0;
     // RECOVER_U2F indicates user wants to recover a u2f device.
     RECOVER_U2F = 1;
-    // RECOVER_PASSWORD indicates user wants to recovery their password.
+    // RECOVER_PASSWORD indicates user wants to recover their password.
     RECOVER_PASSWORD = 2;
 }
 

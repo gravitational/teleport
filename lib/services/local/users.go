@@ -1183,7 +1183,7 @@ func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user stri
 		out[i] = a
 	}
 
-	sort.Sort(types.SortedRecoveryAttempts(out))
+	sort.Sort(recoveryAttemptsChronologically(out))
 
 	return out, nil
 }
@@ -1196,6 +1196,24 @@ func (s *IdentityService) DeleteUserRecoveryAttempts(ctx context.Context, user s
 
 	startKey := backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
+// recoveryAttemptsChronologically sorts recovery attempts by time.
+type recoveryAttemptsChronologically []types.RecoveryAttempt
+
+// Len returns length of a role list.
+func (s recoveryAttemptsChronologically) Len() int {
+	return len(s)
+}
+
+// Less stacks latest attempts to the end of the list.
+func (s recoveryAttemptsChronologically) Less(i, j int) bool {
+	return s[i].Time.Before(s[j].Time)
+}
+
+// Swap swaps two attempts.
+func (s recoveryAttemptsChronologically) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
 }
 
 const (

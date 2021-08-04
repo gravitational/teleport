@@ -631,8 +631,7 @@ func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *proto.Cr
 
 	r, ok := token.(*types.UserTokenV3)
 	if !ok {
-		err = trace.BadParameter("unexpected UserToken type %T", token)
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("unexpected UserToken type %T", token)
 	}
 
 	return r, nil
@@ -656,8 +655,7 @@ func (g *GRPCServer) RotateResetPasswordTokenSecrets(ctx context.Context, req *p
 
 	r, ok := secrets.(*types.UserTokenSecretsV3)
 	if !ok {
-		err = trace.BadParameter("unexpected ResetPasswordTokenSecrets type %T", secrets)
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("unexpected ResetPasswordTokenSecrets type %T", secrets)
 	}
 
 	return r, nil
@@ -681,8 +679,7 @@ func (g *GRPCServer) RotateUserTokenSecrets(ctx context.Context, req *proto.Rota
 
 	r, ok := secrets.(*types.UserTokenSecretsV3)
 	if !ok {
-		err = trace.BadParameter("unexpected UserTokenSecrets type %T", secrets)
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("unexpected UserTokenSecrets type %T", secrets)
 	}
 
 	return r, nil
@@ -706,8 +703,8 @@ func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *proto.GetRe
 
 	r, ok := token.(*types.UserTokenV3)
 	if !ok {
-		err = trace.BadParameter("unexpected UserToken type %T", token)
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("unexpected UserToken type %T", token)
+
 	}
 
 	return r, nil
@@ -726,8 +723,7 @@ func (g *GRPCServer) GetRecoveryToken(ctx context.Context, req *proto.GetRecover
 
 	r, ok := token.(*types.UserTokenV3)
 	if !ok {
-		err = trace.BadParameter("unexpected UserToken type %T", token)
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("unexpected UserToken type %T", token)
 	}
 
 	return r, nil
