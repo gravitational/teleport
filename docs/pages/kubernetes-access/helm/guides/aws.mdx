@@ -304,35 +304,66 @@ replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
 ## Step 6. Set up DNS
 
 You'll need to set up two DNS `A` records: `teleport.example.com` for the web UI, and `*.teleport.example.com`
-for web apps using [application access](../../../application-access/introduction.mdx).
+for web apps using [application access](../../../application-access/introduction.mdx). In our example, both records are
+aliases to an ELB.
 
 Here's how to do this in a hosted zone with AWS Route 53:
 
 ```bash
 # Change these parameters if you altered them above
-NAMESPACE=teleport
-RELEASE_NAME=teleport
+NAMESPACE='teleport'
+RELEASE_NAME='teleport'
 
-# Tip for finding AWS zone id by the domain name (replace your namespace)
-MYIP=$(kubectl --namespace ${NAMESPACE?} get service/${RELEASE_NAME?} -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')
-MYZONE_DNS="example.com"
-MYZONE=$(aws route53 list-hosted-zones-by-name --dns-name=${MYZONE_DNS?} | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)
+# DNS settings (change as necessary)
+MYZONE_DNS='example.com'
+MYDNS='teleport.example.com'
+MY_CLUSTER_REGION='us-west-2'
 
-MYDNS="teleport.example.com"
+# Find AWS Zone ID and ELB Zone ID
+MYZONE="$(aws route53 list-hosted-zones-by-name --dns-name="${MYZONE_DNS?}" | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)"
+MYELB="$(kubectl --namespace "${NAMESPACE?}" get "service/${RELEASE_NAME?}" -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')"
+MYELB_NAME="${MYELB%%-*}"
+MYELB_ZONE="$(aws elb describe-load-balancers --region "${MY_CLUSTER_REGION?}" --load-balancer-names "${MYELB_NAME?}" | jq -r '.LoadBalancerDescriptions[0].CanonicalHostedZoneNameID')"
 
 # Create a JSON file changeset for AWS.
-jq -n --arg ip ${MYIP?} --arg dns ${MYDNS?} '{"Comment": "Create records", "Changes": [
-  {"Action": "CREATE", "ResourceRecordSet": {"Name": $dns, "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}},
-  {"Action": "CREATE", "ResourceRecordSet": {"Name": ("*." + $dns), "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}}
-  ]}' > myrecords.json
+jq -n --arg dns "${MYDNS?}" --arg elb "${MYELB?}" --arg elbz "${MYELB_ZONE?}" \
+    '{
+        "Comment": "Create records",
+        "Changes": [
+          {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+              "Name": $dns,
+              "Type": "A",
+              "AliasTarget": {
+                "HostedZoneId": $elbz,
+                "DNSName": ("dualstack." + $elb),
+                "EvaluateTargetHealth": false
+              }
+            }
+          },
+          {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+              "Name": ("*." + $dns),
+              "Type": "A",
+              "AliasTarget": {
+                "HostedZoneId": $elbz,
+                "DNSName": ("dualstack." + $elb),
+                "EvaluateTargetHealth": false
+              }
+            }
+          }
+      ]
+    }' > myrecords.json
 
 # Review records before applying.
 cat myrecords.json | jq
 # Apply the records and capture change id
-CHANGEID=$(aws route53 change-resource-record-sets --hosted-zone-id ${MYZONE?} --change-batch file://myrecords.json | jq -r '.ChangeInfo.Id')
+CHANGEID="$(aws route53 change-resource-record-sets --hosted-zone-id "${MYZONE?}" --change-batch file://myrecords.json | jq -r '.ChangeInfo.Id')"
 
 # Verify that change has been applied
-aws route53 get-change --id ${CHANGEID?} | jq '.ChangeInfo.Status'
+aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 "INSYNC"
 ```
 
