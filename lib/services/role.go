@@ -783,6 +783,9 @@ type AccessChecker interface {
 
 	// CanImpersonateSomeone returns true if this checker has any impersonation rules
 	CanImpersonateSomeone() bool
+
+	// LockingMode returns the locking mode to apply with this checker.
+	LockingMode(defaultMode constants.LockingMode) constants.LockingMode
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1680,6 +1683,21 @@ func (set RoleSet) CheckImpersonate(currentUser, impersonateUser types.User, imp
 	}
 
 	return trace.AccessDenied("access denied to '%s' to impersonate user '%s' and roles '%s'", currentUser.GetName(), impersonateUser.GetName(), roleNames(impersonateRoles))
+}
+
+// LockingMode returns the locking mode to apply with this RoleSet.
+func (set RoleSet) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
+	mode := defaultMode
+	for _, role := range set {
+		options := role.GetOptions()
+		if options.Lock == constants.LockingModeStrict {
+			return constants.LockingModeStrict
+		}
+		if options.Lock != "" {
+			mode = options.Lock
+		}
+	}
+	return mode
 }
 
 func roleNames(roles []types.Role) string {

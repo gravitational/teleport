@@ -45,8 +45,11 @@ type Event struct {
 type OpType int
 
 const (
+	// OpUnreliable is used to indicate the event stream has become unreliable
+	// for maintaining an up-to-date view of the data.
+	OpUnreliable OpType = iota - 2
 	// OpInvalid is returned for invalid operations
-	OpInvalid OpType = iota - 1
+	OpInvalid
 	// OpInit is returned by the system whenever the system
 	// is initialized, init operation is always sent
 	// as a first event over the channel, so the client

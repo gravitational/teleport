@@ -794,6 +794,12 @@ message AuthPreferenceSpecV2 {
     ];
 
     string MessageOfTheDay = 8 [ (gogoproto.jsontag) = "message_of_the_day,omitempty" ];
+
+    // LockingMode is the cluster-wide locking mode default.
+    string LockingMode = 9 [
+        (gogoproto.jsontag) = "locking_mode,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
+    ];
 }
 
 // LegacyClusterConfigAuthFields facilitates a backward compatible transition
@@ -1271,6 +1277,13 @@ message RoleOptions {
     // RequireSessionMFA specifies whether a user is required to do an MFA
     // check for every session.
     bool RequireSessionMFA = 13 [ (gogoproto.jsontag) = "require_session_mfa,omitempty" ];
+
+    // Lock specifies the locking mode (strict|best_effort) to be applied with
+    // the role.
+    string Lock = 14 [
+        (gogoproto.jsontag) = "lock,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
+    ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
