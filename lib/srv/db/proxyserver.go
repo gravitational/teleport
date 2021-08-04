@@ -193,7 +193,7 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 		// Pass over to the MySQL proxy handler.
 		go func() {
 			defer clientConn.Close()
-			err := s.mysqlProxy().HandleConnection(s.closeCtx, clientConn)
+			err := s.MySQLProxy().HandleConnection(s.closeCtx, clientConn)
 			if err != nil {
 				s.log.WithError(err).Error("Failed to handle MySQL client connection.")
 			}
@@ -254,14 +254,14 @@ func (s *ProxyServer) dispatch(clientConn net.Conn) (common.Proxy, error) {
 	switch muxConn.Protocol() {
 	case multiplexer.ProtoPostgres:
 		s.log.Debugf("Accepted Postgres connection from %v.", muxConn.RemoteAddr())
-		return s.postgresProxy(), nil
+		return s.PostgresProxy(), nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
 		muxConn.Protocol())
 }
 
 // postgresProxy returns a new instance of the Postgres protocol aware proxy.
-func (s *ProxyServer) postgresProxy() *postgres.Proxy {
+func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	return &postgres.Proxy{
 		TLSConfig:  s.cfg.TLSConfig,
 		Middleware: s.middleware,
@@ -270,16 +270,8 @@ func (s *ProxyServer) postgresProxy() *postgres.Proxy {
 	}
 }
 
-func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
-	return s.postgresProxy()
-}
-
-func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
-	return s.mysqlProxy()
-}
-
 // mysqlProxy returns a new instance of the MySQL protocol aware proxy.
-func (s *ProxyServer) mysqlProxy() *mysql.Proxy {
+func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	return &mysql.Proxy{
 		TLSConfig:  s.cfg.TLSConfig,
 		Middleware: s.middleware,

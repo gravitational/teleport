@@ -28,10 +28,12 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -252,9 +254,19 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 }
 
 func (a *Agent) connect() (conn *ssh.Client, err error) {
+	var opts []proxy.DialerOptionFunc
+
+	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
+	resp, err := webclient.Find(a.ctx, a.Addr.Addr, lib.IsInsecureDevMode(), nil)
+	if err == nil && resp.Proxy.ALPNSNIListenerEnabled {
+		opts = append(opts, proxy.WithTLSDialer())
+	} else {
+		a.log.Debugf("Failed to ping web proxy %q addr.", a.Addr.Addr)
+	}
+
 	for _, authMethod := range a.authMethods {
 		// Create a dialer (that respects HTTP proxies) and connect to remote host.
-		dialer := proxy.DialerFromEnvironment(a.Addr.Addr)
+		dialer := proxy.DialerFromEnvironment(a.Addr.Addr, opts...)
 		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
 		if err != nil {
 			a.log.Debugf("Dial to %v failed: %v.", a.Addr.Addr, err)
@@ -270,17 +282,8 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 			Timeout:         apidefaults.DefaultDialTimeout,
 		})
 		if err != nil {
-			if isALPNUnsupportedError(err) {
-				// Fallback to TLS dialer with TLS ALPN value.
-				conn, chans, reqs, err = a.connectWithTLSDirectDialer(authMethod)
-				if err != nil {
-					a.log.Debugf("Failed to create direct tls alpn client to %v: %v.", a.Addr.Addr, err)
-					continue
-				}
-			} else {
-				a.log.Debugf("Failed to create client to %v: %v.", a.Addr.Addr, err)
-				continue
-			}
+			a.log.Debugf("Failed to create client to %v: %v.", a.Addr.Addr, err)
+			continue
 		}
 
 		// Create an empty channel and close it right away. This will prevent

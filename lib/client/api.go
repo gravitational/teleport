@@ -2503,7 +2503,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 					proxySettings.Kube.PublicAddr)
 			}
 			tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
-		// TunnelAddr is the second preference.
+		// ListenAddr is the second preference.
 		case proxySettings.Kube.ListenAddr != "":
 			addr, err := utils.ParseAddr(proxySettings.Kube.ListenAddr)
 			if err != nil {
@@ -2511,7 +2511,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 					"failed to parse value received from the server: %q, contact your administrator for help",
 					proxySettings.Kube.ListenAddr)
 			}
-			// If TunnelAddr host is 0.0.0.0 or [::], replace it with something
+			// If ListenAddr host is 0.0.0.0 or [::], replace it with something
 			// routable from the web endpoint.
 			if net.ParseIP(addr.Host()).IsUnspecified() {
 				webProxyHost, _ := tc.WebProxyHostPort()

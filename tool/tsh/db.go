@@ -293,6 +293,28 @@ Key:       %v
 	return nil
 }
 
+func startLocalALPNSNIProxy(cf *CLIConf, tc *client.TeleportClient, databaseProtocol string) (*alpnproxy.LocalProxy, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lp, err := mkLocalProxy(cf.Context, tc.WebProxyAddr, databaseProtocol, listener)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	startSyncC := make(chan struct{})
+	go func() {
+		close(startSyncC)
+		if err := lp.Start(cf.Context); err != nil {
+			log.WithError(err).Errorf("Failed to start local proxy")
+		}
+	}()
+	<-startSyncC
+
+	return lp, nil
+}
+
 // onDatabaseConnect implements "tsh db connect" command.
 func onDatabaseConnect(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
@@ -309,31 +331,15 @@ func onDatabaseConnect(cf *CLIConf) error {
 	}
 	var opts []ConnectCommandFunc
 	if tc.ALPNSNIListenerEnabled {
-		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		lp, err := startLocalALPNSNIProxy(cf, tc, database.Protocol)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		lp, err := mkLocalProxy(cf.Context, tc.WebProxyAddr, database.Protocol, listener)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer lp.Close()
-
-		startSyncC := make(chan struct{})
-		go func() {
-			close(startSyncC)
-			if err := lp.Start(cf.Context); err != nil {
-				log.WithError(err).Errorf("Failed to start local proxy")
-			}
-		}()
-		<-startSyncC
-
-		addr, err := utils.ParseAddr(listener.Addr().String())
+		addr, err := utils.ParseAddr(lp.GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		opts = append(opts, WithLocalProxyRoute(addr.Host(), addr.Port(0)))
-
 	}
 	cmd, err := getConnectCommand(cf, tc, profile, database, opts...)
 	if err != nil {
@@ -423,7 +429,6 @@ func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, 
 	address, err := utils.ParseAddr(remoteProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
-
 	}
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr: remoteProxyAddr,
@@ -460,10 +465,10 @@ func getPostgresCommand(db *tlsca.RouteToDatabase, cluster, user, name string, o
 		connString = append(connString, fmt.Sprintf("dbname=%v", name))
 	}
 	if options.localProxyPort != 0 {
-		connString = append(connString, fmt.Sprintf("--port=%v", options.localProxyPort))
+		connString = append(connString, fmt.Sprintf("port=%v", options.localProxyPort))
 	}
 	if options.localProxyHost != "" {
-		connString = append(connString, fmt.Sprintf("--host=%v", options.localProxyHost))
+		connString = append(connString, fmt.Sprintf("host=%v", options.localProxyHost))
 	}
 	return exec.Command(postgresBin, strings.Join(connString, " "))
 }

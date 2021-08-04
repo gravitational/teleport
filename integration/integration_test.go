@@ -2418,6 +2418,10 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 
 		// add proxy as a backend to the load balancer
 		lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
+		// add proxy as a backend second time to prevent situations where there are only 2 backend and internal
+		// reverse tunnel dialer makes 2 calls to connect to the tunnel (ProxyPing, factual Dial call). In that
+		// situations the second lb backend reverse tunnel address is actually never dialed.
+		lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
 		return newProxy, newConfig
 	}
 
@@ -2429,6 +2433,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 			}
 			if p.Config.Hostname == name {
 				reverseTunnelPort := utils.MustParseAddr(p.Config.Proxy.ReverseTunnelListenAddr.Addr).Port(0)
+				require.NoError(t, lb.RemoveBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(reverseTunnelPort)))))
 				require.NoError(t, lb.RemoveBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(reverseTunnelPort)))))
 				require.NoError(t, p.Close())
 				require.NoError(t, p.Wait())
@@ -2548,6 +2553,10 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// add second proxy as a backend to the load balancer
+	lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
+	// add proxy as a backend second time to prevent situations where there are only 2 backend and internal
+	// reverse tunnel dialer makes 2 calls to connect to the tunnel (ProxyPing, factual Dial call). In that
+	// situations the second lb backend reverse tunnel address is actually never dialed
 	lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
 
 	// At this point the main cluster should observe two tunnels
@@ -2677,6 +2686,10 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	proxyOneBackend := utils.MustParseAddr(net.JoinHostPort(Loopback, main.GetPortReverseTunnel()))
 	lb.AddBackend(*proxyOneBackend)
 	proxyTwoBackend := utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort)))
+	lb.AddBackend(*proxyTwoBackend)
+	// add proxy as a backend second time to prevent situations where there are only 2 backend and internal
+	// reverse tunnel dialer makes 2 calls to connect to the tunnel (ProxyPing, factual Dial call). In that
+	// situations the second lb backend reverse tunnel address is actually never dialed.
 	lb.AddBackend(*proxyTwoBackend)
 
 	// Create a Teleport instance with a Node.

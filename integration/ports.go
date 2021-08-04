@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2021 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -90,7 +90,7 @@ func webReverseTunnelMuxPortSetup() *InstancePorts {
 type InstancePorts struct {
 	Host string
 	Web  *InstancePort
-	// Instance SSH server Port.
+	// SSH is an instance of SSH server Port.
 	SSH *InstancePort
 	// TeleportProxy SSH Port.
 	SSHProxy      *InstancePort

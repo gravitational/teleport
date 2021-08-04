@@ -51,7 +51,6 @@ const (
 //
 type Profile struct {
 	// WebProxyAddr is the host:port the web proxy can be accessed at.
-
 	WebProxyAddr string `yaml:"web_proxy_addr,omitempty"`
 
 	// SSHProxyAddr is the host:port the SSH proxy can be accessed at.

@@ -3177,7 +3177,7 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 	if !cfg.Proxy.DisableWebService {
 		webWrapper := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
-			Protocols:  []string{alpnproxy.ProtocolHTTP, alpnproxy.ProtocolHTTP2, alpnproxy.ProtocolDefault},
+			Protocols:  []string{alpnproxy.ProtocolHTTP, alpnproxy.ProtocolHTTP2, alpnproxy.ProtocolDefault, acme.ALPNProto},
 			Handler:    webWrapper.HandleConnection,
 			ForwardTLS: false,
 		})

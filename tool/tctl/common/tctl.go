@@ -273,9 +273,10 @@ func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 
 // tunnelAddr returns the tunnel address in the following preference order:
 //  1. Reverse Tunnel Public Address.
-//  2. SSH Proxy Public Address.
-//  3. HTTP Proxy Public Address.
-//  4. Tunnel Listen Address.
+//  2. If proxy support ALPN listener where all services are exposed on single port return proxy address.
+//  3. SSH Proxy Public Address.
+//  4. HTTP Proxy Public Address.
+//  5. Tunnel Listen Address.
 func tunnelAddr(webAddr utils.NetAddr, settings webclient.ProxySettings) (string, error) {
 	// Extract the port the tunnel server is listening on.
 	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
@@ -289,6 +290,9 @@ func tunnelAddr(webAddr utils.NetAddr, settings webclient.ProxySettings) (string
 		return settings.SSH.TunnelPublicAddr, nil
 	}
 
+	if settings.ALPNSNIListenerEnabled {
+		return webAddr.String(), nil
+	}
 	// If a tunnel public address has not been set, but a related HTTP or SSH
 	// public address has been set, extract the hostname but use the port from
 	// the tunnel listen address.

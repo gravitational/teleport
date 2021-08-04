@@ -94,12 +94,16 @@ func isALPNUnsupportedError(err error) bool {
 
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+	if d.useTLS {
+		client, err := dialTLSWithDeadline(network, addr, config)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return client, nil
+	}
 	client, err := dialWithDeadline(network, addr, config)
 	if err != nil {
-		if isALPNUnsupportedError(err) {
-			return dialTLSWithDeadline(network, addr, config)
-		}
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return client, nil
 }
@@ -229,22 +233,6 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	return proxyDial{proxyHost: proxyAddr, useTLS: options.dialTLS}
 }
 
-func DialerTLSFromEnvironment(addr string) Dialer {
-	// Try and get proxy addr from the environment.
-	proxyAddr := getProxyAddress(addr)
-
-	// If no proxy settings are in environment return regular ssh dialer,
-	// otherwise return a proxy dialer.
-	if proxyAddr == "" {
-		log.Debugf("No proxy set in environment, returning direct dialer.")
-		return directDial{
-			useTLS: true,
-		}
-	}
-	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)
-	return proxyDial{proxyHost: proxyAddr, useTLS: true}
-}
-
 type DirectDialerOptFunc func(dial *directDial)
 
 func dialProxy(ctx context.Context, proxyAddr string, addr string) (net.Conn, error) {
@@ -328,20 +316,6 @@ func getProxyAddress(addr string) string {
 	return ""
 }
 
-// parse will extract the host:port of the proxy to dial to. If the
-// value is not prefixed by "http", then it will prepend "http" and try.
-func parse(addr string) (string, error) {
-	proxyurl, err := url.Parse(addr)
-	if err != nil || !strings.HasPrefix(proxyurl.Scheme, "http") {
-		proxyurl, err = url.Parse("http://" + addr)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-	}
-
-	return proxyurl.Host, nil
-}
-
 // bufferedConn is used when part of the data on a connection has already been
 // read by a *bufio.Reader. Reads will first try and read from the
 // *bufio.Reader and when everything has been read, reads will go to the
@@ -358,4 +332,19 @@ func (bc *bufferedConn) Read(b []byte) (n int, err error) {
 		return bc.reader.Read(b)
 	}
 	return bc.Conn.Read(b)
+}
+
+
+// parse will extract the host:port of the proxy to dial to. If the
+// value is not prefixed by "http", then it will prepend "http" and try.
+func parse(addr string) (string, error) {
+	proxyurl, err := url.Parse(addr)
+	if err != nil || !strings.HasPrefix(proxyurl.Scheme, "http") {
+		proxyurl, err = url.Parse("http://" + addr)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
+	return proxyurl.Host, nil
 }

@@ -27,9 +27,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -51,7 +53,15 @@ type TunnelAuthDialer struct {
 // DialContext dials auth server via SSH tunnel
 func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	// Connect to the reverse tunnel server.
-	dialer := proxy.DialerFromEnvironment(addr)
+	var opts []proxy.DialerOptionFunc
+
+	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
+	resp, err := webclient.Find(ctx, t.ProxyAddr, lib.IsInsecureDevMode(), nil)
+	if err == nil && resp.Proxy.ALPNSNIListenerEnabled {
+		opts = append(opts, proxy.WithTLSDialer())
+	}
+
+	dialer := proxy.DialerFromEnvironment(addr, opts...)
 	sconn, err := dialer.Dial("tcp", t.ProxyAddr, t.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

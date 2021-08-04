@@ -1,5 +1,5 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -131,9 +131,6 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	if c.TLSConfig == nil {
 		return trace.BadParameter("tls config missing")
 	}
-	if len(c.TLSConfig.Certificates) == 0 {
-		return trace.BadParameter("missing certs")
-	}
 
 	if c.Listener == nil {
 		return trace.BadParameter("listener missing")
@@ -183,9 +180,9 @@ func (p *Proxy) Serve(ctx context.Context) error {
 		go func() {
 			if err := p.handleConn(ctx, clientConn); err != nil {
 				if err := clientConn.Close(); err != nil {
-					p.log.Warnf("failed to close client connection: %v", err)
+					p.log.WithError(err).Warnf("failed to close client connection")
 				}
-				p.log.Warnf("failed to handle client connection: %v", err)
+				p.log.WithError(err).Warnf("failed to handle client connection")
 			}
 		}()
 	}
@@ -238,9 +235,13 @@ func (p *Proxy) readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.Clien
 	if err := conn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	// Following TLS handshake fails on the server side with error: "no certificates configured" after server
+	// receives a TLS hello message from the client. If handshake was able to read hello message it indicates successful
+	// flow otherwise TLS handshake error is returned.
 	err := tlsConn.Handshake()
 	if hello == nil {
-		return nil, nil, err
+		return nil, nil, trace.Wrap(err)
 	}
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
 		return nil, nil, trace.Wrap(err)

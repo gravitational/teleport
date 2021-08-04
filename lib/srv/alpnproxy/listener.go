@@ -1,5 +1,5 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,27 +26,33 @@ import (
 // ListenerMuxWrapper wraps the net.Listener and multiplex incoming connection from serviceListener and connection
 // injected by HandleConnection handler.
 type ListenerMuxWrapper struct {
-	alpnListener net.Listener
+	// net.Listener is the main service listener that is being wrapped.
 	net.Listener
+	// alpnListener is the ALPN service listener.
+	alpnListener net.Listener
 	connC chan net.Conn
 	errC  chan error
 	close chan struct{}
 }
 
 // NewMuxListenerWrapper creates a new instance of ListenerMuxWrapper
-func NewMuxListenerWrapper(serviceListener net.Listener, alpnListener net.Listener) *ListenerMuxWrapper {
-	return &ListenerMuxWrapper{
+func NewMuxListenerWrapper(serviceListener, alpnListener net.Listener) *ListenerMuxWrapper {
+	listener := &ListenerMuxWrapper{
 		alpnListener: alpnListener,
 		Listener:     serviceListener,
 		connC:        make(chan net.Conn),
 		errC:         make(chan error),
 		close:        make(chan struct{}),
 	}
+	go listener.startAcceptingConnectionServiceListener()
+	return listener
 }
 
-// HandleConnection allows to injection connection to the listener.
+// HandleConnection allows to inject connection to the listener.
 func (l *ListenerMuxWrapper) HandleConnection(ctx context.Context, conn net.Conn) error {
 	select {
+	case <-l.close:
+		return trace.ConnectionProblem(nil, "listener is closed")
 	case <-ctx.Done():
 		return ctx.Err()
 	case l.connC <- conn:
@@ -62,12 +68,11 @@ func (l *ListenerMuxWrapper) Addr() net.Addr {
 }
 
 func (l *ListenerMuxWrapper) Accept() (net.Conn, error) {
-	go l.startAcceptingConnectionServiceListener()
 	select {
 	case <-l.close:
 		return nil, trace.ConnectionProblem(nil, "listener is closed")
 	case err := <-l.errC:
-		return nil, err
+		return nil, trace.Wrap(err)
 	case conn := <-l.connC:
 		return conn, nil
 	}

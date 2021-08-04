@@ -874,16 +874,12 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 }
 
 // tunnelAddr returns the tunnel address in the following preference order:
-//  1. If proxy support ALPN listener where all services are exposed on single port return proxy address.
-//  2. Reverse Tunnel Public Address.
+//  1. Reverse Tunnel Public Address.
+//  2. If proxy support ALPN listener where all services are exposed on single port return proxy address.
 //  3. SSH Proxy Public Address.
 //  4. HTTP Proxy Public Address.
 //  5. Tunnel Listen Address.
 func tunnelAddr(settings webclient.ProxySettings, proxyAddr utils.NetAddr) (string, error) {
-	if settings.ALPNSNIListenerEnabled {
-		return proxyAddr.String(), nil
-	}
-
 	// Extract the port the tunnel server is listening on.
 	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
 	if err != nil {
@@ -894,6 +890,10 @@ func tunnelAddr(settings webclient.ProxySettings, proxyAddr utils.NetAddr) (stri
 	// If a tunnel public address is set, nothing else has to be done, return it.
 	if settings.SSH.TunnelPublicAddr != "" {
 		return settings.SSH.TunnelPublicAddr, nil
+	}
+
+	if settings.ALPNSNIListenerEnabled {
+		return proxyAddr.String(), nil
 	}
 
 	// If a tunnel public address has not been set, but a related HTTP or SSH

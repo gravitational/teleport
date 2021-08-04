@@ -1,5 +1,5 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -213,12 +213,12 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			log.Errorf("faield to accept client connection: %v\n", err)
+			log.WithError(err).Errorf("faield to accept client connection")
 			continue
 		}
 		go func() {
 			if err := l.handleDownstreamConnection(ctx, conn, l.cfg.SNI); err != nil {
-				log.Errorf("failed to handle connection: %v", err)
+				log.WithError(err).Errorf("failed to handle connection")
 			}
 		}()
 	}

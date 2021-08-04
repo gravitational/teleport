@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2021 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,20 +42,20 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestAlpnSniProxyMultiCluster tests SSH connection in multi-cluster setup with.
-func TestAlpnSniProxyMultiCluster(t *testing.T) {
+// TestALPNSNIProxyMultiCluster tests SSH connection in multi-cluster setup with.
+func TestALPNSNIProxyMultiCluster(t *testing.T) {
 	testCase := []struct {
-		name                        string
-		mainClusterPortSetup        *InstancePorts
-		secondClusterPortSetup      *InstancePorts
-		disableALPNListenerOnMaster bool
-		disableALPNListenerOnLeaf   bool
+		name                      string
+		mainClusterPortSetup      *InstancePorts
+		secondClusterPortSetup    *InstancePorts
+		disableALPNListenerOnMain bool
+		disableALPNListenerOnLeaf bool
 	}{
 		{
-			name:                        "StandardAndOnePortSetupMasterALPNDisabled",
-			mainClusterPortSetup:        standardPortSetup(),
-			secondClusterPortSetup:      singleProxyPortSetup(),
-			disableALPNListenerOnMaster: true,
+			name:                      "StandardAndOnePortSetupMasterALPNDisabled",
+			mainClusterPortSetup:      standardPortSetup(),
+			secondClusterPortSetup:    singleProxyPortSetup(),
+			disableALPNListenerOnMain: true,
 		},
 		{
 			name:                   "StandardAndOnePortSetup",
@@ -89,10 +89,10 @@ func TestAlpnSniProxyMultiCluster(t *testing.T) {
 
 			suite := newProxySuite(t,
 				withMainClusterConfig(mainClusterStandardConfig(t), func(config *service.Config) {
-					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnMaster
+					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnMain
 				}),
 				withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
-					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnMaster
+					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnMain
 				}),
 				withMainClusterPorts(tc.mainClusterPortSetup),
 				withLeafClusterPorts(tc.secondClusterPortSetup),
@@ -117,20 +117,20 @@ func TestAlpnSniProxyMultiCluster(t *testing.T) {
 	}
 }
 
-// TestAlpnSniProxyTrustedClusterNode tests ssh connection to a trusted cluster node.
-func TestAlpnSniProxyTrustedClusterNode(t *testing.T) {
+// TestALPNSNIProxyTrustedClusterNode tests ssh connection to a trusted cluster node.
+func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 	testCase := []struct {
-		name                        string
-		mainClusterPortSetup        *InstancePorts
-		secondClusterPortSetup      *InstancePorts
-		disableALPNListenerOnMaster bool
-		disableALPNListenerOnLeaf   bool
+		name                      string
+		mainClusterPortSetup      *InstancePorts
+		secondClusterPortSetup    *InstancePorts
+		disableALPNListenerOnMain bool
+		disableALPNListenerOnLeaf bool
 	}{
 		{
-			name:                        "StandardAndOnePortSetupMasterALPNDisabled",
-			mainClusterPortSetup:        standardPortSetup(),
-			secondClusterPortSetup:      singleProxyPortSetup(),
-			disableALPNListenerOnMaster: true,
+			name:                      "StandardAndOnePortSetupMasterALPNDisabled",
+			mainClusterPortSetup:      standardPortSetup(),
+			secondClusterPortSetup:    singleProxyPortSetup(),
+			disableALPNListenerOnMain: true,
 		},
 		{
 			name:                   "StandardAndOnePortSetup",
@@ -195,9 +195,9 @@ func TestAlpnSniProxyTrustedClusterNode(t *testing.T) {
 	}
 }
 
-// TestAlpnSniProxyMultiCluster tests if the reverse tunnel uses http_proxy
+// TestALPNSNIProxyMultiCluster tests if the reverse tunnel uses http_proxy
 // on a single proxy port setup.
-func TestAlpnSniHTTPSProxy(t *testing.T) {
+func TestALPNSNIHTTPSProxy(t *testing.T) {
 	// start the http proxy
 	ps := &proxyServer{}
 	ts := httptest.NewServer(ps)
@@ -231,7 +231,7 @@ func TestAlpnSniHTTPSProxy(t *testing.T) {
 
 // TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
 //SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
-func TestAlpnSniProxyKube(t *testing.T) {
+func TestALPNSNIProxyKube(t *testing.T) {
 	const (
 		localK8SNI = "kube.teleport.cluster.local"
 		k8User     = "alice@example.com"
@@ -278,9 +278,9 @@ func TestAlpnSniProxyKube(t *testing.T) {
 	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
 }
 
-// TestAlpnSniProxyDatabaseAccess test DB connection forwarded through local SNI ALPN proxy where
+// TestALPNSNIProxyDatabaseAccess test DB connection forwarded through local SNI ALPN proxy where
 // DB protocol is wrapped into TLS and forwarded to proxy ALPN SNI service and routed to appropriate db service.
-func TestAlpnSniProxyDatabaseAccess(t *testing.T) {
+func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	pack := setupDatabaseTest(t,
 		withPortSetupDatabaseTest(singleProxyPortSetup),
 	)
@@ -430,8 +430,8 @@ func TestAlpnSniProxyDatabaseAccess(t *testing.T) {
 	})
 }
 
-// TestProxyAppAccess tests application access via ALPN SNI proxy service.
-func TestAlpnSniProxyAppAccess(t *testing.T) {
+// TestALPNSNIProxyAppAccess tests application access via ALPN SNI proxy service.
+func TestALPNSNIProxyAppAccess(t *testing.T) {
 	pack := setupWithOptions(t, appTestOptions{
 		rootClusterPorts: singleProxyPortSetup(),
 		leafClusterPorts: singleProxyPortSetup(),

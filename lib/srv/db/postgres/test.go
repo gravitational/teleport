@@ -48,9 +48,6 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgcon
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if config.DialFunc != nil {
-		pgconnConfig.DialFunc = config.DialFunc
-	}
 	pgConn, err := pgconn.ConnectConfig(ctx, pgconnConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
