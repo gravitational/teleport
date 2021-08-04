@@ -478,18 +478,19 @@ version: $(VERSRC)
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
-	$(MAKE) update-api-module-path
+	$(MAKE) update-api-module-path || true
 
 # This rule updates the api module path to be in sync with the current api release version.
 # e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
-# it will skip updating if:
+# It will immediately fail if:
 #  1. A suffix is present in the version - e.g. "-alpha"
-#  2. The major version hasn't changed - e.g. 7.0.0 -> 7.1.0
+#  2. The version suffix hasn't changed - e.g. 7.0.0 -> 7.1.0
 .PHONY: update-api-module-path
 update-api-module-path: MAJOR_VERSION := $(shell echo "$(VERSION)" | cut -d"." -f1)
 update-api-module-path: VERSION_SUFFIX := $(shell echo "$(MAJOR_VERSION)" | awk '$$1 >= 2 {print "\\/v"$$1}')
 update-api-module-path:
-	test "$(VERSION)" && echo "$(VERSION)" | grep -vq "-" && head -1 api/go.mod | grep -vq "$(MAJOR_VERSION)"
+	@# fail if version is not a release or the version suffix hasn't changed
+	test "$(VERSION)" && echo "$(VERSION)" | grep -vq "-" && head -1 api/go.mod |  awk -F'api/' '{print $$2}' | grep -qvE '^\s*$(VERSION_SUFFIX)\s*$$'
 	@# update the api mod path and all references of it to use the latest major version suffix
 	find . -type f -iregex '.*\.\(go\|proto\|mod\)' -print0 \
 		| xargs -0 sed -i -E "s/(gravitational\/teleport\/api)(\/v[0-9]+)?/\1$(VERSION_SUFFIX)/"
