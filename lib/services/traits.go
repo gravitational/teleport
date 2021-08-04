@@ -43,8 +43,6 @@ func TraitsToRoles(ms types.TraitMappingSet, traits map[string][]string) (warnin
 // the resulting list since this function forces any roles which include substitutions to
 // be literal matchers.
 func TraitsToRoleMatchers(ms types.TraitMappingSet, traits map[string][]string) ([]parse.Matcher, error) {
-	fmt.Printf("\n\n\nMapping %v\n\n\n\nTraits: %v\n\n\n", ms, traits)
-
 	var matchers []parse.Matcher
 	var firstErr error
 	traitsToRoles(ms, traits, func(role string, expanded bool) {
