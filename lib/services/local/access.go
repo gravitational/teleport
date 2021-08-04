@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/teleport/api/types"
@@ -234,13 +235,15 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 
 	newRemoteLocksToStore := make(map[string]backend.Item, len(newRemoteLocks))
 	for _, lock := range newRemoteLocks {
-		lock.SetName(clusterName + "/" + lock.GetName())
+		if !strings.HasPrefix(lock.GetName(), clusterName) {
+			lock.SetName(clusterName + "/" + lock.GetName())
+		}
 		value, err := services.MarshalLock(lock)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		item := backend.Item{
-			Key:     backend.Key(locksPrefix, clusterName, lock.GetName()),
+			Key:     backend.Key(locksPrefix, lock.GetName()),
 			Value:   value,
 			Expires: lock.Expiry(),
 			ID:      lock.GetResourceID(),

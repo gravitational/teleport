@@ -166,6 +166,9 @@ func TestLockCRUD(t *testing.T) {
 			require.True(t, strings.HasPrefix(lock.GetName(), clusterName+"/"))
 		}
 
+		// DeleteLock should work with remote locks.
+		require.NoError(t, access.DeleteLock(ctx, lock1.GetName()))
+
 		newRemoteLocks = []types.Lock{lock1}
 		err = access.ReplaceRemoteLocks(ctx, clusterName, newRemoteLocks)
 		require.NoError(t, err)
