@@ -111,10 +111,10 @@ func ensureSyscallsExist() error {
 		return fmt.Errorf(`syscalls required for tsh.exe ssh on Windows could not be found.
 Ensure Windows 10 1809 or later is installed.
 
-Missing syscalls: %s`, missing)
-	} else {
-		return nil
+Missing syscalls: %s`, strings.Join(missing, ", "))
 	}
+
+	return nil
 }
 
 // initTerminal configures the terminal for raw, VT compatible input and output.
@@ -159,7 +159,7 @@ func initTerminal() (func(), error) {
 	}
 
 	return func() {
-		err = winterm.SetConsoleMode(uintptr(stdoutFd), oldOutMode)
+		err := winterm.SetConsoleMode(uintptr(stdoutFd), oldOutMode)
 		if err != nil {
 			log.Errorf("Failed to reset output terminal mode to %d: %v\n", oldOutMode, err)
 		}
