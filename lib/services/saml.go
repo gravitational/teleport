@@ -177,6 +177,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		// This is done because gosaml2 mandates an encryption key even if not used.
 		log.Info("No assertion_key_pair was detected. Falling back to signing key for all SAML operations.")
 		keyStore, err = utils.ParseKeyStorePEM(signingKeyPair.PrivateKey, signingKeyPair.Cert)
+		signingKeyStore = keyStore
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse certificate or private key defined in signing_key_pair")
 		}
