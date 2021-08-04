@@ -48,7 +48,13 @@ func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 	defer clt.CloseIdleConnections()
 
 	endpoint := fmt.Sprintf("https://%s/webapi/find", proxyAddr)
-	resp, err := clt.Get(endpoint)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,7 +82,12 @@ func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 		endpoint = fmt.Sprintf("%s/%s", endpoint, connectorName)
 	}
 
-	resp, err := clt.Get(endpoint)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,7 +107,12 @@ func GetMOTD(ctx context.Context, proxyAddr string, insecure bool, pool *x509.Ce
 
 	endpoint := fmt.Sprintf("https://%s/webapi/motd", proxyAddr)
 
-	resp, err := clt.Get(endpoint)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
