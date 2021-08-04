@@ -1183,7 +1183,11 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	tlsCA, err := tlsca.FromAuthority(ca)
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ca)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
