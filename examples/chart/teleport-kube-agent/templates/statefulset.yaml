@@ -32,6 +32,8 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
+      securityContext:
+        fsGroup: 9807
       {{- if .Values.affinity }}
       affinity:
         {{- toYaml .Values.affinity | nindent 8 }}
