@@ -21,7 +21,10 @@ One alternative is to enable built-in at rest encryption within services such as
 
 The selected encryption algorithms must be considered industry standard and secure but also must comply with FIPS PUB 140-3 and thus the algorithms must be included in SP 800-140C (as of March 2020) in order to comply with government regulations.
 
-The symmetric cipher that will be used for bulk encryption shall thus be AES-256 in GCM mode (provides authentication) and any eventual checksumming that has to be performed in the implementation should be done with a newer algorithm in the SHA3 family such as SHA3-256.
+The symmetric cipher that will be used for bulk encryption shall thus be AES-CBC-HMACSHA256 mode (provides authentication) and any eventual checksumming that has to be performed in the implementation should be done with a newer algorithm in the SHA3 family such as SHA3-256.
+
+AES-CBC-HMACSHA256 was chosen because it is a popular AEAD construct supported by various libraries including Google Tink which can be built to rely on BoringCrypto primitives.
+
 The asymmetric cipher that will be used is RSA-2048 as it is widely compliant and has trusted implementations.
 
 ### Local and Remote
@@ -58,4 +61,4 @@ This format allows a decrypting auth server to easily fetch the key bundle and d
 
 Key rotation can be performed by with any active public/private keypair and the procedure is to fetch and rewrite every key bundle to remove the obsolete encrypted data key property and add a new property containing the encrypted data key for the new keypair.
 
-The format detailed above should be used wherever it makes sense from a security standpoint. Devitations from how the data object is encrypted should be made wherever necessary but the key bundle format should never be deviated from. A notable deviation that will be made is for Parquet audit logs where the encryption will be handled by giving Parquet control of the symmetric data key. The reason for this is that flat-file encryption with Parquet is vulnerable to security attacks similar to CRIME.
+The format detailed above should be used wherever it makes sense from a security standpoint. Devitations from how the data object is encrypted should be made wherever necessary but the key bundle format should never be deviated from. A notable deviation that will be made is for Parquet based files where the encryption will be handled by giving Parquet control of the symmetric data key. The reason for this is that flat-file encryption with Parquet is vulnerable to security attacks similar to CRIME.
