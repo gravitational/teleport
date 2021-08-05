@@ -247,6 +247,7 @@ func (s *Server) RotateUserTokenSecrets(ctx context.Context, tokenID string) (ty
 	}
 	secrets.SetOTPKey(key.Secret())
 	secrets.SetQRCode(otpQRBuf.Bytes())
+	secrets.SetExpiry(token.Expiry())
 	err = s.UpsertUserTokenSecrets(ctx, secrets)
 	if err != nil {
 		return nil, trace.Wrap(err)

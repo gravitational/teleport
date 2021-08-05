@@ -35,8 +35,17 @@ func (s *IdentityService) GetUserTokens(ctx context.Context) ([]types.UserToken,
 		return nil, trace.Wrap(err)
 	}
 
+	// DELETE IN 9.0.0 retrieve tokens with old prefix.
+	startKey = backend.Key(passwordTokensPrefix)
+	oldPrefixResult, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	items := append(result.Items, oldPrefixResult.Items...)
+
 	var tokens []types.UserToken
-	for _, item := range result.Items {
+	for _, item := range items {
 		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
 			continue
 		}
@@ -60,8 +69,13 @@ func (s *IdentityService) DeleteUserToken(ctx context.Context, tokenID string) e
 	}
 
 	startKey := backend.Key(userTokenPrefix, tokenID)
-	err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	return trace.Wrap(err)
+	if err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// DELETE IN 9.0.0 also delete any tokens with old prefix.
+	startKey = backend.Key(passwordTokensPrefix, tokenID)
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
 // GetUserToken returns a token by its ID.
@@ -69,9 +83,17 @@ func (s *IdentityService) GetUserToken(ctx context.Context, tokenID string) (typ
 	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("user token(%v) not found", tokenID)
+			// DELETE IN 9.0.0: fallback for old prefix
+			item, err = s.Get(ctx, backend.Key(passwordTokensPrefix, tokenID, paramsPrefix))
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return nil, trace.NotFound("user token(%v) not found", tokenID)
+				}
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.Wrap(err)
 		}
-		return nil, trace.Wrap(err)
 	}
 
 	token, err := services.UnmarshalUserToken(item.Value)
@@ -111,9 +133,17 @@ func (s *IdentityService) GetUserTokenSecrets(ctx context.Context, tokenID strin
 	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, secretsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("user token(%v) secrets not found", tokenID)
+			// DELETE IN 9.0.0: fallback for old prefix
+			item, err = s.Get(ctx, backend.Key(passwordTokensPrefix, tokenID, secretsPrefix))
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return nil, trace.NotFound("user token(%v) secrets not found", tokenID)
+				}
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.Wrap(err)
 		}
-		return nil, trace.Wrap(err)
 	}
 
 	secrets, err := services.UnmarshalUserTokenSecrets(item.Value)
@@ -145,6 +175,8 @@ func (s *IdentityService) UpsertUserTokenSecrets(ctx context.Context, secrets ty
 }
 
 const (
-	userTokenPrefix = "usertoken"
-	secretsPrefix   = "secrets"
+	// DELETE IN 9.0.0 in favor of userTokenPrefix.
+	passwordTokensPrefix = "resetpasswordtokens"
+	userTokenPrefix      = "usertoken"
+	secretsPrefix        = "secrets"
 )
