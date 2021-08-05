@@ -36,7 +36,7 @@ type LockCommand struct {
 	mainCmd *kingpin.CmdClause
 	spec    types.LockSpecV2
 	expires string
-	ttl     string
+	ttl     time.Duration
 }
 
 // Initialize allows LockCommand to plug itself into the CLI parser.
@@ -51,7 +51,7 @@ func (c *LockCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.mainCmd.Flag("mfa-device", "UUID of a user MFA device to disable.").StringVar(&c.spec.Target.MFADevice)
 	c.mainCmd.Flag("message", "Message to display to locked-out users.").StringVar(&c.spec.Message)
 	c.mainCmd.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.expires)
-	c.mainCmd.Flag("ttl", "Time duration after which the lock expires.").StringVar(&c.ttl)
+	c.mainCmd.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.ttl)
 }
 
 // TryRun attempts to run subcommands.
@@ -84,8 +84,8 @@ func (c *LockCommand) CreateLock(ctx context.Context, client auth.ClientI) error
 	return nil
 }
 
-func computeLockExpiry(expires, ttl string) (*time.Time, error) {
-	if expires != "" && ttl != "" {
+func computeLockExpiry(expires string, ttl time.Duration) (*time.Time, error) {
+	if expires != "" && ttl != 0 {
 		return nil, trace.BadParameter("use only one of --expires and --ttl")
 	}
 	if expires != "" {
@@ -95,12 +95,8 @@ func computeLockExpiry(expires, ttl string) (*time.Time, error) {
 		}
 		return &t, nil
 	}
-	if ttl != "" {
-		duration, err := time.ParseDuration(ttl)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		t := time.Now().UTC().Add(duration)
+	if ttl != 0 {
+		t := time.Now().UTC().Add(ttl)
 		return &t, nil
 	}
 	return nil, nil
