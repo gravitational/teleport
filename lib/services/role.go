@@ -139,20 +139,27 @@ func NewAdminRole() types.Role {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
-	role, _ := types.NewRole(constants.DefaultImplicitRole, types.RoleSpecV4{
-		Options: types.RoleOptions{
-			MaxSessionTTL: types.MaxDuration(),
-			// PortForwarding has to be set to false in the default-implicit-role
-			// otherwise all roles will be allowed to forward ports (since we default
-			// to true in the check).
-			PortForwarding: types.NewBoolOption(false),
+	return &types.RoleV4{
+		Kind:    types.KindRole,
+		Version: types.V3,
+		Metadata: types.Metadata{
+			Name:      constants.DefaultImplicitRole,
+			Namespace: defaults.Namespace,
 		},
-		Allow: types.RoleConditions{
-			Namespaces: []string{defaults.Namespace},
-			Rules:      types.CopyRulesSlice(DefaultImplicitRules),
+		Spec: types.RoleSpecV4{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.MaxDuration(),
+				// PortForwarding has to be set to false in the default-implicit-role
+				// otherwise all roles will be allowed to forward ports (since we default
+				// to true in the check).
+				PortForwarding: types.NewBoolOption(false),
+			},
+			Allow: types.RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
+			},
 		},
-	})
-	return role
+	}
 }
 
 // RoleForUser creates an admin role for a services.User.
@@ -768,7 +775,7 @@ type AccessChecker interface {
 
 	// CheckAccessToDatabase checks whether a user has access to the provided
 	// database server.
-	CheckAccessToDatabase(server types.DatabaseServer, mfa AccessMFAParams, matchers ...RoleMatcher) error
+	CheckAccessToDatabase(server types.Database, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckImpersonate checks whether current user is allowed to impersonate
 	// users and roles
@@ -1856,7 +1863,7 @@ func (m *DatabaseNameMatcher) String() string {
 //
 // The checker always checks the server namespace, other matchers are supplied
 // by the caller.
-func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+func (set RoleSet) CheckAccessToDatabase(server types.Database, mfa AccessMFAParams, matchers ...RoleMatcher) error {
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
 	if mfa.AlwaysRequired && !mfa.Verified {
 		log.Debugf("Access to database %q denied, cluster requires per-session MFA", server.GetName())

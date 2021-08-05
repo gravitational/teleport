@@ -1830,6 +1830,19 @@ func (tc *TeleportClient) ListDatabaseServers(ctx context.Context) ([]types.Data
 	return proxyClient.GetDatabaseServers(ctx, tc.Namespace)
 }
 
+// ListDatabases returns all registered databases.
+func (tc *TeleportClient) ListDatabases(ctx context.Context) ([]types.Database, error) {
+	servers, err := tc.ListDatabaseServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var databases []types.Database
+	for _, server := range servers {
+		databases = append(databases, server.GetDatabases()...)
+	}
+	return types.DeduplicateDatabases(databases), nil
+}
+
 // ListAllNodes is the same as ListNodes except that it ignores labels.
 func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)

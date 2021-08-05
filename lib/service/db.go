@@ -82,17 +82,20 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	// Create database server for each of the proxied databases.
-	var databaseServers []types.DatabaseServer
+	// Create database server containing all databases defined
+	// in the static configuration.
+	var databases []*types.DatabaseV3
 	for _, db := range process.Config.Databases.Databases {
-		db, err := types.NewDatabaseServerV3(
-			db.Name,
-			db.StaticLabels,
-			types.DatabaseServerSpecV3{
+		db, err := types.NewDatabaseV3(
+			types.Metadata{
+				Name:        db.Name,
 				Description: db.Description,
-				Protocol:    db.Protocol,
-				URI:         db.URI,
-				CACert:      db.CACert,
+				Labels:      db.StaticLabels,
+			},
+			types.DatabaseSpecV3{
+				Protocol: db.Protocol,
+				URI:      db.URI,
+				CACert:   string(db.CACert),
 				AWS: types.AWS{
 					Region: db.AWS.Region,
 					Redshift: types.Redshift{
@@ -104,19 +107,37 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					InstanceID: db.GCP.InstanceID,
 				},
 				DynamicLabels: types.LabelsToV2(db.DynamicLabels),
-				Version:       teleport.Version,
-				Hostname:      process.Config.Hostname,
-				HostID:        process.Config.HostUUID,
 			})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		databaseServers = append(databaseServers, db)
+		databases = append(databases, db)
+	}
+	databaseServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: process.Config.HostUUID,
+	}, types.DatabaseServerSpecV3{
+		Hostname:  process.Config.Hostname,
+		HostID:    process.Config.HostUUID,
+		Databases: databases,
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
-	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint)
+	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentDatabase,
+			Log:       log,
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -144,17 +165,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentDatabase,
-			Log:       log,
-			Client:    conn.Client,
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
 		Clock:       process.Clock,
@@ -168,7 +178,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		Authorizer:  authorizer,
 		TLSConfig:   tlsConfig,
 		GetRotation: process.getRotation,
-		Servers:     databaseServers,
+		Server:      databaseServer,
 		OnHeartbeat: func(err error) {
 			if err != nil {
 				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentDatabase})
@@ -230,7 +240,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	})
 
 	process.BroadcastEvent(Event{Name: DatabasesReady, Payload: nil})
-	log.Infof("Database service has successfully started: %v.", databaseServers)
+	log.Infof("Database service has successfully started: %v.", databases)
 
 	// Block and wait while the server and agent pool are running.
 	if err := dbService.Wait(); err != nil {

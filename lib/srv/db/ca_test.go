@@ -20,7 +20,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -34,108 +33,106 @@ func TestInitCACert(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
-	selfHosted, err := types.NewDatabaseServerV3("self-hosted", nil,
-		types.DatabaseServerSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-			Version:  teleport.Version,
-			Hostname: constants.APIDomain,
-			HostID:   "host-id",
-		})
+	selfHosted, err := types.NewDatabaseV3(types.Metadata{
+		Name: "self-hosted",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
 	require.NoError(t, err)
 
-	rds, err := types.NewDatabaseServerV3("rds", nil,
-		types.DatabaseServerSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-			Version:  teleport.Version,
-			Hostname: constants.APIDomain,
-			HostID:   "host-id",
-			AWS:      types.AWS{Region: "us-east-1"},
-		})
+	rds, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS:      types.AWS{Region: "us-east-1"},
+	})
 	require.NoError(t, err)
 
-	rdsWithCert, err := types.NewDatabaseServerV3("rds-with-cert", nil,
-		types.DatabaseServerSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-			Version:  teleport.Version,
-			Hostname: constants.APIDomain,
-			HostID:   "host-id",
-			AWS:      types.AWS{Region: "us-east-1"},
-			CACert:   []byte("rds-test-cert"),
-		})
+	rdsWithCert, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds-with-cert",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS:      types.AWS{Region: "us-east-1"},
+		CACert:   "rds-test-cert",
+	})
 	require.NoError(t, err)
 
-	redshift, err := types.NewDatabaseServerV3("redshift", nil,
-		types.DatabaseServerSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-			Version:  teleport.Version,
-			Hostname: constants.APIDomain,
-			HostID:   "host-id",
-			AWS:      types.AWS{Region: "us-east-1", Redshift: types.Redshift{ClusterID: "cluster-id"}},
-		})
+	redshift, err := types.NewDatabaseV3(types.Metadata{
+		Name: "redshift",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS:      types.AWS{Region: "us-east-1", Redshift: types.Redshift{ClusterID: "cluster-id"}},
+	})
 	require.NoError(t, err)
 
-	cloudSQL, err := types.NewDatabaseServerV3("cloud-sql", nil,
-		types.DatabaseServerSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-			Version:  teleport.Version,
-			Hostname: constants.APIDomain,
-			HostID:   "host-id",
-			GCP:      types.GCPCloudSQL{ProjectID: "project-id", InstanceID: "instance-id"},
-		})
+	cloudSQL, err := types.NewDatabaseV3(types.Metadata{
+		Name: "cloud-sql",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		GCP:      types.GCPCloudSQL{ProjectID: "project-id", InstanceID: "instance-id"},
+	})
 	require.NoError(t, err)
 
-	allServers := []types.DatabaseServer{
+	allDatabases := []*types.DatabaseV3{
 		selfHosted, rds, rdsWithCert, redshift, cloudSQL,
 	}
 
 	tests := []struct {
-		desc   string
-		server string
-		cert   []byte
+		desc     string
+		database string
+		cert     string
 	}{
 		{
-			desc:   "shouldn't download self-hosted CA",
-			server: selfHosted.GetName(),
-			cert:   selfHosted.GetCA(),
+			desc:     "shouldn't download self-hosted CA",
+			database: selfHosted.GetName(),
+			cert:     selfHosted.GetCA(),
 		},
 		{
-			desc:   "should download RDS CA when it's not set",
-			server: rds.GetName(),
-			cert:   []byte(fixtures.TLSCACertPEM),
+			desc:     "should download RDS CA when it's not set",
+			database: rds.GetName(),
+			cert:     fixtures.TLSCACertPEM,
 		},
 		{
-			desc:   "shouldn't download RDS CA when it's set",
-			server: rdsWithCert.GetName(),
-			cert:   rdsWithCert.GetCA(),
+			desc:     "shouldn't download RDS CA when it's set",
+			database: rdsWithCert.GetName(),
+			cert:     rdsWithCert.GetCA(),
 		},
 		{
-			desc:   "should download Redshift CA when it's not set",
-			server: redshift.GetName(),
-			cert:   []byte(fixtures.TLSCACertPEM),
+			desc:     "should download Redshift CA when it's not set",
+			database: redshift.GetName(),
+			cert:     fixtures.TLSCACertPEM,
 		},
 		{
-			desc:   "should download Cloud SQL CA when it's not set",
-			server: cloudSQL.GetName(),
-			cert:   []byte(fixtures.TLSCACertPEM),
+			desc:     "should download Cloud SQL CA when it's not set",
+			database: cloudSQL.GetName(),
+			cert:     fixtures.TLSCACertPEM,
 		},
 	}
 
-	databaseServer := testCtx.setupDatabaseServer(ctx, t, "host-id", allServers...)
+	resource, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: testCtx.hostID,
+	}, types.DatabaseServerSpecV3{
+		HostID:    testCtx.hostID,
+		Hostname:  constants.APIDomain,
+		Databases: allDatabases,
+	})
+	require.NoError(t, err)
+	databaseServer := testCtx.setupDatabaseServer(ctx, t, resource)
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			var server types.DatabaseServer
-			for _, s := range databaseServer.cfg.Servers {
-				if s.GetName() == test.server {
-					server = s
+			var database types.Database
+			for _, db := range databaseServer.cfg.Server.GetDatabases() {
+				if db.GetName() == test.database {
+					database = db
 				}
 			}
-			require.NotNil(t, server)
-			require.Equal(t, test.cert, server.GetCA())
+			require.NotNil(t, database)
+			require.Equal(t, test.cert, database.GetCA())
 		})
 	}
 }
@@ -146,21 +143,27 @@ func TestInitCACertCaching(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
-	rds, err := types.NewDatabaseServerV3("rds", nil,
-		types.DatabaseServerSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-			Version:  teleport.Version,
-			Hostname: constants.APIDomain,
-			HostID:   "host-id",
-			AWS:      types.AWS{Region: "us-east-1"},
-		})
+	rds, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS:      types.AWS{Region: "us-east-1"},
+	})
 	require.NoError(t, err)
 
-	databaseServer := testCtx.setupDatabaseServer(ctx, t, "host-id", rds)
+	resource, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: testCtx.hostID,
+	}, types.DatabaseServerSpecV3{
+		HostID:    testCtx.hostID,
+		Hostname:  constants.APIDomain,
+		Databases: []*types.DatabaseV3{rds},
+	})
+	require.NoError(t, err)
+	databaseServer := testCtx.setupDatabaseServer(ctx, t, resource)
 	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 
-	rds.SetCA(nil)
+	rds.SetCA("")
 	require.NoError(t, databaseServer.initCACert(ctx, rds))
 	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 }
@@ -172,7 +175,7 @@ type fakeDownloader struct {
 	count int
 }
 
-func (d *fakeDownloader) Download(context.Context, types.DatabaseServer) ([]byte, error) {
+func (d *fakeDownloader) Download(context.Context, types.Database) ([]byte, error) {
 	d.count++
 	return d.cert, nil
 }

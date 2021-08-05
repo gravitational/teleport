@@ -246,6 +246,9 @@ const (
 	// ComponentSAML is a SAML service provider.
 	ComponentSAML = "saml"
 
+	// ComponentMetrics is a metrics server
+	ComponentMetrics = "metrics"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
