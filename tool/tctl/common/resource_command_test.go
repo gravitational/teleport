@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -29,6 +30,9 @@ import (
 // TestDatabaseResource tests tctl db rm/get commands.
 func TestDatabaseResource(t *testing.T) {
 	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
 		Databases: config.Databases{
 			Service: config.Service{
 				EnabledFlag: "true",
@@ -68,31 +72,35 @@ func TestDatabaseResource(t *testing.T) {
 
 	var out []*types.DatabaseServerV3
 
-	t.Run("get all databases", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
-		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 2)
-	})
-
-	t.Run("get example database", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", "db/example", "--format=json"})
+	t.Run("get all database servers", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
 		require.NoError(t, err)
 		mustDecodeJSON(t, buff, &out)
 		require.Len(t, out, 1)
+		require.Len(t, out[0].GetDatabases(), 2)
 	})
 
-	t.Run("remove example2 database", func(t *testing.T) {
-		_, err := runResourceCommand(t, fileConfig, []string{"rm", "db/example2"})
+	server := fmt.Sprintf("%v/%v", types.KindDatabaseServer, out[0].GetName())
+
+	t.Run("get specific database server", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", server, "--format=json"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, 1)
+		require.Len(t, out[0].GetDatabases(), 2)
+	})
+
+	t.Run("remove database server", func(t *testing.T) {
+		_, err := runResourceCommand(t, fileConfig, []string{"rm", server})
 		require.NoError(t, err)
 
-		_, err = runResourceCommand(t, fileConfig, []string{"get", "db/example2", "--format=json"})
+		_, err = runResourceCommand(t, fileConfig, []string{"get", server, "--format=json"})
 		require.Error(t, err)
 		require.IsType(t, &trace.NotFoundError{}, err.(*trace.TraceErr).OrigError())
 
 		buff, err := runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
 		require.NoError(t, err)
 		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 1)
+		require.Len(t, out, 0)
 	})
 }
