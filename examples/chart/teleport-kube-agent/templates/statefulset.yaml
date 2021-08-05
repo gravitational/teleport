@@ -62,7 +62,7 @@ spec:
           name: "auth-token"
           readOnly: true
         - mountPath: /var/lib/teleport
-          name: "data"
+          name: "{{ .Release.Name }}-teleport-data"
   {{- if .Values.extraVolumeMounts }}
     {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
   {{- end }}
