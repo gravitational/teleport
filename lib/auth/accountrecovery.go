@@ -483,6 +483,11 @@ func (s *Server) CreateRecoveryCodesWithToken(ctx context.Context, req *proto.Cr
 		return nil, trace.Wrap(err)
 	}
 
+	// Delete all token data related to this user, as this is the end of recovery.
+	if err := s.deleteUserTokens(ctx, token.GetUser()); err != nil {
+		log.Error(trace.DebugReport(err))
+	}
+
 	return &proto.CreateRecoveryCodesWithTokenResponse{
 		RecoveryCodes: codes,
 	}, nil

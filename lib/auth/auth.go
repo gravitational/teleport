@@ -1170,7 +1170,7 @@ func (a *Server) GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADe
 	}
 
 	// Restrict to certain kinds of user token.
-	if token.GetSubKind() != UserTokenTypeRecoveryApproved {
+	if token.GetSubKind() != UserTokenTypeRecoveryApproved || token.GetRecoverType() == types.RecoverType_RECOVER_PASSWORD {
 		return nil, trace.BadParameter("invalid token")
 	}
 
@@ -1196,7 +1196,7 @@ func (a *Server) DeleteMFADeviceWithToken(ctx context.Context, req *proto.Delete
 	}
 
 	// Restrict to certain kinds of user token.
-	if token.GetSubKind() != UserTokenTypeRecoveryApproved {
+	if token.GetSubKind() != UserTokenTypeRecoveryApproved || token.GetRecoverType() == types.RecoverType_RECOVER_PASSWORD {
 		return trace.BadParameter("invalid token")
 	}
 
