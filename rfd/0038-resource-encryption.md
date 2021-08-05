@@ -57,3 +57,5 @@ The bundle that stores the encrypted data key for all master key pairs should be
 This format allows a decrypting auth server to easily fetch the key bundle and decrypt the data key using it's private key. It can then fetch and decrypt the object itself.
 
 Key rotation can be performed by with any active public/private keypair and the procedure is to fetch and rewrite every key bundle to remove the obsolete encrypted data key property and add a new property containing the encrypted data key for the new keypair.
+
+The format detailed above should be used wherever it makes sense from a security standpoint. Devitations from how the data object is encrypted should be made wherever necessary but the key bundle format should never be deviated from. A notable deviation that will be made is for Parquet audit logs where the encryption will be handled by giving Parquet control of the symmetric data key. The reason for this is that flat-file encryption with Parquet is vulnerable to security attacks similar to CRIME.
