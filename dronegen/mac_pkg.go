@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func darwinPkgPipeline(name string, makeTarget string, pkgGlobs []string) pipeline {
+func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 	p := newDarwinPipeline(name)
 	p.Trigger = triggerTag
 	p.DependsOn = []string{"build-darwin-amd64"}

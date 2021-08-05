@@ -58,7 +58,7 @@ export GOARCH=$(go env GOARCH)
 `,
 				fmt.Sprintf(`
 curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: %s artifact build failed for [%s] - please investigate immediately!\nBranch: %s\nCommit: %s\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK_DEV_TELEPORT`,
-					escapedPreformatted("$GOOS-$GOARCH"),
+					escapedPreformatted("${GOOS}-${GOARCH}"),
 					escapedPreformatted("${DRONE_REPO_NAME}"),
 					escapedPreformatted("${DRONE_BRANCH}"),
 					escapedPreformatted("${DRONE_COMMIT_SHA}")),
@@ -163,11 +163,11 @@ func cleanUpExecStorageStep(path string) step {
 }
 
 func tagCheckoutCommandsDarwin() []string {
-	return append(pushCheckoutCommandsDarwin(), []string{
+	return append(pushCheckoutCommandsDarwin(), 
 		`mkdir -p $WORKSPACE_DIR/go/artifacts`,
 		`echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt`,
 		`cat $WORKSPACE_DIR/go/.version.txt`,
-	}...)
+	)
 }
 
 func tagBuildCommandsDarwin() []string {
