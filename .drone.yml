@@ -844,7 +844,7 @@ steps:
     export GOARCH=$(go env GOARCH)
   - |2-
 
-    curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed for [\`${DRONE_REPO_NAME}\`] - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK_DEV_TELEPORT
+    curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`${GOOS}-${GOARCH}\` artifact build failed for [\`${DRONE_REPO_NAME}\`] - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK_DEV_TELEPORT
   environment:
     SLACK_WEBHOOK_DEV_TELEPORT:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
@@ -4402,6 +4402,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: f4bc501617b027bb302affbde727bfa21eb1352740033c7f1e7e5a176f070dc5
+hmac: 3d8c78d85da4dc040e2ae018e659d89abe25e850763a9a4f738376210225aa42
 
 ...

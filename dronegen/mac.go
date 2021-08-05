@@ -22,7 +22,7 @@ func newDarwinPipeline(name string) pipeline {
 	return p
 }
 
-func pushDarwinPipeline() pipeline {
+func darwinPushPipeline() pipeline {
 	p := newDarwinPipeline("push-build-darwin-amd64")
 	p.Trigger = triggerPush
 	p.Steps = []step{
@@ -44,7 +44,7 @@ func pushDarwinPipeline() pipeline {
 				"ARCH":          {raw: "amd64"},
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: tagBuildCommandsDarwin(),
+			Commands: darwinTagBuildCommands(),
 		},
 		cleanUpExecStorageStep(p.Workspace.Path),
 		{
@@ -69,7 +69,7 @@ curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning
 	return p
 }
 
-func tagDarwinPipeline() pipeline {
+func darwinTagPipeline() pipeline {
 	p := newDarwinPipeline("build-darwin-amd64")
 	p.Trigger = triggerTag
 	p.Steps = []step{
@@ -80,7 +80,7 @@ func tagDarwinPipeline() pipeline {
 				"WORKSPACE_DIR":      {raw: p.Workspace.Path},
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: tagCheckoutCommandsDarwin(),
+			Commands: darwinTagCheckoutCommands(),
 		},
 		{
 			Name: "Build Mac release artifacts",
@@ -91,14 +91,14 @@ func tagDarwinPipeline() pipeline {
 				"ARCH":          {raw: "amd64"},
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: tagBuildCommandsDarwin(),
+			Commands: darwinTagBuildCommands(),
 		},
 		{
 			Name: "Copy Mac artifacts",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: tagCopyPackageArtifactCommandsDarwin(),
+			Commands: darwinTagCopyPackageArtifactCommands(),
 		},
 		{
 			Name: "Upload to S3",
@@ -109,7 +109,7 @@ func tagDarwinPipeline() pipeline {
 				"AWS_REGION":            {raw: "us-west-2"},
 				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
 			},
-			Commands: uploadToS3CommandsDarwin(),
+			Commands: darwinUploadToS3Commands(),
 		},
 		cleanUpExecStorageStep(p.Workspace.Path),
 	}
@@ -162,15 +162,15 @@ func cleanUpExecStorageStep(path string) step {
 	}
 }
 
-func tagCheckoutCommandsDarwin() []string {
-	return append(pushCheckoutCommandsDarwin(), 
+func darwinTagCheckoutCommands() []string {
+	return append(pushCheckoutCommandsDarwin(),
 		`mkdir -p $WORKSPACE_DIR/go/artifacts`,
 		`echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt`,
 		`cat $WORKSPACE_DIR/go/.version.txt`,
 	)
 }
 
-func tagBuildCommandsDarwin() []string {
+func darwinTagBuildCommands() []string {
 	return []string{
 		`set -u`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
@@ -178,7 +178,7 @@ func tagBuildCommandsDarwin() []string {
 	}
 }
 
-func tagCopyPackageArtifactCommandsDarwin() []string {
+func darwinTagCopyPackageArtifactCommands() []string {
 	return []string{
 		`set -u`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
@@ -190,7 +190,7 @@ func tagCopyPackageArtifactCommandsDarwin() []string {
 	}
 }
 
-func uploadToS3CommandsDarwin() []string {
+func darwinUploadToS3Commands() []string {
 	return []string{
 		`set -u`,
 		`cd $WORKSPACE_DIR/go/artifacts`,

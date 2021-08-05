@@ -17,7 +17,7 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 				"WORKSPACE_DIR":      {raw: p.Workspace.Path},
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: tagCheckoutCommandsDarwin(),
+			Commands: darwinTagCheckoutCommands(),
 		},
 		{
 			Name: "Download built tarball artifacts from S3",
@@ -29,7 +29,7 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 				"GITHUB_PRIVATE_KEY":    {fromSecret: "GITHUB_PRIVATE_KEY"},
 				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
 			},
-			Commands: tagDownloadArtifactCommandsDarwin(),
+			Commands: darwinTagDownloadArtifactCommands(),
 		},
 		{
 			Name: "Build Mac pkg release artifacts",
@@ -43,14 +43,14 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 				"OS":                {raw: "darwin"},
 				"ARCH":              {raw: "amd64"},
 			},
-			Commands: tagPackageCommandsDarwin(makeTarget),
+			Commands: darwinTagPackageCommands(makeTarget),
 		},
 		{
 			Name: "Copy Mac pkg artifacts",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: tagCopyPkgArtifactCommandsDarwin(pkgGlobs),
+			Commands: darwinTagCopyPkgArtifactCommands(pkgGlobs),
 		},
 		{
 			Name: "Upload to S3",
@@ -81,7 +81,7 @@ func darwinTshPkgPipeline() pipeline {
 	return darwinPkgPipeline("build-darwin-amd64-pkg-tsh", "pkg-tsh", []string{"build/tsh*.pkg"})
 }
 
-func tagDownloadArtifactCommandsDarwin() []string {
+func darwinTagDownloadArtifactCommands() []string {
 	return []string{
 		`set -u`,
 		`export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)`,
@@ -91,7 +91,7 @@ func tagDownloadArtifactCommandsDarwin() []string {
 	}
 }
 
-func tagPackageCommandsDarwin(target string) []string {
+func darwinTagPackageCommands(target string) []string {
 	return []string{
 		`set -u`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
@@ -107,7 +107,7 @@ func tagPackageCommandsDarwin(target string) []string {
 	}
 }
 
-func tagCopyPkgArtifactCommandsDarwin(pkgGlobs []string) []string {
+func darwinTagCopyPkgArtifactCommands(pkgGlobs []string) []string {
 	return []string{
 		`set -u`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
