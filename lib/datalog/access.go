@@ -21,8 +21,12 @@ package datalog
 // #cgo LDFLAGS: -Lroletester/target/release -lrole_tester
 // #include <stdio.h>
 // #include <stdlib.h>
-// extern int process_access(unsigned char *f, unsigned char *res, size_t input_len, size_t output_len);
-// extern void deallocate_rust_buffer(unsigned char *res, size_t len);
+// typedef struct status status_t;
+// extern status_t *process_access(unsigned char *input, unsigned char *output, size_t input_len, size_t output_len);
+// extern size_t status_output_length(status_t *);
+// extern int status_error(status_t *);
+// extern void drop_rust_buffer(unsigned char *res, size_t len);
+// extern void drop_status_struct(status_t *status);
 import "C"
 import (
 	"context"
@@ -32,11 +36,12 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -50,25 +55,30 @@ type NodeAccessRequest struct {
 
 // NodeAccessResponse defines all interpreted facts from the input facts.
 type NodeAccessResponse struct {
-	Accesses        Facts
-	facts           Facts
+	// Generated output from Rust.
+	Accesses Facts
+	// Generated input for Rust.
+	facts Facts
+	// Mappings to convert from hash values to readable strings.
 	mappings        map[string]uint32
 	reverseMappings map[uint32]string
-	errorStrings    map[int]string
 }
 
 const (
+	// Constant for Rust datalog parsing on login traits.
 	loginTraitHash = 0
-	keyJoin        = "_"
-	userIndex      = 0
-	loginIndex     = 1
-	nodeIndex      = 2
-	roleIndex      = 3
+	// Used for final table key generation.
+	keyJoin = "_"
+	// Indices used for final table generation.
+	userIndex  = 0
+	loginIndex = 1
+	nodeIndex  = 2
+	roleIndex  = 3
 )
 
 // QueryNodeAccess returns a list of accesses to Teleport.
 func QueryNodeAccess(ctx context.Context, client auth.ClientI, req NodeAccessRequest) (*NodeAccessResponse, error) {
-	resp := NewNodeAccessResponse()
+	resp := NodeAccessResponse{Facts{}, Facts{}, make(map[string]uint32), make(map[uint32]string)}
 	resp.addToMap(types.Wildcard)
 
 	// Since we can filter on specific usernames, this conditional will only retrieve and build the facts for the required user(s).
@@ -111,40 +121,44 @@ func QueryNodeAccess(ctx context.Context, client auth.ClientI, req NodeAccessReq
 		return nil, trace.Wrap(err)
 	}
 
+	// Create the byte buffer pointers for input and output
 	ptr := (*C.uchar)(C.CBytes(b))
 	defer C.free(unsafe.Pointer(ptr))
 	res := (*C.uchar)(C.CBytes(make([]byte, len(b))))
-	l := C.process_access(ptr, res, C.size_t(len(b)), C.size_t(len(b)))
-	if int(l) < 0 {
-		return nil, trace.Wrap(fmt.Errorf(resp.errorStrings[int(l)]))
-	}
-
-	// Couldn't write to result since there is not enough memory allocated
-	if int(l) > len(b) {
-		res = (*C.uchar)(C.CBytes(make([]byte, l)))
-		l = C.process_access(ptr, res, C.size_t(len(b)), C.size_t(l))
-		if int(l) < 0 {
-			return nil, trace.Wrap(fmt.Errorf(resp.errorStrings[int(l)]))
-		}
-	}
-	C.deallocate_rust_buffer(res, C.size_t(l))
 	defer C.free(unsafe.Pointer(res))
 
-	err = proto.Unmarshal(C.GoBytes(unsafe.Pointer(res), C.int(l)), &resp.Accesses)
+	// Status here is the returned length if the function succeeded, or an error code if the function failed.
+	status := C.process_access(ptr, res, C.size_t(len(b)), C.size_t(len(b)))
+	defer C.drop_status_struct(status)
+
+	// Status code determines if there is an error, and the outputLength specifies the length of the string/byte buffer.
+	statusCode := C.status_error(status)
+	outputLength := C.status_output_length(status)
+	defer C.drop_rust_buffer(res, C.size_t(outputLength))
+
+	// If statusCode != 0, then there was an error. We return the error string.
+	if int(statusCode) != 0 {
+		return nil, trace.BadParameter(C.GoStringN((*C.char)(unsafe.Pointer(res)), C.int(outputLength)))
+	}
+
+	// Couldn't write to result since there is not enough memory allocated. The length required for the output is larger than the input length (what we originally allocated).
+	if int(outputLength) > len(b) {
+		res = (*C.uchar)(C.CBytes(make([]byte, outputLength)))
+		status = C.process_access(ptr, res, C.size_t(len(b)), C.size_t(outputLength))
+		statusCode = C.status_error(status)
+		outputLength = C.status_output_length(status)
+		if int(statusCode) != 0 {
+			return nil, trace.BadParameter(C.GoStringN((*C.char)(unsafe.Pointer(res)), C.int(outputLength)))
+		}
+	}
+
+	err = proto.Unmarshal(C.GoBytes(unsafe.Pointer(res), C.int(outputLength)), &resp.Accesses)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	resp.Accesses = cleanOutput(resp.Accesses, resp.reverseMappings)
 	resp.Accesses = filterByLogin(resp.Accesses, resp.reverseMappings, req.Login)
 	return &resp, nil
-}
-
-func NewNodeAccessResponse() NodeAccessResponse {
-	resp := NodeAccessResponse{Facts{}, Facts{}, make(map[string]uint32), make(map[uint32]string), map[int]string{
-		-1: "Invalid input.",
-		-2: "Invalid output generation.",
-	}}
-	return resp
 }
 
 func (r *NodeAccessResponse) addPredicate(key Facts_PredicateType, atoms []uint32) {
@@ -210,29 +224,29 @@ func (r *NodeAccessResponse) createNodeMapping(node types.Server) {
 func (r *NodeAccessResponse) createUserPredicates(user types.User, login string) {
 	r.createUserMapping(user)
 	for _, role := range user.GetRoles() {
-		r.addPredicate(Facts_HASROLE, []uint32{r.mappings[user.GetName()], r.mappings[role]})
+		r.addPredicate(Facts_HasRole, []uint32{r.mappings[user.GetName()], r.mappings[role]})
 	}
 	for _, trait := range user.GetTraits()[teleport.TraitLogins] {
-		r.addPredicate(Facts_HASTRAIT, []uint32{r.mappings[user.GetName()], loginTraitHash, r.mappings[trait]})
+		r.addPredicate(Facts_HasTrait, []uint32{r.mappings[user.GetName()], loginTraitHash, r.mappings[trait]})
 	}
 }
 
 func (r *NodeAccessResponse) createRolePredicates(role types.Role) {
 	r.createRoleMapping(role)
 	for _, login := range role.GetLogins(types.Allow) {
-		r.addPredicate(Facts_ROLEALLOWSLOGIN, []uint32{r.mappings[role.GetName()], r.mappings[login]})
+		r.addPredicate(Facts_RoleAllowsLogin, []uint32{r.mappings[role.GetName()], r.mappings[login]})
 	}
 	for _, login := range role.GetLogins(types.Deny) {
-		r.addPredicate(Facts_ROLEDENIESLOGIN, []uint32{r.mappings[role.GetName()], r.mappings[login]})
+		r.addPredicate(Facts_RoleDeniesLogin, []uint32{r.mappings[role.GetName()], r.mappings[login]})
 	}
 	for key, values := range role.GetNodeLabels(types.Allow) {
 		for _, value := range values {
-			r.addPredicate(Facts_ROLEALLOWSNODELABEL, []uint32{r.mappings[role.GetName()], r.mappings[key], r.mappings[value]})
+			r.addPredicate(Facts_RoleAllowsNodeLabel, []uint32{r.mappings[role.GetName()], r.mappings[key], r.mappings[value]})
 		}
 	}
 	for key, values := range role.GetNodeLabels(types.Deny) {
 		for _, value := range values {
-			r.addPredicate(Facts_ROLEDENIESNODELABEL, []uint32{r.mappings[role.GetName()], r.mappings[key], r.mappings[value]})
+			r.addPredicate(Facts_RoleDeniesNodeLabel, []uint32{r.mappings[role.GetName()], r.mappings[key], r.mappings[value]})
 		}
 	}
 }
@@ -240,11 +254,11 @@ func (r *NodeAccessResponse) createRolePredicates(role types.Role) {
 func (r *NodeAccessResponse) createNodePredicates(node types.Server) {
 	r.createNodeMapping(node)
 	for key, value := range node.GetAllLabels() {
-		r.addPredicate(Facts_NODEHASLABEL, []uint32{r.mappings[node.GetHostname()], r.mappings[key], r.mappings[value]})
+		r.addPredicate(Facts_NodeHasLabel, []uint32{r.mappings[node.GetHostname()], r.mappings[key], r.mappings[value]})
 	}
 	// This needs to be added to account for any roles that allow to all nodes with the wildcard label.
 	// Serves as a bandaid fix before regex implementation.
-	r.addPredicate(Facts_NODEHASLABEL, []uint32{r.mappings[node.GetHostname()], r.mappings[types.Wildcard], r.mappings[types.Wildcard]})
+	r.addPredicate(Facts_NodeHasLabel, []uint32{r.mappings[node.GetHostname()], r.mappings[types.Wildcard], r.mappings[types.Wildcard]})
 }
 
 // ToTable builds the data structure used to output accesses
@@ -252,7 +266,7 @@ func (r *NodeAccessResponse) ToTable() (asciitable.Table, asciitable.Table, int,
 	accessMap := generatePredicateMap(r.Accesses)
 	accessTable := asciitable.MakeTable([]string{"User", "Login", "Node", "Allowing Roles"})
 	allowingRoles := make(map[string][]string)
-	accessStrings := generateAtomStrings(accessMap, Facts_HASACCESS.String(), r.reverseMappings)
+	accessStrings := generateAtomStrings(accessMap, Facts_HasAccess.String(), r.reverseMappings)
 	for _, atoms := range accessStrings {
 		key := createDupMapKey(atoms[:roleIndex])
 		allowingRoles[key] = append(
@@ -267,8 +281,8 @@ func (r *NodeAccessResponse) ToTable() (asciitable.Table, asciitable.Table, int,
 
 	denyTable := asciitable.MakeTable([]string{"User", "Logins", "Node", "Denying Role"})
 	deniedLogins := make(map[string][]string)
-	denyStrings := generateAtomStrings(accessMap, Facts_DENYACCESS.String(), r.reverseMappings)
-	for _, atoms := range generateAtomStrings(accessMap, Facts_DENYLOGINS.String(), r.reverseMappings) {
+	denyStrings := generateAtomStrings(accessMap, Facts_DenyAccess.String(), r.reverseMappings)
+	for _, atoms := range generateAtomStrings(accessMap, Facts_DenyLogins.String(), r.reverseMappings) {
 		atomList := append(atoms[:nodeIndex], atoms[loginIndex:]...)
 		atomList[nodeIndex] = types.Wildcard
 		denyStrings = append(denyStrings, atomList)
@@ -287,7 +301,7 @@ func (r *NodeAccessResponse) ToTable() (asciitable.Table, asciitable.Table, int,
 		atomList[loginIndex] = strings.Join(deniedLogins[key], ", ")
 		denyTable.AddRow(atomList)
 	}
-	return accessTable, denyTable, len(accessStrings), len(denyStrings) + len(accessMap[Facts_DENYLOGINS.String()])
+	return accessTable, denyTable, len(accessStrings), len(denyStrings) + len(accessMap[Facts_DenyLogins.String()])
 }
 
 func cleanOutput(accesses Facts, reverse map[uint32]string) Facts {

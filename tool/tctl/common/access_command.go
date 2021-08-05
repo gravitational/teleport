@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/datalog"
 	"github.com/gravitational/teleport/lib/service"
@@ -51,10 +52,10 @@ func (c *AccessCommand) Initialize(app *kingpin.Application, config *service.Con
 
 	accesses := app.Command("access", "Get access information within the cluster.")
 	c.accessList = accesses.Command("ls", "List all accesses within the cluster.")
-	c.accessList.Flag("user", "Teleport user").Default("").StringVar(&c.user)
-	c.accessList.Flag("login", "Teleport login").Default("").StringVar(&c.login)
-	c.accessList.Flag("node", "Teleport node").Default("").StringVar(&c.node)
-	c.accessList.Flag("namespace", "Teleport namespace").Default("default").StringVar(&c.namespace)
+	c.accessList.Flag("user", "Teleport user").StringVar(&c.user)
+	c.accessList.Flag("login", "Teleport login").StringVar(&c.login)
+	c.accessList.Flag("node", "Teleport node").StringVar(&c.node)
+	c.accessList.Flag("namespace", "Teleport namespace").Default(defaults.Namespace).Hidden().StringVar(&c.namespace)
 }
 
 // TryRun attempts to run subcommands like "access ls".
@@ -86,5 +87,5 @@ func (c *AccessCommand) TryRun(cmd string, client auth.ClientI) (match bool, err
 	default:
 		return false, nil
 	}
-	return true, trace.Wrap(err)
+	return true, nil
 }

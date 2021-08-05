@@ -2,18 +2,14 @@ use bytes::BytesMut;
 use crepe::crepe;
 use libc::{c_uchar, size_t};
 use prost::Message;
-use std::{ptr, slice};
+use std::{ptr, slice, mem};
 
 pub mod types {
-    include!(concat!(env!("OUT_DIR"), "/types.rs"));
+    include!(concat!(env!("OUT_DIR"), "/datalog.rs"));
 }
 
 // Login trait hash is the value for all login traits, equal to the Go library's definition.
 const LOGIN_TRAIT_HASH: u32 = 0;
-enum Errors {
-    InvalidInputError = -1,
-    InvalidOutputError = -2,
-}
 
 crepe! {
     // Input from EDB
@@ -66,45 +62,58 @@ crepe! {
     DenyLogins(user, login, role) <- HasDeniedLogin(user, login, role);
 }
 
+#[repr(C)]
+pub struct Status {
+    output_length: size_t,
+    error: i32
+}
+
 #[no_mangle]
 pub extern "C" fn process_access(
     input: *mut c_uchar,
     output: *mut c_uchar,
     input_len: size_t,
-    output_len: size_t,
-) -> i32 {
+    output_len: size_t
+) -> *mut Status {
     let mut runtime = Crepe::new();
     let b = unsafe { slice::from_raw_parts_mut(input, input_len) };
     let r = match types::Facts::decode(BytesMut::from(&b[..])) {
         Ok(b) => b,
-        Err(_e) => return Errors::InvalidInputError as i32,
+        Err(e) => {
+            let err_bytes = e.to_string().into_bytes();
+            unsafe {
+                ptr::copy(&(*err_bytes)[0], output, err_bytes.len());
+            }
+            return Box::into_raw(Box::new(Status{
+                output_length: err_bytes.len(),
+                error: -1,
+            }))
+        },
     };
 
     for pred in &r.predicates {
-        if pred.name == types::facts::PredicateType::Hasrole as i32 {
+        if pred.name == types::facts::PredicateType::HasRole as i32 {
             runtime.extend(&[HasRole(pred.atoms[0], pred.atoms[1])]);
-        } else if pred.name == types::facts::PredicateType::Hastrait as i32 {
+        } else if pred.name == types::facts::PredicateType::HasTrait as i32 {
             runtime.extend(&[HasTrait(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
-        } else if pred.name == types::facts::PredicateType::Roleallowslogin as i32 {
+        } else if pred.name == types::facts::PredicateType::RoleAllowsLogin as i32 {
             runtime.extend(&[RoleAllowsLogin(pred.atoms[0], pred.atoms[1])]);
-        } else if pred.name == types::facts::PredicateType::Roledenieslogin as i32 {
+        } else if pred.name == types::facts::PredicateType::RoleDeniesLogin as i32 {
             runtime.extend(&[RoleDeniesLogin(pred.atoms[0], pred.atoms[1])]);
-        } else if pred.name == types::facts::PredicateType::Roleallowsnodelabel as i32 {
+        } else if pred.name == types::facts::PredicateType::RoleAllowsNodeLabel as i32 {
             runtime.extend(&[RoleAllowsNodeLabel(
                 pred.atoms[0],
                 pred.atoms[1],
                 pred.atoms[2],
             )]);
-        } else if pred.name == types::facts::PredicateType::Roledeniesnodelabel as i32 {
+        } else if pred.name == types::facts::PredicateType::RoleDeniesNodeLabel as i32 {
             runtime.extend(&[RoleDeniesNodeLabel(
                 pred.atoms[0],
                 pred.atoms[1],
                 pred.atoms[2],
             )]);
-        } else if pred.name == types::facts::PredicateType::Nodehaslabel as i32 {
+        } else if pred.name == types::facts::PredicateType::NodeHasLabel as i32 {
             runtime.extend(&[NodeHasLabel(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
-        } else {
-            return Errors::InvalidInputError as i32;
         }
     }
 
@@ -114,7 +123,7 @@ pub extern "C" fn process_access(
         accesses
             .into_iter()
             .map(|HasAccess(a, b, c, d)| types::facts::Predicate {
-                name: types::facts::PredicateType::Hasaccess as i32,
+                name: types::facts::PredicateType::HasAccess as i32,
                 atoms: vec![a, b, c, d],
             }),
     );
@@ -122,7 +131,7 @@ pub extern "C" fn process_access(
         deny_accesses
             .into_iter()
             .map(|DenyAccess(a, b, c, d)| types::facts::Predicate {
-                name: types::facts::PredicateType::Denyaccess as i32,
+                name: types::facts::PredicateType::DenyAccess as i32,
                 atoms: vec![a, b, c, d],
             })
     );
@@ -130,7 +139,7 @@ pub extern "C" fn process_access(
         deny_logins
             .into_iter()
             .map(|DenyLogins(a, b, c)| types::facts::Predicate {
-                name: types::facts::PredicateType::Denylogins as i32,
+                name: types::facts::PredicateType::DenyLogins as i32,
                 atoms: vec![a, b, c],
             })
     );
@@ -142,10 +151,22 @@ pub extern "C" fn process_access(
     let mut buf = Vec::with_capacity(idb.encoded_len());
     match idb.encode(&mut buf) {
         Ok(_) => (),
-        Err(_e) => return Errors::InvalidOutputError as i32,
+        Err(e) => {
+            let err_bytes = e.to_string().into_bytes();
+            unsafe {
+                ptr::copy(&(*err_bytes)[0], output, err_bytes.len());
+            }
+            return Box::into_raw(Box::new(Status{
+                output_length: err_bytes.len(),
+                error: -1,
+            }))
+        },
     };
     if buf.is_empty() || buf.len() > output_len {
-        return buf.len() as i32;
+        return Box::into_raw(Box::new(Status{
+            output_length: buf.len(),
+            error: 0,
+        }))
     }
     // We can't guarantee the memory regions are non-overlapping, but we only need to copy the data to output so
     // it is able to be presented on the Go end. The necessary checks for length is done before this call.
@@ -157,11 +178,55 @@ pub extern "C" fn process_access(
         ptr::copy(&(*buf)[0], output, buf.len());
     }
 
-    buf.len() as i32
+    Box::into_raw(Box::new(Status{
+        output_length: buf.len(),
+        error: 0
+    }))
 }
 
 #[no_mangle]
-extern "C" fn deallocate_rust_buffer(ptr: *mut c_uchar, len: size_t) {
+pub extern "C" fn status_output_length(
+    status: *mut Status
+) -> size_t {
+    if status.is_null() {
+        return 0
+    }
+    // We've checked that the pointer is not null.
+    let db = unsafe {
+        &*status
+    };
+    db.output_length
+}
+
+#[no_mangle]
+pub extern "C" fn status_error(
+    status: *mut Status
+) -> i32 {
+    if status.is_null() {
+        return 0
+    }
+    // We've checked that the pointer is not null.
+    let db = unsafe {
+        &*status
+    };
+    db.error
+}
+
+#[no_mangle]
+extern "C" fn drop_rust_buffer(buf: *mut c_uchar, len: size_t) {
+    if buf.is_null() {
+        return;
+    }
     let len = len as usize;
-    unsafe { drop(slice::from_raw_parts(ptr, len)) };
+    unsafe { mem::drop(slice::from_raw_parts(buf, len)) };
+}
+
+#[no_mangle]
+extern "C" fn drop_status_struct(status: *mut Status) {
+    if status.is_null() {
+        return;
+    }
+    unsafe {
+        Box::from_raw(status);
+    }
 }

@@ -4,17 +4,17 @@ package datalog;
 // Facts represents a datalog database of predicates
 message Facts {
     enum PredicateType {
-        HASROLE = 0;
-        HASTRAIT = 1;
-        ROLEALLOWSLOGIN = 2;
-        ROLEDENIESLOGIN = 3;
-        ROLEALLOWSNODELABEL = 4;
-        ROLEDENIESNODELABEL = 5;
-        NODEHASLABEL = 6;
+        HasRole = 0;
+        HasTrait = 1;
+        RoleAllowsLogin = 2;
+        RoleDeniesLogin = 3;
+        RoleAllowsNodeLabel = 4;
+        RoleDeniesNodeLabel = 5;
+        NodeHasLabel = 6;
         // Outputs
-        HASACCESS = 7;
-        DENYACCESS = 8;
-        DENYLOGINS = 9;
+        HasAccess = 7;
+        DenyAccess = 8;
+        DenyLogins = 9;
     }
     message Predicate {
         PredicateType name = 1;

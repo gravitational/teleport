@@ -439,7 +439,7 @@ func (s *AccessTestSuite) TestFiltering(c *check.C) {
 
 // TestMappings checks if all required string values are mapped to integer hashes.
 func (s *AccessTestSuite) TestMappings(c *check.C) {
-	resp := NewNodeAccessResponse()
+	resp := NodeAccessResponse{Facts{}, Facts{}, make(map[string]uint32), make(map[uint32]string)}
 	resp.createUserMapping(s.testUser)
 	resp.createRoleMapping(s.testRole)
 	resp.createNodeMapping(s.testNode)
@@ -490,13 +490,13 @@ func (s *AccessTestSuite) TestMappings(c *check.C) {
 // TestPredicates checks if all required predicates are created correctly with the right hashes.
 func (s *AccessTestSuite) TestPredicates(c *check.C) {
 	// Test user predicates
-	resp := NewNodeAccessResponse()
+	resp := NodeAccessResponse{Facts{}, Facts{}, make(map[string]uint32), make(map[uint32]string)}
 	resp.createUserPredicates(s.testUser, "")
 	resp.createRolePredicates(s.testRole)
 	resp.createNodePredicates(s.testNode)
 	roleCountMap := make(map[string]bool)
 	factsMap := generatePredicateMap(resp.facts)
-	for _, pred := range factsMap[Facts_HASROLE.String()] {
+	for _, pred := range factsMap[Facts_HasRole.String()] {
 		require.Equal(c, resp.reverseMappings[pred.Atoms[0]], s.testUser.GetName())
 		require.Contains(c, s.testUser.GetRoles(), resp.reverseMappings[pred.Atoms[1]])
 		roleCountMap[resp.reverseMappings[pred.Atoms[1]]] = true
@@ -504,7 +504,7 @@ func (s *AccessTestSuite) TestPredicates(c *check.C) {
 	require.Equal(c, len(s.testUser.GetRoles()), len(roleCountMap))
 
 	traitCountMap := make(map[string]bool)
-	for _, pred := range factsMap[Facts_HASTRAIT.String()] {
+	for _, pred := range factsMap[Facts_HasTrait.String()] {
 		if pred.Atoms[1] != loginTraitHash {
 			continue
 		}
@@ -518,7 +518,7 @@ func (s *AccessTestSuite) TestPredicates(c *check.C) {
 	loginCountMap := make(map[string]bool)
 	allLogins := append(s.testRole.GetLogins(types.Allow), s.testRole.GetLogins(types.Deny)...)
 	allLogins = append(allLogins, "")
-	for _, pred := range append(factsMap[Facts_ROLEALLOWSLOGIN.String()], factsMap[Facts_ROLEDENIESLOGIN.String()]...) {
+	for _, pred := range append(factsMap[Facts_RoleAllowsLogin.String()], factsMap[Facts_RoleDeniesLogin.String()]...) {
 		require.Equal(c, resp.reverseMappings[pred.Atoms[0]], s.testRole.GetName())
 		require.Contains(c, allLogins, resp.reverseMappings[pred.Atoms[1]])
 		loginCountMap[resp.reverseMappings[pred.Atoms[1]]] = true
@@ -532,15 +532,15 @@ func (s *AccessTestSuite) TestPredicates(c *check.C) {
 			allLabels[key] = append(allLabels[key], value)
 		}
 	}
-	for _, pred := range factsMap[Facts_ROLEALLOWSNODELABEL.String()] {
+	for _, pred := range factsMap[Facts_RoleAllowsNodeLabel.String()] {
 		require.Contains(c, allLabels[resp.reverseMappings[pred.Atoms[1]]], resp.reverseMappings[pred.Atoms[2]])
 	}
-	for _, pred := range factsMap[Facts_ROLEDENIESNODELABEL.String()] {
+	for _, pred := range factsMap[Facts_RoleDeniesNodeLabel.String()] {
 		require.Contains(c, allLabels[resp.reverseMappings[pred.Atoms[1]]], resp.reverseMappings[pred.Atoms[2]])
 	}
 
 	// Test node labels
-	for _, pred := range factsMap[Facts_NODEHASLABEL.String()] {
+	for _, pred := range factsMap[Facts_NodeHasLabel.String()] {
 		require.Equal(c, s.testNode.GetAllLabels()[resp.reverseMappings[pred.Atoms[1]]], resp.reverseMappings[pred.Atoms[2]])
 	}
 }
