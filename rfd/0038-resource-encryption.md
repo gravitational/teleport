@@ -49,7 +49,7 @@ Option 2 is doing something very similar to what the AWS Encryption SDK does. Id
 
 Option 2 here seems like a far more robust solution for production use and that is thus what we should employ.
 
-#### Encryption format
+### Encryption format
 
 For facilitating key rotation the encrypted objects should be stored in a seperate file from it's data key bundle. This is due to modification restricts on objects imposed by services such as AWS S3.
 
@@ -65,7 +65,7 @@ Both the data and key file should have a short 8 byte header declaring the versi
 
 The format detailed above should be used wherever it makes sense from a security standpoint. Devitations from how the data object is encrypted should be made wherever necessary but the key bundle format should never be deviated from. A notable deviation that will be made is for Parquet based files where the encryption will be handled by giving Parquet control of the symmetric data key. The reason for this is that flat-file encryption with Parquet is vulnerable to security attacks similar to CRIME.
 
-#### Key configuration
+### Key configuration
 
 The encryption and key management schema detailed above calls of a central store containing a PEM RSA-2048 keypair used to encrypt the data keys. This will be implemented by introducing a new sensitive resource that is only ever present on auth servers containing the key.
 
