@@ -2679,20 +2679,23 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Filter out databases the caller doesn't have access to from each server.
-	var filtered []types.DatabaseServer
 	// MFA is not required to list the databases, but will be required to
 	// connect to them.
 	mfaParams := services.AccessMFAParams{Verified: true}
 	for _, server := range servers {
-		err := a.context.Checker.CheckAccessToDatabase(server, mfaParams, &services.DatabaseLabelsMatcher{Labels: server.GetAllLabels()})
-		if err != nil && !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
-		} else if err == nil {
-			filtered = append(filtered, server)
+		// Filter out databases the caller doesn't have access to from each server.
+		var filtered []types.Database
+		for _, database := range server.GetDatabases() {
+			err := a.context.Checker.CheckAccessToDatabase(database, mfaParams, &services.DatabaseLabelsMatcher{Labels: database.GetAllLabels()})
+			if err != nil && !trace.IsAccessDenied(err) {
+				return nil, trace.Wrap(err)
+			} else if err == nil {
+				filtered = append(filtered, database)
+			}
 		}
+		server.SetDatabases(filtered)
 	}
-	return filtered, nil
+	return servers, nil
 }
 
 // UpsertDatabaseServer creates or updates a new database proxy server.
