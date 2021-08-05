@@ -1294,11 +1294,11 @@ func showApps(servers []types.Server, active []tlsca.RouteToApp, verbose bool) {
 	}
 }
 
-func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsca.RouteToDatabase, verbose bool) {
+func showDatabases(cluster string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
-		for _, server := range servers {
-			name := server.GetName()
+		for _, database := range databases {
+			name := database.GetName()
 			var connect string
 			for _, a := range active {
 				if a.ServiceName == name {
@@ -1308,20 +1308,20 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 			}
 			t.AddRow([]string{
 				name,
-				server.GetDescription(),
-				server.GetProtocol(),
-				server.GetType(),
-				server.GetURI(),
-				server.LabelsString(),
+				database.GetDescription(),
+				database.GetProtocol(),
+				database.GetType(),
+				database.GetURI(),
+				database.LabelsString(),
 				connect,
-				server.Expiry().Format(constants.HumanDateFormatSeconds),
+				database.Expiry().Format(constants.HumanDateFormatSeconds),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Labels", "Connect"})
-		for _, server := range servers {
-			name := server.GetName()
+		for _, database := range databases {
+			name := database.GetName()
 			var connect string
 			for _, a := range active {
 				if a.ServiceName == name {
@@ -1331,8 +1331,8 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 			}
 			t.AddRow([]string{
 				name,
-				server.GetDescription(),
-				server.LabelsString(),
+				database.GetDescription(),
+				database.LabelsString(),
 				connect,
 			})
 		}

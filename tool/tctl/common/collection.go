@@ -579,11 +579,13 @@ func (c *dbCollection) resources() (r []types.Resource) {
 }
 
 func (c *dbCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Name", "Protocol", "Address", "Labels"})
+	t := asciitable.MakeTable([]string{"Name", "Protocol", "URI", "Labels", "Hostname", "Version"})
 	for _, server := range c.servers {
-		t.AddRow([]string{
-			server.GetName(), server.GetProtocol(), server.GetURI(), server.LabelsString(),
-		})
+		for _, database := range server.GetDatabases() {
+			t.AddRow([]string{
+				database.GetName(), database.GetProtocol(), database.GetURI(), database.LabelsString(), server.GetHostname(), server.GetTeleportVersion(),
+			})
+		}
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

@@ -775,7 +775,7 @@ type AccessChecker interface {
 
 	// CheckAccessToDatabase checks whether a user has access to the provided
 	// database server.
-	CheckAccessToDatabase(server types.DatabaseServer, mfa AccessMFAParams, matchers ...RoleMatcher) error
+	CheckAccessToDatabase(server types.Database, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckImpersonate checks whether current user is allowed to impersonate
 	// users and roles
@@ -1863,7 +1863,7 @@ func (m *DatabaseNameMatcher) String() string {
 //
 // The checker always checks the server namespace, other matchers are supplied
 // by the caller.
-func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+func (set RoleSet) CheckAccessToDatabase(server types.Database, mfa AccessMFAParams, matchers ...RoleMatcher) error {
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
 	if mfa.AlwaysRequired && !mfa.Verified {
 		log.Debugf("Access to database %q denied, cluster requires per-session MFA", server.GetName())
