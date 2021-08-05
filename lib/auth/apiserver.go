@@ -1149,7 +1149,7 @@ func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *htt
 }
 
 // ChangePasswordWithTokenRequest defines a request to change user password
-// DELETE IN 10.0.0 with changePasswordWithToken api endpoint.
+// DELETE IN 9.0.0 with changePasswordWithToken api endpoint.
 type ChangePasswordWithTokenRequest struct {
 	// SecondFactorToken is 2nd factor token value
 	SecondFactorToken string `json:"second_factor_token"`
@@ -1161,7 +1161,7 @@ type ChangePasswordWithTokenRequest struct {
 	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
 }
 
-// DELETE IN 10.0.0: defined in grpcserver, kept for fallback.
+// DELETE IN 9.0.0: defined in grpcserver, kept for fallback.
 func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req ChangePasswordWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
