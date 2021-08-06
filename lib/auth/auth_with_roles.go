@@ -2679,20 +2679,23 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Filter out databases the caller doesn't have access to from each server.
-	var filtered []types.DatabaseServer
 	// MFA is not required to list the databases, but will be required to
 	// connect to them.
 	mfaParams := services.AccessMFAParams{Verified: true}
 	for _, server := range servers {
-		err := a.context.Checker.CheckAccessToDatabase(server, mfaParams, &services.DatabaseLabelsMatcher{Labels: server.GetAllLabels()})
-		if err != nil && !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
-		} else if err == nil {
-			filtered = append(filtered, server)
+		// Filter out databases the caller doesn't have access to from each server.
+		var filtered []types.Database
+		for _, database := range server.GetDatabases() {
+			err := a.context.Checker.CheckAccessToDatabase(database, mfaParams, &services.DatabaseLabelsMatcher{Labels: database.GetAllLabels()})
+			if err != nil && !trace.IsAccessDenied(err) {
+				return nil, trace.Wrap(err)
+			} else if err == nil {
+				filtered = append(filtered, database)
+			}
 		}
+		server.SetDatabases(filtered)
 	}
-	return filtered, nil
+	return servers, nil
 }
 
 // UpsertDatabaseServer creates or updates a new database proxy server.
@@ -3145,15 +3148,15 @@ func (a *ServerWithRoles) GetLock(ctx context.Context, name string) (types.Lock,
 	return a.authServer.GetLock(ctx, name)
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
-func (a *ServerWithRoles) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetLocks(ctx, targets...)
+	return a.authServer.GetLocks(ctx, inForceOnly, targets...)
 }
 
 // UpsertLock upserts a lock.

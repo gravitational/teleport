@@ -82,6 +82,8 @@ type ProxyServerConfig struct {
 	ServerID string
 	// Shuffle allows to override shuffle logic in tests.
 	Shuffle func([]types.DatabaseServer) []types.DatabaseServer
+	// LockWatcher is a lock watcher.
+	LockWatcher *services.LockWatcher
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -115,6 +117,9 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 				})
 			return servers
 		}
+	}
+	if c.LockWatcher == nil {
+		return trace.BadParameter("missing LockWatcher")
 	}
 	return nil
 }
@@ -329,6 +334,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 	// idle connection and connection with expired cert.
 	tc, err := monitorConn(ctx, monitorConnConfig{
 		conn:         clientConn,
+		lockWatcher:  s.cfg.LockWatcher,
 		identity:     authContext.Identity.GetIdentity(),
 		checker:      authContext.Checker,
 		clock:        s.cfg.Clock,
@@ -377,6 +383,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 // monitorConnConfig is a monitorConn configuration.
 type monitorConnConfig struct {
 	conn         net.Conn
+	lockWatcher  *services.LockWatcher
 	checker      services.AccessChecker
 	identity     tlsca.Identity
 	clock        clockwork.Clock
@@ -392,7 +399,6 @@ type monitorConnConfig struct {
 // returns a tracking connection that will be auto-terminated in case disconnect_expired_cert or idle timeout is
 // configured, and unmodified client connection otherwise.
 func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
-	certExpires := cfg.identity.Expires
 	authPref, err := cfg.authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -401,14 +407,13 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	certExpires := cfg.identity.Expires
 	var disconnectCertExpired time.Time
 	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
 		disconnectCertExpired = certExpires
 	}
 	idleTimeout := cfg.checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
-	if disconnectCertExpired.IsZero() && idleTimeout == 0 {
-		return cfg.conn, nil
-	}
 	ctx, cancel := context.WithCancel(ctx)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    cfg.conn,
@@ -419,7 +424,11 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	mon, err := srv.NewMonitor(srv.MonitorConfig{
+
+	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
+	err = srv.StartMonitor(srv.MonitorConfig{
+		LockWatcher:           cfg.lockWatcher,
+		LockTargets:           services.LockTargetsFromTLSIdentity(cfg.identity),
 		DisconnectExpiredCert: disconnectCertExpired,
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  cfg.conn,
@@ -432,10 +441,9 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 		Entry:                 cfg.log,
 	})
 	if err != nil {
+		tc.Close()
 		return nil, trace.Wrap(err)
 	}
-	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
-	go mon.Start()
 	return tc, nil
 }
 
@@ -490,19 +498,21 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	s.log.Debugf("Available database servers on %v: %s.", cluster.GetName(), servers)
+	s.log.Debugf("Available databases in %v: %s.", cluster.GetName(), servers)
 	// Find out which database servers proxy the database a user is
 	// connecting to using routing information from identity.
 	var result []types.DatabaseServer
 	for _, server := range servers {
-		if server.GetName() == identity.RouteToDatabase.ServiceName {
-			result = append(result, server)
+		for _, database := range server.GetDatabases() {
+			if database.GetName() == identity.RouteToDatabase.ServiceName {
+				result = append(result, server)
+			}
 		}
 	}
 	if len(result) != 0 {
 		return cluster, result, nil
 	}
-	return nil, nil, trace.NotFound("database %q not found among registered database servers on cluster %q",
+	return nil, nil, trace.NotFound("database %q not found among registered databases in cluster %q",
 		identity.RouteToDatabase.ServiceName,
 		identity.RouteToCluster)
 }

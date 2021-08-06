@@ -1545,6 +1545,8 @@ func TestApplyTraits(t *testing.T) {
 	type rule struct {
 		inLogins       []string
 		outLogins      []string
+		inRoleARNs     []string
+		outRoleARNs    []string
 		inLabels       types.Labels
 		outLabels      types.Labels
 		inKubeLabels   types.Labels
@@ -1608,6 +1610,26 @@ func TestApplyTraits(t *testing.T) {
 			deny: rule{
 				inLogins:  []string{`{{external.foo}}`},
 				outLogins: []string{"bar"},
+			},
+		},
+		{
+			comment: "AWS role ARN substitute in allow rule",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+			},
+			allow: rule{
+				inRoleARNs:  []string{"{{external.foo}}"},
+				outRoleARNs: []string{"bar"},
+			},
+		},
+		{
+			comment: "AWS role ARN substitute in deny rule",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+			},
+			deny: rule{
+				inRoleARNs:  []string{"{{external.foo}}"},
+				outRoleARNs: []string{"bar"},
 			},
 		},
 		{
@@ -2167,23 +2189,21 @@ func TestBoolOptions(t *testing.T) {
 }
 
 func TestCheckAccessToDatabase(t *testing.T) {
-	dbStage, err := types.NewDatabaseServerV3("stage",
-		map[string]string{"env": "stage"},
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
-	dbProd, err := types.NewDatabaseServerV3("prod",
-		map[string]string{"env": "prod"},
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
 	roleDevStage := &types.RoleV4{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
@@ -2251,7 +2271,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	}
 	require.NoError(t, roleDeny.CheckAndSetDefaults())
 	type access struct {
-		server types.DatabaseServer
+		server types.Database
 		dbName string
 		dbUser string
 		access bool
@@ -2343,23 +2363,21 @@ func TestCheckAccessToDatabase(t *testing.T) {
 }
 
 func TestCheckAccessToDatabaseUser(t *testing.T) {
-	dbStage, err := types.NewDatabaseServerV3("stage",
-		map[string]string{"env": "stage"},
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
-	dbProd, err := types.NewDatabaseServerV3("prod",
-		map[string]string{"env": "prod"},
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
 	roleDevStage := &types.RoleV4{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
@@ -2386,7 +2404,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 		},
 	}
 	type access struct {
-		server types.DatabaseServer
+		server types.Database
 		dbUser string
 		access bool
 	}
@@ -2523,43 +2541,38 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 }
 
 func TestCheckAccessToDatabaseService(t *testing.T) {
-	dbNoLabels, err := types.NewDatabaseServerV3("test",
-		nil,
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbNoLabels, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test",
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
-	dbStage, err := types.NewDatabaseServerV3("stage",
-		map[string]string{"env": "stage"},
-		types.DatabaseServerSpecV3{
-			Protocol:      "protocol",
-			URI:           "uri",
-			Hostname:      "hostname",
-			HostID:        "host_id",
-			DynamicLabels: map[string]types.CommandLabelV2{"arch": {Result: "x86"}},
-		})
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol:      "protocol",
+		URI:           "uri",
+		DynamicLabels: map[string]types.CommandLabelV2{"arch": {Result: "x86"}},
+	})
 	require.NoError(t, err)
-	dbStage2, err := types.NewDatabaseServerV3("stage2",
-		map[string]string{"env": "stage"},
-		types.DatabaseServerSpecV3{
-			Protocol:      "protocol",
-			URI:           "uri",
-			Hostname:      "hostname",
-			HostID:        "host_id",
-			DynamicLabels: map[string]types.CommandLabelV2{"arch": {Result: "amd64"}},
-		})
+	dbStage2, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage2",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol:      "protocol",
+		URI:           "uri",
+		DynamicLabels: map[string]types.CommandLabelV2{"arch": {Result: "amd64"}},
+	})
 	require.NoError(t, err)
-	dbProd, err := types.NewDatabaseServerV3("prod",
-		map[string]string{"env": "prod"},
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
 	roleAdmin := &types.RoleV4{
 		Metadata: types.Metadata{Name: "admin", Namespace: apidefaults.Namespace},
@@ -2592,7 +2605,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		},
 	}
 	type access struct {
-		server types.DatabaseServer
+		server types.Database
 		access bool
 	}
 	testCases := []struct {
@@ -2647,6 +2660,111 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 				err := tc.roles.CheckAccessToDatabase(access.server, AccessMFAParams{},
 					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()})
 				if access.access {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			}
+		})
+	}
+}
+
+// TestCheckAccessToAWSConsole verifies AWS role ARNs access checker.
+func TestCheckAccessToAWSConsole(t *testing.T) {
+	app := &types.App{
+		Name: "awsconsole",
+		URI:  constants.AWSConsoleURL,
+	}
+	readOnlyARN := "readonly"
+	fullAccessARN := "fullaccess"
+	roleNoAccess := &types.RoleV4{
+		Metadata: types.Metadata{
+			Name:      "noaccess",
+			Namespace: defaults.Namespace,
+		},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Namespaces:  []string{defaults.Namespace},
+				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AWSRoleARNs: []string{},
+			},
+		},
+	}
+	roleReadOnly := &types.RoleV4{
+		Metadata: types.Metadata{
+			Name:      "readonly",
+			Namespace: defaults.Namespace,
+		},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Namespaces:  []string{defaults.Namespace},
+				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AWSRoleARNs: []string{readOnlyARN},
+			},
+		},
+	}
+	roleFullAccess := &types.RoleV4{
+		Metadata: types.Metadata{
+			Name:      "fullaccess",
+			Namespace: defaults.Namespace,
+		},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Namespaces:  []string{defaults.Namespace},
+				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AWSRoleARNs: []string{readOnlyARN, fullAccessARN},
+			},
+		},
+	}
+	type access struct {
+		roleARN   string
+		hasAccess bool
+	}
+	tests := []struct {
+		name   string
+		roles  RoleSet
+		access []access
+	}{
+		{
+			name:  "empty role set",
+			roles: nil,
+			access: []access{
+				{roleARN: readOnlyARN, hasAccess: false},
+				{roleARN: fullAccessARN, hasAccess: false},
+			},
+		},
+		{
+			name:  "no access role",
+			roles: RoleSet{roleNoAccess},
+			access: []access{
+				{roleARN: readOnlyARN, hasAccess: false},
+				{roleARN: fullAccessARN, hasAccess: false},
+			},
+		},
+		{
+			name:  "readonly role",
+			roles: RoleSet{roleReadOnly},
+			access: []access{
+				{roleARN: readOnlyARN, hasAccess: true},
+				{roleARN: fullAccessARN, hasAccess: false},
+			},
+		},
+		{
+			name:  "full access role",
+			roles: RoleSet{roleFullAccess},
+			access: []access{
+				{roleARN: readOnlyARN, hasAccess: true},
+				{roleARN: fullAccessARN, hasAccess: true},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for _, access := range test.access {
+				err := test.roles.CheckAccessToApp(defaults.Namespace, app, AccessMFAParams{},
+					&AWSRoleARNMatcher{RoleARN: access.roleARN})
+				if access.hasAccess {
 					require.NoError(t, err)
 				} else {
 					require.Error(t, err)

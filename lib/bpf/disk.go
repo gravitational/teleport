@@ -29,9 +29,6 @@ import (
 	_ "embed"
 )
 
-//go:embed bytecode/disk.bpf.o
-var diskBPF []byte
-
 var (
 	lostDiskEvents = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -83,6 +80,11 @@ func startOpen(bufferSize int) (*open, error) {
 	}
 
 	o := &open{}
+
+	diskBPF, err := embedFS.ReadFile("bytecode/disk.bpf.o")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	o.module, err = libbpfgo.NewModuleFromBuffer(diskBPF, "disk")
 	if err != nil {
