@@ -147,15 +147,15 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 
 // getConnectionString returns connection string for the server.
 func getConnectionString(sessionCtx *common.Session) (connstring.ConnString, error) {
-	uri, err := url.Parse(sessionCtx.Server.GetURI())
+	uri, err := url.Parse(sessionCtx.Database.GetURI())
 	if err != nil {
 		return connstring.ConnString{}, trace.Wrap(err)
 	}
 	switch uri.Scheme {
 	case connstring.SchemeMongoDB, connstring.SchemeMongoDBSRV:
-		return connstring.ParseAndValidate(sessionCtx.Server.GetURI())
+		return connstring.ParseAndValidate(sessionCtx.Database.GetURI())
 	}
-	return connstring.ConnString{Hosts: []string{sessionCtx.Server.GetURI()}}, nil
+	return connstring.ConnString{Hosts: []string{sessionCtx.Database.GetURI()}}, nil
 }
 
 // getServerSelector returns selector for picking the server to connect to,

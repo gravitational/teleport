@@ -2270,7 +2270,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	var noMFAAccessErr, notFoundErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
-		notFoundErr = trace.NotFound("node %q not found", t.Node)
 		if t.Node.Node == "" {
 			return nil, trace.BadParameter("empty Node field")
 		}
@@ -2310,7 +2309,9 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
 			err := checker.CheckAccessToServer(t.Node.Login, n, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
-			if err != nil {
+
+			// Ignore other errors; they'll be caught on the real access attempt.
+			if err != nil && errors.Is(err, services.ErrSessionMFARequired) {
 				noMFAAccessErr = err
 				break
 			}
@@ -2346,15 +2347,17 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
-		dbs, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
+		servers, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var db types.DatabaseServer
-		for _, d := range dbs {
-			if d.GetName() == t.Database.ServiceName {
-				db = d
-				break
+		var db types.Database
+		for _, server := range servers {
+			for _, d := range server.GetDatabases() {
+				if d.GetName() == t.Database.ServiceName {
+					db = d
+					break
+				}
 			}
 		}
 		if db == nil {
@@ -2373,17 +2376,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// Errors other than ErrSessionMFARequired mean something else is wrong,
 	// most likely access denied.
 	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
-		if trace.IsAccessDenied(noMFAAccessErr) {
-			log.Infof("Access to resource denied: %v", noMFAAccessErr)
-			// notFoundErr should always be set by this point, but check it
-			// just in case.
-			if notFoundErr == nil {
-				notFoundErr = trace.NotFound("target resource not found")
-			}
-			// Mask access denied errors to prevent resource name oracles.
-			return nil, trace.Wrap(notFoundErr)
+		if !trace.IsAccessDenied(noMFAAccessErr) {
+			log.WithError(noMFAAccessErr).Warn("Could not determine MFA access")
 		}
-		return nil, trace.Wrap(noMFAAccessErr)
+
+		// Mask the access denied errors by returning false to prevent resource
+		// name oracles. Auth will be denied (and generate an audit log entry)
+		// when the client attempts to connect.
+		return &proto.IsMFARequiredResponse{Required: false}, nil
 	}
 	// If we reach here, the error from AccessChecker was
 	// ErrSessionMFARequired.
