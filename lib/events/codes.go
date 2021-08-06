@@ -262,16 +262,6 @@ var (
 		Name: SessionRejectedEvent,
 		Code: SessionRejectedCode,
 	}
-	// LockCreatedE is emitted when a lock is created/updated.
-	LockCreatedE = Event{
-		Name: LockCreatedEvent,
-		Code: LockCreatedCode,
-	}
-	// LockDeletedE is emitted when a lock is deleted.
-	LockDeletedE = Event{
-		Name: LockDeletedEvent,
-		Code: LockDeletedCode,
-	}
 )
 
 // There is no strict algorithm for picking an event code, however existing
