@@ -136,19 +136,18 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 	if err := checkPermissions(ctx, cluster, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
 		// kubernetes_service must have valid RBAC permissions, otherwise
 		// it's pointless.
-		// proxy_service can run without them (e.g. a root proxy).
-		if serviceType == KubeService {
-			return nil, trace.Wrap(err)
-		}
-		log.WithError(err).Warning("Failed to test the necessary Kubernetes permissions. This teleport instance will still handle Kubernetes requests towards other Kubernetes clusters")
-		// We used to recommend users to set a dummy kubeconfig on root
-		// proxies to get kubernetes support working for leaf clusters:
-		// https://community.goteleport.com/t/enabling-teleport-to-act-as-a-kubernetes-proxy-for-trusted-leaf-clusters/418
-		//
-		// Since this is no longer necessary, recommend them to clean up
-		// via logs.
-		if kubeconfigPath != "" {
-			log.Info("If this is a proxy and you provided a dummy kubeconfig_file, you can remove it from teleport.yaml to get rid of this warning")
+
+		log.WithError(err).Warning("Failed to test the necessary Kubernetes permissions. The target Kubernetes cluster may be down. This teleport instance will still handle Kubernetes requests towards other Kubernetes clusters.")
+		if serviceType != KubeService {
+			// We used to recommend users to set a dummy kubeconfig on root
+			// proxies to get kubernetes support working for leaf clusters:
+			// https://community.goteleport.com/t/enabling-teleport-to-act-as-a-kubernetes-proxy-for-trusted-leaf-clusters/418
+			//
+			// Since this is no longer necessary, recommend them to clean up
+			// via logs.
+			if kubeconfigPath != "" {
+				log.Info("If this is a proxy and you provided a dummy kubeconfig_file, you can remove it from teleport.yaml to get rid of this warning")
+			}
 		}
 	} else {
 		log.Debug("Have all necessary Kubernetes impersonation permissions.")
