@@ -53,6 +53,7 @@ RUN apt-get update -y --fix-missing && \
         tree \
         unzip \
         zip \
+        zlib1g-dev \
         && \
     pip --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
@@ -78,10 +79,24 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNT
 
 # Install libbpf
 ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
     make install
+
+# Copy over C libraries needed for BPF support to /opt/lib. LDFLAGS will be
+# updated to point to /opt/lib.
+#
+# This is needed because shared libraries are preferred over static libraries
+# during linking if they are in the same directory and the build box (Ubuntu
+# 18.04) puts them both in /usr/lib/x86_64-linux-gnu.
+#
+# Putting the needed libraries in /opt/lib and pointing LDFLAGS at /opt/lib
+# will make sure the static libraries are picked and used when building the
+# release.
+RUN mkdir -p /opt/lib && \
+    cp /usr/lib/x86_64-linux-gnu/libz.a /opt/lib && \
+    cp /usr/lib/x86_64-linux-gnu/libelf.a /opt/lib
 
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
