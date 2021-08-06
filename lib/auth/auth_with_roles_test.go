@@ -409,22 +409,37 @@ func TestGetDatabaseServers(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test databases.
+	var dbs []*types.DatabaseV3
 	for i := 0; i < 5; i++ {
 		name := uuid.New()
-		db, err := types.NewDatabaseServerV3(name, map[string]string{"name": name}, types.DatabaseServerSpecV3{
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name:   name,
+			Labels: map[string]string{"name": name},
+		}, types.DatabaseSpecV3{
 			Protocol: "postgres",
 			URI:      "example.com",
-			Hostname: "host",
-			HostID:   "hostid",
 		})
 		require.NoError(t, err)
-
-		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
-		require.NoError(t, err)
+		dbs = append(dbs, db)
 	}
+	name := uuid.New()
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name:   name,
+		Labels: map[string]string{"name": name},
+	}, types.DatabaseServerSpecV3{
+		Hostname:  "host",
+		HostID:    "hostid",
+		Databases: dbs,
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertDatabaseServer(ctx, server)
+	require.NoError(t, err)
 
 	testServers, err := srv.Auth().GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
+	require.Equal(t, 1, len(testServers))
+	testDatabases := testServers[0].GetDatabases()
+	require.ElementsMatch(t, dbs, testDatabases)
 
 	// create user, role, and client
 	username := "user"
@@ -435,36 +450,43 @@ func TestGetDatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 
 	// permit user to get the first database
-	role.SetDatabaseLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
+	role.SetDatabaseLabels(types.Allow, types.Labels{"name": {testDatabases[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err := clt.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(servers))
-	require.Empty(t, cmp.Diff(testServers[0:1], servers))
+	databases := servers[0].GetDatabases()
+	require.Equal(t, 1, len(databases))
+	require.Empty(t, cmp.Diff(testDatabases[0:1], databases))
 
 	// permit user to get all databases
 	role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers), len(servers))
-	require.Empty(t, cmp.Diff(testServers, servers))
+	require.Equal(t, 1, len(servers))
+	databases = servers[0].GetDatabases()
+	require.EqualValues(t, len(testDatabases), len(databases))
+	require.Empty(t, cmp.Diff(testDatabases, databases))
 
 	// deny user to get the first database
-	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testDatabases[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers[1:]), len(servers))
-	require.Empty(t, cmp.Diff(testServers[1:], servers))
+	require.Equal(t, 1, len(servers))
+	databases = servers[0].GetDatabases()
+	require.EqualValues(t, len(testDatabases[1:]), len(databases))
+	require.Empty(t, cmp.Diff(testDatabases[1:], databases))
 
 	// deny user to get all databases
 	role.SetDatabaseLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, len(servers))
-	require.Empty(t, cmp.Diff([]types.DatabaseServer{}, servers))
+	require.Equal(t, 1, len(servers))
+	databases = servers[0].GetDatabases()
+	require.EqualValues(t, 0, len(databases))
 }
 
 func TestGetAppServers(t *testing.T) {
