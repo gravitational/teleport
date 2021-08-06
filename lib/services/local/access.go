@@ -20,7 +20,7 @@ import (
 	"context"
 	"sort"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -32,7 +32,6 @@ import (
 // AccessService manages roles
 type AccessService struct {
 	backend.Backend
-	remoteLocksMutex sync.Mutex
 }
 
 // NewAccessService returns new access service instance
@@ -224,59 +223,58 @@ func (s *AccessService) DeleteAllLocks(ctx context.Context) error {
 
 // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName string, newRemoteLocks []types.Lock) error {
-	s.remoteLocksMutex.Lock()
-	defer s.remoteLocksMutex.Unlock()
-
-	remoteLocksKey := backend.Key(locksPrefix, clusterName)
-	origRemoteLocks, err := s.GetRange(ctx, remoteLocksKey, backend.RangeEnd(remoteLocksKey), backend.NoLimit)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	newRemoteLocksToStore := make(map[string]backend.Item, len(newRemoteLocks))
-	for _, lock := range newRemoteLocks {
-		if !strings.HasPrefix(lock.GetName(), clusterName) {
-			lock.SetName(clusterName + "/" + lock.GetName())
-		}
-		value, err := services.MarshalLock(lock)
+	return backend.RunWhileLocked(ctx, s.Backend, "ReplaceRemoteLocks/"+clusterName, time.Minute, func(ctx context.Context) error {
+		remoteLocksKey := backend.Key(locksPrefix, clusterName)
+		origRemoteLocks, err := s.GetRange(ctx, remoteLocksKey, backend.RangeEnd(remoteLocksKey), backend.NoLimit)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		item := backend.Item{
-			Key:     backend.Key(locksPrefix, lock.GetName()),
-			Value:   value,
-			Expires: lock.Expiry(),
-			ID:      lock.GetResourceID(),
-		}
-		newRemoteLocksToStore[string(item.Key)] = item
-	}
 
-	for _, origLockItem := range origRemoteLocks.Items {
-		// If one of the new remote locks to store is already known,
-		// perform a CompareAndSwap.
-		key := string(origLockItem.Key)
-		if newLockItem, ok := newRemoteLocksToStore[key]; ok {
-			if _, err := s.CompareAndSwap(ctx, origLockItem, newLockItem); err != nil {
+		newRemoteLocksToStore := make(map[string]backend.Item, len(newRemoteLocks))
+		for _, lock := range newRemoteLocks {
+			if !strings.HasPrefix(lock.GetName(), clusterName) {
+				lock.SetName(clusterName + "/" + lock.GetName())
+			}
+			value, err := services.MarshalLock(lock)
+			if err != nil {
 				return trace.Wrap(err)
 			}
-			delete(newRemoteLocksToStore, key)
-			continue
+			item := backend.Item{
+				Key:     backend.Key(locksPrefix, lock.GetName()),
+				Value:   value,
+				Expires: lock.Expiry(),
+				ID:      lock.GetResourceID(),
+			}
+			newRemoteLocksToStore[string(item.Key)] = item
 		}
 
-		// If an originally stored lock is not among the new locks,
-		// delete it from the backend.
-		if err := s.Delete(ctx, origLockItem.Key); err != nil {
-			return trace.Wrap(err)
-		}
-	}
+		for _, origLockItem := range origRemoteLocks.Items {
+			// If one of the new remote locks to store is already known,
+			// perform a CompareAndSwap.
+			key := string(origLockItem.Key)
+			if newLockItem, ok := newRemoteLocksToStore[key]; ok {
+				if _, err := s.CompareAndSwap(ctx, origLockItem, newLockItem); err != nil {
+					return trace.Wrap(err)
+				}
+				delete(newRemoteLocksToStore, key)
+				continue
+			}
 
-	// Store the remaining new locks.
-	for _, newLockItem := range newRemoteLocksToStore {
-		if _, err := s.Put(ctx, newLockItem); err != nil {
-			return trace.Wrap(err)
+			// If an originally stored lock is not among the new locks,
+			// delete it from the backend.
+			if err := s.Delete(ctx, origLockItem.Key); err != nil {
+				return trace.Wrap(err)
+			}
 		}
-	}
-	return nil
+
+		// Store the remaining new locks.
+		for _, newLockItem := range newRemoteLocksToStore {
+			if _, err := s.Put(ctx, newLockItem); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	})
 }
 
 const (
