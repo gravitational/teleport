@@ -53,6 +53,7 @@ RUN apt-get update -y --fix-missing && \
         tree \
         unzip \
         zip \
+        zlib1g-dev \
         && \
     pip --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
@@ -78,7 +79,7 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNT
 
 # Install libbpf
 ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
     make install
