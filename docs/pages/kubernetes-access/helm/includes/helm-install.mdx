@@ -3,15 +3,17 @@
 - [Kubernetes](https://kubernetes.io) >= v(=kubernetes.major_version=).(=kubernetes.minor_version=).0
 - [Helm](https://helm.sh) >= v(=helm.version=)
 
-Verify that Helm and Kubernetes are installed and up to date.
-
 (!docs/pages/includes/permission-warning.mdx!)
 
 ## Step 1. Install Helm
 
-Teleport's charts require the use of Helm version 3. You can [install Helm 3 by following these instructions](https://helm.sh/docs/intro/install/).
+Teleport's charts at minimum require Helm version 3. [Helm installation instructions are located here](https://helm.sh/docs/intro/install/).
 
-Throughout this guide, we will assume that you have the `helm` and `kubectl` binaries available in your `PATH`:
+<Admonition type="note" title="Note">
+Throughout this guide, we will assume that you have the `helm` and `kubectl` binaries available in your `PATH`
+</Admonition>
+
+Verify that Helm and Kubernetes are installed and up to date:
 
 ```bash
 helm version
@@ -24,13 +26,13 @@ kubectl version
 
 ## Step 2. Add the Teleport Helm chart repository
 
-To allow Helm to install charts that are hosted in the Teleport Helm repository, use `helm repo add`:
+Allow Helm to install charts from hosted Teleport Helm repository by:
 
 ```bash
 helm repo add teleport (=teleport.helm_repo_url=)
 ```
 
-To update the cache of charts from the remote repository, run `helm repo update`:
+To update the cache of charts from the remote repository, use:
 
 ```bash
 helm repo update

@@ -3,14 +3,14 @@ title: Running an HA Teleport cluster using AWS, EKS, and Helm
 description: Install and configure an HA Teleport cluster using an AWS EKS cluster
 ---
 
-In this guide, we'll go through how to set up a High Availability Teleport cluster with multiple replicas in Kubernetes
+In this guide, we'll go over setting up a High Availability Teleport cluster with multiple replicas on Kubernetes
 using Teleport Helm charts and AWS products (DynamoDB and S3).
 
 (!docs/pages/kubernetes-access/helm/includes/helm-install.mdx!)
 
 ## Step 3. Set up AWS IAM configuration
 
-For Teleport to be able to create the DynamoDB tables, indexes, and the S3 storage bucket it needs,
+For Teleport to be able to create its required DynamoDB tables, indexes, and S3 storage bucket,
 you'll need to configure AWS IAM policies to allow access.
 
 <Admonition type="note">
@@ -26,8 +26,8 @@ You'll need to replace these values in the policy example below:
 | - | - |
 | `us-west-2` | AWS region |
 | `1234567890` | AWS account ID | `1234567890` |
-| `teleport-helm-backend` | DynamoDB table name to use for the Teleport backend |
-| `teleport-helm-events` | DynamoDB table name to use for the Teleport audit log (**must** be different to the backend table)
+| `teleport-helm-state` | DynamoDB table name to use for the Teleport cluster state and backend |
+| `teleport-helm-events` | DynamoDB table name to use for the Teleport audit log (**must** be different from the state table)
 
 ```json
 {
@@ -54,8 +54,8 @@ You'll need to replace these values in the policy example below:
                 "dynamodb:GetRecords"
             ],
             "Resource": [
-                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-backend",
-                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-backend/stream/*"
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-state",
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-state/stream/*"
             ]
         },
         {
@@ -265,7 +265,7 @@ The `--set` CLI method is more appropriate for quick test deployments.
     --set chartMode=aws \
     --set clusterName=teleport.example.com                                `# Name of your cluster. Use the FQDN you intend to configure in DNS below.` \
     --set aws.region=us-west-2                                            `# AWS region` \
-    --set aws.backendTable=teleport-helm-backend                          `# DynamoDB table to use for the Teleport backend` \
+    --set aws.backendTable=teleport-helm-state                            `# DynamoDB table to use for the Teleport cluster state and backend` \
     --set aws.backups=true                                                `# Whether or not to turn on DynamoDB backups` \
     --set aws.auditLogTable=teleport-helm-events                          `# DynamoDB table to use for the Teleport audit log (must be different to the backend table)` \
     --set aws.sessionRecordingBucket=teleport-helm-sessions               `# S3 bucket to use for Teleport session recordings` \
