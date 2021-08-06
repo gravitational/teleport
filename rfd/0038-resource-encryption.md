@@ -70,3 +70,7 @@ The format detailed above should be used wherever it makes sense from a security
 The encryption and key management schema detailed above calls of a central store containing a PEM RSA-2048 keypair used to encrypt the data keys. This will be implemented by introducing a new sensitive resource that is only ever present on auth servers containing the key.
 
 If the resource isn't present on auth server startup, a new key is randomly generated via an OS CSPRNG and the resource is set via a compare-and-swap. If the compare-and-swap fails another auth server already created the resource and we fetch that instead.
+
+### HSM Support
+
+This system utilizes HSMs in a number of different ways. When a HSM is configured during setup or key rotation, it is used to securely generate new master keys. When supported, HSMs should also be used for encrypting and decrypting data keys using the master key.
