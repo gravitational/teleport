@@ -29,7 +29,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/v7/constants"
@@ -917,51 +916,6 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	c.Assert(s.mockEmitter.LastEvent().(*apievents.UserCreate).User, Equals, teleport.UserSystem)
 }
 
-func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
-	ctx := context.Background()
-	// test create new role
-	roleTest, err := types.NewRole("test", types.RoleSpecV4{
-		Options: types.RoleOptions{},
-		Allow:   types.RoleConditions{},
-	})
-	c.Assert(err, IsNil)
-
-	err = s.a.upsertRole(ctx, roleTest)
-	c.Assert(err, IsNil)
-	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, Equals, "test")
-	s.mockEmitter.Reset()
-
-	roleRetrieved, err := s.a.GetRole(ctx, "test")
-	c.Assert(err, IsNil)
-	c.Assert(cmp.Diff(roleRetrieved, roleTest, cmpopts.IgnoreFields(types.Metadata{}, "ID")), Equals, "")
-
-	// test update role
-	err = s.a.upsertRole(ctx, roleTest)
-	c.Assert(err, IsNil)
-	c.Assert(cmp.Diff(roleRetrieved, roleTest, cmpopts.IgnoreFields(types.Metadata{}, "ID")), Equals, "")
-	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, Equals, "test")
-	s.mockEmitter.Reset()
-
-	// test delete role
-	err = s.a.DeleteRole(ctx, "test")
-	c.Assert(err, IsNil)
-	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleDeletedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*apievents.RoleDelete).Name, Equals, "test")
-	s.mockEmitter.Reset()
-
-	// test role has been deleted
-	roleRetrieved, err = s.a.GetRole(ctx, "test")
-	c.Assert(trace.IsNotFound(err), Equals, true)
-	c.Assert(roleRetrieved, IsNil)
-
-	// test role that doesn't exist
-	err = s.a.DeleteRole(ctx, "test")
-	c.Assert(trace.IsNotFound(err), Equals, true)
-	c.Assert(s.mockEmitter.LastEvent(), IsNil)
-}
-
 func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 	ctx := context.Background()
 	s.a.emitter = s.mockEmitter
@@ -1151,51 +1105,6 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 			UserMessage: "some error",
 		},
 	})
-}
-
-func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
-
-	lock, err := types.NewLock("test-lock", types.LockSpecV2{
-		Target: types.LockTarget{MFADevice: "mfa-device-id"},
-	})
-	require.NoError(t, err)
-
-	// Creating a lock should emit a LockCreatedEvent.
-	err = p.a.UpsertLock(ctx, lock)
-	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.LockCreatedEvent)
-	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.LockCreate).Name, lock.GetName())
-	p.mockEmitter.Reset()
-
-	// When a lock update results in an error, no event should be emitted.
-	lock.SetTarget(types.LockTarget{})
-	err = p.a.UpsertLock(ctx, lock)
-	require.Error(t, err)
-	require.Nil(t, p.mockEmitter.LastEvent())
-
-	// Updating a lock should emit a LockCreatedEvent.
-	lock.SetTarget(types.LockTarget{Role: "test-role"})
-	err = p.a.UpsertLock(ctx, lock)
-	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.LockCreatedEvent)
-	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.LockCreate).Name, lock.GetName())
-	p.mockEmitter.Reset()
-
-	// Deleting a lock should emit a LockDeletedEvent.
-	err = p.a.DeleteLock(ctx, lock.GetName())
-	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.LockDeletedEvent)
-	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.LockDelete).Name, lock.GetName())
-	p.mockEmitter.Reset()
-
-	// When deleting a nonexistent lock, no event should be emitted.
-	err = p.a.DeleteLock(ctx, lock.GetName())
-	require.True(t, trace.IsNotFound(err))
-	require.Nil(t, p.mockEmitter.LastEvent())
 }
 
 func newTestServices(t *testing.T) Services {
