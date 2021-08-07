@@ -498,19 +498,21 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	s.log.Debugf("Available database servers on %v: %s.", cluster.GetName(), servers)
+	s.log.Debugf("Available databases in %v: %s.", cluster.GetName(), servers)
 	// Find out which database servers proxy the database a user is
 	// connecting to using routing information from identity.
 	var result []types.DatabaseServer
 	for _, server := range servers {
-		if server.GetName() == identity.RouteToDatabase.ServiceName {
-			result = append(result, server)
+		for _, database := range server.GetDatabases() {
+			if database.GetName() == identity.RouteToDatabase.ServiceName {
+				result = append(result, server)
+			}
 		}
 	}
 	if len(result) != 0 {
 		return cluster, result, nil
 	}
-	return nil, nil, trace.NotFound("database %q not found among registered database servers on cluster %q",
+	return nil, nil, trace.NotFound("database %q not found among registered databases in cluster %q",
 		identity.RouteToDatabase.ServiceName,
 		identity.RouteToCluster)
 }
