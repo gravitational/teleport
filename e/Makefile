@@ -58,7 +58,7 @@ BPF_TAG := bpf
 BPF_ENT_MESSAGE := "with BPF support"
 INCLUDES :=
 
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -Wl,-Bdynamic"
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -lelf -lz -Wl,-Bdynamic"
 endif
 endif
 endif
