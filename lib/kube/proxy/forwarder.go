@@ -205,7 +205,6 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		trace.Component: cfg.Component,
 	})
 
-	log.Error("Selecting Impersonation Permissions Check")
 	checkImpersonation := checkImpersonationPermissions
 	if cfg.DisableImpersonationPermissionsCheck {
 		log.Warn("Disabling Impersonation Permissions Check")
