@@ -142,9 +142,7 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 			//
 			// Since this is no longer necessary, recommend them to clean up
 			// via logs.
-			if kubeconfigPath != "" {
-				log.Info("If this is a proxy and you provided a dummy kubeconfig_file, you can remove it from teleport.yaml to get rid of this warning")
-			}
+			log.Info("If this is a proxy and you provided a dummy kubeconfig_file, you can remove it from teleport.yaml to get rid of this warning")
 		}
 	} else {
 		log.Debug("Have all necessary Kubernetes impersonation permissions.")
