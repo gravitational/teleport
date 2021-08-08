@@ -134,7 +134,7 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 	// For each loaded cluster, check impersonation permissions. This
 	// check only logs when permissions are not configured, but does not fail startup.
 	if err := checkPermissions(ctx, cluster, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
-		log.WithError(err).Warning("Failed to test the necessary Kubernetes permissions. The target Kubernetes cluster may be down. This teleport instance will still handle Kubernetes requests towards other Kubernetes clusters.")
+		log.WithError(err).Warning("Failed to test the necessary Kubernetes permissions. The target Kubernetes cluster may be down or have misconfigured RBAC. This teleport instance will still handle Kubernetes requests towards this Kubernetes cluster.")
 		if serviceType != KubeService {
 			// We used to recommend users to set a dummy kubeconfig on root
 			// proxies to get kubernetes support working for leaf clusters:
