@@ -132,7 +132,7 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 	}
 
 	// For each loaded cluster, check impersonation permissions. This
-	// failure is only critical for newKubeService.
+	// check only logs when permissions are not configured, but does not fail startup.
 	if err := checkPermissions(ctx, cluster, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
 		// kubernetes_service must have valid RBAC permissions, otherwise
 		// it's pointless.
