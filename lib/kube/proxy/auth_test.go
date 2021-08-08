@@ -119,7 +119,7 @@ func alwaysSucceeds(context.Context, string, authztypes.SelfSubjectAccessReviewI
 
 func failsForCluster(clusterName string) ImpersonationPermissionsChecker {
 	return func(ctx context.Context, cluster string, a authztypes.SelfSubjectAccessReviewInterface) error {
-		if cluster == "bar" {
+		if cluster == clusterName {
 			return errors.New("Kaboom")
 		}
 		return nil
