@@ -25,8 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -40,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -1070,7 +1069,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	return remoteSite, nil
 }
 
-// DELETE IN: 7.0.0.
+// DELETE IN: 8.0.0.
 //
 // isPreV7Cluster checks if the cluster is older than 7.0.0.
 func isPreV7Cluster(ctx context.Context, conn ssh.Conn) (bool, error) {
@@ -1079,16 +1078,15 @@ func isPreV7Cluster(ctx context.Context, conn ssh.Conn) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	// Return true if the version is older than 7.0.0, the check is actually for
-	// 6.99.99, a non-existent version, to allow this check to work during development.
 	remoteClusterVersion, err := semver.NewVersion(version)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	minClusterVersion, err := semver.NewVersion("6.99.99")
+	minClusterVersion, err := semver.NewVersion(utils.VersionBeforeAlpha("7.0.0"))
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+	// Return true if the version is older than 7.0.0
 	if remoteClusterVersion.LessThan(*minClusterVersion) {
 		return true, nil
 	}
