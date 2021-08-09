@@ -73,7 +73,7 @@ func TestMonitorLockInForce(t *testing.T) {
 	}
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: cfg.LockTargets[0]})
 	require.NoError(t, err)
-	asrv.AuthServer.UpsertLock(ctx, lock)
+	require.NoError(t, asrv.AuthServer.UpsertLock(ctx, lock))
 	select {
 	case <-conn.closedC:
 	case <-time.After(2 * time.Second):
