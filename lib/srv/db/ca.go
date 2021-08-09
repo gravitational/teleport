@@ -34,28 +34,28 @@ import (
 
 // initCACert initializes the provided server's CA certificate in case of a
 // cloud hosted database instance.
-func (s *Server) initCACert(ctx context.Context, server types.DatabaseServer) error {
+func (s *Server) initCACert(ctx context.Context, database types.Database) error {
 	// CA certificate may be set explicitly via configuration.
-	if len(server.GetCA()) != 0 {
+	if len(database.GetCA()) != 0 {
 		return nil
 	}
 	// Can only download it for cloud-hosted instances.
-	switch server.GetType() {
+	switch database.GetType() {
 	case types.DatabaseTypeRDS, types.DatabaseTypeRedshift, types.DatabaseTypeCloudSQL:
 	default:
 		return nil
 	}
 	// It's not set so download it or see if it's already downloaded.
-	bytes, err := s.getCACert(ctx, server)
+	bytes, err := s.getCACert(ctx, database)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Make sure the cert we got is valid just in case.
 	if _, err := tlsca.ParseCertificatePEM(bytes); err != nil {
 		return trace.Wrap(err, "CA certificate for %v doesn't appear to be a valid x509 certificate: %s",
-			server, bytes)
+			database, bytes)
 	}
-	server.SetCA(bytes)
+	database.SetCA(string(bytes))
 	return nil
 }
 
@@ -64,9 +64,9 @@ func (s *Server) initCACert(ctx context.Context, server types.DatabaseServer) er
 //
 // The cert can already be cached in the filesystem, otherwise we will attempt
 // to download it.
-func (s *Server) getCACert(ctx context.Context, server types.DatabaseServer) ([]byte, error) {
+func (s *Server) getCACert(ctx context.Context, database types.Database) ([]byte, error) {
 	// Auto-downloaded certs reside in the data directory.
-	filePath, err := s.getCACertPath(server)
+	filePath, err := s.getCACertPath(database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -81,8 +81,8 @@ func (s *Server) getCACert(ctx context.Context, server types.DatabaseServer) ([]
 		return ioutil.ReadFile(filePath)
 	}
 	// Otherwise download it.
-	s.log.Debugf("Downloading CA certificate for %v.", server)
-	bytes, err := s.cfg.CADownloader.Download(ctx, server)
+	s.log.Debugf("Downloading CA certificate for %v.", database)
+	bytes, err := s.cfg.CADownloader.Download(ctx, database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -97,25 +97,25 @@ func (s *Server) getCACert(ctx context.Context, server types.DatabaseServer) ([]
 
 // getCACertPath returns the path where automatically downloaded root certificate
 // for the provided database is stored in the filesystem.
-func (s *Server) getCACertPath(server types.DatabaseServer) (string, error) {
+func (s *Server) getCACertPath(database types.Database) (string, error) {
 	// All RDS and Redshift instances share the same root CA which can be
 	// downloaded from a well-known URL (sometimes region-specific). Each
 	// Cloud SQL instance has its own CA.
-	switch server.GetType() {
+	switch database.GetType() {
 	case types.DatabaseTypeRDS:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForServer(server))), nil
+		return filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForDatabase(database))), nil
 	case types.DatabaseTypeRedshift:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURL)), nil
 	case types.DatabaseTypeCloudSQL:
-		return filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", server.GetName())), nil
+		return filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName())), nil
 	}
-	return "", trace.BadParameter("%v doesn't support automatic CA download", server)
+	return "", trace.BadParameter("%v doesn't support automatic CA download", database)
 }
 
 // CADownloader defines interface for cloud databases CA cert downloaders.
 type CADownloader interface {
 	// Download downloads CA certificate for the provided database instance.
-	Download(context.Context, types.DatabaseServer) ([]byte, error)
+	Download(context.Context, types.Database) ([]byte, error)
 }
 
 type realDownloader struct {
@@ -128,16 +128,16 @@ func NewRealDownloader(dataDir string) CADownloader {
 }
 
 // Download downloads CA certificate for the provided cloud database instance.
-func (d *realDownloader) Download(ctx context.Context, server types.DatabaseServer) ([]byte, error) {
-	switch server.GetType() {
+func (d *realDownloader) Download(ctx context.Context, database types.Database) ([]byte, error) {
+	switch database.GetType() {
 	case types.DatabaseTypeRDS:
-		return d.downloadFromURL(rdsCAURLForServer(server))
+		return d.downloadFromURL(rdsCAURLForDatabase(database))
 	case types.DatabaseTypeRedshift:
 		return d.downloadFromURL(redshiftCAURL)
 	case types.DatabaseTypeCloudSQL:
-		return d.downloadForCloudSQL(ctx, server)
+		return d.downloadForCloudSQL(ctx, database)
 	}
-	return nil, trace.BadParameter("%v doesn't support automatic CA download", server)
+	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
 }
 
 // downloadFromURL downloads root certificate from the provided URL.
@@ -163,28 +163,28 @@ func (d *realDownloader) downloadFromURL(downloadURL string) ([]byte, error) {
 //
 // This database service GCP IAM role should have "cloudsql.instances.get"
 // permission in order for this to work.
-func (d *realDownloader) downloadForCloudSQL(ctx context.Context, server types.DatabaseServer) ([]byte, error) {
+func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types.Database) ([]byte, error) {
 	sqladminService, err := sqladmin.NewService(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	instance, err := sqladmin.NewInstancesService(sqladminService).Get(
-		server.GetGCP().ProjectID, server.GetGCP().InstanceID).Context(ctx).Do()
+		database.GetGCP().ProjectID, database.GetGCP().InstanceID).Context(ctx).Do()
 	if err != nil {
-		return nil, trace.BadParameter(cloudSQLDownloadError, server.GetName(),
-			err, server.GetGCP().InstanceID)
+		return nil, trace.BadParameter(cloudSQLDownloadError, database.GetName(),
+			err, database.GetGCP().InstanceID)
 	}
 	if instance.ServerCaCert != nil {
 		return []byte(instance.ServerCaCert.Cert), nil
 	}
 	return nil, trace.NotFound("Cloud SQL instance %v does not contain server CA certificate info: %v",
-		server, instance)
+		database, instance)
 }
 
-// rdsCAURLForServer returns root certificate download URL based on the region
+// rdsCAURLForDatabase returns root certificate download URL based on the region
 // of the provided RDS server instance.
-func rdsCAURLForServer(server types.DatabaseServer) string {
-	if u, ok := rdsCAURLs[server.GetAWS().Region]; ok {
+func rdsCAURLForDatabase(database types.Database) string {
+	if u, ok := rdsCAURLs[database.GetAWS().Region]; ok {
 		return u
 	}
 	return rdsDefaultCAURL

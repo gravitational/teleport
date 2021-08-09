@@ -687,11 +687,11 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 				logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue
 			}
-			if !containsDBServer(servers, p.leaf.mysqlService.Name) {
+			if !containsDB(servers, p.leaf.mysqlService.Name) {
 				logrus.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
 				continue
 			}
-			if !containsDBServer(servers, p.leaf.postgresService.Name) {
+			if !containsDB(servers, p.leaf.postgresService.Name) {
 				logrus.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
 				continue
 			}
@@ -702,10 +702,12 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 	}
 }
 
-func containsDBServer(servers []types.DatabaseServer, name string) bool {
+func containsDB(servers []types.DatabaseServer, name string) bool {
 	for _, server := range servers {
-		if server.GetMetadata().Name == name {
-			return true
+		for _, database := range server.GetDatabases() {
+			if database.GetName() == name {
+				return true
+			}
 		}
 	}
 	return false
