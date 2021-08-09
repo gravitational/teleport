@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -31,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *events.MockEmitter, MonitorConfig) {
@@ -43,7 +43,7 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 		Emitter:     emitter,
 		Clock:       asrv.Clock(),
 		Tracker:     &mockActivityTracker{asrv.Clock()},
-		Entry:       utils.NewLoggerForTests(),
+		Entry:       logrus.StandardLogger(),
 		LockWatcher: asrv.LockWatcher,
 		LockTargets: []types.LockTarget{{User: "test-user"}},
 		LockingMode: constants.LockingModeBestEffort,
