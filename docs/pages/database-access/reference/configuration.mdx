@@ -55,6 +55,16 @@ db_service:
 
 The following Proxy service configuration is relevant for Database Access:
 
+<Admonition
+  type="warning"
+  title="Proxy TLS Warning for PostgreSQL"
+>
+  The PostgreSQL connection requires TLS enabled for the SSL connection that operates on the `web_listen_addr`.
+  Do not set `--insecure-no-tls` for the proxy Teleport instances as a parameter.  If you are terminating TLS at a
+  Application Load Balancer (ALB) or other service that may require enabling a backend protocol of HTTPS for the target address.  
+</Admonition>
+
+
 ```yaml
 proxy_service:
   enabled: "yes"
