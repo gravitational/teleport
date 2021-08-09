@@ -1231,4 +1231,17 @@ service AuthService {
     rpc SetNetworkRestrictions(types.NetworkRestrictionsV4) returns (google.protobuf.Empty);
     // DeleteNetworkRestrictions delete the network restrictions.
     rpc DeleteNetworkRestrictions(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetDatabases returns all registered databases.
+    rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);
+    // GetDatabase returns a database by name.
+    rpc GetDatabase(types.ResourceRequest) returns (types.DatabaseV3);
+    // CreateDatabase creates a new database resource.
+    rpc CreateDatabase(types.DatabaseV3) returns (google.protobuf.Empty);
+    // UpdateDatabase updates existing database resource.
+    rpc UpdateDatabase(types.DatabaseV3) returns (google.protobuf.Empty);
+    // DeleteDatabase removes specified database resource.
+    rpc DeleteDatabase(types.ResourceRequest) returns (google.protobuf.Empty);
+    // DeleteAllDatabases removes all database resources.
+    rpc DeleteAllDatabases(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

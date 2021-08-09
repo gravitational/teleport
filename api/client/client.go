@@ -1746,3 +1746,60 @@ func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
 	}
 	return nil
 }
+
+// CreateDatabase creates a new database resource.
+func (c *Client) CreateDatabase(ctx context.Context, database types.Database) error {
+	databaseV3, ok := database.(*types.DatabaseV3)
+	if !ok {
+		return trace.BadParameter("unsupported database type %T", database)
+	}
+	_, err := c.grpc.CreateDatabase(ctx, databaseV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateDatabase updates existing database resource.
+func (c *Client) UpdateDatabase(ctx context.Context, database types.Database) error {
+	databaseV3, ok := database.(*types.DatabaseV3)
+	if !ok {
+		return trace.BadParameter("unsupported database type %T", database)
+	}
+	_, err := c.grpc.UpdateDatabase(ctx, databaseV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetDatabase returns the specified database resource.
+func (c *Client) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing database name")
+	}
+	database, err := c.grpc.GetDatabase(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return database, nil
+}
+
+// GetDatabases returns all database resources.
+func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	items, err := c.grpc.GetDatabases(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	databases := make([]types.Database, len(items.Databases))
+	for i := range items.Databases {
+		databases[i] = items.Databases[i]
+	}
+	return databases, nil
+}
+
+// DeleteDatabase deletes specified database resource.
+func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteDatabase(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllDatabases deletes all database resources.
+func (c *Client) DeleteAllDatabases(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllDatabases(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}

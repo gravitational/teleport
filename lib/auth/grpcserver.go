@@ -1411,7 +1411,7 @@ func downgradeRole(ctx context.Context, role *types.RoleV4) (*types.RoleV4, erro
 		}
 	}
 
-	minSupportedVersionForV4Roles := semver.New("6.2.4-aa") // "aa" is included so that this compares before v6.2.4-alpha
+	minSupportedVersionForV4Roles := semver.New(utils.VersionBeforeAlpha("6.2.4"))
 	if clientVersion == nil || clientVersion.LessThan(*minSupportedVersionForV4Roles) {
 		log.Debugf(`Client version "%s" is unknown or less than 6.2.4, converting role to v3`, clientVersionString)
 		downgraded, err := services.DowngradeRoleToV3(role)
@@ -2887,6 +2887,94 @@ func (g *GRPCServer) ReplaceRemoteLocks(ctx context.Context, req *proto.ReplaceR
 		locks = append(locks, lock)
 	}
 	if err := auth.ReplaceRemoteLocks(ctx, req.ClusterName, locks); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// CreateDatabase creates a new database resource.
+func (g *GRPCServer) CreateDatabase(ctx context.Context, database *types.DatabaseV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.CreateDatabase(ctx, database); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// UpdateDatabase updates existing database resource.
+func (g *GRPCServer) UpdateDatabase(ctx context.Context, database *types.DatabaseV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.UpdateDatabase(ctx, database); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetDatabase returns the specified database resource.
+func (g *GRPCServer) GetDatabase(ctx context.Context, req *types.ResourceRequest) (*types.DatabaseV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	database, err := auth.GetDatabase(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	databaseV3, ok := database.(*types.DatabaseV3)
+	if !ok {
+		return nil, trace.BadParameter("unsupported database type %T", database)
+	}
+	return databaseV3, nil
+}
+
+// GetDatabases returns all database resources.
+func (g *GRPCServer) GetDatabases(ctx context.Context, _ *empty.Empty) (*types.DatabaseV3List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	databases, err := auth.GetDatabases(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var databasesV3 []*types.DatabaseV3
+	for _, database := range databases {
+		databaseV3, ok := database.(*types.DatabaseV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported database type %T", database)
+		}
+		databasesV3 = append(databasesV3, databaseV3)
+	}
+	return &types.DatabaseV3List{
+		Databases: databasesV3,
+	}, nil
+}
+
+// DeleteDatabase removes the specified database.
+func (g *GRPCServer) DeleteDatabase(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteDatabase(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllDatabases removes all databases.
+func (g *GRPCServer) DeleteAllDatabases(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteAllDatabases(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil
