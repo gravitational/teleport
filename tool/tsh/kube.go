@@ -228,7 +228,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	}
 
 	// Try updating the active kubeconfig context.
-	if err := kubeconfig.SelectContext("", currentTeleportCluster, c.kubeCluster); err != nil {
+	if err := kubeconfig.SelectContext(currentTeleportCluster, c.kubeCluster); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}

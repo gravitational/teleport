@@ -176,10 +176,6 @@ func Remove(path, name string) error {
 // Load tries to read a kubeconfig file and if it can't, returns an error.
 // One exception, missing files result in empty configs, not an error.
 func Load(path string) (*clientcmdapi.Config, error) {
-	if path == "" {
-		path = PathFromEnv()
-	}
-
 	filename, err := finalPath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -199,10 +195,6 @@ func Load(path string) (*clientcmdapi.Config, error) {
 // Save saves updated config to location specified by environment variable or
 // default location
 func Save(path string, config clientcmdapi.Config) error {
-	if path == "" {
-		path = PathFromEnv()
-	}
-
 	filename, err := finalPath(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -217,11 +209,15 @@ func Save(path string, config clientcmdapi.Config) error {
 // finalPath returns the final path to kubeceonfig using, in order of
 // precedence:
 // - `customPath`, if not empty
+// - ${KUBECONFIG} environment variable
 // - ${HOME}/.kube/config
 //
 // finalPath also creates any parent directories for the returned path, if
 // missing.
 func finalPath(customPath string) (string, error) {
+	if customPath == "" {
+		customPath = PathFromEnv()
+	}
 	finalPath, err := utils.EnsureLocalPath(customPath, teleport.KubeConfigDir, teleport.KubeConfigFile)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -263,10 +259,10 @@ func KubeClusterFromContext(contextName, teleportCluster string) string {
 	return strings.TrimPrefix(contextName, teleportCluster+"-")
 }
 
-// SelectContext switches the given kubeconfig's active context to point to the
+// SelectContext switches the active kubeconfig context to point to the
 // provided kubeCluster in teleportCluster.
-func SelectContext(path, teleportCluster, kubeCluster string) error {
-	kc, err := Load(path)
+func SelectContext(teleportCluster, kubeCluster string) error {
+	kc, err := Load("")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -276,7 +272,7 @@ func SelectContext(path, teleportCluster, kubeCluster string) error {
 		return trace.NotFound("kubeconfig context %q not found", kubeContext)
 	}
 	kc.CurrentContext = kubeContext
-	if err := Save(path, *kc); err != nil {
+	if err := Save("", *kc); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
