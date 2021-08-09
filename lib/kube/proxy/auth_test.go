@@ -241,6 +241,11 @@ current-context: foo
 					transportConfig: &transport.Config{},
 					kubeClient:      &kubernetes.Clientset{},
 				},
+				"bar": {
+					targetAddr:      "example.com:3026",
+					transportConfig: &transport.Config{},
+					kubeClient:      &kubernetes.Clientset{},
+				},
 				"baz": {
 					targetAddr:      "example.com:3026",
 					transportConfig: &transport.Config{},

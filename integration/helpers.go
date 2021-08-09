@@ -60,6 +60,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -112,8 +114,6 @@ type TeleInstance struct {
 
 	// log specifies the instance logger
 	log utils.Logger
-
-	DisableKubeImpersonationPermissionsCheck bool
 }
 
 type User struct {
@@ -173,8 +173,6 @@ type InstanceConfig struct {
 
 	// log specifies the logger
 	log utils.Logger
-
-	DisableKubeImpersonationPermissionsCheck bool
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -238,11 +236,10 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	fatalIf(err)
 
 	i := &TeleInstance{
-		Ports:                                    cfg.Ports,
-		Hostname:                                 cfg.NodeName,
-		UploadEventsC:                            make(chan events.UploadEvent, 100),
-		log:                                      cfg.log,
-		DisableKubeImpersonationPermissionsCheck: cfg.DisableKubeImpersonationPermissionsCheck,
+		Ports:         cfg.Ports,
+		Hostname:      cfg.NodeName,
+		UploadEventsC: make(chan events.UploadEvent, 100),
+		log:           cfg.log,
 	}
 	secrets := InstanceSecrets{
 		SiteName:       cfg.ClusterName,
@@ -620,11 +617,15 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
 	}
 
-	tconf.Kube.DisableImpersonationPermissionsCheck = i.DisableKubeImpersonationPermissionsCheck
+	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
 	tconf.Keygen = testauthority.New()
 	i.Config = tconf
 	return tconf, nil
+}
+
+func nullImpersonationCheck(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {
+	return nil
 }
 
 // CreateEx creates a new instance of Teleport which trusts a list of other clusters (other

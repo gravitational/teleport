@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -586,7 +587,9 @@ type KubeConfig struct {
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
 
-	DisableImpersonationPermissionsCheck bool
+	// CheckImpersonationPermissions is an optional override to the default
+	// impersonation permissions check, for use in testing. 
+	CheckImpersonationPermissions proxy.ImpersonationPermissionsChecker
 }
 
 // DatabasesConfig configures the database proxy service.

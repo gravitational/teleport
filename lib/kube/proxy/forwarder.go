@@ -134,8 +134,9 @@ type ForwarderConfig struct {
 	DynamicLabels *labels.Dynamic
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
-
-	DisableImpersonationPermissionsCheck bool
+	// CheckImpersonationPermissions is an optional override of the default
+	// impersonation permissions check, for use in testing
+	CheckImpersonationPermissions ImpersonationPermissionsChecker
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -205,10 +206,11 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		trace.Component: cfg.Component,
 	})
 
+	// Pick the permissions check function to use, applying an override
+	// if specified.
 	checkImpersonation := checkImpersonationPermissions
-	if cfg.DisableImpersonationPermissionsCheck {
-		log.Warn("Disabling Impersonation Permissions Check")
-		checkImpersonation = nullImpersonationPermissionsCheck
+	if cfg.CheckImpersonationPermissions != nil {
+		checkImpersonation = cfg.CheckImpersonationPermissions
 	}
 
 	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, checkImpersonation)
