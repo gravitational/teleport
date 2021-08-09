@@ -19,8 +19,6 @@ package types
 import (
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
 )
 
@@ -73,16 +71,7 @@ type ClusterAuditConfig interface {
 
 // NewClusterAuditConfig is a convenience method to to create ClusterAuditConfigV2.
 func NewClusterAuditConfig(spec ClusterAuditConfigSpecV2) (ClusterAuditConfig, error) {
-	auditConfig := &ClusterAuditConfigV2{
-		Kind:    KindClusterAuditConfig,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameClusterAuditConfig,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
-	}
-
+	auditConfig := &ClusterAuditConfigV2{Spec: spec}
 	if err := auditConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
