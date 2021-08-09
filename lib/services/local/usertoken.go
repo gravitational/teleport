@@ -36,7 +36,7 @@ func (s *IdentityService) GetUserTokens(ctx context.Context) ([]types.UserToken,
 	}
 
 	// DELETE IN 9.0.0 retrieve tokens with old prefix.
-	startKey = backend.Key(passwordTokensPrefix)
+	startKey = backend.Key(LegacyPasswordTokensPrefix)
 	oldPrefixResult, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -74,8 +74,8 @@ func (s *IdentityService) DeleteUserToken(ctx context.Context, tokenID string) e
 	}
 
 	// DELETE IN 9.0.0 also delete any tokens with old prefix.
-	startKey = backend.Key(passwordTokensPrefix, tokenID)
-	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+	startKey = backend.Key(LegacyPasswordTokensPrefix, tokenID)
+	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // GetUserToken returns a token by its ID.
@@ -84,7 +84,7 @@ func (s *IdentityService) GetUserToken(ctx context.Context, tokenID string) (typ
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// DELETE IN 9.0.0: fallback for old prefix
-			item, err = s.Get(ctx, backend.Key(passwordTokensPrefix, tokenID, paramsPrefix))
+			item, err = s.Get(ctx, backend.Key(LegacyPasswordTokensPrefix, tokenID, paramsPrefix))
 			if err != nil {
 				if trace.IsNotFound(err) {
 					return nil, trace.NotFound("user token(%v) not found", tokenID)
@@ -134,7 +134,7 @@ func (s *IdentityService) GetUserTokenSecrets(ctx context.Context, tokenID strin
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// DELETE IN 9.0.0: fallback for old prefix
-			item, err = s.Get(ctx, backend.Key(passwordTokensPrefix, tokenID, secretsPrefix))
+			item, err = s.Get(ctx, backend.Key(LegacyPasswordTokensPrefix, tokenID, secretsPrefix))
 			if err != nil {
 				if trace.IsNotFound(err) {
 					return nil, trace.NotFound("user token(%v) secrets not found", tokenID)
@@ -176,7 +176,7 @@ func (s *IdentityService) UpsertUserTokenSecrets(ctx context.Context, secrets ty
 
 const (
 	// DELETE IN 9.0.0 in favor of userTokenPrefix.
-	passwordTokensPrefix = "resetpasswordtokens"
-	userTokenPrefix      = "usertoken"
-	secretsPrefix        = "secrets"
+	LegacyPasswordTokensPrefix = "resetpasswordtokens"
+	userTokenPrefix            = "usertoken"
+	secretsPrefix              = "secrets"
 )
