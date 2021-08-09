@@ -178,7 +178,7 @@ func onConfigProxy(cf *CLIConf) error {
 
 	args := []string{
 		"-p",
-		string(proxyPort),
+		proxyPort,
 		proxyHost,
 		"-s",
 	}
