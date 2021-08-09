@@ -43,6 +43,10 @@ type WebConfig struct {
 	CanJoinSessions bool `json:"canJoinSessions"`
 	// ProxyClusterName is the name of the local cluster
 	ProxyClusterName string `json:"proxyCluster,omitempty"`
+	// WebIdleTimeout specifies how long a user WebUI session can be left
+	// idle before being logged out by the server. A zero value means there
+	// is no idle timeout set.
+	WebIdleTimeout int `json:"webIdleTimeout"`
 }
 
 // WebConfigAuthProvider describes auth. provider

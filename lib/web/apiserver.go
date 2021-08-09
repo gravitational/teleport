@@ -90,6 +90,11 @@ type Handler struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
+
+	// webIdleTimeout specifies how long a user WebUI session can be left
+	// idle before being logged out by the server. A zero value means there
+	// is no idle timeout set.
+	webIdleTimeout time.Duration
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -214,6 +219,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		log:             newPackageLogger(),
 		clock:           clockwork.NewRealClock(),
 		clusterFeatures: cfg.ClusterFeatures,
+		webIdleTimeout:  cfg.WebIdleTimeout,
 	}
 
 	for _, o := range opts {
@@ -839,6 +845,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	webCfg := ui.WebConfig{
 		Auth:            authSettings,
 		CanJoinSessions: canJoinSessions,
+		WebIdleTimeout:  int(h.webIdleTimeout.Milliseconds()),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
