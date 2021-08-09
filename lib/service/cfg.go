@@ -588,7 +588,7 @@ type KubeConfig struct {
 	Limiter limiter.Config
 
 	// CheckImpersonationPermissions is an optional override to the default
-	// impersonation permissions check, for use in testing. 
+	// impersonation permissions check, for use in testing.
 	CheckImpersonationPermissions proxy.ImpersonationPermissionsChecker
 }
 

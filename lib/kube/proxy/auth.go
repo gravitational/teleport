@@ -44,7 +44,7 @@ type kubeCreds struct {
 }
 
 // ImpersonationPermissionsChecker describes a function that can be used to check
-// for the required impersonation permissions on a Kubernetes cluster. Return nil 
+// for the required impersonation permissions on a Kubernetes cluster. Return nil
 // to indicate success.
 type ImpersonationPermissionsChecker func(ctx context.Context, clusterName string,
 	sarClient authztypes.SelfSubjectAccessReviewInterface) error
