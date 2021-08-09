@@ -57,11 +57,22 @@ All encrypted objects should be suffixed by a `.enc` extension to communicate th
 
 The file that stores the encrypted data key should be a file with the name `$objectName.key` stored next to the encrypted object.
 
+Each encrypted object has an accompanying file named `$objectName.key` that stores a JSON document of this format.
+
+```json
+{
+    // Contains a base64 encoded AES-CBC-HMACSHA256 data key encrypted with the master key.
+    "dataKey": "string",
+
+    // An integer starting at 1 one that communicates the schema used for encryption.
+    // May be changed in the future.
+    "version": "number",
+}
+```
+
 This format allows a decrypting auth server to easily fetch and decrypt the data key using the master key. It can then fetch and decrypt the object itself.
 
 Key rotation in event of a security incident can be performed by fetching and rewriting every key file to reencrypt the data key.
-
-Both the data and key file should have a short 8 byte header declaring the version. The header is to be interpreted as a little-endian 64 bit signed integer and the version described in this RFD is represented as 1.
 
 The format detailed above should be used wherever it makes sense from a security standpoint. Devitations from how the data object is encrypted should be made wherever necessary but the key bundle format should never be deviated from. A notable deviation that will be made is for Parquet based files where the encryption will be handled by giving Parquet control of the symmetric data key. The reason for this is that flat-file encryption with Parquet is vulnerable to security attacks similar to CRIME.
 
