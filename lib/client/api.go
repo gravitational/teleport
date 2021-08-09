@@ -1837,6 +1837,19 @@ func (tc *TeleportClient) ListDatabaseServers(ctx context.Context) ([]types.Data
 	return proxyClient.GetDatabaseServers(ctx, tc.Namespace)
 }
 
+// ListDatabases returns all registered databases.
+func (tc *TeleportClient) ListDatabases(ctx context.Context) ([]types.Database, error) {
+	servers, err := tc.ListDatabaseServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var databases []types.Database
+	for _, server := range servers {
+		databases = append(databases, server.GetDatabases()...)
+	}
+	return types.DeduplicateDatabases(databases), nil
+}
+
 // ListAllNodes is the same as ListNodes except that it ignores labels.
 func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -2358,9 +2371,14 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
-		if err := utils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil {
-			fmt.Printf("\nWARNING: %v\n", err)
-			fmt.Printf("Future versions of tsh will fail when incompatible versions are detected.\n\n")
+		if err := utils.CheckVersion(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
+			fmt.Printf(`
+			WARNING
+			Detected potentially incompatible client and server versions.
+			Minimum client version supported by the server is %v but you are using %v.
+			Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
+			Future versions of tsh will fail when incompatible versions are detected.
+			`, pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
 		}
 	}
 

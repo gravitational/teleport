@@ -121,13 +121,14 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	presence := NewPresenceService(backend)
 
 	// Create a database server.
-	server, err := types.NewDatabaseServerV3("foo", nil,
-		types.DatabaseServerSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-			Hostname: "localhost",
-			HostID:   uuid.New(),
-		})
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "foo",
+	}, types.DatabaseServerSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		Hostname: "localhost",
+		HostID:   uuid.New(),
+	})
 	require.NoError(t, err)
 
 	// Initially expect not to be returned any servers.

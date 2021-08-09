@@ -109,6 +109,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Restrictions == nil {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
 	}
+	if cfg.Databases == nil {
+		cfg.Databases = local.NewDatabasesService(cfg.Backend)
+	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend, cfg.ClusterConfiguration.GetClusterConfig)
 	}
@@ -157,6 +160,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			DynamicAccessExt:     cfg.DynamicAccessExt,
 			ClusterConfiguration: cfg.ClusterConfiguration,
 			Restrictions:         cfg.Restrictions,
+			Databases:            cfg.Databases,
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
 		},
@@ -181,6 +185,7 @@ type Services struct {
 	services.DynamicAccessExt
 	services.ClusterConfiguration
 	services.Restrictions
+	services.Databases
 	types.Events
 	events.IAuditLog
 }
@@ -2347,15 +2352,17 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
-		dbs, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
+		servers, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var db types.DatabaseServer
-		for _, d := range dbs {
-			if d.GetName() == t.Database.ServiceName {
-				db = d
-				break
+		var db types.Database
+		for _, server := range servers {
+			for _, d := range server.GetDatabases() {
+				if d.GetName() == t.Database.ServiceName {
+					db = d
+					break
+				}
 			}
 		}
 		if db == nil {
