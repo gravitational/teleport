@@ -18,7 +18,7 @@ limitations under the License.
 
 package datalog
 
-// #cgo LDFLAGS: -Lroletester/target/release -lrole_tester
+// #cgo LDFLAGS: -L./roletester/target/release -lrole_tester
 // #include <stdio.h>
 // #include <stdlib.h>
 // typedef struct status status_t;

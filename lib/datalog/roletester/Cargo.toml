@@ -6,7 +6,7 @@ edition = "2018"
 
 [lib]
 path = "src/role_tester.rs"
-crate-type = ["dylib"]
+crate-type = ["staticlib"]
 
 [dependencies]
 crepe = "0.1.5"
