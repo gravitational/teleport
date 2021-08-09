@@ -55,7 +55,7 @@ For facilitating key rotation the encrypted objects should be stored in a sepera
 
 All encrypted objects should be suffixed by a `.enc` extension to communicate that they are encrypted. For simplicity no other data should be bundled in the same file.
 
-The file that stores the encrypted data key should be a file with the name `$objectName.keys` stored next to the encrypted object.
+The file that stores the encrypted data key should be a file with the name `$objectName.key` stored next to the encrypted object.
 
 This format allows a decrypting auth server to easily fetch and decrypt the data key using the master key. It can then fetch and decrypt the object itself.
 
