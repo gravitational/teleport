@@ -30,9 +30,9 @@ type ListenerMuxWrapper struct {
 	net.Listener
 	// alpnListener is the ALPN service listener.
 	alpnListener net.Listener
-	connC chan net.Conn
-	errC  chan error
-	close chan struct{}
+	connC        chan net.Conn
+	errC         chan error
+	close        chan struct{}
 }
 
 // NewMuxListenerWrapper creates a new instance of ListenerMuxWrapper

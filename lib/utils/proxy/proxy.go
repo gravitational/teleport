@@ -86,12 +86,6 @@ type directDial struct {
 	useTLS bool
 }
 
-// isALPNUnsupportedError allows to determine if a teleport proxy client tried to connect to ALPN SNI proxy with raw
-// ssh protocol. After detecting this case the client fallback to TLS dialer.
-func isALPNUnsupportedError(err error) bool {
-	return err.Error() == "ssh: handshake failed: EOF"
-}
-
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	if d.useTLS {
@@ -333,7 +327,6 @@ func (bc *bufferedConn) Read(b []byte) (n int, err error) {
 	}
 	return bc.Conn.Read(b)
 }
-
 
 // parse will extract the host:port of the proxy to dial to. If the
 // value is not prefixed by "http", then it will prepend "http" and try.

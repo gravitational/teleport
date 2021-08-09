@@ -301,30 +301,6 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	return nil, trace.BadParameter("failed to dial: all auth methods failed")
 }
 
-func (a *Agent) connectWithTLSDirectDialer(authMethod ssh.AuthMethod) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
-	dialer := proxy.DialerFromEnvironment(a.Addr.Addr, proxy.WithTLSDialer())
-	pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-	conn, chans, reqs, err := ssh.NewClientConn(pconn, a.Addr.Addr, &ssh.ClientConfig{
-		User:            a.Username,
-		Auth:            []ssh.AuthMethod{authMethod},
-		HostKeyCallback: a.checkHostSignature,
-		Timeout:         apidefaults.DefaultDialTimeout,
-	})
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-	return conn, chans, reqs, nil
-}
-
-// isALPNUnsupportedError allows to determining if a teleport proxy client tried to connect to ALPN SNI proxy with raw
-// ssh protocol. After detecting this case the client fallback to TLS dialer.
-func isALPNUnsupportedError(err error) bool {
-	return err.Error() == "ssh: handshake failed: EOF"
-}
-
 // handleGlobalRequests processes global requests from the server.
 func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
 	for {
