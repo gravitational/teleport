@@ -206,7 +206,7 @@ test: buildbox
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
-.PHONY:test
+.PHONY:test-root
 test-root: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \
