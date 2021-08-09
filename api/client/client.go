@@ -1661,7 +1661,7 @@ func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...type
 	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
 		InForceOnly: inForceOnly,
 		Targets:     targetPtrs,
-	})
+	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1694,6 +1694,26 @@ func (c *Client) DeleteLock(ctx context.Context, name string) error {
 // DeleteAllLocks not implemented: can only be called locally.
 func (c *Client) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (c *Client) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+	lockV2s := make([]*types.LockV2, 0, len(locks))
+	for _, lock := range locks {
+		lockV2, ok := lock.(*types.LockV2)
+		if !ok {
+			return trace.BadParameter("unexpected lock type %T", lock)
+		}
+		lockV2s = append(lockV2s, lockV2)
+	}
+	_, err := c.grpc.ReplaceRemoteLocks(ctx, &proto.ReplaceRemoteLocksRequest{
+		ClusterName: clusterName,
+		Locks:       lockV2s,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
 }
 
 // GetNetworkRestrictions retrieves the network restrictions

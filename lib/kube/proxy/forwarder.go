@@ -1331,7 +1331,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           s.parent.cfg.LockWatcher,
-		LockTargets:           services.LockTargetsFromTLSIdentity(s.UnmappedIdentity.GetIdentity()),
+		LockTargets:           s.LockTargets(),
 		DisconnectExpiredCert: s.disconnectExpiredCert,
 		ClientIdleTimeout:     s.clientIdleTimeout,
 		Clock:                 s.parent.cfg.Clock,
