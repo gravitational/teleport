@@ -74,7 +74,7 @@ func getWithFallback(ctx context.Context, clt *http.Client, allowPlainHTTP bool,
 		return nil, trace.Wrap(err)
 	}
 
-	// If we get to here a) the attempt HTTPS failed, and b) we're allowed to try
+	// If we get to here a) the HTTPS attempt failed, and b) we're allowed to try
 	// clear-text HTTP to see if that works.
 	endpoint = fmt.Sprintf("http://%s%s", proxyAddr, path)
 	log.Debugf("Falling back to plain %s", endpoint)
