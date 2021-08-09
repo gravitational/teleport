@@ -68,7 +68,7 @@ func (c *DBCommand) ListDatabases(client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := &dbCollection{servers: servers}
+	coll := &databaseServerCollection{servers: servers}
 	switch c.format {
 	case teleport.Text:
 		err = coll.writeText(os.Stdout)

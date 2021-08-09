@@ -45,6 +45,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -108,6 +109,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Restrictions == nil {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
 	}
+	if cfg.Databases == nil {
+		cfg.Databases = local.NewDatabasesService(cfg.Backend)
+	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend, cfg.ClusterConfiguration.GetClusterConfig)
 	}
@@ -127,6 +131,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO(nic): update this with real keystore config
+	keyStore := keystore.NewRawKeyStore(&keystore.RawConfig{
+		RSAKeyPairSource: cfg.Authority.GenerateKeyPair,
+	})
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
@@ -151,9 +160,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			DynamicAccessExt:     cfg.DynamicAccessExt,
 			ClusterConfiguration: cfg.ClusterConfiguration,
 			Restrictions:         cfg.Restrictions,
+			Databases:            cfg.Databases,
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
 		},
+		keyStore: keyStore,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -174,6 +185,7 @@ type Services struct {
 	services.DynamicAccessExt
 	services.ClusterConfiguration
 	services.Restrictions
+	services.Databases
 	types.Events
 	events.IAuditLog
 }
@@ -290,6 +302,10 @@ type Server struct {
 	// streamer is events sessionstreamer, used to create continuous
 	// session related streams
 	streamer events.Streamer
+
+	// keyStore is an interface for interacting with private keys in CAs which
+	// may be backed by HSMs
+	keyStore keystore.KeyStore
 }
 
 // SetCache sets cache used by auth server
@@ -445,19 +461,13 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, err := tlsca.FromAuthority(hostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Marshal to PEM bytes to send the CA over the wire.
-	pemBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
+	cert, _, err := a.keyStore.GetTLSCertAndSigner(hostCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &LocalCAResponse{
-		TLSCA: pemBytes,
+		TLSCA: cert,
 	}, nil
 }
 
@@ -478,7 +488,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
-	caSigner, err := sshSigner(ca)
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -497,24 +507,9 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	})
 }
 
-func sshSigner(ca types.CertAuthority) (ssh.Signer, error) {
-	keyPairs := ca.GetActiveKeys().SSH
-	if len(keyPairs) == 0 {
-		return nil, trace.NotFound("no SSH key pairs found in CA for %q", ca.GetClusterName())
-	}
-	// TODO(nic): update after PKCS#11 keys are supported.
-	for _, kp := range keyPairs {
-		if kp.PrivateKeyType != types.PrivateKeyType_RAW {
-			continue
-		}
-		signer, err := ssh.ParsePrivateKey(kp.PrivateKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		signer = sshutils.AlgSigner(signer, sshutils.GetSigningAlgName(ca))
-		return signer, nil
-	}
-	return nil, trace.NotFound("no raw SSH private key found in CA for %q", ca.GetClusterName())
+// GetKeyStore returns the KeyStore used by the auth server
+func (a *Server) GetKeyStore() keystore.KeyStore {
+	return a.keyStore
 }
 
 // certs is a pair of SSH and TLS certificates
@@ -819,7 +814,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caSigner, err := sshSigner(ca)
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -880,7 +875,11 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	}
 
 	// generate TLS certificate
-	tlsAuthority, err := tlsca.FromAuthority(ca)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsAuthority, err := tlsca.FromCertAndSigner(cert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1463,12 +1462,16 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		}
 	}
 
-	tlsAuthority, err := tlsca.FromAuthority(ca)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsAuthority, err := tlsca.FromCertAndSigner(cert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caSigner, err := sshSigner(ca)
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2272,7 +2275,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	var noMFAAccessErr, notFoundErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
-		notFoundErr = trace.NotFound("node %q not found", t.Node)
 		if t.Node.Node == "" {
 			return nil, trace.BadParameter("empty Node field")
 		}
@@ -2312,7 +2314,9 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
 			err := checker.CheckAccessToServer(t.Node.Login, n, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
-			if err != nil {
+
+			// Ignore other errors; they'll be caught on the real access attempt.
+			if err != nil && errors.Is(err, services.ErrSessionMFARequired) {
 				noMFAAccessErr = err
 				break
 			}
@@ -2348,15 +2352,17 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
-		dbs, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
+		servers, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var db types.DatabaseServer
-		for _, d := range dbs {
-			if d.GetName() == t.Database.ServiceName {
-				db = d
-				break
+		var db types.Database
+		for _, server := range servers {
+			for _, d := range server.GetDatabases() {
+				if d.GetName() == t.Database.ServiceName {
+					db = d
+					break
+				}
 			}
 		}
 		if db == nil {
@@ -2375,17 +2381,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// Errors other than ErrSessionMFARequired mean something else is wrong,
 	// most likely access denied.
 	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
-		if trace.IsAccessDenied(noMFAAccessErr) {
-			log.Infof("Access to resource denied: %v", noMFAAccessErr)
-			// notFoundErr should always be set by this point, but check it
-			// just in case.
-			if notFoundErr == nil {
-				notFoundErr = trace.NotFound("target resource not found")
-			}
-			// Mask access denied errors to prevent resource name oracles.
-			return nil, trace.Wrap(notFoundErr)
+		if !trace.IsAccessDenied(noMFAAccessErr) {
+			log.WithError(noMFAAccessErr).Warn("Could not determine MFA access")
 		}
-		return nil, trace.Wrap(noMFAAccessErr)
+
+		// Mask the access denied errors by returning false to prevent resource
+		// name oracles. Auth will be denied (and generate an audit log entry)
+		// when the client attempts to connect.
+		return &proto.IsMFARequiredResponse{Required: false}, nil
 	}
 	// If we reach here, the error from AccessChecker was
 	// ErrSessionMFARequired.

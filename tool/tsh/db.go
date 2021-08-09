@@ -42,9 +42,9 @@ func onListDatabases(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var servers []types.DatabaseServer
+	var databases []types.Database
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		servers, err = tc.ListDatabaseServers(cf.Context)
+		databases, err = tc.ListDatabases(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -60,11 +60,10 @@ func onListDatabases(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sort.Slice(servers, func(i, j int) bool {
-		return servers[i].GetName() < servers[j].GetName()
+	sort.Slice(databases, func(i, j int) bool {
+		return databases[i].GetName() < databases[j].GetName()
 	})
-	showDatabases(tc.SiteName, types.DeduplicateDatabaseServers(servers),
-		profile.Databases, cf.Verbose)
+	showDatabases(tc.SiteName, databases, profile.Databases, cf.Verbose)
 	return nil
 }
 
@@ -74,12 +73,12 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var servers []types.DatabaseServer
+	var databases []types.Database
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		allServers, err := tc.ListDatabaseServers(cf.Context)
-		for _, server := range allServers {
-			if server.GetName() == cf.DatabaseService {
-				servers = append(servers, server)
+		allDatabases, err := tc.ListDatabases(cf.Context)
+		for _, database := range allDatabases {
+			if database.GetName() == cf.DatabaseService {
+				databases = append(databases, database)
 			}
 		}
 		return trace.Wrap(err)
@@ -87,13 +86,13 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(servers) == 0 {
+	if len(databases) == 0 {
 		return trace.NotFound(
 			"database %q not found, use 'tsh db ls' to see registered databases", cf.DatabaseService)
 	}
 	err = databaseLogin(cf, tc, tlsca.RouteToDatabase{
 		ServiceName: cf.DatabaseService,
-		Protocol:    servers[0].GetProtocol(),
+		Protocol:    databases[0].GetProtocol(),
 		Username:    cf.DatabaseUser,
 		Database:    cf.DatabaseName,
 	}, false)
