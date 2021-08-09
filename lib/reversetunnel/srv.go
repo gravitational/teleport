@@ -1070,6 +1070,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.certificateCache = certificateCache
 
 	go remoteSite.periodicUpdateCertAuthorities()
+	go remoteSite.periodicUpdateLocks()
 
 	return remoteSite, nil
 }
