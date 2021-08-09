@@ -186,7 +186,6 @@ func (f *Fanout) Emit(events ...types.Event) {
 				if err := entry.watcher.emit(emitEvent); err != nil {
 					entry.watcher.setError(err)
 					remove = append(remove, entry.watcher)
-					continue
 				}
 			}
 		}

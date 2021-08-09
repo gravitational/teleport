@@ -110,6 +110,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		cancel:                cancel,
 		retry:                 retry,
 		ResetC:                make(chan struct{}),
+		StaleC:                make(chan struct{}, 1),
 	}
 	go p.runWatchLoop()
 	return p, nil
@@ -135,6 +136,10 @@ type resourceWatcher struct {
 
 	// ResetC is a channel to notify of internal watcher reset (used in tests).
 	ResetC chan struct{}
+
+	// StaleC is a channel that can trigger the condition of resource staleness
+	// (used in tests).
+	StaleC chan struct{}
 }
 
 // Done returns a channel that signals resource watcher closure.
@@ -150,6 +155,11 @@ func (p *resourceWatcher) Close() {
 // hasStaleView returns true when the local view has failed to be updated
 // for longer than the MaxStaleness bound.
 func (p *resourceWatcher) hasStaleView() bool {
+	select {
+	case <-p.StaleC:
+		return true
+	default:
+	}
 	if p.MaxStaleness == 0 || p.failureStartedAt.IsZero() {
 		return false
 	}
@@ -168,19 +178,23 @@ func (p *resourceWatcher) runWatchLoop() {
 			p.Log.Debug("Closed, returning from watch loop.")
 			return
 		}
-		select {
-		case p.ResetC <- struct{}{}:
-		default:
-		}
 		if err != nil {
 			p.Log.Warningf("Restart watch on error: %v.", err)
 			if p.failureStartedAt.IsZero() {
 				p.failureStartedAt = p.Clock.Now()
 			}
+			// failureStartedAt is zeroed in the watch routine immediately after
+			// the local resource set has been successfully updated.
 		}
 		if p.hasStaleView() {
 			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
 			p.collector.notifyStale()
+		}
+		// Used for testing that the watch routine has exited and is about
+		// to be restarted.
+		select {
+		case p.ResetC <- struct{}{}:
+		default:
 		}
 	}
 }

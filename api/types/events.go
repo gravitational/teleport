@@ -66,6 +66,10 @@ const (
 // String returns user-friendly description of the operation
 func (o OpType) String() string {
 	switch o {
+	case OpUnreliable:
+		return "Unreliable"
+	case OpInvalid:
+		return "Invalid"
 	case OpInit:
 		return "Init"
 	case OpPut:
