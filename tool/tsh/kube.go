@@ -245,9 +245,8 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 
 	// Generate a profile specific kubeconfig which can be used
 	// by setting the kubeconfig environment variable (with `tsh env`)
-	fmt.Println(cf.HomePath) // is this the same as the below profile path.
 	profileKubeconfigPath := keypaths.KubeConfigPath(
-		profile.FullProfilePath(tc.KeysDir), tc.WebProxyHost(), tc.Username, currentTeleportCluster, c.kubeCluster,
+		profile.FullProfilePath(cf.HomePath), tc.WebProxyHost(), tc.Username, currentTeleportCluster, c.kubeCluster,
 	)
 	if err := updateKubeConfig(cf, tc, profileKubeconfigPath); err != nil {
 		return trace.Wrap(err)

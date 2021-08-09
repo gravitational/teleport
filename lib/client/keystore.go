@@ -309,12 +309,14 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 			return trace.ConvertSystemError(err)
 		}
 		for _, certFile := range certFiles {
-			data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
-			if err != nil {
-				return trace.ConvertSystemError(err)
+			name, isCert := keypaths.TrimCertPathSuffix(certFile.Name())
+			if isCert {
+				data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
+				certDataMap[name] = data
 			}
-			name := keypaths.TrimCertPathSuffix(certFile.Name())
-			certDataMap[name] = data
 		}
 		return o.updateKeyWithMap(key, certDataMap)
 	}
