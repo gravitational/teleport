@@ -26,9 +26,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
@@ -401,6 +403,143 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 		alog:       srv.AuditLog,
 		context:    *authContext,
 	}
+}
+
+// TestDatabasesCRUDRBAC verifies RBAC is applied to database CRUD methods.
+func TestDatabasesCRUDRBAC(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Setup a couple of users:
+	// - "dev" only has access to databases with labels env=dev
+	// - "admin" has access to all databases
+	dev, devRole, err := CreateUserAndRole(srv.Auth(), "dev", nil)
+	require.NoError(t, err)
+	devRole.SetDatabaseLabels(types.Allow, types.Labels{"env": {"dev"}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, devRole))
+	devClt, err := srv.NewClient(TestUser(dev.GetName()))
+	require.NoError(t, err)
+
+	admin, adminRole, err := CreateUserAndRole(srv.Auth(), "admin", nil)
+	require.NoError(t, err)
+	adminRole.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, adminRole))
+	adminClt, err := srv.NewClient(TestUser(admin.GetName()))
+	require.NoError(t, err)
+
+	// Prepare a couple of database resources.
+	devDatabase, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "dev",
+		Labels: map[string]string{"env": "dev"},
+	}, types.DatabaseSpecV3{
+		Protocol: libdefaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+	adminDatabase, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "admin",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: libdefaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+	})
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to create prod database...
+	err = devClt.CreateDatabase(ctx, adminDatabase)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can create dev database.
+	err = devClt.CreateDatabase(ctx, devDatabase)
+	require.NoError(t, err)
+
+	// Admin can create prod database.
+	err = adminClt.CreateDatabase(ctx, adminDatabase)
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to update prod database...
+	err = devClt.UpdateDatabase(ctx, adminDatabase)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can update dev database.
+	err = devClt.UpdateDatabase(ctx, devDatabase)
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to update labels on the prod database.
+	adminDatabase.SetStaticLabels(map[string]string{"env": "dev"})
+	err = devClt.UpdateDatabase(ctx, adminDatabase)
+	require.True(t, trace.IsAccessDenied(err))
+	adminDatabase.SetStaticLabels(map[string]string{"env": "prod"}) // Reset.
+
+	// Dev shouldn't be able to get prod database...
+	_, err = devClt.GetDatabase(ctx, adminDatabase.GetName())
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can get dev database.
+	db, err := devClt.GetDatabase(ctx, devDatabase.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(devDatabase, db,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin can get both databases.
+	db, err = adminClt.GetDatabase(ctx, adminDatabase.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(adminDatabase, db,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+	db, err = adminClt.GetDatabase(ctx, devDatabase.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(devDatabase, db,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// When listing databases, dev should only see one.
+	dbs, err := devClt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin should see both.
+	dbs, err = adminClt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Dev shouldn't be able to delete dev database...
+	err = devClt.DeleteDatabase(ctx, adminDatabase.GetName())
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can delete dev database.
+	err = devClt.DeleteDatabase(ctx, devDatabase.GetName())
+	require.NoError(t, err)
+
+	// Admin should be able to delete admin database.
+	err = adminClt.DeleteDatabase(ctx, adminDatabase.GetName())
+	require.NoError(t, err)
+
+	// Create both databases again to test "delete all" functionality.
+	require.NoError(t, devClt.CreateDatabase(ctx, devDatabase))
+	require.NoError(t, adminClt.CreateDatabase(ctx, adminDatabase))
+
+	// Dev should only be able to delete dev database.
+	err = devClt.DeleteAllDatabases(ctx)
+	require.NoError(t, err)
+	dbs, err = adminClt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin should be able to delete all.
+	err = adminClt.DeleteAllDatabases(ctx)
+	require.NoError(t, err)
+	dbs, err = adminClt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Len(t, dbs, 0)
 }
 
 func TestGetDatabaseServers(t *testing.T) {

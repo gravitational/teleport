@@ -1967,6 +1967,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
+	services.Databases
 	WebService
 	session.Service
 	services.ClusterConfiguration
