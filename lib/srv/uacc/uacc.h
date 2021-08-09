@@ -210,7 +210,7 @@ static int uacc_has_entry_with_user(const char *utmp_path, const char *user) {
     }
     struct utmp *entry = getutent();
     while (entry != NULL) {
-        if (entry->ut_type == USER_PROCESS && strcmp(user, entry->ut_user) == 0) {
+        if (entry->ut_type == USER_PROCESS && strncmp(user, entry->ut_user, sizeof(entry->ut_user)) == 0) {
             endutent();
             return 0;
         }
