@@ -50,6 +50,8 @@ type Session struct {
 	Log logrus.FieldLogger
 	// Statements is the session's prepared statements cache.
 	Statements *StatementsCache
+	// LockTargets is a list of lock targets applicable to this session.
+	LockTargets []types.LockTarget
 }
 
 // String returns string representation of the session parameters.

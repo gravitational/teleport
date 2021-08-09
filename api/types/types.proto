@@ -196,6 +196,12 @@ message DatabaseServerSpecV3 {
     repeated DatabaseV3 Databases = 12 [ (gogoproto.jsontag) = "databases,omitempty" ];
 }
 
+// DatabaseV3List represents a list of databases.
+message DatabaseV3List {
+    // Databases is a list of database resources.
+    repeated DatabaseV3 Databases = 1;
+}
+
 // DatabaseV3 represents a single proxied database.
 message DatabaseV3 {
     option (gogoproto.goproto_stringer) = false;

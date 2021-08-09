@@ -466,6 +466,13 @@ func (p *lockCollector) FindLockInForce(targets ...types.LockTarget) types.Lock 
 	return nil
 }
 
+// GetCurrent returns the currently stored locks.
+func (p *lockCollector) GetCurrent() []types.Lock {
+	p.currentRW.RLock()
+	defer p.currentRW.RUnlock()
+	return lockMapValues(p.current)
+}
+
 // resourceKind specifies the resource kind to watch.
 func (p *lockCollector) resourceKind() string {
 	return types.KindLock
@@ -539,4 +546,12 @@ func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, err
 		})
 	}
 	return watchKinds, nil
+}
+
+func lockMapValues(lockMap map[string]types.Lock) []types.Lock {
+	locks := make([]types.Lock, 0, len(lockMap))
+	for _, lock := range lockMap {
+		locks = append(locks, lock)
+	}
+	return locks
 }
