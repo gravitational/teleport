@@ -857,8 +857,8 @@ message AuthAttempt {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
-// ResetPasswordTokenCreate is emitted when token is created.
-message ResetPasswordTokenCreate {
+// UserTokenCreate is emitted when a user token is created.
+message UserTokenCreate {
     // Metadata is a common event metadata
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
@@ -1319,7 +1319,7 @@ message OneOf {
         events.ClientDisconnect ClientDisconnect = 21;
         events.AuthAttempt AuthAttempt = 22;
         events.AccessRequestCreate AccessRequestCreate = 23;
-        events.ResetPasswordTokenCreate ResetPasswordTokenCreate = 24;
+        events.UserTokenCreate UserTokenCreate = 24;
         events.RoleCreate RoleCreate = 25;
         events.RoleDelete RoleDelete = 26;
         events.TrustedClusterCreate TrustedClusterCreate = 27;
