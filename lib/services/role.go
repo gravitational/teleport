@@ -27,11 +27,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -164,6 +164,8 @@ func NewImplicitRole() types.Role {
 }
 
 // RoleForUser creates an admin role for a services.User.
+//
+// Used in tests only.
 func RoleForUser(u types.User) types.Role {
 	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV4{
 		Options: types.RoleOptions{
@@ -188,6 +190,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindClusterAuthPreference, RW()),
 				types.NewRule(types.KindClusterNetworkingConfig, RW()),
 				types.NewRule(types.KindSessionRecordingConfig, RW()),
+				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
 			},
 		},
@@ -777,7 +780,7 @@ type AccessChecker interface {
 
 	// CheckAccessToDatabase checks whether a user has access to the provided
 	// database server.
-	CheckAccessToDatabase(server types.DatabaseServer, mfa AccessMFAParams, matchers ...RoleMatcher) error
+	CheckAccessToDatabase(server types.Database, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckImpersonate checks whether current user is allowed to impersonate
 	// users and roles
@@ -1865,7 +1868,7 @@ func (m *DatabaseNameMatcher) String() string {
 //
 // The checker always checks the server namespace, other matchers are supplied
 // by the caller.
-func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+func (set RoleSet) CheckAccessToDatabase(server types.Database, mfa AccessMFAParams, matchers ...RoleMatcher) error {
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
 	if mfa.AlwaysRequired && !mfa.Verified {
 		log.Debugf("Access to database %q denied, cluster requires per-session MFA", server.GetName())

@@ -24,13 +24,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/defaults"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
-	"github.com/gravitational/teleport/api/v7/utils/sshutils"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -2189,23 +2189,21 @@ func TestBoolOptions(t *testing.T) {
 }
 
 func TestCheckAccessToDatabase(t *testing.T) {
-	dbStage, err := types.NewDatabaseServerV3("stage",
-		map[string]string{"env": "stage"},
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
-	dbProd, err := types.NewDatabaseServerV3("prod",
-		map[string]string{"env": "prod"},
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
 	roleDevStage := &types.RoleV4{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
@@ -2273,7 +2271,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	}
 	require.NoError(t, roleDeny.CheckAndSetDefaults())
 	type access struct {
-		server types.DatabaseServer
+		server types.Database
 		dbName string
 		dbUser string
 		access bool
@@ -2365,23 +2363,21 @@ func TestCheckAccessToDatabase(t *testing.T) {
 }
 
 func TestCheckAccessToDatabaseUser(t *testing.T) {
-	dbStage, err := types.NewDatabaseServerV3("stage",
-		map[string]string{"env": "stage"},
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
-	dbProd, err := types.NewDatabaseServerV3("prod",
-		map[string]string{"env": "prod"},
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
 	roleDevStage := &types.RoleV4{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
@@ -2408,7 +2404,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 		},
 	}
 	type access struct {
-		server types.DatabaseServer
+		server types.Database
 		dbUser string
 		access bool
 	}
@@ -2545,43 +2541,38 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 }
 
 func TestCheckAccessToDatabaseService(t *testing.T) {
-	dbNoLabels, err := types.NewDatabaseServerV3("test",
-		nil,
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbNoLabels, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test",
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
-	dbStage, err := types.NewDatabaseServerV3("stage",
-		map[string]string{"env": "stage"},
-		types.DatabaseServerSpecV3{
-			Protocol:      "protocol",
-			URI:           "uri",
-			Hostname:      "hostname",
-			HostID:        "host_id",
-			DynamicLabels: map[string]types.CommandLabelV2{"arch": {Result: "x86"}},
-		})
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol:      "protocol",
+		URI:           "uri",
+		DynamicLabels: map[string]types.CommandLabelV2{"arch": {Result: "x86"}},
+	})
 	require.NoError(t, err)
-	dbStage2, err := types.NewDatabaseServerV3("stage2",
-		map[string]string{"env": "stage"},
-		types.DatabaseServerSpecV3{
-			Protocol:      "protocol",
-			URI:           "uri",
-			Hostname:      "hostname",
-			HostID:        "host_id",
-			DynamicLabels: map[string]types.CommandLabelV2{"arch": {Result: "amd64"}},
-		})
+	dbStage2, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage2",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol:      "protocol",
+		URI:           "uri",
+		DynamicLabels: map[string]types.CommandLabelV2{"arch": {Result: "amd64"}},
+	})
 	require.NoError(t, err)
-	dbProd, err := types.NewDatabaseServerV3("prod",
-		map[string]string{"env": "prod"},
-		types.DatabaseServerSpecV3{
-			Protocol: "protocol",
-			URI:      "uri",
-			Hostname: "hostname",
-			HostID:   "host_id",
-		})
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
 	require.NoError(t, err)
 	roleAdmin := &types.RoleV4{
 		Metadata: types.Metadata{Name: "admin", Namespace: apidefaults.Namespace},
@@ -2614,7 +2605,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		},
 	}
 	type access struct {
-		server types.DatabaseServer
+		server types.Database
 		access bool
 	}
 	testCases := []struct {

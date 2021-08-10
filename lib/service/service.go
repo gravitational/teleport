@@ -48,12 +48,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	"github.com/gravitational/teleport/api/v7/client/webclient"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -2959,21 +2959,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
-				Namespace:         apidefaults.Namespace,
-				Keygen:            cfg.Keygen,
-				ClusterName:       clusterName,
-				ReverseTunnelSrv:  tsrv,
-				Authz:             authorizer,
-				AuthClient:        conn.Client,
-				StreamEmitter:     streamEmitter,
-				DataDir:           cfg.DataDir,
-				CachingAuthClient: accessPoint,
-				ServerID:          cfg.HostUUID,
-				ClusterOverride:   cfg.Proxy.Kube.ClusterOverride,
-				KubeconfigPath:    cfg.Proxy.Kube.KubeconfigPath,
-				Component:         component,
-				KubeServiceType:   kubeServiceType,
-				LockWatcher:       lockWatcher,
+				Namespace:                     apidefaults.Namespace,
+				Keygen:                        cfg.Keygen,
+				ClusterName:                   clusterName,
+				ReverseTunnelSrv:              tsrv,
+				Authz:                         authorizer,
+				AuthClient:                    conn.Client,
+				StreamEmitter:                 streamEmitter,
+				DataDir:                       cfg.DataDir,
+				CachingAuthClient:             accessPoint,
+				ServerID:                      cfg.HostUUID,
+				ClusterOverride:               cfg.Proxy.Kube.ClusterOverride,
+				KubeconfigPath:                cfg.Proxy.Kube.KubeconfigPath,
+				Component:                     component,
+				KubeServiceType:               kubeServiceType,
+				LockWatcher:                   lockWatcher,
+				CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			},
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,

@@ -25,10 +25,10 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -416,11 +416,10 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
 		return BuiltinRole{
-			GetSessionRecordingConfig: a.AccessPoint.GetSessionRecordingConfig,
-			Role:                      types.RoleNop,
-			Username:                  string(types.RoleNop),
-			ClusterName:               localClusterName.GetClusterName(),
-			Identity:                  tlsca.Identity{},
+			Role:        types.RoleNop,
+			Username:    string(types.RoleNop),
+			ClusterName: localClusterName.GetClusterName(),
+			Identity:    tlsca.Identity{},
 		}, nil
 	}
 	clientCert := peers[0]
@@ -493,11 +492,10 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
 		return BuiltinRole{
-			GetSessionRecordingConfig: a.AccessPoint.GetSessionRecordingConfig,
-			Role:                      *systemRole,
-			Username:                  identity.Username,
-			ClusterName:               localClusterName.GetClusterName(),
-			Identity:                  *identity,
+			Role:        *systemRole,
+			Username:    identity.Username,
+			ClusterName: localClusterName.GetClusterName(),
+			Identity:    *identity,
 		}, nil
 	}
 	// otherwise assume that is a local role, no need to pass the roles

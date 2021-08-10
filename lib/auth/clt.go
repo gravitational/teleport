@@ -32,12 +32,12 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client"
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1618,16 +1618,6 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return nil
 }
 
-// GetClusterAuditConfig gets cluster audit configuration.
-func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
-	return c.APIClient.GetClusterAuditConfig(ctx)
-}
-
-// GetClusterNetworkingConfig gets cluster networking configuration.
-func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
-	return c.APIClient.GetClusterNetworkingConfig(ctx)
-}
-
 // GetLocalClusterName returns local cluster name
 func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()
@@ -1744,11 +1734,6 @@ func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID
 // DELETE IN 7.0.0
 func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
-}
-
-// GetSessionRecordingConfig gets session recording configuration.
-func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
-	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
 // GetNetworkRestrictions retrieves the network restrictions (allow/deny lists)
@@ -1967,6 +1952,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
+	services.Databases
 	WebService
 	session.Service
 	services.ClusterConfiguration

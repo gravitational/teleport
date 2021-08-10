@@ -26,13 +26,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/metadata"
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/types/events"
-	"github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
@@ -120,13 +120,19 @@ func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if cfg.Dialer != nil {
-		return dialerConnect(ctx, cfg, cfg.Dialer, tlsConfig)
+		return dialerConnect(ctx, connectParams{
+			cfg:       cfg,
+			tlsConfig: tlsConfig,
+			dialer:    cfg.Dialer,
+		})
 	} else if len(cfg.Addrs) != 0 {
-		return authConnect(ctx, cfg, cfg.Addrs[0], tlsConfig)
+		return authConnect(ctx, connectParams{
+			cfg:       cfg,
+			tlsConfig: tlsConfig,
+			addr:      cfg.Addrs[0],
+		})
 	}
-
 	return nil, trace.BadParameter("must provide Dialer or Addrs in config")
 }
 
@@ -153,11 +159,11 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	// with the different combination of connection parameters.
 	// The first successful client to be sent to cltChan will be returned.
 	cltChan := make(chan *Client)
-	syncConnect := func(connect func() (*Client, error)) {
+	syncConnect := func(ctx context.Context, connect connectFunc, params connectParams) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			clt, err := connect()
+			clt, err := connect(ctx, params)
 			if err != nil {
 				sendError(trace.Wrap(err))
 				return
@@ -190,12 +196,9 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 			// Connect with dialer provided in config.
 			if cfg.Dialer != nil {
-				syncConnect(func() (*Client, error) {
-					clt, err := dialerConnect(ctx, cfg, cfg.Dialer, tlsConfig)
-					if err != nil {
-						return nil, trace.Wrap(err, "failed to connect using cfg dialer")
-					}
-					return clt, err
+				syncConnect(ctx, dialerConnect, connectParams{
+					cfg:       cfg,
+					tlsConfig: tlsConfig,
 				})
 			}
 
@@ -205,20 +208,33 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					sendError(trace.Wrap(err, "failed to retrieve dialer from creds of type %T", creds))
 				}
 			} else {
-				syncConnect(func() (*Client, error) {
-					clt, err := dialerConnect(ctx, cfg, dialer, tlsConfig)
-					if err != nil {
-						return nil, trace.Wrap(err, "failed to connect using dialer from credentials of type %T", creds)
-					}
-					return clt, err
+				syncConnect(ctx, dialerConnect, connectParams{
+					cfg:       cfg,
+					tlsConfig: tlsConfig,
+					dialer:    dialer,
 				})
 			}
 
+			// Attempt to connect to each address as Auth, Proxy, and Tunnel
 			for _, addr := range cfg.Addrs {
-				syncConnect(func() (*Client, error) { return authConnect(ctx, cfg, addr, tlsConfig) })
+				syncConnect(ctx, authConnect, connectParams{
+					cfg:       cfg,
+					tlsConfig: tlsConfig,
+					addr:      addr,
+				})
 				if sshConfig != nil {
-					syncConnect(func() (*Client, error) { return tunnelConnect(ctx, cfg, addr, tlsConfig, sshConfig) })
-					syncConnect(func() (*Client, error) { return proxyConnect(ctx, cfg, addr, tlsConfig, sshConfig) })
+					syncConnect(ctx, proxyConnect, connectParams{
+						cfg:       cfg,
+						tlsConfig: tlsConfig,
+						sshConfig: sshConfig,
+						addr:      addr,
+					})
+					syncConnect(ctx, tunnelConnect, connectParams{
+						cfg:       cfg,
+						tlsConfig: tlsConfig,
+						sshConfig: sshConfig,
+						addr:      addr,
+					})
 				}
 			}
 		}
@@ -259,35 +275,56 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}
 }
 
-func authConnect(ctx context.Context, cfg Config, addr string, tlsConfig *tls.Config) (*Client, error) {
-	dialer := NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-	clt := newClient(cfg, dialer, tlsConfig)
-	if err := clt.dialGRPC(ctx, addr); err != nil {
-		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", addr)
+type connectFunc func(ctx context.Context, params connectParams) (*Client, error)
+type connectParams struct {
+	cfg       Config
+	addr      string
+	tlsConfig *tls.Config
+	dialer    ContextDialer
+	sshConfig *ssh.ClientConfig
+}
+
+func authConnect(ctx context.Context, params connectParams) (*Client, error) {
+	dialer := NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
 	}
 	return clt, nil
 }
 
-func tunnelConnect(ctx context.Context, cfg Config, addr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*Client, error) {
-	dialer := newTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
-	clt := newClient(cfg, dialer, tlsConfig)
-	if err := clt.dialGRPC(ctx, addr); err != nil {
-		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", addr)
+func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.sshConfig == nil {
+		return nil, trace.BadParameter("must provide ssh client config")
+	}
+	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", params.addr)
 	}
 	return clt, nil
 }
 
-func proxyConnect(ctx context.Context, cfg Config, addr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*Client, error) {
-	dialer := NewProxyDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout, addr, cfg.InsecureAddressDiscovery)
-	clt := newClient(cfg, dialer, tlsConfig)
-	if err := clt.dialGRPC(ctx, addr); err != nil {
-		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", addr)
+func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.sshConfig == nil {
+		return nil, trace.BadParameter("must provide ssh client config")
+	}
+	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
 	}
 	return clt, nil
 }
 
-func dialerConnect(ctx context.Context, cfg Config, dialer ContextDialer, tlsConfig *tls.Config) (*Client, error) {
-	clt := newClient(cfg, dialer, tlsConfig)
+func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.dialer == nil {
+		if params.cfg.Dialer == nil {
+			return nil, trace.BadParameter("must provide dialer to connectParams.dialer or params.cfg.Dialer")
+		}
+		params.dialer = params.cfg.Dialer
+	}
+	clt := newClient(params.cfg, params.dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, constants.APIDomain); err != nil {
 		return nil, trace.Wrap(err, "failed to connect using pre-defined dialer")
 	}
@@ -1624,7 +1661,7 @@ func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...type
 	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
 		InForceOnly: inForceOnly,
 		Targets:     targetPtrs,
-	})
+	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1659,6 +1696,26 @@ func (c *Client) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (c *Client) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+	lockV2s := make([]*types.LockV2, 0, len(locks))
+	for _, lock := range locks {
+		lockV2, ok := lock.(*types.LockV2)
+		if !ok {
+			return trace.BadParameter("unexpected lock type %T", lock)
+		}
+		lockV2s = append(lockV2s, lockV2)
+	}
+	_, err := c.grpc.ReplaceRemoteLocks(ctx, &proto.ReplaceRemoteLocksRequest{
+		ClusterName: clusterName,
+		Locks:       lockV2s,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GetNetworkRestrictions retrieves the network restrictions
 func (c *Client) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
 	nr, err := c.grpc.GetNetworkRestrictions(ctx, &empty.Empty{}, c.callOpts...)
@@ -1688,4 +1745,61 @@ func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
 		return trail.FromGRPC(err)
 	}
 	return nil
+}
+
+// CreateDatabase creates a new database resource.
+func (c *Client) CreateDatabase(ctx context.Context, database types.Database) error {
+	databaseV3, ok := database.(*types.DatabaseV3)
+	if !ok {
+		return trace.BadParameter("unsupported database type %T", database)
+	}
+	_, err := c.grpc.CreateDatabase(ctx, databaseV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateDatabase updates existing database resource.
+func (c *Client) UpdateDatabase(ctx context.Context, database types.Database) error {
+	databaseV3, ok := database.(*types.DatabaseV3)
+	if !ok {
+		return trace.BadParameter("unsupported database type %T", database)
+	}
+	_, err := c.grpc.UpdateDatabase(ctx, databaseV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetDatabase returns the specified database resource.
+func (c *Client) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing database name")
+	}
+	database, err := c.grpc.GetDatabase(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return database, nil
+}
+
+// GetDatabases returns all database resources.
+func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	items, err := c.grpc.GetDatabases(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	databases := make([]types.Database, len(items.Databases))
+	for i := range items.Databases {
+		databases[i] = items.Databases[i]
+	}
+	return databases, nil
+}
+
+// DeleteDatabase deletes specified database resource.
+func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteDatabase(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllDatabases deletes all database resources.
+func (c *Client) DeleteAllDatabases(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllDatabases(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
 }

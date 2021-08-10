@@ -27,9 +27,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/utils/keypaths"
-	apisshutils "github.com/gravitational/teleport/api/v7/utils/sshutils"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -436,7 +436,7 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
-	ca, err := tlsca.FromKeys(cert, privateKey)
+	ca, err := tlsca.FromCertAndSigner(cert, rsaKey.(*rsa.PrivateKey))
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}

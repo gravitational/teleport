@@ -21,15 +21,14 @@ import (
 	"fmt"
 	"time"
 
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -121,20 +120,11 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
-		return Different
-	}
-	if !cmp.Equal(a.GetDynamicLabels(), b.GetDynamicLabels()) {
+	if !cmp.Equal(a.GetDatabases(), b.GetDatabases()) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
-	}
-	if a.GetProtocol() != b.GetProtocol() {
-		return Different
-	}
-	if a.GetURI() != b.GetURI() {
-		return Different
 	}
 	return Equal
 }

@@ -19,7 +19,7 @@ package common
 import (
 	"fmt"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -34,6 +34,8 @@ type Session struct {
 	ClusterName string
 	// Server is the database server handling the connection.
 	Server types.DatabaseServer
+	// Database is the database user is connecting to.
+	Database types.Database
 	// Identity is the identity of the connecting Teleport user.
 	Identity tlsca.Identity
 	// Checker is the access checker for the identity.
@@ -48,10 +50,12 @@ type Session struct {
 	Log logrus.FieldLogger
 	// Statements is the session's prepared statements cache.
 	Statements *StatementsCache
+	// LockTargets is a list of lock targets applicable to this session.
+	LockTargets []types.LockTarget
 }
 
 // String returns string representation of the session parameters.
 func (c *Session) String() string {
 	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v]",
-		c.Server.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName)
+		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName)
 }

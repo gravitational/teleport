@@ -8,6 +8,7 @@ require (
 	cloud.google.com/go/storage v1.10.0
 	github.com/HdrHistogram/hdrhistogram-go v1.0.1
 	github.com/Microsoft/go-winio v0.4.16
+	github.com/ThalesIgnite/crypto11 v1.2.4
 	github.com/alecthomas/assert v0.0.0-20170929043011-405dbfeb8e38 // indirect
 	github.com/alecthomas/colour v0.1.0 // indirect
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
@@ -46,7 +47,7 @@ require (
 	github.com/gravitational/oxy v0.0.0-20210316180922-c73d80d27348
 	github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
 	github.com/gravitational/roundtrip v1.0.0
-	github.com/gravitational/teleport/api/v7 v7.0.0
+	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.1.16-0.20210609220119-4855e69c89fc
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/hashicorp/golang-lru v0.5.4
@@ -127,6 +128,6 @@ require (
 replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.4
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
-	github.com/gravitational/teleport/api/v7 => ./api
+	github.com/gravitational/teleport/api => ./api
 	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
 )

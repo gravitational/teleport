@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -911,15 +911,17 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			// TODO(fspmarshall): ^^^
 			//
 			if event.Type == types.OpPut && !event.Resource.Expiry().IsZero() {
-				staleEventCount++
-				if now := c.Clock.Now(); now.After(event.Resource.Expiry()) && now.After(lastStalenessWarning.Add(time.Minute)) {
-					kind := event.Resource.GetKind()
-					if sk := event.Resource.GetSubKind(); sk != "" {
-						kind = fmt.Sprintf("%s/%s", kind, sk)
+				if now := c.Clock.Now(); now.After(event.Resource.Expiry()) {
+					staleEventCount++
+					if now.After(lastStalenessWarning.Add(time.Minute)) {
+						kind := event.Resource.GetKind()
+						if sk := event.Resource.GetSubKind(); sk != "" {
+							kind = fmt.Sprintf("%s/%s", kind, sk)
+						}
+						c.Warningf("Encountered %d stale event(s), may indicate degraded backend or event system performance. last_kind=%q", staleEventCount, kind)
+						lastStalenessWarning = now
+						staleEventCount = 0
 					}
-					c.Warningf("Encountered %d stale event(s), may indicate degraded backend or event system performance. last_kind=%q", staleEventCount, kind)
-					lastStalenessWarning = now
-					staleEventCount = 0
 				}
 			}
 

@@ -25,8 +25,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -111,14 +111,14 @@ func NewAuth(config AuthConfig) (Auth, error) {
 // GetRDSAuthToken returns authorization token that will be used as a password
 // when connecting to RDS and Aurora databases.
 func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
-	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Server.GetAWS().Region)
+	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating RDS auth token for %s.", sessionCtx)
 	token, err := rdsutils.BuildAuthToken(
-		sessionCtx.Server.GetURI(),
-		sessionCtx.Server.GetAWS().Region,
+		sessionCtx.Database.GetURI(),
+		sessionCtx.Database.GetAWS().Region,
 		sessionCtx.DatabaseUser,
 		awsSession.Config.Credentials)
 	if err != nil {
@@ -130,7 +130,7 @@ Make sure that Teleport database agent's IAM policy is attached and has "rds-con
 permissions:
 
 %v
-`, err, GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
+`, err, GetRDSPolicy(sessionCtx.Database.GetAWS().Region))
 	}
 	return token, nil
 }
@@ -138,13 +138,13 @@ permissions:
 // GetRedshiftAuthToken returns authorization token that will be used as a
 // password when connecting to Redshift databases.
 func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, error) {
-	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Server.GetAWS().Region)
+	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating Redshift auth token for %s.", sessionCtx)
 	resp, err := redshift.New(awsSession).GetClusterCredentials(&redshift.GetClusterCredentialsInput{
-		ClusterIdentifier: aws.String(sessionCtx.Server.GetAWS().Redshift.ClusterID),
+		ClusterIdentifier: aws.String(sessionCtx.Database.GetAWS().Redshift.ClusterID),
 		DbUser:            aws.String(sessionCtx.DatabaseUser),
 		DbName:            aws.String(sessionCtx.DatabaseName),
 		// TODO(r0mant): Do not auto-create database account if DbUser doesn't
@@ -248,8 +248,8 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 // updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
 func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL *sqladmin.Service, user *sqladmin.User) error {
 	_, err := gcpCloudSQL.Users.Update(
-		sessionCtx.Server.GetGCP().ProjectID,
-		sessionCtx.Server.GetGCP().InstanceID,
+		sessionCtx.Database.GetGCP().ProjectID,
+		sessionCtx.Database.GetGCP().InstanceID,
 		user).Name(sessionCtx.DatabaseUser).Host("%").Context(ctx).Do()
 	if err != nil {
 		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
@@ -276,8 +276,8 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 	// of replica set the driver may dial multiple servers and will set
 	// ServerName itself. For Postgres/MySQL we're always connecting to the
 	// server specified in URI so set ServerName ourselves.
-	if sessionCtx.Server.GetProtocol() != defaults.ProtocolMongoDB {
-		addr, err := utils.ParseAddr(sessionCtx.Server.GetURI())
+	if sessionCtx.Database.GetProtocol() != defaults.ProtocolMongoDB {
+		addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -285,8 +285,8 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 	}
 	// Add CA certificate to the trusted pool if it's present, e.g. when
 	// connecting to RDS/Aurora which require AWS CA.
-	if len(sessionCtx.Server.GetCA()) != 0 {
-		if !tlsConfig.RootCAs.AppendCertsFromPEM(sessionCtx.Server.GetCA()) {
+	if len(sessionCtx.Database.GetCA()) != 0 {
+		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
 			return nil, trace.BadParameter("invalid server CA certificate")
 		}
 	}
@@ -308,11 +308,11 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 	//
 	// See the following Go issue for more context:
 	//   https://github.com/golang/go/issues/40748
-	if sessionCtx.Server.IsCloudSQL() {
+	if sessionCtx.Database.IsCloudSQL() {
 		// Cloud SQL server presented certificates encode instance names as
 		// "<project-id>:<instance-id>" in CommonName. This is verified against
 		// the ServerName in a custom connection verification step (see below).
-		tlsConfig.ServerName = fmt.Sprintf("%v:%v", sessionCtx.Server.GetGCP().ProjectID, sessionCtx.Server.GetGCP().InstanceID)
+		tlsConfig.ServerName = fmt.Sprintf("%v:%v", sessionCtx.Database.GetGCP().ProjectID, sessionCtx.Database.GetGCP().InstanceID)
 		// This just disables default verification.
 		tlsConfig.InsecureSkipVerify = true
 		// This will verify CN and cert chain on each connection.
@@ -320,7 +320,7 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 	}
 	// RDS/Aurora/Redshift and Cloud SQL auth is done with an auth token so
 	// don't generate a client certificate and exit here.
-	if sessionCtx.Server.IsRDS() || sessionCtx.Server.IsRedshift() || sessionCtx.Server.IsCloudSQL() {
+	if sessionCtx.Database.IsRDS() || sessionCtx.Database.IsRedshift() || sessionCtx.Database.IsCloudSQL() {
 		return tlsConfig, nil
 	}
 	// Otherwise, when connecting to an onprem database, generate a client

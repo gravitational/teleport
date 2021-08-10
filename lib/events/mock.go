@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"

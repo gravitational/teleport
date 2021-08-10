@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -209,10 +209,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 			if err != nil {
 				return
 			}
-			require.Empty(t, cmp.Diff(id, tt.wantID,
-				cmpopts.IgnoreFields(BuiltinRole{}, "GetSessionRecordingConfig"),
-				cmpopts.EquateEmpty(),
-			))
+			require.Empty(t, cmp.Diff(id, tt.wantID, cmpopts.EquateEmpty()))
 		})
 	}
 }

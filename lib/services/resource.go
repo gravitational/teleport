@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -156,10 +156,12 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindKubeService, nil
 	case types.KindLock, "locks":
 		return types.KindLock, nil
-	case types.KindDatabaseServer, "db":
+	case types.KindDatabaseServer:
 		return types.KindDatabaseServer, nil
 	case types.KindNetworkRestrictions:
 		return types.KindNetworkRestrictions, nil
+	case types.KindDatabase:
+		return types.KindDatabase, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

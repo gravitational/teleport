@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,18 +17,27 @@ limitations under the License.
 package common
 
 import (
+	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// TestDatabaseResource tests tctl db rm/get commands.
-func TestDatabaseResource(t *testing.T) {
+// TestDatabaseServerResource tests tctl db_server rm/get commands.
+func TestDatabaseServerResource(t *testing.T) {
 	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
 		Databases: config.Databases{
 			Service: config.Service{
 				EnabledFlag: "true",
@@ -68,31 +77,140 @@ func TestDatabaseResource(t *testing.T) {
 
 	var out []*types.DatabaseServerV3
 
-	t.Run("get all databases", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
-		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 2)
-	})
-
-	t.Run("get example database", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", "db/example", "--format=json"})
+	t.Run("get all database servers", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
 		require.NoError(t, err)
 		mustDecodeJSON(t, buff, &out)
 		require.Len(t, out, 1)
+		require.Len(t, out[0].GetDatabases(), 2)
 	})
 
-	t.Run("remove example2 database", func(t *testing.T) {
-		_, err := runResourceCommand(t, fileConfig, []string{"rm", "db/example2"})
+	server := fmt.Sprintf("%v/%v", types.KindDatabaseServer, out[0].GetName())
+
+	t.Run("get specific database server", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", server, "--format=json"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, 1)
+		require.Len(t, out[0].GetDatabases(), 2)
+	})
+
+	t.Run("remove database server", func(t *testing.T) {
+		_, err := runResourceCommand(t, fileConfig, []string{"rm", server})
 		require.NoError(t, err)
 
-		_, err = runResourceCommand(t, fileConfig, []string{"get", "db/example2", "--format=json"})
+		_, err = runResourceCommand(t, fileConfig, []string{"get", server, "--format=json"})
 		require.Error(t, err)
 		require.IsType(t, &trace.NotFoundError{}, err.(*trace.TraceErr).OrigError())
 
 		buff, err := runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
 		require.NoError(t, err)
 		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 1)
+		require.Len(t, out, 0)
 	})
 }
+
+// TestDatabaseResource tests tctl commands that manage database resources.
+func TestDatabaseResource(t *testing.T) {
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Databases: config.Databases{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: mustGetFreeLocalListenerAddr(t),
+			TunAddr: mustGetFreeLocalListenerAddr(t),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: mustGetFreeLocalListenerAddr(t),
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+
+	dbA, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbA",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+
+	dbB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbB",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+	})
+	require.NoError(t, err)
+
+	var out []*types.DatabaseV3
+
+	// Initially there are no databases.
+	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 0)
+
+	// Create the databases.
+	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
+	require.NoError(t, ioutil.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
+	_, err = runResourceCommand(t, fileConfig, []string{"create", dbYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the databases, should have 2.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbA, dbB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+
+	// Fetch specific database.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/dbB", types.KindDatabase), "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+
+	// Remove a database.
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/dbA", types.KindDatabase)})
+	require.NoError(t, err)
+
+	// Fetch all databases again, should have 1.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+}
+
+const (
+	dbYAML = `kind: db
+version: v3
+metadata:
+  name: dbA
+spec:
+  protocol: "postgres"
+  uri: "localhost:5432"
+---
+kind: db
+version: v3
+metadata:
+  name: dbB
+spec:
+  protocol: "mysql"
+  uri: "localhost:3306"`
+)

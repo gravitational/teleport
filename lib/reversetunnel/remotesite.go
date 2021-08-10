@@ -26,10 +26,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client"
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/utils/sshutils"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
@@ -483,8 +483,7 @@ func (s *remoteSite) updateCertAuthorities() error {
 }
 
 func (s *remoteSite) periodicUpdateCertAuthorities() {
-	s.Debugf("Ticking with period %v", s.srv.PollingPeriod)
-
+	s.Debugf("Updating remote CAs with period %v.", s.srv.PollingPeriod)
 	periodic := interval.New(interval.Config{
 		Duration:      s.srv.PollingPeriod,
 		FirstDuration: utils.HalfJitter(s.srv.PollingPeriod),
@@ -512,6 +511,28 @@ func (s *remoteSite) periodicUpdateCertAuthorities() {
 				default:
 					s.Warningf("Could not perform cert authorities updated: %v.", trace.DebugReport(err))
 				}
+			}
+		}
+	}
+}
+
+func (s *remoteSite) periodicUpdateLocks() {
+	s.Debugf("Updating remote locks with period %v.", s.srv.PollingPeriod)
+	periodic := interval.New(interval.Config{
+		Duration:      s.srv.PollingPeriod,
+		FirstDuration: utils.HalfJitter(s.srv.PollingPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
+	for {
+		select {
+		case <-s.ctx.Done():
+			s.Debugf("Context is closing.")
+			return
+		case <-periodic.Next():
+			locks := s.srv.LockWatcher.GetCurrent()
+			if err := s.remoteClient.ReplaceRemoteLocks(s.ctx, s.srv.ClusterName, locks); err != nil {
+				s.WithError(err).Warning("Could not update remote locks.")
 			}
 		}
 	}

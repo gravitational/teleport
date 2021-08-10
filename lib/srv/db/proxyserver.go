@@ -27,10 +27,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -335,6 +335,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 	tc, err := monitorConn(ctx, monitorConnConfig{
 		conn:         clientConn,
 		lockWatcher:  s.cfg.LockWatcher,
+		lockTargets:  authContext.LockTargets(),
 		identity:     authContext.Identity.GetIdentity(),
 		checker:      authContext.Checker,
 		clock:        s.cfg.Clock,
@@ -384,6 +385,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 type monitorConnConfig struct {
 	conn         net.Conn
 	lockWatcher  *services.LockWatcher
+	lockTargets  []types.LockTarget
 	checker      services.AccessChecker
 	identity     tlsca.Identity
 	clock        clockwork.Clock
@@ -428,7 +430,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           cfg.lockWatcher,
-		LockTargets:           services.LockTargetsFromTLSIdentity(cfg.identity),
+		LockTargets:           cfg.lockTargets,
 		DisconnectExpiredCert: disconnectCertExpired,
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  cfg.conn,
@@ -498,19 +500,21 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	s.log.Debugf("Available database servers on %v: %s.", cluster.GetName(), servers)
+	s.log.Debugf("Available databases in %v: %s.", cluster.GetName(), servers)
 	// Find out which database servers proxy the database a user is
 	// connecting to using routing information from identity.
 	var result []types.DatabaseServer
 	for _, server := range servers {
-		if server.GetName() == identity.RouteToDatabase.ServiceName {
-			result = append(result, server)
+		for _, database := range server.GetDatabases() {
+			if database.GetName() == identity.RouteToDatabase.ServiceName {
+				result = append(result, server)
+			}
 		}
 	}
 	if len(result) != 0 {
 		return cluster, result, nil
 	}
-	return nil, nil, trace.NotFound("database %q not found among registered database servers on cluster %q",
+	return nil, nil, trace.NotFound("database %q not found among registered databases in cluster %q",
 		identity.RouteToDatabase.ServiceName,
 		identity.RouteToCluster)
 }
