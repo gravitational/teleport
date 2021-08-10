@@ -327,6 +327,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
 			Client:    srv.AuthServer,
+			Clock:     cfg.Clock,
 		},
 	})
 	if err != nil {
