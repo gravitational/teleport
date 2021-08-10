@@ -269,16 +269,13 @@ message RequestStateSetter {
 // RequestID is the unique identifier of an access request.
 message RequestID { string ID = 1 [ (gogoproto.jsontag) = "id" ]; }
 
-// RotateResetPasswordTokenSecretsRequest is a request to rotate token secrets.
-message RotateResetPasswordTokenSecretsRequest {
-    string TokenID = 1 [ (gogoproto.jsontag) = "token" ];
-}
+// RotateUserTokenSecretsRequest is a request to rotate token secrets.
+message RotateUserTokenSecretsRequest { string TokenID = 1 [ (gogoproto.jsontag) = "token" ]; }
 
 // GetResetPasswordTokenRequest is a request to get a reset password token.
 message GetResetPasswordTokenRequest { string TokenID = 1 [ (gogoproto.jsontag) = "token" ]; }
 
-// CreateResetPasswordTokenRequest is a request to create an instance of
-// ResetPasswordToken
+// CreateResetPasswordTokenRequest is a request to create a reset password token.
 message CreateResetPasswordTokenRequest {
     // Name is the user name.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
@@ -998,13 +995,16 @@ service AuthService {
     rpc Ping(PingRequest) returns (PingResponse);
 
     // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
-    rpc RotateResetPasswordTokenSecrets(RotateResetPasswordTokenSecretsRequest)
-        returns (types.ResetPasswordTokenSecretsV3);
-    // GetResetPasswordToken returns a token.
-    rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.ResetPasswordTokenV3);
-    // CreateResetPasswordToken creates ResetPasswordToken.
-    rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest)
-        returns (types.ResetPasswordTokenV3);
+    // DELETE IN: 9.0.0 in favor of RotateUserTokenSecrets.
+    rpc RotateResetPasswordTokenSecrets(RotateUserTokenSecretsRequest)
+        returns (types.UserTokenSecretsV3);
+    // RotateUserTokenSecrets rotates token secrets for a given tokenID.
+    rpc RotateUserTokenSecrets(RotateUserTokenSecretsRequest) returns (types.UserTokenSecretsV3);
+    // GetResetPasswordToken returns a reset password token.
+    rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
+    // CreateResetPasswordToken resets users current password and second factors and creates a reset
+    // password token.
+    rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
 
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);
