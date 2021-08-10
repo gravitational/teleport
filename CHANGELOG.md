@@ -1,12 +1,67 @@
 # Changelog
 
-## 7.0
+## 7.0.0
 
-Teleport 7.0 is a major release with new features, functionality, and bug fixes.
+Teleport 7.0 is a major release of Teleport that contains new features, improvements, and bug fixes.
+
+### New Features
+
+#### MongoDB 
+
+Added support for [MongoDB](https://www.mongodb.com) to Teleport Database Access. [#6600](https://github.com/gravitational/teleport/issues/6600).
+
+View the [Database Access with MongoDB](https://goteleport.com/docs/ver/7.0/database-access/guides/mongodb-self-hosted/) for more details.
+
+#### Cloud SQL MySQL
+
+Added support for [GCP Cloud SQL MySQL](https://cloud.google.com/sql/docs/mysql) to Teleport Database Access. [#7302](https://github.com/gravitational/teleport/pull/7302)
+
+View the Cloud SQL MySQL [guide](https://goteleport.com/docs/ver/7.0/database-access/guides/mysql-cloudsql/) for more details.
+
+#### AWS Console
+
+Added support for [AWS Console](https://aws.amazon.com/console) to Teleport Application Access. [#7590](https://github.com/gravitational/teleport/pull/7590)
+
+Teleport Application Access can now automatically sign users into the AWS Management Console using [Identity federation](https://aws.amazon.com/identity/federation). View AWS Management Console [guide](https://goteleport.com/docs/ver/7.0/application-access/guides/aws-console/) for more details.
+
+#### Restricted Sessions
+
+Added the ability to block network traffic (IPv4 and IPv6) on a per-SSH session basis. Implemented using BPF tooling which required kernel 5.8 or above. [#7099](https://github.com/gravitational/teleport/pull/7099)
+
+#### Enhanced Session Recording
+
+Updated Enhanced Session Recording to no longer require the installation of external compilers like `bcc-tools`. Implemented using BPF tooling which required kernel 5.8 or above. [#6027](https://github.com/gravitational/teleport/pull/6027)
+
+### Improvements
+
+* Added the ability to terminate Database Access certificates when the certificate expires. [#5476](https://github.com/gravitational/teleport/issues/5476)
+* Added additional FedRAMP compliance controls, such as custom disconnect and MOTD messages. [#6091](https://github.com/gravitational/teleport/issues/6091) [#7396](https://github.com/gravitational/teleport/pull/7396)
+* Added the ability to export Audit Log and session recordings using the Teleport API. [#6731](https://github.com/gravitational/teleport/pull/6731) [#7360](https://github.com/gravitational/teleport/pull/7360)
+* Added the ability to partially configure a cluster. [#5857](https://github.com/gravitational/teleport/issues/5857) [RFD #28](https://github.com/gravitational/teleport/blob/master/rfd/0028-cluster-config-resources.md)
+* Added the ability to disable port forwarding on a per-host basis. [#6989](https://github.com/gravitational/teleport/pull/6989)
+* Added ability to configure `tsh` home directory. [#7035](https://github.com/gravitational/teleport/pull/7035/files)
+* Added ability to generate OpenSSH client configuration snippets using `tsh config`. [#7437](https://github.com/gravitational/teleport/pull/7437)
+* Added default-port detection to `tsh` [#6374](https://github.com/gravitational/teleport/pull/6374)
+* Improved performance of the Web UI for users with many roles. [#7588](https://github.com/gravitational/teleport/pull/7588)
+
+### Fixes
+
+* Fixed a memory leak that could affect etcd users. [#7631](https://github.com/gravitational/teleport/pull/7631)
+* Fixed an issue where `tsh login` could fail if the user had multiple public addresses defined on the proxy. [#7368](https://github.com/gravitational/teleport/pull/7368)
 
 ### Breaking Changes
 
-* Proxy services whose configuration includes a `kube_listen_addr` but no `kubernetes` section will no longer publish a Kubernetes cluster named after the Teleport cluster.
+#### Enhanced Session Recording
+
+Enhanced Session Recording has been updated to use CO-RE BPF executables. This makes deployment much simpler, you no longer have to install `bcc-tools`, but comes with a higher minimum kernel version of 5.8 and above. [#6027](https://github.com/gravitational/teleport/pull/6027)
+
+#### Kubernetes Access
+
+Kubernetes Access will no longer automatically register a cluster named after the Teleport cluster if the proxy is running within a Kubernetes cluster. Users wishing to retain this functionality now have to explicitly set `kube_cluster_name`. [#6786](https://github.com/gravitational/teleport/pull/6786)
+
+#### `tsh`
+
+`tsh login` has been updated to no longer change the current Kubernetes context. While `tsh login` will write credentials to `kubeconfig` it will only update your context if `tsh login --kube-cluster` or `tsh kube login <kubeCluster>` is used. [#6045](https://github.com/gravitational/teleport/issues/6045)
 
 ## 6.2
 
