@@ -90,11 +90,6 @@ type Handler struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
-
-	// webIdleTimeout specifies how long a user WebUI session can be left
-	// idle before being logged out by the server. A zero value means there
-	// is no idle timeout set.
-	webIdleTimeout time.Duration
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -219,7 +214,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		log:             newPackageLogger(),
 		clock:           clockwork.NewRealClock(),
 		clusterFeatures: cfg.ClusterFeatures,
-		webIdleTimeout:  cfg.WebIdleTimeout,
 	}
 
 	for _, o := range opts {
@@ -442,6 +436,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			ctx, err := h.AuthenticateRequest(w, r, false)
 			if err == nil {
 				resp, err := newSessionResponse(ctx)
+				resp.WebIdleTimeout = int(cfg.WebIdleTimeout.Milliseconds())
+
 				if err == nil {
 					out, err := json.Marshal(resp)
 					if err == nil {
@@ -845,7 +841,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	webCfg := ui.WebConfig{
 		Auth:            authSettings,
 		CanJoinSessions: canJoinSessions,
-		WebIdleTimeout:  int(h.webIdleTimeout.Milliseconds()),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -1265,6 +1260,10 @@ type CreateSessionResponse struct {
 	TokenExpiresIn int `json:"expires_in"`
 	// SessionExpires is when this session expires.
 	SessionExpires time.Time `json:"sessionExpires,omitempty"`
+	// WebIdleTimeout specifies how long a user WebUI session can be left
+	// idle before being logged out by the server. A zero value means there
+	// is no idle timeout set.
+	WebIdleTimeout int `json:"webIdleTimeout"`
 }
 
 func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
