@@ -149,9 +149,7 @@ pub extern "C" fn process_access(
     };
 
     let mut buf = Vec::with_capacity(idb.encoded_len());
-    match idb.encode(&mut buf) {
-        Ok(_) => (),
-        Err(e) => {
+        if let Err(e) = idb.encode(&mut buf) {
             let err_bytes = e.to_string().into_bytes();
             unsafe {
                 ptr::copy(&(*err_bytes)[0], output, err_bytes.len());
@@ -160,8 +158,7 @@ pub extern "C" fn process_access(
                 output_length: err_bytes.len(),
                 error: -1,
             }))
-        },
-    };
+        }
     if buf.is_empty() || buf.len() > output_len {
         return Box::into_raw(Box::new(Status{
             output_length: buf.len(),
