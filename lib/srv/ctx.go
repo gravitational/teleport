@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -159,6 +160,10 @@ type IdentityContext struct {
 	// RoleSet is the roles this Teleport user is associated with. RoleSet is
 	// used to check RBAC permissions.
 	RoleSet services.RoleSet
+
+	// UnmappedRoles lists the original roles of this Teleport user without
+	// trusted-cluster-related role mapping being applied.
+	UnmappedRoles []string
 
 	// CertValidBefore is set to the expiry time of a certificate, or
 	// empty, if cert does not expire
@@ -911,10 +916,11 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 // ComputeLockTargets computes lock targets inferred from a Server
 // and an IdentityContext.
 func ComputeLockTargets(s Server, id IdentityContext) []types.LockTarget {
+	roleTargets := services.RolesToLockTargets(apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...)))
 	return append([]types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
 		{Node: s.HostUUID()},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
-	}, services.RolesToLockTargets(id.RoleSet.RoleNames())...)
+	}, roleTargets...)
 }

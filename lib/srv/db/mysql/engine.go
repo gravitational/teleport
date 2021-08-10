@@ -138,8 +138,8 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	// on queries, we might be able to restrict db_names as well e.g. by
 	// detecting full-qualified table names like db.table, until then the
 	// proper way is to use MySQL grants system.
-	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server, mfaParams,
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Server.GetAllLabels()},
+	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams,
+		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Database.GetAllLabels()},
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
@@ -156,12 +156,12 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	}
 	var password string
 	switch {
-	case sessionCtx.Server.IsRDS():
+	case sessionCtx.Database.IsRDS():
 		password, err = e.Auth.GetRDSAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case sessionCtx.Server.IsCloudSQL():
+	case sessionCtx.Database.IsCloudSQL():
 		// For Cloud SQL MySQL there is no IAM auth so we use one-time passwords
 		// by resetting the database user password for each connection. Thus,
 		// acquire a lock to make sure all connection attempts to the same
@@ -187,7 +187,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		}
 	}
 	// TODO(r0mant): Set CLIENT_INTERACTIVE flag on the client?
-	conn, err := client.Connect(sessionCtx.Server.GetURI(),
+	conn, err := client.Connect(sessionCtx.Database.GetURI(),
 		sessionCtx.DatabaseUser,
 		password,
 		sessionCtx.DatabaseName,
@@ -195,7 +195,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			conn.SetTLSConfig(tlsConfig)
 		})
 	if err != nil {
-		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Server.IsRDS() {
+		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
 			return nil, trace.AccessDenied(`Could not connect to database:
 
   %v
@@ -204,7 +204,7 @@ Make sure that IAM auth is enabled for MySQL user %q and Teleport database
 agent's IAM policy has "rds-connect" permissions:
 
 %v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
+`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Database.GetAWS().Region))
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -291,7 +291,7 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 		// in a minute anyway.
 		Request: types.AcquireSemaphoreRequest{
 			SemaphoreKind: "gcp-mysql-token",
-			SemaphoreName: fmt.Sprintf("%v-%v", sessionCtx.Server.GetName(), sessionCtx.DatabaseUser),
+			SemaphoreName: fmt.Sprintf("%v-%v", sessionCtx.Database.GetName(), sessionCtx.DatabaseUser),
 			MaxLeases:     1,
 			Expires:       e.Clock.Now().Add(time.Minute),
 		},
