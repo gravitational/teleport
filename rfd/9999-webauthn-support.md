@@ -470,6 +470,25 @@ Note that registration, as presently implemented, doesn't require persistent
 storage for challenges, as they may be kept in memory for the duration of the
 RPC stream.
 
+## References
+
+* [CTAP1](https://fidoalliance.org/specs/fido-u2f-v1.0-ps-20141009/fido-u2f-raw-message-formats-ps-20141009.html)
+  and
+  [CTAP1.2](https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.html)
+  standards (aka FIDO-U2F)
+
+* [CTAP2](https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html)
+  standard (aka FIDO2) - in particular
+  [getAssertion](https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#u2f-authenticatorGetAssertion-interoperability)
+  and
+  [makeCredential](https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#fig-u2f-compat-makeCredential)
+  compat sessions
+
+* [WebAuthn Level 2 specification](https://www.w3.org/TR/webauthn-2/)
+
+* [Yubico WebAuthn Developer Guide](
+  https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/) - a good
+  overview for various aspects of the spec, readable by humans
 
 <!-- Plant UML diagrams -->
 <!--
