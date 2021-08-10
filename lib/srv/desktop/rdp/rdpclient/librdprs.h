@@ -10,17 +10,17 @@ typedef enum CGOPointerButton {
   PointerButtonMiddle,
 } CGOPointerButton;
 
-typedef struct Pointer {
+typedef struct CGOPointer {
   uint16_t x;
   uint16_t y;
   enum CGOPointerButton button;
   bool down;
-} Pointer;
+} CGOPointer;
 
-typedef struct Key {
+typedef struct CGOKey {
   uint16_t code;
   bool down;
-} Key;
+} CGOKey;
 
 typedef struct CGOBitmap {
   uint16_t dest_left;
@@ -41,9 +41,9 @@ char *connect_rdp(const char *go_addr,
 
 char *read_rdp_output(int64_t client_ref);
 
-char *write_rdp_pointer(int64_t client_ref, struct Pointer pointer);
+char *write_rdp_pointer(int64_t client_ref, struct CGOPointer pointer);
 
-char *write_rdp_keyboard(int64_t client_ref, struct Key key);
+char *write_rdp_keyboard(int64_t client_ref, struct CGOKey key);
 
 char *close_rdp(int64_t client_ref);
 

@@ -164,7 +164,7 @@ func (c *Client) start() {
 				mouseX, mouseY = m.X, m.Y
 				if err := cgoError(C.write_rdp_pointer(
 					C.int64_t(c.clientRef),
-					C.Pointer{
+					C.CGOPointer{
 						x:      C.uint16_t(m.X),
 						y:      C.uint16_t(m.Y),
 						button: C.PointerButtonNone,
@@ -187,7 +187,7 @@ func (c *Client) start() {
 				}
 				if err := cgoError(C.write_rdp_pointer(
 					C.int64_t(c.clientRef),
-					C.Pointer{
+					C.CGOPointer{
 						x:      C.uint16_t(mouseX),
 						y:      C.uint16_t(mouseY),
 						button: uint32(button),
@@ -200,7 +200,7 @@ func (c *Client) start() {
 			case deskproto.KeyboardButton:
 				if err := cgoError(C.write_rdp_keyboard(
 					C.int64_t(c.clientRef),
-					C.Key{
+					C.CGOKey{
 						code: C.uint16_t(m.KeyCode),
 						down: m.State == deskproto.ButtonPressed,
 					},
