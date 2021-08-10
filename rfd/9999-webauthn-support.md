@@ -248,23 +248,23 @@ design also preserves much of the standard messages.
 ### `tsh` + WebAuthn
 
 WebAuthn/FIDO2 support for client-side libraries is currently sparse - the main
-Go client-side lib seems to be
+Go client-side library being
 [github.com/keys-pub/go-libfido2](https://github.com/keys-pub/go-libfido2),
-which pulls a native dependency into Teleport (`libfido2`) and doesn't seem to
-support Touch ID (one of the main appeals for the change). As such, the proposal
-is a 2-step change in `tsh`:
+which focuses on USB devices (excluding platform authenticators such as Touch
+ID). As such, the proposal is for a set of incremental changes in `tsh` (not
+necessarily in this order):
 
-1. Initially, `tsh` keeps support for only FIDO/CTAP1 (via github.com/flynn/u2f),
-   but is changed to use WebAuthn-based endpoints
+* Support for U2F/CTAP1 USB devices (same as present), but using WebAuthn-based
+  endpoints
+* Support for WebAuthn/CTAP2 USB devices (likely via `libfido2`)
+* Support for Apple biometric authenticators (aka Touch ID, likely hand-crafted)
+* Further support TBD (Windows Hello, NFC, etc)
 
-2. At a later stage (to be designed), support is brought in for FIDO2 / Touch
-   ID.
-
-The implications of 1. being that not all WebAuthn configuration features are
-likely to be initially supported (in particular, settings related to
-`authenticator_selection`).
-
-__TODO(codingllama):__ Do more exploration on client-side libs.
+Notes:
+  CTAP1 USB+WebAuthn is certain (I have a working PoC for it).
+  CTAP2 USB doesn't seem pressing (for example, most Yubikeys still ship with
+  U2F support).
+  Apple biometrics may warrant a small RFD for itself.
 
 ### Server-side changes
 
