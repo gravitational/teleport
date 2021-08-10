@@ -36,7 +36,8 @@ package rdpclient
 
 /*
 // Flags to include the static Rust library.
-#cgo LDFLAGS: -L${SRCDIR}/target/debug -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
+#cgo linux LDFLAGS: -L${SRCDIR}/target/debug -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/debug -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
 #include <librdprs.h>
 
 // C proxy function trick, to allow calling Go callbacks from Rust.
