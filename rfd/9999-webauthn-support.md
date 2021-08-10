@@ -32,11 +32,11 @@ is: A client, typically a browser, begins registration by asking the server (aka
 Relying Party or RP) for a
 [CredentialCreation](https://pkg.go.dev/github.com/duo-labs/webauthn/protocol#CredentialCreation),
 containing a challenge for it to sign (among various other options). The client
-solves the challenge, typically by calling
+signs the challenge, typically by calling
 [navigator.credentials.create()](https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/create),
 and sends a
 [CredentialCreationResponse](https://pkg.go.dev/github.com/duo-labs/webauthn/protocol#CredentialCreationResponse)
-to the server with the solved challenge. Assuming all is well this completes the
+to the server with the signed challenge. Assuming all is well this completes the
 registration process.
 
 ```
@@ -70,7 +70,7 @@ registration process.
 Authentication (also referred simply as Login) follows a similar "challenge ->
 sign -> verify" protocol. In simple terms, the client requests a 
 [CredentialAssertion](https://pkg.go.dev/github.com/duo-labs/webauthn/protocol#CredentialAssertion)
-from the server, solves it by calling
+from the server, signs it by calling
 [navigartor.credentials.get()](https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/get),
 and replies with a
 [CredentialAssertionResponse](https://pkg.go.dev/github.com/duo-labs/webauthn/protocol#CredentialAssertionResponse).
@@ -105,7 +105,7 @@ AppID instead of the RP ID."_ This advice
 [wasn't followed by github.com/duo-labs/webauthn](https://github.com/duo-labs/webauthn/blob/9f1b88ef44cc0e4f5ddf511ed12a3aa468f972d7/protocol/assertion.go#L117),
 but in the short-term may be circumvented by creating a secondary
 [WebAuthn object](https://pkg.go.dev/github.com/duo-labs/webauthn/webauthn#WebAuthn)
-with RFID = AppID, used exclusively to validate legacy requests (identified by
+with RPID = AppID, used exclusively to validate legacy requests (identified by
 the presence of the "incorrect" rpIdHash).
 
 ### UX and configuration
