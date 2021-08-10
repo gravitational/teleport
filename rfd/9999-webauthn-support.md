@@ -133,22 +133,13 @@ auth_service:
     second_factor: webauthn # "on" allows all MFA options
     webauthn:
       relying_party:
-        display_name: "Teleport Auth"
-        # ID of the Relying Party, ie, the Teleport service performing user
-        # authentication.
-        # Must be a domain name, such as "example.com".
-        # Defaults to the Proxy domain name.
-        # IMPORTANT: similarly to the U2F app ID, if the Relying Party ID
-        # changes then all devices must be re-registered.
-        id: localhost
-        # Origin of the Relying Party, validated against the origin of
-        # authentication requests.
-        # Defaults to the Proxy public address.
-        origin: https://localhost:3080
+        # Display name of the Relying Party, defaults to "Teleport".
+        display_name: "Teleport"
         # URL which resolves to an image associated with the Relying Party.
         # It must be an a priori authenticated URL of preferably 128 or less
         # bytes, as authenticators may ignore an icon if its length is greater
         # than 128 bytes.
+        # TODO(codingllama): Default to Teleport's icon?
         icon: ""
 
       # Previously configured U2F app ID, if applicable.
@@ -159,35 +150,40 @@ auth_service:
       # Not required for new MFA installations.
       # Defaults to "auth_service.authentication.u2f.app_id", if present.
       u2f_app_id: "https://localhost:3080"
-
-      # WebAuthn protocol defaults.
-      # Protocol settings are based on available features of the
-      # github.com/duo-labs/webauthn library, which may be narrower than the
-      # full WebAuthn spec.
-
-      # Spec:
-      # https://www.w3.org/TR/webauthn/#dictdef-authenticatorselectioncriteria
-      authenticator_selection:
-        authenticator_attachment: ""                # "platform" or "cross-platform", empty means "no attachment"
-        require_resident_key: no                    # "yes" or "no"
-        user_verification_requirement: "preferred"  # "required", "preferred" or "discouraged"
-      timeout_ms: "60000"  # Default timeout for WebAuthn operations, in milliseconds
-
-      silence_u2f_compatibility_warning: no  # see below.
 ```
 
-It's important to note that, while WebAuthn features are well-supported by web
-browsers, CLI implementations may be unable to conform to certain WebAuthn
-settings, in particular when using FIDO/CTAP1 libraries. For example, while
-`tsh` relies on [github.com/flynn/u2f](https://github.com/flynn/u2f), we may be
-unable to enforce certain authenticator_selection settings.
+The WebAuthn configuration provided allows for some customization, but is
+comprised (almost entirely) of optional parameters (u2f_app_id being the
+exception, as it needs to be provided in some way).
 
-Furthermore, when migrating from U2F to WebAuthn, the creation of a more strict
-policy may prohibit the use of previously-registered devices (for example,
-"authenticator_attachment: platform" may prohibit previously-registered
-YubiKeys from working). In cases such as this the Auth server will issue a
-warning on startup, but ultimately the configuration stands.
+The general philosophy for configuration is that we provide the minimum set of
+configurations necessary and automatically choose the more secure/usable options
+ourselves.
 
+The following defaults are assumed, by the system, for the underlying WebAuthn
+settings:
+
+```go
+	web, _ := webauthn.New(&webauthn.Config{
+		// Proxy domain, inferred from the Proxy public_addr.
+		RPID: "example.com",
+		// Proxy public_addr.
+		RPOrigin: "https://example.com:3080",
+		// Either "none" or "direct" depending on attestation settings.
+		AttestationPreference: "none",
+		AuthenticatorSelection: protocol.AuthenticatorSelection{
+			// Unset - both "platform" and "cross-platform" allowed.
+			// User presence is what we're aiming at, which both provide.
+			AuthenticatorAttachment: "",
+			// Not aiming at "usernameless"/"first-factor" authentication _yet_.
+			RequireResidentKey: false,
+			// User presence is what we're aiming at, verification is a bonus.
+			UserVerification: "preferred",
+		},
+		// General timeout for flows, defaults to 60s.
+		Timeout: 60000,
+	})
+```
 
 __TODO(codingllama):__ Support attestation.
  If attestation CAs are supplied, then the system must automatically pick a
