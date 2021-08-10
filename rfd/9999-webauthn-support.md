@@ -347,22 +347,12 @@ At the API level (Proxy API, Auth API), backwards compatibility is achieved by
 keeping the old endpoints in place. Additions to existing messages are unknown
 by legacy code, thus ignored by older Proxy and `tsh` versions.
 
-The `/webapi/ping` response may be modified to signalize to `tsh` that the Proxy
+The server version returned by `/webapi/ping` is used to determine if the Proxy
 supports the new /mfa/ endpoints (with the assumption, by the Proxy, that the
 Auth server also supports the new endpoints). This allows newer `tsh` versions
 to safely talk to older Proxies (at least for a few releases).
 
 gRPC backwards compatibility is not a concern.
-
-Ping response changes (unrelated content omitted):
-
-```json
-{
-  "auth": {
-    "supports_mfa_endpoints": "yes"
-  }
-}
-```
 
 #### WebAuthn storage
 
