@@ -185,10 +185,52 @@ settings:
 	})
 ```
 
-__TODO(codingllama):__ Support attestation.
- If attestation CAs are supplied, then the system must automatically pick a
- conveyance preference between "indirect" or "direct".
- https://www.w3.org/TR/webauthn/#attestation-conveyance
+### Attestation
+
+Attestation support is provided in a similar manner to U2F attestation, by means
+of user-provided lists of CA certificates in PEM form.
+
+Both an allow and deny list of attestation CAs may be provided by the user.
+Organizations that allow a wide variety of authenticators may use the
+easier-to-maintain deny list to prohibit troublesome or unsupported
+devices, while organizations that want stronger control over the supported
+models may opt for the allow list instead.
+
+If both lists are present, then the attested certificate needs to pass both
+tests. This allows for a broad attestation CA to be used while removing support
+for specific models or batches.
+
+The attestation preference is set to "direct" if one of the lists is present,
+otherwise it is set to "none" (ie, the backend won't require attestation data
+unless it intends to make use of it).
+
+Configuration is as follows:
+
+```yaml
+auth_service:
+  authentication:
+    type: local
+    second_factor: webauthn # or "on"
+    webauthn:
+      attestation_allowed_cas:
+      - /path/to/attestation/ca.pem
+      - |-
+        -----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----
+
+      attestation_denied_cas: []
+```
+
+Note 1: WebAuthn [attestation statements come in various formats](
+https://www.w3.org/TR/webauthn-2/#sctn-defined-attestation-formats), which means
+this feature may require eventual work to be kept up-to-date with newer
+authenticator offerings.
+
+Note 2: duo-labs/webauthn [doesn't do much for attestation](
+https://github.com/duo-labs/webauthn/blob/9f1b88ef44cc0e4f5ddf511ed12a3aa468f972d7/protocol/credential.go#L131).
+As for U2F, most of the logic will be written by us. (The sources do provide
+an attestation checklist that is a good starting point.)
 
 ### Proxy UI + WebAuthn
 
