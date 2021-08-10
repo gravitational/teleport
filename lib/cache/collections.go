@@ -2100,7 +2100,11 @@ func (c *lock) fetch(ctx context.Context) (apply func(ctx context.Context) error
 func (c *lock) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
-		return trace.Wrap(c.accessCache.DeleteLock(ctx, event.Resource.GetName()))
+		err := c.accessCache.DeleteLock(ctx, event.Resource.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			c.Warningf("Failed to delete resource %v.", err)
+			return trace.Wrap(err)
+		}
 	case types.OpPut:
 		resource, ok := event.Resource.(types.Lock)
 		if !ok {
