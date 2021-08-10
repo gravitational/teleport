@@ -109,6 +109,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Restrictions == nil {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
 	}
+	if cfg.Databases == nil {
+		cfg.Databases = local.NewDatabasesService(cfg.Backend)
+	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend, cfg.ClusterConfiguration.GetClusterConfig)
 	}
@@ -157,6 +160,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			DynamicAccessExt:     cfg.DynamicAccessExt,
 			ClusterConfiguration: cfg.ClusterConfiguration,
 			Restrictions:         cfg.Restrictions,
+			Databases:            cfg.Databases,
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
 		},
@@ -181,6 +185,7 @@ type Services struct {
 	services.DynamicAccessExt
 	services.ClusterConfiguration
 	services.Restrictions
+	services.Databases
 	types.Events
 	events.IAuditLog
 }
@@ -1686,8 +1691,8 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 			return trace.BadParameter("token %s is statically configured and cannot be removed", token)
 		}
 	}
-	// delete reset password token:
-	if err = a.Identity.DeleteResetPasswordToken(ctx, token); err == nil {
+	// Delete a user token.
+	if err = a.Identity.DeleteUserToken(ctx, token); err == nil {
 		return nil
 	}
 	// delete node token:
@@ -1697,7 +1702,7 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 	return trace.Wrap(err)
 }
 
-// GetTokens returns all tokens (machine provisioning ones and user invitation tokens). Machine
+// GetTokens returns all tokens (machine provisioning ones and user tokens). Machine
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
 func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error) {
 	// get node tokens:
@@ -1713,13 +1718,13 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 	if err == nil {
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
-	// get reset password tokens:
-	resetPasswordTokens, err := a.Identity.GetResetPasswordTokens(ctx)
+	// get user tokens:
+	userTokens, err := a.Identity.GetUserTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// convert reset password tokens to machine tokens:
-	for _, t := range resetPasswordTokens {
+	// convert user tokens to machine tokens:
+	for _, t := range userTokens {
 		roles := types.SystemRoles{types.RoleSignup}
 		tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
 		if err != nil {

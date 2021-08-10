@@ -608,6 +608,7 @@ type AuthenticationConfig struct {
 	ConnectorName     string                     `yaml:"connector_name,omitempty"`
 	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
 	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
+	LockingMode       constants.LockingMode      `yaml:"locking_mode,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *types.BoolOption `yaml:"local_auth"`
@@ -631,6 +632,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		ConnectorName:     a.ConnectorName,
 		U2F:               &u,
 		RequireSessionMFA: a.RequireSessionMFA,
+		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 	})
 }
