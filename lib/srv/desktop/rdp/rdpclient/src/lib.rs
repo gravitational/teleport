@@ -250,7 +250,7 @@ pub extern "C" fn read_rdp_output(client_ref: i64) -> *mut c_char {
 // A CGO-compatible copy of PointerEvent.
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct Pointer {
+pub struct CGOPointer {
     pub x: u16,
     pub y: u16,
     pub button: CGOPointerButton,
@@ -266,8 +266,8 @@ pub enum CGOPointerButton {
     PointerButtonMiddle,
 }
 
-impl From<Pointer> for PointerEvent {
-    fn from(p: Pointer) -> PointerEvent {
+impl From<CGOPointer> for PointerEvent {
+    fn from(p: CGOPointer) -> PointerEvent {
         PointerEvent {
             x: p.x,
             y: p.y,
@@ -283,7 +283,7 @@ impl From<Pointer> for PointerEvent {
 }
 
 #[no_mangle]
-pub extern "C" fn write_rdp_pointer(client_ref: i64, pointer: Pointer) -> *mut c_char {
+pub extern "C" fn write_rdp_pointer(client_ref: i64, pointer: CGOPointer) -> *mut c_char {
     if let Err(e) = with_client(&client_ref, |client| -> Result<(), ClientError> {
         Ok(client
             .lock()
@@ -302,13 +302,13 @@ pub extern "C" fn write_rdp_pointer(client_ref: i64, pointer: Pointer) -> *mut c
 // A CGO-compatible copy of KeyboardEvent.
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct Key {
+pub struct CGOKey {
     pub code: u16,
     pub down: bool,
 }
 
-impl From<Key> for KeyboardEvent {
-    fn from(k: Key) -> KeyboardEvent {
+impl From<CGOKey> for KeyboardEvent {
+    fn from(k: CGOKey) -> KeyboardEvent {
         KeyboardEvent {
             code: k.code,
             down: k.down,
@@ -317,7 +317,7 @@ impl From<Key> for KeyboardEvent {
 }
 
 #[no_mangle]
-pub extern "C" fn write_rdp_keyboard(client_ref: i64, key: Key) -> *mut c_char {
+pub extern "C" fn write_rdp_keyboard(client_ref: i64, key: CGOKey) -> *mut c_char {
     if let Err(e) = with_client(&client_ref, |client| -> Result<(), ClientError> {
         Ok(client
             .lock()
