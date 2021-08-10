@@ -118,8 +118,9 @@ pub struct CGOBitmap {
     pub dest_right: u16,
     pub dest_bottom: u16,
     // Memory is freed on the Rust side.
-    pub data_ptr: *const u8,
+    pub data_ptr: *mut u8,
     pub data_len: usize,
+    pub data_cap: usize,
 }
 
 impl TryFrom<BitmapEvent> for CGOBitmap {
@@ -131,21 +132,33 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
             dest_top: e.dest_top,
             dest_right: e.dest_right,
             dest_bottom: e.dest_bottom,
-            data_ptr: std::ptr::null(),
+            data_ptr: std::ptr::null_mut(),
             data_len: 0,
+            data_cap: 0,
         };
 
         // e.decompress consumes e, so we need to call it separately, after populating the fields
         // above.
-        let data = if e.is_compress {
+        let mut data = if e.is_compress {
             e.decompress()?
         } else {
             e.data
         };
-        res.data_ptr = data.as_ptr();
+        res.data_ptr = data.as_mut_ptr();
         res.data_len = data.len();
+        res.data_cap = data.capacity();
+        mem::forget(data);
 
         Ok(res)
+    }
+}
+
+impl Drop for CGOBitmap {
+    fn drop(&mut self) {
+        // Reconstruct into Vec to drop the allocated buffer.
+        unsafe {
+            let _ = Vec::from_raw_parts(self.data_ptr, self.data_len, self.data_cap);
+        }
     }
 }
 
