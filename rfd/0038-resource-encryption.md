@@ -67,6 +67,10 @@ Each encrypted object has an accompanying file named `$objectName.key` that stor
     // An integer starting at 1 one that communicates the schema used for encryption.
     // May be changed in the future.
     "version": "number",
+
+    // A hex encoded version of the SHA-256 hash of the master key.
+    // This is used to determine state during key rotation.
+    "masterKey": "string",
 }
 ```
 
