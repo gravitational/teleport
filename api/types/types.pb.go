@@ -6764,6 +6764,9 @@ func (m *TrustedClusterSpecV2) XXX_DiscardUnknown() {
 var xxx_messageInfo_TrustedClusterSpecV2 proto.InternalMessageInfo
 
 // LockV2 represents a lock.
+// Locks are used to restrict access to a Teleport environment by disabling
+// interactions involving a user, an RBAC role, a node, etc.
+// See rfd/0009-locking.md for more details.
 type LockV2 struct {
 	// Kind is a resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`

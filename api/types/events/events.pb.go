@@ -3113,6 +3113,9 @@ func (m *BillingCardDelete) XXX_DiscardUnknown() {
 var xxx_messageInfo_BillingCardDelete proto.InternalMessageInfo
 
 // LockCreate is emitted when a lock is created/updated.
+// Locks are used to restrict access to a Teleport environment by disabling
+// interactions involving a user, an RBAC role, a node, etc.
+// See rfd/0009-locking.md for more details.
 type LockCreate struct {
 	// Metadata is a common event metadata
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
