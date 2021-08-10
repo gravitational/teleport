@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -417,6 +418,16 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			return nil, nil, trace.Wrap(err)
 		}
 		return keys.TLSCert, keys.Key, nil
+	case RemoteBuiltinRole:
+		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
+			HostID:   id.Username,
+			NodeName: id.Username,
+			Roles:    types.SystemRoles{id.Role},
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return keys.TLSCert, keys.Key, nil
 	default:
 		return nil, nil, trace.BadParameter("identity of unknown type %T is unsupported", identity)
 	}
@@ -627,6 +638,7 @@ func TestUser(username string) TestIdentity {
 	return TestIdentity{
 		I: LocalUser{
 			Username: username,
+			Identity: tlsca.Identity{Username: username},
 		},
 	}
 }
@@ -659,6 +671,17 @@ func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 		I: BuiltinRole{
 			Role:     role,
 			Username: serverID,
+		},
+	}
+}
+
+// TestRemoteBuiltin returns TestIdentity for a remote builtin role.
+func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity {
+	return TestIdentity{
+		I: RemoteBuiltinRole{
+			Role:        role,
+			Username:    string(role),
+			ClusterName: remoteCluster,
 		},
 	}
 }

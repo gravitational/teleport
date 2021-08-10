@@ -264,7 +264,7 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 
 // authorizeBuiltinRole authorizes builtin role
 func (a *authorizer) authorizeBuiltinRole(ctx context.Context, r BuiltinRole) (*Context, error) {
-	recConfig, err := r.GetSessionRecordingConfig(ctx)
+	recConfig, err := a.accessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -745,9 +745,6 @@ func (i WrapIdentity) GetIdentity() tlsca.Identity {
 
 // BuiltinRole is the role of the Teleport service.
 type BuiltinRole struct {
-	// GetSessionRecordingConfig fetches session recording configuration.
-	GetSessionRecordingConfig GetSessionRecordingConfigFunc
-
 	// Role is the builtin role this username is associated with
 	Role types.SystemRole
 
@@ -869,6 +866,3 @@ type RemoteUser struct {
 func (r RemoteUser) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
-
-// GetSessionRecordingConfigFunc returns a SessionRecordingConfig.
-type GetSessionRecordingConfigFunc func(context.Context, ...services.MarshalOption) (types.SessionRecordingConfig, error)

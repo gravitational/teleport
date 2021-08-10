@@ -937,6 +937,13 @@ message DeleteLockRequest {
     string Name = 1;
 }
 
+message ReplaceRemoteLocksRequest {
+    // ClusterName identifies the cluster from which the locks originate.
+    string ClusterName = 1;
+    // Locks is a list of new remote locks to store.
+    repeated types.LockV2 Locks = 2;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1212,6 +1219,8 @@ service AuthService {
     rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
     // DeleteLock deletes a lock.
     rpc DeleteLock(DeleteLockRequest) returns (google.protobuf.Empty);
+    // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+    rpc ReplaceRemoteLocks(ReplaceRemoteLocksRequest) returns (google.protobuf.Empty);
 
     // StreamSessionEvents streams audit events from a given session recording.
     rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);
