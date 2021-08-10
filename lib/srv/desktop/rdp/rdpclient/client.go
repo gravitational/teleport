@@ -39,10 +39,6 @@ package rdpclient
 #cgo linux LDFLAGS: -L${SRCDIR}/target/debug -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/debug -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
 #include <librdprs.h>
-
-// C proxy function trick, to allow calling Go callbacks from Rust.
-// See https://github.com/golang/go/wiki/cgo#function-pointer-callbacks
-char *handleBitmap_cgo(int64_t cp, struct CGOBitmap cb);
 */
 import "C"
 import (
@@ -145,10 +141,7 @@ func (c *Client) start() {
 		defer c.wg.Done()
 		defer c.closeConn()
 		defer logrus.Info("RDP output streaming finished")
-		if err := cgoError(C.read_rdp_output(
-			C.int64_t(c.clientRef),
-			(*[0]byte)(unsafe.Pointer(C.handleBitmap_cgo)),
-		)); err != nil {
+		if err := cgoError(C.read_rdp_output(C.int64_t(c.clientRef))); err != nil {
 			logrus.Warningf("Failed reading RDP output frame: %v", err)
 		}
 	}()
@@ -222,8 +215,8 @@ func (c *Client) start() {
 	}()
 }
 
-//export handleBitmapJump
-func handleBitmapJump(ci C.int64_t, cb C.CGOBitmap) *C.char {
+//export handle_bitmap
+func handle_bitmap(ci C.int64_t, cb C.CGOBitmap) *C.char {
 	return findClient(int64(ci)).handleBitmap(cb)
 }
 
