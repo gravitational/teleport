@@ -48,6 +48,9 @@ import (
 type Config struct {
 	// Region is where DynamoDB Table will be used to store k/v
 	Region string `json:"region,omitempty"`
+	// An optional endpoint URL (hostname only or fully qualified URI)
+	// that overrides the default generated endpoint for a client.
+	Endpoint string `json:"endpoint,omitempty"`
 	// AWS AccessKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
 	AccessKey string `json:"access_key,omitempty"`
 	// AWS SecretKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
@@ -236,10 +239,13 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// override the default environment (region + credentials) with the values
+	// override the default environment (region + endpoint + credentials ) with the values
 	// from the YAML file:
 	if cfg.Region != "" {
 		b.session.Config.Region = aws.String(cfg.Region)
+	}
+	if cfg.Endpoint != "" {
+		b.session.Config.Endpoint = aws.String(cfg.Endpoint)
 	}
 	if cfg.AccessKey != "" || cfg.SecretKey != "" {
 		creds := credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
