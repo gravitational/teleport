@@ -27,8 +27,9 @@ typedef struct CGOBitmap {
   uint16_t dest_top;
   uint16_t dest_right;
   uint16_t dest_bottom;
-  const uint8_t *data_ptr;
+  uint8_t *data_ptr;
   uintptr_t data_len;
+  uintptr_t data_cap;
 } CGOBitmap;
 
 char *connect_rdp(const char *go_addr,
