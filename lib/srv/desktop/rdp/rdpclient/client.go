@@ -42,7 +42,7 @@ package rdpclient
 
 // C proxy function trick, to allow calling Go callbacks from Rust.
 // See https://github.com/golang/go/wiki/cgo#function-pointer-callbacks
-CGOError handleBitmap_cgo(int64_t cp, struct CGOBitmap cb);
+char *handleBitmap_cgo(int64_t cp, struct CGOBitmap cb);
 */
 import "C"
 import (
@@ -116,12 +116,12 @@ func New(opts Options) (*Client, error) {
 }
 
 func (c *Client) connect() error {
-	addr := cgoString(c.opts.Addr)
-	c.toFree = append(c.toFree, unsafe.Pointer(addr.data))
-	username := cgoString(c.opts.Username)
-	c.toFree = append(c.toFree, unsafe.Pointer(username.data))
-	password := cgoString(c.opts.Password)
-	c.toFree = append(c.toFree, unsafe.Pointer(password.data))
+	addr := C.CString(c.opts.Addr)
+	c.toFree = append(c.toFree, unsafe.Pointer(addr))
+	username := C.CString(c.opts.Username)
+	c.toFree = append(c.toFree, unsafe.Pointer(username))
+	password := C.CString(c.opts.Password)
+	c.toFree = append(c.toFree, unsafe.Pointer(password))
 
 	c.clientRef = registerClient(c)
 
@@ -223,11 +223,11 @@ func (c *Client) start() {
 }
 
 //export handleBitmapJump
-func handleBitmapJump(ci C.int64_t, cb C.CGOBitmap) C.CGOError {
+func handleBitmapJump(ci C.int64_t, cb C.CGOBitmap) *C.char {
 	return findClient(int64(ci)).handleBitmap(cb)
 }
 
-func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
+func (c *Client) handleBitmap(cb C.CGOBitmap) *C.char {
 	data := C.GoBytes(unsafe.Pointer(cb.data_ptr), C.int(cb.data_len))
 	// Convert BGRA to RGBA. This is probably some endianness weirdness, if
 	// Windows handles pixels in ARGB as uint32.
@@ -241,9 +241,9 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	copy(img.Pix, data)
 
 	if err := c.opts.OutputMessage(deskproto.PNGFrame{Img: img}); err != nil {
-		return C.CGOError(cgoString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err)))
+		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
 	}
-	return C.CGOError{}
+	return nil
 }
 
 // Wait blocks until the client disconnects and runs the cleanup.
@@ -263,21 +263,18 @@ func (c *Client) closeConn() {
 	}
 }
 
-func cgoString(s string) C.CGOString {
-	sb := []byte(s)
-	return C.CGOString{
-		data: (*C.uint8_t)(C.CBytes(sb)),
-		len:  C.uint16_t(len(sb)),
-	}
-}
-
-func cgoError(s C.CGOError) error {
-	if s.data == nil {
+func cgoError(s *C.char) error {
+	if s == nil {
 		return nil
 	}
-	gs := C.GoStringN((*C.char)(unsafe.Pointer(s.data)), C.int(s.len))
-	C.free(unsafe.Pointer(s.data))
+	gs := C.GoString(s)
+	C.free_rust_string(s)
 	return errors.New(gs)
+}
+
+//export free_go_string
+func free_go_string(s *C.char) {
+	C.free(unsafe.Pointer(s))
 }
 
 // Global registry of active clients. This allows Rust to reference a specific
