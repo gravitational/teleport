@@ -170,10 +170,7 @@ fn wait_for_fd(fd: usize) -> bool {
 // read_rdp_output reads incoming RDP bitmap frames from client at client_ref and forwards them to
 // handle_bitmap. handle_bitmap *must not* free the memory of CGOBitmap.
 #[no_mangle]
-pub extern "C" fn read_rdp_output(
-    client_ref: i64,
-    handle_bitmap: unsafe extern "C" fn(i64, CGOBitmap) -> *const c_char,
-) -> *mut c_char {
+pub extern "C" fn read_rdp_output(client_ref: i64) -> *mut c_char {
     let mut tcp_fd = 0;
     if let Err(e) = with_client(&client_ref, |client| -> Result<(), ClientError> {
         tcp_fd = client.lock().unwrap().tcp_fd;
@@ -351,4 +348,5 @@ fn from_go_string(s: *const c_char) -> &'static str {
 
 extern "C" {
     fn free_go_string(s: *mut c_char);
+    fn handle_bitmap(client_ref: i64, b: CGOBitmap) -> *mut c_char;
 }
