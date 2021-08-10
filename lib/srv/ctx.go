@@ -353,6 +353,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
 		LockTargets:           ComputeLockTargets(srv, identityContext),
+		LockingMode:           identityContext.RoleSet.LockingMode(authPref.GetLockingMode()),
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
 		Clock:                 child.srv.GetClock(),
