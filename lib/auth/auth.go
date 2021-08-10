@@ -2263,6 +2263,16 @@ func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
 }
 
+// GetLock gets a lock by name from the auth server's cache.
+func (a *Server) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	return a.GetCache().GetLock(ctx, name)
+}
+
+// GetLocks gets all/in-force matching locks from the auth server's cache.
+func (a *Server) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	return a.GetCache().GetLocks(ctx, inForceOnly, targets...)
+}
+
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	pref, err := a.GetAuthPreference(ctx)
 	if err != nil {
