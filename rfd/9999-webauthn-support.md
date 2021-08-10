@@ -354,7 +354,43 @@ to safely talk to older Proxies (at least for a few releases).
 
 gRPC backwards compatibility is not a concern.
 
-#### WebAuthn storage
+#### WebAuthn user handle
+
+WebAuthn requires the server to return a user handle (aka user ID) along with
+both registration and login challenges. The user handle is used by the
+authenticator as a way to scope the credential (along with the RPID).
+Servers should rely on the user handle to identify the user as well (instead of
+displayName or other information).
+
+It is recommended for the user handle to be [a random array of 64 bytes](
+https://www.w3.org/TR/webauthn-2/#sctn-user-handle-privacy), a recommendation we
+shall follow.
+
+User handles are assigned to users in the following situations:
+
+* During new user creation
+* During login, before challenges are generated, if the user lacks a handle
+* During registration, before challenges are generated, if the user lacks a
+  handle
+
+User handles are stored within LocalAuthSecrets (messages below):
+
+```proto
+message LocalAuthSecrets {
+  // ...
+  WebAuthnSettings WebauthnSettings = 6 [
+    (gogoproto.jsontag) = "webauthn_settings,omitempty"
+  ];
+}
+
+message WebAuthnSettings {
+  // User ID is the random WebAuthn user handle generated for the user.
+  // See https://www.w3.org/TR/webauthn-2/#sctn-user-handle-privacy.
+  bytes user_id = 1 [(gogoproto.jsontag) = "user_id,omitempty"];
+}
+```
+
+#### WebAuthn challenge storage
 
 Device storage uses the existing \*MFADevice\* methods in
 [Identity](https://github.com/gravitational/teleport/blob/185e5fda35f3b8fb6debd46acd847cb8250b8f86/lib/services/identity.go#L124),
