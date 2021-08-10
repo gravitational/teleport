@@ -2079,12 +2079,10 @@ func makeProxySSHClientWithTLSWrapper(cfg Config, sshConfig *ssh.ClientConfig) (
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 	})
 	if err != nil {
-		log.WithError(err).Warnf("failed to dial tls %v.", cfg.WebProxyAddr)
 		return nil, trace.Wrap(err, "failed to dial tls %v", cfg.WebProxyAddr)
 	}
 	c, chans, reqs, err := ssh.NewClientConn(tlsConn, cfg.WebProxyAddr, sshConfig)
 	if err != nil {
-		log.WithError(err).Warnf("Failed to authenticate with proxy %v.", cfg.WebProxyAddr)
 		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.WebProxyAddr)
 	}
 	return ssh.NewClient(c, chans, reqs), nil

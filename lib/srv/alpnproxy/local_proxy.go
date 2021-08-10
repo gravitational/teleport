@@ -213,12 +213,12 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			log.WithError(err).Errorf("faield to accept client connection")
+			log.WithError(err).Errorf("Faield to accept client connection.")
 			continue
 		}
 		go func() {
 			if err := l.handleDownstreamConnection(ctx, conn, l.cfg.SNI); err != nil {
-				log.WithError(err).Errorf("failed to handle connection")
+				log.WithError(err).Errorf("Failed to handle connection.")
 			}
 		}()
 	}

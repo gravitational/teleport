@@ -48,14 +48,14 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 		name                      string
 		mainClusterPortSetup      *InstancePorts
 		secondClusterPortSetup    *InstancePorts
-		disableALPNListenerOnMain bool
+		disableALPNListenerOnRoot bool
 		disableALPNListenerOnLeaf bool
 	}{
 		{
 			name:                      "StandardAndOnePortSetupMasterALPNDisabled",
 			mainClusterPortSetup:      standardPortSetup(),
 			secondClusterPortSetup:    singleProxyPortSetup(),
-			disableALPNListenerOnMain: true,
+			disableALPNListenerOnRoot: true,
 		},
 		{
 			name:                   "StandardAndOnePortSetup",
@@ -88,23 +88,23 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 			username := mustGetCurrentUser(t).Username
 
 			suite := newProxySuite(t,
-				withMainClusterConfig(mainClusterStandardConfig(t), func(config *service.Config) {
-					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnMain
+				withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
+					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnRoot
 				}),
 				withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
-					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnMain
+					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnRoot
 				}),
-				withMainClusterPorts(tc.mainClusterPortSetup),
+				withRootClusterPorts(tc.mainClusterPortSetup),
 				withLeafClusterPorts(tc.secondClusterPortSetup),
-				withMainAndLeafClusterRoles(createAdminRole(username)),
+				withRootAndLeafClusterRoles(createAdminRole(username)),
 				withStandardRoleMapping(),
 			)
 			// Run command in root.
 			suite.mustConnectToClusterAndRunSSHCommand(t, ClientConfig{
 				Login:   username,
-				Cluster: suite.main.Secrets.SiteName,
+				Cluster: suite.root.Secrets.SiteName,
 				Host:    Loopback,
-				Port:    suite.main.GetPortSSHInt(),
+				Port:    suite.root.GetPortSSHInt(),
 			})
 			// Run command in leaf.
 			suite.mustConnectToClusterAndRunSSHCommand(t, ClientConfig{
@@ -123,14 +123,14 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 		name                      string
 		mainClusterPortSetup      *InstancePorts
 		secondClusterPortSetup    *InstancePorts
-		disableALPNListenerOnMain bool
+		disableALPNListenerOnRoot bool
 		disableALPNListenerOnLeaf bool
 	}{
 		{
 			name:                      "StandardAndOnePortSetupMasterALPNDisabled",
 			mainClusterPortSetup:      standardPortSetup(),
 			secondClusterPortSetup:    singleProxyPortSetup(),
-			disableALPNListenerOnMain: true,
+			disableALPNListenerOnRoot: true,
 		},
 		{
 			name:                   "StandardAndOnePortSetup",
@@ -162,20 +162,20 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 			username := mustGetCurrentUser(t).Username
 
 			suite := newProxySuite(t,
-				withMainClusterConfig(mainClusterStandardConfig(t)),
+				withRootClusterConfig(rootClusterStandardConfig(t)),
 				withLeafClusterConfig(leafClusterStandardConfig(t)),
-				withMainClusterPorts(tc.mainClusterPortSetup),
+				withRootClusterPorts(tc.mainClusterPortSetup),
 				withLeafClusterPorts(tc.secondClusterPortSetup),
-				withMainClusterRoles(newRole(t, "maindevs", username)),
+				withRootClusterRoles(newRole(t, "maindevs", username)),
 				withLeafClusterRoles(newRole(t, "auxdevs", username)),
-				withMainAndLeafTrustedClusterReset(),
+				withRootAndLeafTrustedClusterReset(),
 				withTrustedCluster(),
 			)
 
 			nodeHostname := "clusterauxnode"
 			suite.addNodeToLeafCluster(t, "clusterauxnode")
 
-			// Try and connect to a node in the Aux cluster from the Main cluster using
+			// Try and connect to a node in the Aux cluster from the Root cluster using
 			// direct dialing.
 			suite.mustConnectToClusterAndRunSSHCommand(t, ClientConfig{
 				Login:   username,
@@ -184,7 +184,7 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 				Port:    suite.leaf.GetPortSSHInt(),
 			})
 
-			// Try and connect to a node in the Aux cluster from the Main cluster using
+			// Try and connect to a node in the Aux cluster from the Root cluster using
 			// tunnel dialing.
 			suite.mustConnectToClusterAndRunSSHCommand(t, ClientConfig{
 				Login:   username,
@@ -212,16 +212,16 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	username := mustGetCurrentUser(t).Username
 
 	suite := newProxySuite(t,
-		withMainClusterConfig(mainClusterStandardConfig(t)),
+		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
-		withMainClusterPorts(singleProxyPortSetup()),
+		withRootClusterPorts(singleProxyPortSetup()),
 		withLeafClusterPorts(singleProxyPortSetup()),
-		withMainAndLeafClusterRoles(createAdminRole(username)),
+		withRootAndLeafClusterRoles(createAdminRole(username)),
 		withStandardRoleMapping(),
 	)
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	utils.RetryStaticFor(time.Second*10, time.Millisecond*200, func() error {
-		for len(checkGetClusters(t, suite.main.Tunnel)) < 2 && len(checkGetClusters(t, suite.leaf.Tunnel)) < 2 {
+		for len(checkGetClusters(t, suite.root.Tunnel)) < 2 && len(checkGetClusters(t, suite.leaf.Tunnel)) < 2 {
 			return errors.New("two sites do not see each other: tunnels are not working")
 		}
 		return nil
@@ -253,23 +253,23 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	require.NoError(t, err)
 
 	suite := newProxySuite(t,
-		withMainClusterConfig(mainClusterStandardConfig(t), func(config *service.Config) {
+		withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
 			config.Proxy.Kube.Enabled = true
 			config.Proxy.Kube.KubeconfigPath = kubeConfigPath
 			config.Proxy.Kube.LegacyKubeProxy = true
 		}),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
-		withMainAndLeafClusterRoles(kubeRole),
+		withRootAndLeafClusterRoles(kubeRole),
 		withStandardRoleMapping(),
 	)
 
 	k8Client, _, err := kubeProxyClient(kubeProxyConfig{
-		t:                   suite.main,
+		t:                   suite.root,
 		username:            kubeRoleSpec.Allow.Logins[0],
 		kubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 		kubeGroups:          kubeRoleSpec.Allow.KubeUsers,
 		customTLSServerName: localK8SNI,
-		targetAddress:       suite.main.Config.Proxy.WebAddr,
+		targetAddress:       suite.root.Config.Proxy.WebAddr,
 	})
 	require.NoError(t, err)
 

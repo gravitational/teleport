@@ -269,7 +269,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		dialer := proxy.DialerFromEnvironment(a.Addr.Addr, opts...)
 		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
 		if err != nil {
-			a.log.Debugf("Dial to %v failed: %v.", a.Addr.Addr, err)
+			a.log.WithError(err).Debugf("Dial to %v failed.", a.Addr.Addr)
 			continue
 		}
 
@@ -282,7 +282,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 			Timeout:         apidefaults.DefaultDialTimeout,
 		})
 		if err != nil {
-			a.log.Debugf("Failed to create client to %v: %v.", a.Addr.Addr, err)
+			a.log.WithError(err).Debugf("Failed to create client to %v.", a.Addr.Addr)
 			continue
 		}
 

@@ -49,25 +49,25 @@ import (
 )
 
 type ProxySuite struct {
-	main *TeleInstance
+	root *TeleInstance
 	leaf *TeleInstance
 }
 
 type proxySuiteOptions struct {
-	mainConfigFunc   func(suite *ProxySuite) *service.Config
-	secondConfigFunc func(suite *ProxySuite) *service.Config
+	rootConfigFunc func(suite *ProxySuite) *service.Config
+	leafConfigFunc func(suite *ProxySuite) *service.Config
 
-	mainConfigModFunc   []func(config *service.Config)
-	secondConfigModFunc []func(config *service.Config)
+	rootConfigModFunc []func(config *service.Config)
+	leafConfigModFunc []func(config *service.Config)
 
-	mainClusterPorts *InstancePorts
+	rootClusterPorts *InstancePorts
 	leafClusterPorts *InstancePorts
 
-	mainTrustedSecretFunc func(suite *ProxySuite) []*InstanceSecrets
-	secondTrustedFunc     func(suite *ProxySuite) []*InstanceSecrets
+	rootTrustedSecretFunc func(suite *ProxySuite) []*InstanceSecrets
+	leafTrustedFunc       func(suite *ProxySuite) []*InstanceSecrets
 
-	mainClusterRoles      []types.Role
-	secondClusterRoles    []types.Role
+	rootClusterRoles      []types.Role
+	leafClusterRoles      []types.Role
 	updateRoleMappingFunc func(t *testing.T, suite *ProxySuite)
 
 	trustedCluster types.TrustedCluster
@@ -75,7 +75,7 @@ type proxySuiteOptions struct {
 
 func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	options := proxySuiteOptions{
-		mainClusterPorts: singleProxyPortSetup(),
+		rootClusterPorts: singleProxyPortSetup(),
 		leafClusterPorts: singleProxyPortSetup(),
 	}
 	for _, opt := range opts {
@@ -87,7 +87,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 		HostID:      uuid.New(),
 		NodeName:    Host,
 		log:         testlog.FailureOnly(t),
-		Ports:       options.mainClusterPorts,
+		Ports:       options.rootClusterPorts,
 	})
 
 	// Create leaf cluster.
@@ -101,39 +101,39 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 		Ports:       options.leafClusterPorts,
 	})
 	suite := &ProxySuite{
-		main: rc,
+		root: rc,
 		leaf: lc,
 	}
 
 	user := mustGetCurrentUser(t)
-	for _, role := range options.mainClusterRoles {
+	for _, role := range options.rootClusterRoles {
 		rc.AddUserWithRole(user.Username, role)
 	}
-	for _, role := range options.secondClusterRoles {
+	for _, role := range options.leafClusterRoles {
 		lc.AddUserWithRole(user.Username, role)
 	}
 
-	mainTrustedSecrets := lc.Secrets.AsSlice()
-	if options.mainTrustedSecretFunc != nil {
-		mainTrustedSecrets = options.mainTrustedSecretFunc(suite)
+	rootTrustedSecrets := lc.Secrets.AsSlice()
+	if options.rootTrustedSecretFunc != nil {
+		rootTrustedSecrets = options.rootTrustedSecretFunc(suite)
 	}
 
-	mainConfig := options.mainConfigFunc(suite)
-	for _, v := range options.mainConfigModFunc {
-		v(mainConfig)
+	rootConfig := options.rootConfigFunc(suite)
+	for _, v := range options.rootConfigModFunc {
+		v(rootConfig)
 	}
-	err := rc.CreateEx(t, mainTrustedSecrets, mainConfig)
+	err := rc.CreateEx(t, rootTrustedSecrets, rootConfig)
 	require.NoError(t, err)
 
-	secondTrustedSecrets := rc.Secrets.AsSlice()
-	if options.secondTrustedFunc != nil {
-		secondTrustedSecrets = options.secondTrustedFunc(suite)
+	leafTrustedSecrets := rc.Secrets.AsSlice()
+	if options.leafTrustedFunc != nil {
+		leafTrustedSecrets = options.leafTrustedFunc(suite)
 	}
-	secondConfig := options.secondConfigFunc(suite)
-	for _, v := range options.secondConfigModFunc {
-		v(mainConfig)
+	leafConfig := options.leafConfigFunc(suite)
+	for _, v := range options.leafConfigModFunc {
+		v(rootConfig)
 	}
-	err = lc.CreateEx(t, secondTrustedSecrets, secondConfig)
+	err = lc.CreateEx(t, leafTrustedSecrets, leafConfig)
 	require.NoError(t, err)
 
 	require.NoError(t, rc.Start())
@@ -152,7 +152,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 
 	if options.trustedCluster != nil {
 		tryCreateTrustedCluster(t, suite.leaf.Process.GetAuthServer(), options.trustedCluster)
-		waitForTunnelConnections(t, suite.main.Process.GetAuthServer(), suite.leaf.Secrets.SiteName, 1)
+		waitForTunnelConnections(t, suite.root.Process.GetAuthServer(), suite.leaf.Secrets.SiteName, 1)
 	}
 
 	return suite
@@ -185,7 +185,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	require.NoError(t, err)
 
 	err = utils.RetryStaticFor(deadline, nextIterWaitTime, func() error {
-		if len(checkGetClusters(t, p.main.Tunnel)) < 2 && len(checkGetClusters(t, p.leaf.Tunnel)) < 2 {
+		if len(checkGetClusters(t, p.root.Tunnel)) < 2 && len(checkGetClusters(t, p.leaf.Tunnel)) < 2 {
 			return trace.NotFound("two clusters do not see each other: tunnels are not working")
 		}
 		return nil
@@ -193,7 +193,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	require.NoError(t, err)
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = waitForNodeCount(context.Background(), p.main, p.leaf.Secrets.SiteName, 2)
+	err = waitForNodeCount(context.Background(), p.root, p.leaf.Secrets.SiteName, 2)
 	require.NoError(t, err)
 }
 
@@ -203,7 +203,7 @@ func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config C
 		nextIterWaitTime = time.Millisecond * 100
 	)
 
-	tc, err := p.main.NewClient(t, config)
+	tc, err := p.root.NewClient(t, config)
 	require.NoError(t, err)
 
 	output := &bytes.Buffer{}
@@ -222,21 +222,21 @@ func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config C
 
 type proxySuiteOptionsFunc func(*proxySuiteOptions)
 
-func withMainClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
+func withRootClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.mainClusterRoles = roles
+		options.rootClusterRoles = roles
 	}
 }
 
 func withLeafClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.secondClusterRoles = roles
+		options.leafClusterRoles = roles
 	}
 }
 
-func withMainAndLeafClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
+func withRootAndLeafClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		withMainClusterRoles(roles...)(options)
+		withRootClusterRoles(roles...)(options)
 		withLeafClusterRoles(roles...)(options)
 
 	}
@@ -244,32 +244,32 @@ func withMainAndLeafClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
 
 func withLeafClusterConfig(fn func(suite *ProxySuite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.secondConfigFunc = fn
-		options.secondConfigModFunc = append(options.secondConfigModFunc, configModFunctions...)
+		options.leafConfigFunc = fn
+		options.leafConfigModFunc = append(options.leafConfigModFunc, configModFunctions...)
 	}
 }
 
-func withMainClusterConfig(fn func(suite *ProxySuite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
+func withRootClusterConfig(fn func(suite *ProxySuite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.mainConfigFunc = fn
-		options.mainConfigModFunc = append(options.mainConfigModFunc, configModFunctions...)
+		options.rootConfigFunc = fn
+		options.rootConfigModFunc = append(options.rootConfigModFunc, configModFunctions...)
 	}
 }
 
-func withMainAndLeafTrustedClusterReset() proxySuiteOptionsFunc {
+func withRootAndLeafTrustedClusterReset() proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.mainTrustedSecretFunc = func(suite *ProxySuite) []*InstanceSecrets {
+		options.rootTrustedSecretFunc = func(suite *ProxySuite) []*InstanceSecrets {
 			return nil
 		}
-		options.secondTrustedFunc = func(suite *ProxySuite) []*InstanceSecrets {
+		options.leafTrustedFunc = func(suite *ProxySuite) []*InstanceSecrets {
 			return nil
 		}
 	}
 }
 
-func withMainClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
+func withRootClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.mainClusterPorts = ports
+		options.rootClusterPorts = ports
 	}
 }
 
@@ -289,9 +289,9 @@ func newRole(t *testing.T, roleName string, username string) types.Role {
 	return role
 }
 
-func mainClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Config {
+func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Config {
 	return func(suite *ProxySuite) *service.Config {
-		rc := suite.main
+		rc := suite.root
 		config := service.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
@@ -336,9 +336,9 @@ func createAdminRole(username string) types.Role {
 func withStandardRoleMapping() proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
 		options.updateRoleMappingFunc = func(t *testing.T, suite *ProxySuite) {
-			rc := suite.main
+			rc := suite.root
 			lc := suite.leaf
-			role := suite.main.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
+			role := suite.root.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
 			ca, err := lc.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
 				Type:       types.UserCA,
 				DomainName: rc.Secrets.SiteName,
@@ -356,16 +356,16 @@ func withStandardRoleMapping() proxySuiteOptionsFunc {
 func withTrustedCluster() proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
 		options.updateRoleMappingFunc = func(t *testing.T, suite *ProxySuite) {
-			main := suite.main
-			mainRole := suite.main.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
+			root := suite.root
+			rootRole := suite.root.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
 			secondRole := suite.leaf.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
 
 			trustedClusterToken := "trustedclustertoken"
-			err := main.Process.GetAuthServer().UpsertToken(context.Background(),
+			err := root.Process.GetAuthServer().UpsertToken(context.Background(),
 				types.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 			require.NoError(t, err)
-			trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
-				{Remote: mainRole.GetName(), Local: []string{secondRole.GetName()}},
+			trustedCluster := root.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+				{Remote: rootRole.GetName(), Local: []string{secondRole.GetName()}},
 			})
 			err = trustedCluster.CheckAndSetDefaults()
 			require.NoError(t, err)
