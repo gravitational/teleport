@@ -311,6 +311,7 @@ func TestBackwardsCompForUserTokenWithLegacyPrefix(t *testing.T) {
 
 	// Create a user token secrets.
 	legacySecrets, err := types.NewUserTokenSecrets(legacyToken.GetName())
+	legacySecrets.SetOTPKey("test")
 	require.NoError(t, err)
 
 	marshalledSecrets, err := services.MarshalUserTokenSecrets(legacySecrets)
@@ -327,6 +328,7 @@ func TestBackwardsCompForUserTokenWithLegacyPrefix(t *testing.T) {
 	retrievedSecrets, err := srv.Auth().GetUserTokenSecrets(ctx, legacySecrets.GetName())
 	require.NoError(t, err)
 	require.Equal(t, legacyToken.GetName(), retrievedSecrets.GetName())
+	require.Equal(t, legacySecrets.GetOTPKey(), retrievedSecrets.GetOTPKey())
 
 	// Test deletion of token stored with legacy prefix.
 	// Helper method deleteUserTokens hits both GetUserTokens and DeleteUserToken path.

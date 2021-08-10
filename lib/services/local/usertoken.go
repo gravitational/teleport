@@ -81,19 +81,18 @@ func (s *IdentityService) DeleteUserToken(ctx context.Context, tokenID string) e
 // GetUserToken returns a token by its ID.
 func (s *IdentityService) GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error) {
 	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, paramsPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			// DELETE IN 9.0.0: fallback for old prefix
-			item, err = s.Get(ctx, backend.Key(LegacyPasswordTokensPrefix, tokenID, paramsPrefix))
-			if err != nil {
-				if trace.IsNotFound(err) {
-					return nil, trace.NotFound("user token(%v) not found", tokenID)
-				}
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			return nil, trace.Wrap(err)
-		}
+
+	// DELETE IN 9.0.0: fallback for old prefix first.
+	if trace.IsNotFound(err) {
+		item, err = s.Get(ctx, backend.Key(LegacyPasswordTokensPrefix, tokenID, paramsPrefix))
+	}
+
+	// Handle errors from either Get.
+	switch {
+	case trace.IsNotFound(err):
+		return nil, trace.NotFound("user token(%v) not found", tokenID)
+	case err != nil:
+		return nil, trace.Wrap(err)
 	}
 
 	token, err := services.UnmarshalUserToken(item.Value)
@@ -131,19 +130,18 @@ func (s *IdentityService) CreateUserToken(ctx context.Context, token types.UserT
 // GetUserTokenSecrets returns token secrets.
 func (s *IdentityService) GetUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
 	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, secretsPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			// DELETE IN 9.0.0: fallback for old prefix
-			item, err = s.Get(ctx, backend.Key(LegacyPasswordTokensPrefix, tokenID, secretsPrefix))
-			if err != nil {
-				if trace.IsNotFound(err) {
-					return nil, trace.NotFound("user token(%v) secrets not found", tokenID)
-				}
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			return nil, trace.Wrap(err)
-		}
+
+	// DELETE IN 9.0.0: fallback for old prefix first.
+	if trace.IsNotFound(err) {
+		item, err = s.Get(ctx, backend.Key(LegacyPasswordTokensPrefix, tokenID, secretsPrefix))
+	}
+
+	// Handle errors from either Get.
+	switch {
+	case trace.IsNotFound(err):
+		return nil, trace.NotFound("user token(%v) secrets not found", tokenID)
+	case err != nil:
+		return nil, trace.Wrap(err)
 	}
 
 	secrets, err := services.UnmarshalUserTokenSecrets(item.Value)
