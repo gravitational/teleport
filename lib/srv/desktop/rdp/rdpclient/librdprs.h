@@ -10,13 +10,6 @@ typedef enum CGOPointerButton {
   PointerButtonMiddle,
 } CGOPointerButton;
 
-typedef struct CGOString {
-  uint8_t *data;
-  uint16_t len;
-} CGOString;
-
-typedef struct CGOString CGOError;
-
 typedef struct CGOBitmap {
   uint16_t dest_left;
   uint16_t dest_top;
@@ -38,17 +31,21 @@ typedef struct Key {
   bool down;
 } Key;
 
-CGOError connect_rdp(struct CGOString go_addr,
-                     struct CGOString go_username,
-                     struct CGOString go_password,
-                     uint16_t screen_width,
-                     uint16_t screen_height,
-                     int64_t client_ref);
+char *connect_rdp(const char *go_addr,
+                  const char *go_username,
+                  const char *go_password,
+                  uint16_t screen_width,
+                  uint16_t screen_height,
+                  int64_t client_ref);
 
-CGOError read_rdp_output(int64_t client_ref, CGOError (*handle_bitmap)(int64_t, struct CGOBitmap));
+char *read_rdp_output(int64_t client_ref, const char *(*handle_bitmap)(int64_t, struct CGOBitmap));
 
-CGOError write_rdp_pointer(int64_t client_ref, struct Pointer pointer);
+char *write_rdp_pointer(int64_t client_ref, struct Pointer pointer);
 
-CGOError write_rdp_keyboard(int64_t client_ref, struct Key key);
+char *write_rdp_keyboard(int64_t client_ref, struct Key key);
 
-CGOError close_rdp(int64_t client_ref);
+char *close_rdp(int64_t client_ref);
+
+void free_rust_string(char *s);
+
+extern void free_go_string(char *s);

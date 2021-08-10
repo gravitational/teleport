@@ -11,6 +11,3 @@ crate-type = ["staticlib"]
 libc = "0.2.98"
 rdp-rs = "0.1.0"
 lazy_static = "1.4.0"
-
-[build-dependencies]
-cbindgen = "0.20.0"

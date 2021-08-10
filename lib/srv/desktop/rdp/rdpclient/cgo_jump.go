@@ -8,9 +8,9 @@ package rdpclient
 #include <librdprs.h>
 #include <stdint.h>
 
-extern CGOError handleBitmapJump(int64_t, struct CGOBitmap);
+extern char *handleBitmapJump(int64_t, struct CGOBitmap);
 
-CGOError handleBitmap_cgo(int64_t cp, struct CGOBitmap cb) {
+char *handleBitmap_cgo(int64_t cp, struct CGOBitmap cb) {
 	return handleBitmapJump(cp, cb);
 }
 */

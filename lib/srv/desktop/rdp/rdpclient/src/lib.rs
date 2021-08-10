@@ -7,8 +7,10 @@ use rdp::core::event::*;
 use rdp::model::error::*;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::ffi::{CStr, CString};
 use std::mem;
 use std::net::TcpStream;
+use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
 use std::ptr;
 use std::sync::{Arc, Mutex};
@@ -60,72 +62,31 @@ fn with_client<F: FnMut(&SyncRdpClient) -> Result<(), ClientError>>(
     }
 }
 
-// CGOString is a CGO-compatible definition of a UTF-8 string that can be used in Go and Rust.
-// This string is not null-terminated.
-#[repr(C)]
-pub struct CGOString {
-    // Memory is freed on the receiving side.
-    data: *mut u8,
-    len: u16,
-}
-
-// CGOError is just a CGOString used when returning error messages.
-// A "null" CGOError means no error, like in Go.
-type CGOError = CGOString;
-
-impl CGOString {
-    fn null() -> CGOString {
-        CGOString {
-            data: std::ptr::null_mut(),
-            len: 0,
-        }
-    }
-    fn is_null(&self) -> bool {
-        self.data == std::ptr::null_mut()
-    }
-}
-
-impl From<CGOString> for String {
-    fn from(s: CGOString) -> String {
-        unsafe { String::from_raw_parts(s.data, s.len.into(), s.len.into()) }
-    }
-}
-
-// Important: when converting String to CGOString, the caller is responsible for manually freeing
-// the memory at CGOString.data.
-impl From<String> for CGOString {
-    fn from(mut s: String) -> CGOString {
-        let cs = CGOString {
-            data: s.as_mut_ptr(),
-            len: s.len() as u16,
-        };
-        // Tell Rust to forget about the underlying memory, so that the caller can free it later.
-        std::mem::forget(s);
-        cs
-    }
-}
-
 // connect_rdp establishes an RDP connection to go_addr with the provided credentials and screen
 // size. If succeeded, the client is internally registered under client_ref. When done with the
 // connection, the caller must call close_rdp.
 #[no_mangle]
 pub extern "C" fn connect_rdp(
-    go_addr: CGOString,
-    go_username: CGOString,
-    go_password: CGOString,
+    go_addr: *const c_char,
+    go_username: *const c_char,
+    go_password: *const c_char,
     screen_width: u16,
     screen_height: u16,
     client_ref: i64,
-) -> CGOError {
+) -> *mut c_char {
     // Convert from C to Rust types.
-    let addr = String::from(go_addr);
-    let username = String::from(go_username);
-    let password = String::from(go_password);
+    let addr = from_go_string(go_addr);
+    let username = from_go_string(go_username);
+    let password = from_go_string(go_password);
 
     // Connect and authenticate.
     let tcp = match TcpStream::connect(&addr) {
         Ok(tcp) => tcp,
-        Err(e) => return format!("failed TCP connection to {}: {:?}", &addr, e).into(),
+        Err(e) => {
+            return CString::new(format!("failed TCP connection to {}: {:?}", &addr, e))
+                .expect("CString::new failed")
+                .into_raw()
+        }
     };
     let tcp_fd = tcp.as_raw_fd() as usize;
     let mut connector = Connector::new()
@@ -133,7 +94,11 @@ pub extern "C" fn connect_rdp(
         .credentials(".".to_string(), username.to_string(), password.to_string());
     let client = match connector.connect(tcp) {
         Ok(client) => client,
-        Err(e) => return format!("failed RDP connection to {}: {:?}", &addr, e).into(),
+        Err(e) => {
+            return CString::new(format!("failed RDP connection to {}: {:?}", &addr, e))
+                .expect("CString::new failed")
+                .into_raw()
+        }
     };
 
     register_client(
@@ -143,7 +108,7 @@ pub extern "C" fn connect_rdp(
             tcp_fd: tcp_fd,
         },
     );
-    CGOError::null()
+    std::ptr::null_mut()
 }
 
 #[repr(C)]
@@ -207,24 +172,25 @@ fn wait_for_fd(fd: usize) -> bool {
 #[no_mangle]
 pub extern "C" fn read_rdp_output(
     client_ref: i64,
-    handle_bitmap: unsafe extern "C" fn(i64, CGOBitmap) -> CGOError,
-) -> CGOError {
+    handle_bitmap: unsafe extern "C" fn(i64, CGOBitmap) -> *const c_char,
+) -> *mut c_char {
     let mut tcp_fd = 0;
     if let Err(e) = with_client(&client_ref, |client| -> Result<(), ClientError> {
         tcp_fd = client.lock().unwrap().tcp_fd;
         Ok(())
     }) {
-        return format!(
+        return CString::new(format!(
             "failed looking up TCP file descriptor for client {}: {:?}",
             client_ref, e
-        )
-        .into();
+        ))
+        .expect("CString::new failed")
+        .into_raw();
     }
     // Read incoming events.
     // TODO: this doesn't always unblock after client.shutdown() was called. Figure out why.
     while wait_for_fd(tcp_fd as usize) {
         if let Err(e) = with_client(&client_ref, |client| -> Result<(), ClientError> {
-            let mut err = CGOError::null();
+            let mut err: *mut c_char = std::ptr::null_mut();
             let mut client = client.lock().unwrap();
             client.rdp_client.read(|rdp_event| match rdp_event {
                 RdpEvent::Bitmap(bitmap) => {
@@ -239,7 +205,7 @@ pub extern "C" fn read_rdp_output(
                         }
                     };
                     unsafe {
-                        err = handle_bitmap(client_ref, cbitmap);
+                        err = handle_bitmap(client_ref, cbitmap) as *mut c_char;
                     };
                 }
                 // These should never really be sent by the server to us.
@@ -250,19 +216,25 @@ pub extern "C" fn read_rdp_output(
                     println!("got unexpected keyboard event from RDP server, ignoring");
                 }
             })?;
-            if !err.is_null() {
+            if err != std::ptr::null_mut() {
+                let err_str = from_go_string(err);
+                unsafe {
+                    free_go_string(err);
+                }
                 Err(ClientError::Other(format!(
-                    "failed forwarding RDP bitmap frame: {:?}",
-                    String::from(err)
+                    "failed forwarding RDP bitmap frame: {}",
+                    err_str
                 )))
             } else {
                 Ok(())
             }
         }) {
-            return format!("failed reading RDP bitmap frame: {:?}", e).into();
+            return CString::new(format!("failed reading RDP bitmap frame: {:?}", e))
+                .expect("CString::new failed")
+                .into_raw();
         }
     }
-    CGOError::null()
+    std::ptr::null_mut()
 }
 
 // A CGO-compatible copy of PointerEvent.
@@ -301,7 +273,7 @@ impl From<Pointer> for PointerEvent {
 }
 
 #[no_mangle]
-pub extern "C" fn write_rdp_pointer(client_ref: i64, pointer: Pointer) -> CGOError {
+pub extern "C" fn write_rdp_pointer(client_ref: i64, pointer: Pointer) -> *mut c_char {
     if let Err(e) = with_client(&client_ref, |client| -> Result<(), ClientError> {
         Ok(client
             .lock()
@@ -309,9 +281,11 @@ pub extern "C" fn write_rdp_pointer(client_ref: i64, pointer: Pointer) -> CGOErr
             .rdp_client
             .write(RdpEvent::Pointer(pointer.into()))?)
     }) {
-        format!("failed writing RDP pointer event: {:?}", e).into()
+        CString::new(format!("failed writing RDP pointer event: {:?}", e))
+            .expect("CString::new failed")
+            .into_raw()
     } else {
-        CGOError::null()
+        std::ptr::null_mut()
     }
 }
 
@@ -333,7 +307,7 @@ impl From<Key> for KeyboardEvent {
 }
 
 #[no_mangle]
-pub extern "C" fn write_rdp_keyboard(client_ref: i64, key: Key) -> CGOError {
+pub extern "C" fn write_rdp_keyboard(client_ref: i64, key: Key) -> *mut c_char {
     if let Err(e) = with_client(&client_ref, |client| -> Result<(), ClientError> {
         Ok(client
             .lock()
@@ -341,19 +315,40 @@ pub extern "C" fn write_rdp_keyboard(client_ref: i64, key: Key) -> CGOError {
             .rdp_client
             .write(RdpEvent::Key(key.into()))?)
     }) {
-        format!("failed writing RDP keyboard event: {:?}", e).into()
+        CString::new(format!("failed writing RDP keyboard event: {:?}", e))
+            .expect("CString::new failed")
+            .into_raw()
     } else {
-        CGOError::null()
+        std::ptr::null_mut()
     }
 }
 
 #[no_mangle]
-pub extern "C" fn close_rdp(client_ref: i64) -> CGOError {
+pub extern "C" fn close_rdp(client_ref: i64) -> *mut c_char {
     if let Err(e) = with_client(&client_ref, |client| -> Result<(), ClientError> {
         Ok(client.lock().unwrap().rdp_client.shutdown()?)
     }) {
-        return format!("failed writing RDP keyboard event: {:?}", e).into();
+        return CString::new(format!("failed writing RDP keyboard event: {:?}", e))
+            .expect("CString::new failed")
+            .into_raw();
     }
     unregister_client(&client_ref);
-    CGOError::null()
+    std::ptr::null_mut()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn free_rust_string(s: *mut c_char) {
+    let _ = CString::from_raw(s);
+}
+
+fn from_go_string(s: *const c_char) -> &'static str {
+    unsafe {
+        CStr::from_ptr(s)
+            .to_str()
+            .expect("got a non-UTF8 string from Go")
+    }
+}
+
+extern "C" {
+    fn free_go_string(s: *mut c_char);
 }
