@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 use libc::{fd_set, select, FD_SET};
 use rdp::core::client::{Connector, RdpClient};
 use rdp::core::event::*;
@@ -11,6 +14,13 @@ use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
 use std::ptr;
 use std::sync::{Arc, Mutex};
+
+#[no_mangle]
+pub extern "C" fn init() {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
+}
 
 // Client has an unusual lifetime:
 // - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
@@ -213,7 +223,7 @@ fn read_rdp_output_inner(client: &mut Client, client_ref: i64) -> Option<String>
                     let cbitmap = match CGOBitmap::try_from(bitmap) {
                         Ok(cb) => cb,
                         Err(e) => {
-                            println!(
+                            error!(
                                 "failed to convert RDP bitmap to CGO representation: {:?}",
                                 e
                             );
@@ -226,10 +236,10 @@ fn read_rdp_output_inner(client: &mut Client, client_ref: i64) -> Option<String>
                 }
                 // These should never really be sent by the server to us.
                 RdpEvent::Pointer(_) => {
-                    println!("got unexpected pointer event from RDP server, ignoring");
+                    debug!("got unexpected pointer event from RDP server, ignoring");
                 }
                 RdpEvent::Key(_) => {
-                    println!("got unexpected keyboard event from RDP server, ignoring");
+                    debug!("got unexpected keyboard event from RDP server, ignoring");
                 }
             });
         if let Err(e) = res {

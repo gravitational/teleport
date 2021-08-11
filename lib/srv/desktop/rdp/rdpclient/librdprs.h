@@ -41,6 +41,8 @@ typedef struct CGOBitmap {
   uintptr_t data_cap;
 } CGOBitmap;
 
+void init(void);
+
 struct ClientOrError connect_rdp(char *go_addr,
                                  char *go_username,
                                  char *go_password,
