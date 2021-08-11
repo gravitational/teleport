@@ -108,7 +108,7 @@ func GetTunnelAddr(ctx context.Context, proxyAddr string, insecure bool, pool *x
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return tunnelAddr(pr.Proxy.SSH)
+	return tunnelAddr(proxyAddr, pr.Proxy.SSH)
 }
 
 func GetMOTD(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (*MotD, error) {
@@ -260,8 +260,8 @@ type GithubSettings struct {
 //  1. Reverse Tunnel Public Address.
 //  2. SSH Proxy Public Address Host + Tunnel Port.
 //  3. HTTP Proxy Public Address Host + Tunnel Port.
-//  4. Tunnel Listen Address.
-func tunnelAddr(settings SSHProxySettings) (string, error) {
+//  4. Proxy Address Host + Tunnel Port.
+func tunnelAddr(proxyAddr string, settings SSHProxySettings) (string, error) {
 	// If a tunnel public address is set, nothing else has to be done, return it.
 	if settings.TunnelPublicAddr != "" {
 		return extractHostPort(settings.TunnelPublicAddr)
@@ -289,8 +289,12 @@ func tunnelAddr(settings SSHProxySettings) (string, error) {
 		}
 	}
 
-	// If nothing is set, fallback to the tunnel listen address.
-	return extractHostPort(settings.TunnelListenAddr)
+	// If nothing is set, fallback to the address dialed with tunnel port.
+	host, err := extractHost(proxyAddr)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to parse the given proxy address")
+	}
+	return net.JoinHostPort(host, tunnelPort), nil
 }
 
 // extractHostPort takes addresses like "tcp://host:port/path" and returns "host:port".

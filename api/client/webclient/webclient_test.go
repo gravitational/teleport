@@ -37,51 +37,60 @@ func TestGetTunnelAddr(t *testing.T) {
 }
 
 func TestTunnelAddr(t *testing.T) {
-	testTunnelAddr := func(settings SSHProxySettings, expectedTunnelAddr string) func(*testing.T) {
+	type testCase struct {
+		proxyAddr          string
+		settings           SSHProxySettings
+		expectedTunnelAddr string
+	}
+
+	testTunnelAddr := func(tc testCase) func(*testing.T) {
 		return func(t *testing.T) {
 			t.Parallel()
-			tunnelAddr, err := tunnelAddr(settings)
+			tunnelAddr, err := tunnelAddr(tc.proxyAddr, tc.settings)
 			require.NoError(t, err)
-			require.Equal(t, expectedTunnelAddr, tunnelAddr)
+			require.Equal(t, tc.expectedTunnelAddr, tunnelAddr)
 		}
 	}
 
-	t.Run("should use TunnelPublicAddr", testTunnelAddr(
-		SSHProxySettings{
+	t.Run("should use TunnelPublicAddr", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com",
+		settings: SSHProxySettings{
 			TunnelPublicAddr: "tunnel.example.com:4024",
-			PublicAddr:       "proxy.example.com",
+			PublicAddr:       "public.example.com",
 			SSHPublicAddr:    "ssh.example.com",
 			TunnelListenAddr: "[::]:5024",
 		},
-		"tunnel.example.com:4024",
-	))
-	t.Run("should use SSHPublicAddr and TunnelListenAddr", testTunnelAddr(
-		SSHProxySettings{
+		expectedTunnelAddr: "tunnel.example.com:4024",
+	}))
+	t.Run("should use SSHPublicAddr and TunnelListenAddr", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com",
+		settings: SSHProxySettings{
 			SSHPublicAddr:    "ssh.example.com",
-			PublicAddr:       "proxy.example.com",
+			PublicAddr:       "public.example.com",
 			TunnelListenAddr: "[::]:5024",
 		},
-		"ssh.example.com:5024",
-	))
-	t.Run("should use PublicAddr and TunnelListenAddr", testTunnelAddr(
-		SSHProxySettings{
-			PublicAddr:       "proxy.example.com",
+		expectedTunnelAddr: "ssh.example.com:5024",
+	}))
+	t.Run("should use PublicAddr and TunnelListenAddr", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com",
+		settings: SSHProxySettings{
+			PublicAddr:       "public.example.com",
 			TunnelListenAddr: "[::]:5024",
 		},
-		"proxy.example.com:5024",
-	))
-	t.Run("should return TunnelListenAddr", testTunnelAddr(
-		SSHProxySettings{
-			TunnelListenAddr: "[::]:5024",
+		expectedTunnelAddr: "public.example.com:5024",
+	}))
+	t.Run("should use PublicAddr and SSHProxyTunnelListenPort", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com",
+		settings: SSHProxySettings{
+			PublicAddr: "public.example.com",
 		},
-		"[::]:5024",
-	))
-	t.Run("should use PublicAddr and SSHProxyTunnelListenPort", testTunnelAddr(
-		SSHProxySettings{
-			PublicAddr: "proxy.example.com",
-		},
-		"proxy.example.com:3024",
-	))
+		expectedTunnelAddr: "public.example.com:3024",
+	}))
+	t.Run("should use proxyAddr and SSHProxyTunnelListenPort", testTunnelAddr(testCase{
+		proxyAddr:          "proxy.example.com",
+		settings:           SSHProxySettings{},
+		expectedTunnelAddr: "proxy.example.com:3024",
+	}))
 }
 
 func TestExtract(t *testing.T) {
