@@ -38,13 +38,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/profile"
-	"github.com/gravitational/teleport/api/v7/types"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/events"
-	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -94,8 +93,6 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 		kubeConfigPath: os.Getenv(teleport.EnvKubeConfig),
 	}
 	require.NotEmpty(t, suite.kubeConfigPath, "This test requires path to valid kubeconfig.")
-
-	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
 
 	var err error
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
@@ -1183,7 +1180,11 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	tlsCA, err := tlsca.FromAuthority(ca)
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ca)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

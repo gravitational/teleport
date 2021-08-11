@@ -36,10 +36,10 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apisshutils "github.com/gravitational/teleport/api/v7/utils/sshutils"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/benchmark"
@@ -1294,11 +1294,11 @@ func showApps(servers []types.Server, active []tlsca.RouteToApp, verbose bool) {
 	}
 }
 
-func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsca.RouteToDatabase, verbose bool) {
+func showDatabases(cluster string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
-		for _, server := range servers {
-			name := server.GetName()
+		for _, database := range databases {
+			name := database.GetName()
 			var connect string
 			for _, a := range active {
 				if a.ServiceName == name {
@@ -1308,20 +1308,20 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 			}
 			t.AddRow([]string{
 				name,
-				server.GetDescription(),
-				server.GetProtocol(),
-				server.GetType(),
-				server.GetURI(),
-				server.LabelsString(),
+				database.GetDescription(),
+				database.GetProtocol(),
+				database.GetType(),
+				database.GetURI(),
+				database.LabelsString(),
 				connect,
-				server.Expiry().Format(constants.HumanDateFormatSeconds),
+				database.Expiry().Format(constants.HumanDateFormatSeconds),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Labels", "Connect"})
-		for _, server := range servers {
-			name := server.GetName()
+		for _, database := range databases {
+			name := database.GetName()
 			var connect string
 			for _, a := range active {
 				if a.ServiceName == name {
@@ -1331,8 +1331,8 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 			}
 			t.AddRow([]string{
 				name,
-				server.GetDescription(),
-				server.LabelsString(),
+				database.GetDescription(),
+				database.LabelsString(),
 				connect,
 			})
 		}

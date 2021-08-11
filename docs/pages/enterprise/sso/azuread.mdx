@@ -136,33 +136,13 @@ $ tctl create azure-connector.yaml
   ```
 </Admonition>
 
-## Create Teleport Roles
+## Create a new Teleport Role
 
-We are going to create 2 roles:
+We are going to create a new that'll use external username data from Azure
+to map to a host linux login. 
 
-- Privileged role `admin` who is able to login as root and is capable of administrating
-  the cluster
-- Non-privileged role `dev`
-
-```yaml
-kind: role
-version: v3
-metadata:
-  name: admin
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    logins: [root]
-    node_labels:
-      "*": "*"
-    rules:
-      - resources: ["*"]
-        verbs: ["*"]
-```
-
-Devs are only allowed to login to nodes labeled with `access: relaxed`
-Teleport label. Developers can log in as either `ubuntu` or a username that
+In the below role, Devs are only allowed to login to nodes labelled with `access: relaxed`
+Teleport label. Developers can log in as either `ubuntu` to a username that
 arrives in their assertions. Developers also do not have any rules needed to
 obtain admin access to Teleport.
 
@@ -183,7 +163,6 @@ spec:
 **Notice:** Replace `ubuntu` with linux login available on your servers!
 
 ```bash
-$ tctl create admin.yaml
 $ tctl create dev.yaml
 ```
 

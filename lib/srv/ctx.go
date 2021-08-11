@@ -30,8 +30,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -159,6 +160,10 @@ type IdentityContext struct {
 	// RoleSet is the roles this Teleport user is associated with. RoleSet is
 	// used to check RBAC permissions.
 	RoleSet services.RoleSet
+
+	// UnmappedRoles lists the original roles of this Teleport user without
+	// trusted-cluster-related role mapping being applied.
+	UnmappedRoles []string
 
 	// CertValidBefore is set to the expiry time of a certificate, or
 	// empty, if cert does not expire
@@ -352,6 +357,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
 		LockTargets:           lockTargets,
+		LockingMode:           identityContext.RoleSet.LockingMode(authPref.GetLockingMode()),
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
 		Clock:                 child.srv.GetClock(),
@@ -919,11 +925,12 @@ func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	roleTargets := services.RolesToLockTargets(apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...)))
 	return append([]types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
 		{Node: s.HostUUID()},
 		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
-	}, services.RolesToLockTargets(id.RoleSet.RoleNames())...), nil
+	}, roleTargets...), nil
 }

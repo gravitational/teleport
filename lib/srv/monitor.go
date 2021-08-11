@@ -24,8 +24,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -59,8 +60,10 @@ type TrackingConn interface {
 type MonitorConfig struct {
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
-	// LockTargets is a used to detect a lock applicable to the connection.
+	// LockTargets is used to detect a lock applicable to the connection.
 	LockTargets []types.LockTarget
+	// LockingMode determines how to handle possibly stale lock views.
+	LockingMode constants.LockingMode
 	// DisconnectExpiredCert is a point in time when
 	// the certificate should be disconnected
 	DisconnectExpiredCert time.Time
@@ -129,6 +132,11 @@ func StartMonitor(cfg MonitorConfig) error {
 	w := &Monitor{
 		MonitorConfig: cfg,
 	}
+	// If an applicable lock is already in force, close the connection immediately.
+	if lockErr := w.LockWatcher.CheckLockInForce(w.LockingMode, w.LockTargets...); lockErr != nil {
+		w.handleLockInForce(lockErr)
+		return nil
+	}
 	lockWatch, err := w.LockWatcher.Subscribe(w.Context, w.LockTargets...)
 	if err != nil {
 		return trace.Wrap(err)
@@ -147,17 +155,12 @@ type Monitor struct {
 
 // start starts monitoring connection.
 func (w *Monitor) start(lockWatch types.Watcher) {
-	lockWatchDone := lockWatch.Done()
+	lockWatchDoneC := lockWatch.Done()
 	defer func() {
 		if err := lockWatch.Close(); err != nil {
 			w.Entry.WithError(err).Warn("Failed to close lock watcher subscription.")
 		}
 	}()
-	// If an applicable lock is already in force, close the connection immediately.
-	if lock := w.LockWatcher.FindLockInForce(w.LockTargets...); lock != nil {
-		w.handleLockInForce(lock)
-		return
-	}
 
 	var certTime <-chan time.Time
 	if !w.DisconnectExpiredCert.IsZero() {
@@ -214,23 +217,35 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 
 		// Lock in force.
 		case lockEvent := <-lockWatch.Events():
-			lock, err := getLock(lockEvent)
-			if err != nil {
-				w.Entry.WithError(err).Warnf("Failed to extract lock from event %v.", lockEvent)
-				continue
+			var lockErr error
+			switch lockEvent.Type {
+			case types.OpPut:
+				lock, ok := lockEvent.Resource.(types.Lock)
+				if !ok {
+					w.Entry.Warnf("Skipping unexpected lock event resource type %T.", lockEvent.Resource)
+				}
+				lockErr = services.LockInForceAccessDenied(lock)
+			case types.OpDelete:
+				// Lock deletion can be ignored.
+			case types.OpUnreliable:
+				if w.LockingMode == constants.LockingModeStrict {
+					lockErr = services.StrictLockingModeAccessDenied
+				}
+			default:
+				w.Entry.Warnf("Skipping unexpected lock event type %q.", lockEvent.Type)
 			}
-			if lock != nil {
-				w.handleLockInForce(lock)
+			if lockErr != nil {
+				w.handleLockInForce(lockErr)
 				return
 			}
 
-		case <-lockWatchDone:
+		case <-lockWatchDoneC:
 			w.Entry.WithError(lockWatch.Error()).Warn("Lock watcher subscription was closed.")
 			if w.DisconnectExpiredCert.IsZero() && w.ClientIdleTimeout == 0 {
 				return
 			}
-			// Prevent spinning on the zero value received from a closed Done channel.
-			lockWatchDone = nil
+			// Prevent spinning on the zero value received from closed lockWatchDoneC.
+			lockWatchDoneC = nil
 
 		case <-w.Context.Done():
 			w.Entry.Debugf("Releasing associated resources - context has been closed.")
@@ -261,9 +276,8 @@ func (w *Monitor) emitDisconnectEvent(reason string) error {
 	return trace.Wrap(w.Emitter.EmitAuditEvent(w.Context, event))
 }
 
-func (w *Monitor) handleLockInForce(lock types.Lock) {
-	// TODO(andrej): Handle stale lock views.
-	reason := services.LockInForceMessage(lock)
+func (w *Monitor) handleLockInForce(lockErr error) {
+	reason := lockErr.Error()
 	if err := w.emitDisconnectEvent(reason); err != nil {
 		w.Entry.WithError(err).Warn("Failed to emit audit event.")
 	}
@@ -275,23 +289,6 @@ func (w *Monitor) handleLockInForce(lock types.Lock) {
 	w.Entry.Debugf("Disconnecting client: %v.", reason)
 	if err := w.Conn.Close(); err != nil {
 		w.Entry.WithError(err).Error("Failed to close connection.")
-	}
-}
-
-func getLock(lockEvent types.Event) (types.Lock, error) {
-	switch lockEvent.Type {
-	case types.OpPut:
-		lock, ok := lockEvent.Resource.(types.Lock)
-		if !ok {
-			return nil, trace.BadParameter("unexpected lock event resource type %T", lockEvent.Resource)
-		}
-		return lock, nil
-	case types.OpDelete:
-		// Lock deletion can be ignored.
-		return nil, nil
-	default:
-		// TODO(andrej): Handle stale lock views.
-		return nil, trace.BadParameter("Skipping unexpected lock event type %s.", lockEvent.Type)
 	}
 }
 

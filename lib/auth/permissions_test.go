@@ -25,7 +25,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -118,9 +118,8 @@ func TestAuthorizeWithLocksForBuiltinRole(t *testing.T) {
 	require.NoError(t, err)
 
 	builtinRole := BuiltinRole{
-		Username:                  "node",
-		Role:                      types.RoleNode,
-		GetSessionRecordingConfig: srv.AuthServer.GetSessionRecordingConfig,
+		Username: "node",
+		Role:     types.RoleNode,
 		Identity: tlsca.Identity{
 			Username: "node",
 		},

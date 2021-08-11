@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/stretchr/testify/require"
@@ -164,7 +164,7 @@ func (s *UtilsSuite) TestVersions(c *check.C) {
 	}
 	for i, testCase := range testCases {
 		comment := check.Commentf("test case %v %q", i, testCase.info)
-		err := CheckVersions(testCase.client, testCase.minClient)
+		err := CheckVersion(testCase.client, testCase.minClient)
 		if testCase.err == nil {
 			c.Assert(err, check.IsNil, comment)
 		} else {

@@ -19,22 +19,29 @@ package services
 import (
 	"fmt"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
 
-// LockInForceMessage returns an informational message for locked-out users.
-func LockInForceMessage(lock types.Lock) string {
+// LockInForceAccessDenied is an AccessDenied error returned when a lock
+// is in force.
+func LockInForceAccessDenied(lock types.Lock) error {
 	s := fmt.Sprintf("lock targeting %v is in force", lock.Target())
 	msg := lock.Message()
 	if len(msg) > 0 {
 		s += ": " + msg
 	}
-	return s
+	err := trace.AccessDenied(s)
+	err.AddField("lock-in-force", lock)
+	return err
 }
+
+// StrictLockingModeAccessDenied is an AccessDenied error returned when strict
+// locking mode causes all interactions to be blocked.
+var StrictLockingModeAccessDenied = trace.AccessDenied("preventive lock-out due to local lock view becoming unreliable")
 
 // LockTargetsFromTLSIdentity infers a list of LockTargets from tlsca.Identity.
 func LockTargetsFromTLSIdentity(id tlsca.Identity) []types.LockTarget {

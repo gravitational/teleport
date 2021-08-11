@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	"github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -224,7 +224,6 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			t.Parallel()
 			clt, err := New(ctx, tt.config)
 			tt.assertErr(t, err)
 

@@ -16,7 +16,7 @@ limitations under the License.
 
 package services
 
-import "github.com/gravitational/teleport/api/v7/types"
+import "github.com/gravitational/teleport/api/types"
 
 // Services collects all services
 type Services interface {
@@ -29,6 +29,7 @@ type Services interface {
 	DynamicAccessCore
 	Presence
 	Restrictions
+	Databases
 	AppSession
 	types.WebSessionsGetter
 	types.WebTokensGetter

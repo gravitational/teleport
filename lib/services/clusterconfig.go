@@ -19,8 +19,7 @@ package services
 import (
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/v7/types"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -41,37 +40,17 @@ func NewDerivedResourcesFromClusterConfig(cc types.ClusterConfig) (*ClusterConfi
 		return nil, trace.BadParameter("unexpected ClusterConfig type %T", cc)
 	}
 
-	var (
-		auditConfig types.ClusterAuditConfig
-		netConfig   types.ClusterNetworkingConfig
-		recConfig   types.SessionRecordingConfig
-		err         error
-	)
-	if ccV3.Spec.Audit != nil {
-		auditConfig, err = types.NewClusterAuditConfig(*ccV3.Spec.Audit)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	auditConfig, err := ccV3.GetClusterAuditConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if ccV3.Spec.ClusterNetworkingConfigSpecV2 != nil {
-		netConfig, err = types.NewClusterNetworkingConfigFromConfigFile(*ccV3.Spec.ClusterNetworkingConfigSpecV2)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	netConfig, err := ccV3.GetClusterNetworkingConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if ccV3.Spec.LegacySessionRecordingConfigSpec != nil {
-		proxyChecksHostKeys, err := apiutils.ParseBool(ccV3.Spec.LegacySessionRecordingConfigSpec.ProxyChecksHostKeys)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		recConfigSpec := types.SessionRecordingConfigSpecV2{
-			Mode:                ccV3.Spec.LegacySessionRecordingConfigSpec.Mode,
-			ProxyChecksHostKeys: types.NewBoolOption(proxyChecksHostKeys),
-		}
-		recConfig, err = types.NewSessionRecordingConfigFromConfigFile(recConfigSpec)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	recConfig, err := ccV3.GetSessionRecordingConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &ClusterConfigDerivedResources{

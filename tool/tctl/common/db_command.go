@@ -22,7 +22,7 @@ import (
 	"text/template"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 
@@ -68,7 +68,7 @@ func (c *DBCommand) ListDatabases(client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := &dbCollection{servers: servers}
+	coll := &databaseServerCollection{servers: servers}
 	switch c.format {
 	case teleport.Text:
 		err = coll.writeText(os.Stdout)

@@ -26,9 +26,9 @@ import (
 	"strconv"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/v7/client"
-	"github.com/gravitational/teleport/api/v7/client/webclient"
-	"github.com/gravitational/teleport/api/v7/types"
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"

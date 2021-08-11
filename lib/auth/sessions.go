@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -170,7 +170,11 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 	}
 
 	// Extract the JWT signing key and sign the claims.
-	privateKey, err := services.GetJWTSigner(ca, s.clock)
+	signer, err := s.GetKeyStore().GetJWTSigner(ca)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

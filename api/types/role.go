@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types/wrappers"
-	"github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -580,7 +580,16 @@ func (r *RoleV4) CheckAndSetDefaults() error {
 			opt == constants.EnhancedRecordingNetwork {
 			continue
 		}
-		return trace.BadParameter("found invalid option in session_recording: %v", opt)
+		return trace.BadParameter("invalid value for role option enhanced_recording: %v", opt)
+	}
+
+	// Validate locking mode.
+	switch r.Spec.Options.Lock {
+	case "":
+		// Missing locking mode implies the cluster-wide default should be used.
+	case constants.LockingModeBestEffort, constants.LockingModeStrict:
+	default:
+		return trace.BadParameter("invalid value for role option lock: %v", r.Spec.Options.Lock)
 	}
 
 	// check and correct the session ttl

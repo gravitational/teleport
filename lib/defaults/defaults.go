@@ -24,7 +24,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -276,6 +276,10 @@ const (
 
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour
+
+	// LockMaxStaleness is the maximum staleness for cached lock resources
+	// to be deemed acceptable for strict locking mode.
+	LockMaxStaleness = 5 * time.Minute
 )
 
 var (

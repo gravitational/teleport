@@ -45,11 +45,11 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client/webclient"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -1995,7 +1995,10 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.Len(t, dbs, 0)
 
 	// Register a database.
-	db, err := types.NewDatabaseServerV3("test-db-name", map[string]string{"test-field": "test-value"}, types.DatabaseServerSpecV3{
+	db, err := types.NewDatabaseServerV3(types.Metadata{
+		Name:   "test-db-name",
+		Labels: map[string]string{"test-field": "test-value"},
+	}, types.DatabaseServerSpecV3{
 		Description: "test-description",
 		Protocol:    "test-protocol",
 		URI:         "test-uri",
