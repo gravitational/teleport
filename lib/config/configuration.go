@@ -694,13 +694,11 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("kube_listen_addr must be set when kube_public_addr is set")
 		}
 		cfg.Proxy.Kube.Enabled = true
-		if fc.Proxy.KubeAddr != "" {
-			addr, err := utils.ParseHostPortAddr(fc.Proxy.KubeAddr, int(defaults.KubeListenPort))
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			cfg.Proxy.Kube.ListenAddr = *addr
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.KubeAddr, int(defaults.KubeListenPort))
+		if err != nil {
+			return trace.Wrap(err)
 		}
+		cfg.Proxy.Kube.ListenAddr = *addr
 
 		publicAddrs, err := utils.AddrsFromStrings(fc.Proxy.KubePublicAddr, defaults.KubeListenPort)
 		if err != nil {

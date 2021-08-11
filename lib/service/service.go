@@ -2560,7 +2560,8 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			}
 		}
 
-		if !cfg.Proxy.DisableTLS && listeners.web == nil {
+		// Even if web service API was disabled create a web listener used for ALPN/SNI service as the master port
+		if cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS && listeners.web == nil {
 			listeners.web, err = process.importOrCreateListener(listenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -2958,6 +2959,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
+				// Add MongoDB teleport ALPN protocol without setting custom Handler.
+				// ALPN Proxy will handle MongoDB connection internally (terminate wrapped TLS traffic) and route
+				// extracted connection to ALPN Proxy DB TLS Handler.
 				Protocols: []string{alpnproxy.ProtocolMongoDB},
 			})
 		}
