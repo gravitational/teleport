@@ -531,9 +531,12 @@ func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = a.checkLockInForce(authPref.GetLockingMode(), []types.LockTarget{{Node: p.HostID}, {Node: HostFQDN(p.HostID, p.ClusterName)}})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if p.Roles.Include(types.RoleNode) {
+		if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
+			[]types.LockTarget{{Node: p.HostID}, {Node: HostFQDN(p.HostID, p.ClusterName)}},
+		); lockErr != nil {
+			return nil, trace.Wrap(lockErr)
+		}
 	}
 	return a.Authority.GenerateHostCert(p)
 }
@@ -617,6 +620,13 @@ type certRequest struct {
 
 // check verifies the cert request is valid.
 func (r *certRequest) check() error {
+	if r.user == nil {
+		return trace.BadParameter("missing parameter user")
+	}
+	if r.checker == nil {
+		return trace.BadParameter("missing parameter checker")
+	}
+
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
@@ -777,12 +787,11 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lockErr := a.checkLockInForce(req.checker.LockingMode(authPref.GetLockingMode()), append(
+	if lockErr := a.checkLockInForce(req.checker.LockingMode(authPref.GetLockingMode()), append(
 		services.RolesToLockTargets(req.checker.RoleNames()),
 		types.LockTarget{User: req.user.GetName()},
 		types.LockTarget{MFADevice: req.mfaVerified},
-	))
-	if lockErr != nil {
+	)); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
 	}
 
