@@ -90,10 +90,7 @@ func computeLockExpiry(expires string, ttl time.Duration) (*time.Time, error) {
 	}
 	if expires != "" {
 		t, err := time.Parse(time.RFC3339, expires)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &t, nil
+		return &t, trace.Wrap(err)
 	}
 	if ttl != 0 {
 		t := time.Now().UTC().Add(ttl)
