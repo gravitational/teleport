@@ -117,9 +117,8 @@ func TestAuthorizeWithLocksForBuiltinRole(t *testing.T) {
 	require.NoError(t, err)
 
 	builtinRole := BuiltinRole{
-		Username:                  "node",
-		Role:                      types.RoleNode,
-		GetSessionRecordingConfig: srv.AuthServer.GetSessionRecordingConfig,
+		Username: "node",
+		Role:     types.RoleNode,
 		Identity: tlsca.Identity{
 			Username: "node",
 		},

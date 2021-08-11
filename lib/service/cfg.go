@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -452,6 +453,8 @@ type KubeProxyConfig struct {
 	// LegacyKubeProxy specifies that this proxy was configured using the
 	// legacy kubernetes section.
 	LegacyKubeProxy bool
+
+	DisableImpersonationCheck bool
 }
 
 // AuthConfig is a configuration of the auth server
@@ -575,6 +578,10 @@ type KubeConfig struct {
 
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
+
+	// CheckImpersonationPermissions is an optional override to the default
+	// impersonation permissions check, for use in testing.
+	CheckImpersonationPermissions proxy.ImpersonationPermissionsChecker
 }
 
 // DatabasesConfig configures the database proxy service.

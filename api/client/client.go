@@ -601,23 +601,34 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 	return nil
 }
 
-// RotateResetPasswordTokenSecrets rotates secrets for a given tokenID.
+// RotateUserTokenSecrets rotates secrets for a given tokenID.
 // It gets called every time a user fetches 2nd-factor secrets during registration attempt.
 // This ensures that an attacker that gains the ResetPasswordToken link can not view it,
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
-func (c *Client) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error) {
-	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateResetPasswordTokenSecretsRequest{
+func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
+	if secrets, err := c.grpc.RotateUserTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
+		TokenID: tokenID,
+	}, c.callOpts...); err != nil {
+		if !trace.IsNotImplemented(trail.FromGRPC(err)) {
+			return nil, trail.FromGRPC(err)
+		}
+	} else {
+		return secrets, nil
+	}
+
+	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
+
 	return secrets, nil
 }
 
-// GetResetPasswordToken returns a ResetPasswordToken for the specified tokenID.
-func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (types.ResetPasswordToken, error) {
+// GetResetPasswordToken returns a reset password token for the specified tokenID.
+func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error) {
 	token, err := c.grpc.GetResetPasswordToken(ctx, &proto.GetResetPasswordTokenRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
@@ -629,7 +640,7 @@ func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (typ
 }
 
 // CreateResetPasswordToken creates reset password token.
-func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error) {
+func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (types.UserToken, error) {
 	token, err := c.grpc.CreateResetPasswordToken(ctx, req, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -1661,7 +1672,7 @@ func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...type
 	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
 		InForceOnly: inForceOnly,
 		Targets:     targetPtrs,
-	})
+	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1694,6 +1705,26 @@ func (c *Client) DeleteLock(ctx context.Context, name string) error {
 // DeleteAllLocks not implemented: can only be called locally.
 func (c *Client) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (c *Client) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+	lockV2s := make([]*types.LockV2, 0, len(locks))
+	for _, lock := range locks {
+		lockV2, ok := lock.(*types.LockV2)
+		if !ok {
+			return trace.BadParameter("unexpected lock type %T", lock)
+		}
+		lockV2s = append(lockV2s, lockV2)
+	}
+	_, err := c.grpc.ReplaceRemoteLocks(ctx, &proto.ReplaceRemoteLocksRequest{
+		ClusterName: clusterName,
+		Locks:       lockV2s,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
 }
 
 // GetNetworkRestrictions retrieves the network restrictions

@@ -323,7 +323,7 @@ func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (*u2f.RegisterCh
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.GetResetPasswordToken(context.TODO(), tokenID)
+	_, err = s.getResetPasswordToken(context.TODO(), tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -364,7 +364,7 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	}
 
 	// Check if token exists.
-	token, err := s.GetResetPasswordToken(ctx, req.TokenID)
+	token, err := s.getResetPasswordToken(ctx, req.TokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -381,7 +381,7 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	username := token.GetUser()
 	// Delete this token first to minimize the chances
 	// of partially updated user with still valid token.
-	err = s.deleteResetPasswordTokens(ctx, username)
+	err = s.deleteUserTokens(ctx, username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -400,7 +400,7 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	return user, nil
 }
 
-func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, token types.ResetPasswordToken) error {
+func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, token types.UserToken) error {
 	ctx := context.TODO()
 	username := token.GetUser()
 	cap, err := s.GetAuthPreference(ctx)
@@ -416,7 +416,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, toke
 		if secondFactor == constants.SecondFactorU2F {
 			return trace.BadParameter("user %q sent an OTP token during password reset but cluster only allows U2F for second factor", username)
 		}
-		secrets, err := s.Identity.GetResetPasswordTokenSecrets(ctx, req.TokenID)
+		secrets, err := s.Identity.GetUserTokenSecrets(ctx, req.TokenID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
