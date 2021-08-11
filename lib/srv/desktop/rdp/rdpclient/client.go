@@ -54,6 +54,10 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
 )
 
+func init() {
+	C.init()
+}
+
 // Options for creating a new Client.
 type Options struct {
 	// Addr is the network address of the RDP server, in the form host:port.
