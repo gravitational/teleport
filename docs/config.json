@@ -85,7 +85,8 @@
           "entries": [
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
             { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
-            {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"}
+            {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"},
+            {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"}
           ]
         }
       ]
@@ -95,7 +96,14 @@
       "title": "Kubernetes Access",
       "entries": [
         { "title": "Introduction", "slug": "/kubernetes-access/introduction/" },
-        { "title": "Getting Started", "slug": "/kubernetes-access/getting-started/" },
+        {
+          "title": "Getting Started",
+          "slug": "/kubernetes-access/getting-started/",
+           "entries": [
+            { "title": "Cluster", "slug": "/kubernetes-access/getting-started/cluster/" },
+            { "title": "Agent", "slug": "/kubernetes-access/getting-started/agent/" }
+          ]
+        },
         {
           "title": "Guides",
           "slug": "/kubernetes-access/guides/",
@@ -191,16 +199,26 @@
       "entries": [
         { "title": "Introduction", "slug": "/enterprise/introduction/" },
         {
-          "title": "Quick Start Guide",
-          "slug": "/enterprise/quickstart-enterprise/"
+          "title": "Getting Started",
+          "slug": "/enterprise/getting-started/"
         },
-        { "title": "Single sign-on (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
+        {
+          "title": "Single sign-on (SSO)", "slug": "/enterprise/sso/",
+          "entries": [
+            { "title": "Azure Active Directory (AD)", "slug": "/enterprise/sso/azuread/" },
+            { "title": "Active Directory (ADFS)", "slug": "/enterprise/sso/adfs/" },
+            { "title": "Google Workspace", "slug": "/enterprise/sso/google-workspace/" },
+            { "title": "GitLab", "slug": "/enterprise/sso/gitlab/" },
+            { "title": "OneLogin", "slug": "/enterprise/sso/one-login/" },
+            { "title": "OIDC", "slug": "/enterprise/sso/oidc/" },
+            { "title": "Okta", "slug": "/enterprise/sso/okta/" }
+          ]
+        },
         { "title": "Access Requests", "slug": "/enterprise/workflow/" },
         {
-          "title": "FedRAMP for SSH & K8s",
-          "slug": "/enterprise/ssh-kubernetes-fedramp/"
-        },
-        { "title": "RBAC", "slug": "/enterprise/ssh-rbac/" }
+          "title": "FedRAMP",
+          "slug": "/enterprise/fedramp/"
+        }
       ]
     },
     {
@@ -259,6 +277,18 @@
     "terraform": {
       "version": "0.12.0"
     },
+    "fedramp": {
+      "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
+    },
+    "soc2": {
+      "last_report": "April 12th, 2021"
+    },
+    "cloud": {
+      "sla": {
+        "monthly_percentage": "99.5%",
+        "monthly_downtime": "3 hours 40 minutes"
+      }
+    },
     "fluentd": {
       "version": "1.12.4"
     },
@@ -287,6 +317,46 @@
     }
   },
   "redirects": [
+    {
+      "source": "/enterprise/ssh-kubernetes-fedramp/",
+      "destination": "/enterprise/fedramp/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-one-login/",
+      "destination": "/enterprise/sso/one-login/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-okta/",
+      "destination": "/enterprise/sso/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-google-workspace/",
+      "destination": "/enterprise/sso/google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-azuread/",
+      "destination": "/enterprise/sso/azuread/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-adfs/",
+      "destination": "/enterprise/sso/adfs/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-sso/",
+      "destination": "/enterprise/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/quickstart-enterprise/",
+      "destination": "/enterprise/getting-started/",
+      "permanent": true
+    },
     {
       "source": "/gcp-guide/",
       "destination": "/setup/deployments/gcp/",
