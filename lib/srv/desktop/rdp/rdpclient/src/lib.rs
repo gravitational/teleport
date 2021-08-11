@@ -191,6 +191,14 @@ fn wait_for_fd(fd: usize) -> bool {
 #[no_mangle]
 pub extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: i64) -> CGOError {
     let client = unsafe { Client::from_raw(client_ptr) };
+    if let Some(err) = read_rdp_output_inner(client, client_ref) {
+        to_cgo_error(err)
+    } else {
+        CGO_OK
+    }
+}
+
+fn read_rdp_output_inner(client: &mut Client, client_ref: i64) -> Option<String> {
     let tcp_fd = client.tcp_fd;
     // Read incoming events.
     // TODO: this doesn't always unblock after client.shutdown() was called. Figure out why.
@@ -225,14 +233,14 @@ pub extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: i64) -> C
                 }
             });
         if let Err(e) = res {
-            return to_cgo_error(format!("failed forwarding RDP bitmap frame: {:?}", e));
+            return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
         };
         if err != CGO_OK {
             let err_str = from_cgo_error(err);
-            return to_cgo_error(format!("failed forwarding RDP bitmap frame: {}", err_str));
+            return Some(format!("failed forwarding RDP bitmap frame: {}", err_str));
         }
     }
-    CGO_OK
+    None
 }
 
 // A CGO-compatible copy of PointerEvent.
