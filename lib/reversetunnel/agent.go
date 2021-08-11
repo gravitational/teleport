@@ -526,4 +526,9 @@ const (
 	// requests a connection to the kubernetes endpoint of the local proxy.
 	// This has to be a valid domain name, so it lacks @
 	LocalKubernetes = "remote.kube.proxy.teleport.cluster.local"
+	// LocalWindowsDesktop is a special non-resolvable address that indicates
+	// that clients requests a connection to the windows service endpoint of
+	// the local proxy.
+	// This has to be a valid domain name, so it lacks @
+	LocalWindowsDesktop = "remote.windows_desktop.proxy.teleport.cluster.local"
 )

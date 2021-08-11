@@ -52,6 +52,11 @@ func CompareServers(a, b types.Resource) int {
 			return compareDatabaseServers(dbA, dbB)
 		}
 	}
+	if winA, ok := a.(types.WindowsDesktopService); ok {
+		if winB, ok := b.(types.WindowsDesktopService); ok {
+			return compareWindowsDesktopServices(winA, winB)
+		}
+	}
 	return Different
 }
 
@@ -121,6 +126,25 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 		return Different
 	}
 	if !cmp.Equal(a.GetDatabases(), b.GetDatabases()) {
+		return Different
+	}
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
+func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetName() != b.GetName() {
+		return Different
+	}
+	if a.GetAddr() != b.GetAddr() {
+		return Different
+	}
+	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {

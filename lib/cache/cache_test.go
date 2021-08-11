@@ -73,14 +73,15 @@ type testPack struct {
 	provisionerS   services.Provisioner
 	clusterConfigS services.ClusterConfiguration
 
-	usersS         services.UsersService
-	accessS        services.Access
-	dynamicAccessS services.DynamicAccessCore
-	presenceS      services.Presence
-	appSessionS    services.AppSession
-	restrictions   services.Restrictions
-	webSessionS    types.WebSessionInterface
-	webTokenS      types.WebTokenInterface
+	usersS          services.UsersService
+	accessS         services.Access
+	dynamicAccessS  services.DynamicAccessCore
+	presenceS       services.Presence
+	appSessionS     services.AppSession
+	restrictions    services.Restrictions
+	webSessionS     types.WebSessionInterface
+	webTokenS       types.WebTokenInterface
+	windowsDesktops services.WindowsDesktops
 }
 
 func (t *testPack) Close() {
@@ -167,6 +168,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
+	p.windowsDesktops = local.NewWindowsDesktopsService(p.backend)
 
 	return p, nil
 }
@@ -180,22 +182,23 @@ func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
 	}
 
 	p.cache, err = New(setupConfig(Config{
-		Context:       ctx,
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		Restrictions:  p.restrictions,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -253,22 +256,23 @@ func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
 
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	_, err := New(ForAuth(Config{
-		Context:       ctx,
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		Restrictions:  p.restrictions,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 	}))
 	fixtures.ExpectConnectionProblem(c, err)
 }
@@ -471,22 +475,23 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 		p.eventsS.closeWatchers()
 
 		p.cache, err = New(ForAuth(Config{
-			Context:       ctx,
-			Backend:       p.cacheBackend,
-			Events:        p.eventsS,
-			ClusterConfig: p.clusterConfigS,
-			Provisioner:   p.provisionerS,
-			Trust:         p.trustS,
-			Users:         p.usersS,
-			Access:        p.accessS,
-			DynamicAccess: p.dynamicAccessS,
-			Presence:      p.presenceS,
-			AppSession:    p.appSessionS,
-			WebSession:    p.webSessionS,
-			WebToken:      p.webTokenS,
-			Restrictions:  p.restrictions,
-			RetryPeriod:   200 * time.Millisecond,
-			EventsC:       p.eventsC,
+			Context:         ctx,
+			Backend:         p.cacheBackend,
+			Events:          p.eventsS,
+			ClusterConfig:   p.clusterConfigS,
+			Provisioner:     p.provisionerS,
+			Trust:           p.trustS,
+			Users:           p.usersS,
+			Access:          p.accessS,
+			DynamicAccess:   p.dynamicAccessS,
+			Presence:        p.presenceS,
+			AppSession:      p.appSessionS,
+			WebSession:      p.webSessionS,
+			WebToken:        p.webTokenS,
+			Restrictions:    p.restrictions,
+			WindowsDesktops: p.windowsDesktops,
+			RetryPeriod:     200 * time.Millisecond,
+			EventsC:         p.eventsC,
 			PreferRecent: PreferRecent{
 				Enabled: true,
 			},
@@ -529,22 +534,23 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       ctx,
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		Restrictions:  p.restrictions,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 		PreferRecent: PreferRecent{
 			Enabled: true,
 		},
@@ -592,22 +598,23 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       ctx,
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		Restrictions:  p.restrictions,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 		PreferRecent: PreferRecent{
 			Enabled: true,
 		},
@@ -627,22 +634,23 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 	p.eventsS.closeWatchers()
 
 	p.cache, err = New(ForAuth(Config{
-		Context:       ctx,
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		Restrictions:  p.restrictions,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 		PreferRecent: PreferRecent{
 			Enabled: true,
 		},
@@ -674,22 +682,23 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       ctx,
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		Restrictions:  p.restrictions,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 		PreferRecent: PreferRecent{
 			Enabled: true,
 		},

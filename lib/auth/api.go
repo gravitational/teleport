@@ -55,6 +55,12 @@ type Announcer interface {
 
 	// UpsertDatabaseServer registers a database proxy server.
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
+
+	// UpsertWindowsDesktopService registers a Windows desktop service.
+	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
+
+	// UpsertWindowsDesktop registers a Windows desktop host.
+	UpsertWindowsDesktop(context.Context, types.WindowsDesktop) error
 }
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
@@ -157,6 +163,9 @@ type ReadAccessPoint interface {
 
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
+
+	// GetWindowsDesktops returns windows desktop hosts.
+	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)
@@ -333,6 +342,16 @@ func (w *Wrapper) UpsertAppServer(ctx context.Context, server types.Server) (*ty
 // UpsertDatabaseServer registers a database proxy server.
 func (w *Wrapper) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
 	return w.NoCache.UpsertDatabaseServer(ctx, server)
+}
+
+// UpsertWindowsDesktopService registers a Windows desktop service.
+func (w *Wrapper) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {
+	return w.NoCache.UpsertWindowsDesktopService(ctx, s)
+}
+
+// UpsertWindowsDesktop registers a Windows desktop host.
+func (w *Wrapper) UpsertWindowsDesktop(ctx context.Context, d types.WindowsDesktop) error {
+	return w.NoCache.UpsertWindowsDesktop(ctx, d)
 }
 
 // NewCachingAcessPoint returns new caching access point using

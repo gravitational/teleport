@@ -347,6 +347,19 @@ func (f *fakeAnnouncer) UpsertKubeService(ctx context.Context, s types.Server) e
 	return f.err
 }
 
+func (f *fakeAnnouncer) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {
+	f.upsertCalls[HeartbeatModeWindowsDesktopService]++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &types.KeepAlive{}, nil
+}
+
+func (f *fakeAnnouncer) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	f.upsertCalls[HeartbeatModeWindowsDesktop]++
+	return f.err
+}
+
 func (f *fakeAnnouncer) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	return f, f.err
 }
