@@ -93,9 +93,9 @@ func (o Options) validate() error {
 
 // Client is the RDP client.
 type Client struct {
-	opts      Options
-	clientRef int64
-	wg        sync.WaitGroup
+	opts          Options
+	rustClientRef *C.Client
+	wg            sync.WaitGroup
 
 	// Heap allocations to free after the client is closed.
 	toFree []unsafe.Pointer
@@ -119,18 +119,17 @@ func (c *Client) connect() error {
 	password := C.CString(c.opts.Password)
 	c.toFree = append(c.toFree, unsafe.Pointer(password))
 
-	c.clientRef = registerClient(c)
-
-	if err := cgoError(C.connect_rdp(
+	res := C.connect_rdp(
 		addr,
 		username,
 		password,
 		C.uint16_t(c.opts.ClientWidth),
 		C.uint16_t(c.opts.ClientHeight),
-		C.int64_t(c.clientRef),
-	)); err != nil {
+	)
+	if err := cgoError(res.err); err != nil {
 		return trace.Wrap(err)
 	}
+	c.rustClientRef = res.client
 	return nil
 }
 
@@ -141,7 +140,11 @@ func (c *Client) start() {
 		defer c.wg.Done()
 		defer c.closeConn()
 		defer logrus.Info("RDP output streaming finished")
-		if err := cgoError(C.read_rdp_output(C.int64_t(c.clientRef))); err != nil {
+
+		clientRef := registerClient(c)
+		defer unregisterClient(clientRef)
+
+		if err := cgoError(C.read_rdp_output(c.rustClientRef, C.int64_t(clientRef))); err != nil {
 			logrus.Warningf("Failed reading RDP output frame: %v", err)
 		}
 	}()
@@ -163,7 +166,7 @@ func (c *Client) start() {
 			case deskproto.MouseMove:
 				mouseX, mouseY = m.X, m.Y
 				if err := cgoError(C.write_rdp_pointer(
-					C.int64_t(c.clientRef),
+					c.rustClientRef,
 					C.CGOPointer{
 						x:      C.uint16_t(m.X),
 						y:      C.uint16_t(m.Y),
@@ -186,7 +189,7 @@ func (c *Client) start() {
 					button = C.PointerButtonNone
 				}
 				if err := cgoError(C.write_rdp_pointer(
-					C.int64_t(c.clientRef),
+					c.rustClientRef,
 					C.CGOPointer{
 						x:      C.uint16_t(mouseX),
 						y:      C.uint16_t(mouseY),
@@ -199,7 +202,7 @@ func (c *Client) start() {
 				}
 			case deskproto.KeyboardButton:
 				if err := cgoError(C.write_rdp_keyboard(
-					C.int64_t(c.clientRef),
+					c.rustClientRef,
 					C.CGOKey{
 						code: C.uint16_t(m.KeyCode),
 						down: m.State == deskproto.ButtonPressed,
@@ -243,7 +246,6 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) *C.char {
 func (c *Client) Wait() error {
 	c.wg.Wait()
 
-	unregisterClient(c.clientRef)
 	for _, ptr := range c.toFree {
 		C.free(ptr)
 	}
@@ -251,7 +253,7 @@ func (c *Client) Wait() error {
 }
 
 func (c *Client) closeConn() {
-	if err := cgoError(C.close_rdp(C.int64_t(c.clientRef))); err != nil {
+	if err := cgoError(C.close_rdp(c.rustClientRef)); err != nil {
 		logrus.Warningf("Error closing RDP connection: %v", err)
 	}
 }

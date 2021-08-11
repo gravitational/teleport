@@ -573,7 +573,6 @@ dependencies = [
 name = "rdp-client"
 version = "0.1.0"
 dependencies = [
- "lazy_static",
  "libc",
  "rdp-rs",
 ]
