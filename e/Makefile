@@ -177,12 +177,15 @@ full: check-build-vars $(WEBASSETS_BUILDDIR)/webassets
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # embedded into teleport binary
-$(WEBASSETS_BUILDDIR)/webassets: | $(WEBASSETS_BUILDDIR)
+.PHONY: $(WEBASSETS_BUILDDIR)/webassets
+$(WEBASSETS_BUILDDIR)/webassets: $(WEBASSETS_BUILDDIR)
 	@echo "---> Copying Enterprise web assets."
 	mkdir -p $(WEBASSETS_BUILDDIR)/webassets
 	cd ../webassets/e/teleport/ ; cp -r . $@
 
+.PHONY: $(WEBASSETS_BUILDDIR)
 $(WEBASSETS_BUILDDIR):
+	rm -fr $@
 	mkdir -p $@
 
 .PHONY: check-build-vars
