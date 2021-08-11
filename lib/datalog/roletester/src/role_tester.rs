@@ -2,7 +2,7 @@ use bytes::BytesMut;
 use crepe::crepe;
 use libc::{c_uchar, size_t};
 use prost::Message;
-use std::{ptr, slice, mem};
+use std::{ptr, slice};
 
 pub mod types {
     include!(concat!(env!("OUT_DIR"), "/datalog.rs"));
@@ -218,7 +218,7 @@ extern "C" fn drop_rust_buffer(buf: *mut c_uchar, len: size_t) {
         return;
     }
     let len = len as usize;
-    unsafe { mem::drop(slice::from_raw_parts(buf, len)) };
+    unsafe { let _ = Vec::from_raw_parts(buf, len, len); };
 }
 
 #[no_mangle]
