@@ -47,6 +47,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		SSHUser:            cf.Username,
 		SSHUserHost:        cf.UserHost,
 		SSHHostKeyCallback: client.HostKeyCallback,
+		SSHTrustedCluster:  cf.SiteName,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -63,6 +63,8 @@ type LocalProxyConfig struct {
 	SSHUserHost string
 	// SSHHostKeyCallback is the function type used for verifying server keys.
 	SSHHostKeyCallback ssh.HostKeyCallback
+	// SSHTrustedCluster allows to select trusted cluster ssh subsystem request.
+	SSHTrustedCluster string
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -137,7 +139,7 @@ func (l *LocalProxy) SSHProxy() error {
 		return trace.Wrap(err)
 	}
 
-	if err = sess.RequestSubsystem(proxySubsystemName(l.cfg.SSHUserHost)); err != nil {
+	if err = sess.RequestSubsystem(proxySubsystemName(l.cfg.SSHUserHost, l.cfg.SSHTrustedCluster)); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := proxySession(l.context, sess); err != nil {
@@ -146,8 +148,13 @@ func (l *LocalProxy) SSHProxy() error {
 	return nil
 }
 
-func proxySubsystemName(userHost string) string {
-	return fmt.Sprintf("proxy:%s", userHost)
+func proxySubsystemName(userHost, cluster string) string {
+	subsystem := fmt.Sprintf("proxy:%s", userHost)
+	if cluster != "" {
+		subsystem = fmt.Sprintf("%s@%s", subsystem, cluster)
+	}
+	return subsystem
+
 }
 
 func makeSSHClient(conn *tls.Conn, addr string, cfg *ssh.ClientConfig) (*ssh.Client, error) {

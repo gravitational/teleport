@@ -377,6 +377,7 @@ func Run(args []string, opts ...cliOption) error {
 	proxy := app.Command("proxy", "proxy")
 	proxySSH := proxy.Command("ssh", "proxy ssh")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	proxySSH.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	proxyDB := proxy.Command("db", "proxy db")
 	proxyDB.Arg("db", "Database name").Required().StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
