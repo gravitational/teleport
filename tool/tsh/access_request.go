@@ -33,6 +33,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var requestLoginHint = "use 'tsh login --request-id=<request-id>' to login with an approved request"
+
 func onRequestList(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -202,6 +204,8 @@ func onRequestShow(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	fmt.Fprintf(os.Stderr, "\nhint: %v\n", requestLoginHint)
 	return nil
 }
 
@@ -287,5 +291,6 @@ func showRequestTable(reqs []types.AccessRequest) error {
 	_, err := table.AsBuffer().WriteTo(os.Stdout)
 
 	fmt.Fprintf(os.Stderr, "\nhint: use 'tsh request show <request-id>' for additional details\n")
+	fmt.Fprintf(os.Stderr, "      %v\n", requestLoginHint)
 	return trace.Wrap(err)
 }
