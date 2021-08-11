@@ -40,11 +40,7 @@ auth_service:
 
 First, create a SAML 2.0 Web App in Okta configuration section
 
-### 1. Switch to Classic UI
-
-![Switch to classic UI](../../../img/sso/okta/switch-to-classic.gif)
-
-### 2. Select Create New App
+### 1. Select Create New App
 
 Select Web Platform and SAML 2.0 Sign On Method.
 ![Create APP](../../../img/sso/okta/okta-saml-1.png)
@@ -56,8 +52,8 @@ statements (special signed metadata exposed via a SAML XML response).
 
 GENERAL
 
-- Single sign on URL `https://teleport-proxy.example.com:3080/v1/webapi/saml/acs`
-- Audience URI (SP Entity ID)`https://teleport-proxy.example.com:3080/v1/webapi/saml/acs`
+- Single sign on URL `https://teleport-proxy.example.com:443/v1/webapi/saml/acs`
+- Audience URI (SP Entity ID)`https://teleport-proxy.example.com:443/v1/webapi/saml/acs`
 - Name ID format `EmailAddress`
 - Application username `Okta username`
 
@@ -120,29 +116,13 @@ Create the connector using `tctl` tool:
 $ tctl create okta-connector.yaml
 ```
 
-## Create Teleport Roles
+## Create a Developer Teleport Role
 
-We are going to create 2 roles, privileged role admin who is able to login as
-root and is capable of administrating the cluster and non-privileged dev.
-
-```yaml
-kind: role
-version: v3
-metadata:
-  name: admin
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    logins: [root]
-    node_labels:
-      "*": "*"
-    rules:
-      - resources: ["*"]
-        verbs: ["*"]
-```
-
-The developer role:
+We are going to create a new role that'll pull in external information from Okta. Notice 
+`{{external.username}}` login. It configures Teleport to look at *"username"* Okta claim 
+and use that field as an allowed login for each user.  This example uses email as the 
+username format.  The `email.local(external.trait)` function will remove the `@domain` 
+and just have the username prefix.  
 
 ```yaml
 kind: role
@@ -160,15 +140,12 @@ spec:
 
 - Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 - Developers can log in as `ubuntu` user
-- Notice `{{external.username}}` login. It configures Teleport to look at
-  *"username"* Okta claim and use that field as an allowed login for each user.  This example uses email as the username format.  The `email.local(external.trait)` function will remove the `@domain` and just have the username prefix.
 - Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
-Now, create both roles on the auth server:
+We'll use tctl to create this role on the auth server:
 
 ```bsh
-$ tctl create admin.yaml
 $ tctl create dev.yaml
 ```
 
@@ -178,7 +155,7 @@ The Web UI will now contain a new button: "Login with Okta". The CLI is
 the same as before:
 
 ```bsh
-$ tsh --proxy=proxy.example.com login
+$ tsh login --proxy=proxy.example.com --auth=okta
 ```
 
 This command will print the SSO login URL (and will try to open it

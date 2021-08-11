@@ -6,7 +6,7 @@ h1: Teleport Enterprise
 
 This section will give an overview of Teleport Enterprise, the commercial product built around
  Teleport Open Source core. For those that want to jump right in, you can play
-with the [Quick Start Guide for Teleport Enterprise](quickstart-enterprise.mdx).
+with the [Getting Started Guide for Teleport Enterprise](getting-started.mdx).
 
 The table below gives a quick overview of the benefits of Teleport Enterprise.
 
@@ -62,13 +62,10 @@ The commercial edition of Teleport allows users to retrieve their SSH
 credentials via a [single sign-on](https://en.wikipedia.org/wiki/Single_sign-on)
 (SSO) system used by the rest of the organization.
 
-Examples of supported SSO systems include commercial solutions like [Okta](https://www.okta.com),
-[Auth0](https://auth0.com/), [SailPoint](https://www.sailpoint.com/),
-[OneLogin](https://www.onelogin.com/) or [Active Directory](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services), as
-well as open source products like [Keycloak](http://www.keycloak.org).
+Examples of supported SSO systems include commercial solutions like Okta,
+Auth0, SailPoint, OneLogin Active Directory, as well as open source products like Keycloak.
 Other identity management systems are supported as long as they provide an
-SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
-or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
+SSO mechanism based on either SAML or OpenID Connect.
 
 ### How does SSO work with SSH?
 
@@ -86,7 +83,7 @@ valid credentials, Teleport will issue an SSH certificate.
 
 Moreover, SSO can be used in combination with role-based access control (RBAC)
 to enforce SSH access policies like *"developers must not touch production data"*.
-See the [SSO for SSH](sso/ssh-sso.mdx) chapter for more details.
+See the [SSO](sso.mdx) chapter for more details.
 
 <Admonition
   type="tip"
@@ -108,7 +105,7 @@ In FIPS mode, if non-compliant algorithms are chosen, Teleport will fail to star
 In addition, Teleport checks if the binary was compiled against an approved
 cryptographic module (BoringCrypto) and fails to start if it was not.
 
-See our [FedRAMP for SSH and Kubernetes](ssh-kubernetes-fedramp.mdx) guide for more infromation.
+See our [FedRAMP for SSH and Kubernetes](fedramp.mdx) guide for more infromation.
 
 ## Access Requests
 
