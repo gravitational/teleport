@@ -96,9 +96,7 @@ type Client struct {
 	opts          Options
 	rustClientRef *C.Client
 	wg            sync.WaitGroup
-
-	// Heap allocations to free after the client is closed.
-	toFree []unsafe.Pointer
+	closeOnce     sync.Once
 }
 
 // New creates and connects a new Client based on opts.
@@ -113,11 +111,11 @@ func New(opts Options) (*Client, error) {
 
 func (c *Client) connect() error {
 	addr := C.CString(c.opts.Addr)
-	c.toFree = append(c.toFree, unsafe.Pointer(addr))
+	defer C.free(unsafe.Pointer(addr))
 	username := C.CString(c.opts.Username)
-	c.toFree = append(c.toFree, unsafe.Pointer(username))
+	defer C.free(unsafe.Pointer(username))
 	password := C.CString(c.opts.Password)
-	c.toFree = append(c.toFree, unsafe.Pointer(password))
+	defer C.free(unsafe.Pointer(password))
 
 	res := C.connect_rdp(
 		addr,
@@ -219,11 +217,11 @@ func (c *Client) start() {
 }
 
 //export handle_bitmap
-func handle_bitmap(ci C.int64_t, cb C.CGOBitmap) *C.char {
+func handle_bitmap(ci C.int64_t, cb C.CGOBitmap) C.CGOError {
 	return findClient(int64(ci)).handleBitmap(cb)
 }
 
-func (c *Client) handleBitmap(cb C.CGOBitmap) *C.char {
+func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	data := C.GoBytes(unsafe.Pointer(cb.data_ptr), C.int(cb.data_len))
 	// Convert BGRA to RGBA. This is probably some endianness weirdness, if
 	// Windows handles pixels in ARGB as uint32.
@@ -245,20 +243,18 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) *C.char {
 // Wait blocks until the client disconnects and runs the cleanup.
 func (c *Client) Wait() error {
 	c.wg.Wait()
-
-	for _, ptr := range c.toFree {
-		C.free(ptr)
-	}
 	return nil
 }
 
 func (c *Client) closeConn() {
-	if err := cgoError(C.close_rdp(c.rustClientRef)); err != nil {
-		logrus.Warningf("Error closing RDP connection: %v", err)
-	}
+	c.closeOnce.Do(func() {
+		if err := cgoError(C.close_rdp(c.rustClientRef)); err != nil {
+			logrus.Warningf("Error closing RDP connection: %v", err)
+		}
+	})
 }
 
-func cgoError(s *C.char) error {
+func cgoError(s C.CGOError) error {
 	if s == nil {
 		return nil
 	}
