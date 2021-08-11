@@ -45,7 +45,6 @@ import (
 type TunnelAuthDialer struct {
 	// ProxyAddr is the address of the proxy
 	ProxyAddr string
-
 	// ClientConfig is SSH tunnel client config
 	ClientConfig *ssh.ClientConfig
 }

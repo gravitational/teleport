@@ -165,7 +165,6 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	wantClusters := make(map[remoteClusterKey]bool, len(wantTunnels))
 	for _, tun := range wantTunnels {
 		for _, addr := range tun.GetDialAddrs() {

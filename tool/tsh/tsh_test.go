@@ -281,7 +281,6 @@ func TestMakeClient(t *testing.T) {
 
 	// empty config won't work:
 	tc, err := makeClient(&conf, true)
-
 	require.Nil(t, tc)
 	require.Error(t, err)
 
