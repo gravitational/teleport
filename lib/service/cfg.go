@@ -453,8 +453,6 @@ type KubeProxyConfig struct {
 	// LegacyKubeProxy specifies that this proxy was configured using the
 	// legacy kubernetes section.
 	LegacyKubeProxy bool
-
-	DisableImpersonationCheck bool
 }
 
 // AuthConfig is a configuration of the auth server
