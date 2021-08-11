@@ -78,7 +78,7 @@ type HeartbeatMode int
 // CheckAndSetDefaults checks values and sets defaults
 func (h HeartbeatMode) CheckAndSetDefaults() error {
 	switch h {
-	case HeartbeatModeNode, HeartbeatModeProxy, HeartbeatModeAuth, HeartbeatModeKube, HeartbeatModeApp, HeartbeatModeDB:
+	case HeartbeatModeNode, HeartbeatModeProxy, HeartbeatModeAuth, HeartbeatModeKube, HeartbeatModeApp, HeartbeatModeDB, HeartbeatModeWindowsDesktopService, HeartbeatModeWindowsDesktop:
 		return nil
 	default:
 		return trace.BadParameter("unrecognized mode")
@@ -100,6 +100,10 @@ func (h HeartbeatMode) String() string {
 		return "App"
 	case HeartbeatModeDB:
 		return "Database"
+	case HeartbeatModeWindowsDesktopService:
+		return "WindowsDesktopService"
+	case HeartbeatModeWindowsDesktop:
+		return "WindowsDesktop"
 	default:
 		return fmt.Sprintf("<unknown: %v>", int(h))
 	}
@@ -111,16 +115,21 @@ const (
 	HeartbeatModeNode HeartbeatMode = iota
 	// HeartbeatModeProxy sets heartbeat to proxy
 	// that does not support keep alives
-	HeartbeatModeProxy HeartbeatMode = iota
+	HeartbeatModeProxy
 	// HeartbeatModeAuth sets heartbeat to auth
 	// that does not support keep alives
-	HeartbeatModeAuth HeartbeatMode = iota
+	HeartbeatModeAuth
 	// HeartbeatModeKube is a mode for kubernetes service heartbeats.
-	HeartbeatModeKube HeartbeatMode = iota
+	HeartbeatModeKube
 	// HeartbeatModeApp sets heartbeat to apps and will use keep alives.
-	HeartbeatModeApp HeartbeatMode = iota
+	HeartbeatModeApp
 	// HeartbeatModeDB sets heatbeat to db
-	HeartbeatModeDB HeartbeatMode = iota
+	HeartbeatModeDB
+	// HeartbeatModeWindowsDesktopService sets heatbeat mode to windows desktop
+	// service.
+	HeartbeatModeWindowsDesktopService
+	// HeartbeatModeWindowsDesktop sets heatbeat mode to windows desktop.
+	HeartbeatModeWindowsDesktop
 )
 
 // NewHeartbeat returns a new instance of heartbeat
@@ -482,6 +491,42 @@ func (h *Heartbeat) announce() error {
 			h.keepAlive = keepAlive
 			h.keepAliver = keepAliver
 			h.setState(HeartbeatStateKeepAliveWait)
+			return nil
+		case HeartbeatModeWindowsDesktopService:
+			wd, ok := h.current.(types.WindowsDesktopService)
+			if !ok {
+				return trace.BadParameter("expected services.WindowsDesktopService, got %#v", h.current)
+			}
+			keepAlive, err := h.Announcer.UpsertWindowsDesktopService(h.cancelCtx, wd)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			h.notifySend()
+			keepAliver, err := h.Announcer.NewKeepAliver(h.cancelCtx)
+			if err != nil {
+				h.reset(HeartbeatStateInit)
+				return trace.Wrap(err)
+			}
+			h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
+			h.nextKeepAlive = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+			h.keepAlive = keepAlive
+			h.keepAliver = keepAliver
+			h.setState(HeartbeatStateKeepAliveWait)
+			return nil
+		case HeartbeatModeWindowsDesktop:
+			desktop, ok := h.current.(types.WindowsDesktop)
+			if !ok {
+				return trace.BadParameter("expected types.WindowsDesktop, got %#v", h.current)
+			}
+			err := h.Announcer.UpsertWindowsDesktop(h.cancelCtx, desktop)
+			if err != nil {
+				h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+				h.setState(HeartbeatStateAnnounceWait)
+				return trace.Wrap(err)
+			}
+			h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
+			h.notifySend()
+			h.setState(HeartbeatStateAnnounceWait)
 			return nil
 		default:
 			return trace.BadParameter("unknown mode %q", h.Mode)

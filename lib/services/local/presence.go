@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -1279,19 +1280,87 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 	return trace.Wrap(err)
 }
 
+// GetWindowsDesktopServices returns all registered Windows desktop services.
+func (s *PresenceService) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	startKey := backend.Key(windowsDesktopServicesPrefix, "")
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	srvs := make([]types.WindowsDesktopService, len(result.Items))
+	for i, item := range result.Items {
+		s, err := services.UnmarshalWindowsDesktopService(
+			item.Value,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		srvs[i] = s
+	}
+	return srvs, nil
+}
+
+// UpsertWindowsDesktopService registers new Windows desktop service.
+func (s *PresenceService) UpsertWindowsDesktopService(ctx context.Context, srv types.WindowsDesktopService) (*types.KeepAlive, error) {
+	if err := srv.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalWindowsDesktopService(srv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := s.Put(ctx, backend.Item{
+		Key:     backend.Key(windowsDesktopServicesPrefix, srv.GetName()),
+		Value:   value,
+		Expires: srv.Expiry(),
+		ID:      srv.GetResourceID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if srv.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:      types.KeepAlive_WINDOWS_DESKTOP,
+		LeaseID:   lease.ID,
+		Name:      srv.GetName(),
+		Namespace: apidefaults.Namespace,
+		Expires:   srv.Expiry(),
+	}, nil
+}
+
+// DeleteWindowsDesktopService removes the specified Windows desktop service.
+func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing windows desktop service name")
+	}
+	key := backend.Key(windowsDesktopServicesPrefix, name)
+	return s.Delete(ctx, key)
+}
+
+// DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
+func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) error {
+	startKey := backend.Key(windowsDesktopServicesPrefix)
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
 const (
-	localClusterPrefix      = "localCluster"
-	reverseTunnelsPrefix    = "reverseTunnels"
-	tunnelConnectionsPrefix = "tunnelConnections"
-	trustedClustersPrefix   = "trustedclusters"
-	remoteClustersPrefix    = "remoteClusters"
-	nodesPrefix             = "nodes"
-	appsPrefix              = "apps"
-	serversPrefix           = "servers"
-	dbServersPrefix         = "databaseServers"
-	namespacesPrefix        = "namespaces"
-	authServersPrefix       = "authservers"
-	proxiesPrefix           = "proxies"
-	semaphoresPrefix        = "semaphores"
-	kubeServicesPrefix      = "kubeServices"
+	localClusterPrefix           = "localCluster"
+	reverseTunnelsPrefix         = "reverseTunnels"
+	tunnelConnectionsPrefix      = "tunnelConnections"
+	trustedClustersPrefix        = "trustedclusters"
+	remoteClustersPrefix         = "remoteClusters"
+	nodesPrefix                  = "nodes"
+	appsPrefix                   = "apps"
+	serversPrefix                = "servers"
+	dbServersPrefix              = "databaseServers"
+	namespacesPrefix             = "namespaces"
+	authServersPrefix            = "authservers"
+	proxiesPrefix                = "proxies"
+	semaphoresPrefix             = "semaphores"
+	kubeServicesPrefix           = "kubeServices"
+	windowsDesktopServicesPrefix = "windowsDesktopServices"
 )

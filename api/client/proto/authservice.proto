@@ -92,6 +92,12 @@ message Event {
         // NetworkRestrictions is a resource for network restrictions
         types.NetworkRestrictionsV4 NetworkRestrictions = 25
             [ (gogoproto.jsontag) = "network_restrictions,omitempty" ];
+        // WindowsDesktopService is a resource for Windows desktop services.
+        types.WindowsDesktopServiceV3 WindowsDesktopService = 26
+            [ (gogoproto.jsontag) = "windows_desktop_service,omitempty" ];
+        // WindowsDesktop is a resource for Windows desktop host.
+        types.WindowsDesktopV3 WindowsDesktop = 27
+            [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
     }
 }
 
@@ -941,6 +947,36 @@ message ReplaceRemoteLocksRequest {
     repeated types.LockV2 Locks = 2;
 }
 
+// GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
+message GetWindowsDesktopServicesResponse {
+    // Servers is a list of Windows desktop services.
+    repeated types.WindowsDesktopServiceV3 services = 1 [ (gogoproto.jsontag) = "services" ];
+}
+
+// DeleteWindowsDesktopServiceRequest is a request to delete a Windows desktop service.
+message DeleteWindowsDesktopServiceRequest {
+    // Name is the Windows desktop service name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// GetWindowsDesktopsResponse contains all registered Windows desktop hosts.
+message GetWindowsDesktopsResponse {
+    // Servers is a list of Windows desktop hosts.
+    repeated types.WindowsDesktopV3 Desktops = 1 [ (gogoproto.jsontag) = "desktops" ];
+}
+
+// GetWindowsDesktopRequest is a request for a single Windows desktop host.
+message GetWindowsDesktopRequest {
+    // Name is the name of the Windows desktop host.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// DeleteWindowsDesktopRequest is a request to delete a Windows desktop host.
+message DeleteWindowsDesktopRequest {
+    // Name is the name of the Windows desktop host.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1244,4 +1280,26 @@ service AuthService {
     rpc DeleteDatabase(types.ResourceRequest) returns (google.protobuf.Empty);
     // DeleteAllDatabases removes all database resources.
     rpc DeleteAllDatabases(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetWindowsDesktopServices returns all registered Windows desktop services.
+    rpc GetWindowsDesktopServices(google.protobuf.Empty)
+        returns (GetWindowsDesktopServicesResponse);
+    // UpsertWindowsDesktopService registers a new Windows desktop service.
+    rpc UpsertWindowsDesktopService(types.WindowsDesktopServiceV3) returns (types.KeepAlive);
+    // DeleteWindowsDesktopService removes the specified Windows desktop service.
+    rpc DeleteWindowsDesktopService(DeleteWindowsDesktopServiceRequest)
+        returns (google.protobuf.Empty);
+    // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
+    rpc DeleteAllWindowsDesktopServices(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetWindowsDesktops returns all registered Windows desktop hosts.
+    rpc GetWindowsDesktops(google.protobuf.Empty) returns (GetWindowsDesktopsResponse);
+    // GetWindowsDesktop returns a registered Windows desktop host.
+    rpc GetWindowsDesktop(GetWindowsDesktopRequest) returns (types.WindowsDesktopV3);
+    // UpsertWindowsDesktop registers a new Windows desktop host.
+    rpc UpsertWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
+    // DeleteWindowsDesktop removes the specified Windows desktop host.
+    rpc DeleteWindowsDesktop(DeleteWindowsDesktopRequest) returns (google.protobuf.Empty);
+    // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
+    rpc DeleteAllWindowsDesktops(google.protobuf.Empty) returns (google.protobuf.Empty);
 }
