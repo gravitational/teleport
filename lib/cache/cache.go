@@ -71,6 +71,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindNetworkRestrictions},
 		{Kind: types.KindLock},
+		{Kind: types.KindWindowsDesktopService},
+		{Kind: types.KindWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -101,6 +103,8 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindWindowsDesktopService},
+		{Kind: types.KindWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -242,6 +246,26 @@ func ForDatabases(cfg Config) Config {
 	return cfg
 }
 
+// ForWindowsDesktop sets up watch configuration for a Windows desktop service.
+func ForWindowsDesktop(cfg Config) Config {
+	cfg.target = "windows_desktop"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterAuditConfig},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindWindowsDesktopService},
+		{Kind: types.KindWindowsDesktop},
+	}
+	cfg.QueueSize = defaults.WindowsDesktopQueueSize
+	return cfg
+}
+
 // SetupConfigFn is a function that sets up configuration
 // for cache
 type SetupConfigFn func(c Config) Config
@@ -297,18 +321,19 @@ type Cache struct {
 	// collections is a map of registered collections by resource Kind/SubKind
 	collections map[resourceKind]collection
 
-	trustCache         services.Trust
-	clusterConfigCache services.ClusterConfiguration
-	provisionerCache   services.Provisioner
-	usersCache         services.UsersService
-	accessCache        services.Access
-	dynamicAccessCache services.DynamicAccessExt
-	presenceCache      services.Presence
-	restrictionsCache  services.Restrictions
-	appSessionCache    services.AppSession
-	webSessionCache    types.WebSessionInterface
-	webTokenCache      types.WebTokenInterface
-	eventsFanout       *services.Fanout
+	trustCache           services.Trust
+	clusterConfigCache   services.ClusterConfiguration
+	provisionerCache     services.Provisioner
+	usersCache           services.UsersService
+	accessCache          services.Access
+	dynamicAccessCache   services.DynamicAccessExt
+	presenceCache        services.Presence
+	restrictionsCache    services.Restrictions
+	appSessionCache      services.AppSession
+	webSessionCache      types.WebSessionInterface
+	webTokenCache        types.WebTokenInterface
+	windowsDesktopsCache services.WindowsDesktops
+	eventsFanout         *services.Fanout
 
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
@@ -348,34 +373,36 @@ func (c *Cache) read() (readGuard, error) {
 	c.rw.RLock()
 	if c.ok {
 		return readGuard{
-			trust:         c.trustCache,
-			clusterConfig: c.clusterConfigCache,
-			provisioner:   c.provisionerCache,
-			users:         c.usersCache,
-			access:        c.accessCache,
-			dynamicAccess: c.dynamicAccessCache,
-			presence:      c.presenceCache,
-			restrictions:  c.restrictionsCache,
-			appSession:    c.appSessionCache,
-			webSession:    c.webSessionCache,
-			webToken:      c.webTokenCache,
-			release:       c.rw.RUnlock,
+			trust:           c.trustCache,
+			clusterConfig:   c.clusterConfigCache,
+			provisioner:     c.provisionerCache,
+			users:           c.usersCache,
+			access:          c.accessCache,
+			dynamicAccess:   c.dynamicAccessCache,
+			presence:        c.presenceCache,
+			restrictions:    c.restrictionsCache,
+			appSession:      c.appSessionCache,
+			webSession:      c.webSessionCache,
+			webToken:        c.webTokenCache,
+			release:         c.rw.RUnlock,
+			windowsDesktops: c.windowsDesktopsCache,
 		}, nil
 	}
 	c.rw.RUnlock()
 	return readGuard{
-		trust:         c.Config.Trust,
-		clusterConfig: c.Config.ClusterConfig,
-		provisioner:   c.Config.Provisioner,
-		users:         c.Config.Users,
-		access:        c.Config.Access,
-		dynamicAccess: c.Config.DynamicAccess,
-		presence:      c.Config.Presence,
-		restrictions:  c.Config.Restrictions,
-		appSession:    c.Config.AppSession,
-		webSession:    c.Config.WebSession,
-		webToken:      c.Config.WebToken,
-		release:       nil,
+		trust:           c.Config.Trust,
+		clusterConfig:   c.Config.ClusterConfig,
+		provisioner:     c.Config.Provisioner,
+		users:           c.Config.Users,
+		access:          c.Config.Access,
+		dynamicAccess:   c.Config.DynamicAccess,
+		presence:        c.Config.Presence,
+		restrictions:    c.Config.Restrictions,
+		appSession:      c.Config.AppSession,
+		webSession:      c.Config.WebSession,
+		webToken:        c.Config.WebToken,
+		windowsDesktops: c.Config.WindowsDesktops,
+		release:         nil,
 	}, nil
 }
 
@@ -384,19 +411,20 @@ func (c *Cache) read() (readGuard, error) {
 // function for the read lock, and ensures that it is not
 // double-called.
 type readGuard struct {
-	trust         services.Trust
-	clusterConfig services.ClusterConfiguration
-	provisioner   services.Provisioner
-	users         services.UsersService
-	access        services.Access
-	dynamicAccess services.DynamicAccessCore
-	presence      services.Presence
-	appSession    services.AppSession
-	restrictions  services.Restrictions
-	webSession    types.WebSessionInterface
-	webToken      types.WebTokenInterface
-	release       func()
-	released      bool
+	trust           services.Trust
+	clusterConfig   services.ClusterConfiguration
+	provisioner     services.Provisioner
+	users           services.UsersService
+	access          services.Access
+	dynamicAccess   services.DynamicAccessCore
+	presence        services.Presence
+	appSession      services.AppSession
+	restrictions    services.Restrictions
+	webSession      types.WebSessionInterface
+	webToken        types.WebTokenInterface
+	windowsDesktops services.WindowsDesktops
+	release         func()
+	released        bool
 }
 
 // Release releases the read lock if it is held.  This method
@@ -448,6 +476,8 @@ type Config struct {
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
 	WebToken types.WebTokenInterface
+	// WindowsDesktops is a windows desktop service.
+	WindowsDesktops services.WindowsDesktops
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// RetryPeriod is a period between cache retries on failures
@@ -583,24 +613,25 @@ func New(config Config) (*Cache, error) {
 
 	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
-		wrapper:            wrapper,
-		ctx:                ctx,
-		cancel:             cancel,
-		Config:             config,
-		generation:         atomic.NewUint64(0),
-		initC:              make(chan struct{}),
-		trustCache:         local.NewCAService(wrapper),
-		clusterConfigCache: clusterConfigCache,
-		provisionerCache:   local.NewProvisioningService(wrapper),
-		usersCache:         local.NewIdentityService(wrapper),
-		accessCache:        local.NewAccessService(wrapper),
-		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
-		presenceCache:      local.NewPresenceService(wrapper),
-		restrictionsCache:  local.NewRestrictionsService(wrapper),
-		appSessionCache:    local.NewIdentityService(wrapper),
-		webSessionCache:    local.NewIdentityService(wrapper).WebSessions(),
-		webTokenCache:      local.NewIdentityService(wrapper).WebTokens(),
-		eventsFanout:       services.NewFanout(),
+		wrapper:              wrapper,
+		ctx:                  ctx,
+		cancel:               cancel,
+		Config:               config,
+		generation:           atomic.NewUint64(0),
+		initC:                make(chan struct{}),
+		trustCache:           local.NewCAService(wrapper),
+		clusterConfigCache:   clusterConfigCache,
+		provisionerCache:     local.NewProvisioningService(wrapper),
+		usersCache:           local.NewIdentityService(wrapper),
+		accessCache:          local.NewAccessService(wrapper),
+		dynamicAccessCache:   local.NewDynamicAccessService(wrapper),
+		presenceCache:        local.NewPresenceService(wrapper),
+		restrictionsCache:    local.NewRestrictionsService(wrapper),
+		appSessionCache:      local.NewIdentityService(wrapper),
+		webSessionCache:      local.NewIdentityService(wrapper).WebSessions(),
+		webTokenCache:        local.NewIdentityService(wrapper).WebTokens(),
+		windowsDesktopsCache: local.NewWindowsDesktopsService(wrapper),
+		eventsFanout:         services.NewFanout(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -844,7 +875,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	// by receiving init event first.
 	select {
 	case <-watcher.Done():
-		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 	case <-c.ctx.Done():
 		return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 	case event := <-watcher.Events():
@@ -890,7 +921,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	for {
 		select {
 		case <-watcher.Done():
-			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 		case <-c.ctx.Done():
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
@@ -1426,4 +1457,34 @@ func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types
 	}
 	defer rg.Release()
 	return rg.access.GetLocks(ctx, inForceOnly, targets...)
+}
+
+// GetWindowsDesktopServices returns all registered Windows desktop services.
+func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.GetWindowsDesktopServices(ctx)
+}
+
+// GetWindowsDesktops returns all registered Windows desktop hosts.
+func (c *Cache) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.windowsDesktops.GetWindowsDesktops(ctx)
+}
+
+// GetWindowsDesktop returns a registered Windows desktop host.
+func (c *Cache) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.windowsDesktops.GetWindowsDesktop(ctx, name)
 }

@@ -3317,6 +3317,108 @@ func (a *ServerWithRoles) DeleteAllDatabases(ctx context.Context) error {
 	return nil
 }
 
+// GetWindowsDesktopServices returns all registered windows desktop services.
+func (a *ServerWithRoles) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	services, err := a.authServer.GetWindowsDesktopServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services, nil
+}
+
+// UpsertWindowsDesktopService creates or updates a new windows desktop service.
+func (a *ServerWithRoles) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.UpsertWindowsDesktopService(ctx, s)
+}
+
+// DeleteWindowsDesktopService removes the specified windows desktop service.
+func (a *ServerWithRoles) DeleteWindowsDesktopService(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteWindowsDesktopService(ctx, name)
+}
+
+// DeleteAllWindowsDesktopServices removes all registered windows desktop services.
+func (a *ServerWithRoles) DeleteAllWindowsDesktopServices(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllWindowsDesktopServices(ctx)
+}
+
+// GetWindowsDesktops returns all registered windows desktop hosts.
+func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hosts, err := a.authServer.GetWindowsDesktops(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return hosts, nil
+}
+
+// GetWindowsDesktop returns a registered windows desktop host.
+func (a *ServerWithRoles) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	host, err := a.authServer.GetWindowsDesktop(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return host, nil
+}
+
+// UpsertWindowsDesktop creates or updates a new windows desktop host.
+func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertWindowsDesktop(ctx, s)
+}
+
+// DeleteWindowsDesktop removes the specified windows desktop host.
+func (a *ServerWithRoles) DeleteWindowsDesktop(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteWindowsDesktop(ctx, name)
+}
+
+// DeleteAllWindowsDesktops removes all registered windows desktop hosts.
+func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllWindowsDesktops(ctx)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {

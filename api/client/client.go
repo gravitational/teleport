@@ -1814,3 +1814,101 @@ func (c *Client) DeleteAllDatabases(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllDatabases(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
+
+// GetWindowsDesktopServices returns all registered windows desktop services.
+func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	services := make([]types.WindowsDesktopService, 0, len(resp.GetServices()))
+	for _, service := range resp.GetServices() {
+		services = append(services, service)
+	}
+	return services, nil
+}
+
+// UpsertWindowsDesktopService registers a new windows desktop service.
+func (c *Client) UpsertWindowsDesktopService(ctx context.Context, service types.WindowsDesktopService) (*types.KeepAlive, error) {
+	s, ok := service.(*types.WindowsDesktopServiceV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", service)
+	}
+	keepAlive, err := c.grpc.UpsertWindowsDesktopService(ctx, s, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteWindowsDesktopService removes the specified windows desktop service.
+func (c *Client) DeleteWindowsDesktopService(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteWindowsDesktopService(ctx, &proto.DeleteWindowsDesktopServiceRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAllWindowsDesktopServices removes all registered windows desktop services.
+func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllWindowsDesktopServices(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// GetWindowsDesktops returns all registered windows desktop hosts.
+func (c *Client) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+	resp, err := c.grpc.GetWindowsDesktops(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	desktops := make([]types.WindowsDesktop, 0, len(resp.GetDesktops()))
+	for _, desktop := range resp.GetDesktops() {
+		desktops = append(desktops, desktop)
+	}
+	return desktops, nil
+}
+
+// GetWindowsDesktop returns a registered windows desktop host.
+func (c *Client) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
+	desktop, err := c.grpc.GetWindowsDesktop(ctx, &proto.GetWindowsDesktopRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return desktop, nil
+}
+
+// UpsertWindowsDesktop registers a new windows desktop host.
+func (c *Client) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	d, ok := desktop.(*types.WindowsDesktopV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpsertWindowsDesktop(ctx, d, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteWindowsDesktop removes the specified windows desktop host.
+func (c *Client) DeleteWindowsDesktop(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteWindowsDesktop(ctx, &proto.DeleteWindowsDesktopRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAllWindowsDesktops removes all registered windows desktop hosts.
+func (c *Client) DeleteAllWindowsDesktops(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllWindowsDesktops(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}

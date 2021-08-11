@@ -171,6 +171,9 @@ type InitConfig struct {
 	// Streamer is events sessionstreamer, used to create continuous
 	// session related streams
 	Streamer events.Streamer
+
+	// WindowsServices is a service that manages Windows desktop resources.
+	WindowsDesktops services.WindowsDesktops
 }
 
 // Init instantiates and configures an instance of AuthServer

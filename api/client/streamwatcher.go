@@ -184,6 +184,12 @@ func eventFromGRPC(in proto.Event) (*types.Event, error) {
 	} else if r := in.GetNetworkRestrictions(); r != nil {
 		out.Resource = r
 		return &out, nil
+	} else if r := in.GetWindowsDesktopService(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetWindowsDesktop(); r != nil {
+		out.Resource = r
+		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
 	}

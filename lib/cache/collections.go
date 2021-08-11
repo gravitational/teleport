@@ -187,6 +187,16 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Access")
 			}
 			collections[resourceKind] = &lock{watch: watch, Cache: c}
+		case types.KindWindowsDesktopService:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections[resourceKind] = &windowsDesktopServices{watch: watch, Cache: c}
+		case types.KindWindowsDesktop:
+			if c.WindowsDesktops == nil {
+				return nil, trace.BadParameter("missing parameter WindowsDesktops")
+			}
+			collections[resourceKind] = &windowsDesktops{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2121,5 +2131,131 @@ func (c *lock) processEvent(ctx context.Context, event types.Event) error {
 }
 
 func (c *lock) watchKind() types.WatchKind {
+	return c.watch
+}
+
+type windowsDesktopServices struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *windowsDesktopServices) erase(ctx context.Context) error {
+	if err := c.presenceCache.DeleteAllWindowsDesktopServices(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *windowsDesktopServices) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := c.Presence.GetWindowsDesktopServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := c.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			c.setTTL(resource)
+			if _, err := c.presenceCache.UpsertWindowsDesktopService(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (c *windowsDesktopServices) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := c.presenceCache.DeleteWindowsDesktopService(ctx, event.Resource.GetName())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.WindowsDesktopService)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		c.setTTL(resource)
+		if _, err := c.presenceCache.UpsertWindowsDesktopService(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *windowsDesktopServices) watchKind() types.WatchKind {
+	return c.watch
+}
+
+type windowsDesktops struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *windowsDesktops) erase(ctx context.Context) error {
+	if err := c.windowsDesktopsCache.DeleteAllWindowsDesktops(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *windowsDesktops) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := c.WindowsDesktops.GetWindowsDesktops(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := c.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			c.setTTL(resource)
+			if err := c.windowsDesktopsCache.UpsertWindowsDesktop(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (c *windowsDesktops) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := c.windowsDesktopsCache.DeleteWindowsDesktop(ctx, event.Resource.GetName())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.WindowsDesktop)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		c.setTTL(resource)
+		if err := c.windowsDesktopsCache.UpsertWindowsDesktop(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *windowsDesktops) watchKind() types.WatchKind {
 	return c.watch
 }
