@@ -338,6 +338,29 @@ release-windows: clean all
 		CHANGELOG.md \
 		teleport/
 	mv teleport/tsh teleport/tsh.exe
+	# TODO: remove this
+	@WINDOWS_SIGNING_CERTIFICATE=$$(cat cert-dummy.pfx | base64); \
+	if [ ! -z "$${WINDOWS_SIGNING_CERTIFICATE}" ]; then \
+		echo "---> Signing Windows binary."; \
+		mv teleport/tsh.exe teleport/tsh-unsigned.exe; \
+		cert_path=$$(mktemp); \
+		echo "$${WINDOWS_SIGNING_CERTIFICATE}" | base64 -d > "$$cert_path" || exit 1; \
+		osslsigncode sign \
+			-pkcs12 "$${cert_path}" \
+			-n "Teleport" \
+			-i https://goteleport.com \
+			-t http://timestamp.digicert.com \
+			-h sha2 \
+			-in teleport/tsh-unsigned.exe \
+			-out teleport/tsh.exe; \
+		success=$$?; \
+		rm teleport/tsh-unsigned.exe "$$cert_path"; \
+		if [ "$${success}" -ne 0 ]; then \
+			exit 1; \
+		fi \
+	else \
+		echo "---> Skipping signing Windows binary."; \
+	fi
 	echo $(GITTAG) > teleport/VERSION
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/

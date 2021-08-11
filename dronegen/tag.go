@@ -181,6 +181,7 @@ func tagPipeline(b buildType) pipeline {
 		"GOPATH":  value{raw: "/go"},
 		"OS":      value{raw: b.os},
 		"ARCH":    value{raw: b.arch},
+		//"WINDOWS_SIGNING_CERTIFICATE: value{fromSecret: "WINDOWS_SIGNING_CERTIFICATE"},
 	}
 	if b.fips {
 		pipelineName += "-fips"
