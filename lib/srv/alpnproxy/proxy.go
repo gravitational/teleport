@@ -29,7 +29,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -214,7 +213,11 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	if p.isDatabaseConnection(tlsConn.ConnectionState()) {
+	isDatabaseConnection, err := utils.IsDatabaseConnection(tlsConn.ConnectionState())
+	if err != nil {
+		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
+	}
+	if isDatabaseConnection {
 		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn))
 	}
 	return trace.Wrap(handlerDesc.Handler(ctx, tlsConn))
@@ -273,7 +276,11 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 		return trace.Wrap(err)
 	}
 
-	if !p.isDatabaseConnection(tlsConn.ConnectionState()) {
+	isDatabaseConnection, err := utils.IsDatabaseConnection(tlsConn.ConnectionState())
+	if err != nil {
+		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
+	}
+	if !isDatabaseConnection {
 		return trace.BadParameter("not database connection")
 	}
 	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn))
@@ -333,21 +340,4 @@ func (p *Proxy) Close() error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// isDatabaseConnection inspects the TLS connection state and returns true
-// if it's a database access connection as determined by the decoded
-// identity from the client certificate.
-func (p *Proxy) isDatabaseConnection(state tls.ConnectionState) bool {
-	// VerifiedChains must be populated after the handshake.
-	if len(state.VerifiedChains) < 1 || len(state.VerifiedChains[0]) < 1 {
-		return false
-	}
-	identity, err := tlsca.FromSubject(state.VerifiedChains[0][0].Subject,
-		state.VerifiedChains[0][0].NotAfter)
-	if err != nil {
-		p.log.WithError(err).Debug("Failed to decode identity from client certificate.")
-		return false
-	}
-	return identity.RouteToDatabase.ServiceName != ""
 }

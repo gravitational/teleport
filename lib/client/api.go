@@ -2094,7 +2094,6 @@ func makeProxySSHClient(cfg Config, sshConfig *ssh.ClientConfig) (*ssh.Client, e
 	}
 	client, err := ssh.Dial("tcp", cfg.SSHProxyAddr, sshConfig)
 	if err != nil {
-		log.WithError(err).Warnf("Failed to authenticate with proxy %v.", cfg.SSHProxyAddr)
 		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.SSHProxyAddr)
 	}
 	return client, nil
