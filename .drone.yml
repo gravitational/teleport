@@ -1191,7 +1191,7 @@ steps:
       - docker push $ENT_FIPS_IMAGE_NAME
 
   - name: Build/push Teleport Lab Docker image
-    image: docker
+    image: docker:git
     environment:
       OS: linux
       ARCH: amd64
@@ -1206,12 +1206,15 @@ steps:
     commands:
       - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt | tr -d '^v')
       - export TELEPORT_LAB_IMAGE_NAME="quay.io/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
-      - apk add --no-cache curl
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
-       # Get Dockerfile
-      - curl -Ls -o /go/build/Dockerfile-teleport-lab https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/docker/sshd/Dockerfile
+       # Check out code
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin
+      - git checkout -qf ${DRONE_COMMIT_SHA}
       # Build and push Teleport lab image
-      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME -f /go/build/Dockerfile-teleport-lab /go/build
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME /go/src/github.com/gravitational/teleport/docker/sshd
       - docker push $TELEPORT_LAB_IMAGE_NAME
 
 services:
@@ -4423,6 +4426,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 83c6318881be7e49f513409221e402e8ceda7f054970c6283bd54213760e6961
+hmac: eb7e7df90663caa41dde72d7fe14dd26608a809857b4da7267adfbd68accb528
 
 ...
