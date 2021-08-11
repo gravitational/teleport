@@ -25,7 +25,6 @@ package datalog
 // extern status_t *process_access(unsigned char *input, unsigned char *output, size_t input_len, size_t output_len);
 // extern size_t status_output_length(status_t *);
 // extern int status_error(status_t *);
-// extern void drop_rust_buffer(unsigned char *res, size_t len);
 // extern void drop_status_struct(status_t *status);
 import "C"
 import (
@@ -134,7 +133,6 @@ func QueryNodeAccess(ctx context.Context, client auth.ClientI, req NodeAccessReq
 	// Status code determines if there is an error, and the outputLength specifies the length of the string/byte buffer.
 	statusCode := C.status_error(status)
 	outputLength := C.status_output_length(status)
-	defer C.drop_rust_buffer(res, C.size_t(outputLength))
 
 	// If statusCode != 0, then there was an error. We return the error string.
 	if int(statusCode) != 0 {

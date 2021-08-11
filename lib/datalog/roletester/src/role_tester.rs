@@ -210,15 +210,6 @@ pub extern "C" fn status_error(
 }
 
 #[no_mangle]
-extern "C" fn drop_rust_buffer(buf: *mut c_uchar, len: size_t) {
-    if buf.is_null() {
-        return;
-    }
-    let len = len as usize;
-    unsafe { let _ = Vec::from_raw_parts(buf, len, len); };
-}
-
-#[no_mangle]
 extern "C" fn drop_status_struct(status: *mut Status) {
     if status.is_null() {
         return;
