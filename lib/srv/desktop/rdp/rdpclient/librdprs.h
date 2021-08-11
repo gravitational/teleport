@@ -12,9 +12,11 @@ typedef enum CGOPointerButton {
 
 typedef struct Client Client;
 
+typedef char *CGOError;
+
 typedef struct ClientOrError {
   struct Client *client;
-  char *err;
+  CGOError err;
 } ClientOrError;
 
 typedef struct CGOPointer {
@@ -39,19 +41,19 @@ typedef struct CGOBitmap {
   uintptr_t data_cap;
 } CGOBitmap;
 
-struct ClientOrError connect_rdp(const char *go_addr,
-                                 const char *go_username,
-                                 const char *go_password,
+struct ClientOrError connect_rdp(char *go_addr,
+                                 char *go_username,
+                                 char *go_password,
                                  uint16_t screen_width,
                                  uint16_t screen_height);
 
-char *read_rdp_output(struct Client *client_ptr, int64_t client_ref);
+CGOError read_rdp_output(struct Client *client_ptr, int64_t client_ref);
 
-char *write_rdp_pointer(struct Client *client_ptr, struct CGOPointer pointer);
+CGOError write_rdp_pointer(struct Client *client_ptr, struct CGOPointer pointer);
 
-char *write_rdp_keyboard(struct Client *client_ptr, struct CGOKey key);
+CGOError write_rdp_keyboard(struct Client *client_ptr, struct CGOKey key);
 
-char *close_rdp(struct Client *client_ptr);
+CGOError close_rdp(struct Client *client_ptr);
 
 void free_rust_string(char *s);
 
