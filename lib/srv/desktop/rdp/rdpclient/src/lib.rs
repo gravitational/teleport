@@ -22,7 +22,7 @@ pub extern "C" fn init() {
         .init();
 }
 
-// Client has an unusual lifetime:
+// Client has an unusual lifecycle:
 // - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
 // - most other exported rdp functions take the raw pointer, convert it to a reference for use
 //   without dropping the Client
@@ -62,7 +62,7 @@ impl From<Result<Client, ConnectError>> for ClientOrError {
                 err: CGO_OK,
             },
             Err(e) => ClientOrError {
-                client: std::ptr::null_mut(),
+                client: ptr::null_mut(),
                 err: to_cgo_error(format!("{:?}", e)),
             },
         }
@@ -148,7 +148,7 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
             dest_top: e.dest_top,
             dest_right: e.dest_right,
             dest_bottom: e.dest_bottom,
-            data_ptr: std::ptr::null_mut(),
+            data_ptr: ptr::null_mut(),
             data_len: 0,
             data_cap: 0,
         };
@@ -359,12 +359,13 @@ fn from_go_string(s: *mut c_char) -> String {
 // CGOError is an alias for a C string pointer, for C API clarity.
 pub type CGOError = *mut c_char;
 
-const CGO_OK: CGOError = std::ptr::null_mut();
+const CGO_OK: CGOError = ptr::null_mut();
 
 fn to_cgo_error(s: String) -> CGOError {
     CString::new(s).expect("CString::new failed").into_raw()
 }
 
+// from_cgo_error copies CGOError into a String and frees the underlying Go memory.
 fn from_cgo_error(e: CGOError) -> String {
     let s = from_go_string(e);
     unsafe {
@@ -375,5 +376,5 @@ fn from_cgo_error(e: CGOError) -> String {
 
 extern "C" {
     fn free_go_string(s: *mut c_char);
-    fn handle_bitmap(client_ref: i64, b: CGOBitmap) -> *mut c_char;
+    fn handle_bitmap(client_ref: i64, b: CGOBitmap) -> CGOError;
 }

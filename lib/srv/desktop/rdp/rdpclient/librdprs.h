@@ -61,4 +61,4 @@ void free_rust_string(char *s);
 
 extern void free_go_string(char *s);
 
-extern char *handle_bitmap(int64_t client_ref, struct CGOBitmap b);
+extern CGOError handle_bitmap(int64_t client_ref, struct CGOBitmap b);
