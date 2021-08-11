@@ -255,5 +255,5 @@ func IdentitySSHCertPath(path string) string {
 func TrimCertPathSuffix(path string) (trimmedPath string, isCertPath bool) {
 	trimmedPath = strings.TrimSuffix(path, fileExtTLSCert)
 	trimmedPath = strings.TrimSuffix(trimmedPath, fileExtSSHCert)
-	return trimmedPath, path == trimmedPath
+	return trimmedPath, path != trimmedPath
 }
