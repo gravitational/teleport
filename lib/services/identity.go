@@ -189,23 +189,23 @@ type Identity interface {
 	// GetGithubAuthRequest retrieves Github auth request by the token
 	GetGithubAuthRequest(stateToken string) (*GithubAuthRequest, error)
 
-	// CreateResetPasswordToken creates a token
-	CreateResetPasswordToken(ctx context.Context, resetPasswordToken types.ResetPasswordToken) (types.ResetPasswordToken, error)
+	// CreateUserToken creates a new user token.
+	CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error)
 
-	// DeleteResetPasswordToken deletes a token
-	DeleteResetPasswordToken(ctx context.Context, tokenID string) error
+	// DeleteUserToken deletes a user token.
+	DeleteUserToken(ctx context.Context, tokenID string) error
 
-	// GetResetPasswordTokens returns tokens
-	GetResetPasswordTokens(ctx context.Context) ([]types.ResetPasswordToken, error)
+	// GetUserTokens returns all user tokens.
+	GetUserTokens(ctx context.Context) ([]types.UserToken, error)
 
-	// GetResetPasswordToken returns a token
-	GetResetPasswordToken(ctx context.Context, tokenID string) (types.ResetPasswordToken, error)
+	// GetUserToken returns a user token by id.
+	GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error)
 
-	// UpsertResetPasswordTokenSecrets upserts token secrets
-	UpsertResetPasswordTokenSecrets(ctx context.Context, secrets types.ResetPasswordTokenSecrets) error
+	// UpsertUserTokenSecrets upserts a user token secrets.
+	UpsertUserTokenSecrets(ctx context.Context, secrets types.UserTokenSecrets) error
 
-	// GetResetPasswordTokenSecrets returns token secrets
-	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error)
+	// GetUserTokenSecrets returns a user token secrets.
+	GetUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
