@@ -1206,6 +1206,7 @@ steps:
     commands:
       - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt)
       - export TELEPORT_LAB_IMAGE_NAME="quay.io/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - apk add --no-cache curl
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
        # Get Dockerfile
       - curl -Ls -o /go/build/Dockerfile-teleport-lab https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/docker/sshd/Dockerfile
@@ -4422,6 +4423,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0fefc46617d44db78e452aa83b1220a3373a832fd76b2f7427a65e674bb8fbeb
+hmac: 111b9577ccae5cbe5da195685d255e2cc5d0f5fd4b78a197415f9a30f4c046d4
 
 ...
