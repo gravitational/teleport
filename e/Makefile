@@ -66,6 +66,14 @@ endif
 endif
 endif
 
+# On platforms that support reproducible builds (at the moment, only Linux)
+# ensure the archive is created in a reproducible manner.
+TAR_FLAGS ?=
+ifeq ("$(OS)","linux")
+TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
+endif
+
+
 RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_ENT_MESSAGE) and $(FIPS_ENT_MESSAGE) and $(BPF_ENT_MESSAGE)."
 
 # All build Enterprise version of "teleport" and "tctl" binaries and copy
@@ -168,7 +176,7 @@ release-unix: clean full
 	echo $(GITTAG) > $(BUILDDIR)/VERSION
 	cp -rf $(BUILDDIR) teleport-ent
 	cp -rf ../examples teleport-ent/
-	tar --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu -c teleport-ent | gzip -n > $(RELEASE_ENT).tar.gz
+	tar $(TAR_FLAGS) -c teleport-ent | gzip -n > $(RELEASE_ENT).tar.gz
 	rm -rf teleport-ent
 	@echo "---> Created $(RELEASE_ENT).tar.gz."
 
