@@ -19,16 +19,22 @@ limitations under the License.
 package web
 
 import (
-	"bytes"
-	_ "embed"
+	"embed"
+	"io/fs"
 	"net/http"
+
+	"github.com/gravitational/trace"
 )
 
-//go:embed build/webassets.zip
-var webassetsZip []byte
+//go:embed build/webassets
+var webassetFS embed.FS
 
 // NewStaticFileSystem returns the initialized implementation of http.FileSystem
 // interface which can be used to serve Teleport Proxy Web UI
 func NewStaticFileSystem() (http.FileSystem, error) {
-	return readZipArchive(bytes.NewReader(webassetsZip), int64(len(webassetsZip)))
+	wfs, err := fs.Sub(webassetFS, "build/webassets")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return http.FS(wfs), nil
 }
