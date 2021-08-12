@@ -65,7 +65,7 @@ func getDefaultSSHPath() string {
 		return "C:\\Windows\\System32\\OpenSSH\\ssh.exe"
 	}
 
-	return "ssh"
+	return "/usr/bin/ssh"
 }
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
