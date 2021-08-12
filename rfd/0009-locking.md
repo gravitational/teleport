@@ -215,7 +215,7 @@ while a lock targeting role `developers` is in force will result in the
 following error:
 
 ```
-ERROR: lock targeting Role:"developers" is in force (Cluster maintenance.)
+ERROR: lock targeting Role:"developers" is in force: Cluster maintenance.
 ```
 
 #### SSH session with an already issued certificate prohibited
