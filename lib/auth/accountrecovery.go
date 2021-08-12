@@ -242,6 +242,10 @@ func (s *Server) AuthenticateUserWithRecoveryToken(ctx context.Context, req *pro
 		return nil, trace.Wrap(err)
 	}
 
+	if token.GetUser() != req.Username {
+		return nil, trace.BadParameter("username does not match")
+	}
+
 	// Begin authenticating user password or second factor.
 	switch req.GetAuthCred().(type) {
 	case *proto.AuthenticateUserWithRecoveryTokenRequest_SecondFactorToken:
