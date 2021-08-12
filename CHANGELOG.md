@@ -1,6 +1,6 @@
 # Changelog
 
-## 7.0.1
+## 7.0.2
 
 This release of Teleport contains multiple bug fixes.
 
