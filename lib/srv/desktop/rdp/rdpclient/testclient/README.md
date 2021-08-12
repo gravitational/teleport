@@ -9,6 +9,13 @@ brew install openssl@1.1
 sudo cp /usr/local/Cellar/openssl@1.1/1.1.1k/lib/libcrypto.* /usr/local/Cellar/openssl@1.1/1.1.1k/lib/libssl.* /usr/local/lib/
 ```
 
+## Build
+
+Build the codec module by running
+```
+tsc --module es6 codec.ts
+```
+
 ## Run
 
 To run the test client, from the `rdpclient` directory execute:
