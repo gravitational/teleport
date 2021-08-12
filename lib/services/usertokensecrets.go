@@ -23,27 +23,27 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// UnmarshalResetPasswordToken unmarshals the ResetPasswordToken resource from JSON.
-func UnmarshalResetPasswordToken(bytes []byte, opts ...MarshalOption) (types.ResetPasswordToken, error) {
+// UnmarshalUserTokenSecrets unmarshals the ResetPasswordTokenSecrets resource from JSON.
+func UnmarshalUserTokenSecrets(bytes []byte, opts ...MarshalOption) (types.UserTokenSecrets, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	var token types.ResetPasswordTokenV3
-	if err := utils.FastUnmarshal(bytes, &token); err != nil {
+	var secrets types.UserTokenSecretsV3
+	if err := utils.FastUnmarshal(bytes, &secrets); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	if err := token.CheckAndSetDefaults(); err != nil {
+	if err := secrets.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &token, nil
+	return &secrets, nil
 }
 
-// MarshalResetPasswordToken marshals the ResetPasswordToken resource to JSON.
-func MarshalResetPasswordToken(token types.ResetPasswordToken, opts ...MarshalOption) ([]byte, error) {
-	if err := token.CheckAndSetDefaults(); err != nil {
+// MarshalUserTokenSecrets marshals the ResetPasswordTokenSecrets resource to JSON.
+func MarshalUserTokenSecrets(secrets types.UserTokenSecrets, opts ...MarshalOption) ([]byte, error) {
+	if err := secrets.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return utils.FastMarshal(token)
+	return utils.FastMarshal(secrets)
 }
