@@ -257,7 +257,8 @@ necessarily in this order):
 * Support for U2F/CTAP1 USB devices (same as present), but using WebAuthn-based
   endpoints
 * Support for WebAuthn/CTAP2 USB devices (likely via `libfido2`)
-* Support for Apple biometric authenticators (aka Touch ID, likely hand-crafted)
+* Support for Apple biometric authenticators (aka Touch ID, more in following
+  sections)
 * Further support TBD (Windows Hello, NFC, etc)
 
 Notes:
@@ -265,6 +266,80 @@ Notes:
   CTAP2 USB doesn't seem pressing (for example, most Yubikeys still ship with
   U2F support).
   Apple biometrics may warrant a small RFD for itself.
+
+#### Touch ID in the world
+
+Native Touch ID implementations for WebAuthn are mainly found in browsers,
+varying depending on the browser. Firefox, at the time of writing, [doesn't
+support Touch ID](https://bugzilla.mozilla.org/show_bug.cgi?id=1536482).
+Chrome and Safari appear to have similar implementations, with some features
+being exclusive to Apple (more below).
+
+Chrome's implementation leverages Touch ID as
+the means to gate access to Apple's [Secure Enclave](
+https://support.apple.com/guide/security/secure-enclave-sec59b0b31ff/web), which
+is used in a manner akin to a secure token: keys are created, kept and managed
+by the Enclave; only public keys may be copied out of it. Chromium's
+[MakeCredentialOperation](https://github.com/chromium/chromium/blob/842d8a96578db838d9260debe64f559758891a3d/device/fido/mac/make_credential_operation.h#L23)
+provides a good overview of the exact process used.
+
+The current status of browser implementations causes a few side effects in the
+system. Unlike secure tokens, Touch ID registrations are tied to the application
+using the Enclave. This is because keys are scoped by access group, thus
+different applications have their own keys. The practical effect is that Touch
+ID, unlike a secure token, needs to be registered separately by every
+application that intends to use it (Apple passkeys mean to address this problem,
+more below).
+
+Attestation varies depending on the implementor. Chrome (and derived browsers)
+do self-attestation when using Touch ID, making attestation allow lists
+impossible to use. Safari does attestation using Apple's external attestation
+CA and provides its own [apple attestation format](
+https://www.w3.org/TR/webauthn-2/#sctn-apple-anonymous-attestation).
+
+macOS Monterey promises support for passwordless authentication via passkeys,
+essentially public keys distributed via iCloud Keychain. Monterey brings what
+appears to be first-party native support for WebAuthn APIs via the
+[AuthenticationServices](https://developer.apple.com/documentation/authenticationservices/public-private_key_authentication?language=objc)
+framework.
+
+On a side note, the [App Attestation Service](
+https://developer.apple.com/documentation/devicecheck/dcappattestservice?language=objc)
+borrows much from WebAuthn, although having a slightly different purpose. It
+provides operations that match WebAuthn flows (attestKey = registration,
+generateAssertion = login), returns WebAuthn payloads and supports attestation,
+so it may warrant experimentation (although, at the very least it has a
+[conflicting RPID definition](
+https://developer.apple.com/documentation/devicecheck/validating_apps_that_connect_to_your_server?language=objc#3576643)).
+
+#### Touch ID on `tsh`
+
+The following avenues for native support seem possible:
+
+* [Biometric-protected Keychain keys](
+  https://developer.apple.com/documentation/localauthentication/accessing_keychain_items_with_face_id_or_touch_id?language=objc) (macOS 10+, weaker than a secure token, no notarization required)
+* [Biometric-protected Secure Enclave keys](
+  https://developer.apple.com/documentation/security/certificate_key_and_trust_services/keys/storing_keys_in_the_secure_enclave?language=objc) (macOS 10+, aka Chrome's solution)
+* [DCAppAttestService](https://developer.apple.com/documentation/devicecheck/dcappattestservice?language=objc)-based
+  solutions (macOS 11+, requires a PoC, may prove to be fruitless)
+* macOS Monterey APIs (macOS 12+, currently in beta, requires PoC)
+* Touch ID support is delayed or not implemented natively at all, being instead
+  delegated to browsers or a native app
+
+A few parting notes about Touch ID on `tsh`:
+
+Regardless of the native option selected, `tsh` needs to know if Touch ID was
+already successfully registered for use in the current device. This is because
+we can't poll for biometrics "silently" as we do for secure keys and we can only
+query biometric-protected keys (keychain or Enclave) _after_ the user takes
+action. Thus, a successful Touch ID registration requires at the very least a
+flag to be stored in ~/.tsh or some other permanent store. (Passkeys provide a
+similar problem, although it may be alleviated by their APIs or via server-side
+signals.)
+
+Finally, the recommendation of the proposal is to select one (or more) options
+that seem adequate to our strategy and move from designing to prototyping, given
+that the viability of it has been established.
 
 ### Server-side changes
 
@@ -489,6 +564,25 @@ RPC stream.
 * [Yubico WebAuthn Developer Guide](
   https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/) - a good
   overview for various aspects of the spec, readable by humans
+
+* [Touch ID prompts](
+  https://developer.apple.com/documentation/localauthentication/lacontext?language=objc),
+  [biometric-protected Keychain keys](
+  https://developer.apple.com/documentation/localauthentication/accessing_keychain_items_with_face_id_or_touch_id?language=objc)
+  and [biometric-protected Secure Enclave keys](
+  https://developer.apple.com/documentation/security/certificate_key_and_trust_services/keys/storing_keys_in_the_secure_enclave?language=objc)
+
+* Apple's [App Attestation Service](
+  https://developer.apple.com/documentation/devicecheck/dcappattestservice?language=objc)
+
+* macOS Monterey ["Move beyond passwords"](
+  https://developer.apple.com/videos/play/wwdc2021/10106/?time=808) presentation
+  and [Authentication Services beta API](
+  https://developer.apple.com/documentation/authenticationservices/public-private_key_authentication?language=objc)
+
+* [Apple Private Root Certificates](
+  https://www.apple.com/certificateauthority/private/)
+
 
 <!-- Plant UML diagrams -->
 <!--
