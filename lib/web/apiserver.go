@@ -1444,7 +1444,7 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 // createResetPasswordToken allows a UI user to reset a user's password.
 // This handler is also required for after creating new users.
 func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req auth.CreateResetPasswordTokenRequest
+	var req auth.CreateUserTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1455,7 +1455,7 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 	}
 
 	token, err := clt.CreateResetPasswordToken(r.Context(),
-		auth.CreateResetPasswordTokenRequest{
+		auth.CreateUserTokenRequest{
 			Name: req.Name,
 			Type: req.Type,
 		})
@@ -1487,12 +1487,12 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 		return nil, trace.Wrap(err)
 	}
 
-	// RotateResetPasswordTokenSecrets rotates secrets for a given tokenID.
+	// RotateUserTokenSecrets rotates secrets for a given tokenID.
 	// It gets called every time a user fetches 2nd-factor secrets during registration attempt.
 	// This ensures that an attacker that gains the ResetPasswordToken link can not view it,
 	// extract the OTP key from the QR code, then allow the user to signup with
 	// the same OTP token.
-	secrets, err := h.auth.proxyClient.RotateResetPasswordTokenSecrets(ctx, tokenID)
+	secrets, err := h.auth.proxyClient.RotateUserTokenSecrets(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

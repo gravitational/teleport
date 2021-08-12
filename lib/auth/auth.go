@@ -1746,8 +1746,8 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 			return trace.BadParameter("token %s is statically configured and cannot be removed", token)
 		}
 	}
-	// delete reset password token:
-	if err = a.Identity.DeleteResetPasswordToken(ctx, token); err == nil {
+	// Delete a user token.
+	if err = a.Identity.DeleteUserToken(ctx, token); err == nil {
 		return nil
 	}
 	// delete node token:
@@ -1757,7 +1757,7 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 	return trace.Wrap(err)
 }
 
-// GetTokens returns all tokens (machine provisioning ones and user invitation tokens). Machine
+// GetTokens returns all tokens (machine provisioning ones and user tokens). Machine
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
 func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error) {
 	// get node tokens:
@@ -1773,13 +1773,13 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 	if err == nil {
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
-	// get reset password tokens:
-	resetPasswordTokens, err := a.Identity.GetResetPasswordTokens(ctx)
+	// get user tokens:
+	userTokens, err := a.Identity.GetUserTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// convert reset password tokens to machine tokens:
-	for _, t := range resetPasswordTokens {
+	// convert user tokens to machine tokens:
+	for _, t := range userTokens {
 		roles := types.SystemRoles{types.RoleSignup}
 		tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
 		if err != nil {
@@ -2316,6 +2316,16 @@ func (a *Server) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 // GetDatabaseServers returns all registers database proxy servers.
 func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
+}
+
+// GetLock gets a lock by name from the auth server's cache.
+func (a *Server) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	return a.GetCache().GetLock(ctx, name)
+}
+
+// GetLocks gets all/in-force matching locks from the auth server's cache.
+func (a *Server) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	return a.GetCache().GetLocks(ctx, inForceOnly, targets...)
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
