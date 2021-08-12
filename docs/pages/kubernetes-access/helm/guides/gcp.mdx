@@ -9,7 +9,7 @@ using Teleport Helm charts and Google Cloud Platform products (Firestore and Goo
 (!docs/pages/kubernetes-access/helm/includes/helm-install.mdx!)
 
 <Admonition
-  type="note" 
+  type="note"
   title="Note">
 >
   The steps below apply to Google Cloud Google Kubernetes Engine (GKE) Standard deployments.
@@ -233,7 +233,7 @@ spec:
     solvers:
     - selector:
         dnsZones:
-          - "example.com"                                  # Change this
+          - "example.com"   # Change this. This is listed as "DNS name" on the GCP Cloud DNS page.
       dns01:
         cloudDNS:
           project: gcp-project-id                          # Change this
@@ -365,6 +365,10 @@ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="300"
 gcloud dns record-sets transaction describe --zone="${MYZONE?}"
 gcloud dns record-sets transaction execute --zone="${MYZONE?}"
 ```
+
+<Admonition type="note">
+Certbot TLS initialization may take several minutes. Teleport pods may not run until the initialization process is complete.
+</Admonition>
 
 ## Step 7. Create a Teleport user
 
