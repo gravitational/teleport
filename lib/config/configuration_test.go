@@ -586,6 +586,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			},
 			AllowLocalAuth:        types.NewBoolOption(true),
 			DisconnectExpiredCert: types.NewBoolOption(false),
+			LockingMode:           constants.LockingModeBestEffort,
 		},
 	}))
 }

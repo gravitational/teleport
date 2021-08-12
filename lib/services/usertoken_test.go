@@ -20,22 +20,23 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 
-type ResetPasswordTokenSuite struct{}
+type UserTokenSuite struct{}
 
-var _ = check.Suite(&ResetPasswordTokenSuite{})
+var _ = check.Suite(&UserTokenSuite{})
 
-func (r *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
+func (r *UserTokenSuite) TestUnmarshal(c *check.C) {
 	created, err := time.Parse(time.RFC3339, "2020-01-14T18:52:39.523076855Z")
 	c.Assert(err, check.IsNil)
 
 	type testCase struct {
 		description string
 		input       string
-		expected    types.ResetPasswordToken
+		expected    types.UserToken
 	}
 
 	testCases := []testCase{
@@ -55,13 +56,14 @@ func (r *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
           }
         }
       `,
-			expected: &types.ResetPasswordTokenV3{
-				Kind:    types.KindResetPasswordToken,
+			expected: &types.UserTokenV3{
+				Kind:    types.KindUserToken,
 				Version: types.V3,
 				Metadata: types.Metadata{
-					Name: "tokenId",
+					Name:      "tokenId",
+					Namespace: defaults.Namespace,
 				},
-				Spec: types.ResetPasswordTokenSpecV3{
+				Spec: types.UserTokenSpecV3{
 					Created: created,
 					User:    "example@example.com",
 					URL:     "https://localhost",
@@ -72,12 +74,12 @@ func (r *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 
 	for _, tc := range testCases {
 		comment := check.Commentf("test case %q", tc.description)
-		out, err := UnmarshalResetPasswordToken([]byte(tc.input))
+		out, err := UnmarshalUserToken([]byte(tc.input))
 		c.Assert(err, check.IsNil, comment)
 		fixtures.DeepCompare(c, tc.expected, out)
-		data, err := MarshalResetPasswordToken(out)
+		data, err := MarshalUserToken(out)
 		c.Assert(err, check.IsNil, comment)
-		out2, err := UnmarshalResetPasswordToken(data)
+		out2, err := UnmarshalUserToken(data)
 		c.Assert(err, check.IsNil, comment)
 		fixtures.DeepCompare(c, tc.expected, out2)
 	}

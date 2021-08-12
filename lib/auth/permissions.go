@@ -111,7 +111,9 @@ Loop:
 		lockTargets = append(lockTargets, unmappedTarget)
 	}
 	if r, ok := c.Identity.(BuiltinRole); ok && r.Role == types.RoleNode {
-		lockTargets = append(lockTargets, types.LockTarget{Node: r.GetServerID()})
+		lockTargets = append(lockTargets,
+			types.LockTarget{Node: r.GetServerID()},
+			types.LockTarget{Node: r.Identity.Username})
 	}
 	return lockTargets
 }
@@ -126,10 +128,13 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Enforce applicable locks in force.
-	lock := a.lockWatcher.FindLockInForce(authContext.LockTargets()...)
-	if lock != nil {
-		return nil, trace.AccessDenied(services.LockInForceMessage(lock))
+	// Enforce applicable locks.
+	authPref, err := a.accessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if lockErr := a.lockWatcher.CheckLockInForce(authContext.Checker.LockingMode(authPref.GetLockingMode()), authContext.LockTargets()...); lockErr != nil {
+		return nil, trace.Wrap(lockErr)
 	}
 	return authContext, nil
 }
@@ -261,7 +266,7 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 
 // authorizeBuiltinRole authorizes builtin role
 func (a *authorizer) authorizeBuiltinRole(ctx context.Context, r BuiltinRole) (*Context, error) {
-	recConfig, err := r.GetSessionRecordingConfig(ctx)
+	recConfig, err := a.accessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -742,9 +747,6 @@ func (i WrapIdentity) GetIdentity() tlsca.Identity {
 
 // BuiltinRole is the role of the Teleport service.
 type BuiltinRole struct {
-	// GetSessionRecordingConfig fetches session recording configuration.
-	GetSessionRecordingConfig GetSessionRecordingConfigFunc
-
 	// Role is the builtin role this username is associated with
 	Role types.SystemRole
 
@@ -866,6 +868,3 @@ type RemoteUser struct {
 func (r RemoteUser) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
-
-// GetSessionRecordingConfigFunc returns a SessionRecordingConfig.
-type GetSessionRecordingConfigFunc func(context.Context, ...services.MarshalOption) (types.SessionRecordingConfig, error)
