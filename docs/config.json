@@ -306,10 +306,10 @@
       "min_version": "3.6"
     },
     "teleport": {
-      "version": "7.0.0",
+      "version": "7.0.1",
       "golang": "1.16",
       "plugin": {
-        "version": "7.0.0"
+        "version": "7.0.1"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "quay.io/gravitational/teleport:7",
