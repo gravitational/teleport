@@ -946,7 +946,11 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		},
 	}
 
-	if lockErr := s.lockWatcher.CheckLockInForce(lockingMode, srv.ComputeLockTargets(s, identityContext)...); lockErr != nil {
+	lockTargets, err := srv.ComputeLockTargets(s, identityContext)
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+	if lockErr := s.lockWatcher.CheckLockInForce(lockingMode, lockTargets...); lockErr != nil {
 		event.Reason = lockErr.Error()
 		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
 			log.WithError(err).Warn("Failed to emit session reject event.")
