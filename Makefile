@@ -119,6 +119,14 @@ ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
 
+# On platforms that support reproducible builds (at the moment, only Linux)
+# ensure the archive is created in a reproducible manner.
+TAR_FLAGS ?=
+ifeq ("$(OS)","linux")
+TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
+endif
+
+
 VERSRC = version.go gitref.go api/version.go
 
 KUBECONFIG ?=
@@ -277,7 +285,7 @@ release-unix: clean full
 		CHANGELOG.md \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
-	tar --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu -c teleport | gzip -n > $(RELEASE).tar.gz
+	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 	@if [ -f e/Makefile ]; then \
