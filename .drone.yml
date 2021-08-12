@@ -1081,9 +1081,9 @@ steps:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
       # build major version images which are just teleport:x
-      CURRENT_VERSION_ROOT: v6
-      PREVIOUS_VERSION_ONE_ROOT: v5
-      PREVIOUS_VERSION_TWO_ROOT: v4.4
+      CURRENT_VERSION_ROOT: v7
+      PREVIOUS_VERSION_ONE_ROOT: v6
+      PREVIOUS_VERSION_TWO_ROOT: v5
     commands:
       - apk --update --no-cache add curl
       - mkdir -p /go/build && cd /go/build
@@ -4423,6 +4423,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 111b9577ccae5cbe5da195685d255e2cc5d0f5fd4b78a197415f9a30f4c046d4
+hmac: 8216b23707af038aa6d3c70065a7858fcf7fac69dcf11d3379908621797d6a93
 
 ...
