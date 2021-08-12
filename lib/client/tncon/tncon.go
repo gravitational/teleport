@@ -63,15 +63,6 @@ type ResizeEvent struct {
 	Y int16
 }
 
-// FocusEvent is emitted when the terminal window gains or loses keyboard
-// focus. It does not seem to be emitted in the new Windows Terminal app.
-type FocusEvent struct {
-	SetFocus bool
-}
-
-type MouseEvent struct {
-}
-
 // writeEvent dispatches an event to all listeners.
 func writeEvent(event interface{}) {
 	subscribersMutex.Lock()
@@ -96,18 +87,6 @@ func writeResizeEvent(size C.COORD) {
 		X: int16(size.X),
 		Y: int16(size.Y),
 	})
-}
-
-//export writeFocusEvent
-func writeFocusEvent(setFocus bool) {
-	writeEvent(FocusEvent{
-		SetFocus: setFocus,
-	})
-}
-
-//export writeMouseEvent
-func writeMouseEvent() {
-	writeEvent(MouseEvent{})
 }
 
 // Subscribe creates a new channel from which to receive console input events.

@@ -35,8 +35,6 @@
 #ifndef __TNCON_H
 #define __TNCON_H
 
-#include "console.h"
-
 #define UP_ARROW                    "\x1b[A"
 #define DOWN_ARROW                  "\x1b[B"
 #define RIGHT_ARROW                 "\x1b[C"

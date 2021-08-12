@@ -46,30 +46,4 @@
 #define ENUM_LF 1
 #define ENUM_CR 2
 
-typedef struct _TelParams 
-{
-	int fLogging;
-	FILE *fplogfile;
-
-	char *pInputFile;
-
-	char *szDebugInputFile;
-    BOOL fDebugWait;
-
-	int timeOut;
-	int fLocalEcho;
-	int fTreatLFasCRLF;
-	int	fSendCROnly;
-	int nReceiveCRLF;
-
-    char sleepChar;
-	char menuChar;
-
-	SOCKET Socket;
-	BOOL bVT100Mode;
-
-	char *pAltKey;
-
-} TelParams;
-
 #endif
