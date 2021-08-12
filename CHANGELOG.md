@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.0.2
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed issue that prevented preset editor role from creating SSO connectors in Web UI. [#7667](https://github.com/gravitational/teleport/issues/7667)
+* Fixed issue where OSS Web UI was enabled in Enterprise Docker images.
+
 ## 7.0.0
 
 Teleport 7.0 is a major release of Teleport that contains new features, improvements, and bug fixes.
@@ -63,7 +70,65 @@ Kubernetes Access will no longer automatically register a cluster named after th
 
 `tsh login` has been updated to no longer change the current Kubernetes context. While `tsh login` will write credentials to `kubeconfig` it will only update your context if `tsh login --kube-cluster` or `tsh kube login <kubeCluster>` is used. [#6045](https://github.com/gravitational/teleport/issues/6045)
 
-## 6.2
+## 6.2.8
+
+This release of Teleport contains an improvement and new feature.
+
+* Improved Web UI performance for DynamoDB users. [#7587](https://github.com/gravitational/teleport/pull/7587)
+* Added API to export session recordings. [#7360](https://github.com/gravitational/teleport/pull/7360)
+
+## 6.2.7
+
+This release of Teleport contains multiple fixes.
+
+* Fixed issue that could cause `GetNodes` to fail on large clusters. [#7415](https://github.com/gravitational/teleport/pull/7415)
+* Fixed issue that could cause long commands to hang. [#7449](https://github.com/gravitational/teleport/pull/7449)
+
+## 6.2.6
+
+This release of Teleport contains new features and improvements.
+
+* Added ability to disable port forwarding on a per-node basis. [#6989](https://github.com/gravitational/teleport/pull/6989)
+* Updated `api` client to support additional endpoints. [#7220](https://github.com/gravitational/teleport/pull/7220)
+* Improved performance of DynamoDB events filtering. [#7231](https://github.com/gravitational/teleport/pull/7231)
+
+## 6.2.5
+
+This release of Teleport contains new features, bug fixes, and multiple improvements.
+
+* Added support for `regexp.replace` in role templates. [#7152](https://github.com/gravitational/teleport/pull/7152)
+* Added `RoleV4` with stricter default allow labels. `RoleV4` is backward-compatible with `RoleV3` and is completely opt-in. [#7132](https://github.com/gravitational/teleport/pull/7132) [#7118](https://github.com/gravitational/teleport/pull/7118)
+* Updated OIDC connector to gracefully degrade UserInfo endpoint. [#7333](https://github.com/gravitational/teleport/pull/7333)
+* Improved Access Requests events to allow easier correlation between access requests and `session.start` events. [#6863](https://github.com/gravitational/teleport/pull/6863)
+* Fixed an issue that could cause upgrade from Teleport 5.x to 6.x to fail. [#7310](https://github.com/gravitational/teleport/pull/7310)
+* Fixed multiple issues with events subsystem. [#7303](https://github.com/gravitational/teleport/pull/7303) [#7266](https://github.com/gravitational/teleport/pull/7266)
+
+## 6.2.3
+
+This release of Teleport contains multiple improvements.
+
+* Improvements to speed up DynamoDB events migration. We now encourage all DynamoDB users to upgrade to Teleport 6.2. [#7073](https://github.com/gravitational/teleport/pull/7073) [#7097](https://github.com/gravitational/teleport/pull/7097)
+
+## 6.2.1
+
+This release of Teleport contains an improvement and several bug fixes.
+
+### Improvements
+
+* Improve performance of DynamoDB events migration introduced in `v6.2.0`.
+  [#7083](https://github.com/gravitational/teleport/pull/7083)
+
+### Fixes
+
+* Fixed an issue with connecting to etcd in insecure mode.
+  [#7049](https://github.com/gravitational/teleport/pull/7049)
+* Fixed an issue with running Teleport on systems without utmp/wtmp support such
+  as alpine. [#7059](https://github.com/gravitational/teleport/pull/7059)
+* Fixed an issue with signing database certificates using `tctl auth sign` via
+  proxy. See [#7071](https://github.com/gravitational/teleport/discussions/7071)
+  for details. [#7038](https://github.com/gravitational/teleport/pull/7038)
+
+## 6.2.0
 
 Teleport 6.2 contains new features, improvements, and bug fixes.
 
