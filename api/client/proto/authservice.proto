@@ -1008,14 +1008,16 @@ message CreateRecoveryStartTokenRequest {
 message AuthenticateUserWithRecoveryTokenRequest {
     // TokenID is the ID of a user recovery token.
     string TokenID = 1;
+    // Username is the name of the user that the token belongs to.
+    string Username = 2;
     // AuthCred is either a user's password or one of their second factor.
     oneof AuthCred {
         // SecondFactorToken is 2nd factor token value.
-        string SecondFactorToken = 2;
+        string SecondFactorToken = 3;
         // Password is user password.
-        bytes Password = 3;
+        bytes Password = 4;
         // U2FSignResponse is U2F sign response to a challenge.
-        U2FResponse U2FSignResponse = 4;
+        U2FResponse U2FSignResponse = 5;
     }
 }
 

@@ -763,6 +763,7 @@ func (c *Client) ChangePasswordWithToken(ctx context.Context, req *proto.ChangeP
 		return resp, nil
 	}
 
+	// DELETE IN 9.0.0
 	// Convert request back to fallback compatible object.
 	httpReq := ChangePasswordWithTokenRequest{
 		SecondFactorToken: req.GetSecondFactorToken(),
