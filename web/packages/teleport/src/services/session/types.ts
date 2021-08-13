@@ -7,9 +7,6 @@ export type BearerToken = {
   accessToken: string;
   expiresIn: string;
   created: number;
-};
-
-export type Session = {
-  token: BearerToken;
-  expires: Date;
+  sessionExpires: Date;
+  sessionInactiveTimeout: number;
 };

@@ -48,6 +48,21 @@ const storage = {
     return bearerToken ? bearerToken.accessToken : null;
   },
 
+  getSessionInactivityTimeout() {
+    const bearerToken = this.getBearerToken();
+    const time = Number(bearerToken.sessionInactiveTimeout);
+    return time ? time : 0;
+  },
+
+  setLastActive(expiry: number) {
+    window.localStorage.setItem(KeysEnum.LAST_ACTIVE, `${expiry}`);
+  },
+
+  getLastActive() {
+    const time = Number(window.localStorage.getItem(KeysEnum.LAST_ACTIVE));
+    return time ? time : 0;
+  },
+
   broadcast(messageType, messageBody) {
     window.localStorage.setItem(messageType, messageBody);
     window.localStorage.removeItem(messageType);

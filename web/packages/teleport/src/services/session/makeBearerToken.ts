@@ -13,19 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { Session, BearerToken } from './types';
+import { BearerToken } from './types';
 
-export function makeSession(json: any): Session {
-  return {
-    token: makeBearerToken(json),
-    expires: json.sessionExpires,
-  };
-}
-
-export function makeBearerToken(json: any): BearerToken {
+export default function makeBearerToken(json: any): BearerToken {
   return {
     accessToken: json.token,
     expiresIn: json.expires_in,
     created: new Date().getTime(),
+    sessionExpires: json.sessionExpires,
+    sessionInactiveTimeout: json.sessionInactiveTimeout,
   };
 }

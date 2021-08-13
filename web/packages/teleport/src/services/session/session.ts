@@ -19,7 +19,7 @@ import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import api from 'teleport/services/api';
 import localStorage, { KeysEnum } from 'teleport/services/localStorage';
-import { makeSession, makeBearerToken } from './makeSession';
+import makeBearerToken from './makeBearerToken';
 import { RenewSessionRequest } from './types';
 
 // Time to determine when to renew session which is
@@ -70,11 +70,17 @@ const session = {
   // renewSession renews session and returns the
   // absolute time the new session expires.
   renewSession(req: RenewSessionRequest): Promise<Date> {
-    return this._renewToken(req);
+    return this._renewToken(req).then(token => token.sessionExpires);
   },
 
   isValid() {
     return this._timeLeft() > 0;
+  },
+
+  getInactivityTimeout() {
+    const bearerToken = this._getBearerToken();
+    const time = Number(bearerToken.sessionInactiveTimeout);
+    return time ? time : 0;
   },
 
   _getBearerToken() {
@@ -124,11 +130,10 @@ const session = {
     this._setAndBroadcastIsRenewing(true);
     return api
       .post(cfg.getRenewTokenUrl(), req)
-      .then(res => {
-        const session = makeSession(res);
-        localStorage.setBearerToken(session.token);
-
-        return session.expires;
+      .then(json => {
+        const token = makeBearerToken(json);
+        localStorage.setBearerToken(token);
+        return token;
       })
       .finally(() => {
         this._setAndBroadcastIsRenewing(false);
