@@ -30,7 +30,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -913,51 +912,6 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.UserUpdatedEvent)
 	c.Assert(s.mockEmitter.LastEvent().(*apievents.UserCreate).User, Equals, teleport.UserSystem)
-}
-
-func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
-	ctx := context.Background()
-	// test create new role
-	roleTest, err := types.NewRole("test", types.RoleSpecV4{
-		Options: types.RoleOptions{},
-		Allow:   types.RoleConditions{},
-	})
-	c.Assert(err, IsNil)
-
-	err = s.a.upsertRole(ctx, roleTest)
-	c.Assert(err, IsNil)
-	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, Equals, "test")
-	s.mockEmitter.Reset()
-
-	roleRetrieved, err := s.a.GetRole(ctx, "test")
-	c.Assert(err, IsNil)
-	c.Assert(cmp.Diff(roleRetrieved, roleTest, cmpopts.IgnoreFields(types.Metadata{}, "ID")), Equals, "")
-
-	// test update role
-	err = s.a.upsertRole(ctx, roleTest)
-	c.Assert(err, IsNil)
-	c.Assert(cmp.Diff(roleRetrieved, roleTest, cmpopts.IgnoreFields(types.Metadata{}, "ID")), Equals, "")
-	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, Equals, "test")
-	s.mockEmitter.Reset()
-
-	// test delete role
-	err = s.a.DeleteRole(ctx, "test")
-	c.Assert(err, IsNil)
-	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleDeletedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*apievents.RoleDelete).Name, Equals, "test")
-	s.mockEmitter.Reset()
-
-	// test role has been deleted
-	roleRetrieved, err = s.a.GetRole(ctx, "test")
-	c.Assert(trace.IsNotFound(err), Equals, true)
-	c.Assert(roleRetrieved, IsNil)
-
-	// test role that doesn't exist
-	err = s.a.DeleteRole(ctx, "test")
-	c.Assert(trace.IsNotFound(err), Equals, true)
-	c.Assert(s.mockEmitter.LastEvent(), IsNil)
 }
 
 func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
