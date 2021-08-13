@@ -383,9 +383,6 @@ func (a *Server) runPeriodicOperations() {
 					log.Errorf("Failed to perform cert rotation check: %v.", err)
 				}
 			}
-			if err := a.addLocalAdditionalKeys(); err != nil {
-				log.Errorf("Failed to add local additional keys to CA: %v.", err)
-			}
 		case <-heartbeatCheckTicker.Next():
 			nodes, err := a.GetNodes(ctx, apidefaults.Namespace)
 			if err != nil {
@@ -2737,7 +2734,7 @@ func (a *Server) atomicCAUpdate(
 
 // addLocalProvisionalKeysToCA adds "provisional" keys that should only be used
 // to sign the Admin identity for bootstrapping a newly configured HSM.
-func (a *Server) addLocalProvisionalKeysToCA(ca types.CertAuthority) error {
+func (a *Server) addLocalProvisionalKeys(ca types.CertAuthority) error {
 	if ca.GetType() != types.HostCA {
 		return trace.BadParameter("can only add provisional keys for host CA")
 	}
@@ -2761,11 +2758,13 @@ func (a *Server) addLocalProvisionalKeysToCA(ca types.CertAuthority) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Debugf("Successfully added local active keys to %s CA", ca.GetType())
+	log.Infof("Successfully added local provisional keys to %s CA.", ca.GetType())
 	return nil
 }
 
-func (a *Server) addLocalAdditionalKeysToCA(ca types.CertAuthority) error {
+// addLocalAdditionalKeys adds additional trusted keys to the CA if necessary
+// (in the init phase of rotation and local additional keys are not already present).
+func (a *Server) addLocalAdditionalKeys(ca types.CertAuthority) error {
 	rotation := ca.GetRotation()
 	if rotation.State != types.RotationStateInProgress ||
 		rotation.Phase != types.RotationPhaseInit ||
@@ -2786,29 +2785,7 @@ func (a *Server) addLocalAdditionalKeysToCA(ca types.CertAuthority) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Debugf("Successfully added local additional keys to %s CA", ca.GetType())
-	return nil
-}
-
-// addLocalAdditionalKeys adds additional trusted keys to all CAs if necessary
-// (in the init phase of rotation and local additional keys are not already present).
-func (a *Server) addLocalAdditionalKeys() error {
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
-		ca, err := a.Trust.GetCertAuthority(types.CertAuthID{
-			Type:       caType,
-			DomainName: clusterName.GetClusterName(),
-		}, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := a.addLocalAdditionalKeysToCA(ca); err != nil {
-			return trace.Wrap(err)
-		}
-	}
+	log.Infof("Successfully added local additional keys to %s CA for init phase of rotation.", ca.GetType())
 	return nil
 }
 

@@ -351,7 +351,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				if caType == types.HostCA {
 					// provisional keys are necessary for the Admin identity to work
 					if !asrv.keyStore.HasLocalProvisionalKeys(ca) {
-						if err := asrv.addLocalProvisionalKeysToCA(ca); err != nil {
+						if err := asrv.addLocalProvisionalKeys(ca); err != nil {
 							return nil, trace.Wrap(err)
 						}
 					}

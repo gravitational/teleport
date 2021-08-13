@@ -309,6 +309,9 @@ func (a *Server) autoRotateCertAuthorities() error {
 		if err := a.autoRotate(ca); err != nil {
 			return trace.Wrap(err)
 		}
+		if err := a.addLocalAdditionalKeys(ca); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
