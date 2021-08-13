@@ -28,7 +28,7 @@ import (
 func TestIsProfileKubeConfigPath(t *testing.T) {
 	path := ""
 	isKubeConfig, err := keypaths.IsProfileKubeConfigPath(path)
-	require.Error(t, err)
+	require.NoError(t, err)
 	require.False(t, isKubeConfig)
 
 	path = keypaths.KubeCertPath("~/tsh", "proxy", "user", "cluster", "kube")

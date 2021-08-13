@@ -379,7 +379,11 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 
 	// If this is a profile specific kubeconfig, we only need
 	// to put the selected kube cluster into the kubeconfig.
-	if keypaths.IsProfileKubeConfigPath(path) {
+	isKubeConfig, err := keypaths.IsProfileKubeConfigPath(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if isKubeConfig {
 		if !strings.Contains(path, cf.KubernetesCluster) {
 			return trace.BadParameter("profile specific kubeconfig is in use, run 'tsh env unset' to switch contexts to another kube cluster")
 		}
