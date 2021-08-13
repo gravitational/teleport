@@ -178,7 +178,7 @@ impl Drop for CGOBitmap {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 fn wait_for_fd(fd: usize) -> bool {
     unsafe {
         let mut raw_fds: fd_set = mem::zeroed();
