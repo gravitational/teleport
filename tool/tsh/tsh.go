@@ -438,8 +438,8 @@ func Run(args []string, opts ...cliOption) error {
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Flag("request-reason", "Reason for requesting additional roles").StringVar(&cf.RequestReason)
 	login.Flag("request-reviewers", "Suggested reviewers for role request").StringVar(&cf.SuggestedReviewers)
-	login.Flag("request-nowait", "Exit without waiting for request resolution").BoolVar(&cf.NoWait)
-	login.Flag("request-id", "login with the roles requested in the given request").StringVar(&cf.RequestID)
+	login.Flag("request-nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
+	login.Flag("request-id", "Login with the roles requested in the given request").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").StringVar(&cf.KubernetesCluster)
@@ -491,7 +491,7 @@ func Run(args []string, opts ...cliOption) error {
 	reqCreate.Flag("roles", "Roles to be requested").Required().StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
-	reqCreate.Flag("nowait", "Exit without waiting for request resolution").BoolVar(&cf.NoWait)
+	reqCreate.Flag("nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
 
 	reqReview := req.Command("review", "Review an access request")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -1151,13 +1151,26 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	if cf.DesiredRoles == "" && cf.RequestID == "" {
 		return trace.BadParameter("at least one role or a request ID must be specified")
 	}
+	if cf.Username == "" {
+		cf.Username = tc.Username
+	}
 
 	var req types.AccessRequest
 	var err error
 	if cf.RequestID != "" {
 		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-			req, err = services.GetAccessRequest(cf.Context, clt, cf.RequestID)
-			return trace.Wrap(err)
+			reqs, err := clt.GetAccessRequests(cf.Context, types.AccessRequestFilter{
+				ID:   cf.RequestID,
+				User: cf.Username,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if len(reqs) != 1 {
+				return trace.BadParameter(`invalid access request "%v"`, cf.RequestID)
+			}
+			req = reqs[0]
+			return nil
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1169,13 +1182,10 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			return trace.Wrap(err)
 		}
 
-		fmt.Fprint(os.Stderr, "Request pending...\n")
+		fmt.Fprint(os.Stdout, "Request pending...\n")
 	} else {
 		roles := utils.SplitIdentifiers(cf.DesiredRoles)
 		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-		if cf.Username == "" {
-			cf.Username = tc.Username
-		}
 		req, err = services.NewAccessRequest(cf.Username, roles...)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1195,7 +1205,8 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 
 	// Create request if it doesn't already exist
 	if cf.RequestID == "" {
-		fmt.Fprint(os.Stderr, "Creating request...\n")
+		cf.RequestID = req.GetName()
+		fmt.Fprint(os.Stdout, "Creating request...\n")
 		// always create access request against the root cluster
 		if err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
 			err := clt.CreateAccessRequest(cf.Context, req)
@@ -1205,17 +1216,16 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		}
 	}
 
+	onRequestShow(cf)
+	fmt.Println("")
+
 	// Dont wait for request to get resolved, just print out request info
 	if cf.NoWait {
-		cf.RequestID = req.GetName()
-		fmt.Println("") // visually separate access request output
-		onRequestShow(cf)
-		fmt.Println("")
 		return nil
 	}
 
 	// Wait for watcher to return
-	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
+	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
 	return trace.Wrap(<-errChan)
 }
 

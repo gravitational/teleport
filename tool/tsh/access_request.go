@@ -205,7 +205,7 @@ func onRequestShow(cf *CLIConf) error {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "\nhint: %v\n", requestLoginHint)
+	fmt.Fprintf(os.Stdout, "\nhint: %v\n", requestLoginHint)
 	return nil
 }
 
@@ -290,7 +290,7 @@ func showRequestTable(reqs []types.AccessRequest) error {
 	}
 	_, err := table.AsBuffer().WriteTo(os.Stdout)
 
-	fmt.Fprintf(os.Stderr, "\nhint: use 'tsh request show <request-id>' for additional details\n")
-	fmt.Fprintf(os.Stderr, "      %v\n", requestLoginHint)
+	fmt.Fprintf(os.Stdout, "\nhint: use 'tsh request show <request-id>' for additional details\n")
+	fmt.Fprintf(os.Stdout, "      %v\n", requestLoginHint)
 	return trace.Wrap(err)
 }
