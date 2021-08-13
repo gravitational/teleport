@@ -84,9 +84,9 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 	}
 	authorities = append(authorities, jwtKeys...)
 
-	// Calculate the CA pin for this cluster. The CA pin is used by the client
-	// to verify the identity of the Auth Server.
-	caPin, err := calculateCAPin(client)
+	// Calculate the CA pins for this cluster. The CA pins are used by the
+	// client to verify the identity of the Auth Server.
+	caPins, err := calculateCAPins(client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -113,7 +113,9 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 			}
 
 		}
-		table.AddRow([]string{"CA pin", caPin})
+		for _, caPin := range caPins {
+			table.AddRow([]string{"CA pin", caPin})
+		}
 		return table.AsBuffer().String()
 	}
 	fmt.Print(view())

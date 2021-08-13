@@ -406,17 +406,17 @@ func (c *Client) GetDomainName() (string, error) {
 	return domain, nil
 }
 
-// GetClusterCACert returns the CAs for the local cluster without signing keys.
-func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
-	out, err := c.Get(c.Endpoint("cacert"), url.Values{})
+// GetClusterCACerts returns the CA certs for the cluster without signing keys.
+func (c *Client) GetClusterCACerts() (*ClusterCACertsResponse, error) {
+	out, err := c.Get(c.Endpoint("cacerts"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var localCA LocalCAResponse
-	if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
+	var caCerts ClusterCACertsResponse
+	if err := json.Unmarshal(out.Bytes(), &caCerts); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &localCA, nil
+	return &caCerts, nil
 }
 
 func (c *Client) Close() error {
@@ -1980,8 +1980,9 @@ type ClientI interface {
 	// GetDomainName returns auth server cluster name
 	GetDomainName() (string, error)
 
-	// GetClusterCACert returns the CAs for the local cluster without signing keys.
-	GetClusterCACert() (*LocalCAResponse, error)
+	// GetClusterCACerts returns the list of CA certs for the cluster without
+	// signing keys.
+	GetClusterCACerts() (*ClusterCACertsResponse, error)
 
 	// GenerateServerKeys generates new host private keys and certificates (signed
 	// by the host certificate authority) for a node

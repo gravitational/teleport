@@ -86,8 +86,8 @@ type RegisterParams struct {
 	PublicSSHKey []byte
 	// CipherSuites is a list of cipher suites to use for TLS client connection
 	CipherSuites []uint16
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 	// CAPath is the path to the CA file.
 	CAPath string
 	// GetHostCredentials is a client that can fetch host credentials.
@@ -201,7 +201,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	// Auth Server is validated. Otherwise attempt to use the CA file on disk
 	// but if it's not available connect without validating the Auth Server CA.
 	switch {
-	case params.CAPin != "":
+	case len(params.CAPins) != 0:
 		client, err = pinRegisterClient(params)
 	default:
 		client, err = insecureRegisterClient(params)
@@ -311,37 +311,45 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 
 	// Fetch the root CA from the Auth Server. The NOP role has access to the
 	// GetClusterCACert endpoint.
-	localCA, err := authClient.GetClusterCACert()
+	caCerts, err := authClient.GetClusterCACerts()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, err := tlsca.ParseCertificatePEM(localCA.TLSCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	tlsCAs := make([]*x509.Certificate, 0, len(caCerts.Certs))
+	for _, caCert := range caCerts.Certs {
+		tlsCA, err := tlsca.ParseCertificatePEM(caCert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsCAs = append(tlsCAs, tlsCA)
 	}
 
 	// Check that the SPKI pin matches the CA we fetched over a insecure
 	// connection. This makes sure the CA fetched over a insecure connection is
 	// in-fact the expected CA.
-	err = utils.CheckSPKI(params.CAPin, tlsCA)
+	err = utils.CheckSPKI(params.CAPins, tlsCAs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Check that the fetched CA is valid at the current time.
-	err = utils.VerifyCertificateExpiry(tlsCA, params.Clock)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	for _, tlsCA := range tlsCAs {
+		// Check that the fetched CA is valid at the current time.
+		err = utils.VerifyCertificateExpiry(tlsCA, params.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	log.Infof("Joining remote cluster %v with CA pin.", tlsCA.Subject.CommonName)
+		log.Infof("Joining remote cluster %v with CA pin.", tlsCA.Subject.CommonName)
+	}
 
 	// Create another client, but this time with the CA provided to validate
 	// that the Auth Server was issued a certificate by the same CA.
 	tlsConfig = utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	certPool := x509.NewCertPool()
-	certPool.AddCert(tlsCA)
+	for _, tlsCA := range tlsCAs {
+		certPool.AddCert(tlsCA)
+	}
 	tlsConfig.RootCAs = certPool
 
 	authClient, err = NewClient(client.Config{

@@ -2747,7 +2747,26 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
-		CAPin:                caPin,
+		CAPins:               []string{caPin},
+		Clock:                s.clock,
+	})
+	c.Assert(err, check.IsNil)
+
+	// Attempt to register with multiple CA pins where the auth server only
+	// matches one, should work.
+	_, err = Register(RegisterParams{
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
+		Token:   token,
+		ID: IdentityID{
+			HostUUID: "once",
+			NodeName: "node-name",
+			Role:     types.RoleProxy,
+		},
+		AdditionalPrincipals: []string{"example.com"},
+		PrivateKey:           priv,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+		CAPins:               []string{"sha256:123", caPin},
 		Clock:                s.clock,
 	})
 	c.Assert(err, check.IsNil)
@@ -2765,7 +2784,25 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
-		CAPin:                "sha256:123",
+		CAPins:               []string{"sha256:123"},
+		Clock:                s.clock,
+	})
+	c.Assert(err, check.NotNil)
+
+	// Attempt to register with multiple invalid CA pins, should fail.
+	_, err = Register(RegisterParams{
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
+		Token:   token,
+		ID: IdentityID{
+			HostUUID: "once",
+			NodeName: "node-name",
+			Role:     types.RoleProxy,
+		},
+		AdditionalPrincipals: []string{"example.com"},
+		PrivateKey:           priv,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+		CAPins:               []string{"sha256:123", "sha256:456"},
 		Clock:                s.clock,
 	})
 	c.Assert(err, check.NotNil)

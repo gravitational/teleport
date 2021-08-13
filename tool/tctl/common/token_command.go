@@ -156,7 +156,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 
 	// Calculate the CA pin for this cluster. The CA pin is used by the client
 	// to verify the identity of the Auth Server.
-	caPin, err := calculateCAPin(client)
+	caPins, err := calculateCAPins(client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -182,21 +182,16 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		}
 		appPublicAddr := fmt.Sprintf("%v.%v", c.appName, proxies[0].GetPublicAddr())
 
-		fmt.Printf(appMessage,
-			token,
-			int(c.ttl.Minutes()),
-			token,
-			caPin,
-			proxies[0].GetPublicAddr(),
-			c.appName,
-			c.appName,
-			c.appURI,
-			c.appURI,
-			appPublicAddr,
-			int(c.ttl.Minutes()),
-			proxies[0].GetPublicAddr(),
-			appPublicAddr,
-			appPublicAddr)
+		return appMessageTemplate.Execute(os.Stdout,
+			map[string]interface{}{
+				"token":           token,
+				"minutes":         c.ttl.Minutes(),
+				"ca_pins":         caPins,
+				"auth_server":     proxies[0].GetPublicAddr(),
+				"app_name":        c.appName,
+				"app_uri":         c.appURI,
+				"app_public_addr": appPublicAddr,
+			})
 	case roles.Include(types.RoleDatabase):
 		proxies, err := client.GetProxies()
 		if err != nil {
@@ -209,7 +204,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 			map[string]interface{}{
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
-				"ca_pin":      caPin,
+				"ca_pins":     caPins,
 				"auth_server": proxies[0].GetPublicAddr(),
 				"db_name":     c.dbName,
 				"db_protocol": c.dbProtocol,
@@ -220,15 +215,13 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 			token,
 			int(c.ttl.Minutes()))
 	default:
-		fmt.Printf(nodeMessage,
-			token,
-			int(c.ttl.Minutes()),
-			strings.ToLower(roles.String()),
-			token,
-			caPin,
-			authServers[0].GetAddr(),
-			int(c.ttl.Minutes()),
-			authServers[0].GetAddr())
+		return nodeMessageTemplate.Execute(os.Stdout, map[string]interface{}{
+			"token":       token,
+			"roles":       strings.ToLower(roles.String()),
+			"minutes":     int(c.ttl.Minutes()),
+			"ca_pins":     caPins,
+			"auth_server": authServers[0].GetAddr(),
+		})
 	}
 
 	return nil
@@ -288,16 +281,20 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 	return nil
 }
 
-// calculateCAPin returns the SPKI pin for the local cluster.
-func calculateCAPin(client auth.ClientI) (string, error) {
-	localCA, err := client.GetClusterCACert()
+// calculateCAPins returns the SPKI pins for the local cluster.
+func calculateCAPins(client auth.ClientI) ([]string, error) {
+	caCerts, err := client.GetClusterCACerts()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	tlsCA, err := tlsca.ParseCertificatePEM(localCA.TLSCA)
-	if err != nil {
-		return "", trace.Wrap(err)
+	pins := make([]string, 0, len(caCerts.Certs))
+	for _, caCert := range caCerts.Certs {
+		tlsCA, err := tlsca.ParseCertificatePEM(caCert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		pins = append(pins, utils.CalculateSPKI(tlsCA))
 	}
 
-	return utils.CalculateSPKI(tlsCA), nil
+	return pins, nil
 }

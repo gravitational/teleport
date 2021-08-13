@@ -460,14 +460,14 @@ func (a *Server) GetDomainName() (string, error) {
 	return clusterName.GetClusterName(), nil
 }
 
-// LocalCAResponse contains PEM-encoded local CAs.
-type LocalCAResponse struct {
-	// TLSCA is the PEM-encoded TLS certificate authority.
-	TLSCA []byte `json:"tls_ca"`
+// ClusterCACertsResponse contains PEM-encoded cluster CA certs.
+type ClusterCACertsResponse struct {
+	// Certs is the list of PEM-encoded TLS certificates.
+	Certs [][]byte `json:"certs"`
 }
 
-// GetClusterCACert returns the CAs for the local cluster without signing keys.
-func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
+// GetClusterCACerts returns the CA certs for the local cluster without signing keys.
+func (a *Server) GetClusterCACerts() (*ClusterCACertsResponse, error) {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -480,13 +480,14 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, _, err := a.keyStore.GetTLSCertAndSigner(hostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	certs := services.GetTLSCerts(hostCA)
+	if len(certs) < 1 {
+		return nil, trace.BadParameter("no tls certs found in host CA")
 	}
 
-	return &LocalCAResponse{
-		TLSCA: cert,
+	return &ClusterCACertsResponse{
+		Certs: certs,
 	}, nil
 }
 

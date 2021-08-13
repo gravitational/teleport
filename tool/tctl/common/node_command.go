@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/gravitational/kingpin"
@@ -93,22 +94,22 @@ This token will expire in %d minutes
 Use this token when defining a trusted cluster resource on a remote cluster.
 `
 
-const nodeMessage = `The invite token: %v
-This token will expire in %d minutes
+var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}.
+This token will expire in {{.minutes}} minutes.
 
 Run this on the new node to join the cluster:
 
 > teleport start \
-   --roles=%s \
-   --token=%v \
-   --ca-pin=%v \
-   --auth-server=%v
+   --roles={{.roles}} \
+   --token={{.token}} \{{range .ca_pins}}
+   --ca-pin={{.}} \{{end}}
+   --auth-server={{.auth_server}}
 
 Please note:
 
-  - This invitation token will expire in %d minutes
-  - %v must be reachable from the new node
-`
+  - This invitation token will expire in {{.minutes}} minutes
+  - {{.auth_server}} must be reachable from the new node
+`))
 
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
@@ -125,7 +126,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 
 	// Calculate the CA pin for this cluster. The CA pin is used by the client
 	// to verify the identity of the Auth Server.
-	caPin, err := calculateCAPin(client)
+	caPins, err := calculateCAPins(client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -143,16 +144,13 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 		if roles.Include(types.RoleTrustedCluster) || roles.Include(types.LegacyClusterTokenType) {
 			fmt.Printf(trustedClusterMessage, token, int(c.ttl.Minutes()))
 		} else {
-			fmt.Printf(nodeMessage,
-				token,
-				int(c.ttl.Minutes()),
-				strings.ToLower(roles.String()),
-				token,
-				caPin,
-				authServers[0].GetAddr(),
-				int(c.ttl.Minutes()),
-				authServers[0].GetAddr(),
-			)
+			return nodeMessageTemplate.Execute(os.Stdout, map[string]interface{}{
+				"token":       token,
+				"minutes":     int(c.ttl.Minutes()),
+				"roles":       strings.ToLower(roles.String()),
+				"ca_pins":     caPins,
+				"auth_server": authServers[0].GetAddr(),
+			})
 		}
 	} else {
 		// Always return a list, otherwise we'll break users tooling. See #1846 for
