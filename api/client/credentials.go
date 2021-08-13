@@ -361,9 +361,11 @@ func (c *profileCreds) load() error {
 
 func configureTLS(c *tls.Config) *tls.Config {
 	tlsConfig := c.Clone()
-
 	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
 
+	// If SNI isn't set, set it to the default name that can be found
+	// on all Teleport issued certificates. This is needed because we
+	// don't always know which host we will be connecting to.
 	if tlsConfig.ServerName == "" {
 		tlsConfig.ServerName = constants.APIDomain
 	}

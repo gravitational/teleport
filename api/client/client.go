@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -326,7 +325,7 @@ func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 		params.dialer = params.cfg.Dialer
 	}
 	clt := newClient(params.cfg, params.dialer, params.tlsConfig)
-	if err := clt.dialGRPC(ctx, constants.APIDomain); err != nil {
+	if err := clt.dialGRPC(ctx, ""); err != nil {
 		return nil, trace.Wrap(err, "failed to connect using pre-defined dialer")
 	}
 	return clt, nil

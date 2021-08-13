@@ -184,6 +184,10 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		},
 		params...,
 	)
+
+	// The address below isn't used by the client, since the custom dialer ignores the
+	// dial address itself. We simply need to pass in a valid address to pass validation.
+	// Since teleport.cluster.local is passed into the tlsconfig manually above, the host value doesn't matter.
 	httpClient, err := roundtrip.NewClient("https://"+constants.APIDomain, CurrentVersion, clientParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)
