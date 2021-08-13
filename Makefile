@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=7.0.0-beta.4
+VERSION=7.0.2
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -106,7 +106,7 @@ RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -Wl,-Bdynamic"
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -lelf -lz -Wl,-Bdynamic"
 endif
 endif
 endif
@@ -118,6 +118,14 @@ RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_MESSAGE) a
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
+
+# On platforms that support reproducible builds (at the moment, only Linux)
+# ensure the archive is created in a reproducible manner.
+TAR_FLAGS ?=
+ifeq ("$(OS)","linux")
+TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
+endif
+
 
 VERSRC = version.go gitref.go api/version.go
 
@@ -200,7 +208,7 @@ endif
 # only tsh is built.
 #
 .PHONY:full
-full: $(ASSETS_BUILDDIR)/webassets.zip
+full: $(ASSETS_BUILDDIR)/webassets
 ifneq ("$(OS)", "windows")
 	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
@@ -212,7 +220,7 @@ endif
 full-ent:
 ifneq ("$(OS)", "windows")
 	@if [ -f e/Makefile ]; then \
-	rm $(ASSETS_BUILDDIR)/webassets.zip; \
+	rm $(ASSETS_BUILDDIR)/webassets; \
 	$(MAKE) -C e full; fi
 endif
 
@@ -277,11 +285,11 @@ release-unix: clean full
 		CHANGELOG.md \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
-	tar -czf $(RELEASE).tar.gz teleport
+	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 	@if [ -f e/Makefile ]; then \
-		rm -fr $(ASSETS_BUILDDIR)/webassets.zip; \
+		rm -fr $(ASSETS_BUILDDIR)/webassets; \
 		$(MAKE) -C e release; \
 	fi
 
@@ -491,13 +499,14 @@ tag:
 	@echo "Run this:\n> git tag $(GITTAG)\n> git push --tags"
 
 
-# build/webassets.zip archive contains the web assets (UI) which gets
-# appended to teleport binary
-$(ASSETS_BUILDDIR)/webassets.zip: ensure-webassets $(ASSETS_BUILDDIR)
+# build/webassets directory contains the web assets (UI) which get
+# embedded in the teleport binary
+$(ASSETS_BUILDDIR)/webassets: ensure-webassets $(ASSETS_BUILDDIR)
 ifneq ("$(OS)", "windows")
-	@echo "---> Building OSS web assets."; \
-	rm $(ASSETS_BUILDDIR)/webassets.zip; \
-	cd webassets/teleport/ ; zip -qr ../../$@ .
+	@echo "---> Copying OSS web assets."; \
+	rm -rf $(ASSETS_BUILDDIR)/webassets; \
+	mkdir $(ASSETS_BUILDDIR)/webassets; \
+	cd webassets/teleport/ ; cp -r . ../../$@
 endif
 
 $(ASSETS_BUILDDIR):
