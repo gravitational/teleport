@@ -839,13 +839,6 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		cfg.SSH.RestrictedSession = rs
 	}
 
-	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
-		cfg.SSH.ProxyReverseTunnelFallbackAddr, err = utils.ParseHostPortAddr(proxyAddr, defaults.SSHProxyTunnelListenPort)
-		if err != nil {
-			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
-		}
-	}
-
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
 
 	return nil
