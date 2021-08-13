@@ -29,60 +29,58 @@ through a firewall/load balancer.
 | 3025  | Auth  | SSH  port used by the Auth Service to serve its API to other nodes in a cluster.  |
 | 3027  | Kubernetes  | Kubernetes Service kubernetes_service.listen_addr  |
 
-In order to maintain backward compatibility a new proxy listener address (proxy_listener_addr) will be added to the proxy service alongside with current proxy listeners:
-to `teleport.yaml` configuration:
-```yaml
-proxy_service:
-   proxy_listener_addr: 0.0.0.0:443
+ALPN SNI proxy service will be responsible for routing incoming traffic to appropriate proxy service based on SNI and ALPN values:
 ```
+                                                                                                                                    
+                                                                                                                                    
+                                                                                                                                    
+                                                                                                                                    
+                                                                                                                                    
+                                                                   ┌───────────────┐                                                
+                                                                   │Teleport Proxy │                                                
+                                                                   │   Listener    │                                                
+                                                                   │               │                                                
+                                                                   └───────────────┘                                                
+                                                                           │                                                        
+                                                                           │                                                        
+                                                                           │                                                        
+                                                                           │                                                        
+                                                         ┌─────────────────┴──────────────────────────────────────┐                 
+                                                         │                                                        │                 
+                                                     Protocol:                                                Protocol:             
+                                                        TLS                                                      TLS                
+                                                         │                                                        │                 
+                                                         ▼                                                        ▼                 
+                                          ┌────────────────────────────┐                         ┌─────────────────────────────────┐
+                                          │SNI:                        │                         │SNI:                             │
+                                          │  proxy.example.teleport.com│                         │ kube.proxy.example.teleport.com │
+                                          │  default                   │                         │                                 │
+                                          └────────────────────────────┘                         └─────────────────────────────────┘
+                                                         │                                                        │                 
+                                                         │                                                        │                 
+                                                         │                                                        │                 
+                                                         │                                                        │                 
+                                                         │                                                        │                 
+                                                         │                                                        │                 
+                                                         │                                                      ALPN:               
+                                                         │                                              http1.1, h2, default        
+        ┌──────────────┬─────────────────┬───────────────┴──┬───────────────┬────────────────┐                    │                 
+        │              │                 │                  │               │                │                    │                 
+        │              │                 │                  │               │                │                    │                 
+        │            ALPN:               │                  │ALPN:          │              ALPN:                  │                 
+        │       teleport-proxy-          │              teleport-mysql      │         teleport-dial-a             │                 
+       ALPN:          ssh                │                  │               │           uth@cluster               │                 
+  teleport-revers      │                 │ALPN:             │             ALPN:              │                    │                 
+      etunnel          │            teleport-postgres       │     http1.1, h2, default       │                    │                 
+        │              │                 │                  │               │                │                    │                 
+        ▼              ▼                 ▼                  ▼               ▼                ▼                    ▼                 
+ ┌─────────────┐ ┌────────────┐  ┌───────────────┐  ┌───────────────┐  ┌─────────┐  ┌─────────────────┐  ┌────────────────┐         
+ │reversetunnel│ │ssh proxy   │  │Postgres proxy │  │MySQL proxy    │  │web proxy│  │local/remote auth│  │kube proxy      │         
+ │service      │ │service     │  │service        │  │service        │  │service  │  │dial service     │  │service         │         
+ └─────────────┘ └────────────┘  └───────────────┘  └───────────────┘  └─────────┘  └─────────────────┘  └────────────────┘         
+ 
 
-where TLS handler listening on proxy_listener_addr will be responsible for routing incoming traffic to appropriate proxy service based on SNI and ALPN values:
 ```
-                                                      ┌───────────────┐
-                                                      │Teleport Proxy │
-                                                      │   Listener    │
-                                                      │               │
-                                                      └───────────────┘
-                                                              │
-                                                              │
-                                                              │
-                                                              │
-                                            ┌─────────────────┴─────────────────┐
-                                            │                                   │
-                                            │                                   │
-                                            │                                   │
-                                            │                                   │
-                                            ▼                                   ▼
-                             ┌────────────────────────────┐    ┌─────────────────────────────────┐
-                             │SNI:                        │    │SNI:                             │
-                             │  proxy.example.teleport.com│    │ kube.proxy.example.teleport.com │
-                             │  default                   │    │                                 │
-                             └────────────────────────────┘    └─────────────────────────────────┘
-                                            │                                   │
-                                            │                                   │
-                                            │                                   │
-                                            │                                   │
-                                            │                                   │
-                                            │                                   │
-                                            │                                 ALPN:
-                                            │                         http/1.1, h2, default
-           ┌────────────────┬───────────────┴──┬───────────────┐                │
-           │                │                  │               │                │
-           │                │                  │               │                │
-         ALPN:              │                  │ALPN:          │                │
-    teleport-mysql          │            teleport-proxy-ssh    │                │
-           │                │                  │               │                │
-           │                │ALPN:             │             ALPN:              │
-           │           teleport-postgres       │     http/1.1, h2, default       │
-           │                │                  │               │                │
-           ▼                ▼                  ▼               ▼                ▼
-    ┌────────────┐  ┌───────────────┐  ┌───────────────┐  ┌─────────┐  ┌────────────────┐
-    │MySQL proxy │  │Postgres proxy │  │ssh proxy      │  │web proxy│  │kube proxy      │
-    │service     │  │service        │  │service        │  │service  │  │service         │
-    └────────────┘  └───────────────┘  └───────────────┘  └─────────┘  └────────────────┘ 
-
-```
-
 
 ### Reducing the number of teleport proxy port by TLS ALPN Routing:
 
@@ -95,7 +93,7 @@ Outgoing traffic send to the ssh-proxy, reverse tunnel, MySQL, Postgres and Mong
 - teleport-postgres
 - teleport-mongodb
 
-The proxy server will listen on port 443 and will terminate the incoming TLS connection and forward the downstream traffic to the appropriate service based on the TLS ALPN negotiated protocol.
+The proxy server will listen on `web_listen_addr` and terminate the incoming TLS connection and forward the downstream traffic to the appropriate service based on the TLS ALPN negotiated protocol.
 
 A downside of this approach is that traffic will be double encrypted, once by the TLS layer, and again by SSH, MySQL and Postgres protocols. This seems like a reasonable tradeoff for the external simplicity of only needing to run a single port and protocol for all connectivity.
 
@@ -130,7 +128,7 @@ Question:
 
 #### OpenSSH ProxyCommand
 In order to support connection from OpenSSH clients where traffic send to cluster proxy is wrapped in TLS protocol the tsh binary will provide a new `tsh proxy ssh` subcommand that can be injected to ProxyCommand like `ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh" alice@nodeone.example.com"`
-The `tsh proxy ssh` command will be responsible for establishing a TLS connection to cluster proxy with ALPN: teleport-reverse-tunnel protocol, forwarding ssh-agent and proxying traffic between an openssh client and cluster proxy.
+The `tsh proxy ssh` command will be responsible for establishing a TLS connection to cluster proxy forwarding ssh-agent and proxying traffic between an openssh client and cluster proxy.
 
 
 ### Reverse tunnel
@@ -161,8 +159,15 @@ UX remains unchanged. The `onSSH` and `onSCP` tsh commands handlers will be exte
 A new `tsh proxy ssh` command will be introduced allowing for injection to `ProxyCommand` openssh client command:
 ```
 ssh -o "ForwardAgent yes" \
-    -o "ProxyCommand tsh proxy ssh" \
+    -o "ProxyCommand tsh proxy ssh --user=%r %h:%p" \
     alice@node.example.teleport.sh
+```
+
+`--cluster` flag allows connecting to a node within a trusted cluster:
+```
+ ssh -o "ForwardAgent yes" \
+     -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf1.example.teleport.sh %h:%p" \
+     alice@node.leaf1.example.teleport.sh
 ```
 
 
@@ -216,6 +221,38 @@ the `db connect` will start on-demand local proxy and connect to the database th
          └─────────────┘
 ```
 
-#### tsh proxy db start db-protocol [-p port]
+#### tsh proxy db [-p port] instance-name
 
-In order to support connection for standalone DB clients the `tsh proxy db db-protocol` command will provide ability to start run local proxy manually allowing external DB clients to connect to cluster proxy TLS port through the local proxy.
+In order to support connection for standalone DB clients the `tsh proxy db` command will provide ability to start local proxy manually allowing external DB clients to connect to remote proxy through the local proxy.
+
+Another possible approach is to allow `tsh proxy db` command to dynamically select what teleport DB ALPN protocol should be used  (`teleport-postgres`, `teleport-mysql`, `teleport-mongodb`) in remote proxy connection based on `RouteToDatabase.Protocol` client certs identity. In this approach, local DB proxy needs to be DB protocol aware because [MySQL](https://dev.mysql.com/doc/internals/en/initial-handshake.html) protocol use custom TLS handshake. This solution will  simplify `tsh proxy db` command integration with `Teleport Desktop Application`.
+
+###Proxy Configuration
+ALPN SNI proxy service will leverage the current proxy `web_listen_addr` listener and provide additional routing functionality based on SNI ALPN TLS values without breaking the current `web_listen_addr` behavior. Old tsh clients will be still able to connect to MySQL or reverse tunnel listeners multiplexed on `web_listen_addr` address. Other proxy listeners (`listen_addr`, `mysql_listen_addr`, `tunnel_listen_addr`, `kube_listen_addr`) will preserve current functionality and at first ALPN SNI implementation won't provide any knobs mechanism to disable legacy listeners. The next stage of implementation will extend teleport configuration by versioning. Next `version: v2` teleport configuration will provide the functionality of not starting legacy listeners unless the listeners' addresses are explicitly specified in the proxy configuration.
+
+For example following configuration will ALPN SNI teleport proxy service only on the `0.0.0.0:443` listener:
+```yaml
+version: v2
+teleport:
+  proxy_service:
+    enabled: "yes"
+    public_addr:  ['example.teleport.sh:443']
+    web_listen_addr: 0.0.0.0:443
+    https_keypairs:
+      - key_file: /etc/certs/live/example.teleport.sh/privkey.pem
+        cert_file: /etc/certs/live/example.teleport.sh/fullchain.pem
+```
+
+Where no ALPN SNI listeners can be still started if a particular legacy proxy service listener address was explicitly provided:
+```yaml
+version: v2
+teleport:
+  proxy_service:
+    enabled: "yes"
+    public_addr:  ['example.teleport.sh:443']
+    web_listen_addr: 0.0.0.0:443
+    mysql_listen_addr: 0.0.0.0:3036
+    https_keypairs:
+      - key_file: /etc/certs/live/example.teleport.sh/privkey.pem
+        cert_file: /etc/certs/live/example.teleport.sh/fullchain.pem
+```
