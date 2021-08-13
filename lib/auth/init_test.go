@@ -175,12 +175,6 @@ func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurablePara
 		return authServer
 	}
 
-	resourceDiff := func(res1, res2 types.Resource) string {
-		return cmp.Diff(res1, res2,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
-			cmpopts.EquateEmpty())
-	}
-
 	t.Run("start with config file, reinit with defaults", func(t *testing.T) {
 		t.Parallel()
 		conf := setupConfig(t)
@@ -1015,4 +1009,10 @@ func TestMigrateCertAuthorities(t *testing.T) {
 			Rotation:    &types.Rotation{State: types.RotationStateStandby},
 		},
 	}))
+}
+
+func resourceDiff(res1, res2 types.Resource) string {
+	return cmp.Diff(res1, res2,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.EquateEmpty())
 }

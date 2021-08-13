@@ -165,7 +165,7 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		}
 		return &e, nil
 	case ResetPasswordTokenCreateEvent:
-		var e events.ResetPasswordTokenCreate
+		var e events.UserTokenCreate
 		if err := utils.FastUnmarshal(data, &e); err != nil {
 			return nil, trace.Wrap(err)
 		}
