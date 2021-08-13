@@ -566,6 +566,11 @@ buildbox-grpc:
 		events.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/webauthn \
+		--gogofast_out=plugins=grpc:api/types/webauthn \
+		webauthn.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/wrappers \
 		--gogofast_out=plugins=grpc:api/types/wrappers \
 		wrappers.proto
