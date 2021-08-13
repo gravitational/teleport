@@ -307,10 +307,11 @@ On a side note, the [App Attestation Service](
 https://developer.apple.com/documentation/devicecheck/dcappattestservice?language=objc)
 borrows much from WebAuthn, although having a slightly different purpose. It
 provides operations that match WebAuthn flows (attestKey = registration,
-generateAssertion = login), returns WebAuthn payloads and supports attestation,
-so it may warrant experimentation (although, at the very least it has a
-[conflicting RPID definition](
+generateAssertion = login), returns WebAuthn payloads and supports attestation
+(although it has [its own RPID definition](
 https://developer.apple.com/documentation/devicecheck/validating_apps_that_connect_to_your_server?language=objc#3576643)).
+Unfortunately, it appears that DCAppAttestService is [only available for iOS](
+https://developer.apple.com/documentation/devicecheck/dcappattestservice/3573915-supported?language=objc#discussion).
 
 #### Touch ID on `tsh`
 
@@ -320,8 +321,6 @@ The following avenues for native support seem possible:
   https://developer.apple.com/documentation/localauthentication/accessing_keychain_items_with_face_id_or_touch_id?language=objc) (macOS 10+, weaker than a secure token, no notarization required)
 * [Biometric-protected Secure Enclave keys](
   https://developer.apple.com/documentation/security/certificate_key_and_trust_services/keys/storing_keys_in_the_secure_enclave?language=objc) (macOS 10+, aka Chrome's solution)
-* [DCAppAttestService](https://developer.apple.com/documentation/devicecheck/dcappattestservice?language=objc)-based
-  solutions (macOS 11+, requires a PoC, may prove to be fruitless)
 * macOS Monterey APIs (macOS 12+, currently in beta, requires PoC)
 * Touch ID support is delayed or not implemented natively at all, being instead
   delegated to browsers or a native app
@@ -571,9 +570,6 @@ RPC stream.
   https://developer.apple.com/documentation/localauthentication/accessing_keychain_items_with_face_id_or_touch_id?language=objc)
   and [biometric-protected Secure Enclave keys](
   https://developer.apple.com/documentation/security/certificate_key_and_trust_services/keys/storing_keys_in_the_secure_enclave?language=objc)
-
-* Apple's [App Attestation Service](
-  https://developer.apple.com/documentation/devicecheck/dcappattestservice?language=objc)
 
 * macOS Monterey ["Move beyond passwords"](
   https://developer.apple.com/videos/play/wwdc2021/10106/?time=808) presentation
