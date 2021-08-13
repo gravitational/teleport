@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.2.9
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed performance issues for larger clusters. [#7800](https://github.com/gravitational/teleport/pull/7800) [#7631](https://github.com/gravitational/teleport/pull/7631) [#7414](https://github.com/gravitational/teleport/pull/7414)
+* Fixed issues in the Web UI for pagination. [#7638](https://github.com/gravitational/teleport/pull/7638) [#7734](https://github.com/gravitational/teleport/pull/7734)
+
 ## 6.2.8
 
 This release of Teleport contains an improvement and new feature.
