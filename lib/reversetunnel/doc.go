@@ -20,16 +20,16 @@ Package reversetunnel provides interfaces for accessing remote clusters
 
 Reverse Tunnels
 
-      Proxy server                      Proxy agent
-                     Reverse tunnel
-      +----------+                      +---------+
-      |          <----------------------+         |
-      |          |                      |         |
-+-----+----------+                      +---------+-----+
-|                |                      |               |
-|                |                      |               |
-+----------------+                      +---------------+
- Proxy Cluster "A"                      Proxy Cluster "B"
+        Proxy server                      Proxy agent
+                      Reverse tunnel
+        +----------+                      +---------+
+        |          <----------------------+         |
+        |          |                      |         |
+  +-----+----------+                      +---------+-----+
+  |                |                      |               |
+  |                |                      |               |
+  +----------------+                      +---------------+
+  Proxy Cluster "A"                      Proxy Cluster "B"
 
 
 Reverse tunnel is established from a cluster "B" Proxy
@@ -44,43 +44,45 @@ proxy agents will eventually discover and establish connections to all
 proxies in cluster.
 
 * Initially Proxy Agent connects to Proxy 1.
+
 * Proxy 1 starts sending information about all available proxies
 to the the Proxy Agent . This process is called "sending discovery request".
 
 
-+----------+
-|          <--------+
-|          |        |
-+----------+        |     +-----------+             +----------+
-  Proxy 1           +-------------------------------+          |
-                          |           |             |          |
-                          +-----------+             +----------+
-                           Load Balancer             Proxy Agent
-+----------+
-|          |
-|          |
-+----------+
-  Proxy 2
+  +----------+
+  |          <--------+
+  |          |        |
+  +----------+        |     +-----------+             +----------+
+    Proxy 1           +-------------------------------+          |
+                            |           |             |          |
+                            +-----------+             +----------+
+                            Load Balancer             Proxy Agent
+  +----------+
+  |          |
+  |          |
+  +----------+
+    Proxy 2
 
 * Agent will use the discovery request to establish new connections
 and check if it has connected and "discovered" all the proxies specified
- in the discovery request.
+in the discovery request.
+
 * Assuming that load balancer uses fair load balancing algorithm,
 agent will eventually discover and connect back to all the proxies.
 
-+----------+
-|          <--------+
-|          |        |
-+----------+        |     +-----------+             +----------+
-  Proxy 1           +-------------------------------+          |
-                    |     |           |             |          |
-                    |     +-----------+             +----------+
-                    |      Load Balancer             Proxy Agent
-+----------+        |
-|          <--------+
-|          |
-+----------+
-  Proxy 2
+  +----------+
+  |          <--------+
+  |          |        |
+  +----------+        |     +-----------+             +----------+
+    Proxy 1           +-------------------------------+          |
+                      |     |           |             |          |
+                      |     +-----------+             +----------+
+                      |      Load Balancer             Proxy Agent
+  +----------+        |
+  |          <--------+
+  |          |
+  +----------+
+    Proxy 2
 
 
 

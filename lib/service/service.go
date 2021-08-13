@@ -1862,18 +1862,35 @@ func (process *TeleportProcess) initSSH() error {
 				return trace.Wrap(err)
 			}
 
+			findProxyAddr := func(ctx context.Context) ([]utils.NetAddr, error) {
+				log.Debugf("Attempting to find proxies manually")
+				// if isInSingleProcessMode {
+				// }
+
+				addrText, err := process.findReverseTunnel(process.Config.AuthServers)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				addr, err := utils.ParseAddr(addrText)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return []utils.NetAddr{*addr}, nil
+			}
+
 			// Create and start an agent pool.
 			agentPool, err = reversetunnel.NewAgentPool(
 				process.ExitContext(),
 				reversetunnel.AgentPoolConfig{
-					Component:   teleport.ComponentNode,
-					HostUUID:    conn.ServerIdentity.ID.HostUUID,
-					ProxyAddr:   conn.TunnelProxy(),
-					Client:      conn.Client,
-					AccessPoint: conn.Client,
-					HostSigner:  conn.ServerIdentity.KeySigner,
-					Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-					Server:      s,
+					Component:      teleport.ComponentNode,
+					HostUUID:       conn.ServerIdentity.ID.HostUUID,
+					FindProxyAddrs: findProxyAddr, //reversetunnel.StaticAddress(conn.TunnelProxy()),
+					Client:         conn.Client,
+					AccessPoint:    conn.Client,
+					HostSigner:     conn.ServerIdentity.KeySigner,
+					Cluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+					Server:         s,
 				})
 			if err != nil {
 				return trace.Wrap(err)
@@ -3199,18 +3216,28 @@ func (process *TeleportProcess) initApps() {
 		// If it was not, it is running in single process mode which is used for
 		// development and demos. In that case, wait until all dependencies (like
 		// auth and reverse tunnel server) are ready before starting.
-		var tunnelAddr string
-		if conn.TunnelProxy() != "" {
-			tunnelAddr = conn.TunnelProxy()
-		} else {
-			if tunnelAddr, ok = process.singleProcessMode(); !ok {
-				return trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
-			}
 
+		// TODO(tcsc): delete
+		// var tunnelAddr string
+		_, isInSingleProcessMode := process.singleProcessMode()
+		if isInSingleProcessMode {
 			// Block and wait for all dependencies to start before starting.
 			log.Debugf("Waiting for application service dependencies to start.")
 			process.waitForAppDepend()
 		}
+
+		// TODO(tcsc): work out what to do with this
+		// if conn.TunnelProxy() != "" {
+		// 	tunnelAddr = conn.TunnelProxy()
+		// } else {
+		// 	if tunnelAddr, ok = process.singleProcessMode(); !ok {
+		// 		return trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
+		// 	}
+
+		// 	// Block and wait for all dependencies to start before starting.
+		// 	log.Debugf("Waiting for application service dependencies to start.")
+		// 	process.waitForAppDepend()
+		// }
 
 		// Create a caching client to the Auth Server. It is to reduce load on
 		// the Auth Server.
@@ -3339,17 +3366,34 @@ func (process *TeleportProcess) initApps() {
 		// and (dynamic) label update.
 		appServer.Start()
 
+		findProxyAddr := func(ctx context.Context) ([]utils.NetAddr, error) {
+			log.Debugf("Attempting to find proxies manually")
+			// if isInSingleProcessMode {
+			// }
+
+			addrText, err := process.findReverseTunnel(process.Config.AuthServers)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			addr, err := utils.ParseAddr(addrText)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return []utils.NetAddr{*addr}, nil
+		}
+
 		// Create and start an agent pool.
 		agentPool, err = reversetunnel.NewAgentPool(process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:   teleport.ComponentApp,
-				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				ProxyAddr:   tunnelAddr,
-				Client:      conn.Client,
-				Server:      appServer,
-				AccessPoint: accessPoint,
-				HostSigner:  conn.ServerIdentity.KeySigner,
-				Cluster:     clusterName,
+				Component:      teleport.ComponentApp,
+				HostUUID:       conn.ServerIdentity.ID.HostUUID,
+				FindProxyAddrs: findProxyAddr,
+				Client:         conn.Client,
+				Server:         appServer,
+				AccessPoint:    accessPoint,
+				HostSigner:     conn.ServerIdentity.KeySigner,
+				Cluster:        clusterName,
 			})
 		if err != nil {
 			return trace.Wrap(err)

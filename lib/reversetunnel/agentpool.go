@@ -59,6 +59,20 @@ type AgentPool struct {
 	agents map[utils.NetAddr][]*Agent
 }
 
+type ProxyFinder func(context.Context) ([]utils.NetAddr, error)
+
+func StaticAddress(proxyAddr string) ProxyFinder {
+	var addrs []utils.NetAddr
+	addr, err := utils.ParseAddr(proxyAddr)
+	if err == nil {
+		addrs = append(addrs, *addr)
+	}
+
+	return func(context.Context) ([]utils.NetAddr, error) {
+		return addrs, err
+	}
+}
+
 // AgentPoolConfig holds configuration parameters for the agent pool
 type AgentPoolConfig struct {
 	// Client is client to the auth server this agent connects to receive
@@ -86,8 +100,9 @@ type AgentPoolConfig struct {
 	Component string
 	// ReverseTunnelServer holds all reverse tunnel connections.
 	ReverseTunnelServer Server
-	// ProxyAddr points to the address of the ssh proxy
-	ProxyAddr string
+	// // ProxyAddr points to the address of the ssh proxy
+	// ProxyAddr string
+	FindProxyAddrs ProxyFinder
 	// Cluster is a cluster name of the proxy.
 	Cluster string
 }
@@ -130,10 +145,11 @@ func NewAgentPool(ctx context.Context, cfg AgentPoolConfig) (*AgentPool, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	proxyAddr, err := utils.ParseAddr(cfg.ProxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// TODO(tcsc): delete
+	// proxyAddr, err := utils.ParseAddr(cfg.ProxyAddr)
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 
 	ctx, cancel := context.WithCancel(ctx)
 	tr, err := track.New(ctx, track.Config{ClusterName: cfg.Cluster})
@@ -141,6 +157,8 @@ func NewAgentPool(ctx context.Context, cfg AgentPoolConfig) (*AgentPool, error) 
 		cancel()
 		return nil, trace.Wrap(err)
 	}
+
+	log.Debugf("Constructing Agent pool with config: %v", cfg)
 
 	pool := &AgentPool{
 		agents:       make(map[utils.NetAddr][]*Agent),
@@ -156,13 +174,15 @@ func NewAgentPool(ctx context.Context, cfg AgentPoolConfig) (*AgentPool, error) 
 			},
 		}),
 	}
-	pool.proxyTracker.Start(*proxyAddr)
+	// TODO(tcsc): delete
+	//pool.proxyTracker.Start(*proxyAddr)
 	return pool, nil
 }
 
 // Start starts the agent pool
 func (m *AgentPool) Start() error {
 	m.log.Debugf("Starting agent pool %s.%s...", m.cfg.HostUUID, m.cfg.Cluster)
+	go m.findProxies()
 	go m.pollAndSyncAgents()
 	go m.processSeekEvents()
 	return nil
@@ -174,6 +194,46 @@ func (m *AgentPool) Stop() {
 		return
 	}
 	m.cancel()
+}
+
+// TODO(tcsc):
+// simple implementation - will not scale over 100,000s of nodes but good
+// enough for a Proof-of-concept. Maybe we can rate-limit later?
+func (m *AgentPool) findProxies() {
+	m.log.Debugf("Entering proxy finder routine")
+	defer m.log.Debugf("Exiting proxy finder routine")
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	pollForProxies := func() {
+		m.log.Debugf("Polling for runnel proxies...")
+		proxies, err := m.cfg.FindProxyAddrs(m.ctx)
+		if err != nil {
+			m.log.WithError(err).Debug("Failed to find proxies")
+			return
+		}
+
+		m.log.Debugf("Found %d proxies", len(proxies))
+
+		for _, proxyAddr := range proxies {
+			m.log.Debugf("Configuring proxy on %s", proxyAddr.String())
+			m.proxyTracker.Start(proxyAddr)
+		}
+	}
+
+	pollForProxies()
+
+	for {
+		select {
+		case <-m.ctx.Done():
+			m.log.Debugf("Halting proxy finding loop")
+			return
+
+		case <-ticker.C:
+			pollForProxies()
+		}
+	}
 }
 
 // Wait returns when agent pool is closed

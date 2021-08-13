@@ -203,14 +203,14 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	// Create and start the agent pool.
 	agentPool, err := reversetunnel.NewAgentPool(process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
-			Component:   teleport.ComponentDatabase,
-			HostUUID:    conn.ServerIdentity.ID.HostUUID,
-			ProxyAddr:   tunnelAddr,
-			Client:      conn.Client,
-			Server:      dbService,
-			AccessPoint: conn.Client,
-			HostSigner:  conn.ServerIdentity.KeySigner,
-			Cluster:     clusterName,
+			Component:      teleport.ComponentDatabase,
+			HostUUID:       conn.ServerIdentity.ID.HostUUID,
+			FindProxyAddrs: reversetunnel.StaticAddress(tunnelAddr),
+			Client:         conn.Client,
+			Server:         dbService,
+			AccessPoint:    conn.Client,
+			HostSigner:     conn.ServerIdentity.KeySigner,
+			Cluster:        clusterName,
 		})
 	if err != nil {
 		return trace.Wrap(err)

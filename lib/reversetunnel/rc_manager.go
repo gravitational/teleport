@@ -215,8 +215,8 @@ func (w *RemoteClusterTunnelManager) realNewAgentPool(ctx context.Context, clust
 		Component: teleport.ComponentProxy,
 
 		// Configs for remote cluster.
-		Cluster:   cluster,
-		ProxyAddr: addr,
+		Cluster:        cluster,
+		FindProxyAddrs: StaticAddress(addr),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed creating reverse tunnel pool for remote cluster %q at address %q: %v", cluster, addr, err)
