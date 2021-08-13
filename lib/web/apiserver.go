@@ -90,7 +90,6 @@ type Handler struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
-	webIdleTimeout  time.Duration
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -215,7 +214,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		log:             newPackageLogger(),
 		clock:           clockwork.NewRealClock(),
 		clusterFeatures: cfg.ClusterFeatures,
-		webIdleTimeout:  cfg.WebIdleTimeout,
 	}
 
 	for _, o := range opts {
@@ -437,7 +435,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 			ctx, err := h.AuthenticateRequest(w, r, false)
 			if err == nil {
-				resp, err := h.newSessionResponse(ctx)
+				resp, err := newSessionResponse(ctx)
 				if err == nil {
 					out, err := json.Marshal(resp)
 					if err == nil {
@@ -1260,13 +1258,9 @@ type CreateSessionResponse struct {
 	TokenExpiresIn int `json:"expires_in"`
 	// SessionExpires is when this session expires.
 	SessionExpires time.Time `json:"sessionExpires,omitempty"`
-	// SessionInactiveTimeout specifies how long a user WebUI session can be left
-	// idle before being logged out by the server. A zero value means there
-	// is no idle timeout set.
-	SessionInactiveTimeout int `json:"sessionInactiveTimeout"`
 }
 
-func (h *Handler) newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
+func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	roleset, err := ctx.GetUserRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1281,10 +1275,9 @@ func (h *Handler) newSessionResponse(ctx *SessionContext) (*CreateSessionRespons
 		return nil, trace.Wrap(err)
 	}
 	return &CreateSessionResponse{
-		TokenType:              roundtrip.AuthBearer,
-		Token:                  token.GetName(),
-		TokenExpiresIn:         int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
-		SessionInactiveTimeout: int(h.webIdleTimeout.Milliseconds()),
+		TokenType:      roundtrip.AuthBearer,
+		Token:          token.GetName(),
+		TokenExpiresIn: int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
 	}, nil
 }
 
@@ -1354,7 +1347,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	return h.newSessionResponse(ctx)
+	return newSessionResponse(ctx)
 }
 
 // deleteSession is called to sign out user
@@ -1418,7 +1411,7 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := h.newSessionResponse(newContext)
+	res, err := newSessionResponse(newContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1445,7 +1438,7 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 		return nil, trace.Wrap(err)
 	}
 
-	return h.newSessionResponse(ctx)
+	return newSessionResponse(ctx)
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
@@ -1585,7 +1578,7 @@ func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
-	return h.newSessionResponse(ctx)
+	return newSessionResponse(ctx)
 }
 
 // getClusters returns a list of cluster and its data.
