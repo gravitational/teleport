@@ -2615,6 +2615,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Context:          process.ExitContext(),
 				StaticFS:         fs,
 				ClusterFeatures:  process.getClusterFeatures(),
+				WebIdleTimeout:   cfg.Auth.NetworkingConfig.GetWebIdleTimeout(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
