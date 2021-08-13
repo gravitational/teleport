@@ -1344,7 +1344,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	s.createUser(c, "user1", "root", "password", "")
 
 	// create password change token
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: "user1",
 	})
 	c.Assert(err, IsNil)
@@ -1358,7 +1358,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	c.Assert(uiToken.User, Equals, token.GetUser())
 	c.Assert(uiToken.TokenID, Equals, token.GetName())
 
-	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
+	secrets, err := s.server.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)
 
 	// Advance the clock to invalidate the TOTP token
@@ -1407,7 +1407,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	s.createUser(c, "user2", "root", "password", "")
 
 	// create reset password token
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: "user2",
 	})
 	c.Assert(err, IsNil)
@@ -1483,7 +1483,7 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 	env.proxies[0].createUser(ctx, t, "bob", "root", "password", "")
 
 	// create password change token
-	token, err := env.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := env.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: "bob",
 	})
 	require.NoError(t, err)
@@ -1995,7 +1995,10 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.Len(t, dbs, 0)
 
 	// Register a database.
-	db, err := types.NewDatabaseServerV3("test-db-name", map[string]string{"test-field": "test-value"}, types.DatabaseServerSpecV3{
+	db, err := types.NewDatabaseServerV3(types.Metadata{
+		Name:   "test-db-name",
+		Labels: map[string]string{"test-field": "test-value"},
+	}, types.DatabaseServerSpecV3{
 		Description: "test-description",
 		Protocol:    "test-protocol",
 		URI:         "test-uri",

@@ -124,6 +124,20 @@ const (
 	SecondFactorOptional = SecondFactorType("optional")
 )
 
+// LockingMode determines how a (possibly stale) set of locks should be applied
+// to an interaction.
+type LockingMode string
+
+const (
+	// LockingModeStrict causes all interactions to be terminated when the
+	// available lock view becomes unreliable.
+	LockingModeStrict = LockingMode("strict")
+
+	// LockingModeBestEffort applies the most recently known locks under all
+	// circumstances.
+	LockingModeBestEffort = LockingMode("best_effort")
+)
+
 const (
 	// ChanTransport is a channel type that can be used to open a net.Conn
 	// through the reverse tunnel server. Used for trusted clusters and dial back

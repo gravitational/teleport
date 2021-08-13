@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -540,14 +541,6 @@ type SSHConfig struct {
 	// RestrictedSession holds kernel objects restrictions for Teleport.
 	RestrictedSession *restricted.Config
 
-	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
-	// discovered proxy fails.
-	// This configuration is not exposed directly but can be set from environment via
-	// defaults.ProxyFallbackAddrEnvar.
-	//
-	// See github.com/gravitational/teleport/issues/4141 for details.
-	ProxyReverseTunnelFallbackAddr *utils.NetAddr
-
 	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
 	AllowTCPForwarding bool
 
@@ -583,6 +576,10 @@ type KubeConfig struct {
 
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
+
+	// CheckImpersonationPermissions is an optional override to the default
+	// impersonation permissions check, for use in testing.
+	CheckImpersonationPermissions proxy.ImpersonationPermissionsChecker
 }
 
 // DatabasesConfig configures the database proxy service.
