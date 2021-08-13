@@ -304,7 +304,7 @@ github.com/gravitational/teleport/api/utils
 github.com/gravitational/teleport/api/utils/keypaths
 github.com/gravitational/teleport/api/utils/sshutils
 github.com/gravitational/teleport/api/utils/tlsutils
-# github.com/gravitational/trace v1.1.16-0.20210609220119-4855e69c89fc
+# github.com/gravitational/trace v1.1.16-0.20210617142343-5335ac7a6c19
 ## explicit
 github.com/gravitational/trace
 github.com/gravitational/trace/internal

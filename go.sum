@@ -351,8 +351,8 @@ github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c/go.mod h1:
 github.com/gravitational/roundtrip v1.0.0 h1:eb+0EABfSKC8607CQ4oOyWCm9zVIfio/wW78TjQqLSc=
 github.com/gravitational/roundtrip v1.0.0/go.mod h1:qccpLd30tAJVSpx7aOEEnws4ZT3njPwdbtT8lNQxbAs=
 github.com/gravitational/trace v1.1.15/go.mod h1:RvdOUHE4SHqR3oXlFFKnGzms8a5dugHygGw1bqDstYI=
-github.com/gravitational/trace v1.1.16-0.20210609220119-4855e69c89fc h1:WirIpaGWhwmNkPEvhF5h51UyxhKxAnl6KvPqz8ozhNI=
-github.com/gravitational/trace v1.1.16-0.20210609220119-4855e69c89fc/go.mod h1:RvdOUHE4SHqR3oXlFFKnGzms8a5dugHygGw1bqDstYI=
+github.com/gravitational/trace v1.1.16-0.20210617142343-5335ac7a6c19 h1:xGVds0BJZh27H1/DrlEZM+7C57ck0XgVJU6VQRa0jkQ=
+github.com/gravitational/trace v1.1.16-0.20210617142343-5335ac7a6c19/go.mod h1:RvdOUHE4SHqR3oXlFFKnGzms8a5dugHygGw1bqDstYI=
 github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c h1:C2iWDiod8vQ3YnOiCdMP9qYeg2UifQ8KSk36r0NswSE=
 github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c/go.mod h1:erKVikttPjeHKDCQZcqowEqiccy23cJAqPadZgfjNm8=
 github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=

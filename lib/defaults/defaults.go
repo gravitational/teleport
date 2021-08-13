@@ -48,10 +48,7 @@ const (
 	// one of many SSH nodes
 	SSHProxyListenPort = 3023
 
-	// When running in "SSH Proxy" role this port will be used for incoming
-	// connections from SSH nodes who wish to use "reverse tunnell" (when they
-	// run behind an environment/firewall which only allows outgoing connections)
-	SSHProxyTunnelListenPort = 3024
+	SSHProxyTunnelListenPort = defaults.SSHProxyTunnelListenPort
 
 	// KubeListenPort is a default port for kubernetes proxies
 	KubeListenPort = 3026
@@ -497,9 +494,6 @@ var (
 	// ConfigFileEnvar is the name of the environment variable used to specify a path to
 	// the Teleport configuration file that tctl reads on use
 	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
-
-	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
-	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
 
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"

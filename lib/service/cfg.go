@@ -541,14 +541,6 @@ type SSHConfig struct {
 	// RestrictedSession holds kernel objects restrictions for Teleport.
 	RestrictedSession *restricted.Config
 
-	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
-	// discovered proxy fails.
-	// This configuration is not exposed directly but can be set from environment via
-	// defaults.ProxyFallbackAddrEnvar.
-	//
-	// See github.com/gravitational/teleport/issues/4141 for details.
-	ProxyReverseTunnelFallbackAddr *utils.NetAddr
-
 	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
 	AllowTCPForwarding bool
 
