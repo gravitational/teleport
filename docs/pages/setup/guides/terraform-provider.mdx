@@ -64,6 +64,9 @@ spec:
     rules:
       - resources: ['user', 'role', 'token', 'trusted_cluster', 'github', 'oidc', 'saml']
         verbs: ['list','create','read','update','delete']
+  deny:
+    node_labels:
+      '*': '*'
 version: v3
 ---
 kind: user
@@ -109,12 +112,6 @@ spec:
     impersonate:
       users: ['terraform']
       roles: ['terraform']
-
-  # the deny section uses the identical format as the 'allow' section.
-  # the deny rules always override allow rules.
-  deny:
-    node_labels:
-      '*': '*'
 ```
 
 ```bash
