@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+// Package WebAuthn maps WebAuthn messages to protocol buffers.
+//
+// The mapping is designed to match both the WebAuthn specification and the
+// capabilities of current browser implementations.
+//
+// REST-based Teleport APIs will make an effort to transmit or embed JSON
+// messages matching the github.com/duo-labs/webauthn reference implementation,
+// to allow for easy browser integration. gRPC APIs are not meant for REST use
+// and thus make no such promises, although the correspondence should be
+// obvious.
+//
+// Note that, ordinarily, various fields in WebAuthn messages are encoded using
+// "RawURLEncoding" (aka, base64 URL encoding without padding). This is not the
+// case for _any_ of the fields mapped here, all bytes fields are transmitted
+// raw/unencoded.
+package webauthn;
+
+import "gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// -----------------------------------------------------------------------------
+// WebAuthn messages used by server storage.
+// -----------------------------------------------------------------------------
+
+// SessionData stored by the Relying Party during authentication ceremonies.
+// Mirrors https://pkg.go.dev/github.com/duo-labs/webauthn/webauthn#SessionData.
+message SessionData {
+    // Raw challenge used for the ceremony.
+    bytes challenge = 1 [ (gogoproto.jsontag) = "challenge,omitempty" ];
+    // Raw User ID.
+    bytes user_id = 2 [ (gogoproto.jsontag) = "userId,omitempty" ];
+    // Raw Credential IDs of the credentials allowed for the ceremony.
+    repeated bytes allow_credentials = 3 [ (gogoproto.jsontag) = "allowCredentials,omitempty" ];
+    // Requested user verification.
+    // https://www.w3.org/TR/webauthn-2/#enum-userVerificationRequirement.
+    string user_verification = 4 [ (gogoproto.jsontag) = "userVerification,omitempty" ];
+}
+
+// -----------------------------------------------------------------------------
+// Assertion (aka login).
+// -----------------------------------------------------------------------------
+
+// Credential assertion used for login ceremonies.
+message CredentialAssertion { PublicKeyCredentialRequestOptions public_key = 1; }
+
+// Request options necessary for credential assertions, aka login ceremonies.
+// See https://www.w3.org/TR/webauthn-2/#dictionary-assertion-options or
+// refer to navigator.credentials.get in your browser.
+message PublicKeyCredentialRequestOptions {
+    // Raw challenge used for assertion.
+    bytes challenge = 1;
+    // Timeout in milliseconds.
+    int64 timeout_ms = 2;
+    // Relying Party ID.
+    string rp_id = 3;
+    // Allowed credentials for assertion.
+    repeated CredentialDescriptor allow_credentials = 4;
+    // Requested user verification.
+    // https://www.w3.org/TR/webauthn-2/#enum-userVerificationRequirement.
+    string user_verification = 5;
+    // Extensions supplied by the Relying Party.
+    AuthenticationExtensionsClientInputs extensions = 6;
+}
+
+// Assertion response returned by the authenticator.
+// Refer to navigator.credentials.get in your browser.
+message CredentialAssertionResponse {
+    // Note: assertion responses return both "rawId" and "id" (RawURLEncoding of
+    // "id"), but it seemed pointless to have both here.
+
+    // Type of the credential, usually "public-key".
+    string type = 1;
+    // Raw Credential ID.
+    bytes raw_id = 2;
+    // Assertion response from the authenticator.
+    AuthenticatorAssertionResponse response = 3;
+    // Extensions supplied by the authenticator.
+    AuthenticationExtensionsClientOutputs extensions = 4;
+}
+
+// Authenticator assertion response.
+// https://www.w3.org/TR/webauthn-2/#authenticatorassertionresponse
+message AuthenticatorAssertionResponse {
+    // Raw client data JSON, exactly as signed by the authenticator.
+    // https://www.w3.org/TR/webauthn-2/#dictdef-collectedclientdata.
+    bytes client_data_json = 1;
+    // Raw authenticator data, exactly as signed by the authenticator.
+    // https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data.
+    bytes authenticator_data = 2;
+    // Raw assertion signature performed authenticatorData|clientDataJSON.
+    // https://www.w3.org/TR/webauthn-2/#assertion-signature.
+    bytes signature = 3;
+    // Raw user handle returned by the authenticator, if any.
+    bytes user_handle = 4;
+}
+
+// -----------------------------------------------------------------------------
+// Creation (aka registration).
+// -----------------------------------------------------------------------------
+
+// TODO(codingllama): Define registration messages.
+
+// -----------------------------------------------------------------------------
+// Common WebAuthn objects.
+// -----------------------------------------------------------------------------
+
+// Extensions supplied by the Relying Party during credential assertion or
+// creation.
+// https://www.w3.org/TR/webauthn-2/#client-extension-input
+message AuthenticationExtensionsClientInputs {
+    // U2F application ID to be used by the authenticator, if any.
+    // Only available if using U2F compatibility mode.
+    // https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
+    string app_id = 1;
+}
+
+// Extensions supplied by the authenticator to the Relying Party, during
+// credential assertion or creation.
+// https://www.w3.org/TR/webauthn-2/#client-extension-output.
+message AuthenticationExtensionsClientOutputs {
+    // If true, the AppID extension was used by the authenticator, which changes
+    // the rpIdHash accordingly.
+    // https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
+    bool app_id = 1;
+}
+
+// Public key credential descriptor.
+// https://www.w3.org/TR/webauthn-2/#dictdef-publickeycredentialdescriptor.
+message CredentialDescriptor {
+    // Type of the credential, usually "public-key".
+    string type = 1;
+    // Raw Credential ID.
+    bytes id = 2;
+    // Authenticator transport hint, optional.
+    // https://www.w3.org/TR/webauthn-2/#enumdef-authenticatortransport.
+    repeated string transports = 3;
+}
