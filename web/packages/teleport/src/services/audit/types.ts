@@ -61,6 +61,8 @@ export const eventCodes = {
   GITHUB_CONNECTOR_CREATED: 'T8000I',
   GITHUB_CONNECTOR_DELETED: 'T8001I',
   KUBE_REQUEST: 'T3009I',
+  LOCK_CREATED: 'TLK00I',
+  LOCK_DELETED: 'TLK01I',
   MFA_DEVICE_ADD: 'T1006I',
   MFA_DEVICE_DELETE: 'T1007I',
   OIDC_CONNECTOR_CREATED: 'T8100I',
@@ -393,6 +395,14 @@ export type RawEvents = {
       mfa_device_uuid: string;
       mfa_device_type: string;
     }
+  >;
+  [eventCodes.LOCK_CREATED]: RawEvent<
+    typeof eventCodes.LOCK_CREATED,
+    { name: string }
+  >;
+  [eventCodes.LOCK_DELETED]: RawEvent<
+    typeof eventCodes.LOCK_DELETED,
+    { name: string }
   >;
 };
 

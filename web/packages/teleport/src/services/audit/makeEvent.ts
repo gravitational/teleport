@@ -358,7 +358,10 @@ export const formatters: Formatters = {
     type: 'db.session.query.failed',
     desc: 'Database Query Failed',
     format: ({ user, db_service, db_name, db_query }) =>
-      `User [${user}] query [${truncateStr(db_query, 80)}] in database [${db_name}] on [${db_service}] failed`,
+      `User [${user}] query [${truncateStr(
+        db_query,
+        80
+      )}] in database [${db_name}] on [${db_service}] failed`,
   },
   [eventCodes.MFA_DEVICE_ADD]: {
     type: 'mfa.add',
@@ -391,6 +394,16 @@ export const formatters: Formatters = {
     type: 'billing.update_info',
     desc: 'Billing Information Updated',
     format: ({ user }) => `User [${user}] has updated the billing information`,
+  },
+  [eventCodes.LOCK_CREATED]: {
+    type: 'lock.created',
+    desc: 'Lock Created',
+    format: ({ user, name }) => `Lock [${name}] was created by user [${user}]`,
+  },
+  [eventCodes.LOCK_DELETED]: {
+    type: 'lock.deleted',
+    desc: 'Lock Deleted',
+    format: ({ user, name }) => `Lock [${name}] was deleted by user [${user}]`,
   },
 };
 

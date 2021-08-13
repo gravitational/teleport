@@ -676,12 +676,12 @@ exports[`loaded 1`] = `
           </strong>
            - 
           <strong>
-            41
+            43
           </strong>
            
           of 
           <strong>
-            41
+            43
           </strong>
         </div>
       </div>
@@ -740,6 +740,76 @@ exports[`loaded 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-unlock c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Lock Deleted
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Lock [lock-name] was deleted by user [df83fda8-1111-5567-8bcc-c282dec3290e.im-a-cluster-name]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-08-06 18:49:51
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-lock c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Lock Created
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Lock [lock-name] was created by user [df83fda8-1111-5567-8bcc-c282dec3290e.im-a-cluster-name]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-08-06 18:47:19
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
         <tr>
           <td>
             <div

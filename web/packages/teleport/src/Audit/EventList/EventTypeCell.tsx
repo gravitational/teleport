@@ -83,6 +83,8 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.PORTFORWARD_FAILURE]: Icons.Info,
   [eventCodes.SUBSYSTEM]: Icons.Info,
   [eventCodes.SUBSYSTEM_FAILURE]: Icons.Info,
+  [eventCodes.LOCK_CREATED]: Icons.Lock,
+  [eventCodes.LOCK_DELETED]: Icons.Unlock,
 };
 
 export default function TypeCell(props) {
