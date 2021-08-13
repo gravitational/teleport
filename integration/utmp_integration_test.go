@@ -38,8 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -200,7 +200,8 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			ClusterName: "localhost",
 			Dir:         tempdir,
 			Clock:       s.clock,
-		}})
+		},
+	})
 	require.NoError(t, err)
 
 	// set up host private key and certificate
@@ -215,7 +216,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	s.signer, err = sshutils.NewSigner(certs.Key, certs.Cert)
 	require.NoError(t, err)
 
-	s.nodeID = uuid.New()
+	s.nodeID = uuid.New().String()
 	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
@@ -262,7 +263,8 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 			},
 		),
 		regular.SetBPF(&bpf.NOP{}),

@@ -43,9 +43,9 @@ import (
 
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -321,7 +321,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	} else {
 		// no session id - global event gets a random uuid to get a good partition
 		// key distribution
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 	event := event{
 		SessionID:      sessionID,
@@ -348,7 +348,7 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 	// no session id - global event gets a random uuid to get a good partition
 	// key distribution
 	if sessionID == "" {
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 	err := events.UpdateEventFields(ev, fields, l.Clock, l.UIDGenerator)
 	if err != nil {
@@ -634,7 +634,7 @@ func (l *Log) Close() error {
 }
 
 func (l *Log) getDocIDForEvent(event event) string {
-	return uuid.New()
+	return uuid.New().String()
 }
 
 func (l *Log) purgeExpiredEvents() error {

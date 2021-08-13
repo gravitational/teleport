@@ -29,8 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -800,7 +800,7 @@ func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.Acquir
 		return nil, trace.BadParameter("cannot acquire expired semaphore lease")
 	}
 
-	leaseID := uuid.New()
+	leaseID := uuid.New().String()
 
 	// key is not modified, so allocate it once
 	key := backend.Key(semaphoresPrefix, req.SemaphoreKind, req.SemaphoreName)

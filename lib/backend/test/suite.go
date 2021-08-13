@@ -31,8 +31,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
@@ -779,7 +779,7 @@ func (s *BackendSuite) addItem(ctx context.Context, c *check.C, key []byte, valu
 // MakePrefix returns function that appends unique prefix
 // to any key, used to make test suite concurrent-run proof
 func MakePrefix() func(k string) []byte {
-	id := "/" + uuid.New()
+	id := "/" + uuid.New().String()
 	return func(k string) []byte {
 		return []byte(id + k)
 	}

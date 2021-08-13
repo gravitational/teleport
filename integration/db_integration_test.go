@@ -40,9 +40,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/siddontang/go-mysql/client"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -430,7 +430,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	// Create root cluster.
 	p.root.cluster = NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,
@@ -441,7 +441,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	// Create leaf cluster.
 	p.leaf.cluster = NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,

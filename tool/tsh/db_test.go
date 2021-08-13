@@ -19,7 +19,7 @@ package main
 import (
 	"testing"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,7 +29,7 @@ func TestFetchDatabaseCreds(t *testing.T) {
 	var cf CLIConf
 	cf.UserHost = "localhost"
 	// Randomize proxy name to make sure there's no profile entry.
-	cf.Proxy = uuid.New()
+	cf.Proxy = uuid.New().String()
 
 	tc, err := makeClient(&cf, true)
 	require.NoError(t, err)

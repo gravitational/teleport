@@ -46,9 +46,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
 )
@@ -86,9 +86,11 @@ var tableSchema = []*dynamodb.AttributeDefinition{
 	},
 }
 
-const indexV2CreationLock = "dynamoEvents/indexV2Creation"
-const rfd24MigrationLock = "dynamoEvents/rfd24Migration"
-const rfd24MigrationLockTTL = 5 * time.Minute
+const (
+	indexV2CreationLock   = "dynamoEvents/indexV2Creation"
+	rfd24MigrationLock    = "dynamoEvents/rfd24Migration"
+	rfd24MigrationLockTTL = 5 * time.Minute
+)
 
 // Config structure represents DynamoDB confniguration as appears in `storage` section
 // of Teleport YAML
@@ -456,7 +458,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	} else {
 		// no session id - global event gets a random uuid to get a good partition
 		// key distribution
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 
 	e := event{
@@ -492,7 +494,7 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 	// no session id - global event gets a random uuid to get a good partition
 	// key distribution
 	if sessionID == "" {
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 	err := events.UpdateEventFields(ev, fields, l.Clock, l.UIDGenerator)
 	if err != nil {

@@ -42,7 +42,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -82,7 +82,7 @@ func New(config *Config) (*Service, error) {
 
 	s := &Service{
 		Config:       config,
-		teleportRoot: path.Join(config.MountPath, teleportRoot, uuid.New()),
+		teleportRoot: path.Join(config.MountPath, teleportRoot, uuid.New().String()),
 	}
 
 	// Mount the cgroup2 filesystem.
@@ -223,8 +223,8 @@ func (s *Service) cleanupHierarchy() error {
 		if len(parts) != 5 {
 			return nil
 		}
-		sessionID := uuid.Parse(parts[3])
-		if sessionID == nil {
+		sessionID, uerr := uuid.Parse(parts[3])
+		if uerr != nil {
 			return nil
 		}
 
@@ -366,10 +366,8 @@ func (s *Service) ID(sessionID string) (uint64, error) {
 	return fh.CgroupID, nil
 }
 
-var (
-	// pattern matches cgroup process files.
-	pattern = regexp.MustCompile(`cgroup\.procs$`)
-)
+// pattern matches cgroup process files.
+var pattern = regexp.MustCompile(`cgroup\.procs$`)
 
 const (
 	// fileMode is the mode files and directories are created in within the

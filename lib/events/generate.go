@@ -20,9 +20,9 @@ import (
 	"bytes"
 	"time"
 
+	"github.com/google/uuid"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 )
 
 // SessionParams specifies optional parameters
@@ -48,10 +48,10 @@ func (p *SessionParams) SetDefaults() {
 			time.Date(2020, 03, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC))
 	}
 	if p.ServerID == "" {
-		p.ServerID = uuid.New()
+		p.ServerID = uuid.New().String()
 	}
 	if p.SessionID == "" {
-		p.SessionID = uuid.New()
+		p.SessionID = uuid.New().String()
 	}
 }
 

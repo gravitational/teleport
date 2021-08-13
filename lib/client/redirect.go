@@ -28,8 +28,8 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 )
 
 const (
@@ -100,7 +100,7 @@ func NewRedirector(ctx context.Context, login SSHLoginSSO) (*Redirector, error) 
 		SSHLoginSSO: login,
 		mux:         http.NewServeMux(),
 		key:         key,
-		shortPath:   "/" + uuid.New(),
+		shortPath:   "/" + uuid.New().String(),
 		responseC:   make(chan *auth.SSHLoginResponse, 1),
 		errorC:      make(chan error, 1),
 	}

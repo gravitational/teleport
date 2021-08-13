@@ -41,8 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
@@ -213,7 +213,7 @@ func TestDateRangeGenerator(t *testing.T) {
 
 func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 	eventTemplate := preRFD24event{
-		SessionID:      uuid.New(),
+		SessionID:      uuid.New().String(),
 		EventIndex:     -1,
 		EventType:      "test.event",
 		Fields:         "{}",

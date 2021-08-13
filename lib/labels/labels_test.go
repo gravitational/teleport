@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"gopkg.in/check.v1"
 )
 
@@ -35,8 +35,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-type LabelSuite struct {
-}
+type LabelSuite struct{}
 
 var _ = check.Suite(&LabelSuite{})
 
@@ -92,7 +91,8 @@ func (s *LabelSuite) TestInvalidCommand(c *check.C) {
 		Labels: map[string]types.CommandLabel{
 			"foo": &types.CommandLabelV2{
 				Period:  types.NewDuration(1 * time.Second),
-				Command: []string{uuid.New()}},
+				Command: []string{uuid.New().String()},
+			},
 		},
 	})
 	c.Assert(err, check.IsNil)

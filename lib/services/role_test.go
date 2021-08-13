@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
@@ -499,7 +499,7 @@ func TestRoleParse(t *testing.T) {
 }
 
 func TestValidateRole(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		name         string
 		spec         types.RoleSpecV4
 		err          error
@@ -1566,7 +1566,7 @@ func TestApplyTraits(t *testing.T) {
 		inImpersonate  types.ImpersonateConditions
 		outImpersonate types.ImpersonateConditions
 	}
-	var tests = []struct {
+	tests := []struct {
 		comment  string
 		inTraits map[string][]string
 		allow    rule
@@ -2140,7 +2140,7 @@ func TestExtractFromLegacy(t *testing.T) {
 // TestBoolOptions makes sure that bool options (like agent forwarding and
 // port forwarding) can be disabled in a role.
 func TestBoolOptions(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		inOptions           types.RoleOptions
 		outCanPortForward   bool
 		outCanForwardAgents bool
@@ -2982,7 +2982,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 
 	// Create 4,000 servers with random IDs.
 	for i := 0; i < 4000; i++ {
-		hostname := uuid.NewUUID().String()
+		hostname := uuid.New().String()
 		servers = append(servers, &types.ServerV2{
 			Kind:    types.KindNode,
 			Version: types.V2,
@@ -3070,7 +3070,7 @@ func TestRoleSetLockingMode(t *testing.T) {
 
 	missingMode := constants.LockingMode("")
 	newRoleWithLockingMode := func(t *testing.T, mode constants.LockingMode) types.Role {
-		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Options: types.RoleOptions{Lock: mode}})
+		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV4{Options: types.RoleOptions{Lock: mode}})
 		require.NoError(t, err)
 		return role
 	}

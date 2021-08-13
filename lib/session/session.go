@@ -31,9 +31,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
-	"github.com/pborman/uuid"
 
 	"github.com/gravitational/trace"
 )
@@ -59,8 +59,8 @@ func (s *ID) Check() error {
 
 // ParseID parses ID and checks if it's correct.
 func ParseID(id string) (*ID, error) {
-	val := uuid.Parse(id)
-	if val == nil {
+	_, err := uuid.Parse(id)
+	if err != nil {
 		return nil, trace.BadParameter("%v not a valid UUID", id)
 	}
 	uid := ID(id)
@@ -69,14 +69,15 @@ func ParseID(id string) (*ID, error) {
 
 // NewID returns new session ID. The session ID is based on UUIDv4.
 func NewID() ID {
-	return ID(uuid.New())
+	return ID(uuid.New().String())
 }
 
 // DELETE IN: 4.1.0.
 //
 // NewLegacyID creates a new session ID in the UUIDv1 legacy format.
 func NewLegacyID() ID {
-	return ID(uuid.NewUUID().String())
+	uuidv1, _ := uuid.NewUUID()
+	return ID(uuidv1.String())
 }
 
 // Session is an interactive collaboration session that represents one
@@ -447,8 +448,7 @@ func (s *server) DeleteSession(namespace string, id ID) error {
 }
 
 // discardSessionServer discards all information about sessions given to it.
-type discardSessionServer struct {
-}
+type discardSessionServer struct{}
 
 // NewDiscardSessionServer returns a new discarding session server. It's used
 // with the recording proxy so that nodes don't register active sessions to

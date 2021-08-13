@@ -43,8 +43,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
 )
@@ -450,7 +450,7 @@ func NewAppServer(name string, internalAddr string, publicAddr string) *types.Se
 		Kind:    types.KindAppServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      uuid.New(),
+			Name:      uuid.New().String(),
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.ServerSpecV2{
@@ -824,7 +824,7 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	c.Assert(&registration, check.DeepEquals, registrationOut)
 
 	// Attempt to upsert the same device name with a different ID.
-	dev.Id = uuid.New()
+	dev.Id = uuid.New().String()
 	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
 	c.Assert(trace.IsAlreadyExists(err), check.Equals, true)
 

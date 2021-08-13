@@ -37,8 +37,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -76,8 +76,7 @@ func NilCloser(r io.Closer) io.Closer {
 	return r
 }
 
-type nilCloser struct {
-}
+type nilCloser struct{}
 
 func (*nilCloser) Close() error {
 	return nil
@@ -454,7 +453,7 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	id = uuid.New()
+	id = uuid.New().String()
 	if err = WriteHostUUID(dataDir, id); err != nil {
 		return "", trace.Wrap(err)
 	}

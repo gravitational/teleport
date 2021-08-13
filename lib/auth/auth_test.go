@@ -55,8 +55,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-oidc/jose"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	. "gopkg.in/check.v1"
 )
@@ -1112,7 +1112,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 
 	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
-	mfaID := uuid.New()
+	mfaID := uuid.New().String()
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
@@ -1160,7 +1160,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	hostID := uuid.New()
+	hostID := uuid.New().String()
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)

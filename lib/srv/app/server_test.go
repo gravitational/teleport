@@ -33,8 +33,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -140,7 +140,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
-	s.message = uuid.New()
+	s.message = uuid.New().String()
 
 	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, s.message)
@@ -154,7 +154,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 	s.hostport = u.Host
 
 	// Create a services.App that will be used for each test.
-	s.hostUUID = uuid.New()
+	s.hostUUID = uuid.New().String()
 	s.server = &types.ServerV2{
 		Kind:    types.KindAppServer,
 		Version: types.V2,

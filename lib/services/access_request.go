@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/vulcand/predicate"
 )
 
@@ -37,7 +37,7 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	if err := ar.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if uuid.Parse(ar.GetName()) == nil {
+	if _, err := uuid.Parse(ar.GetName()); err != nil {
 		return trace.BadParameter("invalid access request id %q", ar.GetName())
 	}
 	return nil
@@ -45,7 +45,7 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 
 // NewAccessRequest assembles an AccessRequest resource.
 func NewAccessRequest(user string, roles ...string) (types.AccessRequest, error) {
-	req, err := types.NewAccessRequest(uuid.New(), user, roles...)
+	req, err := types.NewAccessRequest(uuid.New().String(), user, roles...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -77,7 +77,7 @@ func (r *RequestIDs) Unmarshal(data []byte) error {
 
 func (r *RequestIDs) Check() error {
 	for _, id := range r.AccessRequests {
-		if uuid.Parse(id) == nil {
+		if _, err := uuid.Parse(id); err != nil {
 			return trace.BadParameter("invalid request id %q", id)
 		}
 	}
@@ -466,7 +466,6 @@ ProcessReviews:
 
 		// If we hit any denial thresholds, short-circuit immediately
 		for i, t := range thresholds {
-
 			if counts[i].denial >= t.Deny && t.Deny != 0 {
 				denied = true
 				break ProcessReviews
@@ -777,7 +776,6 @@ func NewReviewPermissionChecker(ctx context.Context, getter UserAndRoleGetter, u
 }
 
 func (c *ReviewPermissionChecker) push(role types.Role) error {
-
 	allow, deny := role.GetAccessReviewConditions(Allow), role.GetAccessReviewConditions(Deny)
 
 	var err error

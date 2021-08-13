@@ -54,9 +54,9 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -138,7 +138,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	require.NoError(t, err)
 
-	nodeID := uuid.New()
+	nodeID := uuid.New().String()
 	nodeClient, err := testServer.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
@@ -160,7 +160,8 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 			},
 		),
 		SetBPF(&bpf.NOP{}),
@@ -238,7 +239,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 
 func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
 	// create proxy client used in some tests
-	proxyID := uuid.New()
+	proxyID := uuid.New().String()
 	proxyClient, err := testSvr.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleProxy,
@@ -250,7 +251,7 @@ func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, strin
 }
 
 func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
-	nodeID := uuid.New()
+	nodeID := uuid.New().String()
 	nodeClient, err := testSvr.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
@@ -709,7 +710,7 @@ func TestAllowedLabels(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	var tests = []struct {
+	tests := []struct {
 		desc       string
 		inLabelMap types.Labels
 		outError   bool
@@ -1055,10 +1056,12 @@ func TestProxyReverseTunnel(t *testing.T) {
 			services.CommandLabels{
 				"cmdLabel1": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 				"cmdLabel2": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Second * 2),
-					Command: []string{"expr", "2", "+", "3"}},
+					Command: []string{"expr", "2", "+", "3"},
+				},
 			},
 		),
 		SetSessionServer(nodeClient),
@@ -1854,7 +1857,7 @@ type upack struct {
 	// pub is a public user key
 	pub []byte
 
-	//cert is a certificate signed by user CA
+	// cert is a certificate signed by user CA
 	cert []byte
 	// pcert is a parsed ssh Certificae
 	pcert *ssh.Certificate

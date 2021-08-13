@@ -80,9 +80,9 @@ import (
 	"github.com/beevik/etree"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -814,7 +814,6 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 		c.Assert(err, NotNil, Commentf(testCase.expectedErr))
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
-
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
@@ -2055,7 +2054,8 @@ func TestClusterKubesGet(t *testing.T) {
 				{
 					Name:         "test-kube-name",
 					StaticLabels: map[string]string{"test-field": "test-value"},
-				}},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -2090,7 +2090,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
+			Name:      uuid.New().String(),
 		},
 		Spec: types.ServerSpecV2{
 			Version: teleport.Version,
@@ -2127,7 +2127,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
+			Name:      uuid.New().String(),
 		},
 		Spec: types.ServerSpecV2{
 			Version: teleport.Version,
@@ -2151,7 +2151,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	c.Assert(err, IsNil)
 
-	var tests = []struct {
+	tests := []struct {
 		inComment       CommentInterface
 		inCreateRequest *CreateAppSessionRequest
 		outError        bool

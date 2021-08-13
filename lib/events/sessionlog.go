@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -206,7 +206,6 @@ func (sl *DiskSessionLogger) flush() error {
 }
 
 func (sl *DiskSessionLogger) finalize() error {
-
 	auditOpenFiles.Dec()
 
 	if sl.indexFile != nil {

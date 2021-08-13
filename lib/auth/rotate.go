@@ -28,9 +28,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -466,7 +466,7 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 	gracePeriod := req.gracePeriod
 
 	rotation := ca.GetRotation()
-	id := uuid.New()
+	id := uuid.New().String()
 
 	rotation.Mode = req.mode
 	rotation.Schedule = req.schedule

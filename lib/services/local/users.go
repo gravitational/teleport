@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gokyle/hotp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -465,7 +465,7 @@ func (s *IdentityService) AddUserLoginAttempt(user string, attempt services.Logi
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, attemptsPrefix, uuid.New()),
+		Key:     backend.Key(webPrefix, usersPrefix, user, attemptsPrefix, uuid.New().String()),
 		Value:   value,
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}

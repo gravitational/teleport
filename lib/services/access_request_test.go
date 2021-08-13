@@ -24,8 +24,8 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +37,7 @@ type mockUserAndRoleGetter struct {
 
 // user inserts a new user with the specified roles and returns the username.
 func (m *mockUserAndRoleGetter) user(t *testing.T, roles ...string) string {
-	name := uuid.New()
+	name := uuid.New().String()
 	user, err := types.NewUser(name)
 	require.NoError(t, err)
 
@@ -521,7 +521,6 @@ func TestReviewThresholds(t *testing.T) {
 
 // TestThresholdReviewFilter verifies basic filter syntax.
 func TestThresholdReviewFilter(t *testing.T) {
-
 	// test cases consist of a context, and various filter expressions
 	// which should or should not match the supplied context.
 	tts := []struct {

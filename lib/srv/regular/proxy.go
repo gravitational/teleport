@@ -38,8 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
@@ -341,7 +341,8 @@ func (t *proxySubsys) proxyToHost(
 
 	// check if hostname is a valid uuid.  If it is, we will preferentially match
 	// by node ID over node hostname.
-	hostIsUUID := uuid.Parse(t.host) != nil
+	_, err = uuid.Parse(t.host)
+	hostIsUUID := err == nil
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
 	var server types.Server

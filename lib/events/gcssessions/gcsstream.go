@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	"cloud.google.com/go/storage"
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"google.golang.org/api/iterator"
 
 	"github.com/gravitational/trace"
@@ -41,7 +41,7 @@ import (
 // CreateUpload creates a multipart upload
 func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
 	upload := events.StreamUpload{
-		ID:        uuid.New(),
+		ID:        uuid.New().String(),
 		SessionID: sessionID,
 		Initiated: time.Now().UTC(),
 	}

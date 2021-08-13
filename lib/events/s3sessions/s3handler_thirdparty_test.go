@@ -25,9 +25,9 @@ import (
 	"github.com/gravitational/teleport/lib/events/test"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/google/uuid"
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"

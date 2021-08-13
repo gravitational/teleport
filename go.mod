@@ -74,7 +74,7 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635
 	github.com/nsf/termbox-go v0.0.0-20210114135735-d04385b850e8 // indirect
-	github.com/pborman/uuid v1.2.1
+	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/otp v1.3.0
 	github.com/prometheus/client_golang v1.9.0
