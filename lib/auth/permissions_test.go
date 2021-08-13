@@ -153,7 +153,7 @@ func upsertLockWithPutEvent(ctx context.Context, t *testing.T, srv *TestAuthServ
 		require.Empty(t, resourceDiff(lock, event.Resource))
 	case <-lockWatch.Done():
 		t.Fatalf("Watcher exited with error: %v.", lockWatch.Error())
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for lock put.")
 	}
 }
