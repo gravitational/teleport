@@ -45,8 +45,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -113,7 +113,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
-	s.hostUUID = uuid.New()
+	s.hostUUID = uuid.New().String()
 
 	var err error
 	// Create Auth Server.

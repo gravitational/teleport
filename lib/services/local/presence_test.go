@@ -129,7 +129,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 		Name: appA.GetName(),
 	}, types.AppServerSpecV3{
 		Hostname: "localhost",
-		HostID:   uuid.New(),
+		HostID:   uuid.New().String(),
 		App:      appA,
 	})
 	require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	appBLegacy := &types.App{Name: "b", URI: "http://localhost:8081"}
 	appB, err := types.NewAppV3FromLegacyApp(appBLegacy)
 	require.NoError(t, err)
-	serverBLegacy, err := types.NewServer(uuid.New(), types.KindAppServer,
+	serverBLegacy, err := types.NewServer(uuid.New().String(), types.KindAppServer,
 		types.ServerSpecV2{
 			Hostname: "localhost",
 			Apps:     []*types.App{appBLegacy},

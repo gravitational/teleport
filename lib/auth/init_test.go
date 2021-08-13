@@ -47,9 +47,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -1240,7 +1240,7 @@ func TestIdentityChecker(t *testing.T) {
 
 			identity, err := GenerateIdentity(authServer, IdentityID{
 				Role:     types.RoleNode,
-				HostUUID: uuid.New(),
+				HostUUID: uuid.New().String(),
 				NodeName: "node-1",
 			}, nil, nil)
 			require.NoError(t, err)

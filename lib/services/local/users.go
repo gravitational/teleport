@@ -1253,7 +1253,7 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix, uuid.New()),
+		Key:     backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix, uuid.New().String()),
 		Value:   value,
 		Expires: attempt.Expires,
 	}

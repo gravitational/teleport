@@ -1825,7 +1825,7 @@ func TestApplicationServers(t *testing.T) {
 	// Upsert app server into backend.
 	app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "localhost"})
 	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	require.NoError(t, err)
 
 	_, err = p.presenceS.UpsertApplicationServer(ctx, server)
