@@ -57,6 +57,8 @@ CGOError write_rdp_keyboard(struct Client *client_ptr, struct CGOKey key);
 
 CGOError close_rdp(struct Client *client_ptr);
 
+void free_rdp(struct Client *client_ptr);
+
 void free_rust_string(char *s);
 
 extern void free_go_string(char *s);
