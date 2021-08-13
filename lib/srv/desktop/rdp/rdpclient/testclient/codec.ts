@@ -1,4 +1,15 @@
-export type TdaMessage = ArrayBuffer;
+export type Message = ArrayBuffer;
+
+export enum MessageType {
+  CLIENT_SCREEN_SPEC = 1,
+  PNG_FRAME = 2,
+  MOUSE_MOVE = 3,
+  MOUSE_BUTTON = 4,
+  KEYBOARD_INPUT = 5,
+  CLIPBOARD_DATA = 6,
+  USERNAME_PASSWORD_REQUIRED = 7,
+  USERNAME_PASSWORD_RESPONSE = 8,
+}
 
 // 0 is left button, 1 is middle button, 2 is right button
 export type MouseButton = 0 | 1 | 2;
@@ -7,6 +18,15 @@ export enum ButtonState {
   UP = 0,
   DOWN = 1,
 }
+
+// Region represents a rectangular region of a screen in pixel coordinates via
+// the top-left and bottom-right coordinates of the region.
+export type Region = {
+  top: number;
+  left: number;
+  bottom: number;
+  right: number;
+};
 
 // TdaCodec provides an api for encoding and decoding teleport desktop access protocol messages [1]
 // Buffers in TdaCodec are manipulated as DataView's [2] in order to give us low level control
@@ -170,20 +190,20 @@ export default class TdaCodec {
   };
 
   // encMouseMove encodes a mouse move event
-  encMouseMove(x: number, y: number): TdaMessage {
+  encMouseMove(x: number, y: number): Message {
     const buffer = new ArrayBuffer(9);
     const view = new DataView(buffer);
-    view.setUint8(0, 3);
+    view.setUint8(0, MessageType.MOUSE_MOVE);
     view.setUint32(1, x);
     view.setUint32(5, y);
     return buffer;
   }
 
   // encMouseButton encodes a mouse button action
-  encMouseButton(button: MouseButton, state: ButtonState): TdaMessage {
+  encMouseButton(button: MouseButton, state: ButtonState): Message {
     const buffer = new ArrayBuffer(3);
     const view = new DataView(buffer);
-    view.setUint8(0, 4);
+    view.setUint8(0, MessageType.MOUSE_BUTTON);
     view.setUint8(1, button);
     view.setUint8(2, state);
     return buffer;
@@ -191,16 +211,60 @@ export default class TdaCodec {
 
   // encKeyboard encodes a keyboard action.
   // Returns null if an unsupported code is passed
-  encKeyboard(code: string, state: ButtonState): TdaMessage {
+  encKeyboard(code: string, state: ButtonState): Message {
     const scanCode = this._keyScancodes[code];
     if (!scanCode) {
       return null;
     }
     const buffer = new ArrayBuffer(6);
     const view = new DataView(buffer);
-    view.setUint8(0, 5);
+    view.setUint8(0, MessageType.KEYBOARD_INPUT);
     view.setUint32(1, scanCode);
     view.setUint8(5, state);
     return buffer;
+  }
+
+  // decMessageType decodes the MessageType from a raw blob of data
+  // (typically raw data recieved over a web socket).
+  // Throws an error on an invalid or unexpected MessageType value.
+  decMessageType(blob: Blob): Promise<MessageType> {
+    // Convert the first byte into an ArrayBuffer and read out the MessageType
+    return blob
+      .slice(0, 1)
+      .arrayBuffer()
+      .then((buffer) => {
+        const messageType = new DataView(buffer).getUint8(0);
+        if (messageType === MessageType.PNG_FRAME) {
+          return MessageType.PNG_FRAME;
+        } else if (messageType === MessageType.CLIPBOARD_DATA) {
+          return MessageType.CLIPBOARD_DATA;
+        } else if (messageType === MessageType.USERNAME_PASSWORD_REQUIRED) {
+          return MessageType.USERNAME_PASSWORD_REQUIRED;
+        } else {
+          // We don't expect to need to decode any other value on the client side
+          throw new Error(`invalid message type: ${messageType}`);
+        }
+      });
+  }
+
+  // decRegion decodes the region from a PNG_FRAME blob
+  decRegion(blob: Blob): Promise<Region> {
+    return blob
+      .slice(1, 17)
+      .arrayBuffer()
+      .then((buf) => {
+        let dv = new DataView(buf);
+        return {
+          left: dv.getUint32(0),
+          top: dv.getUint32(4),
+          right: dv.getUint32(8),
+          bottom: dv.getUint32(12),
+        };
+      });
+  }
+
+  // decPng decodes the image bitmap from the png data part of a PNG_FRAME blob
+  decPng(blob: Blob): Promise<ImageBitmap> {
+    return createImageBitmap(blob.slice(17));
   }
 }
