@@ -18,8 +18,11 @@ limitations under the License.
 package keypaths
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/gravitational/trace"
 )
 
 // keypath constants aren't exported in order to force
@@ -50,36 +53,39 @@ const (
 )
 
 // Here's the file layout of all these keypaths.
-// ~/.tsh/							 --> default base directory
-// ├── known_hosts                   --> trusted certificate authorities (their keys) in a format similar to known_hosts
-// └── keys							 --> session keys directory
-//    ├── one.example.com            --> Proxy hostname
-//    │   ├── certs.pem              --> TLS CA certs for the Teleport CA
-//    │   ├── foo                    --> RSA Private Key for user "foo"
-//    │   ├── foo.pub                --> Public Key
-//    │   ├── foo-x509.pem           --> TLS client certificate for Auth Server
-//    │   ├── foo-ssh                --> SSH certs for user "foo"
-//    │   │   ├── root-cert.pub      --> SSH cert for Teleport cluster "root"
-//    │   │   └── leaf-cert.pub      --> SSH cert for Teleport cluster "leaf"
-//    │   ├── foo-app                --> Database access certs for user "foo"
-//    │   │   ├── root               --> Database access certs for cluster "root"
-//    │   │   │   ├── appA-x509.pem  --> TLS cert for app service "appA"
-//    │   │   │   └── appB-x509.pem  --> TLS cert for app service "appB"
-//    │   │   └── leaf               --> Database access certs for cluster "leaf"
-//    │   │       └── appC-x509.pem  --> TLS cert for app service "appC"
-//    │   ├── foo-db                 --> App access certs for user "foo"
-//    │   │   ├── root               --> App access certs for cluster "root"
-//    │   │   │   ├── dbA-x509.pem   --> TLS cert for database service "dbA"
-//    │   │   │   └── dbB-x509.pem   --> TLS cert for database service "dbB"
-//    │   │   └── leaf               --> App access certs for cluster "leaf"
-//    │   │       └── dbC-x509.pem   --> TLS cert for database service "dbC"
-//    │   └── foo-kube               --> Kubernetes certs for user "foo"
-//    │       ├── root               --> Kubernetes certs for Teleport cluster "root"
-//    │       │   ├── kubeA-x509.pem --> TLS cert for Kubernetes cluster "kubeA"
-//    │       │   └── kubeB-x509.pem --> TLS cert for Kubernetes cluster "kubeB"
-//    │       └── leaf               --> Kubernetes certs for Teleport cluster "leaf"
-//    │           └── kubeC-x509.pem --> TLS cert for Kubernetes cluster "kubeC"
-//    └── two.example.com			 --> Additional proxy host entries follow the same format
+// ~/.tsh/							   --> default base directory
+// ├── known_hosts                     --> trusted certificate authorities (their keys) in a format similar to known_hosts
+// └── keys							   --> session keys directory
+//    ├── one.example.com              --> Proxy hostname
+//    │   ├── certs.pem                --> TLS CA certs for the Teleport CA
+//    │   ├── foo                      --> RSA Private Key for user "foo"
+//    │   ├── foo.pub                  --> Public Key
+//    │   ├── foo-x509.pem             --> TLS client certificate for Auth Server
+//    │   ├── foo-ssh                  --> SSH certs for user "foo"
+//    │   │   ├── root-cert.pub        --> SSH cert for Teleport cluster "root"
+//    │   │   └── leaf-cert.pub        --> SSH cert for Teleport cluster "leaf"
+//    │   ├── foo-app                  --> Database access certs for user "foo"
+//    │   │   ├── root                 --> Database access certs for cluster "root"
+//    │   │   │   ├── appA-x509.pem    --> TLS cert for app service "appA"
+//    │   │   │   └── appB-x509.pem    --> TLS cert for app service "appB"
+//    │   │   └── leaf                 --> Database access certs for cluster "leaf"
+//    │   │       └── appC-x509.pem    --> TLS cert for app service "appC"
+//    │   ├── foo-db                   --> App access certs for user "foo"
+//    │   │   ├── root                 --> App access certs for cluster "root"
+//    │   │   │   ├── dbA-x509.pem     --> TLS cert for database service "dbA"
+//    │   │   │   └── dbB-x509.pem     --> TLS cert for database service "dbB"
+//    │   │   └── leaf                 --> App access certs for cluster "leaf"
+//    │   │       └── dbC-x509.pem     --> TLS cert for database service "dbC"
+//    │   └── foo-kube                 --> Kubernetes certs for user "foo"
+//    │       ├── root                 --> Kubernetes certs for Teleport cluster "root"
+//    │       │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
+//    │       │   ├── kubeA-x509.pem   --> TLS cert for Kubernetes cluster "kubeA"
+//    │       │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
+//    │       │   └── kubeB-x509.pem   --> TLS cert for Kubernetes cluster "kubeB"
+//    │       └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
+//    │           ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
+//    │           └── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
+//    └── two.example.com			   --> Additional proxy host entries follow the same format
 //		  ...
 
 // KeyDir returns the path to the keys directory.
@@ -180,7 +186,7 @@ func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCertDir(baseDir, proxy, username, cluster), appname+fileExtTLSCert)
 }
 
-// DatabaseDir returns the path to the user's kube directory
+// DatabaseDir returns the path to the user's database directory
 // for the given proxy.
 //
 // <baseDir>/keys/<proxy>/<username>-db
@@ -188,7 +194,7 @@ func DatabaseDir(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+dbDirSuffix)
 }
 
-// DatabaseCertDir returns the path to the user's kube cert directory
+// DatabaseCertDir returns the path to the user's database cert directory
 // for the given proxy and cluster.
 //
 // <baseDir>/keys/<proxy>/<username>-db/<cluster>
@@ -197,7 +203,7 @@ func DatabaseCertDir(baseDir, proxy, username, cluster string) string {
 }
 
 // DatabaseCertPath returns the path to the user's TLS certificate
-// for the given proxy, cluster, and kube cluster.
+// for the given proxy, cluster, and database.
 //
 // <baseDir>/keys/<proxy>/<username>-db/<cluster>/<dbname>-x509.pem
 func DatabaseCertPath(baseDir, proxy, username, cluster, dbname string) string {
@@ -238,10 +244,14 @@ func KubeConfigPath(baseDir, proxy, username, cluster, kubename string) string {
 
 // IsProfileKubeConfigPath makes a best effort attempt to check if the given
 // path is a profile specific kubeconfig path generated by this package.
-func IsProfileKubeConfigPath(path string) bool {
-	return strings.Contains(path, "/"+sessionKeyDir+"/") &&
-		strings.Contains(path, kubeDirSuffix+"/") &&
-		strings.Contains(path, kubeConfigSuffix)
+func IsProfileKubeConfigPath(path string) (bool, error) {
+	if path == "" {
+		return false, trace.BadParameter("path is empty")
+	}
+	// Split path on sessionKeyDir since we can't do filepath.Match with baseDir
+	splitPath := strings.Split(path, "/"+sessionKeyDir+"/")
+	match := fmt.Sprintf("*/*%v/*/*%v", kubeDirSuffix, kubeConfigSuffix)
+	return filepath.Match(match, splitPath[len(splitPath)-1])
 }
 
 // IdentitySSHCertPath returns the path to the identity file's SSH certificate.
