@@ -109,6 +109,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		ctx:                   ctx,
 		cancel:                cancel,
 		retry:                 retry,
+		LoopC:                 make(chan struct{}),
 		ResetC:                make(chan struct{}),
 		StaleC:                make(chan struct{}, 1),
 	}
@@ -134,9 +135,11 @@ type resourceWatcher struct {
 	// detected, zero if there are no failures present.
 	failureStartedAt time.Time
 
+	// LoopC is a channel to check whether the watch loop is running
+	// (used in tests).
+	LoopC chan struct{}
 	// ResetC is a channel to notify of internal watcher reset (used in tests).
 	ResetC chan struct{}
-
 	// StaleC is a channel that can trigger the condition of resource staleness
 	// (used in tests).
 	StaleC chan struct{}
@@ -155,11 +158,13 @@ func (p *resourceWatcher) Close() {
 // hasStaleView returns true when the local view has failed to be updated
 // for longer than the MaxStaleness bound.
 func (p *resourceWatcher) hasStaleView() bool {
+	// Used for testing stale lock views.
 	select {
 	case <-p.StaleC:
 		return true
 	default:
 	}
+
 	if p.MaxStaleness == 0 || p.failureStartedAt.IsZero() {
 		return false
 	}
@@ -258,6 +263,8 @@ func (p *resourceWatcher) watch() error {
 			return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
 			p.collector.processEventAndUpdateCurrent(p.ctx, event)
+		case p.LoopC <- struct{}{}:
+			// Used in tests to detect the watch loop is running.
 		}
 	}
 }
