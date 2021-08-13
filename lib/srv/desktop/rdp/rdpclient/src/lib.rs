@@ -211,7 +211,6 @@ pub extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: i64) -> C
 fn read_rdp_output_inner(client: &mut Client, client_ref: i64) -> Option<String> {
     let tcp_fd = client.tcp_fd;
     // Read incoming events.
-    // TODO: this doesn't always unblock after client.shutdown() was called. Figure out why.
     while wait_for_fd(tcp_fd as usize) {
         let mut err = CGO_OK;
         let res = client
@@ -338,13 +337,16 @@ pub extern "C" fn write_rdp_keyboard(client_ptr: *mut Client, key: CGOKey) -> CG
 #[no_mangle]
 pub extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOError {
     let client = unsafe { Client::from_raw(client_ptr) };
-    let res = client.rdp_client.lock().unwrap().shutdown();
-    unsafe { client.free() };
-    if let Err(e) = res {
+    if let Err(e) = client.rdp_client.lock().unwrap().shutdown() {
         to_cgo_error(format!("failed writing RDP keyboard event: {:?}", e))
     } else {
         CGO_OK
     }
+}
+
+#[no_mangle]
+pub extern "C" fn free_rdp(client_ptr: *mut Client) {
+    unsafe { Client::from_raw(client_ptr).free() }
 }
 
 #[no_mangle]

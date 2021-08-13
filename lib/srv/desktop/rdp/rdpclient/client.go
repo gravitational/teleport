@@ -227,8 +227,9 @@ func handle_bitmap(ci C.int64_t, cb C.CGOBitmap) C.CGOError {
 
 func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	data := C.GoBytes(unsafe.Pointer(cb.data_ptr), C.int(cb.data_len))
-	// Convert BGRA to RGBA. This is probably some endianness weirdness, if
-	// Windows handles pixels in ARGB as uint32.
+	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
+	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
+	// a byte slice with 4-byte segments representing pixels (RGBA).
 	for i := 0; i < len(data); i += 4 {
 		data[i], data[i+2] = data[i+2], data[i]
 	}
@@ -247,6 +248,7 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 // Wait blocks until the client disconnects and runs the cleanup.
 func (c *Client) Wait() error {
 	c.wg.Wait()
+	C.free_rdp(c.rustClientRef)
 	return nil
 }
 
