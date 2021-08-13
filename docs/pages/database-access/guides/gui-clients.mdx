@@ -36,7 +36,7 @@ The displayed `CA`, `Cert`, and `Key` files are used to connect through pgAdmin
 4, MySQL Workbench, and other graphical database clients that support mutual
 TLS authentication.
 
-## pgAdmin 4
+## PostgreSQL pgAdmin 4
 
 [pgAdmin 4](https://www.pgadmin.org/) is a popular graphical client for
 PostgreSQL servers.
@@ -83,3 +83,26 @@ Optionally, click "Test Connection" to verify connectivity:
 ![MySQL Workbench Test](../../../img/database-access/workbench-test@2x.png)
 
 Save the connection, and connect to the database.
+
+## MongoDB Compass
+
+[Compass](https://www.mongodb.com/products/compass) is the official MongoDB
+graphical client.
+
+On the "New Connection" panel, click on "Fill in connection fields individually".
+
+![MongoDB Compass new connection](../../../img/database-access/compass-new-connection@2x.png)
+
+On the "Hostname" tab, enter your Teleport proxy's hostname and port shown
+by `tsh db config`. Leave "Authentication" as None.
+
+![MongoDB Compass hostname](../../../img/database-access/compass-hostname@2x.png)
+
+On the "More Options" tab set SSL to "Client and Server Validation" and set
+CA as well as client key and certificate. Note the CA path must be provided
+and be able to validate certificate presented by your Teleport proxy's web
+endpoint. Client key and certificate locations are shown by `tsh db config`.
+
+![MongoDB Compass more options](../../../img/database-access/compass-more-options@2x.png)
+
+Click on the "Connect" button.
