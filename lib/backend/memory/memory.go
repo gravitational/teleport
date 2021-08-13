@@ -91,11 +91,12 @@ func New(cfg Config) (*Memory, error) {
 		return nil, trace.Wrap(err)
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
-	buf, err := backend.NewCircularBuffer(ctx, cfg.BufferSize)
+	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
 	}
+	buf.SetInit()
 	m := &Memory{
 		Mutex: &sync.Mutex{},
 		Entry: log.WithFields(log.Fields{
@@ -143,7 +144,7 @@ func (m *Memory) Close() error {
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (m *Memory) CloseWatchers() {
-	m.buf.Reset()
+	m.buf.Clear()
 }
 
 // Clock returns clock used by this backend
@@ -168,7 +169,7 @@ func (m *Memory) Create(ctx context.Context, i backend.Item) (*backend.Lease, er
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return m.newLease(i), nil
 }
@@ -209,7 +210,7 @@ func (m *Memory) Update(ctx context.Context, i backend.Item) (*backend.Lease, er
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return m.newLease(i), nil
 }
@@ -229,7 +230,7 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return m.newLease(i), nil
 }
@@ -255,7 +256,7 @@ func (m *Memory) PutRange(ctx context.Context, items []backend.Item) error {
 		}
 		m.processEvent(event)
 		if !m.EventsOff {
-			m.buf.Push(event)
+			m.buf.Emit(event)
 		}
 	}
 	return nil
@@ -281,7 +282,7 @@ func (m *Memory) Delete(ctx context.Context, key []byte) error {
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return nil
 }
@@ -306,7 +307,7 @@ func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey []byte) error
 		}
 		m.processEvent(event)
 		if !m.EventsOff {
-			m.buf.Push(event)
+			m.buf.Emit(event)
 		}
 	}
 	return nil
@@ -350,7 +351,7 @@ func (m *Memory) KeepAlive(ctx context.Context, lease backend.Lease, expires tim
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return nil
 }
@@ -383,7 +384,7 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Push(event)
+		m.buf.Emit(event)
 	}
 	return m.newLease(replaceWith), nil
 }
@@ -453,7 +454,7 @@ func (m *Memory) removeExpired() int {
 			},
 		}
 		if !m.EventsOff {
-			m.buf.Push(event)
+			m.buf.Emit(event)
 		}
 	}
 	if removed > 0 {
@@ -471,35 +472,15 @@ func (m *Memory) processEvent(event backend.Event) {
 		if treeItem != nil {
 			existingItem = treeItem.(*btreeItem)
 		}
-		switch {
-		case item.Expires.IsZero():
-			// new item is added, it does not expire,
-			if existingItem != nil && existingItem.index >= 0 {
-				// new item replaces the existing item that should be removed
-				// from the heap
-				m.heap.RemoveEl(existingItem)
-			}
-			m.tree.ReplaceOrInsert(item)
-		case !item.Expires.IsZero() && m.Clock().Now().Before(item.Expires):
-			// new item is added, but it has not expired yet
-			if existingItem != nil && existingItem.index >= 0 {
-				m.heap.RemoveEl(existingItem)
-			}
-			m.heap.PushEl(item)
-			m.tree.ReplaceOrInsert(item)
-		case !item.Expires.IsZero() && (m.Clock().Now().After(item.Expires) || m.Clock().Now() == item.Expires):
-			// new expired item has added, remove the existing
-			// item if present
-			if existingItem != nil {
-				// existing item should be removed from the heap
-				if existingItem.index >= 0 {
-					m.heap.RemoveEl(existingItem)
-				}
-				m.tree.Delete(existingItem)
-			}
-		default:
-			// skip adding or updating the item that has expired
+
+		// new item is added, but it has not expired yet
+		if existingItem != nil && existingItem.index >= 0 {
+			m.heap.RemoveEl(existingItem)
 		}
+		if !item.Expires.IsZero() {
+			m.heap.PushEl(item)
+		}
+		m.tree.ReplaceOrInsert(item)
 	case backend.OpDelete:
 		treeItem := m.tree.Get(&btreeItem{Item: event.Item})
 		if treeItem != nil {
