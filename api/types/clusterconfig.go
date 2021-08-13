@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -46,6 +47,10 @@ type ClusterConfig interface {
 	// DELETE IN 8.0.0
 	SetAuditConfig(ClusterAuditConfig) error
 
+	// GetClusterAuditConfig gets embedded cluster audit configuration.
+	// DELETE IN 8.0.0
+	GetClusterAuditConfig() (ClusterAuditConfig, error)
+
 	// HasNetworkingFields returns true if embedded networking configuration is set.
 	// DELETE IN 8.0.0
 	HasNetworkingFields() bool
@@ -53,6 +58,10 @@ type ClusterConfig interface {
 	// SetNetworkingFields sets embedded networking configuration.
 	// DELETE IN 8.0.0
 	SetNetworkingFields(ClusterNetworkingConfig) error
+
+	// GetClusterNetworkingConfig gets embedded cluster networking configuration.
+	// DELETE IN 8.0.0
+	GetClusterNetworkingConfig() (ClusterNetworkingConfig, error)
 
 	// HasSessionRecordingFields returns true if embedded session recording
 	// configuration is set.
@@ -62,6 +71,10 @@ type ClusterConfig interface {
 	// SetSessionRecordingFields sets embedded session recording configuration.
 	// DELETE IN 8.0.0
 	SetSessionRecordingFields(SessionRecordingConfig) error
+
+	// GetSessionRecordingConfig gets embedded session recording configuration.
+	// DELETE IN 8.0.0
+	GetSessionRecordingConfig() (SessionRecordingConfig, error)
 
 	// HasAuthFields returns true if legacy auth fields are set.
 	// DELETE IN 8.0.0
@@ -191,6 +204,19 @@ func (c *ClusterConfigV3) SetAuditConfig(auditConfig ClusterAuditConfig) error {
 	return nil
 }
 
+// GetClusterAuditConfig gets embedded cluster audit configuration.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) GetClusterAuditConfig() (ClusterAuditConfig, error) {
+	if !c.HasAuditConfig() {
+		return nil, nil
+	}
+	auditConfig, err := NewClusterAuditConfig(*c.Spec.Audit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return auditConfig, nil
+}
+
 // HasNetworkingFields returns true if embedded networking configuration is set.
 // DELETE IN 8.0.0
 func (c *ClusterConfigV3) HasNetworkingFields() bool {
@@ -206,6 +232,19 @@ func (c *ClusterConfigV3) SetNetworkingFields(netConfig ClusterNetworkingConfig)
 	}
 	c.Spec.ClusterNetworkingConfigSpecV2 = &netConfigV2.Spec
 	return nil
+}
+
+// GetClusterNetworkingConfig gets embedded cluster networking configuration.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) GetClusterNetworkingConfig() (ClusterNetworkingConfig, error) {
+	if !c.HasNetworkingFields() {
+		return nil, nil
+	}
+	netConfig, err := NewClusterNetworkingConfigFromConfigFile(*c.Spec.ClusterNetworkingConfigSpecV2)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return netConfig, nil
 }
 
 // HasSessionRecordingFields returns true if embedded session recording
@@ -231,6 +270,27 @@ func (c *ClusterConfigV3) SetSessionRecordingFields(recConfig SessionRecordingCo
 		ProxyChecksHostKeys: proxyChecksHostKeys,
 	}
 	return nil
+}
+
+// GetSessionRecordingConfig gets embedded session recording configuration.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) GetSessionRecordingConfig() (SessionRecordingConfig, error) {
+	if !c.HasSessionRecordingFields() {
+		return nil, nil
+	}
+	proxyChecksHostKeys, err := utils.ParseBool(c.Spec.LegacySessionRecordingConfigSpec.ProxyChecksHostKeys)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	recConfigSpec := SessionRecordingConfigSpecV2{
+		Mode:                c.Spec.LegacySessionRecordingConfigSpec.Mode,
+		ProxyChecksHostKeys: NewBoolOption(proxyChecksHostKeys),
+	}
+	recConfig, err := NewSessionRecordingConfigFromConfigFile(recConfigSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return recConfig, nil
 }
 
 // HasAuthFields returns true if legacy auth fields are set.

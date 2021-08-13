@@ -18,7 +18,7 @@ OS ?= linux
 ARCH ?= amd64
 RUNTIME ?= go1.16.2
 BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
-LIBBPF_VERSION ?= 0.3
+LIBBPF_VERSION ?= 0.3.1
 
 UID := $$(id -u)
 GID := $$(id -g)
