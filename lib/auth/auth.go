@@ -1800,6 +1800,12 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	priv, pub, err := a.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1842,6 +1848,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		BearerToken:        bearerToken,
 		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
 		LoginTime:          req.LoginTime,
+		InactiveTimeout:    types.Duration(netCfg.GetWebIdleTimeout()),
 	}
 	UserLoginCount.Inc()
 

@@ -168,11 +168,6 @@ type Config struct {
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
-
-	// WebIdleTimeout specifies how long a user WebUI session can be left
-	// idle before being logged by the server. A zero value means there
-	// is no idle timeout set.
-	WebIdleTimeout time.Duration
 }
 
 type RewritingHandler struct {
@@ -1258,6 +1253,10 @@ type CreateSessionResponse struct {
 	TokenExpiresIn int `json:"expires_in"`
 	// SessionExpires is when this session expires.
 	SessionExpires time.Time `json:"sessionExpires,omitempty"`
+	// SessionInactiveTimeout specifies how long a user WebUI session can be left
+	// idle before being logged out by the server. A zero value means there
+	// is no idle timeout set.
+	SessionInactiveTimeout int `json:"sessionInactiveTimeout"`
 }
 
 func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -1274,10 +1273,12 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &CreateSessionResponse{
-		TokenType:      roundtrip.AuthBearer,
-		Token:          token.GetName(),
-		TokenExpiresIn: int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
+		TokenType:              roundtrip.AuthBearer,
+		Token:                  token.GetName(),
+		TokenExpiresIn:         int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
+		SessionInactiveTimeout: int(ctx.session.GetInactiveTimeout().Milliseconds()),
 	}, nil
 }
 
