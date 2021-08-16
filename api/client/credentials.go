@@ -17,9 +17,11 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"io/ioutil"
+	"net"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
@@ -309,13 +311,10 @@ func (c *profileCreds) Dialer(cfg Config) (ContextDialer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewProxyDialer(
-		*sshConfig,
-		cfg.KeepAlivePeriod,
-		cfg.DialTimeout,
-		c.profile.WebProxyAddr,
-		cfg.InsecureAddressDiscovery,
-	), nil
+	proxyDialer := NewProxyDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout, cfg.InsecureAddressDiscovery)
+	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return proxyDialer.DialContext(ctx, network, c.profile.WebProxyAddr)
+	}), nil
 }
 
 // TLSConfig returns TLS configuration.
