@@ -115,6 +115,9 @@ const (
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
+	// KindDatabase is a database resource.
+	KindDatabase = "db"
+
 	// KindToken is a provisioning token resource
 	KindToken = "token"
 
@@ -197,11 +200,11 @@ const (
 	// to proxy
 	KindRemoteCluster = "remote_cluster"
 
-	// KindResetPasswordToken is a token used to change user passwords
-	KindResetPasswordToken = "user_token"
+	// KindUserToken is a user token used for various user related actions.
+	KindUserToken = "user_token"
 
-	// KindResetPasswordTokenSecrets is reset password token secrets
-	KindResetPasswordTokenSecrets = "reset_password_token_secrets"
+	// KindUserTokenSecrets is user token secrets.
+	KindUserTokenSecrets = "user_token_secrets"
 
 	// KindIdentity is local on disk identity resource
 	KindIdentity = "identity"
