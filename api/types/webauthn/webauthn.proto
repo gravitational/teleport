@@ -35,9 +35,6 @@ message SessionData {
     bytes user_id = 2 [ (gogoproto.jsontag) = "userId,omitempty" ];
     // Raw Credential IDs of the credentials allowed for the ceremony.
     repeated bytes allow_credentials = 3 [ (gogoproto.jsontag) = "allowCredentials,omitempty" ];
-    // Requested user verification.
-    // https://www.w3.org/TR/webauthn-2/#enum-userVerificationRequirement.
-    string user_verification = 4 [ (gogoproto.jsontag) = "userVerification,omitempty" ];
 }
 
 // -----------------------------------------------------------------------------
@@ -59,11 +56,11 @@ message PublicKeyCredentialRequestOptions {
     string rp_id = 3;
     // Allowed credentials for assertion.
     repeated CredentialDescriptor allow_credentials = 4;
-    // Requested user verification.
-    // https://www.w3.org/TR/webauthn-2/#enum-userVerificationRequirement.
-    string user_verification = 5;
     // Extensions supplied by the Relying Party.
-    AuthenticationExtensionsClientInputs extensions = 6;
+    AuthenticationExtensionsClientInputs extensions = 5;
+
+    // Notes:
+    // * User verification omitted (assume default/preferred).
 }
 
 // Assertion response returned by the authenticator.
@@ -120,17 +117,19 @@ message PublicKeyCredentialCreationOptions {
     // Desired properties for the credential to be created, from most to least
     // preferred.
     repeated CredentialParameter credential_parameters = 4;
-    // Authenticator selection criteria.
-    AuthenticatorSelection authenticator_selection = 5;
     // Timeout in milliseconds.
-    int64 timeout_ms = 6;
+    int64 timeout_ms = 5;
     // Credentials excluded from the ceremony.
-    repeated CredentialDescriptor exclude_credentials = 7;
+    repeated CredentialDescriptor exclude_credentials = 6;
     // Attestation requested, defaulting to "none".
     // https://www.w3.org/TR/webauthn-2/#enumdef-attestationconveyancepreference.
-    string attestation = 8;
+    string attestation = 7;
     // Extensions supplied by the Relying Party.
-    AuthenticationExtensionsClientInputs extensions = 9;
+    AuthenticationExtensionsClientInputs extensions = 8;
+
+    // Notes:
+    // * Authenticator Selection omitted (assume empty attachment, no resident
+    //   key requirements and user verification default/preferred).
 }
 
 // Credential creation response returned by the authenticator.
@@ -185,26 +184,6 @@ message AuthenticationExtensionsClientOutputs {
     bool app_id = 1;
 }
 
-// Authenticator selection criteria.
-// https://www.w3.org/TR/webauthn-2/#dictdef-authenticatorselectioncriteria.
-message AuthenticatorSelection {
-    // Restricts authenticators to either "platform" (built-in) or
-    // "cross-platform" (secure token).
-    // Empty is treated as no selection.
-    // https://www.w3.org/TR/webauthn-2/#enumdef-authenticatorattachment.
-    string authenticator_attachment = 1;
-    // If true, authenticators must create a client-side resident key.
-    // Authenticators may elect to create a resident key regardless of this
-    // setting.
-    // Equivalent to "required" in the ResidentKeyRequired enumeration.
-    // https://www.w3.org/TR/webauthn-2/#enumdef-residentkeyrequirement.
-    bool require_resident_key = 2;
-    // User verification requirement.
-    // Defaults to "preferred".
-    // https://www.w3.org/TR/webauthn-2/#enumdef-userverificationrequirement.
-    string user_verification = 3;
-}
-
 // Public key credential descriptor.
 // https://www.w3.org/TR/webauthn-2/#dictdef-publickeycredentialdescriptor.
 message CredentialDescriptor {
@@ -212,9 +191,9 @@ message CredentialDescriptor {
     string type = 1;
     // Raw Credential ID.
     bytes id = 2;
-    // Authenticator transport hint, optional.
-    // https://www.w3.org/TR/webauthn-2/#enumdef-authenticatortransport.
-    repeated string transports = 3;
+
+    // Notes:
+    // * Transport hints omitted (assume no restrictions).
 }
 
 // Parameters for credential creation.

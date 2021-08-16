@@ -47,10 +47,7 @@ type SessionData struct {
 	// Raw User ID.
 	UserId []byte `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"userId,omitempty"`
 	// Raw Credential IDs of the credentials allowed for the ceremony.
-	AllowCredentials [][]byte `protobuf:"bytes,3,rep,name=allow_credentials,json=allowCredentials,proto3" json:"allowCredentials,omitempty"`
-	// Requested user verification.
-	// https://www.w3.org/TR/webauthn-2/#enum-userVerificationRequirement.
-	UserVerification     string   `protobuf:"bytes,4,opt,name=user_verification,json=userVerification,proto3" json:"userVerification,omitempty"`
+	AllowCredentials     [][]byte `protobuf:"bytes,3,rep,name=allow_credentials,json=allowCredentials,proto3" json:"allowCredentials,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -108,13 +105,6 @@ func (m *SessionData) GetAllowCredentials() [][]byte {
 		return m.AllowCredentials
 	}
 	return nil
-}
-
-func (m *SessionData) GetUserVerification() string {
-	if m != nil {
-		return m.UserVerification
-	}
-	return ""
 }
 
 // Credential assertion used for login ceremonies.
@@ -177,11 +167,8 @@ type PublicKeyCredentialRequestOptions struct {
 	RpId string `protobuf:"bytes,3,opt,name=rp_id,json=rpId,proto3" json:"rp_id,omitempty"`
 	// Allowed credentials for assertion.
 	AllowCredentials []*CredentialDescriptor `protobuf:"bytes,4,rep,name=allow_credentials,json=allowCredentials,proto3" json:"allow_credentials,omitempty"`
-	// Requested user verification.
-	// https://www.w3.org/TR/webauthn-2/#enum-userVerificationRequirement.
-	UserVerification string `protobuf:"bytes,5,opt,name=user_verification,json=userVerification,proto3" json:"user_verification,omitempty"`
 	// Extensions supplied by the Relying Party.
-	Extensions           *AuthenticationExtensionsClientInputs `protobuf:"bytes,6,opt,name=extensions,proto3" json:"extensions,omitempty"`
+	Extensions           *AuthenticationExtensionsClientInputs `protobuf:"bytes,5,opt,name=extensions,proto3" json:"extensions,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                              `json:"-"`
 	XXX_unrecognized     []byte                                `json:"-"`
 	XXX_sizecache        int32                                 `json:"-"`
@@ -246,13 +233,6 @@ func (m *PublicKeyCredentialRequestOptions) GetAllowCredentials() []*CredentialD
 		return m.AllowCredentials
 	}
 	return nil
-}
-
-func (m *PublicKeyCredentialRequestOptions) GetUserVerification() string {
-	if m != nil {
-		return m.UserVerification
-	}
-	return ""
 }
 
 func (m *PublicKeyCredentialRequestOptions) GetExtensions() *AuthenticationExtensionsClientInputs {
@@ -482,17 +462,15 @@ type PublicKeyCredentialCreationOptions struct {
 	// Desired properties for the credential to be created, from most to least
 	// preferred.
 	CredentialParameters []*CredentialParameter `protobuf:"bytes,4,rep,name=credential_parameters,json=credentialParameters,proto3" json:"credential_parameters,omitempty"`
-	// Authenticator selection criteria.
-	AuthenticatorSelection *AuthenticatorSelection `protobuf:"bytes,5,opt,name=authenticator_selection,json=authenticatorSelection,proto3" json:"authenticator_selection,omitempty"`
 	// Timeout in milliseconds.
-	TimeoutMs int64 `protobuf:"varint,6,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
+	TimeoutMs int64 `protobuf:"varint,5,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
 	// Credentials excluded from the ceremony.
-	ExcludeCredentials []*CredentialDescriptor `protobuf:"bytes,7,rep,name=exclude_credentials,json=excludeCredentials,proto3" json:"exclude_credentials,omitempty"`
+	ExcludeCredentials []*CredentialDescriptor `protobuf:"bytes,6,rep,name=exclude_credentials,json=excludeCredentials,proto3" json:"exclude_credentials,omitempty"`
 	// Attestation requested, defaulting to "none".
 	// https://www.w3.org/TR/webauthn-2/#enumdef-attestationconveyancepreference.
-	Attestation string `protobuf:"bytes,8,opt,name=attestation,proto3" json:"attestation,omitempty"`
+	Attestation string `protobuf:"bytes,7,opt,name=attestation,proto3" json:"attestation,omitempty"`
 	// Extensions supplied by the Relying Party.
-	Extensions           *AuthenticationExtensionsClientInputs `protobuf:"bytes,9,opt,name=extensions,proto3" json:"extensions,omitempty"`
+	Extensions           *AuthenticationExtensionsClientInputs `protobuf:"bytes,8,opt,name=extensions,proto3" json:"extensions,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                              `json:"-"`
 	XXX_unrecognized     []byte                                `json:"-"`
 	XXX_sizecache        int32                                 `json:"-"`
@@ -555,13 +533,6 @@ func (m *PublicKeyCredentialCreationOptions) GetUser() *UserEntity {
 func (m *PublicKeyCredentialCreationOptions) GetCredentialParameters() []*CredentialParameter {
 	if m != nil {
 		return m.CredentialParameters
-	}
-	return nil
-}
-
-func (m *PublicKeyCredentialCreationOptions) GetAuthenticatorSelection() *AuthenticatorSelection {
-	if m != nil {
-		return m.AuthenticatorSelection
 	}
 	return nil
 }
@@ -839,93 +810,13 @@ func (m *AuthenticationExtensionsClientOutputs) GetAppId() bool {
 	return false
 }
 
-// Authenticator selection criteria.
-// https://www.w3.org/TR/webauthn-2/#dictdef-authenticatorselectioncriteria.
-type AuthenticatorSelection struct {
-	// Restricts authenticators to either "platform" (built-in) or
-	// "cross-platform" (secure token).
-	// Empty is treated as no selection.
-	// https://www.w3.org/TR/webauthn-2/#enumdef-authenticatorattachment.
-	AuthenticatorAttachment string `protobuf:"bytes,1,opt,name=authenticator_attachment,json=authenticatorAttachment,proto3" json:"authenticator_attachment,omitempty"`
-	// If true, authenticators must create a client-side resident key.
-	// Authenticators may elect to create a resident key regardless of this
-	// setting.
-	// Equivalent to "required" in the ResidentKeyRequired enumeration.
-	// https://www.w3.org/TR/webauthn-2/#enumdef-residentkeyrequirement.
-	RequireResidentKey bool `protobuf:"varint,2,opt,name=require_resident_key,json=requireResidentKey,proto3" json:"require_resident_key,omitempty"`
-	// User verification requirement.
-	// Defaults to "preferred".
-	// https://www.w3.org/TR/webauthn-2/#enumdef-userverificationrequirement.
-	UserVerification     string   `protobuf:"bytes,3,opt,name=user_verification,json=userVerification,proto3" json:"user_verification,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *AuthenticatorSelection) Reset()         { *m = AuthenticatorSelection{} }
-func (m *AuthenticatorSelection) String() string { return proto.CompactTextString(m) }
-func (*AuthenticatorSelection) ProtoMessage()    {}
-func (*AuthenticatorSelection) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ef16125abd047465, []int{11}
-}
-func (m *AuthenticatorSelection) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *AuthenticatorSelection) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_AuthenticatorSelection.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *AuthenticatorSelection) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AuthenticatorSelection.Merge(m, src)
-}
-func (m *AuthenticatorSelection) XXX_Size() int {
-	return m.Size()
-}
-func (m *AuthenticatorSelection) XXX_DiscardUnknown() {
-	xxx_messageInfo_AuthenticatorSelection.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_AuthenticatorSelection proto.InternalMessageInfo
-
-func (m *AuthenticatorSelection) GetAuthenticatorAttachment() string {
-	if m != nil {
-		return m.AuthenticatorAttachment
-	}
-	return ""
-}
-
-func (m *AuthenticatorSelection) GetRequireResidentKey() bool {
-	if m != nil {
-		return m.RequireResidentKey
-	}
-	return false
-}
-
-func (m *AuthenticatorSelection) GetUserVerification() string {
-	if m != nil {
-		return m.UserVerification
-	}
-	return ""
-}
-
 // Public key credential descriptor.
 // https://www.w3.org/TR/webauthn-2/#dictdef-publickeycredentialdescriptor.
 type CredentialDescriptor struct {
 	// Type of the credential, usually "public-key".
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// Raw Credential ID.
-	Id []byte `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
-	// Authenticator transport hint, optional.
-	// https://www.w3.org/TR/webauthn-2/#enumdef-authenticatortransport.
-	Transports           []string `protobuf:"bytes,3,rep,name=transports,proto3" json:"transports,omitempty"`
+	Id                   []byte   `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -935,7 +826,7 @@ func (m *CredentialDescriptor) Reset()         { *m = CredentialDescriptor{} }
 func (m *CredentialDescriptor) String() string { return proto.CompactTextString(m) }
 func (*CredentialDescriptor) ProtoMessage()    {}
 func (*CredentialDescriptor) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ef16125abd047465, []int{12}
+	return fileDescriptor_ef16125abd047465, []int{11}
 }
 func (m *CredentialDescriptor) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -978,13 +869,6 @@ func (m *CredentialDescriptor) GetId() []byte {
 	return nil
 }
 
-func (m *CredentialDescriptor) GetTransports() []string {
-	if m != nil {
-		return m.Transports
-	}
-	return nil
-}
-
 // Parameters for credential creation.
 // https://www.w3.org/TR/webauthn-2/#dictdef-publickeycredentialparameters.
 type CredentialParameter struct {
@@ -1004,7 +888,7 @@ func (m *CredentialParameter) Reset()         { *m = CredentialParameter{} }
 func (m *CredentialParameter) String() string { return proto.CompactTextString(m) }
 func (*CredentialParameter) ProtoMessage()    {}
 func (*CredentialParameter) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ef16125abd047465, []int{13}
+	return fileDescriptor_ef16125abd047465, []int{12}
 }
 func (m *CredentialParameter) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1064,7 +948,7 @@ func (m *RelyingPartyEntity) Reset()         { *m = RelyingPartyEntity{} }
 func (m *RelyingPartyEntity) String() string { return proto.CompactTextString(m) }
 func (*RelyingPartyEntity) ProtoMessage()    {}
 func (*RelyingPartyEntity) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ef16125abd047465, []int{14}
+	return fileDescriptor_ef16125abd047465, []int{13}
 }
 func (m *RelyingPartyEntity) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1138,7 +1022,7 @@ func (m *UserEntity) Reset()         { *m = UserEntity{} }
 func (m *UserEntity) String() string { return proto.CompactTextString(m) }
 func (*UserEntity) ProtoMessage()    {}
 func (*UserEntity) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ef16125abd047465, []int{15}
+	return fileDescriptor_ef16125abd047465, []int{14}
 }
 func (m *UserEntity) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1207,7 +1091,6 @@ func init() {
 	proto.RegisterType((*AuthenticatorAttestationResponse)(nil), "webauthn.AuthenticatorAttestationResponse")
 	proto.RegisterType((*AuthenticationExtensionsClientInputs)(nil), "webauthn.AuthenticationExtensionsClientInputs")
 	proto.RegisterType((*AuthenticationExtensionsClientOutputs)(nil), "webauthn.AuthenticationExtensionsClientOutputs")
-	proto.RegisterType((*AuthenticatorSelection)(nil), "webauthn.AuthenticatorSelection")
 	proto.RegisterType((*CredentialDescriptor)(nil), "webauthn.CredentialDescriptor")
 	proto.RegisterType((*CredentialParameter)(nil), "webauthn.CredentialParameter")
 	proto.RegisterType((*RelyingPartyEntity)(nil), "webauthn.RelyingPartyEntity")
@@ -1217,69 +1100,61 @@ func init() {
 func init() { proto.RegisterFile("webauthn.proto", fileDescriptor_ef16125abd047465) }
 
 var fileDescriptor_ef16125abd047465 = []byte{
-	// 989 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x56, 0x5f, 0x6f, 0x1b, 0x45,
-	0x10, 0xd7, 0xf9, 0x5f, 0xe3, 0xb1, 0x55, 0xa5, 0x1b, 0xb7, 0xb5, 0x42, 0xea, 0xb8, 0x27, 0x90,
-	0x2c, 0x9a, 0xa6, 0xc8, 0x88, 0x07, 0x84, 0x40, 0xca, 0x9f, 0x22, 0xd2, 0x40, 0x1d, 0x6d, 0x05,
-	0x12, 0xbc, 0x9c, 0x36, 0x77, 0x83, 0xbd, 0xe5, 0x7c, 0xb7, 0xdd, 0xdd, 0x23, 0xb5, 0xf8, 0x0c,
-	0x7c, 0x12, 0xde, 0x78, 0xe2, 0x8d, 0x57, 0x1e, 0xf9, 0x04, 0xa1, 0xca, 0x63, 0x3e, 0x05, 0xba,
-	0xbd, 0xf3, 0xdd, 0xd9, 0xbe, 0x34, 0x01, 0x24, 0xde, 0xd6, 0x33, 0xf3, 0x9b, 0xd9, 0xf9, 0xed,
-	0xcc, 0xcf, 0x07, 0xb7, 0xcf, 0xf0, 0x94, 0x45, 0x7a, 0x12, 0xec, 0x0a, 0x19, 0xea, 0x90, 0xac,
-	0xcd, 0x7f, 0x6f, 0x76, 0xc6, 0xe1, 0x38, 0x34, 0xc6, 0x27, 0xf1, 0x29, 0xf1, 0xdb, 0x3f, 0x57,
-	0xa0, 0xf5, 0x02, 0x95, 0xe2, 0x61, 0x70, 0xc8, 0x34, 0x23, 0x1f, 0x41, 0xd3, 0x9d, 0x30, 0xdf,
-	0xc7, 0x60, 0x8c, 0x5d, 0xab, 0x6f, 0x0d, 0xda, 0xfb, 0xf7, 0x2f, 0xcf, 0xb7, 0x37, 0x32, 0xe3,
-	0x4e, 0x38, 0xe5, 0x1a, 0xa7, 0x42, 0xcf, 0x68, 0x1e, 0x49, 0x1e, 0xc3, 0xad, 0x48, 0xa1, 0x74,
-	0xb8, 0xd7, 0xad, 0x18, 0x50, 0xe7, 0xf2, 0x7c, 0x7b, 0x3d, 0x36, 0x1d, 0x79, 0x05, 0x44, 0x23,
-	0xb1, 0x90, 0x63, 0xb8, 0xc3, 0x7c, 0x3f, 0x3c, 0x73, 0x5c, 0x89, 0x1e, 0x06, 0x9a, 0x33, 0x5f,
-	0x75, 0xab, 0xfd, 0xea, 0xa0, 0xbd, 0xdf, 0xbb, 0x3c, 0xdf, 0xde, 0x34, 0xce, 0x83, 0xdc, 0x57,
-	0x48, 0xb1, 0xbe, 0xec, 0x8b, 0x93, 0x99, 0xda, 0x3f, 0xa2, 0xe4, 0xdf, 0x73, 0x97, 0x69, 0x1e,
-	0x06, 0xdd, 0x5a, 0xdf, 0x1a, 0x34, 0x93, 0x64, 0xb1, 0xf3, 0x9b, 0x82, 0xaf, 0x98, 0x6c, 0xd9,
-	0x67, 0x33, 0xd8, 0xc8, 0x73, 0xef, 0x29, 0x85, 0x32, 0x36, 0x93, 0x67, 0x00, 0x22, 0x3a, 0xf5,
-	0xb9, 0xeb, 0xfc, 0x80, 0x33, 0xc3, 0x4b, 0x6b, 0xf8, 0x68, 0x37, 0xe3, 0xfa, 0xc4, 0xf8, 0x8e,
-	0x71, 0x96, 0x63, 0x29, 0xbe, 0x8a, 0x50, 0xe9, 0x91, 0x88, 0xf1, 0x8a, 0x36, 0xc5, 0x3c, 0xc4,
-	0xfe, 0xbd, 0x02, 0x0f, 0xaf, 0x05, 0x90, 0xad, 0x95, 0x87, 0x28, 0xf2, 0xfd, 0x00, 0x40, 0xf3,
-	0x29, 0x86, 0x91, 0x76, 0xa6, 0xca, 0x50, 0x5e, 0xa5, 0xcd, 0xd4, 0xf2, 0x95, 0x22, 0x1b, 0x50,
-	0x97, 0x22, 0x7e, 0x8c, 0x6a, 0x4c, 0x03, 0xad, 0x49, 0x71, 0x15, 0xe9, 0xb5, 0x7e, 0x75, 0xd0,
-	0x1a, 0xf6, 0xf2, 0x56, 0xf2, 0x0b, 0x1d, 0xa2, 0x72, 0x25, 0x17, 0x3a, 0x94, 0x25, 0xa4, 0x3f,
-	0x2a, 0x23, 0xbd, 0x6e, 0xaa, 0xad, 0x90, 0x4a, 0x9e, 0x03, 0xe0, 0x6b, 0x8d, 0x41, 0x3c, 0x65,
-	0xaa, 0xdb, 0x30, 0xec, 0xed, 0xe6, 0x25, 0xf7, 0x22, 0x3d, 0x89, 0xf3, 0x26, 0xd1, 0x4f, 0xb3,
-	0xc8, 0x03, 0x9f, 0x63, 0xa0, 0x8f, 0x02, 0x11, 0x69, 0x45, 0x0b, 0x19, 0xec, 0xbf, 0x2c, 0x78,
-	0xa7, 0xe4, 0x95, 0x28, 0x2a, 0x11, 0x06, 0x0a, 0x09, 0x81, 0x9a, 0x9e, 0x89, 0x84, 0xb6, 0x26,
-	0x35, 0x67, 0x72, 0x17, 0x1a, 0x92, 0x9d, 0x65, 0x03, 0x4a, 0xeb, 0x92, 0x9d, 0x1d, 0x79, 0xe4,
-	0x10, 0xd6, 0x64, 0x0a, 0x33, 0x64, 0xb5, 0x86, 0x83, 0xd2, 0x8b, 0x85, 0x72, 0xa5, 0x0c, 0xcd,
-	0x90, 0x64, 0xb4, 0xd0, 0x60, 0xcd, 0xe4, 0x79, 0x72, 0xd3, 0x06, 0x47, 0x91, 0x5e, 0xe9, 0xf0,
-	0x37, 0x0b, 0x7a, 0x6f, 0xaf, 0x4e, 0x06, 0xb0, 0xee, 0x1a, 0xbc, 0xe3, 0x31, 0xcd, 0x9c, 0x97,
-	0x2a, 0x0c, 0xd2, 0x39, 0xb9, 0x9d, 0xd8, 0xe3, 0x7d, 0x7e, 0xa6, 0xc2, 0x80, 0x3c, 0x06, 0xc2,
-	0x8a, 0xb9, 0x0c, 0x20, 0xa5, 0xe1, 0xce, 0x82, 0xc7, 0x48, 0xc0, 0x16, 0x34, 0x15, 0x1f, 0x07,
-	0x4c, 0x47, 0x32, 0xe1, 0xa4, 0x4d, 0x73, 0x03, 0xd9, 0x86, 0x96, 0x79, 0xf8, 0x09, 0x0b, 0x3c,
-	0x1f, 0x4d, 0xaf, 0x6d, 0x0a, 0xb1, 0xe9, 0x0b, 0x63, 0xb1, 0x19, 0x90, 0xfc, 0x6d, 0x0e, 0x24,
-	0x26, 0x23, 0x70, 0x5c, 0xb2, 0x40, 0x3b, 0x6f, 0x5d, 0xa0, 0x39, 0xb4, 0x64, 0x83, 0x7e, 0xa9,
-	0x81, 0x7d, 0x3d, 0xe2, 0x9a, 0x15, 0xda, 0x81, 0x8a, 0x14, 0x86, 0x85, 0xd6, 0x70, 0x2b, 0xbf,
-	0x09, 0x45, 0x7f, 0xc6, 0x83, 0xf1, 0x09, 0x93, 0x7a, 0xf6, 0x34, 0xd0, 0x5c, 0xcf, 0x68, 0x45,
-	0x0a, 0x32, 0x80, 0x5a, 0xdc, 0x63, 0x3a, 0x23, 0x9d, 0x3c, 0xfe, 0x6b, 0x85, 0x32, 0x8d, 0x33,
-	0x11, 0x84, 0xc2, 0xdd, 0x7c, 0xc1, 0x1c, 0xc1, 0x24, 0x9b, 0xa2, 0x46, 0x39, 0x5f, 0xb5, 0x07,
-	0x65, 0xab, 0x76, 0x32, 0x8f, 0xa2, 0x1d, 0x77, 0xd5, 0xa8, 0xc8, 0xb7, 0x70, 0x7f, 0xf1, 0x05,
-	0x15, 0xfa, 0xe8, 0x66, 0x3b, 0xd7, 0x1a, 0xf6, 0xaf, 0x18, 0xda, 0x17, 0xf3, 0x38, 0x7a, 0x8f,
-	0x95, 0xda, 0x97, 0x94, 0xa4, 0xb1, 0xac, 0x24, 0x23, 0xd8, 0xc0, 0xd7, 0xae, 0x1f, 0x79, 0xb8,
-	0x20, 0x1b, 0xb7, 0x6e, 0x24, 0x1b, 0x24, 0x85, 0x16, 0x85, 0xa3, 0x0f, 0x2d, 0xa6, 0x35, 0x2a,
-	0x9d, 0x48, 0xc6, 0x9a, 0x59, 0xd1, 0xa2, 0x69, 0x49, 0x2d, 0x9a, 0xff, 0x59, 0x2d, 0xde, 0x58,
-	0xb0, 0xb9, 0x3a, 0x24, 0xff, 0x46, 0x2c, 0x3e, 0x5f, 0x11, 0x8b, 0xf7, 0xaf, 0x12, 0x8b, 0xbc,
-	0x9f, 0xff, 0x43, 0x2e, 0x7e, 0x82, 0xfe, 0x75, 0xe5, 0xff, 0xa1, 0x5e, 0xe4, 0x09, 0x9c, 0xf0,
-	0xf4, 0x25, 0xba, 0x3a, 0xd3, 0x8b, 0xdc, 0x33, 0x32, 0x0e, 0xfb, 0x53, 0x78, 0xf7, 0x26, 0x6f,
-	0x12, 0x93, 0xca, 0x84, 0xf9, 0x57, 0x4a, 0xa8, 0xae, 0x33, 0x21, 0x8e, 0x3c, 0xfb, 0x33, 0x78,
-	0xef, 0x46, 0x0d, 0x2f, 0xe1, 0xd7, 0xe6, 0xf8, 0x5f, 0x2d, 0xb8, 0x57, 0x3e, 0xf3, 0xe4, 0x63,
-	0xe8, 0x2e, 0xae, 0x0d, 0xd3, 0x9a, 0xb9, 0x93, 0x29, 0x06, 0x3a, 0xbd, 0xc3, 0xe2, 0x5a, 0xed,
-	0x65, 0x6e, 0xf2, 0x01, 0x74, 0x24, 0xbe, 0x8a, 0xb8, 0x44, 0x47, 0xa2, 0xe2, 0xf1, 0xf0, 0x18,
-	0xe5, 0xaa, 0x98, 0xd2, 0x24, 0xf5, 0xd1, 0xd4, 0x75, 0x8c, 0xb3, 0xf2, 0x7f, 0xc4, 0x6a, 0xf9,
-	0x3f, 0xa2, 0xfd, 0x1d, 0x74, 0xca, 0x36, 0xa6, 0x74, 0x18, 0x6f, 0x43, 0x25, 0x1b, 0xc4, 0x0a,
-	0xf7, 0x48, 0x0f, 0x40, 0x4b, 0x16, 0x28, 0x11, 0x4a, 0x9d, 0x7c, 0x35, 0x35, 0x69, 0xc1, 0x62,
-	0x7f, 0x52, 0xfc, 0x84, 0xc9, 0x44, 0xa4, 0x34, 0xf5, 0x3a, 0x54, 0x99, 0x3f, 0x36, 0xb9, 0xeb,
-	0x34, 0x3e, 0xda, 0x5f, 0x02, 0x59, 0x55, 0xc0, 0xf4, 0x0a, 0x09, 0x32, 0xbe, 0x02, 0x81, 0x5a,
-	0xc0, 0xa6, 0x68, 0x80, 0x4d, 0x6a, 0xce, 0xb1, 0x8d, 0xbb, 0x59, 0xcb, 0xe6, 0x6c, 0x8f, 0x01,
-	0x72, 0x7d, 0x2c, 0x64, 0x69, 0x5f, 0x99, 0xe5, 0x21, 0xb4, 0x3d, 0xae, 0x84, 0xcf, 0x66, 0x8e,
-	0xf1, 0x25, 0xd9, 0x5a, 0xa9, 0xed, 0x79, 0xb1, 0x50, 0x2d, 0x2f, 0xb4, 0xdf, 0xfe, 0xe3, 0xa2,
-	0x67, 0xfd, 0x79, 0xd1, 0xb3, 0xde, 0x5c, 0xf4, 0xac, 0xd3, 0x86, 0xf9, 0xb6, 0xfd, 0xf0, 0xef,
-	0x00, 0x00, 0x00, 0xff, 0xff, 0xb2, 0x12, 0xd9, 0xc4, 0x0d, 0x0b, 0x00, 0x00,
+	// 850 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x96, 0xdf, 0x6e, 0xdb, 0x36,
+	0x14, 0xc6, 0x21, 0xff, 0x49, 0xe3, 0x63, 0x23, 0x48, 0x19, 0x17, 0x33, 0xb2, 0xd4, 0x71, 0x85,
+	0x0d, 0x30, 0xb6, 0x34, 0x05, 0x32, 0xec, 0x66, 0xc3, 0x06, 0x34, 0x49, 0x87, 0xa5, 0xd9, 0xea,
+	0x80, 0xc3, 0xae, 0x05, 0x46, 0x22, 0x1c, 0x76, 0x32, 0xc9, 0x91, 0x14, 0x52, 0x63, 0x6f, 0xb1,
+	0xa7, 0xd9, 0xe5, 0x2e, 0x77, 0xd9, 0x27, 0xc8, 0x8a, 0x5c, 0xe6, 0x29, 0x06, 0x51, 0xb2, 0xa8,
+	0x58, 0x4a, 0xe3, 0x6d, 0x40, 0xef, 0xe8, 0x73, 0xce, 0x77, 0xa8, 0xf3, 0x1d, 0xfd, 0x20, 0xc3,
+	0xc6, 0x25, 0x3d, 0x27, 0x89, 0xb9, 0xe0, 0xfb, 0x52, 0x09, 0x23, 0xd0, 0xfa, 0xe2, 0xf7, 0x76,
+	0x7f, 0x2a, 0xa6, 0xc2, 0x06, 0x9f, 0xa5, 0xa7, 0x2c, 0xef, 0xff, 0xe9, 0x41, 0xf7, 0x27, 0xaa,
+	0x35, 0x13, 0xfc, 0x98, 0x18, 0x82, 0xbe, 0x84, 0x4e, 0x78, 0x41, 0xe2, 0x98, 0xf2, 0x29, 0x1d,
+	0x78, 0x23, 0x6f, 0xdc, 0x3b, 0xfc, 0xe8, 0xe6, 0x6a, 0x77, 0xab, 0x08, 0xee, 0x89, 0x19, 0x33,
+	0x74, 0x26, 0xcd, 0x1c, 0xbb, 0x4a, 0xf4, 0x14, 0x1e, 0x24, 0x9a, 0xaa, 0x80, 0x45, 0x83, 0x86,
+	0x15, 0xf5, 0x6f, 0xae, 0x76, 0x37, 0xd3, 0xd0, 0x49, 0x54, 0x52, 0xac, 0x65, 0x11, 0x74, 0x0a,
+	0x0f, 0x49, 0x1c, 0x8b, 0xcb, 0x20, 0x54, 0x34, 0xa2, 0xdc, 0x30, 0x12, 0xeb, 0x41, 0x73, 0xd4,
+	0x1c, 0xf7, 0x0e, 0x87, 0x37, 0x57, 0xbb, 0xdb, 0x36, 0x79, 0xe4, 0x72, 0xa5, 0x16, 0x9b, 0xcb,
+	0x39, 0x9f, 0xc0, 0x96, 0xfb, 0xf9, 0x5c, 0x6b, 0xaa, 0x0c, 0x13, 0x1c, 0xbd, 0x04, 0x90, 0xc9,
+	0x79, 0xcc, 0xc2, 0xe0, 0x17, 0x3a, 0xb7, 0xa3, 0x74, 0x0f, 0x3e, 0xdf, 0x2f, 0xec, 0x39, 0xb3,
+	0xb9, 0x53, 0x3a, 0x77, 0x5a, 0x4c, 0x7f, 0x4d, 0xa8, 0x36, 0x13, 0x99, 0xea, 0x35, 0xee, 0xc8,
+	0x45, 0x89, 0xff, 0x7b, 0x03, 0x9e, 0xdc, 0x2b, 0x40, 0x3b, 0x15, 0xef, 0xca, 0x16, 0x3d, 0x06,
+	0x30, 0x6c, 0x46, 0x45, 0x62, 0x82, 0x99, 0xb6, 0x2e, 0x35, 0x71, 0x27, 0x8f, 0xfc, 0xa8, 0xd1,
+	0x16, 0xb4, 0x95, 0x4c, 0xfd, 0x6b, 0x8e, 0xbc, 0x71, 0x07, 0xb7, 0x94, 0xbc, 0xcb, 0xa7, 0xd6,
+	0xa8, 0x39, 0xee, 0x1e, 0x0c, 0xdd, 0x28, 0xee, 0x81, 0x8e, 0xa9, 0x0e, 0x15, 0x93, 0x46, 0xa8,
+	0xaa, 0x4f, 0xe8, 0x15, 0x00, 0x7d, 0x63, 0x28, 0x4f, 0x77, 0xad, 0x07, 0x6d, 0x6b, 0xc8, 0xbe,
+	0xeb, 0xf2, 0x3c, 0x31, 0x17, 0x69, 0x69, 0x48, 0xd2, 0x69, 0x5e, 0x14, 0x95, 0x47, 0x31, 0xa3,
+	0xdc, 0x9c, 0x70, 0x99, 0x18, 0x8d, 0x4b, 0x1d, 0xfc, 0xbf, 0x3d, 0xf8, 0xb8, 0xc6, 0x78, 0x4c,
+	0xb5, 0x14, 0x5c, 0x53, 0x84, 0xa0, 0x65, 0xe6, 0x32, 0x73, 0xa2, 0x83, 0xed, 0x19, 0x3d, 0x82,
+	0x35, 0x45, 0x2e, 0x8b, 0xd7, 0x04, 0xb7, 0x15, 0xb9, 0x3c, 0x89, 0xd0, 0x31, 0xac, 0xab, 0x5c,
+	0x66, 0xe7, 0xef, 0x1e, 0x8c, 0x6b, 0x1f, 0x4c, 0xa8, 0xca, 0x35, 0xb8, 0x50, 0xa2, 0xc9, 0xad,
+	0x01, 0x5b, 0xb6, 0xcf, 0xb3, 0x55, 0x07, 0x9c, 0x24, 0xa6, 0x32, 0xe1, 0x1f, 0x1e, 0x0c, 0xdf,
+	0x7f, 0x3b, 0x1a, 0xc3, 0x66, 0x68, 0xf5, 0x41, 0x44, 0x0c, 0x09, 0x5e, 0x6b, 0xc1, 0xf3, 0xd5,
+	0x6f, 0x64, 0xf1, 0x94, 0xaa, 0x97, 0x5a, 0x70, 0xf4, 0x14, 0x10, 0x29, 0xf7, 0xb2, 0x82, 0xdc,
+	0x86, 0x87, 0xb7, 0x32, 0x16, 0xc4, 0x1d, 0xe8, 0x68, 0x36, 0xe5, 0xc4, 0x24, 0x2a, 0xf3, 0xa4,
+	0x87, 0x5d, 0x00, 0xed, 0x42, 0xd7, 0xf2, 0x76, 0x41, 0x78, 0x14, 0x53, 0x3b, 0x6b, 0x0f, 0x43,
+	0x1a, 0xfa, 0xde, 0x46, 0x7c, 0x02, 0xc8, 0xed, 0xe6, 0x48, 0x51, 0x3b, 0x33, 0x3a, 0xad, 0x61,
+	0x62, 0xef, 0xbd, 0x4c, 0x2c, 0xa4, 0x35, 0x50, 0xbc, 0x6d, 0x82, 0x7f, 0xbf, 0xe2, 0x1e, 0x2a,
+	0xf6, 0xa0, 0xa1, 0xa4, 0x75, 0xa1, 0x7b, 0xb0, 0xe3, 0x9e, 0x04, 0xd3, 0x78, 0xce, 0xf8, 0xf4,
+	0x8c, 0x28, 0x33, 0x7f, 0xc1, 0x0d, 0x33, 0x73, 0xdc, 0x50, 0x12, 0x8d, 0xa1, 0x95, 0xce, 0x98,
+	0xbf, 0x23, 0x7d, 0x57, 0xff, 0xb3, 0xa6, 0x2a, 0xaf, 0xb3, 0x15, 0x08, 0xc3, 0x23, 0xc7, 0x4c,
+	0x20, 0x89, 0x22, 0x33, 0x6a, 0xa8, 0x5a, 0xd0, 0xf3, 0xb8, 0x8e, 0x9e, 0xb3, 0x45, 0x15, 0xee,
+	0x87, 0xd5, 0xa0, 0x5e, 0x22, 0xb8, 0xbd, 0x4c, 0xf0, 0x04, 0xb6, 0xe8, 0x9b, 0x30, 0x4e, 0x22,
+	0x7a, 0x0b, 0xd7, 0xb5, 0x95, 0x70, 0x45, 0xb9, 0xb4, 0x0c, 0xec, 0x08, 0xba, 0xc4, 0x18, 0xaa,
+	0x8d, 0xf5, 0x73, 0xf0, 0xc0, 0x72, 0x54, 0x0e, 0x2d, 0x21, 0xbd, 0xfe, 0xbf, 0x91, 0x7e, 0xe7,
+	0xc1, 0x76, 0x75, 0x93, 0xff, 0x85, 0xe8, 0xef, 0x2a, 0x44, 0x7f, 0x76, 0x17, 0xd1, 0x6e, 0x9e,
+	0x0f, 0xc1, 0xf4, 0x6f, 0x30, 0xba, 0xef, 0xfa, 0x7f, 0x09, 0xb5, 0x6b, 0x10, 0x88, 0xf3, 0xd7,
+	0x34, 0x34, 0x05, 0xd4, 0x2e, 0x33, 0xb1, 0x09, 0xff, 0x1b, 0xf8, 0x64, 0x95, 0x9d, 0xa4, 0xa6,
+	0x12, 0x69, 0xbf, 0x06, 0x99, 0xd5, 0x6d, 0x22, 0xe5, 0x49, 0xe4, 0x7f, 0x0b, 0x9f, 0xae, 0x34,
+	0xf0, 0x92, 0x7e, 0x7d, 0xa1, 0xff, 0x0a, 0xfa, 0x75, 0x2f, 0x5f, 0xed, 0x5e, 0x37, 0xa0, 0x51,
+	0xec, 0xb4, 0xc1, 0x22, 0xff, 0xeb, 0xf2, 0x57, 0xb6, 0x80, 0xa2, 0x56, 0xba, 0x09, 0x4d, 0x12,
+	0x4f, 0xad, 0xb6, 0x8d, 0xd3, 0xa3, 0xff, 0x03, 0xa0, 0x2a, 0xd1, 0xf9, 0x15, 0x99, 0xb2, 0xc1,
+	0xa2, 0xb4, 0x17, 0x27, 0x33, 0x6a, 0x85, 0x1d, 0x6c, 0xcf, 0x69, 0x8c, 0x85, 0x82, 0x2f, 0xbe,
+	0x8a, 0xe9, 0xd9, 0x9f, 0x02, 0x38, 0xde, 0x4b, 0x5d, 0x7a, 0x77, 0x76, 0x79, 0x02, 0xbd, 0x88,
+	0x69, 0x19, 0x93, 0x79, 0x60, 0x73, 0x59, 0xb7, 0x6e, 0x1e, 0x7b, 0x55, 0xbe, 0xa8, 0xe5, 0x2e,
+	0x3a, 0xec, 0xfd, 0x75, 0x3d, 0xf4, 0xde, 0x5e, 0x0f, 0xbd, 0x77, 0xd7, 0x43, 0xef, 0x7c, 0xcd,
+	0xfe, 0x63, 0xfa, 0xe2, 0x9f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xa5, 0x55, 0x45, 0x3d, 0x63, 0x09,
+	0x00, 0x00,
 }
 
 func (m *SessionData) Marshal() (dAtA []byte, err error) {
@@ -1305,13 +1180,6 @@ func (m *SessionData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.UserVerification) > 0 {
-		i -= len(m.UserVerification)
-		copy(dAtA[i:], m.UserVerification)
-		i = encodeVarintWebauthn(dAtA, i, uint64(len(m.UserVerification)))
-		i--
-		dAtA[i] = 0x22
 	}
 	if len(m.AllowCredentials) > 0 {
 		for iNdEx := len(m.AllowCredentials) - 1; iNdEx >= 0; iNdEx-- {
@@ -1411,13 +1279,6 @@ func (m *PublicKeyCredentialRequestOptions) MarshalToSizedBuffer(dAtA []byte) (i
 			i -= size
 			i = encodeVarintWebauthn(dAtA, i, uint64(size))
 		}
-		i--
-		dAtA[i] = 0x32
-	}
-	if len(m.UserVerification) > 0 {
-		i -= len(m.UserVerification)
-		copy(dAtA[i:], m.UserVerification)
-		i = encodeVarintWebauthn(dAtA, i, uint64(len(m.UserVerification)))
 		i--
 		dAtA[i] = 0x2a
 	}
@@ -1650,14 +1511,14 @@ func (m *PublicKeyCredentialCreationOptions) MarshalToSizedBuffer(dAtA []byte) (
 			i = encodeVarintWebauthn(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x4a
+		dAtA[i] = 0x42
 	}
 	if len(m.Attestation) > 0 {
 		i -= len(m.Attestation)
 		copy(dAtA[i:], m.Attestation)
 		i = encodeVarintWebauthn(dAtA, i, uint64(len(m.Attestation)))
 		i--
-		dAtA[i] = 0x42
+		dAtA[i] = 0x3a
 	}
 	if len(m.ExcludeCredentials) > 0 {
 		for iNdEx := len(m.ExcludeCredentials) - 1; iNdEx >= 0; iNdEx-- {
@@ -1670,25 +1531,13 @@ func (m *PublicKeyCredentialCreationOptions) MarshalToSizedBuffer(dAtA []byte) (
 				i = encodeVarintWebauthn(dAtA, i, uint64(size))
 			}
 			i--
-			dAtA[i] = 0x3a
+			dAtA[i] = 0x32
 		}
 	}
 	if m.TimeoutMs != 0 {
 		i = encodeVarintWebauthn(dAtA, i, uint64(m.TimeoutMs))
 		i--
-		dAtA[i] = 0x30
-	}
-	if m.AuthenticatorSelection != nil {
-		{
-			size, err := m.AuthenticatorSelection.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintWebauthn(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x2a
+		dAtA[i] = 0x28
 	}
 	if len(m.CredentialParameters) > 0 {
 		for iNdEx := len(m.CredentialParameters) - 1; iNdEx >= 0; iNdEx-- {
@@ -1915,57 +1764,6 @@ func (m *AuthenticationExtensionsClientOutputs) MarshalToSizedBuffer(dAtA []byte
 	return len(dAtA) - i, nil
 }
 
-func (m *AuthenticatorSelection) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *AuthenticatorSelection) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AuthenticatorSelection) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.UserVerification) > 0 {
-		i -= len(m.UserVerification)
-		copy(dAtA[i:], m.UserVerification)
-		i = encodeVarintWebauthn(dAtA, i, uint64(len(m.UserVerification)))
-		i--
-		dAtA[i] = 0x1a
-	}
-	if m.RequireResidentKey {
-		i--
-		if m.RequireResidentKey {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
-		dAtA[i] = 0x10
-	}
-	if len(m.AuthenticatorAttachment) > 0 {
-		i -= len(m.AuthenticatorAttachment)
-		copy(dAtA[i:], m.AuthenticatorAttachment)
-		i = encodeVarintWebauthn(dAtA, i, uint64(len(m.AuthenticatorAttachment)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *CredentialDescriptor) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1989,15 +1787,6 @@ func (m *CredentialDescriptor) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Transports) > 0 {
-		for iNdEx := len(m.Transports) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Transports[iNdEx])
-			copy(dAtA[i:], m.Transports[iNdEx])
-			i = encodeVarintWebauthn(dAtA, i, uint64(len(m.Transports[iNdEx])))
-			i--
-			dAtA[i] = 0x1a
-		}
 	}
 	if len(m.Id) > 0 {
 		i -= len(m.Id)
@@ -2189,10 +1978,6 @@ func (m *SessionData) Size() (n int) {
 			n += 1 + l + sovWebauthn(uint64(l))
 		}
 	}
-	l = len(m.UserVerification)
-	if l > 0 {
-		n += 1 + l + sovWebauthn(uint64(l))
-	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -2237,10 +2022,6 @@ func (m *PublicKeyCredentialRequestOptions) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovWebauthn(uint64(l))
 		}
-	}
-	l = len(m.UserVerification)
-	if l > 0 {
-		n += 1 + l + sovWebauthn(uint64(l))
 	}
 	if m.Extensions != nil {
 		l = m.Extensions.Size()
@@ -2348,10 +2129,6 @@ func (m *PublicKeyCredentialCreationOptions) Size() (n int) {
 			n += 1 + l + sovWebauthn(uint64(l))
 		}
 	}
-	if m.AuthenticatorSelection != nil {
-		l = m.AuthenticatorSelection.Size()
-		n += 1 + l + sovWebauthn(uint64(l))
-	}
 	if m.TimeoutMs != 0 {
 		n += 1 + sovWebauthn(uint64(m.TimeoutMs))
 	}
@@ -2454,29 +2231,6 @@ func (m *AuthenticationExtensionsClientOutputs) Size() (n int) {
 	return n
 }
 
-func (m *AuthenticatorSelection) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.AuthenticatorAttachment)
-	if l > 0 {
-		n += 1 + l + sovWebauthn(uint64(l))
-	}
-	if m.RequireResidentKey {
-		n += 2
-	}
-	l = len(m.UserVerification)
-	if l > 0 {
-		n += 1 + l + sovWebauthn(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
 func (m *CredentialDescriptor) Size() (n int) {
 	if m == nil {
 		return 0
@@ -2490,12 +2244,6 @@ func (m *CredentialDescriptor) Size() (n int) {
 	l = len(m.Id)
 	if l > 0 {
 		n += 1 + l + sovWebauthn(uint64(l))
-	}
-	if len(m.Transports) > 0 {
-		for _, s := range m.Transports {
-			l = len(s)
-			n += 1 + l + sovWebauthn(uint64(l))
-		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -2708,38 +2456,6 @@ func (m *SessionData) Unmarshal(dAtA []byte) error {
 			}
 			m.AllowCredentials = append(m.AllowCredentials, make([]byte, postIndex-iNdEx))
 			copy(m.AllowCredentials[len(m.AllowCredentials)-1], dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UserVerification", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWebauthn
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.UserVerification = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -2999,38 +2715,6 @@ func (m *PublicKeyCredentialRequestOptions) Unmarshal(dAtA []byte) error {
 			}
 			iNdEx = postIndex
 		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UserVerification", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWebauthn
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.UserVerification = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 6:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Extensions", wireType)
 			}
@@ -3721,42 +3405,6 @@ func (m *PublicKeyCredentialCreationOptions) Unmarshal(dAtA []byte) error {
 			}
 			iNdEx = postIndex
 		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AuthenticatorSelection", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWebauthn
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.AuthenticatorSelection == nil {
-				m.AuthenticatorSelection = &AuthenticatorSelection{}
-			}
-			if err := m.AuthenticatorSelection.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 6:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TimeoutMs", wireType)
 			}
@@ -3775,7 +3423,7 @@ func (m *PublicKeyCredentialCreationOptions) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 7:
+		case 6:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ExcludeCredentials", wireType)
 			}
@@ -3809,7 +3457,7 @@ func (m *PublicKeyCredentialCreationOptions) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 8:
+		case 7:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Attestation", wireType)
 			}
@@ -3841,7 +3489,7 @@ func (m *PublicKeyCredentialCreationOptions) Unmarshal(dAtA []byte) error {
 			}
 			m.Attestation = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 9:
+		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Extensions", wireType)
 			}
@@ -4361,141 +4009,6 @@ func (m *AuthenticationExtensionsClientOutputs) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *AuthenticatorSelection) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowWebauthn
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: AuthenticatorSelection: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: AuthenticatorSelection: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AuthenticatorAttachment", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWebauthn
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.AuthenticatorAttachment = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RequireResidentKey", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWebauthn
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.RequireResidentKey = bool(v != 0)
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UserVerification", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWebauthn
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.UserVerification = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipWebauthn(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *CredentialDescriptor) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4590,38 +4103,6 @@ func (m *CredentialDescriptor) Unmarshal(dAtA []byte) error {
 			if m.Id == nil {
 				m.Id = []byte{}
 			}
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Transports", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWebauthn
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWebauthn
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Transports = append(m.Transports, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
