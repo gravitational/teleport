@@ -24,7 +24,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 
 	radix "github.com/armon/go-radix"
 	"github.com/gravitational/trace"
@@ -36,23 +35,27 @@ import (
 type CircularBuffer struct {
 	sync.Mutex
 	*log.Entry
-	events       []Event
-	start        int
-	end          int
-	size         int
-	init, closed bool
-	watchers     *watcherTree
+	ctx      context.Context
+	cancel   context.CancelFunc
+	events   []Event
+	start    int
+	end      int
+	size     int
+	watchers *watcherTree
 }
 
-// NewCircularBuffer returns a new uninitialized instance of circular buffer.
-func NewCircularBuffer(size int) (*CircularBuffer, error) {
+// NewCircularBuffer returns a new instance of circular buffer
+func NewCircularBuffer(ctx context.Context, size int) (*CircularBuffer, error) {
 	if size <= 0 {
 		return nil, trace.BadParameter("circular buffer size should be > 0")
 	}
+	ctx, cancel := context.WithCancel(ctx)
 	buf := &CircularBuffer{
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentBuffer,
 		}),
+		ctx:      ctx,
+		cancel:   cancel,
 		events:   make([]Event, size),
 		start:    -1,
 		end:      -1,
@@ -62,26 +65,11 @@ func NewCircularBuffer(size int) (*CircularBuffer, error) {
 	return buf, nil
 }
 
-// Clear clears all events from the queue and closes all active watchers,
-// but does not modify init state.
-func (c *CircularBuffer) Clear() {
-	c.Lock()
-	defer c.Unlock()
-	c.clear()
-}
-
-// Reset is equivalent to Clear except that is also sets the buffer into
-// an uninitialized state.  This method should only be used when resetting
-// after a broken event stream.  If only closure of watchers is desired,
-// use Clear instead.
+// Reset resets all events from the queue
+// and closes all active watchers
 func (c *CircularBuffer) Reset() {
 	c.Lock()
 	defer c.Unlock()
-	c.clear()
-	c.init = false
-}
-
-func (c *CircularBuffer) clear() {
 	// could close multiple times
 	c.watchers.walk(func(w *BufferWatcher) {
 		w.closeWatcher()
@@ -95,42 +83,10 @@ func (c *CircularBuffer) clear() {
 	}
 }
 
-// SetInit puts the buffer into an initialized state if it isn't already.  Any watchers already queued
-// will be sent init events, and watchers added after this call will have their init events sent immediately.
-// This function must be called *after* establishing a healthy parent event stream in order to preserve
-// correct cache behavior.
-func (c *CircularBuffer) SetInit() {
-	c.Lock()
-	defer c.Unlock()
-	if c.init {
-		return
-	}
-
-	var watchersToDelete []*BufferWatcher
-	c.watchers.walk(func(watcher *BufferWatcher) {
-		if ok := watcher.init(); !ok {
-			watchersToDelete = append(watchersToDelete, watcher)
-		}
-	})
-
-	for _, watcher := range watchersToDelete {
-		c.Warningf("Closing %v, failed to send init event.", watcher)
-		watcher.closeWatcher()
-		c.watchers.rm(watcher)
-	}
-
-	c.init = true
-}
-
 // Close closes circular buffer and all watchers
 func (c *CircularBuffer) Close() error {
-	c.Lock()
-	defer c.Unlock()
-	c.clear()
-	c.closed = true
-	// note that we do not modify init state here.  this is because
-	// calls to Close are allowed to happen concurrently with calls
-	// to Emit().
+	c.cancel()
+	c.Reset()
 	return nil
 }
 
@@ -162,27 +118,24 @@ func (c *CircularBuffer) eventsCopy() []Event {
 	return out
 }
 
-// Emit emits events to currently registered watchers and stores them to
-// the buffer.  Panics if called before SetInit(), and returns false if called
-// after Close().
-func (c *CircularBuffer) Emit(events ...Event) (ok bool) {
+// PushBatch pushes elements to the queue as a batch
+func (c *CircularBuffer) PushBatch(events []Event) {
 	c.Lock()
 	defer c.Unlock()
 
-	if c.closed {
-		return false
-	}
-
 	for i := range events {
-		c.emit(events[i])
+		c.push(events[i])
 	}
-	return true
 }
 
-func (c *CircularBuffer) emit(r Event) {
-	if !c.init {
-		panic("push called on uninitialized buffer instance")
-	}
+// Push pushes elements to the queue
+func (c *CircularBuffer) Push(r Event) {
+	c.Lock()
+	defer c.Unlock()
+	c.push(r)
+}
+
+func (c *CircularBuffer) push(r Event) {
 	if c.size == 0 {
 		c.start = 0
 		c.end = 0
@@ -207,6 +160,8 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 		}
 		select {
 		case watcher.eventsC <- r:
+		case <-c.ctx.Done():
+			return
 		default:
 			watchersToDelete = append(watchersToDelete, watcher)
 		}
@@ -246,8 +201,10 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	c.Lock()
 	defer c.Unlock()
 
-	if c.closed {
-		return nil, trace.Errorf("cannot register watcher, buffer is closed")
+	select {
+	case <-c.ctx.Done():
+		return nil, trace.BadParameter("buffer is closed")
+	default:
 	}
 
 	if watch.QueueSize == 0 {
@@ -274,11 +231,14 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 		capacity: watch.QueueSize,
 	}
 	c.Debugf("Add %v.", w)
-	if c.init {
-		if ok := w.init(); !ok {
-			c.Warningf("Closing %v, failed to send init event.", w)
-			return nil, trace.BadParameter("failed to send init event")
-		}
+	select {
+	case w.eventsC <- Event{Type: OpInit}:
+	case <-c.ctx.Done():
+		return nil, trace.BadParameter("buffer is closed")
+	default:
+		c.Warningf("Closing %v, buffer overflow.", w)
+		w.Close()
+		return nil, trace.BadParameter("buffer overflow")
 	}
 	c.watchers.add(w)
 	return w, nil
@@ -306,8 +266,6 @@ type BufferWatcher struct {
 	eventsC  chan Event
 	ctx      context.Context
 	cancel   context.CancelFunc
-	initOnce sync.Once
-	initOk   bool
 	capacity int
 }
 
@@ -325,19 +283,6 @@ func (w *BufferWatcher) Events() <-chan Event {
 // Done channel is closed when watcher is closed
 func (w *BufferWatcher) Done() <-chan struct{} {
 	return w.ctx.Done()
-}
-
-// init transmits the OpInit event.  safe to double-call.
-func (w *BufferWatcher) init() (ok bool) {
-	w.initOnce.Do(func() {
-		select {
-		case w.eventsC <- Event{Type: types.OpInit}:
-			w.initOk = true
-		default:
-			w.initOk = false
-		}
-	})
-	return w.initOk
 }
 
 // Close closes the watcher, could
