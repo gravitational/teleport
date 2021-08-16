@@ -1199,24 +1199,10 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	process.setLocalAuth(authServer)
-
-	connector, err := process.connectToAuthService(types.RoleAdmin)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentAuth, process.id),
 	})
 
-	// second, create the API Server: it's actually a collection of API servers,
-	// each serving requests for a "role" which is assigned to every connected
-	// client based on their certificate (user, server, admin, etc)
-	sessionService, err := session.New(b)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
@@ -1224,6 +1210,22 @@ func (process *TeleportProcess) initAuthService() error {
 			Client:    authServer.Services,
 		},
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authServer.SetLockWatcher(lockWatcher)
+
+	process.setLocalAuth(authServer)
+
+	connector, err := process.connectToAuthService(types.RoleAdmin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// second, create the API Server: it's actually a collection of API servers,
+	// each serving requests for a "role" which is assigned to every connected
+	// client based on their certificate (user, server, admin, etc)
+	sessionService, err := session.New(b)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2754,6 +2756,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Context:          process.ExitContext(),
 				StaticFS:         fs,
 				ClusterFeatures:  process.getClusterFeatures(),
+				WebIdleTimeout:   cfg.Auth.NetworkingConfig.GetWebIdleTimeout(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
