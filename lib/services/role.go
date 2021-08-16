@@ -56,6 +56,7 @@ func getExtendedAdminUserRules(features modules.Features) []types.Rule {
 		types.NewRule(types.KindEvent, RO()),
 		types.NewRule(types.KindUser, RW()),
 		types.NewRule(types.KindToken, RW()),
+		types.NewRule(types.KindLock, RW()),
 	}
 
 	if features.Cloud {
@@ -190,6 +191,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindClusterNetworkingConfig, RW()),
 				types.NewRule(types.KindSessionRecordingConfig, RW()),
 				types.NewRule(types.KindDatabase, RW()),
+				types.NewRule(types.KindLock, RW()),
 			},
 		},
 	})
