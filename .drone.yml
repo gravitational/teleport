@@ -1318,7 +1318,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:201
 ################################################
 
 kind: pipeline
@@ -1422,7 +1422,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:201
 ################################################
 
 kind: pipeline
@@ -1526,7 +1526,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:201
 ################################################
 
 kind: pipeline
@@ -1633,7 +1633,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:343
 ################################################
 
 kind: pipeline
@@ -1765,7 +1765,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:343
 ################################################
 
 kind: pipeline
@@ -1894,7 +1894,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:343
 ################################################
 
 kind: pipeline
@@ -2012,7 +2012,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:343
 ################################################
 
 kind: pipeline
@@ -2127,7 +2127,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:201
 ################################################
 
 kind: pipeline
@@ -2231,7 +2231,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:343
 ################################################
 
 kind: pipeline
@@ -2363,7 +2363,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:343
 ################################################
 
 kind: pipeline
@@ -2880,7 +2880,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:201
 ################################################
 
 kind: pipeline
@@ -2984,7 +2984,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:201
 ################################################
 
 kind: pipeline
@@ -3088,7 +3088,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:343
 ################################################
 
 kind: pipeline
@@ -3206,7 +3206,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:343
 ################################################
 
 kind: pipeline
@@ -3324,7 +3324,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:343
 ################################################
 
 kind: pipeline
@@ -3456,7 +3456,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:330
+# Generated at dronegen/tag.go:343
 ################################################
 
 kind: pipeline
@@ -3588,7 +3588,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:188
+# Generated at dronegen/tag.go:201
 ################################################
 
 kind: pipeline
@@ -3651,6 +3651,54 @@ steps:
     GOPATH: /go
     OS: windows
     UID: "1000"
+    WINDOWS_SIGNING_CERT: !!binary |
+      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
   volumes:
   - name: dockersock
     path: /var/run
@@ -4426,6 +4474,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ab25d744f23eabed0f5759210636e26d092a5053dbd08890b063a2260a71497e
+hmac: 419f129291876f3d670adee10a4947d9b0a6c1927e6d89e1641167bc92c3efb8
 
 ...
