@@ -322,8 +322,6 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer watcher.Close()
 
-	_ = collectEvents(c, watcher, 1)
-
 	item := backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: addSeconds(time.Now(), 2)}
 	lease, err := s.B.Put(ctx, item)
 	c.Assert(err, check.IsNil)
@@ -348,18 +346,18 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	c.Assert(string(out.Value), check.Equals, string(item.Value))
 	c.Assert(string(out.Key), check.Equals, string(item.Key))
 
-	events := collectEvents(c, watcher, 2)
-	c.Assert(events[0].Type, check.Equals, backend.OpPut)
-	c.Assert(string(events[0].Item.Key), check.Equals, string(item.Key))
+	events := collectEvents(c, watcher, 3)
 	c.Assert(events[1].Type, check.Equals, backend.OpPut)
 	c.Assert(string(events[1].Item.Key), check.Equals, string(item.Key))
+	c.Assert(events[2].Type, check.Equals, backend.OpPut)
+	c.Assert(string(events[2].Item.Key), check.Equals, string(item.Key))
 
-	c.Assert(string(events[0].Item.Value), check.Equals, string(item.Value))
 	c.Assert(string(events[1].Item.Value), check.Equals, string(item.Value))
+	c.Assert(string(events[2].Item.Value), check.Equals, string(item.Value))
 
-	c.Assert(events[0].Item.Expires.IsZero(), check.Not(check.Equals), true, check.Commentf("expected non zero expiration time"))
 	c.Assert(events[1].Item.Expires.IsZero(), check.Not(check.Equals), true, check.Commentf("expected non zero expiration time"))
-	c.Assert(events[1].Item.Expires.After(events[0].Item.Expires), check.Equals, true, check.Commentf("expected %v after %v", events[1].Item.Expires, events[0].Item.Expires))
+	c.Assert(events[2].Item.Expires.IsZero(), check.Not(check.Equals), true, check.Commentf("expected non zero expiration time"))
+	c.Assert(events[2].Item.Expires.After(events[1].Item.Expires), check.Equals, true, check.Commentf("expected %v after %v", events[2].Item.Expires, events[1].Item.Expires))
 
 	err = s.B.Delete(ctx, item.Key)
 	c.Assert(err, check.IsNil)
