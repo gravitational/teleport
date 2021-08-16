@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
-	"github.com/siddontang/go-log/log"
 
 	"github.com/ThalesIgnite/crypto11"
 	"github.com/google/uuid"
@@ -113,7 +112,7 @@ func (c *hsmKeyStore) findUnusedID() (uuid.UUID, error) {
 // crypto.Signer. The returned identifier can be passed to GetSigner later to
 // get the same crypto.Signer.
 func (c *hsmKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
-	log.Debug("Creating new HSM keypair")
+	c.log.Debug("Creating new HSM keypair")
 	id, err := c.findUnusedID()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -361,7 +360,7 @@ func (c *hsmKeyStore) DeleteKey(rawKey []byte) error {
 // 1. Labeled by this KeyStore when they were created
 // 2. Not included in the argument usedKeys
 func (c *hsmKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
-	log.Debug("Deleting unused keys from HSM")
+	c.log.Debug("Deleting unused keys from HSM")
 	var usedPublicKeys []*rsa.PublicKey
 	for _, usedKey := range usedKeys {
 		keyType := KeyType(usedKey)
