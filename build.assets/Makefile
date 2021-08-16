@@ -45,12 +45,8 @@ ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
 
-ifneq ("$(WINDOWS_SIGNING_CERTIFICATE)","")
-DOCKERFLAGS := $(DOCKERFLAGS) -e WINDOWS_SIGNING_CERTIFICATE=$(WINDOWS_SIGNING_CERTIFICATE)
-endif
-
-ifneq ("$(WINDOWS_SIGNING_PASSWORD)","")
-DOCKERFLAGS := $(DOCKERFLAGS) -e WINDOWS_SIGNING_PASSWORD=$(WINDOWS_SIGNING_PASSWORD)
+ifneq ("$(WINDOWS_SIGNING_CERT)","")
+DOCKERFLAGS := $(DOCKERFLAGS) -e WINDOWS_SIGNING_CERT
 endif
 
 # conditionally force the use of UID/GID 1000:1000 if we're running in Drone
@@ -321,6 +317,14 @@ release-centos6: buildbox-centos6
 release-windows: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows
+
+#
+# Create a Windows Teleport package using the build container.
+#
+.PHONY:release-windows-unsigned
+release-windows-unsigned: buildbox
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
+		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows
 
 #
 # Run docs tester to detect problems.

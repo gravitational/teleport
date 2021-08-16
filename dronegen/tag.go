@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 )
 
 const (
@@ -181,11 +182,22 @@ func tagPipeline(b buildType) pipeline {
 		"GOPATH":  value{raw: "/go"},
 		"OS":      value{raw: b.os},
 		"ARCH":    value{raw: b.arch},
-		//"WINDOWS_SIGNING_CERTIFICATE: value{fromSecret: "WINDOWS_SIGNING_CERTIFICATE"},
 	}
 	if b.fips {
 		pipelineName += "-fips"
 		tagEnvironment["FIPS"] = value{raw: "yes"}
+	}
+
+	if b.os == "windows" {
+		// TODO: use real secret
+		//tagEnvironment["WINDOWS_SIGNING_CERT"] = value{fromSecret: "WINDOWS_SIGNING_CERT"}
+
+		cert, err := ioutil.ReadFile("cert-dummy.pfx")
+		if err != nil {
+			panic(fmt.Sprintf("could not read dummy cert: %+v", err))
+		}
+
+		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{raw: string(cert)}
 	}
 
 	p := newKubePipeline(pipelineName)
