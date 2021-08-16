@@ -227,6 +227,41 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				},
 			},
+		}, {
+			desc: "Local auth with Webauthn",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "webauthn",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+						"attestation_allowed_cas": []interface{}{
+							"testdata/u2f_attestation_ca.pam",
+							"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
+						},
+						"attestation_denied_cas": []interface{}{
+							"-----BEGIN CERTIFICATE-----\nfake certificate2\n-----END CERTIFICATE-----",
+							"testdata/u2f_attestation_ca.pam",
+						},
+					},
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "webauthn",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+					AttestationAllowedCAs: []string{
+						"testdata/u2f_attestation_ca.pam",
+						"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
+					},
+					AttestationDeniedCAs: []string{
+						"-----BEGIN CERTIFICATE-----\nfake certificate2\n-----END CERTIFICATE-----",
+						"testdata/u2f_attestation_ca.pam",
+					},
+				},
+			},
 		},
 	}
 
