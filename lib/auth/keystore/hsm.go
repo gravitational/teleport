@@ -362,7 +362,7 @@ func (c *hsmKeyStore) DeleteKey(rawKey []byte) error {
 // 2. Not included in the argument usedKeys
 func (c *hsmKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
 	log.Debug("Deleting unused keys from HSM")
-	var safePublicKeys []*rsa.PublicKey
+	var usedPublicKeys []*rsa.PublicKey
 	for _, usedKey := range usedKeys {
 		keyType := KeyType(usedKey)
 		if keyType != types.PrivateKeyType_PKCS11 {
@@ -381,16 +381,16 @@ func (c *hsmKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
 		if !ok {
 			return trace.BadParameter("unknown public key type: %T", signer.Public())
 		}
-		safePublicKeys = append(safePublicKeys, rsaPublicKey)
+		usedPublicKeys = append(usedPublicKeys, rsaPublicKey)
 	}
-	keyIsSafe := func(signer crypto.Signer) bool {
+	keyIsUsed := func(signer crypto.Signer) bool {
 		rsaPublicKey, ok := signer.Public().(*rsa.PublicKey)
 		if !ok {
 			// unknown key type... we don't know what this is, so don't delete it
 			return true
 		}
-		for i := range safePublicKeys {
-			if rsaPublicKey.Equal(safePublicKeys[i]) {
+		for i := range usedPublicKeys {
+			if rsaPublicKey.Equal(usedPublicKeys[i]) {
 				return true
 			}
 		}
@@ -401,7 +401,7 @@ func (c *hsmKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
 		return trace.Wrap(err)
 	}
 	for _, signer := range signers {
-		if keyIsSafe(signer) {
+		if keyIsUsed(signer) {
 			continue
 		}
 		if err := signer.Delete(); err != nil {

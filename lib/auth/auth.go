@@ -2835,7 +2835,7 @@ func (a *Server) deleteUnusedKeys() error {
 		return trace.Wrap(err)
 	}
 
-	var safeKeys [][]byte
+	var usedKeys [][]byte
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
 		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
 		ca, err := a.Trust.GetCertAuthority(caID, true)
@@ -2844,17 +2844,17 @@ func (a *Server) deleteUnusedKeys() error {
 		}
 		for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
 			for _, sshKeyPair := range keySet.SSH {
-				safeKeys = append(safeKeys, sshKeyPair.PrivateKey)
+				usedKeys = append(usedKeys, sshKeyPair.PrivateKey)
 			}
 			for _, tlsKeyPair := range keySet.TLS {
-				safeKeys = append(safeKeys, tlsKeyPair.Key)
+				usedKeys = append(usedKeys, tlsKeyPair.Key)
 			}
 			for _, jwtKeyPair := range keySet.JWT {
-				safeKeys = append(safeKeys, jwtKeyPair.PrivateKey)
+				usedKeys = append(usedKeys, jwtKeyPair.PrivateKey)
 			}
 		}
 	}
-	return trace.Wrap(a.keyStore.DeleteUnusedKeys(safeKeys))
+	return trace.Wrap(a.keyStore.DeleteUnusedKeys(usedKeys))
 }
 
 // authKeepAliver is a keep aliver using auth server directly
