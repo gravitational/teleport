@@ -284,7 +284,7 @@ type connectParams struct {
 	sshConfig *ssh.ClientConfig
 }
 
-// proxyConnect connects to the Teleport Auth Server directly.
+// authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	dialer := NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
@@ -294,7 +294,7 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
-// proxyConnect connects to the Teleport Auth Server through the reverse tunnel proxy.
+// tunnelConnect connects to the Teleport Auth Server through the proxy's reverse tunnel.
 func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
