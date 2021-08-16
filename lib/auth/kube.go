@@ -138,7 +138,7 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	// generate TLS certificate
-	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA, false)
+	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

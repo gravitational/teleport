@@ -638,9 +638,10 @@ type CertRoles struct {
 // modifying the original.
 func (k *TLSKeyPair) Clone() *TLSKeyPair {
 	return &TLSKeyPair{
-		KeyType: k.KeyType,
-		Key:     utils.CopyByteSlice(k.Key),
-		Cert:    utils.CopyByteSlice(k.Cert),
+		KeyType:     k.KeyType,
+		Key:         utils.CopyByteSlice(k.Key),
+		Cert:        utils.CopyByteSlice(k.Cert),
+		Provisional: k.Provisional,
 	}
 }
 
@@ -661,6 +662,7 @@ func (k *SSHKeyPair) Clone() *SSHKeyPair {
 		PrivateKeyType: k.PrivateKeyType,
 		PrivateKey:     utils.CopyByteSlice(k.PrivateKey),
 		PublicKey:      utils.CopyByteSlice(k.PublicKey),
+		Provisional:    k.Provisional,
 	}
 }
 

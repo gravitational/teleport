@@ -166,13 +166,10 @@ func (c *hsmKeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
 	return nil, trace.BadParameter("unrecognized key type %s", keyType.String())
 }
 
-func (c *hsmKeyStore) selectTLSKeyPair(ca types.CertAuthority, allowProvisional bool) (*types.TLSKeyPair, error) {
+func (c *hsmKeyStore) selectTLSKeyPair(ca types.CertAuthority) (*types.TLSKeyPair, error) {
 	keyPairs := ca.GetActiveKeys().TLS
 	for _, keyPair := range keyPairs {
 		if keyPair.KeyType == types.PrivateKeyType_PKCS11 {
-			if keyPair.Provisional && !allowProvisional {
-				continue
-			}
 			keyID, err := parseKeyID(keyPair.Key)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -187,8 +184,8 @@ func (c *hsmKeyStore) selectTLSKeyPair(ca types.CertAuthority, allowProvisional 
 }
 
 // GetTLSCertAndSigner selects the local TLS keypair and returns the raw TLS cert and crypto.Signer.
-func (c *hsmKeyStore) GetTLSCertAndSigner(ca types.CertAuthority, allowProvisional bool) ([]byte, crypto.Signer, error) {
-	keyPair, err := c.selectTLSKeyPair(ca, allowProvisional)
+func (c *hsmKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
+	keyPair, err := c.selectTLSKeyPair(ca)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -200,13 +197,10 @@ func (c *hsmKeyStore) GetTLSCertAndSigner(ca types.CertAuthority, allowProvision
 	return keyPair.Cert, signer, nil
 }
 
-func (c *hsmKeyStore) selectSSHKeyPair(ca types.CertAuthority, allowProvisional bool) (*types.SSHKeyPair, error) {
+func (c *hsmKeyStore) selectSSHKeyPair(ca types.CertAuthority) (*types.SSHKeyPair, error) {
 	keyPairs := ca.GetActiveKeys().SSH
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_PKCS11 {
-			if keyPair.Provisional && !allowProvisional {
-				continue
-			}
 			keyID, err := parseKeyID(keyPair.PrivateKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -221,8 +215,8 @@ func (c *hsmKeyStore) selectSSHKeyPair(ca types.CertAuthority, allowProvisional 
 }
 
 // GetSSHSigner selects the local SSH keypair and returns an ssh.Signer.
-func (c *hsmKeyStore) GetSSHSigner(ca types.CertAuthority, allowProvisional bool) (sshSigner ssh.Signer, err error) {
-	keyPair, err := c.selectSSHKeyPair(ca, allowProvisional)
+func (c *hsmKeyStore) GetSSHSigner(ca types.CertAuthority) (sshSigner ssh.Signer, err error) {
+	keyPair, err := c.selectSSHKeyPair(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -276,12 +270,12 @@ func (c *hsmKeyStore) NewJWTKeyPair() (*types.JWTKeyPair, error) {
 	return newJWTKeyPair(c)
 }
 
-func (c *hsmKeyStore) keySetHasLocalKeys(keySet types.CAKeySet, provisional bool) bool {
+func (c *hsmKeyStore) keySetHasLocalKeys(keySet types.CAKeySet, selection provisionalSelection) bool {
 	for _, sshKeyPair := range keySet.SSH {
 		if sshKeyPair.PrivateKeyType != types.PrivateKeyType_PKCS11 {
 			continue
 		}
-		if sshKeyPair.Provisional != provisional {
+		if (selection == onlyProvisional) && !sshKeyPair.Provisional {
 			continue
 		}
 		keyID, err := parseKeyID(sshKeyPair.PrivateKey)
@@ -296,7 +290,7 @@ func (c *hsmKeyStore) keySetHasLocalKeys(keySet types.CAKeySet, provisional bool
 		if tlsKeyPair.KeyType != types.PrivateKeyType_PKCS11 {
 			continue
 		}
-		if tlsKeyPair.Provisional != provisional {
+		if (selection == onlyProvisional) && !tlsKeyPair.Provisional {
 			continue
 		}
 		keyID, err := parseKeyID(tlsKeyPair.Key)
@@ -325,19 +319,19 @@ func (c *hsmKeyStore) keySetHasLocalKeys(keySet types.CAKeySet, provisional bool
 // HasLocalActiveKeys returns true if the given CA has any active keys that
 // are usable with this KeyStore.
 func (c *hsmKeyStore) HasLocalActiveKeys(ca types.CertAuthority) bool {
-	return c.keySetHasLocalKeys(ca.GetActiveKeys(), false)
+	return c.keySetHasLocalKeys(ca.GetActiveKeys(), allowProvisional)
 }
 
 // HasLocalAdditionalKeys returns true if the given CA has any additional
 // trusted keys that are usable with this KeyStore.
 func (c *hsmKeyStore) HasLocalAdditionalKeys(ca types.CertAuthority) bool {
-	return c.keySetHasLocalKeys(ca.GetAdditionalTrustedKeys(), false)
+	return c.keySetHasLocalKeys(ca.GetAdditionalTrustedKeys(), allowProvisional)
 }
 
 // HasLocalProvisionalKeys returns true if the given CA has any active
 // provisional keys that are usable with this KeyStore.
 func (c *hsmKeyStore) HasLocalProvisionalKeys(ca types.CertAuthority) bool {
-	return c.keySetHasLocalKeys(ca.GetActiveKeys(), true)
+	return c.keySetHasLocalKeys(ca.GetActiveKeys(), onlyProvisional)
 }
 
 // DeleteKey deletes the given key from the HSM

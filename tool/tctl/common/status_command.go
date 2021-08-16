@@ -100,8 +100,9 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 				continue
 			}
 			if ca.HasProvisionalKeys() {
-				fmt.Printf("WARNING: %s CA has provisional keys, you must perform a CA rotation "+
-					"or the auth server will not be able to sign certificates\n", ca.GetType())
+				fmt.Println("WARNING: One or more auth servers has a newly added or removed " +
+					"HSM. You should not route traffic to that server until a CA rotation " +
+					"has been completed.")
 			}
 			info := fmt.Sprintf("%v CA ", strings.Title(string(ca.GetType())))
 			rotation := ca.GetRotation()

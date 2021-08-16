@@ -345,17 +345,22 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				// 3. An existing auth server has restarted with a new HSM configured.
 				// 4. An existing HSM auth server has restarted no HSM configured.
 				// 5. An existing HSM auth server has restarted with a new UUID.
-				log.Warnf("No local keys found in %s CA. This auth server will not be able"+
-					" to sign certificates. You must perform a CA rotation before routing"+
-					" traffic to this auth server", caID.Type)
-				if caType == types.HostCA {
-					// provisional keys are necessary for the Admin identity to work
-					if !asrv.keyStore.HasLocalProvisionalKeys(ca) {
-						if err := asrv.addLocalProvisionalKeys(ca); err != nil {
-							return nil, trace.Wrap(err)
-						}
+				if ca.GetType() == types.HostCA {
+					// provisional keys are only required for the host CA
+					if err := asrv.addLocalProvisionalKeys(ca); err != nil {
+						return nil, trace.Wrap(err)
+					}
+					// reload updated CA for below checks
+					if ca, err = asrv.GetCertAuthority(caID, true); err != nil {
+						return nil, trace.Wrap(err)
 					}
 				}
+			}
+			if asrv.keyStore.HasLocalProvisionalKeys(ca) {
+				log.Warnf("This auth server has a newly added or removed HSM and the %s CA's "+
+					"active keys are not yet trusted by the rest of the cluster. You must "+
+					"perform a CA rotation before routing traffic to this auth server.",
+					caID.Type)
 			}
 			if !ca.AllKeyTypesMatch() {
 				log.Warnf("%s CA contains a combination of raw and PKCS#11 keys. If you are attempting to"+
@@ -741,7 +746,7 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 			// all CAs for this cluster do having signing keys.
 			seemsLocal := r.GetClusterName() == clusterName
 			var hasKeys bool
-			_, err := keyStore.GetSSHSigner(r, true)
+			_, err := keyStore.GetSSHSigner(r)
 			switch {
 			case err == nil:
 				hasKeys = true

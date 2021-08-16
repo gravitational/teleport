@@ -41,10 +41,10 @@ type KeyStore interface {
 	GetSigner(keyID []byte) (crypto.Signer, error)
 
 	// GetTLSCertAndSigner selects the local TLS keypair and returns the raw TLS cert and crypto.Signer.
-	GetTLSCertAndSigner(ca types.CertAuthority, allowProvisional bool) ([]byte, crypto.Signer, error)
+	GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error)
 
 	// GetSSHSigner selects the local SSH keypair from the CA and returns an ssh.Signer.
-	GetSSHSigner(ca types.CertAuthority, allowProvisional bool) (ssh.Signer, error)
+	GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error)
 
 	// GetJWTSigner selects the local JWT keypair from the CA and returns a crypto.Signer.
 	GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error)

@@ -2728,7 +2728,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA, false)
+	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA)
 	c.Assert(err, check.IsNil)
 	tlsCA, err := tlsca.FromCertAndSigner(cert, signer)
 	c.Assert(err, check.IsNil)
@@ -2852,7 +2852,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA, false)
+	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA)
 	c.Assert(err, check.IsNil)
 	tlsCA, err := tlsca.FromCertAndSigner(cert, signer)
 	c.Assert(err, check.IsNil)

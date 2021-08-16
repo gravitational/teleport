@@ -513,10 +513,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
-	// if keypair is provisional, only generate cert for the Admin role
-	allowProvisional := roles.Equals(types.SystemRoles{types.RoleAdmin})
-
-	caSigner, err := a.keyStore.GetSSHSigner(ca, allowProvisional)
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -877,7 +874,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caSigner, err := a.keyStore.GetSSHSigner(ca, false)
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -938,7 +935,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	}
 
 	// generate TLS certificate
-	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca, false)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1525,10 +1522,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		}
 	}
 
-	// if keypair is provisional, only generate keys for the Admin role
-	allowProvisional := req.Roles.Equals(types.SystemRoles{types.RoleAdmin})
-
-	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca, allowProvisional)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1537,7 +1531,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		return nil, trace.Wrap(err)
 	}
 
-	caSigner, err := a.keyStore.GetSSHSigner(ca, allowProvisional)
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2736,7 +2730,7 @@ func (a *Server) atomicCAUpdate(
 // to sign the Admin identity for bootstrapping a newly configured HSM.
 func (a *Server) addLocalProvisionalKeys(ca types.CertAuthority) error {
 	if ca.GetType() != types.HostCA {
-		return trace.BadParameter("can only add provisional keys for host CA")
+		return trace.BadParameter("provisional keys can only be add to the host CA")
 	}
 
 	if a.keyStore.HasLocalActiveKeys(ca) {

@@ -125,6 +125,12 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 )
 
 func TestKeyStore(t *testing.T) {
+	skipSoftHSM := os.Getenv("SOFTHSM2_PATH") == ""
+	var softHSMConfig keystore.Config
+	if !skipSoftHSM {
+		softHSMConfig = keystore.SetupSoftHSMTest(t)
+	}
+
 	yubiSlotNumber := 0
 	testcases := []struct {
 		desc       string
@@ -142,9 +148,9 @@ func TestKeyStore(t *testing.T) {
 		},
 		{
 			desc:   "softhsm",
-			config: keystore.SetupSoftHSMTest(t),
+			config: softHSMConfig,
 			shouldSkip: func() bool {
-				if os.Getenv("SOFTHSM2_PATH") == "" {
+				if skipSoftHSM {
 					log.Println("Skipping softhsm test because SOFTHSM2_PATH is not set.")
 					return true
 				}
@@ -271,11 +277,11 @@ func TestKeyStore(t *testing.T) {
 			require.NoError(t, err)
 
 			// test that keyStore is able to select the correct key and get a signer
-			sshSigner, err = keyStore.GetSSHSigner(ca, false)
+			sshSigner, err = keyStore.GetSSHSigner(ca)
 			require.NoError(t, err)
 			require.NotNil(t, sshSigner)
 
-			tlsCert, tlsSigner, err := keyStore.GetTLSCertAndSigner(ca, false)
+			tlsCert, tlsSigner, err := keyStore.GetTLSCertAndSigner(ca)
 			require.NoError(t, err)
 			require.NotNil(t, tlsCert)
 			require.NotEqual(t, testPKCS11TLSKeyPair.Cert, tlsCert)
@@ -305,21 +311,21 @@ func TestKeyStore(t *testing.T) {
 
 			if !tc.isRaw {
 				// hsm keyStore should not get any signer from raw keys
-				_, err = keyStore.GetSSHSigner(ca, false)
+				_, err = keyStore.GetSSHSigner(ca)
 				require.True(t, trace.IsNotFound(err))
 
-				_, _, err = keyStore.GetTLSCertAndSigner(ca, false)
+				_, _, err = keyStore.GetTLSCertAndSigner(ca)
 				require.True(t, trace.IsNotFound(err))
 
 				_, err = keyStore.GetJWTSigner(ca)
 				require.True(t, trace.IsNotFound(err))
 			} else {
 				// raw keyStore should be able to get a signer
-				sshSigner, err = keyStore.GetSSHSigner(ca, false)
+				sshSigner, err = keyStore.GetSSHSigner(ca)
 				require.NoError(t, err)
 				require.NotNil(t, sshSigner)
 
-				tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ca, false)
+				tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ca)
 				require.NoError(t, err)
 				require.NotNil(t, tlsCert)
 				require.NotNil(t, tlsSigner)

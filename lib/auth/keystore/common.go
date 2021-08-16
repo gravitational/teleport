@@ -80,3 +80,10 @@ func newJWTKeyPair(keyStore KeyStore) (*types.JWTKeyPair, error) {
 		PrivateKeyType: KeyType(jwtKey),
 	}, nil
 }
+
+type provisionalSelection int
+
+const (
+	onlyProvisional provisionalSelection = iota
+	allowProvisional
+)
