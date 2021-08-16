@@ -354,7 +354,7 @@ func TestCreateRecoveryToken(t *testing.T) {
 
 	ctx := context.Background()
 
-	startToken, err := srv.Auth().createRecoveryToken(ctx, username, UserTokenTypeRecoveryStart, types.RecoverType_RECOVER_PASSWORD)
+	startToken, err := srv.Auth().createRecoveryToken(ctx, username, UserTokenTypeRecoveryStart, true)
 	require.NoError(t, err)
 	require.Equal(t, startToken.GetURL(), "https://<proxyhost>:3080/web/recovery/"+startToken.GetName())
 
@@ -363,10 +363,10 @@ func TestCreateRecoveryToken(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bytes, RecoveryTokenLenBytes)
 
-	// Test recover type setting.
-	require.Equal(t, types.RecoverType_RECOVER_PASSWORD, startToken.GetRecoverType())
+	// Test usage setting.
+	require.Equal(t, types.UserTokenUsage_RECOVER_PWD, startToken.GetUsage())
 
-	approvedToken, err := srv.Auth().createRecoveryToken(ctx, username, UserTokenTypeRecoveryApproved, types.RecoverType_RECOVER_U2F)
+	approvedToken, err := srv.Auth().createRecoveryToken(ctx, username, UserTokenTypeRecoveryApproved, false)
 	require.NoError(t, err)
 	require.Equal(t, approvedToken.GetURL(), "https://<proxyhost>:3080/web/recovery/"+approvedToken.GetName())
 
@@ -374,8 +374,8 @@ func TestCreateRecoveryToken(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bytes, RecoveryTokenLenBytes)
 
-	// Test recover type setting.
-	require.Equal(t, types.RecoverType_RECOVER_U2F, approvedToken.GetRecoverType())
+	// Test usage setting.
+	require.Equal(t, types.UserTokenUsage_RECOVER_2FA, approvedToken.GetUsage())
 }
 
 type debugAuth struct {

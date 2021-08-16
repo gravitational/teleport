@@ -343,8 +343,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
 	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.u2fChangePasswordRequest))
 	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.mfaChallengeRequest))
+	h.POST("/webapi/u2f/signrequest/token", httplib.MakeHandler(h.getMFAChallengeRequestWithTokenHandle))
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithMFAChallengeResponse))
+
+	// MFA device related endpoints.
+	h.GET("/webapi/mfa/:token", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
+	h.DELETE("/webapi/mfa", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))

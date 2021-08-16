@@ -75,12 +75,12 @@ func (s *Server) CreateRecoveryStartToken(ctx context.Context, req *proto.Create
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := s.createRecoveryToken(ctx, req.GetUsername(), UserTokenTypeRecoveryStart, req.GetRecoverType())
+	token, err := s.createRecoveryToken(ctx, req.GetUsername(), UserTokenTypeRecoveryStart, req.GetIsRecoverPassword())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return s.getRecoveryToken(ctx, token.GetName())
+	return token, nil
 }
 
 // verifyCodeWithRecoveryLock counts number of failed attempts at providing a valid recovery code.
@@ -249,12 +249,20 @@ func (s *Server) AuthenticateUserWithRecoveryToken(ctx context.Context, req *pro
 	// Begin authenticating user password or second factor.
 	switch req.GetAuthCred().(type) {
 	case *proto.AuthenticateUserWithRecoveryTokenRequest_SecondFactorToken:
+		if token.GetUsage() == types.UserTokenUsage_RECOVER_2FA {
+			return nil, trace.BadParameter("unexpected second factor credential")
+		}
+
 		return s.verifyUserCredWithRecoveryLock(ctx, token, func() error {
 			_, err := s.checkOTP(token.GetUser(), req.GetSecondFactorToken())
 			return err
 		})
 
 	case *proto.AuthenticateUserWithRecoveryTokenRequest_U2FSignResponse:
+		if token.GetUsage() == types.UserTokenUsage_RECOVER_2FA {
+			return nil, trace.BadParameter("unexpected second factor credential")
+		}
+
 		return s.verifyUserCredWithRecoveryLock(ctx, token, func() error {
 			_, err := s.CheckU2FSignResponse(ctx, token.GetUser(), &u2f.AuthenticateChallengeResponse{
 				KeyHandle:     req.GetU2FSignResponse().GetKeyHandle(),
@@ -265,10 +273,17 @@ func (s *Server) AuthenticateUserWithRecoveryToken(ctx context.Context, req *pro
 			return err
 		})
 
-	default: // password
+	case *proto.AuthenticateUserWithRecoveryTokenRequest_Password:
+		if token.GetUsage() == types.UserTokenUsage_RECOVER_PWD {
+			return nil, trace.BadParameter("unexpected password credential")
+		}
+
 		return s.verifyUserCredWithRecoveryLock(ctx, token, func() error {
 			return s.checkPasswordWOToken(token.GetUser(), req.GetPassword())
 		})
+
+	default:
+		return nil, trace.BadParameter("at least one auth method required")
 	}
 }
 
@@ -298,7 +313,12 @@ func (s *Server) verifyUserCredWithRecoveryLock(ctx context.Context, token types
 			return nil, trace.Wrap(err)
 		}
 
-		return s.createRecoveryToken(ctx, token.GetUser(), UserTokenTypeRecoveryApproved, token.GetRecoverType())
+		token, err := s.createRecoveryToken(ctx, token.GetUser(), UserTokenTypeRecoveryApproved, token.GetUsage() == types.UserTokenUsage_RECOVER_PWD)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return token, nil
 	}
 
 	// Do not lock user in case if DB is flaky or down.
@@ -367,9 +387,8 @@ func (s *Server) SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto
 	}
 
 	// Check that the correct auth credential is being recovered before setting a new one.
-	var newDevice *types.MFADevice
-	switch token.GetRecoverType() {
-	case types.RecoverType_RECOVER_PASSWORD:
+	switch token.GetUsage() {
+	case types.UserTokenUsage_RECOVER_PWD:
 		if req.GetPassword() == nil {
 			return trace.BadParameter("expected a new password")
 		}
@@ -382,60 +401,61 @@ func (s *Server) SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto
 			return trace.Wrap(err)
 		}
 
-	case types.RecoverType_RECOVER_U2F:
-		if req.GetU2FRegisterResponse() == nil {
-			return trace.BadParameter("expected a new u2f register response")
-		}
+	case types.UserTokenUsage_RECOVER_2FA:
+		var newDevice *types.MFADevice
 
-		cap, err := s.GetAuthPreference(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		cfg, err := cap.GetU2F()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		device, err := s.createNewU2FDevice(ctx, newU2FDeviceRequest{
-			tokenID:    req.GetTokenID(),
-			username:   token.GetUser(),
-			deviceName: req.GetDeviceName(),
-			u2fRegisterResponse: u2f.RegisterChallengeResponse{
-				RegistrationData: req.GetU2FRegisterResponse().GetRegistrationData(),
-				ClientData:       req.GetU2FRegisterResponse().GetClientData(),
-			},
-			cfg: cfg,
-		})
-		if err != nil {
-			if trace.IsAlreadyExists(err) {
-				return trace.AlreadyExists("mfa device %q already exists", req.GetDeviceName())
+		if req.GetU2FRegisterResponse() != nil {
+			cap, err := s.GetAuthPreference(ctx)
+			if err != nil {
+				return trace.Wrap(err)
 			}
-			return trace.Wrap(err)
-		}
-		newDevice = device
 
-	case types.RecoverType_RECOVER_TOTP:
-		if req.GetSecondFactorToken() == "" {
-			return trace.BadParameter("expected a second factor token")
-		}
-
-		device, err := s.createNewTOTPDevice(ctx, newTOTPDeviceRequest{
-			tokenID:           req.GetTokenID(),
-			username:          token.GetUser(),
-			deviceName:        req.GetDeviceName(),
-			secondFactorToken: req.GetSecondFactorToken(),
-		})
-		if err != nil {
-			if trace.IsAlreadyExists(err) {
-				return trace.AlreadyExists("mfa device %q already exists", req.GetDeviceName())
+			cfg, err := cap.GetU2F()
+			if err != nil {
+				return trace.Wrap(err)
 			}
-			return trace.Wrap(err)
-		}
-		newDevice = device
-	}
 
-	if newDevice != nil {
+			device, err := s.createNewU2FDevice(ctx, newU2FDeviceRequest{
+				tokenID:    req.GetTokenID(),
+				username:   token.GetUser(),
+				deviceName: req.GetDeviceName(),
+				u2fRegisterResponse: u2f.RegisterChallengeResponse{
+					RegistrationData: req.GetU2FRegisterResponse().GetRegistrationData(),
+					ClientData:       req.GetU2FRegisterResponse().GetClientData(),
+				},
+				cfg: cfg,
+			})
+			if err != nil {
+				if trace.IsAlreadyExists(err) {
+					// Return a shorter error message to user.
+					return trace.AlreadyExists("mfa device %q already exists", req.GetDeviceName())
+				}
+				return trace.Wrap(err)
+			}
+			newDevice = device
+		}
+
+		if req.GetSecondFactorToken() != "" {
+			device, err := s.createNewTOTPDevice(ctx, newTOTPDeviceRequest{
+				tokenID:           req.GetTokenID(),
+				username:          token.GetUser(),
+				deviceName:        req.GetDeviceName(),
+				secondFactorToken: req.GetSecondFactorToken(),
+			})
+			if err != nil {
+				if trace.IsAlreadyExists(err) {
+					// Return a shorter error message to user.
+					return trace.AlreadyExists("mfa device %q already exists", req.GetDeviceName())
+				}
+				return trace.Wrap(err)
+			}
+			newDevice = device
+		}
+
+		if newDevice == nil {
+			return trace.BadParameter("expected a new second factor credential")
+		}
+
 		if err := s.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceAdd{
 			Metadata: apievents.Metadata{
 				Type: events.MFADeviceAddEvent,
@@ -448,6 +468,9 @@ func (s *Server) SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto
 		}); err != nil {
 			log.WithError(err).Warn("Failed to emit add mfa device event.")
 		}
+
+	default:
+		return trace.BadParameter("invalid recovery usage type")
 	}
 
 	// Check and remove user login lock so user can immediately sign in after recovering.

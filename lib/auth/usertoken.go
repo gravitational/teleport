@@ -406,7 +406,7 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 }
 
 // createRecoveryToken creates a user token for account recovery.
-func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType string, recoverType types.RecoverType) (types.UserToken, error) {
+func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType string, isRecoverPassword bool) (types.UserToken, error) {
 	req := CreateUserTokenRequest{
 		Name: username,
 		Type: tokenType,
@@ -421,8 +421,12 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 		return nil, trace.Wrap(err)
 	}
 
-	// Marks what recover type user requested.
-	newToken.SetRecoverType(recoverType)
+	// Mark what recover type user requested.
+	recoverType := types.UserTokenUsage_RECOVER_2FA
+	if isRecoverPassword {
+		recoverType = types.UserTokenUsage_RECOVER_PWD
+	}
+	newToken.SetUsage(recoverType)
 
 	if _, err := s.Identity.CreateUserToken(ctx, newToken); err != nil {
 		return nil, trace.Wrap(err)
@@ -445,7 +449,12 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 		log.WithError(err).Warn("Failed to emit create recovery token event.")
 	}
 
-	return s.getRecoveryToken(ctx, newToken.GetName())
+	token, err := s.getRecoveryToken(ctx, newToken.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return token, nil
 }
 
 // getRecoveryToken returns user token with subkind set to either recovery start or approved token.

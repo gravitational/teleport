@@ -511,7 +511,12 @@ func (s *Server) createNewTOTPDevice(ctx context.Context, req newTOTPDeviceReque
 		return nil, trace.Wrap(err)
 	}
 
-	return s.GetMFADevice(ctx, req.username, dev.Id)
+	device, err := s.GetMFADevice(ctx, req.username, dev.Id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return device, nil
 }
 
 type newU2FDeviceRequest struct {
@@ -542,5 +547,10 @@ func (s *Server) createNewU2FDevice(ctx context.Context, req newU2FDeviceRequest
 		return nil, trace.Wrap(err)
 	}
 
-	return s.GetMFADevice(ctx, req.username, dev.Id)
+	device, err := s.GetMFADevice(ctx, req.username, dev.Id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return device, nil
 }
