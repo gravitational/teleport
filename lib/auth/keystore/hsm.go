@@ -279,6 +279,7 @@ func (c *hsmKeyStore) keySetHasLocalKeys(keySet types.CAKeySet, selection provis
 		}
 		keyID, err := parseKeyID(sshKeyPair.PrivateKey)
 		if err != nil {
+			c.log.WithError(err).Warnf("Failed to parse PKCS#11 key ID")
 			continue
 		}
 		if keyID.HostID == c.hostUUID {
@@ -294,6 +295,7 @@ func (c *hsmKeyStore) keySetHasLocalKeys(keySet types.CAKeySet, selection provis
 		}
 		keyID, err := parseKeyID(tlsKeyPair.Key)
 		if err != nil {
+			c.log.WithError(err).Warnf("Failed to parse PKCS#11 key ID")
 			continue
 		}
 		if keyID.HostID == c.hostUUID {
@@ -306,6 +308,7 @@ func (c *hsmKeyStore) keySetHasLocalKeys(keySet types.CAKeySet, selection provis
 		}
 		keyID, err := parseKeyID(jwtKeyPair.PrivateKey)
 		if err != nil {
+			c.log.WithError(err).Warnf("Failed to parse PKCS#11 key ID")
 			continue
 		}
 		if keyID.HostID == c.hostUUID {

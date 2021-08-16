@@ -23,7 +23,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
 )
@@ -103,10 +102,8 @@ func NewKeyStore(cfg Config) (KeyStore, error) {
 		if cfg.RSAKeyPairSource == nil {
 			return nil, trace.BadParameter("must provide one of Path or RSAKeyPairSource in keystore.Config")
 		}
-		logrus.Debugln("Creating RAW keystore")
 		return NewRawKeyStore(&RawConfig{cfg.RSAKeyPairSource}), nil
 	}
-	logrus.Debugln("Creating HSM keystore")
 	return NewHSMKeyStore(&HSMConfig{
 		Path:       cfg.Path,
 		SlotNumber: cfg.SlotNumber,
