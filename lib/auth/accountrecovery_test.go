@@ -127,7 +127,7 @@ func TestRecoveryCodeEventsEmitted(t *testing.T) {
 // TestCreateRecoveryCodesWithTokenRequest tests the following:
 //  - creating valid recovery start token
 //  - creating valid recovery approved token
-//  - creating recovery codes with token
+//  - generating recovery codes with token
 func TestCreateRecoveryCodesWithTokenRequest(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
@@ -141,13 +141,13 @@ func TestCreateRecoveryCodesWithTokenRequest(t *testing.T) {
 
 	// Get recovery start token.
 	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:     u.username,
-		RecoveryCode: []byte(u.recoveryCodes[0]),
-		RecoverType:  types.RecoverType_RECOVER_TOTP,
+		Username:          u.username,
+		RecoveryCode:      []byte(u.recoveryCodes[0]),
+		IsRecoverPassword: false,
 	})
 	require.NoError(t, err)
 	require.Equal(t, UserTokenTypeRecoveryStart, startToken.GetSubKind())
-	require.Equal(t, types.RecoverType_RECOVER_TOTP, startToken.GetRecoverType())
+	require.Equal(t, types.UserTokenUsage_RECOVER_2FA, startToken.GetUsage())
 
 	// Test passing an invalid token type returns error.
 	_, err = srv.Auth().CreateRecoveryCodesWithToken(ctx, &proto.CreateRecoveryCodesWithTokenRequest{TokenID: startToken.GetName()})
@@ -157,10 +157,11 @@ func TestCreateRecoveryCodesWithTokenRequest(t *testing.T) {
 	approvedToken, err := srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
 		TokenID:  startToken.GetName(),
 		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_Password{Password: u.password},
+		Username: u.username,
 	})
 	require.NoError(t, err)
 	require.Equal(t, UserTokenTypeRecoveryApproved, approvedToken.GetSubKind())
-	require.Equal(t, types.RecoverType_RECOVER_TOTP, startToken.GetRecoverType())
+	require.Equal(t, types.UserTokenUsage_RECOVER_2FA, startToken.GetUsage())
 
 	// Test initial recovery start token is deleted after successful auth.
 	_, err = srv.Auth().GetUserToken(ctx, startToken.GetName())
@@ -186,9 +187,9 @@ func TestMFADeviceGetAndDeleteWithToken(t *testing.T) {
 
 	// Get access to begin recovery.
 	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:     u.username,
-		RecoveryCode: []byte(u.recoveryCodes[0]),
-		RecoverType:  types.RecoverType_RECOVER_U2F,
+		Username:          u.username,
+		RecoveryCode:      []byte(u.recoveryCodes[0]),
+		IsRecoverPassword: false,
 	})
 	require.NoError(t, err)
 
@@ -196,6 +197,7 @@ func TestMFADeviceGetAndDeleteWithToken(t *testing.T) {
 	approvedToken, err := srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
 		TokenID:  startToken.GetName(),
 		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_Password{Password: []byte("abc123")},
+		Username: u.username,
 	})
 	require.NoError(t, err)
 
@@ -255,9 +257,9 @@ func TestAddTOTPWithRecoveryTokenAndPassword(t *testing.T) {
 
 	// Get access to begin recovery.
 	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:     u.username,
-		RecoveryCode: []byte(u.recoveryCodes[0]),
-		RecoverType:  types.RecoverType_RECOVER_TOTP,
+		Username:          u.username,
+		RecoveryCode:      []byte(u.recoveryCodes[0]),
+		IsRecoverPassword: false,
 	})
 	require.NoError(t, err)
 
@@ -265,6 +267,7 @@ func TestAddTOTPWithRecoveryTokenAndPassword(t *testing.T) {
 	approvedToken, err := srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
 		TokenID:  startToken.GetName(),
 		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_Password{Password: u.password},
+		Username: u.username,
 	})
 	require.NoError(t, err)
 
@@ -345,9 +348,9 @@ func TestAddU2FWithRecoveryTokenAndPassword(t *testing.T) {
 
 	// Get access to begin recovery.
 	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:     u.username,
-		RecoveryCode: []byte(u.recoveryCodes[0]),
-		RecoverType:  types.RecoverType_RECOVER_U2F,
+		Username:          u.username,
+		RecoveryCode:      []byte(u.recoveryCodes[0]),
+		IsRecoverPassword: false,
 	})
 	require.NoError(t, err)
 
@@ -355,6 +358,7 @@ func TestAddU2FWithRecoveryTokenAndPassword(t *testing.T) {
 	approvedToken, err := srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
 		TokenID:  startToken.GetName(),
 		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_Password{Password: []byte("abc123")},
+		Username: u.username,
 	})
 	require.NoError(t, err)
 
@@ -451,9 +455,9 @@ func TestChangePasswordWithRecoveryTokenAndOTP(t *testing.T) {
 
 	// Get access to begin recovery.
 	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:     u.username,
-		RecoveryCode: []byte(u.recoveryCodes[0]),
-		RecoverType:  types.RecoverType_RECOVER_PASSWORD,
+		Username:          u.username,
+		RecoveryCode:      []byte(u.recoveryCodes[0]),
+		IsRecoverPassword: true,
 	})
 	require.NoError(t, err)
 	require.Equal(t, UserTokenTypeRecoveryStart, startToken.GetSubKind())
@@ -469,6 +473,7 @@ func TestChangePasswordWithRecoveryTokenAndOTP(t *testing.T) {
 	approvedToken, err := srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
 		TokenID:  startToken.GetName(),
 		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_SecondFactorToken{SecondFactorToken: newOTP},
+		Username: u.username,
 	})
 	require.NoError(t, err)
 	require.Equal(t, UserTokenTypeRecoveryApproved, approvedToken.GetSubKind())
@@ -507,9 +512,9 @@ func TestChangePasswordWithRecoveryTokenAndU2F(t *testing.T) {
 
 	// Get access to start recovery.
 	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:     u.username,
-		RecoveryCode: []byte(u.recoveryCodes[0]),
-		RecoverType:  types.RecoverType_RECOVER_PASSWORD,
+		Username:          u.username,
+		RecoveryCode:      []byte(u.recoveryCodes[0]),
+		IsRecoverPassword: true,
 	})
 	require.NoError(t, err)
 
@@ -535,6 +540,7 @@ func TestChangePasswordWithRecoveryTokenAndU2F(t *testing.T) {
 			ClientData: u2f.ClientData,
 			Signature:  u2f.SignatureData,
 		}},
+		Username: u.username,
 	})
 	require.NoError(t, err)
 
@@ -616,8 +622,9 @@ func TestLockWhenMaxFailedAuthenticatingWithToken(t *testing.T) {
 	require.NoError(t, err)
 
 	resetToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:     u.username,
-		RecoveryCode: []byte(u.recoveryCodes[0]),
+		Username:          u.username,
+		RecoveryCode:      []byte(u.recoveryCodes[0]),
+		IsRecoverPassword: true,
 	})
 	require.NoError(t, err)
 
@@ -626,6 +633,7 @@ func TestLockWhenMaxFailedAuthenticatingWithToken(t *testing.T) {
 		_, err = srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
 			TokenID:  resetToken.GetName(),
 			AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_SecondFactorToken{SecondFactorToken: "invalid-token"},
+			Username: u.username,
 		})
 		require.Error(t, err)
 
@@ -639,6 +647,7 @@ func TestLockWhenMaxFailedAuthenticatingWithToken(t *testing.T) {
 	_, err = srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
 		TokenID:  resetToken.GetName(),
 		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_SecondFactorToken{SecondFactorToken: "invalid-token"},
+		Username: u.username,
 	})
 	require.Error(t, err)
 
@@ -689,9 +698,9 @@ func TestRecoveryAllowedWithLoginLocked(t *testing.T) {
 
 	// Still allow recovery.
 	resetToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:     u.username,
-		RecoveryCode: []byte(u.recoveryCodes[0]),
-		RecoverType:  types.RecoverType_RECOVER_PASSWORD,
+		Username:          u.username,
+		RecoveryCode:      []byte(u.recoveryCodes[0]),
+		IsRecoverPassword: true,
 	})
 	require.NoError(t, err)
 
@@ -705,6 +714,7 @@ func TestRecoveryAllowedWithLoginLocked(t *testing.T) {
 	resetToken, err = srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
 		TokenID:  resetToken.GetName(),
 		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_SecondFactorToken{SecondFactorToken: newOTP},
+		Username: u.username,
 	})
 	require.NoError(t, err)
 
@@ -746,7 +756,8 @@ func TestInvalidUserAuthCred(t *testing.T) {
 
 	// Test wrong token type for authenticating user.
 	_, err = srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
-		TokenID: wrongToken.GetName(),
+		TokenID:  wrongToken.GetName(),
+		Username: u.username,
 	})
 	require.Contains(t, err.Error(), "invalid token")
 
@@ -756,23 +767,17 @@ func TestInvalidUserAuthCred(t *testing.T) {
 	})
 	require.Contains(t, err.Error(), "invalid token")
 
-	// Test providing password, when token expects totp
-	token, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.RecoverType_RECOVER_TOTP)
+	// Test a token for recovering password with empty password.
+	token, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, true)
 	require.NoError(t, err)
 	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{TokenID: token.GetName()})
-	require.Contains(t, err.Error(), "second factor token")
+	require.Contains(t, err.Error(), "new password")
 
-	// Test providing u2f, when token expects totp
-	token, err = srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.RecoverType_RECOVER_U2F)
+	// Test a token for recovering second factor with empty second factor creds.
+	token, err = srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, false)
 	require.NoError(t, err)
 	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{TokenID: token.GetName()})
-	require.Contains(t, err.Error(), "u2f")
-
-	// Test providing otp, when token expects u2f
-	token, err = srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.RecoverType_RECOVER_PASSWORD)
-	require.NoError(t, err)
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{TokenID: token.GetName()})
-	require.Contains(t, err.Error(), "password")
+	require.Contains(t, err.Error(), "new second factor")
 }
 
 type userAuthCreds struct {

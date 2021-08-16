@@ -918,14 +918,12 @@ message UserTokenV3 {
     UserTokenSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-// RecoverType represents the types of auth credential a user can recover.
-enum RecoverType {
-    // RECOVER_TOTP indicates user wants to recover a totp device.
-    RECOVER_TOTP = 0;
-    // RECOVER_U2F indicates user wants to recover a u2f device.
-    RECOVER_U2F = 1;
-    // RECOVER_PASSWORD indicates user wants to recover their password.
-    RECOVER_PASSWORD = 2;
+// UserTokenUsage contains additional information about the intended usage of a user token.
+enum UserTokenUsage {
+    // RECOVER_PWD is a request to recover password.
+    RECOVER_PWD = 0;
+    // RECOVER_2FA is a request to recover a second factor.
+    RECOVER_2FA = 1;
 }
 
 message UserTokenSpecV3 {
@@ -933,8 +931,8 @@ message UserTokenSpecV3 {
     string User = 1 [ (gogoproto.jsontag) = "user" ];
     // URL is this token URL
     string URL = 2 [ (gogoproto.jsontag) = "url" ];
-    // RecoverType is the requested recover type.
-    RecoverType RecoverType = 3 [ (gogoproto.jsontag) = "recover_type,omitempty" ];
+    // Usage is the user requested usage of the token.
+    UserTokenUsage Usage = 3 [ (gogoproto.jsontag) = "usage,omitempty" ];
     // Created holds information about when the token was created
     google.protobuf.Timestamp Created = 4 [
         (gogoproto.stdtime) = true,

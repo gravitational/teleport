@@ -999,8 +999,8 @@ message CreateRecoveryStartTokenRequest {
     string Username = 1;
     // RecoveryCode is one of the user's recovery code.
     bytes RecoveryCode = 2;
-    // RecoverType defines the type of recovery user requested.
-    types.RecoverType RecoverType = 3;
+    // IsRecoverPassword is a flag to indicate if request is to recover password or second factor.
+    bool IsRecoverPassword = 3;
 }
 
 // AuthenticateUserWithRecoveryTokenRequest defines a request to authenticate the user defined in

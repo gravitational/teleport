@@ -1195,7 +1195,7 @@ func (s *IdentityService) DeleteUserRecoveryAttempts(ctx context.Context, user s
 	}
 
 	startKey := backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
-	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // recoveryAttemptsChronologically sorts recovery attempts by time.
