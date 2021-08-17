@@ -96,7 +96,17 @@ func (t *teleportService) waitForReady(ctx context.Context) error {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err(), "timed out waiting for %s to be ready", t.name)
 	}
-	t.log.Debugf("%s is ready", t.name)
+	// also wait for AuthIdentityEvent so that we can read the admin credentials
+	// and create a test client
+	if t.process.GetAuthServer() != nil {
+		t.process.WaitForEvent(ctx, service.AuthIdentityEvent, eventChannel)
+		select {
+		case <-eventChannel:
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err(), "timed out waiting for %s auth identity event", t.name)
+		}
+		t.log.Debugf("%s is ready", t.name)
+	}
 	return nil
 }
 
