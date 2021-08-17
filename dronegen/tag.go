@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 )
 
 const (
@@ -192,12 +191,8 @@ func tagPipeline(b buildType) pipeline {
 		// TODO: use real secret
 		//tagEnvironment["WINDOWS_SIGNING_CERT"] = value{fromSecret: "WINDOWS_SIGNING_CERT"}
 
-		cert, err := ioutil.ReadFile("cert-dummy.pfx")
-		if err != nil {
-			panic(fmt.Sprintf("could not read dummy cert: %+v", err))
-		}
-
-		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{raw: string(cert)}
+		// "invalid"
+		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{raw: "aW52YWxpZAo="}
 	}
 
 	p := newKubePipeline(pipelineName)
