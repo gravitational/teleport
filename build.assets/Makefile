@@ -45,10 +45,6 @@ ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
 
-ifneq ("$(WINDOWS_SIGNING_CERT)","")
-DOCKERFLAGS := $(DOCKERFLAGS) -e WINDOWS_SIGNING_CERT
-endif
-
 # conditionally force the use of UID/GID 1000:1000 if we're running in Drone
 ifeq ("$(DRONE)","true")
 UID := 1000

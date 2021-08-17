@@ -60,3 +60,6 @@ terraform.tfstate
 # ansible stuff
 ssh.config
 *.retry
+
+# Code signing certificate for Windows binaries
+windows-signing-cert.pfx
