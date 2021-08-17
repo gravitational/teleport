@@ -708,7 +708,7 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 			return
 		}
 		if err != nil {
-			c.WithError(err).Warning("Re-init the cache on error.")
+			c.Warningf("Re-init the cache on error: %v.", err)
 			if c.OnlyRecent.Enabled {
 				c.setReadOK(false)
 			}
