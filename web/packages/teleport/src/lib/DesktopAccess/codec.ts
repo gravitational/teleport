@@ -1,5 +1,3 @@
-import { stringToUtf8ByteArray } from "./stringToUtf8ByteArray";
-
 export type Message = ArrayBuffer;
 
 export enum MessageType {
@@ -43,7 +41,7 @@ export default class Codec {
 
   private _keyScancodes = {
     Unidentified: 0x0000,
-    "": 0x0000,
+    '': 0x0000,
     Escape: 0x0001,
     Digit0: 0x0002,
     Digit1: 0x0003,
@@ -195,9 +193,9 @@ export default class Codec {
   encScreenSpec(w: number, h: number): Message {
     const buffer = new ArrayBuffer(9);
     const view = new DataView(buffer);
-    view.setUint8(0, MessageType.CLIENT_SCREEN_SPEC)
-    view.setUint32(1, w)
-    view.setUint32(5, h)
+    view.setUint8(0, MessageType.CLIENT_SCREEN_SPEC);
+    view.setUint32(1, w);
+    view.setUint32(5, h);
     return buffer;
   }
 
@@ -239,29 +237,31 @@ export default class Codec {
   // encUsernamePassword encodes the username and password response
   encUsernamePassword(username: string, password: string): Message {
     // Encode username/pass to utf8
-    const usernameUtf8array  = stringToUtf8ByteArray(username)
-    const passwordUtf8array  = stringToUtf8ByteArray(password)
+    let encoder = new TextEncoder();
+    const usernameUtf8array = encoder.encode(username);
+    const passwordUtf8array = encoder.encode(password);
 
     // initialize buffer and corresponding view
     // numbers correspond to message spec
     // | message type (8) | user_length uint32 | username []byte | pass_length uint32 | password []byte
-    const bufLen = 1 + 4 + usernameUtf8array.length + 4 + passwordUtf8array.length
-    const buffer = new ArrayBuffer(bufLen)
-    const view = new DataView(buffer)
-    let offset = 0
+    const bufLen =
+      1 + 4 + usernameUtf8array.length + 4 + passwordUtf8array.length;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
 
     // set data
-    view.setUint8(offset++, MessageType.USERNAME_PASSWORD_RESPONSE)
-    view.setUint32(offset, usernameUtf8array.length)
-    offset += 4 // 4 bytes to offset 32-bit uint
+    view.setUint8(offset++, MessageType.USERNAME_PASSWORD_RESPONSE);
+    view.setUint32(offset, usernameUtf8array.length);
+    offset += 4; // 4 bytes to offset 32-bit uint
     usernameUtf8array.forEach(byte => {
-      view.setUint8(offset++, byte)
-    })
-    view.setUint32(offset, passwordUtf8array.length)
-    offset += 4
+      view.setUint8(offset++, byte);
+    });
+    view.setUint32(offset, passwordUtf8array.length);
+    offset += 4;
     passwordUtf8array.forEach(byte => {
-      view.setUint8(offset++, byte)
-    })
+      view.setUint8(offset++, byte);
+    });
 
     return buffer;
   }
@@ -270,13 +270,13 @@ export default class Codec {
   // TODO: need to iterate on protocol in order to syncronize clipboards
   // see https://gravitational.slack.com/archives/D0275RJQHUY/p1629130769002200
   encClipboard() {
-    throw new Error("Not implemented")
+    throw new Error('Not implemented');
   }
 
   // decClipboard decodes clipboard data
   // TODO: see docstring for encClipboard
   decClipboard() {
-    throw new Error("Not implemented")
+    throw new Error('Not implemented');
   }
 
   // decMessageType decodes the MessageType from a raw blob of data
@@ -287,7 +287,7 @@ export default class Codec {
     return blob
       .slice(0, 1)
       .arrayBuffer()
-      .then((buffer) => {
+      .then(buffer => {
         const messageType = new DataView(buffer).getUint8(0);
         if (messageType === MessageType.PNG_FRAME) {
           return MessageType.PNG_FRAME;
@@ -307,7 +307,7 @@ export default class Codec {
     return blob
       .slice(1, 17)
       .arrayBuffer()
-      .then((buf) => {
+      .then(buf => {
         let dv = new DataView(buf);
         return {
           left: dv.getUint32(0),
