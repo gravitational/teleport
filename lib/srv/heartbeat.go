@@ -518,7 +518,10 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected types.WindowsDesktop, got %#v", h.current)
 			}
-			err := h.Announcer.UpsertWindowsDesktop(h.cancelCtx, desktop)
+			err := h.Announcer.CreateWindowsDesktop(h.cancelCtx, desktop)
+			if trace.IsAlreadyExists(err) {
+				err = h.Announcer.UpdateWindowsDesktop(h.cancelCtx, desktop)
+			}
 			if err != nil {
 				h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
 				h.setState(HeartbeatStateAnnounceWait)

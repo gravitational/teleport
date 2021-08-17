@@ -59,8 +59,10 @@ type Announcer interface {
 	// UpsertWindowsDesktopService registers a Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
 
-	// UpsertWindowsDesktop registers a Windows desktop host.
-	UpsertWindowsDesktop(context.Context, types.WindowsDesktop) error
+	// CreateWindowsDesktop registers a Windows desktop host.
+	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
+	// UpdateWindowsDesktop updates a Windows desktop host.
+	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
 }
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
@@ -352,9 +354,14 @@ func (w *Wrapper) UpsertWindowsDesktopService(ctx context.Context, s types.Windo
 	return w.NoCache.UpsertWindowsDesktopService(ctx, s)
 }
 
-// UpsertWindowsDesktop registers a Windows desktop host.
-func (w *Wrapper) UpsertWindowsDesktop(ctx context.Context, d types.WindowsDesktop) error {
-	return w.NoCache.UpsertWindowsDesktop(ctx, d)
+// CreateWindowsDesktop registers a Windows desktop host.
+func (w *Wrapper) CreateWindowsDesktop(ctx context.Context, d types.WindowsDesktop) error {
+	return w.NoCache.CreateWindowsDesktop(ctx, d)
+}
+
+// UpdateWindowsDesktop updates a Windows desktop host.
+func (w *Wrapper) UpdateWindowsDesktop(ctx context.Context, d types.WindowsDesktop) error {
+	return w.NoCache.UpdateWindowsDesktop(ctx, d)
 }
 
 // NewCachingAcessPoint returns new caching access point using
