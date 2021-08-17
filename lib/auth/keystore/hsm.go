@@ -377,8 +377,8 @@ func (c *hsmKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
 			// unknown key type... we don't know what this is, so don't delete it
 			return true
 		}
-		for i := range usedPublicKeys {
-			if rsaPublicKey.Equal(usedPublicKeys[i]) {
+		for _, k := range usedPublicKeys {
+			if rsaPublicKey.Equal(k) {
 				return true
 			}
 		}
