@@ -460,10 +460,36 @@ func (a *Server) GetDomainName() (string, error) {
 	return clusterName.GetClusterName(), nil
 }
 
-// LocalCAResponse contains a PEM-encoded  CA cert.
+// LocalCAResponse contains a PEM-encoded CA cert.
 type LocalCAResponse struct {
 	// TLSCA is a PEM-encoded TLS certificate authority.
 	TLSCA []byte `json:"tls_ca"`
+}
+
+// DEPRECATED: This will not work with HA HSM clusters. Prefer GetClusterCACerts.
+// GetClusterCACert returns a CA for the local cluster without signing keys.
+func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Extract the TLS CA for this cluster.
+	hostCA, err := a.GetCache().GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName.GetClusterName(),
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs := services.GetTLSCerts(hostCA)
+	if len(certs) < 1 {
+		return nil, trace.NotFound("no tls certs found in host CA")
+	}
+
+	return &LocalCAResponse{
+		TLSCA: certs[0],
+	}, nil
 }
 
 // ClusterCACertsResponse contains PEM-encoded cluster CA certs.

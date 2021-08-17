@@ -306,7 +306,14 @@ func (a *ServerWithRoles) GetLocalClusterName() (string, error) {
 	return a.authServer.GetLocalClusterName()
 }
 
-// GetClusterCACert returns the CAs for the local cluster without signing keys.
+// DEPRECATED: This will not work with HA HSM clusters. Prefer GetClusterCACerts.
+// GetClusterCACert returns a CA for the local cluster without signing keys.
+func (a *ServerWithRoles) GetClusterCACert() (*LocalCAResponse, error) {
+	// Allow all roles to get the CA certs.
+	return a.authServer.GetClusterCACert()
+}
+
+// GetClusterCACerts returns the CAs for the local cluster without signing keys.
 func (a *ServerWithRoles) GetClusterCACerts() (*ClusterCACertsResponse, error) {
 	// Allow all roles to get the CA certs.
 	return a.authServer.GetClusterCACerts()

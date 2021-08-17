@@ -1141,18 +1141,12 @@ func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.R
 // DEPRECATED: This will not work with HA HSM clusters. Prefer getClusterCACerts
 // getClusterCACert returns the CAs for the local cluster without signing keys.
 func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	certs, err := auth.GetClusterCACerts()
+	localCA, err := auth.GetClusterCACert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(certs.Certs) < 1 {
-		return nil, trace.NotFound("no tls certs found in host CA")
-	}
-
-	return LocalCAResponse{
-		TLSCA: certs.Certs[0],
-	}, nil
+	return localCA, nil
 }
 
 // getClusterCACerts returns the CA certs for the local cluster without signing keys.

@@ -406,6 +406,20 @@ func (c *Client) GetDomainName() (string, error) {
 	return domain, nil
 }
 
+// DEPRECATED: This will not work with HA HSM clusters. Prefer GetClusterCACerts.
+// GetClusterCACert returns a CA cert for the cluster without signing keys.
+func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
+	out, err := c.Get(c.Endpoint("cacert"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var localCA LocalCAResponse
+	if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &localCA, nil
+}
+
 // GetClusterCACerts returns the CA certs for the cluster without signing keys.
 func (c *Client) GetClusterCACerts() (*ClusterCACertsResponse, error) {
 	var caCerts ClusterCACertsResponse
@@ -413,17 +427,13 @@ func (c *Client) GetClusterCACerts() (*ClusterCACertsResponse, error) {
 	if err != nil {
 		// older servers may not have this endpoint, fall back to the older
 		// singular endpoint
-		out, err = c.Get(c.Endpoint("cacert"), url.Values{})
+		localCAResponse, err := c.GetClusterCACert()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var localCA LocalCAResponse
-		if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
-			return nil, trace.Wrap(err)
-		}
 		// avoid returning a slice with a nil value
-		if len(localCA.TLSCA) > 0 {
-			caCerts.Certs = append(caCerts.Certs, localCA.TLSCA)
+		if len(localCAResponse.TLSCA) > 0 {
+			caCerts.Certs = append(caCerts.Certs, localCAResponse.TLSCA)
 		}
 		return &caCerts, nil
 	}
@@ -1993,6 +2003,10 @@ type ClientI interface {
 
 	// GetDomainName returns auth server cluster name
 	GetDomainName() (string, error)
+
+	// DEPRECATED: This will not work with HA HSM clusters. Prefer GetClusterCACerts.
+	// GetClusterCACert returns a CA cert for the cluster without signing keys.
+	GetClusterCACert() (*LocalCAResponse, error)
 
 	// GetClusterCACerts returns the list of CA certs for the cluster without
 	// signing keys.
