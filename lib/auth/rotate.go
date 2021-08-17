@@ -309,10 +309,9 @@ func (a *Server) autoRotateCertAuthorities() error {
 		if err := a.autoRotate(ca); err != nil {
 			return trace.Wrap(err)
 		}
-		// add local additional keys during init phase of rotation, for HSM auth
-		// servers
+		// make sure there are local AdditionalKeys during init phase of rotation
 		if ca.GetRotation().Phase == types.RotationPhaseInit {
-			if err := a.addLocalAdditionalKeys(ca); err != nil {
+			if err := a.ensureLocalAdditionalKeys(ca); err != nil {
 				return trace.Wrap(err)
 			}
 		}

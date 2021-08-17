@@ -350,7 +350,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 					// tctl. For this special case we add AdditionalTrustedKeys
 					// without any active keys. These keys will not be used for
 					// any signing operations until a CA rotation.
-					if err := asrv.addLocalAdditionalKeys(ca); err != nil {
+					if err := asrv.ensureLocalAdditionalKeys(ca); err != nil {
 						return nil, trace.Wrap(err)
 					}
 					// reload updated CA for below checks
@@ -361,7 +361,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			}
 			if !asrv.keyStore.HasLocalActiveKeys(ca) && asrv.keyStore.HasLocalAdditionalKeys(ca) {
 				log.Warnf("This auth server has a newly added or removed HSM and will not " +
-					"be able to perform any signing operations. You rotate the all CAs " +
+					"be able to perform any signing operations. You must rotate all CAs " +
 					"before routing traffic to this auth server.")
 			}
 			if !ca.AllKeyTypesMatch() {

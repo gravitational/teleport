@@ -102,6 +102,10 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 			info := fmt.Sprintf("%v CA ", strings.Title(string(ca.GetType())))
 			rotation := ca.GetRotation()
 			if rotation.Phase == types.RotationPhaseStandby && len(ca.GetAdditionalTrustedKeys().SSH) > 0 {
+				// There should never be AdditionalTrusted keys present during
+				// the Standby phase unless an auth server has just started up
+				// with a new HSM (or without an HSM and all other auth servers
+				// have HSMs)
 				fmt.Println("WARNING: One or more auth servers has a newly added or removed " +
 					"HSM. You should not route traffic to that server until a CA rotation " +
 					"has been completed.")

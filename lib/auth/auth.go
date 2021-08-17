@@ -2641,9 +2641,9 @@ func (a *Server) atomicCAUpdate(
 	}
 }
 
-// addLocalAdditionalKeys adds additional trusted keys to the CA if they are not
+// ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
 // already present.
-func (a *Server) addLocalAdditionalKeys(ca types.CertAuthority) error {
+func (a *Server) ensureLocalAdditionalKeys(ca types.CertAuthority) error {
 	if a.keyStore.HasLocalAdditionalKeys(ca) {
 		// nothing to do
 		return nil
