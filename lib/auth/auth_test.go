@@ -1196,8 +1196,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 
 func TestNewWebSession(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(context.Background(), t.TempDir())
 	require.NoError(t, err)
 
 	// Set a web idle timeout.
@@ -1223,7 +1222,7 @@ func TestNewWebSession(t *testing.T) {
 	ws, err := p.a.NewWebSession(req)
 	require.NoError(t, err)
 	require.Equal(t, user.GetName(), ws.GetUser())
-	require.Equal(t, duration, ws.GetInactiveTimeout())
+	require.Equal(t, duration, ws.GetIdleTimeout())
 	require.Equal(t, req.LoginTime, ws.GetLoginTime())
 	require.Equal(t, req.LoginTime.UTC().Add(req.SessionTTL), ws.GetExpiryTime())
 	require.Equal(t, req.LoginTime.UTC().Add(bearerTokenTTL), ws.GetBearerTokenExpiryTime())

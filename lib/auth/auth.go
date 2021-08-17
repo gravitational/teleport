@@ -1848,7 +1848,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		BearerToken:        bearerToken,
 		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
 		LoginTime:          req.LoginTime,
-		InactiveTimeout:    types.Duration(netCfg.GetWebIdleTimeout()),
+		IdleTimeout:        types.Duration(netCfg.GetWebIdleTimeout()),
 	}
 	UserLoginCount.Inc()
 

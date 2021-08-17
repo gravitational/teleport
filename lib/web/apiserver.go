@@ -1253,10 +1253,10 @@ type CreateSessionResponse struct {
 	TokenExpiresIn int `json:"expires_in"`
 	// SessionExpires is when this session expires.
 	SessionExpires time.Time `json:"sessionExpires,omitempty"`
-	// SessionInactiveTimeout specifies how long a user WebUI session can be left
-	// idle before being logged out by the server. A zero value means there
-	// is no idle timeout set.
-	SessionInactiveTimeout int `json:"sessionInactiveTimeout"`
+	// SessionInactiveTimeoutMS specifies how long in milliseconds
+	// a user WebUI session can be left idle before being logged out
+	// by the server. A zero value means there is no idle timeout set.
+	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 }
 
 func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -1275,10 +1275,10 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	}
 
 	return &CreateSessionResponse{
-		TokenType:              roundtrip.AuthBearer,
-		Token:                  token.GetName(),
-		TokenExpiresIn:         int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
-		SessionInactiveTimeout: int(ctx.session.GetInactiveTimeout().Milliseconds()),
+		TokenType:                roundtrip.AuthBearer,
+		Token:                    token.GetName(),
+		TokenExpiresIn:           int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
+		SessionInactiveTimeoutMS: int(ctx.session.GetIdleTimeout().Milliseconds()),
 	}, nil
 }
 

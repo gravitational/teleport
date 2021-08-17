@@ -1895,9 +1895,9 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "login_time"
     ];
-    // InactiveTimeout is the max time a user can be inactive in a session.
-    int64 InactiveTimeout = 9
-        [ (gogoproto.jsontag) = "inactive_timeout", (gogoproto.casttype) = "Duration" ];
+    // IdleTimeout is the max time a user can be inactive in a session.
+    int64 IdleTimeout = 9
+        [ (gogoproto.jsontag) = "idle_timeout", (gogoproto.casttype) = "Duration" ];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.

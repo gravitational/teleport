@@ -2281,7 +2281,7 @@ func TestNewSessionResponseWithRenewSession(t *testing.T) {
 	resp := pack.renewSession(context.Background(), t)
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &ns))
 
-	require.Equal(t, int(duration.Milliseconds()), ns.SessionInactiveTimeout)
+	require.Equal(t, int(duration.Milliseconds()), ns.SessionInactiveTimeoutMS)
 	require.Equal(t, roundtrip.AuthBearer, ns.TokenType)
 	require.NotEmpty(t, ns.SessionExpires)
 	require.NotEmpty(t, ns.Token)
@@ -2649,7 +2649,7 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
-	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn, SessionInactiveTimeout: r.SessionInactiveTimeout}, nil
+	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn, SessionInactiveTimeoutMS: r.SessionInactiveTimeoutMS}, nil
 }
 
 func newWebPack(t *testing.T, numProxies int) *webPack {

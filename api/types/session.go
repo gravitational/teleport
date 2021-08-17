@@ -82,8 +82,8 @@ type WebSession interface {
 	GetLoginTime() time.Time
 	// SetLoginTime sets when this user logged in.
 	SetLoginTime(time.Time)
-	// GetInactiveTimeout returns the max time a user can be inactive for this session.
-	GetInactiveTimeout() time.Duration
+	// GetIdleTimeout returns the max time a user can be inactive for this session.
+	GetIdleTimeout() time.Duration
 	// WithoutSecrets returns copy of the web session but without private keys
 	WithoutSecrets() WebSession
 	// String returns string representation of the session.
@@ -161,9 +161,9 @@ func (ws *WebSessionV2) SetResourceID(id int64) {
 	ws.Metadata.SetID(id)
 }
 
-// GetInactiveTimeout returns the inactivity timeout..
-func (ws *WebSessionV2) GetInactiveTimeout() time.Duration {
-	return ws.Spec.InactiveTimeout.Duration()
+// GetIdleTimeout returns the max idle timeout duration.
+func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
+	return ws.Spec.IdleTimeout.Duration()
 }
 
 // WithoutSecrets returns copy of the object but without secrets
