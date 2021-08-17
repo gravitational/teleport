@@ -142,8 +142,16 @@ func (s *EtcdSuite) TestLocking(c *check.C) {
 }
 
 func (s *EtcdSuite) TestPrefix(c *check.C) {
-	s.bk.cfg.Key = customPrefix
-	c.Assert(s.bk.cfg.Validate(), check.IsNil)
+
+	cfg := make(backend.Params)
+	for k, v := range s.config {
+		cfg[k] = v
+	}
+
+	cfg["prefix"] = customPrefix
+
+	bk, err := New(context.Background(), cfg)
+	c.Assert(err, check.IsNil)
 
 	var (
 		ctx  = context.Background()
@@ -154,12 +162,12 @@ func (s *EtcdSuite) TestPrefix(c *check.C) {
 	)
 
 	// Item key starts with '/'.
-	_, err := s.bk.Put(ctx, item)
+	_, err = bk.Put(ctx, item)
 	c.Assert(err, check.IsNil)
 
-	wantKey := s.bk.cfg.Key + string(item.Key)
+	wantKey := bk.cfg.Key + string(item.Key)
 	s.assertKV(ctx, c, wantKey, string(item.Value))
-	got, err := s.bk.Get(ctx, item.Key)
+	got, err := bk.Get(ctx, item.Key)
 	c.Assert(err, check.IsNil)
 	item.ID = got.ID
 	c.Assert(*got, check.DeepEquals, item)
@@ -169,12 +177,12 @@ func (s *EtcdSuite) TestPrefix(c *check.C) {
 		Key:   []byte("foo"),
 		Value: []byte("bar"),
 	}
-	_, err = s.bk.Put(ctx, item)
+	_, err = bk.Put(ctx, item)
 	c.Assert(err, check.IsNil)
 
-	wantKey = s.bk.cfg.Key + string(item.Key)
+	wantKey = bk.cfg.Key + string(item.Key)
 	s.assertKV(ctx, c, wantKey, string(item.Value))
-	got, err = s.bk.Get(ctx, item.Key)
+	got, err = bk.Get(ctx, item.Key)
 	c.Assert(err, check.IsNil)
 	item.ID = got.ID
 	c.Assert(*got, check.DeepEquals, item)

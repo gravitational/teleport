@@ -64,7 +64,7 @@ func CheckSPKI(pins []string, certs []*x509.Certificate) error {
 	return nil
 }
 
-var errorMessage string = "cluster pin does not match any provided certificate pin. " +
+var errorMessage string = "cluster pin does not match any provided certificate authority pin. " +
 	"This could have occurred if the Certificate Authority (CA) for the cluster " +
 	"was rotated, invalidating the old pin. This could also occur if a new HSM was " +
 	"added. Run \"tctl status\" to compare the pin used to join the cluster to the " +
