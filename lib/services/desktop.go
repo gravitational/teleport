@@ -29,7 +29,8 @@ import (
 type WindowsDesktops interface {
 	GetWindowsDesktops(context.Context) ([]types.WindowsDesktop, error)
 	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
-	UpsertWindowsDesktop(context.Context, types.WindowsDesktop) error
+	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
+	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	DeleteWindowsDesktop(ctx context.Context, name string) error
 	DeleteAllWindowsDesktops(context.Context) error
 }

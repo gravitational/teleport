@@ -1296,8 +1296,10 @@ service AuthService {
     rpc GetWindowsDesktops(google.protobuf.Empty) returns (GetWindowsDesktopsResponse);
     // GetWindowsDesktop returns a registered Windows desktop host.
     rpc GetWindowsDesktop(GetWindowsDesktopRequest) returns (types.WindowsDesktopV3);
-    // UpsertWindowsDesktop registers a new Windows desktop host.
-    rpc UpsertWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
+    // CreateWindowsDesktop registers a new Windows desktop host.
+    rpc CreateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
+    // UpdateWindowsDesktop updates an existing Windows desktop host.
+    rpc UpdateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
     // DeleteWindowsDesktop removes the specified Windows desktop host.
     rpc DeleteWindowsDesktop(DeleteWindowsDesktopRequest) returns (google.protobuf.Empty);
     // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.

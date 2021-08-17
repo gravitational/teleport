@@ -1883,13 +1883,23 @@ func (c *Client) GetWindowsDesktop(ctx context.Context, name string) (types.Wind
 	return desktop, nil
 }
 
-// UpsertWindowsDesktop registers a new windows desktop host.
-func (c *Client) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+// CreateWindowsDesktop registers a new windows desktop host.
+func (c *Client) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
 	d, ok := desktop.(*types.WindowsDesktopV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", desktop)
 	}
-	_, err := c.grpc.UpsertWindowsDesktop(ctx, d, c.callOpts...)
+	_, err := c.grpc.CreateWindowsDesktop(ctx, d, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateWindowsDesktop updates an existing windows desktop host.
+func (c *Client) UpdateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	d, ok := desktop.(*types.WindowsDesktopV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpdateWindowsDesktop(ctx, d, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 

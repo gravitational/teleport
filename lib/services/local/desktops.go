@@ -72,8 +72,8 @@ func (s *WindowsDesktopService) GetWindowsDesktop(ctx context.Context, name stri
 	return desktop, nil
 }
 
-// UpsertWindowsDesktop creates or updates a windows desktop resource.
-func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+// CreateWindowsDesktop creates a windows desktop resource.
+func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
 	if err := desktop.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -87,7 +87,29 @@ func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, deskto
 		Expires: desktop.Expiry(),
 		ID:      desktop.GetResourceID(),
 	}
-	_, err = s.Put(ctx, item)
+	_, err = s.Create(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// UpdateWindowsDesktop updates a windows desktop resource.
+func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	if err := desktop.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	value, err := services.MarshalWindowsDesktop(desktop)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(windowsDeskoptsPrefix, desktop.GetName()),
+		Value:   value,
+		Expires: desktop.Expiry(),
+		ID:      desktop.GetResourceID(),
+	}
+	_, err = s.Update(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
