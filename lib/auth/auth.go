@@ -2598,14 +2598,11 @@ func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 	return newKeySet
 }
 
-// atomicCAUpdate performs an atomic CompareAndSwap to update the given CA with
-// newKeys. getKeySet and setKeySet should be passed to choose between the
-// active keyset and the additional trusted keyset.
-func (a *Server) atomicCAUpdate(
+// addAdditionalTrustedKeysAtomic performs an atomic CompareAndSwap to update
+// the given CA with newKeys added to the AdditionalTrustedKeys
+func (a *Server) addAddtionalTrustedKeysAtomic(
 	currentCA types.CertAuthority,
 	newKeys types.CAKeySet,
-	getKeySet func(types.CertAuthority) types.CAKeySet,
-	setKeySet func(types.CertAuthority, types.CAKeySet) error,
 	needsUpdate func(types.CertAuthority) bool) error {
 	for {
 		select {
@@ -2618,9 +2615,9 @@ func (a *Server) atomicCAUpdate(
 		}
 
 		newCA := currentCA.Clone()
-		currentKeySet := getKeySet(newCA)
+		currentKeySet := newCA.GetAdditionalTrustedKeys()
 		mergedKeySet := mergeKeySets(currentKeySet, newKeys)
-		if err := setKeySet(newCA, mergedKeySet); err != nil {
+		if err := newCA.SetAdditionalTrustedKeys(mergedKeySet); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -2654,10 +2651,9 @@ func (a *Server) ensureLocalAdditionalKeys(ca types.CertAuthority) error {
 		return trace.Wrap(err)
 	}
 
-	err = a.atomicCAUpdate(ca, newKeySet,
-		func(ca types.CertAuthority) types.CAKeySet { return ca.GetAdditionalTrustedKeys() },
-		func(ca types.CertAuthority, keySet types.CAKeySet) error { return ca.SetAdditionalTrustedKeys(keySet) },
-		func(ca types.CertAuthority) bool { return !a.keyStore.HasLocalAdditionalKeys(ca) })
+	err = a.addAddtionalTrustedKeysAtomic(ca, newKeySet, func(ca types.CertAuthority) bool {
+		return !a.keyStore.HasLocalAdditionalKeys(ca)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
