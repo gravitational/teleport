@@ -532,7 +532,14 @@ func (s *remoteSite) periodicUpdateLocks() {
 		case <-periodic.Next():
 			locks := s.srv.LockWatcher.GetCurrent()
 			if err := s.remoteClient.ReplaceRemoteLocks(s.ctx, s.srv.ClusterName, locks); err != nil {
-				s.WithError(err).Warning("Could not update remote locks.")
+				switch {
+				case trace.IsNotImplemented(err):
+					s.Debugf("Remote cluster %v does not support locks yet.", s.domainName)
+				case trace.IsConnectionProblem(err):
+					s.Debugf("Remote cluster %v is offline.", s.domainName)
+				default:
+					s.WithError(err).Warning("Could not update remote locks.")
+				}
 			}
 		}
 	}
