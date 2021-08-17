@@ -33,7 +33,6 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -137,12 +136,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if os.Getenv("SOFTHSM2_TOKEN") != "" {
-		cfg.KeyStoreConfig.Path = os.Getenv("SOFTHSM2_PATH")
-		cfg.KeyStoreConfig.TokenLabel = os.Getenv("SOFTHSM2_TOKEN")
-		cfg.KeyStoreConfig.Pin = "password"
 	}
 
 	keyStore, err := keystore.NewKeyStore(cfg.KeyStoreConfig)
