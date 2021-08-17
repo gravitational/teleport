@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -145,8 +146,8 @@ func Register(params RegisterParams) (*Identity, error) {
 		log.Infof("Attempting registration %s.", method.desc)
 		ident, err := method.call(token, params)
 		if err != nil {
-			collectedErrs = append(collectedErrs, err)
-			log.WithError(err).Debugf("Registration %s failed.", method.desc)
+			maskedErr := trace.Errorf(apiutils.MaskSubString(token, err.Error()))
+			log.WithError(maskedErr).Debugf("Registration %s failed.", method.desc)
 			continue
 		}
 		log.Infof("Successfully registered %s.", method.desc)

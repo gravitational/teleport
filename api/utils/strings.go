@@ -17,7 +17,10 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"encoding/json"
+	"math"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -97,4 +100,19 @@ func CopyStrings(in []string) []string {
 	copy(out, in)
 
 	return out
+}
+
+// MaskString masks the given string.
+// e.g "123456789" -> "******789"
+func MaskString(str string) string {
+	hiddenBefore := int(math.Floor(0.75 * float64(len(str))))
+	asterisks := bytes.Repeat([]byte("*"), hiddenBefore)
+	return string(append(asterisks, str[hiddenBefore:]...))
+}
+
+// MaskSubString finds instances of a substring within a string and masks them.
+// e.g 'token "/tokens/123456789" not found' -> 'token "/tokens/******789" not found'
+func MaskSubString(key string, str string) string {
+	maskedKey := MaskString(key)
+	return strings.ReplaceAll(str, key, maskedKey)
 }

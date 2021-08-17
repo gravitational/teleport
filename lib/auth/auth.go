@@ -1625,7 +1625,8 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 		err := a.DeleteToken(ctx, tok.GetName())
 		if err != nil {
 			if !trace.IsNotFound(err) {
-				log.Warnf("Unable to delete token from backend: %v.", err)
+				maskedErrMsg := apiutils.MaskSubString(tok.GetName(), err.Error())
+				log.Warnf("Unable to delete token from backend: %v.", maskedErrMsg)
 			}
 		}
 		return false
@@ -1691,7 +1692,8 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys,
 	// make sure the token is valid
 	roles, _, err := a.ValidateToken(req.Token)
 	if err != nil {
-		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
+		maskedErrMsg := apiutils.MaskSubString(req.Token, err.Error())
+		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %s", req.NodeName, req.HostID, req.Role, maskedErrMsg)
 		return nil, trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
 	}
 

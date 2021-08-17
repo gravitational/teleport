@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -155,7 +156,8 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 			Expires: s.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit create reset password token event.")
+		maskedErr := trace.Errorf(apiutils.MaskSubString(req.Name, err.Error()))
+		log.WithError(maskedErr).Warn("Failed to emit create reset password token event.")
 	}
 
 	return s.GetUserToken(ctx, token.GetName())
