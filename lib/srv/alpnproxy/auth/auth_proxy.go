@@ -1,0 +1,141 @@
+package alpnproxyauth
+
+import (
+	"context"
+	"io"
+	"net"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+type sitesGetter interface {
+	GetSites() ([]reversetunnel.RemoteSite, error)
+}
+
+type authGetter interface {
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetAuthServers() ([]types.Server, error)
+}
+
+// NewAuthProxyDialerService create new instance of AuthProxyDialerService.
+func NewAuthProxyDialerService(reverseTunnelServer sitesGetter, accessPoint authGetter) *AuthProxyDialerService {
+	return &AuthProxyDialerService{
+		reverseTunnelServer: reverseTunnelServer,
+		accessPoint:         accessPoint,
+	}
+}
+
+// AuthProxyDialerService allows dialing local/remote auth service base on SNI value encoded as destination auth
+// cluster name and ALPN set to teleport-auth protocol.
+type AuthProxyDialerService struct {
+	reverseTunnelServer sitesGetter
+	accessPoint         authGetter
+}
+
+func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.Conn, connInfo alpnproxy.ConnectionInfo) error {
+	defer conn.Close()
+	clusterName, err := getClusterNameFromSNI(connInfo)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authConn, err := s.dialAuthServer(ctx, clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer authConn.Close()
+	if err := s.proxyConn(ctx, conn, authConn); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func getClusterNameFromSNI(info alpnproxy.ConnectionInfo) (string, error) {
+	cn, err := auth.DecodeClusterName(info.SNI)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return cn, nil
+}
+
+func (s *AuthProxyDialerService) dialAuthServer(ctx context.Context, clusterNameFromSNI string) (net.Conn, error) {
+	clusterName, err := s.accessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if clusterName.GetClusterName() == clusterNameFromSNI {
+		return s.dialLocalAuthServer(ctx)
+	}
+	if s.reverseTunnelServer != nil {
+		return s.dialRemoteAuthServer(ctx, clusterNameFromSNI)
+	}
+	return nil, trace.NotFound("auth server for %q cluster name not found", clusterNameFromSNI)
+}
+
+func (s *AuthProxyDialerService) dialLocalAuthServer(ctx context.Context) (net.Conn, error) {
+	authServers, err := s.accessPoint.GetAuthServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(authServers) == 0 {
+		return nil, trace.NotFound("empty auth servers list")
+	}
+	conn, err := net.Dial("tcp", authServers[0].GetAddr())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
+}
+
+func (s *AuthProxyDialerService) dialRemoteAuthServer(ctx context.Context, clusterName string) (net.Conn, error) {
+	sites, err := s.reverseTunnelServer.GetSites()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, s := range sites {
+		if s.GetName() != clusterName {
+			continue
+		}
+		conn, err := s.DialAuthServer()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
+	}
+	return nil, trace.NotFound("cluster name %q not found", clusterName)
+}
+
+func (s *AuthProxyDialerService) proxyConn(ctx context.Context, upstreamConn, downstreamConn net.Conn) error {
+	errC := make(chan error)
+	go func() {
+		defer upstreamConn.Close()
+		defer downstreamConn.Close()
+		_, err := io.Copy(downstreamConn, upstreamConn)
+		errC <- trace.Wrap(err)
+
+	}()
+	go func() {
+		defer upstreamConn.Close()
+		defer downstreamConn.Close()
+		_, err := io.Copy(upstreamConn, downstreamConn)
+		errC <- trace.Wrap(err)
+	}()
+	var errs []error
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case err := <-errC:
+			if err != nil && !utils.IsOKNetworkError(err) {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return trace.NewAggregate(errs...)
+}

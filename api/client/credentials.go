@@ -293,7 +293,10 @@ func (c *profileCreds) load() error {
 func configureTLS(c *tls.Config) *tls.Config {
 	tlsConfig := c.Clone()
 
-	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
+	// Append h2 protocol used by gRPC and preserve current values of NextProtos.
+	// In case of dialing auth service through ALPN proxy client appends teleport-auth to
+	// indicate ALPN proxy that incoming connection should be routed to auth service.
+	tlsConfig.NextProtos = AppendToNextProtos(tlsConfig.NextProtos, http2.NextProtoTLS)
 
 	if tlsConfig.ServerName == "" {
 		tlsConfig.ServerName = constants.APIDomain
@@ -311,4 +314,28 @@ func configureTLS(c *tls.Config) *tls.Config {
 	}
 
 	return tlsConfig
+}
+
+// AppendToNextProtos appends the value
+// to the slice if the value doesn't already exist.
+func AppendToNextProtos(slice []string, val string) []string {
+	for _, p := range slice {
+		if p == val {
+			return slice
+		}
+	}
+	out := make([]string, 0, len(slice)+1)
+	out = append(out, slice...)
+	return append(out, val)
+}
+
+// RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
+func RemoveFromNextProtos(slice []string, val string) []string {
+	out := make([]string, 0, len(slice))
+	for _, v := range slice {
+		if v != val {
+			out = append(out, v)
+		}
+	}
+	return out
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
@@ -254,6 +255,14 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 				t.log.Warningf("Client sent unsupported cluster name %q, what resulted in error %v.", info.ServerName, err)
 				return nil, trace.AccessDenied("access is denied")
 			}
+		}
+
+		// If Auth Service was dialed by SNI ALPN proxy (ProtocolAuth value present in SupportedProtos field)
+		// reset cluster name in order to validate against all known CAs.
+		// This is needed because in the trusted cluster scenario the client uses root cluster cert with
+		// leaf cluster name encoded into TLS ServerName filed.
+		if utils.SliceContainsStr(info.SupportedProtos, alpnproxy.ProtocolAuth) {
+			clusterName = ""
 		}
 	}
 

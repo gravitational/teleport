@@ -43,4 +43,7 @@ const (
 
 	// ProtocolDefault is default TLS ALPN value.
 	ProtocolDefault = ""
+
+	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
+	ProtocolAuth = "teleport-auth"
 )

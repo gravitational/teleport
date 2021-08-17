@@ -140,11 +140,14 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		})
 	}
 
-	// Set the next protocol. This is needed due to the Auth Server using a
-	// multiplexer for protocol detection. Unless next protocol is specified
+	// Set 'http/1.1' protocol and remote 'h2' value used by gRPC server to make sure
+	// that negotiated ALPN protocol will be http/1.1 and the request will be handled by Web Auth API.
+	// This is needed due to the Auth Server using a multiplexer
+	// for protocol detection. Unless next protocol is specified
 	// it will attempt to upgrade to HTTP2 and at that point there is no way
 	// to distinguish between HTTP2/JSON or GPRC.
-	tls.NextProtos = []string{teleport.HTTPNextProtoTLS}
+	tls.NextProtos = client.AppendToNextProtos(tls.NextProtos, teleport.HTTPNextProtoTLS)
+	tls.NextProtos = client.RemoveFromNextProtos(tls.NextProtos, teleport.HTTP2NextProtoTLS)
 
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed

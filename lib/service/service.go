@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/regular"
@@ -2998,6 +2999,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
+		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, accessPoint)
+		alpnRouter.Add(alpnproxy.HandlerDecs{
+			Protocols:           []string{alpnproxy.ProtocolAuth},
+			HandlerWithConnInfo: authDialerService.HandleConnection,
+			ForwardTLS:          true,
+		})
 		alpnServer, err = alpnproxy.New(alpnproxy.ProxyConfig{
 			TLSConfig: tlsConfigWeb.Clone(),
 			Router:    alpnRouter,

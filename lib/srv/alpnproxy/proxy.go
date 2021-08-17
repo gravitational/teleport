@@ -73,6 +73,16 @@ type Router struct {
 	mtx                sync.Mutex
 }
 
+// CheckAndSetDefaults verifies the constraints for Router.
+func (r *Router) CheckAndSetDefault() error {
+	for _, v := range r.alpnHandlers {
+		if v.Handler != nil && v.HandlerWithConnInfo != nil {
+			return trace.BadParameter("can create route with both Handler and HandlerWithConnInfo handlers")
+		}
+	}
+	return nil
+}
+
 // AddKubeHandler adds the handle for Kubernetes protocol (distinguishable by  "kube." SNI prefix).
 func (r *Router) AddKubeHandler(handler HandlerFunc) {
 	r.mtx.Lock()
@@ -107,9 +117,20 @@ type HandlerDecs struct {
 	Protocols []string
 	// Handler is protocol handling logic.
 	Handler HandlerFunc
+	// HandlerWithConnInfo is protocol handler function providing additional TLS insight.
+	// Used in cases where internal handler function must have access to hello message values without
+	// terminating the TLS connection.
+	HandlerWithConnInfo HandlerFuncWithInfo
 	// ForwardTLS tells is ALPN proxy service should terminate TLS traffic or delegate the
 	// TLS termination to the protocol handler (Used in Kube handler case)
 	ForwardTLS bool
+}
+
+func (h *HandlerDecs) handle(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
+	if h.HandlerWithConnInfo != nil {
+		return h.HandlerWithConnInfo(ctx, conn, info)
+	}
+	return h.Handler(ctx, conn)
 }
 
 // HandlerFunc is a common function signature used to handle downstream with
@@ -142,6 +163,12 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	}
 	if c.ReadDeadline == 0 {
 		c.ReadDeadline = defaults.HandshakeReadDeadline
+	}
+	if c.Router == nil {
+		return trace.BadParameter("missing parameter router")
+	}
+	if err := c.Router.CheckAndSetDefault(); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -187,6 +214,19 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	}
 }
 
+// ConnectionInfo contains details about TLS connection.
+type ConnectionInfo struct {
+	// SNI is ServerName value obtained from TLS hello message.
+	SNI string
+	// ALPN protocols obtained from TLS hello message.
+	ALPN []string
+}
+
+// HandlerFuncWithInfo is protocol handler function providing additional TLS insight.
+// Used in cases where internal handler function must have access to hello message values without
+// terminating the TLS connection.
+type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info ConnectionInfo) error
+
 func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 	hello, conn, err := p.readHelloMessageWithoutTLSTermination(clientConn)
 	if err != nil {
@@ -198,8 +238,13 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
+	connInfo := ConnectionInfo{
+		SNI:  hello.ServerName,
+		ALPN: hello.SupportedProtos,
+	}
+
 	if handlerDesc.ForwardTLS {
-		return trace.Wrap(handlerDesc.Handler(ctx, conn))
+		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
 	}
 
 	tlsConn := tls.Server(conn, p.cfg.TLSConfig)
@@ -218,9 +263,9 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
 	if isDatabaseConnection {
-		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn))
+		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, connInfo))
 	}
-	return trace.Wrap(handlerDesc.Handler(ctx, tlsConn))
+	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
 }
 
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
@@ -252,14 +297,14 @@ func (p *Proxy) readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.Clien
 	return hello, newBufferedConn(conn, buff), nil
 }
 
-func (p *Proxy) handleDatabaseConnection(ctx context.Context, conn net.Conn) error {
+func (p *Proxy) handleDatabaseConnection(ctx context.Context, conn net.Conn, connInfo ConnectionInfo) error {
 	if p.cfg.Router.databaseTLSHandler == nil {
 		return trace.BadParameter("database handle not enabled")
 	}
-	return p.cfg.Router.databaseTLSHandler.Handler(ctx, conn)
+	return p.cfg.Router.databaseTLSHandler.handle(ctx, conn, connInfo)
 }
 
-func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.Conn) error {
+func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
 	// DB Protocols like Mongo have native support for TLS thus TLS connection needs to be terminated twice.
 	// First time for custom local proxy connection and the second time from Mongo protocol where TLS connection is used.
 
@@ -283,7 +328,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	if !isDatabaseConnection {
 		return trace.BadParameter("not database connection")
 	}
-	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn))
+	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, info))
 }
 
 func isDBTLSProtocol(protocol string) bool {
@@ -314,9 +359,9 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 
 	if isDBTLSProtocol(protocol) {
 		return &HandlerDecs{
-			Protocols:  []string{protocol},
-			Handler:    p.databaseHandlerWithTLSTermination,
-			ForwardTLS: false,
+			Protocols:           []string{protocol},
+			HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,
+			ForwardTLS:          false,
 		}, nil
 	}
 
