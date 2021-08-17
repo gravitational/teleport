@@ -166,6 +166,9 @@ type ReadAccessPoint interface {
 
 	// GetWindowsDesktops returns windows desktop hosts.
 	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
+
+	// GetWindowsDesktops returns windows desktop hosts.
+	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)

@@ -125,7 +125,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Streamer = events.NewDiscardEmitter()
 	}
 	if cfg.WindowsDesktops == nil {
-		cfg.WindowsDesktops = local.NewWindowsDesktopsService(cfg.Backend)
+		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
