@@ -60,6 +60,7 @@ func (b *Backend) asyncPollStreams(ctx context.Context) error {
 			b.Errorf("Poll streams returned with error: %v.", err)
 		}
 		b.Debugf("Reloading %v.", retry)
+		b.buf.Reset()
 		select {
 		case <-retry.After():
 			retry.Inc()
@@ -83,69 +84,25 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	set := make(map[string]struct{})
 	eventsC := make(chan shardEvent)
 
-	shouldStartPoll := func(shard *dynamodbstreams.Shard) bool {
-		sid := aws.StringValue(shard.ShardId)
-		if _, ok := set[sid]; ok {
-			// already being polled
-			return false
-		}
-		if _, ok := set[aws.StringValue(shard.ParentShardId)]; ok {
-			b.Debugf("Skipping child shard: %s, still polling parent %s", sid, aws.StringValue(shard.ParentShardId))
-			// still processing parent
-			return false
-		}
-		return true
-	}
-
-	refreshShards := func(init bool) error {
+	refreshShards := func() error {
 		shards, err := b.collectActiveShards(ctx, streamArn)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		var initC chan error
-		if init {
-			// first call to  refreshShards requires us to block on shard iterator
-			// registration.
-			initC = make(chan error, len(shards))
-		}
-
-		started := 0
 		for i := range shards {
-			if !shouldStartPoll(shards[i]) {
-				continue
-			}
 			shardID := aws.StringValue(shards[i].ShardId)
-			b.Debugf("Adding active shard %v.", shardID)
-			set[shardID] = struct{}{}
-			go b.asyncPollShard(ctx, streamArn, shards[i], eventsC, initC)
-			started++
-		}
-
-		if init {
-			// block on shard iterator registration.
-			for i := 0; i < started; i++ {
-				select {
-				case err = <-initC:
-					if err != nil {
-						return trace.Wrap(err)
-					}
-				case <-ctx.Done():
-					return trace.Wrap(ctx.Err())
-				}
+			if _, ok := set[shardID]; !ok {
+				b.Debugf("Adding active shard %v.", shardID)
+				set[shardID] = struct{}{}
+				go b.asyncPollShard(ctx, streamArn, shards[i], eventsC)
 			}
 		}
-
 		return nil
 	}
 
-	if err := refreshShards(true); err != nil {
+	if err := refreshShards(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// shard iterators are initialized, unblock any registered watchers
-	b.buf.SetInit()
-	defer b.buf.Reset()
 
 	ticker := time.NewTicker(b.PollStreamPeriod)
 	defer ticker.Stop()
@@ -161,10 +118,10 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 				}
 				b.Debugf("Shard ID %v exited gracefully.", event.shardID)
 			} else {
-				b.buf.Emit(event.events...)
+				b.buf.PushBatch(event.events)
 			}
 		case <-ticker.C:
-			if err := refreshShards(false); err != nil {
+			if err := refreshShards(); err != nil {
 				return trace.Wrap(err)
 			}
 		case <-ctx.Done():
@@ -187,24 +144,15 @@ func (b *Backend) findStream(ctx context.Context) (*string, error) {
 	return status.Table.LatestStreamArn, nil
 }
 
-func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent, initC chan<- error) error {
+func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent) error {
 	shardIterator, err := b.streams.GetShardIteratorWithContext(ctx, &dynamodbstreams.GetShardIteratorInput{
 		ShardId:           shard.ShardId,
 		ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeLatest),
 		StreamArn:         streamArn,
 	})
-
-	if initC != nil {
-		select {
-		case initC <- convertError(err):
-		case <-ctx.Done():
-			return trace.ConnectionProblem(ctx.Err(), "context is closing")
-		}
-	}
 	if err != nil {
 		return convertError(err)
 	}
-
 	ticker := time.NewTicker(b.PollStreamPeriod)
 	defer ticker.Stop()
 	iterator := shardIterator.ShardIterator
@@ -335,7 +283,7 @@ func toEvent(rec *dynamodbstreams.Record) (*backend.Event, error) {
 	}
 }
 
-func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent, initC chan<- error) {
+func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent) {
 	var err error
 	defer func() {
 		if err == nil {
@@ -348,7 +296,7 @@ func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard *
 			return
 		}
 	}()
-	err = b.pollShard(ctx, streamArn, shard, eventsC, initC)
+	err = b.pollShard(ctx, streamArn, shard, eventsC)
 }
 
 func (b *Backend) turnOnTimeToLive(ctx context.Context) error {
