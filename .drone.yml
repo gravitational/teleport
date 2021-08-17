@@ -1081,21 +1081,21 @@ steps:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
       # build major version images which are just teleport:x
-      CURRENT_VERSION_ROOT: v6
-      PREVIOUS_VERSION_ONE_ROOT: v5
-      PREVIOUS_VERSION_TWO_ROOT: v4.4
+      CURRENT_VERSION_ROOT: v7
+      PREVIOUS_VERSION_ONE_ROOT: v6
+      PREVIOUS_VERSION_TWO_ROOT: v5
     commands:
       - apk --update --no-cache add curl
       - mkdir -p /go/build && cd /go/build
-      # CURRENT_VERSION (6)
+      # CURRENT_VERSION (7)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $CURRENT_VERSION_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/CURRENT_VERSION_TAG.txt
       - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_ONE (5)
+      # PREVIOUS_VERSION_ONE (6)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_ONE_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_ONE_TAG.txt
       - echo "$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_TWO (4.4)
+      # PREVIOUS_VERSION_TWO (5)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_TWO_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_TWO_TAG.txt
-      - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
+      - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       # list versions
       - for FILE in /go/build/*.txt; do echo $FILE; cat $FILE; done
       # get Dockerfiles
@@ -1191,7 +1191,7 @@ steps:
       - docker push $ENT_FIPS_IMAGE_NAME
 
   - name: Build/push Teleport Lab Docker image
-    image: docker
+    image: docker:git
     environment:
       OS: linux
       ARCH: amd64
@@ -1204,13 +1204,17 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt)
+      - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt | tr -d '^v')
       - export TELEPORT_LAB_IMAGE_NAME="quay.io/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
-       # Get Dockerfile
-      - curl -Ls -o /go/build/Dockerfile-teleport-lab https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/docker/sshd/Dockerfile
+       # Check out code
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin
+      - git checkout -qf ${DRONE_COMMIT_SHA}
       # Build and push Teleport lab image
-      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME -f /go/build/Dockerfile-teleport-lab /go/build
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME /go/src/github.com/gravitational/teleport/docker/sshd
       - docker push $TELEPORT_LAB_IMAGE_NAME
 
 services:
@@ -4402,6 +4406,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 3d8c78d85da4dc040e2ae018e659d89abe25e850763a9a4f738376210225aa42
+hmac: f4dd3545906ea006532a501fdf612501109ab6670a533376ba1fecef4c5cb274
 
 ...

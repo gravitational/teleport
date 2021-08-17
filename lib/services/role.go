@@ -56,6 +56,7 @@ func getExtendedAdminUserRules(features modules.Features) []types.Rule {
 		types.NewRule(types.KindEvent, RO()),
 		types.NewRule(types.KindUser, RW()),
 		types.NewRule(types.KindToken, RW()),
+		types.NewRule(types.KindLock, RW()),
 	}
 
 	if features.Cloud {
@@ -163,6 +164,8 @@ func NewImplicitRole() types.Role {
 }
 
 // RoleForUser creates an admin role for a services.User.
+//
+// Used in tests only.
 func RoleForUser(u types.User) types.Role {
 	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV4{
 		Options: types.RoleOptions{
@@ -187,6 +190,8 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindClusterAuthPreference, RW()),
 				types.NewRule(types.KindClusterNetworkingConfig, RW()),
 				types.NewRule(types.KindSessionRecordingConfig, RW()),
+				types.NewRule(types.KindDatabase, RW()),
+				types.NewRule(types.KindLock, RW()),
 			},
 		},
 	})
@@ -783,6 +788,9 @@ type AccessChecker interface {
 
 	// CanImpersonateSomeone returns true if this checker has any impersonation rules
 	CanImpersonateSomeone() bool
+
+	// LockingMode returns the locking mode to apply with this checker.
+	LockingMode(defaultMode constants.LockingMode) constants.LockingMode
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1680,6 +1688,21 @@ func (set RoleSet) CheckImpersonate(currentUser, impersonateUser types.User, imp
 	}
 
 	return trace.AccessDenied("access denied to '%s' to impersonate user '%s' and roles '%s'", currentUser.GetName(), impersonateUser.GetName(), roleNames(impersonateRoles))
+}
+
+// LockingMode returns the locking mode to apply with this RoleSet.
+func (set RoleSet) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
+	mode := defaultMode
+	for _, role := range set {
+		options := role.GetOptions()
+		if options.Lock == constants.LockingModeStrict {
+			return constants.LockingModeStrict
+		}
+		if options.Lock != "" {
+			mode = options.Lock
+		}
+	}
+	return mode
 }
 
 func roleNames(roles []types.Role) string {

@@ -567,18 +567,18 @@ func (c *netRestrictionsCollection) writeText(w io.Writer) error {
 	return trace.Wrap(out.err)
 }
 
-type dbCollection struct {
+type databaseServerCollection struct {
 	servers []types.DatabaseServer
 }
 
-func (c *dbCollection) resources() (r []types.Resource) {
+func (c *databaseServerCollection) resources() (r []types.Resource) {
 	for _, resource := range c.servers {
 		r = append(r, resource)
 	}
 	return r
 }
 
-func (c *dbCollection) writeText(w io.Writer) error {
+func (c *databaseServerCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Name", "Protocol", "URI", "Labels", "Hostname", "Version"})
 	for _, server := range c.servers {
 		for _, database := range server.GetDatabases() {
@@ -591,7 +591,7 @@ func (c *dbCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (c *dbCollection) writeJSON(w io.Writer) error {
+func (c *databaseServerCollection) writeJSON(w io.Writer) error {
 	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
 	if err != nil {
 		return trace.Wrap(err)
@@ -600,12 +600,34 @@ func (c *dbCollection) writeJSON(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (c *dbCollection) toMarshal() interface{} {
+func (c *databaseServerCollection) toMarshal() interface{} {
 	return c.servers
 }
 
-func (c *dbCollection) writeYAML(w io.Writer) error {
+func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.toMarshal())
+}
+
+type databaseCollection struct {
+	databases []types.Database
+}
+
+func (c *databaseCollection) resources() (r []types.Resource) {
+	for _, resource := range c.databases {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *databaseCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Protocol", "URI", "Labels"})
+	for _, database := range c.databases {
+		t.AddRow([]string{
+			database.GetName(), database.GetProtocol(), database.GetURI(), database.LabelsString(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }
 
 type lockCollection struct {

@@ -47,6 +47,7 @@ func TestContextLockTargets(t *testing.T) {
 	}
 	expected := []types.LockTarget{
 		{Node: "node"},
+		{Node: "node.cluster"},
 		{User: "node.cluster"},
 		{Role: "role1"},
 		{Role: "role2"},
@@ -117,9 +118,8 @@ func TestAuthorizeWithLocksForBuiltinRole(t *testing.T) {
 	require.NoError(t, err)
 
 	builtinRole := BuiltinRole{
-		Username:                  "node",
-		Role:                      types.RoleNode,
-		GetSessionRecordingConfig: srv.AuthServer.GetSessionRecordingConfig,
+		Username: "node",
+		Role:     types.RoleNode,
 		Identity: tlsca.Identity{
 			Username: "node",
 		},
@@ -153,7 +153,7 @@ func waitForLockPut(ctx context.Context, t *testing.T, srv *TestAuthServer, lock
 		require.Equal(t, lock.GetName(), event.Resource.GetName())
 	case <-lockWatch.Done():
 		t.Fatalf("Watcher exited with error: %v.", lockWatch.Error())
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for lock put.")
 	}
 }
