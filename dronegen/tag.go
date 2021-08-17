@@ -195,11 +195,7 @@ func tagPipeline(b buildType) pipeline {
 	}
 
 	if b.os == "windows" {
-		// TODO: use real secret
-		//tagEnvironment["WINDOWS_SIGNING_CERT"] = value{fromSecret: "WINDOWS_SIGNING_CERT"}
-
-		// "invalid"
-		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{raw: "aW52YWxpZAo="}
+		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{fromSecret: "WINDOWS_SIGNING_CERT"}
 	}
 
 	p := newKubePipeline(pipelineName)
