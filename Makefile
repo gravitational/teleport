@@ -308,8 +308,8 @@ release-windows-unsigned: clean all
 #
 .PHONY: release-windows
 release-windows: release-windows-unsigned
-	@if [ -z "$${WINDOWS_SIGNING_CERT}" ]; then \
-		echo "WINDOWS_SIGNING_CERT is unset, cannot create signed archive."; \
+	@if [ ! -f "windows-signing-cert.pfx" ]; then \
+		echo "windows-signing-cert.pfx is missing or invalid, cannot create signed archive."; \
 		exit 1; \
 	fi
 
@@ -318,10 +318,8 @@ release-windows: release-windows-unsigned
 	unzip $(RELEASE)-unsigned.zip
 	
 	@echo "---> Signing Windows binary."
-	@cert_path=$$(mktemp); \
-	echo "$${WINDOWS_SIGNING_CERT}" | base64 -d > "$$cert_path" || exit 1; \
-	osslsigncode sign \
-		-pkcs12 "$${cert_path}" \
+	@osslsigncode sign \
+		-pkcs12 "windows-signing-cert.pfx" \
 		-n "Teleport" \
 		-i https://goteleport.com \
 		-t http://timestamp.digicert.com \
@@ -329,7 +327,7 @@ release-windows: release-windows-unsigned
 		-in teleport/tsh-unsigned.exe \
 		-out teleport/tsh.exe; \
 	success=$$?; \
-	rm -f teleport/tsh-unsigned.exe "$$cert_path"; \
+	rm -f teleport/tsh-unsigned.exe; \
 	if [ "$${success}" -ne 0 ]; then \
 		echo "Failed to sign tsh.exe, aborting."; \
 		exit 1; \
