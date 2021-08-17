@@ -1138,18 +1138,16 @@ func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.R
 	return domain, nil
 }
 
-// LocalCAResponse contains a PEM-encoded  CA cert.
-type LocalCAResponse struct {
-	// TLSCA is a PEM-encoded TLS certificate authority.
-	TLSCA []byte `json:"tls_ca"`
-}
-
 // DEPRECATED: This will not work with HA HSM clusters. Prefer getClusterCACerts
 // getClusterCACert returns the CAs for the local cluster without signing keys.
 func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	certs, err := auth.GetClusterCACerts()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if len(certs.Certs) < 1 {
+		return nil, trace.NotFound("no tls certs found in host CA")
 	}
 
 	return LocalCAResponse{

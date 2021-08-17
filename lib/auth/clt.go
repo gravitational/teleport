@@ -410,7 +410,19 @@ func (c *Client) GetDomainName() (string, error) {
 func (c *Client) GetClusterCACerts() (*ClusterCACertsResponse, error) {
 	out, err := c.Get(c.Endpoint("cacerts"), url.Values{})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// older servers may not have this endpoint, fall back to the older
+		// singular endpoint
+		out, err = c.Get(c.Endpoint("cacert"), url.Values{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var localCA LocalCAResponse
+		if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &ClusterCACertsResponse{
+			Certs: [][]byte{localCA.TLSCA},
+		}, nil
 	}
 	var caCerts ClusterCACertsResponse
 	if err := json.Unmarshal(out.Bytes(), &caCerts); err != nil {
