@@ -135,15 +135,17 @@ type EtcdBackend struct {
 	backend.NoMigrations
 	nodes []string
 	*log.Entry
-	cfg       *Config
-	client    *clientv3.Client
-	cancelC   chan bool
-	stopC     chan bool
-	clock     clockwork.Clock
-	buf       *backend.CircularBuffer
-	ctx       context.Context
-	cancel    context.CancelFunc
-	watchDone chan struct{}
+	cfg              *Config
+	client           *clientv3.Client
+	cancelC          chan bool
+	stopC            chan bool
+	clock            clockwork.Clock
+	buf              *backend.CircularBuffer
+	ctx              context.Context
+	cancel           context.CancelFunc
+	watchStarted     context.Context
+	signalWatchStart context.CancelFunc
+	watchDone        chan struct{}
 }
 
 // Config represents JSON config for etcd backend
@@ -206,22 +208,25 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
+	buf, err := backend.NewCircularBuffer(ctx, cfg.BufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	closeCtx, cancel := context.WithCancel(ctx)
+	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	b := &EtcdBackend{
-		Entry:     log.WithFields(log.Fields{trace.Component: GetName()}),
-		cfg:       cfg,
-		nodes:     cfg.Nodes,
-		cancelC:   make(chan bool, 1),
-		stopC:     make(chan bool, 1),
-		clock:     clockwork.NewRealClock(),
-		cancel:    cancel,
-		ctx:       closeCtx,
-		watchDone: make(chan struct{}),
-		buf:       buf,
+		Entry:            log.WithFields(log.Fields{trace.Component: GetName()}),
+		cfg:              cfg,
+		nodes:            cfg.Nodes,
+		cancelC:          make(chan bool, 1),
+		stopC:            make(chan bool, 1),
+		clock:            clockwork.NewRealClock(),
+		cancel:           cancel,
+		ctx:              closeCtx,
+		watchStarted:     watchStarted,
+		signalWatchStart: signalWatchStart,
+		watchDone:        make(chan struct{}),
+		buf:              buf,
 	}
 
 	// Check that the etcd nodes are at least the minimum version supported
@@ -302,7 +307,7 @@ func (b *EtcdBackend) Close() error {
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (b *EtcdBackend) CloseWatchers() {
-	b.buf.Clear()
+	b.buf.Reset()
 }
 
 func (b *EtcdBackend) reconnect(ctx context.Context) error {
@@ -378,6 +383,10 @@ WatchEvents:
 		case <-b.ctx.Done():
 			break WatchEvents
 		}
+
+		// buffer must be reset before recreation in order to avoid duplicate
+		// and/or missing values in the buffer watcher event stream.
+		b.buf.Reset()
 	}
 	b.Debugf("Watch stopped: %v.", trace.NewAggregate(err, b.ctx.Err()))
 }
@@ -428,42 +437,30 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 		cq.InputBuf(120),
 		cq.OutputBuf(48),
 	)
+	defer q.Close()
 
-	// emitDone signals that the background goroutine used for emitting the processed
-	// events to the buffer has halted.
-	emitDone := make(chan struct{})
-
-	// watcher must be registered before we initialize the buffer
-	eventsC := b.client.Watch(ctx, b.cfg.Key, clientv3.WithPrefix())
-
-	// set buffer to initialized state.
-	b.buf.SetInit()
-
-	// ensure correct cleanup ordering (buffer must not be reset until event emission has halted).
-	defer func() {
-		q.Close()
-		<-emitDone
-		b.buf.Reset()
-	}()
-
-	// launch background process responsible for event emission.
+	// launch background process responsible for forwarding events from the queue
+	// to the buffer.
 	go func() {
-		defer close(emitDone)
-	EmitEvents:
+	PushToBuf:
 		for {
 			select {
 			case p := <-q.Pop():
 				r := p.(eventResult)
 				if r.err != nil {
 					b.WithError(r.err).Errorf("Failed to unmarshal event: %v.", r.original)
-					continue EmitEvents
+					continue PushToBuf
 				}
-				b.buf.Emit(r.event)
+				b.buf.Push(r.event)
 			case <-q.Done():
 				return
 			}
 		}
 	}()
+
+	// start watching
+	eventsC := b.client.Watch(ctx, b.cfg.Key, clientv3.WithPrefix())
+	b.signalWatchStart()
 
 	var lastBacklogWarning time.Time
 	for {
@@ -509,6 +506,11 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 
 // NewWatcher returns a new event watcher
 func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
+	select {
+	case <-b.watchStarted.Done():
+	case <-ctx.Done():
+		return nil, trace.ConnectionProblem(ctx.Err(), "context is closing")
+	}
 	return b.buf.NewWatcher(ctx, watch)
 }
 
