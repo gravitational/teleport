@@ -306,6 +306,9 @@ type Server struct {
 	// keyStore is an interface for interacting with private keys in CAs which
 	// may be backed by HSMs
 	keyStore keystore.KeyStore
+
+	// lockWatcher is a lock watcher, used to verify cert generation requests.
+	lockWatcher *services.LockWatcher
 }
 
 // SetCache sets cache used by auth server
@@ -323,6 +326,22 @@ func (a *Server) GetCache() Cache {
 		return &a.Services
 	}
 	return a.cache
+}
+
+// SetLockWatcher sets the lock watcher.
+func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.lockWatcher = lockWatcher
+}
+
+func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.LockTarget) error {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	if a.lockWatcher == nil {
+		return trace.BadParameter("lockWatcher is not set")
+	}
+	return a.lockWatcher.CheckLockInForce(mode, targets...)
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -494,7 +513,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	}
 
 	// create and sign!
-	return a.Authority.GenerateHostCert(services.HostCertParams{
+	return a.generateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
 		CASigningAlg:  sshutils.GetSigningAlgName(ca),
 		PublicHostKey: hostPublicKey,
@@ -505,6 +524,21 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		Roles:         roles,
 		TTL:           ttl,
 	})
+}
+
+func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
+	authPref, err := a.GetAuthPreference(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if p.Roles.Include(types.RoleNode) {
+		if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
+			[]types.LockTarget{{Node: p.HostID}, {Node: HostFQDN(p.HostID, p.ClusterName)}},
+		); lockErr != nil {
+			return nil, trace.Wrap(lockErr)
+		}
+	}
+	return a.Authority.GenerateHostCert(p)
 }
 
 // GetKeyStore returns the KeyStore used by the auth server
@@ -586,6 +620,13 @@ type certRequest struct {
 
 // check verifies the cert request is valid.
 func (r *certRequest) check() error {
+	if r.user == nil {
+		return trace.BadParameter("missing parameter user")
+	}
+	if r.checker == nil {
+		return trace.BadParameter("missing parameter checker")
+	}
+
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
@@ -739,6 +780,19 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	err := req.check()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Reject the cert request if there is a matching lock in force.
+	authPref, err := a.GetAuthPreference(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if lockErr := a.checkLockInForce(req.checker.LockingMode(authPref.GetLockingMode()), append(
+		services.RolesToLockTargets(req.checker.RoleNames()),
+		types.LockTarget{User: req.user.GetName()},
+		types.LockTarget{MFADevice: req.mfaVerified},
+	)); lockErr != nil {
+		return nil, trace.Wrap(lockErr)
 	}
 
 	// reuse the same RSA keys for SSH and TLS keys
@@ -1434,7 +1488,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// get the certificate authority that will be signing the public key of the host,
 	client := a.GetCache()
 	if req.NoCache {
-		client = &a.Services
+		client = a.Services
 	}
 	ca, err := client.GetCertAuthority(types.CertAuthID{
 		Type:       types.HostCA,
@@ -1476,7 +1530,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		return nil, trace.Wrap(err)
 	}
 	// generate hostSSH certificate
-	hostSSHCert, err := a.Authority.GenerateHostCert(services.HostCertParams{
+	hostSSHCert, err := a.generateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
 		CASigningAlg:  sshutils.GetSigningAlgName(ca),
 		PublicHostKey: pubSSHKey,
@@ -1489,6 +1543,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// generate host TLS certificate
 	identity := tlsca.Identity{
 		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
@@ -1828,88 +1883,6 @@ func (a *Server) DeleteNamespace(namespace string) error {
 // in memory cache, not the backend.
 func (a *Server) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	return a.GetCache().NewWatcher(ctx, watch)
-}
-
-// DeleteRole deletes a role by name of the role.
-func (a *Server) DeleteRole(ctx context.Context, name string) error {
-	// check if this role is used by CA or Users
-	users, err := a.Identity.GetUsers(false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, u := range users {
-		for _, r := range u.GetRoles() {
-			if r == name {
-				// Mask the actual error here as it could be used to enumerate users
-				// within the system.
-				log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
-				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
-			}
-		}
-	}
-	// check if it's used by some external cert authorities, e.g.
-	// cert authorities related to external cluster
-	cas, err := a.Trust.GetCertAuthorities(types.UserCA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, a := range cas {
-		for _, r := range a.GetRoles() {
-			if r == name {
-				// Mask the actual error here as it could be used to enumerate users
-				// within the system.
-				log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
-				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
-			}
-		}
-	}
-
-	if err := a.Access.DeleteRole(ctx, name); err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleDelete{
-		Metadata: apievents.Metadata{
-			Type: events.RoleDeletedEvent,
-			Code: events.RoleDeletedCode,
-		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name: name,
-		},
-	})
-	if err != nil {
-		log.WithError(err).Warnf("Failed to emit role deleted event.")
-	}
-
-	return nil
-}
-
-// UpsertRole creates or updates role.
-func (a *Server) upsertRole(ctx context.Context, role types.Role) error {
-	if err := a.UpsertRole(ctx, role); err != nil {
-		return trace.Wrap(err)
-	}
-
-	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
-		Metadata: apievents.Metadata{
-			Type: events.RoleCreatedEvent,
-			Code: events.RoleCreatedCode,
-		},
-		UserMetadata: apievents.UserMetadata{
-			User: ClientUsername(ctx),
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name: role.GetName(),
-		},
-	})
-	if err != nil {
-		log.WithError(err).Warnf("Failed to emit role create event.")
-	}
-	return nil
 }
 
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {

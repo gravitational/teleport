@@ -109,16 +109,22 @@ func TestMonitorStaleLocks(t *testing.T) {
 		t.Fatal("Connection is already closed.")
 	default:
 	}
+
+	select {
+	case <-asrv.LockWatcher.LoopC:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for LockWatcher loop check.")
+	}
 	select {
 	case asrv.LockWatcher.StaleC <- struct{}{}:
 	default:
-		// Staleness event is already scheduled.
+		t.Fatal("No staleness event should be scheduled yet. This is a bug in the test.")
 	}
-	asrv.Backend.Close()
+	go asrv.Backend.CloseWatchers()
 	select {
 	case <-asrv.LockWatcher.ResetC:
 	case <-time.After(2 * time.Second):
-		t.Fatalf("Timeout waiting for LockWatcher reset.")
+		t.Fatal("Timeout waiting for LockWatcher reset.")
 	}
 	select {
 	case <-conn.closedC:
