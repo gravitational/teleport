@@ -132,29 +132,20 @@ auth_service:
     type: local
     second_factor: webauthn # "on" allows all MFA options
     webauthn:
-      relying_party:
-        # Display name of the Relying Party, defaults to "Teleport".
-        display_name: "Teleport"
-        # URL which resolves to an image associated with the Relying Party.
-        # It must be an a priori authenticated URL of preferably 128 or less
-        # bytes, as authenticators may ignore an icon if its length is greater
-        # than 128 bytes.
-        # TODO(codingllama): Default to Teleport's icon?
-        icon: ""
-
-      # Previously configured U2F app ID, if applicable.
-      # Enables U2F-compatibility mode if set (explained below).
-      # The U2F app ID is sent as the `appid` WebAuthn extension for
-      # previously-registered U2F devices, to be used in place of the Relying
-      # Party ID, thus keeping backwards compatibility.
-      # Not required for new MFA installations.
-      # Defaults to "auth_service.authentication.u2f.app_id", if present.
-      u2f_app_id: "https://localhost:3080"
+      # ID of the Relying Party.
+      # Device keys are scoped by the RPID, so similarly to the U2F app_id, if
+      # this value changes all existing registrations are "lost" and devices
+      # must re-register.
+      # If unset the host of u2f.app_id is used instead.
+      # Recommended.
+      rp_id: ""
+      # Attestation is explained in a following section.
+      # In unset defaults to u2f.device_attestation_cas.
+      # Optional.
+      attestation_allowed_cas: []
+      # Optional.
+      attestation_denied_cas:  []
 ```
-
-The WebAuthn configuration provided allows for some customization, but is
-comprised (almost entirely) of optional parameters (u2f_app_id being the
-exception, as it needs to be provided in some way).
 
 The general philosophy for configuration is that we provide the minimum set of
 configurations necessary and automatically choose the more secure/usable options
@@ -165,12 +156,14 @@ settings:
 
 ```go
 	web, _ := webauthn.New(&webauthn.Config{
-		// Proxy domain, inferred from the Proxy public_addr.
-		RPID: "example.com",
-		// Proxy public_addr.
-		RPOrigin: "https://example.com:3080",
+		RPID: "example.com",       // See section below.
+		RPOrigin: "<varies>",      // See section below.
+		RPDisplayName: "Teleport", // fixed
+		RPIcon: "",                // fixed, may use the icon from webassets
+
 		// Either "none" or "direct" depending on attestation settings.
 		AttestationPreference: "none",
+
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
 			// Unset - both "platform" and "cross-platform" allowed.
 			// User presence is what we're aiming at, which both provide.
@@ -180,10 +173,51 @@ settings:
 			// User presence is what we're aiming at, verification is a bonus.
 			UserVerification: "preferred",
 		},
+
 		// General timeout for flows, defaults to 60s.
 		Timeout: 60000,
 	})
 ```
+
+### Relying Party ID, Origin and U2F App ID
+
+Proper functioning of WebAuthn depends on a correct and stable RPID (Relying
+Party ID). The RPID is used by authenticators to scope the credentials,
+therefore if the RPID changes all existing credentials are "lost" (ie, they
+won't match the new ID). A typical RPID is a domain or hostname, such as
+"localhost" or "example.com".
+
+In an effort to make migration to WebAuthn simpler, if the RPID is unset in
+configurations but the U2F app_id is set, the host of the U2F app_id is used as
+the RPID. The U2F app_id is required for all existing second_factor
+configurations apart from "off" and "otp", which makes it guaranteed to exist in
+installations where WebAuthn is applicable.
+
+For newer installations we will refrain from guessing the RPID, instead asking
+users to supply it. The rationale behind this is that guessing the RPID is not
+always reliable and may lead users to configurations that are incorrect.
+(Note: we may elect to change this in the future.)
+
+An important detail to note about the RPID is that it must match the origin
+domain for browser-based registration and login. Browser-based communication
+with WebAuthn endpoints __must__ happen through that domain. The RPID should be
+set to the Teleport installation domain, with the underlying assumption that
+this domain is used to access Teleport from both Web UI and CLI tools, in
+particular for login and MFA operations.
+
+Another important setting for WebAuthn is the RPOrigin. The origin is similar to
+a U2F facet, but it must share the RPID domain. A typical origin is
+"https://localhost:3080" or "https://example.com:80".
+
+Teleport allows any origin that could conceivably be addressing either a Proxy
+or Auth Server, simplifying this particular configuration by assembling the
+required WebAuthn configuration on the fly. A simple implementation checks the
+origin against the RPID, while a more evolved implementation checks the origin
+against all possible Proxy and Auth Server public addresses as well.
+
+Finally, backwards compatibility with U2F requires the U2F app_id to remain set
+in the configuration. The U2F app_id is currently mandatory for most
+second_factor modes, so this shouldn't be an issue.
 
 ### Attestation
 
