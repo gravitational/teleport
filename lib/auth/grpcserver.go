@@ -3129,13 +3129,26 @@ func (g *GRPCServer) GetWindowsDesktop(ctx context.Context, req *proto.GetWindow
 	return desktop, nil
 }
 
-// UpsertWindowsDesktop registers a new Windows desktop host.
-func (g *GRPCServer) UpsertWindowsDesktop(ctx context.Context, desktop *types.WindowsDesktopV3) (*empty.Empty, error) {
+// CreateWindowsDesktop registers a new Windows desktop host.
+func (g *GRPCServer) CreateWindowsDesktop(ctx context.Context, desktop *types.WindowsDesktopV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.UpsertWindowsDesktop(ctx, desktop); err != nil {
+	if err := auth.CreateWindowsDesktop(ctx, desktop); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// UpdateWindowsDesktop updates an existing Windows desktop host.
+func (g *GRPCServer) UpdateWindowsDesktop(ctx context.Context, desktop *types.WindowsDesktopV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.UpdateWindowsDesktop(ctx, desktop); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

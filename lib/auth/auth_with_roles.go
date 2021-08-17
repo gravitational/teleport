@@ -66,7 +66,11 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, re
 	for _, verb := range verbs {
 		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, namespace, resource, verb, false))
 	}
-	return trace.NewAggregate(errs...)
+	// Convert generic aggregate error to AccessDenied.
+	if err := trace.NewAggregate(errs...); err != nil {
+		return trace.AccessDenied(err.Error())
+	}
+	return nil
 }
 
 type actionConfig struct {
@@ -98,7 +102,11 @@ func (c actionConfig) action(namespace, resource string, verbs ...string) error 
 	for _, verb := range verbs {
 		errs = append(errs, c.context.Checker.CheckAccessToRule(&services.Context{User: c.context.User}, namespace, resource, verb, c.quiet))
 	}
-	return trace.NewAggregate(errs...)
+	// Convert generic aggregate error to AccessDenied.
+	if err := trace.NewAggregate(errs...); err != nil {
+		return trace.AccessDenied(err.Error())
+	}
+	return nil
 }
 
 func (a *ServerWithRoles) action(namespace, resource string, verbs ...string) error {
@@ -3230,12 +3238,20 @@ func (a *ServerWithRoles) GetWindowsDesktop(ctx context.Context, name string) (t
 	return host, nil
 }
 
-// UpsertWindowsDesktop creates or updates a new windows desktop host.
-func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
-	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
+// CreateWindowsDesktop creates a new windows desktop host.
+func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertWindowsDesktop(ctx, s)
+	return a.authServer.CreateWindowsDesktop(ctx, s)
+}
+
+// UpdateWindowsDesktop updates an existing windows desktop host.
+func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpdateWindowsDesktop(ctx, s)
 }
 
 // DeleteWindowsDesktop removes the specified windows desktop host.
