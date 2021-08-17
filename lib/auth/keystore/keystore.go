@@ -39,13 +39,16 @@ type KeyStore interface {
 	// GetSigner returns a crypto.Signer for the given key identifier, if it is found.
 	GetSigner(keyID []byte) (crypto.Signer, error)
 
-	// GetTLSCertAndSigner selects the local TLS keypair and returns the raw TLS cert and crypto.Signer.
+	// GetTLSCertAndSigner selects the local TLS keypair from the CA ActiveKeys
+	// and returns the PEM-encoded TLS cert and a crypto.Signer.
 	GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error)
 
-	// GetSSHSigner selects the local SSH keypair from the CA and returns an ssh.Signer.
+	// GetSSHSigner selects the local SSH keypair from the CA ActiveKeys and
+	// returns an ssh.Signer.
 	GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error)
 
-	// GetJWTSigner selects the local JWT keypair from the CA and returns a crypto.Signer.
+	// GetJWTSigner selects the local JWT keypair from the CA ActiveKeys and
+	// returns a crypto.Signer.
 	GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error)
 
 	// NewSSHKeyPair creates and returns a new SSHKeyPair.
@@ -65,10 +68,6 @@ type KeyStore interface {
 	// trusted keys that are usable with this KeyStore.
 	HasLocalAdditionalKeys(ca types.CertAuthority) bool
 
-	// HasLocalProvisionalKeys returns true if the given CA has any active
-	// provisional keys that are usable with this KeyStore.
-	HasLocalProvisionalKeys(ca types.CertAuthority) bool
-
 	// DeleteKey deletes the given key from the KeyStore.
 	DeleteKey(keyID []byte) error
 
@@ -76,6 +75,15 @@ type KeyStore interface {
 	// 1. Labeled by this KeyStore when they were created
 	// 2. Not included in the argument usedKeys
 	DeleteUnusedKeys(usedKeys [][]byte) error
+
+	// GetAdditionalTrustedSSHSigner selects the local SSH keypair from the CA
+	// AdditionalTrustedKeys and returns an ssh.Signer.
+	GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (ssh.Signer, error)
+
+	// GetAdditionalTrustedTLSCertAndSigner selects the local TLS keypair from
+	// the CA AdditionalTrustedKeys and returns the PEM-encoded TLS cert and a
+	// crypto.Signer.
+	GetAdditionalTrustedTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error)
 }
 
 // Config is used to pass KeyStore configuration to NewKeyStore.

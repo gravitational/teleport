@@ -99,13 +99,13 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 			if ca.GetClusterName() != clusterName {
 				continue
 			}
-			if ca.HasProvisionalKeys() {
+			info := fmt.Sprintf("%v CA ", strings.Title(string(ca.GetType())))
+			rotation := ca.GetRotation()
+			if rotation.Phase == types.RotationPhaseStandby && len(ca.GetAdditionalTrustedKeys().SSH) > 0 {
 				fmt.Println("WARNING: One or more auth servers has a newly added or removed " +
 					"HSM. You should not route traffic to that server until a CA rotation " +
 					"has been completed.")
 			}
-			info := fmt.Sprintf("%v CA ", strings.Title(string(ca.GetType())))
-			rotation := ca.GetRotation()
 			if c.config.Debug {
 				table.AddRow([]string{info,
 					fmt.Sprintf("%v, update_servers: %v, complete: %v",

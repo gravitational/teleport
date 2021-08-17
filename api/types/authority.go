@@ -74,8 +74,6 @@ type CertAuthority interface {
 	GetSigningAlg() CertAuthoritySpecV2_SigningAlgType
 	// SetSigningAlg sets the signing algorithm used by signing keys.
 	SetSigningAlg(CertAuthoritySpecV2_SigningAlgType)
-	// HasProvisionalKeys returns true if any active keys in the CA are provisional.
-	HasProvisionalKeys() bool
 	// AllKeyTypesMatch returns true if all keys in the CA are of the same type.
 	AllKeyTypesMatch() bool
 	// Clone returns a copy of the cert authority object.
@@ -430,21 +428,6 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// HasProvisionalKeys returns true if any active keys in the CA are provisional.
-func (ca *CertAuthorityV2) HasProvisionalKeys() bool {
-	for _, keyPair := range ca.Spec.ActiveKeys.SSH {
-		if keyPair.Provisional {
-			return true
-		}
-	}
-	for _, keyPair := range ca.Spec.ActiveKeys.TLS {
-		if keyPair.Provisional {
-			return true
-		}
-	}
-	return false
-}
-
 // AllKeyTypesMatch returns true if all private keys in the given CA are of the same type.
 func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
 	keyTypes := make(map[PrivateKeyType]struct{})
@@ -460,6 +443,11 @@ func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
 		}
 	}
 	return len(keyTypes) == 1
+}
+
+// Empty returns true if the CAKeySet holds no keys
+func (keySet *CAKeySet) Empty() bool {
+	return len(keySet.SSH) == 0 && len(keySet.TLS) == 0 && len(keySet.JWT) == 0
 }
 
 const (
@@ -638,10 +626,9 @@ type CertRoles struct {
 // modifying the original.
 func (k *TLSKeyPair) Clone() *TLSKeyPair {
 	return &TLSKeyPair{
-		KeyType:     k.KeyType,
-		Key:         utils.CopyByteSlice(k.Key),
-		Cert:        utils.CopyByteSlice(k.Cert),
-		Provisional: k.Provisional,
+		KeyType: k.KeyType,
+		Key:     utils.CopyByteSlice(k.Key),
+		Cert:    utils.CopyByteSlice(k.Cert),
 	}
 }
 
@@ -662,7 +649,6 @@ func (k *SSHKeyPair) Clone() *SSHKeyPair {
 		PrivateKeyType: k.PrivateKeyType,
 		PrivateKey:     utils.CopyByteSlice(k.PrivateKey),
 		PublicKey:      utils.CopyByteSlice(k.PublicKey),
-		Provisional:    k.Provisional,
 	}
 }
 

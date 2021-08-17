@@ -309,8 +309,12 @@ func (a *Server) autoRotateCertAuthorities() error {
 		if err := a.autoRotate(ca); err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.addLocalAdditionalKeys(ca); err != nil {
-			return trace.Wrap(err)
+		// add local additional keys during init phase of rotation, for HSM auth
+		// servers
+		if ca.GetRotation().Phase == types.RotationPhaseInit {
+			if err := a.addLocalAdditionalKeys(ca); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 	return nil
@@ -471,8 +475,8 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 	rotation.Schedule = req.schedule
 
 	activeKeys := ca.GetActiveKeys()
+	additionalKeys := ca.GetAdditionalTrustedKeys()
 	var newKeySet types.CAKeySet
-	var err error
 
 	// generate keys and certificates:
 	if len(req.privateKey) != 0 {
@@ -528,9 +532,25 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 			})
 		}
 	} else {
-		newKeySet, err = newKeySetForKeySet(a.keyStore, ca.GetClusterName(), activeKeys)
-		if err != nil {
-			return trace.Wrap(err)
+		if !additionalKeys.Empty() {
+			// Special case where a new HSM auth server is coming up and has
+			// already added local AdditionalTrustedKeys during the standby
+			// phase. Keep the existing AdditionalTrustedKeys to avoid
+			// invalidating the current Admin identity.
+			newKeySet = mergeKeySets(additionalKeys, newKeySet)
+		}
+		if !a.keyStore.HasLocalAdditionalKeys(ca) {
+			// This auth server has no local AdditionalTrustedKeys in this CA.
+			// This is one of 2 cases:
+			// 1. There are no AdditionalTrustedKeys at all.
+			// 2. There are AdditionalTrustedKeys which were added by a
+			//    different auth server.
+			// In either case, we need to add newly generated local keys.
+			newLocalKeys, err := newKeySetForKeySet(a.keyStore, ca.GetClusterName(), activeKeys)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			newKeySet = mergeKeySets(newLocalKeys, newKeySet)
 		}
 	}
 

@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -117,6 +120,16 @@ func (t *teleportService) waitForRestart(ctx context.Context) error {
 	return nil
 }
 
+func (t *teleportService) waitForShutdown(ctx context.Context) error {
+	t.log.Debugf("Waiting for %s to shut down", t.name)
+	select {
+	case err := <-t.errorChannel:
+		return trace.Wrap(err)
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err(), "timed out waiting for %s to shut down", t.name)
+	}
+}
+
 func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error {
 	t.log.Debugf("Waiting for %s to have local additional keys", t.name)
 	clusterName, err := t.process.GetAuthServer().GetClusterName()
@@ -182,7 +195,7 @@ func (s TeleportServices) waitForPhaseChange(ctx context.Context) error {
 	return s.forEach(func(t *teleportService) error { return t.waitForPhaseChange(ctx) })
 }
 
-func newAuthConfig(ctx context.Context, t *testing.T, storageConfig backend.Config, log utils.Logger) *service.Config {
+func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig backend.Config, log utils.Logger) *service.Config {
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
 
@@ -292,7 +305,7 @@ func TestHSMRotation(t *testing.T) {
 	var err error
 
 	log.Debug("TestHSMRotation: starting auth server")
-	authConfig := newAuthConfig(ctx, t, storageConfig, log)
+	authConfig := newHSMAuthConfig(ctx, t, storageConfig, log)
 	auth1 := newTeleportService(authConfig, "auth1")
 	t.Cleanup(func() {
 		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil))
@@ -371,7 +384,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 	// start a cluster with 1 auth server and a proxy
 	log.Debug("TestHSMDualAuthRotation: Starting auth server 1")
-	auth1Config := newAuthConfig(ctx, t, storageConfig, log)
+	auth1Config := newHSMAuthConfig(ctx, t, storageConfig, log)
 	auth1 := newTeleportService(auth1Config, "auth1")
 	t.Cleanup(func() {
 		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil))
@@ -408,7 +421,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 	// add a new auth server
 	log.Debug("TestHSMDualAuthRotation: Starting auth server 2")
-	auth2Config := newAuthConfig(ctx, t, storageConfig, log)
+	auth2Config := newHSMAuthConfig(ctx, t, storageConfig, log)
 	auth2 := newTeleportService(auth2Config, "auth2")
 	require.NoError(t, auth2.waitForStart(ctx))
 	t.Cleanup(func() {
@@ -417,6 +430,31 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	})
 	authServices = append(authServices, auth2)
 	teleportServices = append(teleportServices, auth2)
+
+	// make sure the admin identity used by tctl works
+	getAdminClient := func() *auth.Client {
+		identity, err := auth.ReadLocalIdentity(
+			filepath.Join(auth2Config.DataDir, teleport.ComponentProcess),
+			auth.IdentityID{Role: types.RoleAdmin, HostUUID: auth2Config.HostUUID})
+		require.NoError(t, err)
+		tlsConfig, err := identity.TLSConfig(nil)
+		require.NoError(t, err)
+		authAddrs := []utils.NetAddr{auth2Config.Auth.SSHAddr}
+		clt, err := auth.NewClient(client.Config{
+			Addrs: utils.NetAddrsToStrings(authAddrs),
+			Credentials: []client.Credentials{
+				client.LoadTLS(tlsConfig),
+			},
+		})
+		require.NoError(t, err)
+		return clt
+	}
+	testClient := func(clt *auth.Client) error {
+		_, err = clt.GetClusterName()
+		return err
+	}
+	clt := getAdminClient()
+	require.NoError(t, testClient(clt))
 
 	stages := []struct {
 		targetPhase string
@@ -427,24 +465,32 @@ func TestHSMDualAuthRotation(t *testing.T) {
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForPhaseChange(ctx))
 				require.NoError(t, authServices.waitForLocalAdditionalKeys(ctx))
+				clt = getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseUpdateClients,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt = getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseUpdateServers,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt = getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseStandby,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt = getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 	}
@@ -462,6 +508,32 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 	// Safe to send traffic to new auth server now that a full rotation has been completed.
 	lb.AddBackend(auth2Config.Auth.SSHAddr)
+
+	// load balanced client shoud work with either backend
+	getAdminClient = func() *auth.Client {
+		identity, err := auth.ReadLocalIdentity(
+			filepath.Join(auth2Config.DataDir, teleport.ComponentProcess),
+			auth.IdentityID{Role: types.RoleAdmin, HostUUID: auth2Config.HostUUID})
+		require.NoError(t, err)
+		tlsConfig, err := identity.TLSConfig(nil)
+		require.NoError(t, err)
+		authAddrs := []string{lb.Addr().String()}
+		clt, err := auth.NewClient(client.Config{
+			Addrs: authAddrs,
+			Credentials: []client.Credentials{
+				client.LoadTLS(tlsConfig),
+			},
+		})
+		require.NoError(t, err)
+		return clt
+	}
+	testClient = func(clt *auth.Client) error {
+		_, err1 := clt.GetClusterName()
+		_, err2 := clt.GetClusterName()
+		return trace.NewAggregate(err1, err2)
+	}
+	clt = getAdminClient()
+	require.NoError(t, testClient(clt))
 
 	// Do another full rotation from the new auth server
 	for _, stage := range stages {
@@ -484,18 +556,24 @@ func TestHSMDualAuthRotation(t *testing.T) {
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForPhaseChange(ctx))
 				require.NoError(t, authServices.waitForLocalAdditionalKeys(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseRollback,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseStandby,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
@@ -503,24 +581,32 @@ func TestHSMDualAuthRotation(t *testing.T) {
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForPhaseChange(ctx))
 				require.NoError(t, authServices.waitForLocalAdditionalKeys(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseUpdateClients,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseRollback,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseStandby,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
@@ -528,30 +614,40 @@ func TestHSMDualAuthRotation(t *testing.T) {
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForPhaseChange(ctx))
 				require.NoError(t, authServices.waitForLocalAdditionalKeys(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseUpdateClients,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseUpdateServers,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseRollback,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 		{
 			targetPhase: types.RotationPhaseStandby,
 			verify: func(t *testing.T) {
 				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
 			},
 		},
 	}
@@ -564,4 +660,191 @@ func TestHSMDualAuthRotation(t *testing.T) {
 		}))
 		stage.verify(t)
 	}
+}
+
+// Tests a dual-auth server migration from raw keys to HSM keys
+func TestHSMMigrate(t *testing.T) {
+	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
+		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
+	}
+
+	// pick a conservative timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	t.Cleanup(cancel)
+	log := utils.NewLoggerForTests()
+	backendPrefix := uuid.NewString()
+	storageConfig := backend.Config{
+		Type: "etcd",
+		Params: backend.Params{
+			"peers":         []string{"https://127.0.0.1:2379"},
+			"prefix":        backendPrefix,
+			"tls_key_file":  "../../examples/etcd/certs/client-key.pem",
+			"tls_cert_file": "../../examples/etcd/certs/client-cert.pem",
+			"tls_ca_file":   "../../examples/etcd/certs/ca-cert.pem",
+		},
+	}
+	var err error
+
+	// start a dual auth non-hsm cluster
+	log.Debug("TestHSMMigrate: Starting auth server 1")
+	auth1Config := newHSMAuthConfig(ctx, t, storageConfig, log)
+	auth1Config.KeyStore = keystore.Config{}
+	auth1 := newTeleportService(auth1Config, "auth1")
+	t.Cleanup(func() {
+		require.NoError(t, auth1.process.Close())
+	})
+	auth2Config := newHSMAuthConfig(ctx, t, storageConfig, log)
+	auth2Config.KeyStore = keystore.Config{}
+	auth2 := newTeleportService(auth2Config, "auth2")
+	t.Cleanup(func() {
+		require.NoError(t, auth2.process.Close())
+	})
+	require.NoError(t, auth1.waitForStart(ctx))
+	require.NoError(t, auth2.waitForStart(ctx))
+
+	t.Cleanup(func() {
+		// clean up the etcd backend
+		bk := auth1.process.GetBackend()
+		err := bk.DeleteRange(context.Background(), []byte(backendPrefix),
+			backend.RangeEnd([]byte(backendPrefix)))
+		require.NoError(t, err)
+	})
+
+	log.Debug("TestHSMMigrate: Starting load balancer")
+	hostName, err := os.Hostname()
+	require.NoError(t, err)
+	authAddr := utils.MustParseAddr(net.JoinHostPort(hostName, ports.Pop()))
+	lb, err := utils.NewLoadBalancer(ctx, *authAddr, auth1Config.Auth.SSHAddr, auth2Config.Auth.SSHAddr)
+	require.NoError(t, err)
+	require.NoError(t, lb.Listen())
+	go lb.Serve()
+	t.Cleanup(func() { require.NoError(t, lb.Close()) })
+
+	// start a proxy to make sure it can get creds at each stage of migration
+	log.Debug("TestHSMMigrate: Starting proxy")
+	proxyConfig := newProxyConfig(ctx, t, *authAddr, log)
+	proxy := newTeleportService(proxyConfig, "proxy")
+	require.NoError(t, proxy.waitForStart(ctx))
+
+	// make sure the admin identity used by tctl works
+	getAdminClient := func() *auth.Client {
+		identity, err := auth.ReadLocalIdentity(
+			filepath.Join(auth2Config.DataDir, teleport.ComponentProcess),
+			auth.IdentityID{Role: types.RoleAdmin, HostUUID: auth2Config.HostUUID})
+		require.NoError(t, err)
+		tlsConfig, err := identity.TLSConfig(nil)
+		require.NoError(t, err)
+		authAddrs := []utils.NetAddr{auth2Config.Auth.SSHAddr}
+		clt, err := auth.NewClient(client.Config{
+			Addrs: utils.NetAddrsToStrings(authAddrs),
+			Credentials: []client.Credentials{
+				client.LoadTLS(tlsConfig),
+			},
+		})
+		require.NoError(t, err)
+		return clt
+	}
+	testClient := func(clt *auth.Client) error {
+		_, err1 := clt.GetClusterName()
+		_, err2 := clt.GetClusterName()
+		return trace.NewAggregate(err1, err2)
+	}
+	clt := getAdminClient()
+	require.NoError(t, testClient(clt))
+
+	// Phase 1: migrate auth1 to HSM
+	lb.RemoveBackend(auth1Config.Auth.SSHAddr)
+	auth1.process.Close()
+	require.NoError(t, auth1.waitForShutdown(ctx))
+	auth1Config.KeyStore = keystore.SetupSoftHSMTest(t)
+	auth1 = newTeleportService(auth1Config, "auth1")
+	require.NoError(t, auth1.waitForStart(ctx))
+
+	clt = getAdminClient()
+	require.NoError(t, testClient(clt))
+
+	authServices := TeleportServices{auth1, auth2}
+	teleportServices := TeleportServices{auth1, auth2, proxy}
+
+	stages := []struct {
+		targetPhase string
+		verify      func(t *testing.T)
+	}{
+		{
+			targetPhase: types.RotationPhaseInit,
+			verify: func(t *testing.T) {
+				require.NoError(t, teleportServices.waitForPhaseChange(ctx))
+				require.NoError(t, authServices.waitForLocalAdditionalKeys(ctx))
+				clt := getAdminClient()
+				require.NoError(t, testClient(clt))
+			},
+		},
+		{
+			targetPhase: types.RotationPhaseUpdateClients,
+			verify: func(t *testing.T) {
+				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt = getAdminClient()
+				require.NoError(t, testClient(clt))
+			},
+		},
+		{
+			targetPhase: types.RotationPhaseUpdateServers,
+			verify: func(t *testing.T) {
+				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt = getAdminClient()
+				require.NoError(t, testClient(clt))
+			},
+		},
+		{
+			targetPhase: types.RotationPhaseStandby,
+			verify: func(t *testing.T) {
+				require.NoError(t, teleportServices.waitForRestart(ctx))
+				clt = getAdminClient()
+				require.NoError(t, testClient(clt))
+			},
+		},
+	}
+
+	// do a full rotation
+	for _, stage := range stages {
+		log.Debugf("TestHSMMigrate: Sending rotate request %s", stage.targetPhase)
+		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			Type:        types.HostCA,
+			TargetPhase: stage.targetPhase,
+			Mode:        types.RotationModeManual,
+		}))
+		stage.verify(t)
+	}
+
+	// Safe to send traffic to new auth1 again
+	lb.AddBackend(auth1Config.Auth.SSHAddr)
+
+	// Phase 2: migrate auth2 to HSM
+	lb.RemoveBackend(auth2Config.Auth.SSHAddr)
+	auth2.process.Close()
+	require.NoError(t, auth2.waitForShutdown(ctx))
+	auth2Config.KeyStore = keystore.SetupSoftHSMTest(t)
+	auth2 = newTeleportService(auth2Config, "auth2")
+	require.NoError(t, auth2.waitForStart(ctx))
+
+	authServices = TeleportServices{auth1, auth2}
+	teleportServices = TeleportServices{auth1, auth2, proxy}
+
+	clt = getAdminClient()
+	require.NoError(t, testClient(clt))
+
+	// do a full rotation
+	for _, stage := range stages {
+		log.Debugf("TestHSMMigrate: Sending rotate request %s", stage.targetPhase)
+		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			Type:        types.HostCA,
+			TargetPhase: stage.targetPhase,
+			Mode:        types.RotationModeManual,
+		}))
+		stage.verify(t)
+	}
+
+	// Safe to send traffic to new auth2 again
+	lb.AddBackend(auth2Config.Auth.SSHAddr)
+	require.NoError(t, testClient(clt))
 }

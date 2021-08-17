@@ -57,13 +57,23 @@ func (c *rawKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypt
 	keyPairs := ca.GetActiveKeys().TLS
 	for _, keyPair := range keyPairs {
 		if keyPair.KeyType == types.PrivateKeyType_RAW {
-			if keyPair.Provisional {
-				continue
+			signer, err := utils.ParsePrivateKeyPEM(keyPair.Key)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
 			}
-			// private key may be nil, the cert will only be used for checking
-			if len(keyPair.Key) == 0 {
-				return keyPair.Cert, nil, nil
-			}
+			return keyPair.Cert, signer, nil
+		}
+	}
+	return nil, nil, trace.NotFound("no matching TLS key pairs found in CA for %q", ca.GetClusterName())
+}
+
+// GetAdditionalTrustedTLSCertAndSigner selects the local TLS keypair from the
+// CA AdditionalTrustedKeys and returns the PEM-encoded TLS cert and a
+// crypto.Signer.
+func (c *rawKeyStore) GetAdditionalTrustedTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
+	keyPairs := ca.GetAdditionalTrustedKeys().TLS
+	for _, keyPair := range keyPairs {
+		if keyPair.KeyType == types.PrivateKeyType_RAW {
 			signer, err := utils.ParsePrivateKeyPEM(keyPair.Key)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
@@ -77,6 +87,23 @@ func (c *rawKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypt
 // GetSSHSigner selects the first raw SSH keypair and returns an ssh.Signer
 func (c *rawKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 	keyPairs := ca.GetActiveKeys().SSH
+	for _, keyPair := range keyPairs {
+		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
+			signer, err := ssh.ParsePrivateKey(keyPair.PrivateKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			signer = sshutils.AlgSigner(signer, sshutils.GetSigningAlgName(ca))
+			return signer, nil
+		}
+	}
+	return nil, trace.NotFound("no raw SSH key pairs found in CA for %q", ca.GetClusterName())
+}
+
+// GetAdditionalTrustedSSHSigner selects the local SSH keypair from the CA
+// AdditionalTrustedKeys and returns an ssh.Signer.
+func (c *rawKeyStore) GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
+	keyPairs := ca.GetAdditionalTrustedKeys().SSH
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
 			signer, err := ssh.ParsePrivateKey(keyPair.PrivateKey)
@@ -125,19 +152,13 @@ func (c *rawKeyStore) DeleteKey(rawKey []byte) error {
 	return nil
 }
 
-func (c *rawKeyStore) keySetHasLocalKeys(keySet types.CAKeySet, selection provisionalSelection) bool {
+func (c *rawKeyStore) keySetHasLocalKeys(keySet types.CAKeySet) bool {
 	for _, sshKeyPair := range keySet.SSH {
-		if (selection == onlyProvisional) && !sshKeyPair.Provisional {
-			continue
-		}
 		if sshKeyPair.PrivateKeyType == types.PrivateKeyType_RAW {
 			return true
 		}
 	}
 	for _, tlsKeyPair := range keySet.TLS {
-		if (selection == onlyProvisional) && !tlsKeyPair.Provisional {
-			continue
-		}
 		if tlsKeyPair.KeyType == types.PrivateKeyType_RAW {
 			return true
 		}
@@ -153,19 +174,13 @@ func (c *rawKeyStore) keySetHasLocalKeys(keySet types.CAKeySet, selection provis
 // HasLocalActiveKeys returns true if the given CA has any active keys that
 // are usable with this KeyStore.
 func (c *rawKeyStore) HasLocalActiveKeys(ca types.CertAuthority) bool {
-	return c.keySetHasLocalKeys(ca.GetActiveKeys(), allowProvisional)
+	return c.keySetHasLocalKeys(ca.GetActiveKeys())
 }
 
 // HasLocalAdditionalKeys returns true if the given CA has any additional
 // trusted keys that are usable with this KeyStore.
 func (c *rawKeyStore) HasLocalAdditionalKeys(ca types.CertAuthority) bool {
-	return c.keySetHasLocalKeys(ca.GetAdditionalTrustedKeys(), allowProvisional)
-}
-
-// HasLocalActiveKeys returns true if the given CA has any active provisional
-// keys that are usable with this KeyStore.
-func (c *rawKeyStore) HasLocalProvisionalKeys(ca types.CertAuthority) bool {
-	return c.keySetHasLocalKeys(ca.GetActiveKeys(), onlyProvisional)
+	return c.keySetHasLocalKeys(ca.GetAdditionalTrustedKeys())
 }
 
 // DeleteUnusedKeys deletes all keys from the KeyStore if they are:

@@ -33,6 +33,7 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -136,6 +137,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if os.Getenv("SOFTHSM2_TOKEN") != "" {
+		cfg.KeyStoreConfig.Path = os.Getenv("SOFTHSM2_PATH")
+		cfg.KeyStoreConfig.TokenLabel = os.Getenv("SOFTHSM2_TOKEN")
+		cfg.KeyStoreConfig.Pin = "password"
 	}
 
 	keyStore, err := keystore.NewKeyStore(cfg.KeyStoreConfig)
@@ -1523,6 +1530,14 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	}
 
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	if trace.IsNotFound(err) {
+		// If there is no local TLS signer found in the host CA ActiveKeys, this
+		// auth server may have a newly configured HSM and has only populated
+		// local keys in the AdditionalTrustedKeys until the next CA rotation.
+		// This is the only case where we should be able to get a signer from
+		// AdditionalTrustedKeys but not ActiveKeys.
+		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ca)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1532,6 +1547,14 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	}
 
 	caSigner, err := a.keyStore.GetSSHSigner(ca)
+	if trace.IsNotFound(err) {
+		// If there is no local SSH signer found in the host CA ActiveKeys, this
+		// auth server may have a newly configured HSM and has only populated
+		// local keys in the AdditionalTrustedKeys until the next CA rotation.
+		// This is the only case where we should be able to get a signer from
+		// AdditionalTrustedKeys but not ActiveKeys.
+		caSigner, err = a.keyStore.GetAdditionalTrustedSSHSigner(ca)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2656,25 +2679,6 @@ func newKeySetForKeySet(keyStore keystore.KeyStore, clusterName string, keySet t
 	return newKeySet, nil
 }
 
-// newProvisionalKeySetForKeySet returns a new CAKeySet with local keys of the
-// same types (SSH, TLS, or JWT) as the argument keySet
-func newProvisionalKeySetForKeySet(keyStore keystore.KeyStore, clusterName string, keySet types.CAKeySet) (types.CAKeySet, error) {
-	if len(keySet.JWT) != 0 {
-		return types.CAKeySet{}, trace.BadParameter("cannot create provisional JWT keys")
-	}
-	newKeySet, err := newKeySetForKeySet(keyStore, clusterName, keySet)
-	if err != nil {
-		return newKeySet, trace.Wrap(err)
-	}
-	for _, keyPair := range newKeySet.SSH {
-		keyPair.Provisional = true
-	}
-	for _, keyPair := range newKeySet.TLS {
-		keyPair.Provisional = true
-	}
-	return newKeySet, nil
-}
-
 func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 	newKeySet := a.Clone()
 	newKeySet.SSH = append(newKeySet.SSH, b.SSH...)
@@ -2726,48 +2730,15 @@ func (a *Server) atomicCAUpdate(
 	}
 }
 
-// addLocalProvisionalKeysToCA adds "provisional" keys that should only be used
-// to sign the Admin identity for bootstrapping a newly configured HSM.
-func (a *Server) addLocalProvisionalKeys(ca types.CertAuthority) error {
-	if ca.GetType() != types.HostCA {
-		return trace.BadParameter("provisional keys can only be add to the host CA")
-	}
-
-	if a.keyStore.HasLocalActiveKeys(ca) {
-		// nothing to do
-		return nil
-	}
-
-	newKeySet, err := newProvisionalKeySetForKeySet(a.keyStore, ca.GetClusterName(), ca.GetActiveKeys())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = a.atomicCAUpdate(ca, newKeySet,
-		func(ca types.CertAuthority) types.CAKeySet { return ca.GetActiveKeys() },
-		func(ca types.CertAuthority, keySet types.CAKeySet) error { return ca.SetActiveKeys(keySet) },
-		func(ca types.CertAuthority) bool {
-			return !a.keyStore.HasLocalActiveKeys(ca) && !a.keyStore.HasLocalProvisionalKeys(ca)
-		})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	log.Infof("Successfully added local provisional keys to %s CA.", ca.GetType())
-	return nil
-}
-
-// addLocalAdditionalKeys adds additional trusted keys to the CA if necessary
-// (in the init phase of rotation and local additional keys are not already present).
+// addLocalAdditionalKeys adds additional trusted keys to the CA if they are not
+// already present.
 func (a *Server) addLocalAdditionalKeys(ca types.CertAuthority) error {
-	rotation := ca.GetRotation()
-	if rotation.State != types.RotationStateInProgress ||
-		rotation.Phase != types.RotationPhaseInit ||
-		a.keyStore.HasLocalAdditionalKeys(ca) {
+	if a.keyStore.HasLocalAdditionalKeys(ca) {
 		// nothing to do
 		return nil
 	}
 
-	newKeySet, err := newKeySetForKeySet(a.keyStore, ca.GetClusterName(), ca.GetAdditionalTrustedKeys())
+	newKeySet, err := newKeySetForKeySet(a.keyStore, ca.GetClusterName(), ca.GetActiveKeys())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2779,7 +2750,7 @@ func (a *Server) addLocalAdditionalKeys(ca types.CertAuthority) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Successfully added local additional keys to %s CA for init phase of rotation.", ca.GetType())
+	log.Infof("Successfully added local additional trusted keys to %s CA.", ca.GetType())
 	return nil
 }
 

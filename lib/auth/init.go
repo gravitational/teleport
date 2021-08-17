@@ -346,8 +346,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				// 4. An existing HSM auth server has restarted no HSM configured.
 				// 5. An existing HSM auth server has restarted with a new UUID.
 				if ca.GetType() == types.HostCA {
-					// provisional keys are only required for the host CA
-					if err := asrv.addLocalProvisionalKeys(ca); err != nil {
+					// We need local keys to sign the Admin identity to support
+					// tctl. For this special case we add AdditionalTrustedKeys
+					// without any active keys. These keys will not be used for
+					// any signing operations until a CA rotation.
+					if err := asrv.addLocalAdditionalKeys(ca); err != nil {
 						return nil, trace.Wrap(err)
 					}
 					// reload updated CA for below checks
@@ -356,11 +359,10 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 					}
 				}
 			}
-			if asrv.keyStore.HasLocalProvisionalKeys(ca) {
-				log.Warnf("This auth server has a newly added or removed HSM and the %s CA's "+
-					"active keys are not yet trusted by the rest of the cluster. You must "+
-					"perform a CA rotation before routing traffic to this auth server.",
-					caID.Type)
+			if !asrv.keyStore.HasLocalActiveKeys(ca) && asrv.keyStore.HasLocalAdditionalKeys(ca) {
+				log.Warnf("This auth server has a newly added or removed HSM and will not " +
+					"be able to perform any signing operations. You rotate the all CAs " +
+					"before routing traffic to this auth server.")
 			}
 			if !ca.AllKeyTypesMatch() {
 				log.Warnf("%s CA contains a combination of raw and PKCS#11 keys. If you are attempting to"+
