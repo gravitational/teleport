@@ -3090,30 +3090,52 @@ func TestProxyMultiAddr(t *testing.T) {
 }
 
 func TestGenerateJoinToken(t *testing.T) {
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user")
-
-	user, err := proxy.auth.Auth().GetUser("test-user", false)
-	require.NoError(t, err)
-
-	role := services.RoleForUser(user)
-	rules := role.GetRules(types.Allow)
-	rules = append(rules, types.NewRule(types.KindToken, services.RW()))
-	role.SetRules(types.Allow, rules)
-	err = proxy.auth.Auth().UpsertRole(context.Background(), role)
-	require.NoError(t, err)
-
 	tokenRequest := &joinTokenRequest{[]string{"Db"}, types.NewDuration(time.Hour)}
-	endpoint := pack.clt.Endpoint("webapi", "join")
-	resp, err := pack.clt.PostJSON(context.Background(), endpoint, tokenRequest)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
 
-	var tokenResponse *joinTokenResponse
-	err = json.Unmarshal(resp.Bytes(), &tokenResponse)
-	require.NoError(t, err)
+	t.Run("Generate token", func(t *testing.T) {
+		env := newWebPack(t, 1)
+		proxy := env.proxies[0]
+		pack := proxy.authPack(t, "test-user")
+		user, err := proxy.auth.Auth().GetUser("test-user", false)
+		require.NoError(t, err)
 
-	require.NotEmpty(t, tokenResponse.Token)
+		role := services.RoleForUser(user)
+		rules := role.GetRules(types.Allow)
+		rules = append(rules, types.NewRule(types.KindToken, services.RW()))
+		role.SetRules(types.Allow, rules)
+		err = proxy.auth.Auth().UpsertRole(context.Background(), role)
+		require.NoError(t, err)
+
+		endpoint := pack.clt.Endpoint("webapi", "join")
+		resp, err := pack.clt.PostJSON(context.Background(), endpoint, tokenRequest)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+
+		var tokenResponse *joinTokenResponse
+		err = json.Unmarshal(resp.Bytes(), &tokenResponse)
+		require.NoError(t, err)
+
+		require.NotEmpty(t, tokenResponse.Token)
+	})
+
+	t.Run("Requires auth", func(t *testing.T) {
+		env := newWebPack(t, 1)
+		proxy := env.proxies[0]
+		clt := proxy.newClient(t)
+		resp, err := clt.PostJSON(context.Background(), clt.Endpoint("webapi", "join"), tokenRequest)
+		require.Error(t, err)
+		require.Equal(t, http.StatusForbidden, resp.Code())
+	})
+
+	t.Run("Token generation not allowed by role", func(t *testing.T) {
+		env := newWebPack(t, 1)
+		proxy := env.proxies[0]
+		pack := proxy.authPack(t, "test-user")
+
+		endpoint := pack.clt.Endpoint("webapi", "join")
+		resp, err := pack.clt.PostJSON(context.Background(), endpoint, tokenRequest)
+		require.Error(t, err)
+		require.Equal(t, http.StatusForbidden, resp.Code())
+	})
 
 }
