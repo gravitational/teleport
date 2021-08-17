@@ -168,7 +168,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
-	p.windowsDesktops = local.NewWindowsDesktopsService(p.backend)
+	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
 
 	return p, nil
 }

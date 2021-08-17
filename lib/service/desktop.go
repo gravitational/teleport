@@ -57,7 +57,7 @@ func (process *TeleportProcess) initWindowsDesktopService() {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
 
-		err := process.initWindowsDesktopServieRegistered(log, conn)
+		err := process.initWindowsDesktopServiceRegistered(log, conn)
 		if err != nil {
 			warnOnErr(conn.Close(), log)
 			return trace.Wrap(err)
@@ -66,7 +66,7 @@ func (process *TeleportProcess) initWindowsDesktopService() {
 	})
 }
 
-func (process *TeleportProcess) initWindowsDesktopServieRegistered(log *logrus.Entry, conn *Connector) (retErr error) {
+func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.Entry, conn *Connector) (retErr error) {
 	defer func() {
 		if err := process.closeImportedDescriptors(teleport.ComponentWindowsDesktop); err != nil {
 			log.WithError(err).Warn("Failed closing imported file descriptors.")

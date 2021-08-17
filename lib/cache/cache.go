@@ -630,7 +630,7 @@ func New(config Config) (*Cache, error) {
 		appSessionCache:      local.NewIdentityService(wrapper),
 		webSessionCache:      local.NewIdentityService(wrapper).WebSessions(),
 		webTokenCache:        local.NewIdentityService(wrapper).WebTokens(),
-		windowsDesktopsCache: local.NewWindowsDesktopsService(wrapper),
+		windowsDesktopsCache: local.NewWindowsDesktopService(wrapper),
 		eventsFanout:         services.NewFanout(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,

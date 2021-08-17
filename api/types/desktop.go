@@ -33,10 +33,12 @@ type WindowsDesktopService interface {
 var _ WindowsDesktopService = &WindowsDesktopServiceV3{}
 
 // NewWindowsDesktopServiceV3 creates a new WindowsDesktopServiceV3 resource.
-func NewWindowsDesktopServiceV3(meta Metadata, spec WindowsDesktopServiceSpecV3) (*WindowsDesktopServiceV3, error) {
+func NewWindowsDesktopServiceV3(name string, spec WindowsDesktopServiceSpecV3) (*WindowsDesktopServiceV3, error) {
 	s := &WindowsDesktopServiceV3{
 		ResourceHeader: ResourceHeader{
-			Metadata: meta,
+			Metadata: Metadata{
+				Name: name,
+			},
 		},
 		Spec: spec,
 	}
@@ -53,15 +55,16 @@ func (s *WindowsDesktopServiceV3) setStaticFields() {
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (s *WindowsDesktopServiceV3) CheckAndSetDefaults() error {
-	s.setStaticFields()
-	if err := s.ResourceHeader.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 	if s.Spec.Addr == "" {
 		return trace.BadParameter("WindowsDesktopServiceV3.Spec missing Addr field")
 	}
 	if s.Spec.TeleportVersion == "" {
 		return trace.BadParameter("WindowsDesktopServiceV3.Spec missing TeleportVersion field")
+	}
+
+	s.setStaticFields()
+	if err := s.ResourceHeader.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -87,10 +90,13 @@ type WindowsDesktop interface {
 var _ WindowsDesktop = &WindowsDesktopV3{}
 
 // NewWindowsDesktopV3 creates a new WindowsDesktopV3 resource.
-func NewWindowsDesktopV3(meta Metadata, spec WindowsDesktopSpecV3) (*WindowsDesktopV3, error) {
+func NewWindowsDesktopV3(name string, labels map[string]string, spec WindowsDesktopSpecV3) (*WindowsDesktopV3, error) {
 	d := &WindowsDesktopV3{
 		ResourceHeader: ResourceHeader{
-			Metadata: meta,
+			Metadata: Metadata{
+				Name:   name,
+				Labels: labels,
+			},
 		},
 		Spec: spec,
 	}
@@ -107,12 +113,13 @@ func (d *WindowsDesktopV3) setStaticFields() {
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (d *WindowsDesktopV3) CheckAndSetDefaults() error {
+	if d.Spec.Addr == "" {
+		return trace.BadParameter("WindowsDesktopV3.Spec missing Addr field")
+	}
+
 	d.setStaticFields()
 	if err := d.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if d.Spec.Addr == "" {
-		return trace.BadParameter("WindowsDesktopV3.Spec missing Addr field")
 	}
 	return nil
 }
