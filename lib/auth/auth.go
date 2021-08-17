@@ -2562,34 +2562,6 @@ func (a *Server) DeleteNetworkRestrictions(ctx context.Context) error {
 	return a.Services.Restrictions.DeleteNetworkRestrictions(ctx)
 }
 
-// newKeySetForKeySet returns a new CAKeySet with local keys of the same types
-// (SSH, TLS, or JWT) as the argument keySet
-func newKeySetForKeySet(keyStore keystore.KeyStore, clusterName string, keySet types.CAKeySet) (types.CAKeySet, error) {
-	var newKeySet types.CAKeySet
-	if len(keySet.SSH) != 0 {
-		sshKeyPair, err := keyStore.NewSSHKeyPair()
-		if err != nil {
-			return newKeySet, trace.Wrap(err)
-		}
-		newKeySet.SSH = append(newKeySet.SSH, sshKeyPair)
-	}
-	if len(keySet.TLS) != 0 {
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(clusterName)
-		if err != nil {
-			return newKeySet, trace.Wrap(err)
-		}
-		newKeySet.TLS = append(newKeySet.TLS, tlsKeyPair)
-	}
-	if len(keySet.JWT) != 0 {
-		jwtKeyPair, err := keyStore.NewJWTKeyPair()
-		if err != nil {
-			return newKeySet, trace.Wrap(err)
-		}
-		newKeySet.JWT = append(newKeySet.JWT, jwtKeyPair)
-	}
-	return newKeySet, nil
-}
-
 func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 	newKeySet := a.Clone()
 	newKeySet.SSH = append(newKeySet.SSH, b.SSH...)
@@ -2638,6 +2610,32 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 	}
 }
 
+func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySet, error) {
+	var keySet types.CAKeySet
+	switch caID.Type {
+	case types.UserCA, types.HostCA:
+		sshKeyPair, err := keyStore.NewSSHKeyPair()
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(caID.DomainName)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.SSH = append(keySet.SSH, sshKeyPair)
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	case types.JWTSigner:
+		jwtKeyPair, err := keyStore.NewJWTKeyPair()
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	default:
+		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
+	}
+	return keySet, nil
+}
+
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
 // already present.
 func (a *Server) ensureLocalAdditionalKeys(ca types.CertAuthority) error {
@@ -2646,7 +2644,7 @@ func (a *Server) ensureLocalAdditionalKeys(ca types.CertAuthority) error {
 		return nil
 	}
 
-	newKeySet, err := newKeySetForKeySet(a.keyStore, ca.GetClusterName(), ca.GetActiveKeys())
+	newKeySet, err := newKeySet(a.keyStore, ca.GetID())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2664,27 +2662,9 @@ func (a *Server) ensureLocalAdditionalKeys(ca types.CertAuthority) error {
 // createSelfSignedCA creates a new self-signed CA and writes it to the
 // backend, with the type and clusterName given by the argument caID.
 func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
-	var keySet types.CAKeySet
-	switch caID.Type {
-	case types.UserCA, types.HostCA:
-		sshKeyPair, err := a.keyStore.NewSSHKeyPair()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		tlsKeyPair, err := a.keyStore.NewTLSKeyPair(caID.DomainName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		keySet.SSH = append(keySet.SSH, sshKeyPair)
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.JWTSigner:
-		jwtKeyPair, err := a.keyStore.NewJWTKeyPair()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		keySet.JWT = append(keySet.JWT, jwtKeyPair)
-	default:
-		return trace.BadParameter("unknown ca type: %s", caID.Type)
+	keySet, err := newKeySet(a.keyStore, caID)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	sigAlg := defaults.CASignatureAlgorithm
 	if a.caSigningAlg != nil && *a.caSigningAlg != "" {

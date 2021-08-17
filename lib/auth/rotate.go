@@ -475,7 +475,7 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 
 	activeKeys := ca.GetActiveKeys()
 	additionalKeys := ca.GetAdditionalTrustedKeys()
-	var newKeySet types.CAKeySet
+	var newKeys types.CAKeySet
 
 	// generate keys and certificates:
 	if len(req.privateKey) != 0 {
@@ -492,7 +492,7 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 				return trace.Wrap(err)
 			}
 			sshPublicKey := ssh.MarshalAuthorizedKey(signer.PublicKey())
-			newKeySet.SSH = append(newKeySet.SSH, &types.SSHKeyPair{
+			newKeys.SSH = append(newKeys.SSH, &types.SSHKeyPair{
 				PublicKey:      sshPublicKey,
 				PrivateKey:     req.privateKey,
 				PrivateKeyType: types.PrivateKeyType_RAW,
@@ -512,7 +512,7 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			newKeySet.TLS = append(newKeySet.TLS, &types.TLSKeyPair{
+			newKeys.TLS = append(newKeys.TLS, &types.TLSKeyPair{
 				Cert:    tlsCert,
 				Key:     req.privateKey,
 				KeyType: types.PrivateKeyType_RAW,
@@ -524,7 +524,7 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			newKeySet.JWT = append(newKeySet.JWT, &types.JWTKeyPair{
+			newKeys.JWT = append(newKeys.JWT, &types.JWTKeyPair{
 				PublicKey:      jwtPublicKey,
 				PrivateKey:     jwtPrivateKey,
 				PrivateKeyType: types.PrivateKeyType_RAW,
@@ -536,7 +536,7 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 			// already added local AdditionalTrustedKeys during the standby
 			// phase. Keep the existing AdditionalTrustedKeys to avoid
 			// invalidating the current Admin identity.
-			newKeySet = mergeKeySets(additionalKeys, newKeySet)
+			newKeys = additionalKeys.Clone()
 		}
 		if !a.keyStore.HasLocalAdditionalKeys(ca) {
 			// This auth server has no local AdditionalTrustedKeys in this CA.
@@ -545,11 +545,11 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 			// 2. There are AdditionalTrustedKeys which were added by a
 			//    different auth server.
 			// In either case, we need to add newly generated local keys.
-			newLocalKeys, err := newKeySetForKeySet(a.keyStore, ca.GetClusterName(), activeKeys)
+			newLocalKeys, err := newKeySet(a.keyStore, ca.GetID())
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			newKeySet = mergeKeySets(newLocalKeys, newKeySet)
+			newKeys = mergeKeySets(newLocalKeys, newKeys)
 		}
 	}
 
@@ -564,7 +564,7 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 	// as primary signing key pairs, and generates new CAs that are trusted, but
 	// not used in the cluster.
 	if gracePeriod == 0 {
-		if err := ca.SetActiveKeys(newKeySet); err != nil {
+		if err := ca.SetActiveKeys(newKeys); err != nil {
 			return trace.Wrap(err)
 		}
 		// In case of forced rotation, rotation has been started and completed
@@ -572,7 +572,7 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 		rotation.State = types.RotationStateStandby
 		rotation.Phase = types.RotationPhaseStandby
 	} else {
-		if err := ca.SetAdditionalTrustedKeys(newKeySet); err != nil {
+		if err := ca.SetAdditionalTrustedKeys(newKeys); err != nil {
 			return trace.Wrap(err)
 		}
 		rotation.State = types.RotationStateInProgress

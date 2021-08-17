@@ -18,7 +18,6 @@ package keystore
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
