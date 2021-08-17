@@ -100,7 +100,7 @@ teleport configure
 
 <Admonition title="warning" type="Warning">
   **Caution**: This sample config is *not* the default config and should be used
-for reference only. 
+for reference only.
 
   View [Config Reference](config-reference.mdx) for all YAML configuration options.
 </Admonition>
@@ -285,7 +285,7 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 ```bash
 tsh --proxy proxy.example.com play <session-id>
 
-# Playing back a session using pty format using a downloaded session recording. 
+# Playing back a session using pty format using a downloaded session recording.
 tsh play --format=pty 1fe153d1-ce8b-4ef4-9908-6539457ba4ad.tar
 
 # Playing back a session in json format using jq to filter on events
@@ -630,9 +630,26 @@ registered devices using [`tsh mfa ls`](cli-docs.mdx#tsh-mfa-ls).
 tsh mfa rm <device-name>
 ```
 
+Environment variables configure your tsh client and can help you avoid using flags repetitively.
+
+| Environment Variable | Description | Example Value |
+| - | - | - |
+| TELEPORT_AUTH | Name of a defined SAML, OIDC, or Github auth connector | okta |
+
+
+| TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
+| TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
+| TELEPORT_LOGIN_BIND_ADDR | Address in the form of host:port to bind to for login command webhook | host:port |
+| TELEPORT_PROXY | Address of the Teleport proxy server | cluster.example.com:3080 |
+| TELEPORT_HOME | Home location for tsh configuration and data | /directory |
+| TELEPORT_USER | A Teleport user name | alice |
+| TELEPORT_ADD_KEYS_TO_AGENT | Specifies if the user certificate should be stored on the running SSH agent | yes, no, auto, only |
+| TELEPORT_USE_LOCAL_SSH_AGENT | Disable or enable local SSH agent integration | true, false |
+
+
 ## tctl
 
-`tctl` is a CLI tool used to administer a Teleport cluster. 
+`tctl` is a CLI tool used to administer a Teleport cluster.
 
 `tctl` allows a cluster administrator to manage all resources in a cluster
 including nodes, users, tokens, and certificates.
@@ -640,7 +657,7 @@ including nodes, users, tokens, and certificates.
 `tctl` can also be used to modify the dynamic configuration of the cluster, like
 creating new user roles or connecting trusted clusters.
 
-By default, `tctl` connects to a local Auth server, meaning it will fail if you 
+By default, `tctl` connects to a local Auth server, meaning it will fail if you
 attempt to run `tctl` on a non-`auth` host.
 
 `tctl` can also connect to a remote Auth server if the `--identity` and
@@ -648,14 +665,14 @@ attempt to run `tctl` on a non-`auth` host.
 can be exported with `tctl auth sign` or `tsh login --out=<output-path>`.
 
 <Admonition type="note">
-  Note that when a `tctl` command is run locally on an Auth server, the audit logs will 
+  Note that when a `tctl` command is run locally on an Auth server, the audit logs will
   show that it was performed by the Auth server itself. To properly audit admin actions
-  at scale, it is important to limit direct ssh access to the Auth server with 
-  [Access Controls](./access-controls/introduction.mdx) and ensure that admins use `tctl` 
+  at scale, it is important to limit direct ssh access to the Auth server with
+  [Access Controls](./access-controls/introduction.mdx) and ensure that admins use `tctl`
   remotely with the `--identity` flag instead.
 </Admonition>
 
-The `TELEPORT_CONFIG_FILE` environment variable indicates where the Teleport configuration file is. 
+The `TELEPORT_CONFIG_FILE` environment variable indicates where the Teleport configuration file is.
 If you're connecting to a remote Teleport cluster (Teleport Cloud) through a `tsh` session and have a file `/etc/teleport.yaml` on your machine set the `TELEPORT_CONFIG_FILE` to `""`.  Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine which could result in the error `ERROR: open /var/lib/teleport/host_uuid: permission denied`.
 **Example**:
 ```bash
@@ -987,7 +1004,7 @@ These flags are available for all commands `--debug, --config`. Run:
 
 ```bash
 tctl help <subcommand>
-``` 
+```
 
 or see the [Global Flags Section](#tctl-global-flags).
 
