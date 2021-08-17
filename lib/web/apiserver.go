@@ -294,6 +294,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// list available sites
 	h.GET("/webapi/sites", h.WithAuth(h.getClusters))
 
+	h.POST("/webapi/join", h.WithAuth(h.generateJoinToken))
+
 	// Site specific API
 
 	// get namespaces
@@ -1509,6 +1511,54 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 		User:    token.GetUser(),
 		QRCode:  secrets.GetQRCode(),
 	}, nil
+}
+
+// A request from the client to create a join token.
+type joinTokenRequest struct {
+	Roles []string       `json:"roles"`
+	TTL   types.Duration `json:"ttl"`
+}
+
+// A response to a request to create a join token.
+type joinTokenResponse struct {
+	Token string `json:"token"`
+}
+
+// generateJoinToken generates a new join token, similar to tctl tokens add.
+//
+// POST /webapi/join
+//
+// {"roles": ["db", ...], "ttl": "1h0m0s"}
+//
+// Successful response:
+//
+// {"token": "<token>"}
+//
+func (h *Handler) generateJoinToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req *joinTokenRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := types.NewTeleportRoles(req.Roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := clt.GenerateToken(r.Context(), auth.GenerateTokenRequest{
+		Roles: roles,
+		TTL:   req.TTL.Value(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &joinTokenResponse{token}, nil
 }
 
 // u2fRegisterRequest is called to get a U2F challenge for registering a U2F key

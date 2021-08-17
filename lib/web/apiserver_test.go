@@ -3088,3 +3088,32 @@ func TestProxyMultiAddr(t *testing.T) {
 		require.NoError(t, resp.Body.Close())
 	}
 }
+
+func TestGenerateJoinToken(t *testing.T) {
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user")
+
+	user, err := proxy.auth.Auth().GetUser("test-user", false)
+	require.NoError(t, err)
+
+	role := services.RoleForUser(user)
+	rules := role.GetRules(types.Allow)
+	rules = append(rules, types.NewRule(types.KindToken, services.RW()))
+	role.SetRules(types.Allow, rules)
+	err = proxy.auth.Auth().UpsertRole(context.Background(), role)
+	require.NoError(t, err)
+
+	tokenRequest := &joinTokenRequest{[]string{"Db"}, types.NewDuration(time.Hour)}
+	endpoint := pack.clt.Endpoint("webapi", "join")
+	resp, err := pack.clt.PostJSON(context.Background(), endpoint, tokenRequest)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	var tokenResponse *joinTokenResponse
+	err = json.Unmarshal(resp.Bytes(), &tokenResponse)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, tokenResponse.Token)
+
+}
