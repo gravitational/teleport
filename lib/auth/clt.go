@@ -408,6 +408,7 @@ func (c *Client) GetDomainName() (string, error) {
 
 // GetClusterCACerts returns the CA certs for the cluster without signing keys.
 func (c *Client) GetClusterCACerts() (*ClusterCACertsResponse, error) {
+	var caCerts ClusterCACertsResponse
 	out, err := c.Get(c.Endpoint("cacerts"), url.Values{})
 	if err != nil {
 		// older servers may not have this endpoint, fall back to the older
@@ -420,11 +421,12 @@ func (c *Client) GetClusterCACerts() (*ClusterCACertsResponse, error) {
 		if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &ClusterCACertsResponse{
-			Certs: [][]byte{localCA.TLSCA},
-		}, nil
+		// avoid returning a slice with a nil value
+		if len(localCA.TLSCA) > 0 {
+			caCerts.Certs = append(caCerts.Certs, localCA.TLSCA)
+		}
+		return &caCerts, nil
 	}
-	var caCerts ClusterCACertsResponse
 	if err := json.Unmarshal(out.Bytes(), &caCerts); err != nil {
 		return nil, trace.Wrap(err)
 	}
