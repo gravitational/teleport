@@ -53,10 +53,10 @@ func NewDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 
 // NewProxyDialer makes a dialer to connect to an Auth server through the SSH reverse tunnel on the proxy.
 // The dialer will ping the web client to discover the tunnel proxy address on each dial.
-func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, insecure bool) ContextDialer {
+func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
 	dialer := newTunnelDialer(ssh, keepAlivePeriod, dialTimeout)
-	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
-		tunnelAddr, err := webclient.GetTunnelAddr(ctx, addr, insecure, nil)
+	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
+		tunnelAddr, err := webclient.GetTunnelAddr(ctx, discoveryAddr, insecure, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
