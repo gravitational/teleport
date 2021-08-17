@@ -104,12 +104,28 @@ type Config struct {
 	HostUUID string
 }
 
+func (cfg *Config) CheckAndSetDefaults() error {
+	if cfg.Path == "" && cfg.RSAKeyPairSource == nil {
+		return trace.BadParameter("must provide one of Path or RSAKeyPairSource in keystore.Config")
+	}
+	if cfg.Path != "" {
+		// HSM is configured, check the rest of the required params
+		if cfg.SlotNumber == nil && cfg.TokenLabel == "" {
+			return trace.BadParameter("must provide one of SlotNumber or TokenLabel in keystore.Config")
+		}
+		if cfg.HostUUID == "" {
+			return trace.BadParameter("must provide HostUUID in keystore.Config")
+		}
+	}
+	return nil
+}
+
 // NewKeyStore returns a new KeyStore
 func NewKeyStore(cfg Config) (KeyStore, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if cfg.Path == "" {
-		if cfg.RSAKeyPairSource == nil {
-			return nil, trace.BadParameter("must provide one of Path or RSAKeyPairSource in keystore.Config")
-		}
 		return NewRawKeyStore(&RawConfig{cfg.RSAKeyPairSource}), nil
 	}
 	return NewHSMKeyStore(&HSMConfig{
