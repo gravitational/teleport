@@ -445,11 +445,6 @@ func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
 	return len(keyTypes) == 1
 }
 
-// Empty returns true if the CAKeySet holds no keys
-func (keySet *CAKeySet) Empty() bool {
-	return len(keySet.SSH) == 0 && len(keySet.TLS) == 0 && len(keySet.JWT) == 0
-}
-
 const (
 	// RotationStateStandby is initial status of the rotation -
 	// nothing is being rotated.
@@ -712,6 +707,11 @@ func (ks CAKeySet) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
+}
+
+// Empty returns true if the CAKeySet holds no keys
+func (ks *CAKeySet) Empty() bool {
+	return len(ks.SSH) == 0 && len(ks.TLS) == 0 && len(ks.JWT) == 0
 }
 
 // CheckAndSetDefaults validates SSHKeyPair and sets defaults on any empty
