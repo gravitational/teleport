@@ -82,7 +82,7 @@ type HeartbeatConfig struct {
 	StaticHosts []utils.NetAddr
 }
 
-func (cfg WindowsServiceConfig) CheckAndSetDefaults() error {
+func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Log == nil {
 		cfg.Log = logrus.New().WithField(trace.Component, teleport.ComponentWindowsDesktop)
 	}
@@ -104,7 +104,7 @@ func (cfg WindowsServiceConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (cfg HeartbeatConfig) CheckAndSetDefaults() error {
+func (cfg *HeartbeatConfig) CheckAndSetDefaults() error {
 	if cfg.HostUUID == "" {
 		return trace.BadParameter("HeartbeatConfig is missing HostUUID")
 	}
@@ -213,7 +213,7 @@ func (s *WindowsService) Close() error {
 	return nil
 }
 
-// Serve starts serving TLS connections fro plainLis. plainLis should be a TCP
+// Serve starts serving TLS connections for plainLis. plainLis should be a TCP
 // listener and Serve will handle TLS internally.
 func (s *WindowsService) Serve(plainLis net.Listener) error {
 	lis := tls.NewListener(plainLis, s.cfg.TLS)
@@ -272,12 +272,12 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 }
 
 func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
-	srv, err := types.NewWindowsDesktopServiceV3(types.Metadata{
-		Name: s.cfg.Heartbeat.HostUUID,
-	}, types.WindowsDesktopServiceSpecV3{
-		Addr:            s.cfg.Heartbeat.PublicAddr,
-		TeleportVersion: teleport.Version,
-	})
+	srv, err := types.NewWindowsDesktopServiceV3(
+		s.cfg.Heartbeat.HostUUID,
+		types.WindowsDesktopServiceSpecV3{
+			Addr:            s.cfg.Heartbeat.PublicAddr,
+			TeleportVersion: teleport.Version,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -292,11 +292,12 @@ func (s *WindowsService) getHostHeartbeatInfo(netAddr utils.NetAddr) func() (typ
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		desktop, err := types.NewWindowsDesktopV3(types.Metadata{
-			Name: name,
-		}, types.WindowsDesktopSpecV3{
-			Addr: addr,
-		})
+		desktop, err := types.NewWindowsDesktopV3(
+			name,
+			nil, // TODO(awly): set RBAC labels.
+			types.WindowsDesktopSpecV3{
+				Addr: addr,
+			})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

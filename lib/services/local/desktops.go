@@ -31,8 +31,8 @@ type WindowsDesktopService struct {
 	backend.Backend
 }
 
-// NewWindowsDesktopsService creates a new WindowsDesktopsService.
-func NewWindowsDesktopsService(backend backend.Backend) *WindowsDesktopService {
+// NewWindowsDesktopService creates a new WindowsDesktopsService.
+func NewWindowsDesktopService(backend backend.Backend) *WindowsDesktopService {
 	return &WindowsDesktopService{Backend: backend}
 }
 

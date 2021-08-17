@@ -3077,7 +3077,7 @@ func (g *GRPCServer) DeleteWindowsDesktopService(ctx context.Context, req *proto
 }
 
 // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
-func (g *GRPCServer) DeleteAllWindowsDesktopServices(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (g *GRPCServer) DeleteAllWindowsDesktopServices(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3090,7 +3090,7 @@ func (g *GRPCServer) DeleteAllWindowsDesktopServices(ctx context.Context, req *e
 }
 
 // GetWindowsDesktops returns all registered Windows desktop hosts.
-func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, req *empty.Empty) (*proto.GetWindowsDesktopsResponse, error) {
+func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, _ *empty.Empty) (*proto.GetWindowsDesktopsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3135,8 +3135,11 @@ func (g *GRPCServer) UpsertWindowsDesktop(ctx context.Context, desktop *types.Wi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := auth.UpsertWindowsDesktop(ctx, desktop); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return &empty.Empty{}, trace.Wrap(auth.UpsertWindowsDesktop(ctx, desktop))
+	return &empty.Empty{}, nil
 }
 
 // DeleteWindowsDesktop removes the specified Windows desktop host.
@@ -3153,7 +3156,7 @@ func (g *GRPCServer) DeleteWindowsDesktop(ctx context.Context, req *proto.Delete
 }
 
 // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
-func (g *GRPCServer) DeleteAllWindowsDesktops(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (g *GRPCServer) DeleteAllWindowsDesktops(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
