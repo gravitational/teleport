@@ -79,8 +79,8 @@ func SetupSoftHSMTest(t *testing.T) Config {
 
 	// create test token (max length is 32 chars)
 	tokenLabel := strings.Replace(uuid.NewString(), "-", "", -1)
-	log.Println("Running command:", "softhsm2-util", "--init-token", "--free", "--label", tokenLabel, "--so-pin", "password", "--pin", "password")
 	cmd := exec.Command("softhsm2-util", "--init-token", "--free", "--label", tokenLabel, "--so-pin", "password", "--pin", "password")
+	t.Logf("Running command: %q", cmd)
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			require.NoError(t, exitErr, "error creating test softhsm token: %s", string(exitErr.Stderr))
