@@ -65,8 +65,8 @@ func TestAuthPreferenceV2_CheckAndSetDefaults(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		prefs   *types.AuthPreferenceV2
+		name  string
+		prefs *types.AuthPreferenceV2
 		// wantErr is a substring of the returned error
 		wantErr string
 		// wantCmp is an optional asserting function
