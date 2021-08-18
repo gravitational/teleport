@@ -51,7 +51,8 @@ func tagBuildCommands(b buildType) []string {
 	if b.os == "windows" {
 		commands = append(commands,
 			`echo "$WINDOWS_SIGNING_CERT" | base64 -d > /tmpfs/windows-signing-cert.pfx`,
-			`ln -s /tmpfs/windows-signing-cert.pfx windows-signing-cert.pfx`,
+			`ln -s /tmpfs/windows-signing-cert.pfx /go/src/github.com/gravitational/teleport/windows-signing-cert.pfx`,
+			`ls -lh /go/src/github.com/gravitational/teleport/windows-signing-cert.pfx`,
 		)
 	}
 
