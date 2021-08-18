@@ -129,6 +129,7 @@ func TestKeyStore(t *testing.T) {
 	var softHSMConfig keystore.Config
 	if !skipSoftHSM {
 		softHSMConfig = keystore.SetupSoftHSMTest(t)
+		softHSMConfig.HostUUID = "server1"
 	}
 
 	yubiSlotNumber := 0
