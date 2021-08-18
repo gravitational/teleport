@@ -230,10 +230,13 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
 	// a byte slice with 4-byte segments representing pixels (RGBA).
+	//
+	// Also, always force Alpha value to 100% (opaque). On some Windows
+	// versions it's sent as 0% after decompression for some reason.
 	for i := 0; i < len(data); i += 4 {
-		data[i], data[i+2] = data[i+2], data[i]
+		data[i], data[i+2], data[i+3] = data[i+2], data[i], 255
 	}
-	img := image.NewRGBA(image.Rectangle{
+	img := image.NewNRGBA(image.Rectangle{
 		Min: image.Pt(int(cb.dest_left), int(cb.dest_top)),
 		Max: image.Pt(int(cb.dest_right)+1, int(cb.dest_bottom)+1),
 	})
