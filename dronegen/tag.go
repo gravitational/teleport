@@ -60,6 +60,12 @@ func tagBuildCommands(b buildType) []string {
 		),
 	)
 
+	if b.os == "windows" {
+		commands = append(commands,
+			`rm -f windows-signing-cert.pfx`,
+		)
+	}
+
 	return commands
 }
 
