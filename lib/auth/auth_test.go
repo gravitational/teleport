@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1118,6 +1119,46 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 			UserMessage: "some error",
 		},
 	})
+}
+
+func (s *AuthSuite) TestNewWebSession(c *C) {
+	c.Assert(s.a.UpsertCertAuthority(
+		suite.NewTestCA(types.UserCA, "me.localhost")), IsNil)
+
+	c.Assert(s.a.UpsertCertAuthority(
+		suite.NewTestCA(types.HostCA, "me.localhost")), IsNil)
+
+	// Set a web idle timeout.
+	duration := time.Duration(5) * time.Minute
+	cfg := types.DefaultClusterNetworkingConfig()
+	cfg.SetWebIdleTimeout(duration)
+	s.a.SetClusterNetworkingConfig(context.Background(), cfg)
+
+	// Create a user.
+	user, _, err := CreateUserAndRole(s.a, "test-user", []string{"test-role"})
+	c.Assert(err, IsNil)
+
+	// Create a new web session.
+	req := types.NewWebSessionRequest{
+		User:       user.GetName(),
+		Roles:      user.GetRoles(),
+		Traits:     user.GetTraits(),
+		LoginTime:  s.a.clock.Now().UTC(),
+		SessionTTL: apidefaults.CertDuration,
+	}
+	bearerTokenTTL := utils.MinTTL(req.SessionTTL, BearerTokenTTL)
+
+	ws, err := s.a.NewWebSession(req)
+	c.Assert(err, IsNil)
+	c.Assert(user.GetName(), Equals, ws.GetUser())
+	c.Assert(duration, Equals, ws.GetIdleTimeout())
+	c.Assert(req.LoginTime, Equals, ws.GetLoginTime())
+	c.Assert(req.LoginTime.UTC().Add(req.SessionTTL), Equals, ws.GetExpiryTime())
+	c.Assert(req.LoginTime.UTC().Add(bearerTokenTTL), Equals, ws.GetBearerTokenExpiryTime())
+	c.Assert(ws.GetBearerToken(), Not(Equals), "")
+	c.Assert(ws.GetPriv(), NotNil)
+	c.Assert(ws.GetPub(), NotNil)
+	c.Assert(ws.GetTLSCert(), NotNil)
 }
 
 func newTestServices(t *testing.T) Services {
