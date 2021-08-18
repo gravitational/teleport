@@ -23,8 +23,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -396,6 +396,11 @@ const (
 	MFADeviceAddEvent = "mfa.add"
 	// MFADeviceDeleteEvent is an event type for users deleting MFA devices.
 	MFADeviceDeleteEvent = "mfa.delete"
+
+	// LockCreatedEvent fires when a lock is created/updated.
+	LockCreatedEvent = "lock.created"
+	// LockDeletedEvent fires when a lock is deleted.
+	LockDeletedEvent = "lock.deleted"
 )
 
 const (

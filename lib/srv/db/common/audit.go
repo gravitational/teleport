@@ -19,8 +19,8 @@ package common
 import (
 	"context"
 
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types/events"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 
 	"github.com/gravitational/trace"
@@ -103,9 +103,9 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			WithMFA:   session.Identity.MFAVerified,
 		},
 		DatabaseMetadata: events.DatabaseMetadata{
-			DatabaseService:  session.Server.GetName(),
-			DatabaseProtocol: session.Server.GetProtocol(),
-			DatabaseURI:      session.Server.GetURI(),
+			DatabaseService:  session.Database.GetName(),
+			DatabaseProtocol: session.Database.GetProtocol(),
+			DatabaseURI:      session.Database.GetURI(),
 			DatabaseName:     session.DatabaseName,
 			DatabaseUser:     session.DatabaseUser,
 		},
@@ -143,9 +143,9 @@ func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
 			WithMFA:   session.Identity.MFAVerified,
 		},
 		DatabaseMetadata: events.DatabaseMetadata{
-			DatabaseService:  session.Server.GetName(),
-			DatabaseProtocol: session.Server.GetProtocol(),
-			DatabaseURI:      session.Server.GetURI(),
+			DatabaseService:  session.Database.GetName(),
+			DatabaseProtocol: session.Database.GetProtocol(),
+			DatabaseURI:      session.Database.GetURI(),
 			DatabaseName:     session.DatabaseName,
 			DatabaseUser:     session.DatabaseUser,
 		},
@@ -173,9 +173,9 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 			WithMFA:   session.Identity.MFAVerified,
 		},
 		DatabaseMetadata: events.DatabaseMetadata{
-			DatabaseService:  session.Server.GetName(),
-			DatabaseProtocol: session.Server.GetProtocol(),
-			DatabaseURI:      session.Server.GetURI(),
+			DatabaseService:  session.Database.GetName(),
+			DatabaseProtocol: session.Database.GetProtocol(),
+			DatabaseURI:      session.Database.GetURI(),
 			DatabaseName:     database,
 			DatabaseUser:     session.DatabaseUser,
 		},

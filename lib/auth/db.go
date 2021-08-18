@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -49,7 +49,11 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, err := tlsca.FromAuthority(hostCA)
+	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(hostCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -140,7 +144,11 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	tlsAuthority, err := tlsca.FromAuthority(userCA)
+	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsAuthority, err := tlsca.FromCertAndSigner(cert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -48,12 +48,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	"github.com/gravitational/teleport/api/v7/client/webclient"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1199,24 +1199,10 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	process.setLocalAuth(authServer)
-
-	connector, err := process.connectToAuthService(types.RoleAdmin)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentAuth, process.id),
 	})
 
-	// second, create the API Server: it's actually a collection of API servers,
-	// each serving requests for a "role" which is assigned to every connected
-	// client based on their certificate (user, server, admin, etc)
-	sessionService, err := session.New(b)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
@@ -1224,6 +1210,22 @@ func (process *TeleportProcess) initAuthService() error {
 			Client:    authServer.Services,
 		},
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authServer.SetLockWatcher(lockWatcher)
+
+	process.setLocalAuth(authServer)
+
+	connector, err := process.connectToAuthService(types.RoleAdmin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// second, create the API Server: it's actually a collection of API servers,
+	// each serving requests for a "role" which is assigned to every connected
+	// client based on their certificate (user, server, admin, etc)
+	sessionService, err := session.New(b)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2754,6 +2756,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Context:          process.ExitContext(),
 				StaticFS:         fs,
 				ClusterFeatures:  process.getClusterFeatures(),
+				WebIdleTimeout:   cfg.Auth.NetworkingConfig.GetWebIdleTimeout(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2959,21 +2962,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
-				Namespace:         apidefaults.Namespace,
-				Keygen:            cfg.Keygen,
-				ClusterName:       clusterName,
-				ReverseTunnelSrv:  tsrv,
-				Authz:             authorizer,
-				AuthClient:        conn.Client,
-				StreamEmitter:     streamEmitter,
-				DataDir:           cfg.DataDir,
-				CachingAuthClient: accessPoint,
-				ServerID:          cfg.HostUUID,
-				ClusterOverride:   cfg.Proxy.Kube.ClusterOverride,
-				KubeconfigPath:    cfg.Proxy.Kube.KubeconfigPath,
-				Component:         component,
-				KubeServiceType:   kubeServiceType,
-				LockWatcher:       lockWatcher,
+				Namespace:                     apidefaults.Namespace,
+				Keygen:                        cfg.Keygen,
+				ClusterName:                   clusterName,
+				ReverseTunnelSrv:              tsrv,
+				Authz:                         authorizer,
+				AuthClient:                    conn.Client,
+				StreamEmitter:                 streamEmitter,
+				DataDir:                       cfg.DataDir,
+				CachingAuthClient:             accessPoint,
+				ServerID:                      cfg.HostUUID,
+				ClusterOverride:               cfg.Proxy.Kube.ClusterOverride,
+				KubeconfigPath:                cfg.Proxy.Kube.KubeconfigPath,
+				Component:                     component,
+				KubeServiceType:               kubeServiceType,
+				LockWatcher:                   lockWatcher,
+				CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			},
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
@@ -3689,8 +3693,10 @@ func newHTTPFileSystem() (http.FileSystem, error) {
 		}
 		return fs, nil
 	}
-	// Use debug HTTP file system with default assets path
-	fs, err := web.NewDebugFileSystem("")
+
+	// Use the supplied HTTP filesystem path (defaults to the current dir).
+	assetsPath := os.Getenv(teleport.DebugAssetsPath)
+	fs, err := web.NewDebugFileSystem(assetsPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

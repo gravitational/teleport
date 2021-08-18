@@ -44,12 +44,12 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/profile"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
-	"github.com/gravitational/teleport/api/v7/utils/keypaths"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -869,11 +869,8 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
-	nodeConf.SSH.ProxyReverseTunnelFallbackAddr = &utils.NetAddr{
-		// Configure the original proxy address as a fallback so the node is able to connect
-		Addr:        main.Secrets.WebProxyAddr,
-		AddrNetwork: "tcp",
-	}
+	os.Setenv(apidefaults.TunnelPublicAddrEnvar, main.Secrets.WebProxyAddr)
+	t.Cleanup(func() { os.Unsetenv(apidefaults.TunnelPublicAddrEnvar) })
 
 	// verify the node is able to join the cluster
 	_, err = main.StartReverseTunnelNode(nodeConf)

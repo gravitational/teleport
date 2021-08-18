@@ -23,9 +23,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -241,7 +241,7 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
 		Name: username,
 	})
 	c.Assert(err, IsNil)
@@ -273,12 +273,12 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
 		Name: username,
 	})
 	c.Assert(err, IsNil)
 
-	secrets, err := s.a.RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
+	secrets, err := s.a.RotateUserTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)
 
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
@@ -307,7 +307,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
 		Name: username,
 	})
 	c.Assert(err, IsNil)

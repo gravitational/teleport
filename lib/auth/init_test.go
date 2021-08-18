@@ -30,9 +30,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/types"
-	apisshutils "github.com/gravitational/teleport/api/v7/utils/sshutils"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -173,12 +173,6 @@ func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurablePara
 		require.NoError(t, err)
 		t.Cleanup(func() { authServer.Close() })
 		return authServer
-	}
-
-	resourceDiff := func(res1, res2 types.Resource) string {
-		return cmp.Diff(res1, res2,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
-			cmpopts.EquateEmpty())
 	}
 
 	t.Run("start with config file, reinit with defaults", func(t *testing.T) {
@@ -1015,4 +1009,10 @@ func TestMigrateCertAuthorities(t *testing.T) {
 			Rotation:    &types.Rotation{State: types.RotationStateStandby},
 		},
 	}))
+}
+
+func resourceDiff(res1, res2 types.Resource) string {
+	return cmp.Diff(res1, res2,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.EquateEmpty())
 }

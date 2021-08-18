@@ -40,9 +40,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -59,6 +59,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
+
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -404,7 +406,7 @@ func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
 	return siteAPI
 }
 
-// Create creates a new instance of Teleport which trusts a lsit of other clusters (other
+// Create creates a new instance of Teleport which trusts a list of other clusters (other
 // instances)
 func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
 	tconf := service.MakeDefaultConfig()
@@ -615,9 +617,15 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
 	}
 
+	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
+
 	tconf.Keygen = testauthority.New()
 	i.Config = tconf
 	return tconf, nil
+}
+
+func nullImpersonationCheck(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {
+	return nil
 }
 
 // CreateEx creates a new instance of Teleport which trusts a list of other clusters (other

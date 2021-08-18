@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/pam"
@@ -113,6 +113,34 @@ func TestRootUTMPEntryExists(t *testing.T) {
 	}
 
 	t.Errorf("did not detect utmp entry within 5 minutes")
+}
+
+// TestUsernameLimit tests that the maximum length of usernames is a hard error.
+func TestRootUsernameLimit(t *testing.T) {
+	if !isRoot() {
+		t.Skip("This test will be skipped because tests are not being run as root.")
+	}
+
+	dir := t.TempDir()
+	utmpPath := path.Join(dir, "utmp")
+	wtmpPath := path.Join(dir, "wtmp")
+
+	err := TouchFile(utmpPath)
+	require.NoError(t, err)
+	err = TouchFile(wtmpPath)
+	require.NoError(t, err)
+
+	// A 33 character long username.
+	username := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	host := [4]int32{0, 0, 0, 0}
+	tty := os.NewFile(uintptr(0), "/proc/self/fd/0")
+	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
+	require.Error(t, err)
+
+	// A 32 character long username.
+	username = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
+	require.NoError(t, err)
 }
 
 // upack holds all ssh signing artefacts needed for signing and checking user keys

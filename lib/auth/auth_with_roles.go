@@ -22,13 +22,13 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
-	"github.com/gravitational/teleport/api/v7/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -134,7 +134,6 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	if !a.context.Checker.HasRole(name) {
 		return false
 	}
-
 	return true
 }
 
@@ -1583,21 +1582,21 @@ func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (*u2f.Regist
 	return a.authServer.CreateSignupU2FRegisterRequest(token)
 }
 
-func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error) {
+func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.CreateResetPasswordToken(ctx, req)
 }
 
-func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID string) (types.ResetPasswordToken, error) {
+func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error) {
 	// tokens are their own authz mechanism, no need to double check
-	return a.authServer.GetResetPasswordToken(ctx, tokenID)
+	return a.authServer.getResetPasswordToken(ctx, tokenID)
 }
 
-func (a *ServerWithRoles) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error) {
+func (a *ServerWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
 	// tokens are their own authz mechanism, no need to double check
-	return a.authServer.RotateResetPasswordTokenSecrets(ctx, tokenID)
+	return a.authServer.RotateUserTokenSecrets(ctx, tokenID)
 }
 
 func (a *ServerWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
@@ -2134,7 +2133,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.upsertRole(ctx, role)
+	return a.authServer.UpsertRole(ctx, role)
 }
 
 // GetRole returns role by name
@@ -2679,20 +2678,20 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Filter out databases the caller doesn't have access to from each server.
-	var filtered []types.DatabaseServer
-	// MFA is not required to list the databases, but will be required to
-	// connect to them.
-	mfaParams := services.AccessMFAParams{Verified: true}
 	for _, server := range servers {
-		err := a.context.Checker.CheckAccessToDatabase(server, mfaParams, &services.DatabaseLabelsMatcher{Labels: server.GetAllLabels()})
-		if err != nil && !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
-		} else if err == nil {
-			filtered = append(filtered, server)
+		// Filter out databases the caller doesn't have access to from each server.
+		var filtered []types.Database
+		for _, database := range server.GetDatabases() {
+			err := a.checkAccessToDatabase(database)
+			if err != nil && !trace.IsAccessDenied(err) {
+				return nil, trace.Wrap(err)
+			} else if err == nil {
+				filtered = append(filtered, database)
+			}
 		}
+		server.SetDatabases(filtered)
 	}
-	return filtered, nil
+	return servers, nil
 }
 
 // UpsertDatabaseServer creates or updates a new database proxy server.
@@ -3180,6 +3179,15 @@ func (a *ServerWithRoles) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
+	role, ok := a.context.Identity.(RemoteBuiltinRole)
+	if !a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) || !ok || role.ClusterName != clusterName {
+		return trace.AccessDenied("this request can be only executed by a remote proxy of cluster %q", clusterName)
+	}
+	return a.authServer.ReplaceRemoteLocks(ctx, clusterName, locks)
+}
+
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 // channel if one is encountered. Otherwise it is simply closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
@@ -3191,6 +3199,122 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	}
 
 	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
+}
+
+func (a *ServerWithRoles) checkAccessToDatabase(database types.Database) error {
+	return a.context.Checker.CheckAccessToDatabase(database,
+		// MFA is not required for operations on database resources but
+		// will be enforced at the connection time.
+		services.AccessMFAParams{Verified: true},
+		&services.DatabaseLabelsMatcher{Labels: database.GetAllLabels()})
+}
+
+// CreateDatabase creates a new database resource.
+func (a *ServerWithRoles) CreateDatabase(ctx context.Context, database types.Database) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	// Don't allow users create databases they wouldn't have access to (e.g.
+	// non-matching labels).
+	if err := a.checkAccessToDatabase(database); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.CreateDatabase(ctx, database))
+}
+
+// UpdateDatabase updates existing database resource.
+func (a *ServerWithRoles) UpdateDatabase(ctx context.Context, database types.Database) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	// Don't allow users update databases they don't have access to (e.g.
+	// non-matching labels). Make sure to check existing database too.
+	existing, err := a.authServer.GetDatabase(ctx, database.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToDatabase(existing); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToDatabase(database); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.UpdateDatabase(ctx, database))
+}
+
+// GetDatabase returns specified database resource.
+func (a *ServerWithRoles) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	database, err := a.authServer.GetDatabase(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.checkAccessToDatabase(database); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return database, nil
+}
+
+// GetDatabases returns all database resources.
+func (a *ServerWithRoles) GetDatabases(ctx context.Context) (result []types.Database, err error) {
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Filter out databases user doesn't have access to.
+	databases, err := a.authServer.GetDatabases(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, database := range databases {
+		if err := a.checkAccessToDatabase(database); err == nil {
+			result = append(result, database)
+		}
+	}
+	return result, nil
+}
+
+// DeleteDatabase removes the specified database resource.
+func (a *ServerWithRoles) DeleteDatabase(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	// Make sure user has access to the database before deleting.
+	database, err := a.authServer.GetDatabase(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToDatabase(database); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteDatabase(ctx, name))
+}
+
+// DeleteAllDatabases removes all database resources.
+func (a *ServerWithRoles) DeleteAllDatabases(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	// Make sure to only delete databases user has access to.
+	databases, err := a.authServer.GetDatabases(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, database := range databases {
+		if err := a.checkAccessToDatabase(database); err == nil {
+			if err := a.authServer.DeleteDatabase(ctx, database.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

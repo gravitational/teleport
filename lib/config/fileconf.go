@@ -32,10 +32,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/types"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
-	"github.com/gravitational/teleport/api/v7/utils/tlsutils"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -608,6 +608,7 @@ type AuthenticationConfig struct {
 	ConnectorName     string                     `yaml:"connector_name,omitempty"`
 	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
 	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
+	LockingMode       constants.LockingMode      `yaml:"locking_mode,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *types.BoolOption `yaml:"local_auth"`
@@ -631,6 +632,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		ConnectorName:     a.ConnectorName,
 		U2F:               &u,
 		RequireSessionMFA: a.RequireSessionMFA,
+		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 	})
 }

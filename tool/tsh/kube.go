@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"

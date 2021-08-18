@@ -21,8 +21,8 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/events"
@@ -220,23 +220,24 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
-			Namespace:         apidefaults.Namespace,
-			Keygen:            cfg.Keygen,
-			ClusterName:       teleportClusterName,
-			Authz:             authorizer,
-			AuthClient:        conn.Client,
-			StreamEmitter:     streamEmitter,
-			DataDir:           cfg.DataDir,
-			CachingAuthClient: accessPoint,
-			ServerID:          cfg.HostUUID,
-			Context:           process.ExitContext(),
-			KubeconfigPath:    cfg.Kube.KubeconfigPath,
-			KubeClusterName:   cfg.Kube.KubeClusterName,
-			KubeServiceType:   kubeproxy.KubeService,
-			Component:         teleport.ComponentKube,
-			StaticLabels:      cfg.Kube.StaticLabels,
-			DynamicLabels:     dynLabels,
-			LockWatcher:       lockWatcher,
+			Namespace:                     apidefaults.Namespace,
+			Keygen:                        cfg.Keygen,
+			ClusterName:                   teleportClusterName,
+			Authz:                         authorizer,
+			AuthClient:                    conn.Client,
+			StreamEmitter:                 streamEmitter,
+			DataDir:                       cfg.DataDir,
+			CachingAuthClient:             accessPoint,
+			ServerID:                      cfg.HostUUID,
+			Context:                       process.ExitContext(),
+			KubeconfigPath:                cfg.Kube.KubeconfigPath,
+			KubeClusterName:               cfg.Kube.KubeClusterName,
+			KubeServiceType:               kubeproxy.KubeService,
+			Component:                     teleport.ComponentKube,
+			StaticLabels:                  cfg.Kube.StaticLabels,
+			DynamicLabels:                 dynLabels,
+			LockWatcher:                   lockWatcher,
+			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,

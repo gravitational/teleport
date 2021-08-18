@@ -34,9 +34,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -239,16 +239,6 @@ func (s *Server) GetRestrictedSessionManager() restricted.Manager {
 // GetLockWatcher gets the server's lock watcher.
 func (s *Server) GetLockWatcher() *services.LockWatcher {
 	return s.lockWatcher
-}
-
-// isLockedOut returns an error if the identity is matched by an active lock.
-func (s *Server) isLockedOut(id srv.IdentityContext) error {
-	lock := s.lockWatcher.FindLockInForce(srv.ComputeLockTargets(s, id)...)
-	// TODO(andrej): Handle stale lock views.
-	if lock != nil {
-		return trace.AccessDenied(services.LockInForceMessage(lock))
-	}
-	return nil
 }
 
 // isAuditedAtProxy returns true if sessions are being recorded at the proxy
@@ -929,6 +919,11 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
+	authPref, err := s.GetAccessPoint().GetAuthPreference(ctx)
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+	lockingMode := identityContext.RoleSet.LockingMode(authPref.GetLockingMode())
 
 	event := &apievents.SessionReject{
 		Metadata: apievents.Metadata{
@@ -951,14 +946,16 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		},
 	}
 
-	if err := s.isLockedOut(identityContext); err != nil {
-		if trace.IsAccessDenied(err) {
-			event.Reason = err.Error()
-			if err := s.EmitAuditEvent(s.ctx, event); err != nil {
-				log.WithError(err).Warn("Failed to emit session reject event.")
-			}
-		}
+	lockTargets, err := srv.ComputeLockTargets(s, identityContext)
+	if err != nil {
 		return ctx, trace.Wrap(err)
+	}
+	if lockErr := s.lockWatcher.CheckLockInForce(lockingMode, lockTargets...); lockErr != nil {
+		event.Reason = lockErr.Error()
+		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit session reject event.")
+		}
+		return ctx, trace.Wrap(lockErr)
 	}
 
 	// Don't apply the following checks in non-node contexts.
@@ -973,7 +970,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		return ctx, nil
 	}
 
-	netConfig, err := s.authService.GetClusterNetworkingConfig(ctx)
+	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}

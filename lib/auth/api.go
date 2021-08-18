@@ -20,8 +20,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -215,6 +215,19 @@ type Cache interface {
 
 	// GetToken finds and returns token by ID
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+
+	// GetLock gets a lock by name.
+	// NOTE: This method is intentionally available only for the auth server
+	// cache, the other Teleport components should make use of
+	// services.LockWatcher that provides the necessary freshness guarantees.
+	GetLock(ctx context.Context, name string) (types.Lock, error)
+
+	// GetLocks gets all/in-force locks that match at least one of the targets
+	// when specified.
+	// NOTE: This method is intentionally available only for the auth server
+	// cache, the other Teleport components should make use of
+	// services.LockWatcher that provides the necessary freshness guarantees.
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 
 	// NewWatcher returns a new event watcher
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)

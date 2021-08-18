@@ -20,8 +20,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -138,7 +138,11 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	// generate TLS certificate
-	tlsAuthority, err := tlsca.FromAuthority(userCA)
+	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsAuthority, err := tlsca.FromCertAndSigner(cert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

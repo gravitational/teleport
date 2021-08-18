@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -326,11 +327,14 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
 			Client:    srv.AuthServer,
+			Clock:     cfg.Clock,
 		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
+
 	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer, srv.LockWatcher)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -407,6 +411,16 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		}
 		return certs.tls, priv, nil
 	case BuiltinRole:
+		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
+			HostID:   id.Username,
+			NodeName: id.Username,
+			Roles:    types.SystemRoles{id.Role},
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return keys.TLSCert, keys.Key, nil
+	case RemoteBuiltinRole:
 		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
 			HostID:   id.Username,
 			NodeName: id.Username,
@@ -626,6 +640,7 @@ func TestUser(username string) TestIdentity {
 	return TestIdentity{
 		I: LocalUser{
 			Username: username,
+			Identity: tlsca.Identity{Username: username},
 		},
 	}
 }
@@ -658,6 +673,17 @@ func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 		I: BuiltinRole{
 			Role:     role,
 			Username: serverID,
+		},
+	}
+}
+
+// TestRemoteBuiltin returns TestIdentity for a remote builtin role.
+func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity {
+	return TestIdentity{
+		I: RemoteBuiltinRole{
+			Role:        role,
+			Username:    string(role),
+			ClusterName: remoteCluster,
 		},
 	}
 }

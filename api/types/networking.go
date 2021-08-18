@@ -19,7 +19,7 @@ package types
 import (
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/defaults"
+	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/trace"
 )
@@ -65,6 +65,9 @@ type ClusterNetworkingConfig interface {
 	// SetClientIdleTimeoutMessage sets the inactivity timeout disconnection message
 	// to be sent to the user.
 	SetClientIdleTimeoutMessage(string)
+
+	// GetWebIdleTimeout gets web idle timeout duration.
+	GetWebIdleTimeout() time.Duration
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -211,6 +214,11 @@ func (c *ClusterNetworkingConfigV2) GetClientIdleTimeoutMessage() string {
 
 func (c *ClusterNetworkingConfigV2) SetClientIdleTimeoutMessage(msg string) {
 	c.Spec.ClientIdleTimeoutMessage = msg
+}
+
+// GetWebIdleTimeout gets the session control timeout.
+func (c *ClusterNetworkingConfigV2) GetWebIdleTimeout() time.Duration {
+	return c.Spec.WebIdleTimeout.Duration()
 }
 
 // setStaticFields sets static resource header and metadata fields.

@@ -28,10 +28,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -586,6 +586,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			},
 			AllowLocalAuth:        types.NewBoolOption(true),
 			DisconnectExpiredCert: types.NewBoolOption(false),
+			LockingMode:           constants.LockingModeBestEffort,
 		},
 	}))
 }
