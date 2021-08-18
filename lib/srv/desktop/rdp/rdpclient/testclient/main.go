@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -36,13 +37,42 @@ func main() {
 
 func handleConnect(addr, username, password string) http.Handler {
 	return websocket.Handler(func(conn *websocket.Conn) {
+		done := make(chan struct{})
+		defer close(done)
+		inputPipe := make(chan deskproto.Message, 1)
+		go func() {
+			defer close(inputPipe)
+			for {
+				var buf []byte
+				if err := websocket.Message.Receive(conn, &buf); err != nil {
+					log.Printf("failed to read input message: %v", err)
+					return
+				}
+				msg, err := deskproto.Decode(buf)
+				if err != nil {
+					log.Printf("failed to parse input message: %v", err)
+					return
+				}
+				select {
+				case inputPipe <- msg:
+				case <-done:
+					return
+				}
+			}
+		}()
+
 		c, err := rdpclient.New(rdpclient.Options{
-			Addr:         addr,
-			Username:     username,
-			Password:     password,
-			ClientWidth:  800,
-			ClientHeight: 800,
+			Addr: addr,
 			OutputMessage: func(m deskproto.Message) error {
+				if _, ok := m.(deskproto.UsernamePasswordRequired); ok {
+					// Inject username/password response.
+					select {
+					case inputPipe <- deskproto.UsernamePasswordResponse{Username: username, Password: password}:
+						return nil
+					case <-done:
+						return io.ErrClosedPipe
+					}
+				}
 				data, err := m.Encode()
 				if err != nil {
 					return fmt.Errorf("failed to encode output message: %w", err)
@@ -50,11 +80,15 @@ func handleConnect(addr, username, password string) http.Handler {
 				return websocket.Message.Send(conn, data)
 			},
 			InputMessage: func() (deskproto.Message, error) {
-				var buf []byte
-				if err := websocket.Message.Receive(conn, &buf); err != nil {
-					return nil, fmt.Errorf("failed to read input message: %w", err)
+				select {
+				case msg, ok := <-inputPipe:
+					if !ok {
+						return nil, io.EOF
+					}
+					return msg, nil
+				case <-done:
+					return nil, io.EOF
 				}
-				return deskproto.Decode(buf)
 			},
 		})
 		if err != nil {
