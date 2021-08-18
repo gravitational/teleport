@@ -49,7 +49,7 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 }
 
 func TestBuildKeyLabel(t *testing.T) {
-	sensitivePrefix := "secret"
+	sensitivePrefixes := []string{"secret"}
 	testCases := []struct {
 		input  string
 		masked string
@@ -66,6 +66,6 @@ func TestBuildKeyLabel(t *testing.T) {
 		{".data/secret/graviton-leaf", ".data/secret/graviton-leaf"},
 	}
 	for _, tc := range testCases {
-		require.Equal(t, tc.masked, buildKeyLabel([]byte(tc.input), sensitivePrefix))
+		require.Equal(t, tc.masked, buildKeyLabel(tc.input, sensitivePrefixes))
 	}
 }

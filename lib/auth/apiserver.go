@@ -33,7 +33,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -1156,8 +1155,7 @@ func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter,
 
 	webSession, err := auth.ChangePasswordWithToken(r.Context(), req)
 	if err != nil {
-		maskedErrMsg := apiutils.MaskSubString(req.TokenID, err.Error())
-		log.Debugf("Failed to change user password with token: %v.", maskedErrMsg)
+		log.Debugf("Failed to change user password with token: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 

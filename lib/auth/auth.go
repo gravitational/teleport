@@ -1625,8 +1625,7 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 		err := a.DeleteToken(ctx, tok.GetName())
 		if err != nil {
 			if !trace.IsNotFound(err) {
-				maskedErrMsg := apiutils.MaskSubString(tok.GetName(), err.Error())
-				log.Warnf("Unable to delete token from backend: %v.", maskedErrMsg)
+				log.Warnf("Unable to delete token from backend: %v.", err)
 			}
 		}
 		return false
@@ -1692,8 +1691,7 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys,
 	// make sure the token is valid
 	roles, _, err := a.ValidateToken(req.Token)
 	if err != nil {
-		maskedErrMsg := apiutils.MaskSubString(req.Token, err.Error())
-		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %s", req.NodeName, req.HostID, req.Role, maskedErrMsg)
+		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
 		return nil, trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
 	}
 
@@ -1745,7 +1743,7 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 	// is this a static token?
 	for _, st := range tkns.GetStaticTokens() {
 		if subtle.ConstantTimeCompare([]byte(st.GetName()), []byte(token)) == 1 {
-			return trace.BadParameter("token %s is statically configured and cannot be removed", token)
+			return trace.BadParameter("token %s is statically configured and cannot be removed", backend.MaskKeyName(token))
 		}
 	}
 	// Delete a user token.

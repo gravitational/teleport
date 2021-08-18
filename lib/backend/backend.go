@@ -21,12 +21,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/jonboulle/clockwork"
 )
@@ -245,25 +245,12 @@ func NextPaginationKey(r types.Resource) string {
 	return string(nextKey([]byte(r.GetName())))
 }
 
-// MaskKey masks the given key if any of the given sensitive prefixes are detected.
-// If no sensitive prefixes are given, then defaults will be used.
-// e.g "/tokens/123456789" -> "/tokens/******789"
-func MaskKey(key []byte, sensitivePrefixes ...string) []byte {
-	if len(sensitivePrefixes) == 0 {
-		sensitivePrefixes = sensitiveBackendPrefixes
-	}
-
-	// If a prefix is found in the key parts, mask the subsequent key part (presumably the key name).
-	parts := bytes.Split(key, []byte{Separator})
-	for i := 0; i < len(parts)-1; i++ {
-		for _, prefix := range sensitivePrefixes {
-			if bytes.Equal(parts[i], []byte(prefix)) {
-				parts[i+1] = []byte(utils.MaskString(string(parts[i+1])))
-				return bytes.Join(parts, []byte{Separator})
-			}
-		}
-	}
-	return key
+// MaskKeyName masks the given key name.
+// e.g "123456789" -> "******789"
+func MaskKeyName(str string) string {
+	hiddenBefore := int(math.Floor(0.75 * float64(len(str))))
+	asterisks := bytes.Repeat([]byte("*"), hiddenBefore)
+	return string(append(asterisks, str[hiddenBefore:]...))
 }
 
 // Items is a sortable list of backend items

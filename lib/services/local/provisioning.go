@@ -75,9 +75,12 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types
 		return nil, trace.BadParameter("missing parameter token")
 	}
 	item, err := s.Get(ctx, backend.Key(tokensPrefix, token))
-	if err != nil {
+	if trace.IsNotFound(err) {
+		return nil, trace.NotFound("user token(%v) not found", backend.MaskKeyName(token))
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
@@ -86,6 +89,9 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 		return trace.BadParameter("missing parameter token")
 	}
 	err := s.Delete(ctx, backend.Key(tokensPrefix, token))
+	if trace.IsNotFound(err) {
+		return trace.NotFound("user token(%v) not found", backend.MaskKeyName(token))
+	}
 	return trace.Wrap(err)
 }
 

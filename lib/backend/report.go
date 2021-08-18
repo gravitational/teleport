@@ -17,12 +17,13 @@ limitations under the License.
 package backend
 
 import (
-	"bytes"
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -266,7 +267,7 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 	if len(key) == 0 {
 		return
 	}
-	keyLabel := buildKeyLabel(key)
+	keyLabel := buildKeyLabel(string(key), sensitiveBackendPrefixes)
 	rangeSuffix := teleport.TagFalse
 	if len(endKey) != 0 {
 		// Range denotes range queries in stat entry
@@ -286,24 +287,27 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 	counter.Inc()
 }
 
-// buildKeyLabel builds the key label for storing to the backend. The key is
-// masked if it is determined to be sensitive based on sensitivePrefixes.
-// If no sensitive prefixes are provided, defaults will be used.
-func buildKeyLabel(key []byte, sensitivePrefixes ...string) string {
-	// If the key doesn't match the pattern "/prefix/keyname..." return the key as is
-	separatorCount := bytes.Count(key, []byte{Separator})
-	if separatorCount < 2 || bytes.Index(key, []byte{Separator}) != 0 {
-		return string(key)
+// buildKeyLabel builds the key label for storing to the backend. The key's name
+// is masked if it is determined to be sensitive based on sensitivePrefixes.
+func buildKeyLabel(key string, sensitivePrefixes []string) string {
+	parts := strings.Split(key, string(Separator))
+
+	// If the key doesn't match the pattern "/prefix/keyname..." return the key as is.
+	if len(parts) < 3 || strings.Index(key, string(Separator)) != 0 {
+		return key
 	}
 
-	// Cut they key down to "/prefix/keyname". otherwise too
+	// Cut the key down to "/prefix/keyname". otherwise too
 	// many distinct requests can end up in the key label map.
-	if separatorCount > 2 {
-		parts := bytes.Split(key, []byte{Separator})
-		key = bytes.Join(parts[:3], []byte{Separator})
+	if len(parts) > 3 {
+		parts = parts[:3]
 	}
 
-	return string(MaskKey(key, sensitivePrefixes...))
+	if apiutils.SliceContainsStr(sensitivePrefixes, parts[1]) {
+		parts[2] = MaskKeyName(parts[2])
+	}
+
+	return strings.Join(parts, string(Separator))
 }
 
 // sensitiveBackendPrefixes is a list of backend request prefixes preceding
