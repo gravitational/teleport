@@ -88,7 +88,7 @@ spec:
           name: "gcp-credentials"
           readOnly: true
   {{- end }}
-  {{- if .Values.highAvailability.certManager.enabled }}
+  {{- if or .Values.highAvailability.certManager.enabled .Values.custom_tls.enabled}}
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true
@@ -112,7 +112,7 @@ spec:
         {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
-        {{- if .Values.insecureSkipProxyTLSVerify }}
+        {{- if or .Values.insecureSkipProxyTLSVerify .Values.custom_tls.enabled }}
         - "--insecure"
         {{- end }}
         {{- if .Values.extraArgs }}
@@ -151,7 +151,7 @@ spec:
           name: "gcp-credentials"
           readOnly: true
 {{- end }}
-{{- if .Values.highAvailability.certManager.enabled }}
+{{- if or .Values.highAvailability.certManager.enabled .Values.custom_tls.enabled}}
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true
@@ -175,7 +175,7 @@ spec:
         secret:
           secretName: {{ required "gcp.credentialSecretName is required in chart values" .Values.gcp.credentialSecretName }}
 {{- end }}
-{{- if .Values.highAvailability.certManager.enabled }}
+{{- if or .Values.highAvailability.certManager.enabled .Values.custom_tls.enabled }}
       - name: teleport-tls
         secret:
           secretName: teleport-tls

@@ -1,0 +1,66 @@
+{{- if .Values.ingress.enabled -}}
+{{- $ServiceName := .Release.Name -}}
+{{- $httpsServicePort := .Values.service.https_port -}}
+{{- $sshproxyServicePort := .Values.service.sshproxy_port -}}
+{{- $k8sServicePort := .Values.service.k8s_port -}}
+{{- $sshtunServicePort := .Values.service.sshtun_port -}}
+{{- $IngressPath := .Values.ingress.path -}}
+{{- $IngressPathType := .Values.ingress.pathType -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  {{- range $key, $value := .Values.ingress.labels }}
+    {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  annotations:
+    {{- range $key, $value := .Values.ingress.annotations }}
+      {{ $key }}: {{ $value | quote }}
+    {{- end }}
+spec:
+  rules:
+    {{- range $host := .Values.ingress.hosts }}
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: {{ $IngressPath }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $ServiceName }}
+                port:
+                  number: {{ $httpsServicePort  }}
+          - path: {{ $IngressPath }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $ServiceName }}
+                port:
+                  number: {{ $sshproxyServicePort  }}
+          - path: {{ $IngressPath }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $ServiceName }}
+                port:
+                  number: {{ $k8sServicePort  }}
+          - path: {{ $IngressPath }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $ServiceName }}
+                port:
+                  number: {{ $sshtunServicePort  }}
+    {{- end -}}
+  {{- if .Values.ingress.tls }}
+  tls:
+{{ toYaml .Values.ingress.tls | indent 4 }}
+  {{- end -}}
+{{- end -}}
+

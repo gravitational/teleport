@@ -15,3 +15,15 @@ spec:
     name: {{ required "highAvailability.certManager.issuerName is required in chart values" .Values.highAvailability.certManager.issuerName }}
     kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" .Values.highAvailability.certManager.issuerKind }}
 {{- end }}
+
+{{- if or .Values.custom_tls.enabled .Values.custom_tls.generate_secret }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: teleport-tls
+  namespace: {{ .Release.Namespace }}
+type: kubernetes.io/tls
+data:
+  tls.crt: {{ .Values.custom_tls.crt }}
+  tls.key: {{ .Values.custom_tls.key }}
+{{- end }}

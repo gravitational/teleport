@@ -28,6 +28,33 @@ acmeEmail: ""
 # acmeURI is the ACME server to use for getting certificates. The default is to use Let's Encrypt's production server.
 acmeURI: ""
 
+service:
+  type: "LoadBalancer"
+  load_balancer_ip: ""
+  https_port: "443"
+  sshproxy_port: "3023"
+  k8s_port: "3026"
+  sshtun_port: "3024"
+
+ingress:
+  enabled: false
+  # Used to create Ingress record (should used with service.type: ClusterIP).
+  hosts:
+    - ""
+  # - teleport.domain.com
+  # The ingress path. Useful to host teleport on a subpath, such as `/teleport`.
+  path: /
+  labels:
+  
+# If you want to use your own certicate you can set it with these values:
+custom_tls:
+  generate_secret: false
+  enabled: false
+  crt: ""
+  key: ""
+
+insecureSkipProxyTLSVerify: false                      
+
 # Set enterprise to true to use enterprise image
 # You will need to download your Enterprise license from the Teleport dashboard and create a secret to use this:
 # kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
@@ -52,6 +79,7 @@ labels: {}
 #     give it the same name as the Helm release and place it in the chart namespace.
 #     kubectl -n ${TELEPORT_NAMESPACE?} create configmap ${HELM_RELEASE_NAME?} --from-file=teleport.yaml
 chartMode: standalone
+
 
 ################################################################
 # Standalone-specific settings (only used in "standalone" mode)

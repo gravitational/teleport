@@ -17,22 +17,25 @@ metadata:
     {{- end }}
   {{- end }}
 spec:
-  type: LoadBalancer
+  type: {{ .Values.service.type }}
+  {{- if .Values.service.load_balancer_ip }}
+  loadBalancerIP: {{ .Values.service.load_balancer_ip  }}
+  {{- end }}
   ports:
   - name: https
-    port: 443
+    port: {{ .Values.service.https_port }}
     targetPort: 3080
     protocol: TCP
   - name: sshproxy
-    port: 3023
+    port: {{ .Values.service.sshproxy_port }}
     targetPort: 3023
     protocol: TCP
   - name: k8s
-    port: 3026
+    port: {{ .Values.service.k8s_port }}
     targetPort: 3026
     protocol: TCP
   - name: sshtun
-    port: 3024
+    port: {{ .Values.service.sshtun_port }}
     targetPort: 3024
     protocol: TCP
   selector:
