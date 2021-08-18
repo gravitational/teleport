@@ -708,7 +708,7 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 			return
 		}
 		if err != nil {
-			c.WithError(err).Warning("Re-init the cache on error.")
+			c.Warningf("Re-init the cache on error: %v.", err)
 			if c.OnlyRecent.Enabled {
 				c.setReadOK(false)
 			}
@@ -1394,4 +1394,36 @@ func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestri
 	defer rg.Release()
 
 	return rg.restrictions.GetNetworkRestrictions(ctx)
+}
+
+// GetLock gets a lock by name.
+func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	lock, err := rg.access.GetLock(ctx, name)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if lock, err := c.Config.Access.GetLock(ctx, name); err == nil {
+			return lock, nil
+		}
+	}
+	return lock, trace.Wrap(err)
+}
+
+// GetLocks gets all/in-force locks that match at least one of the targets
+// when specified.
+func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.access.GetLocks(ctx, inForceOnly, targets...)
 }

@@ -1618,16 +1618,6 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return nil
 }
 
-// GetClusterAuditConfig gets cluster audit configuration.
-func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
-	return c.APIClient.GetClusterAuditConfig(ctx)
-}
-
-// GetClusterNetworkingConfig gets cluster networking configuration.
-func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
-	return c.APIClient.GetClusterNetworkingConfig(ctx)
-}
-
 // GetLocalClusterName returns local cluster name
 func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()
@@ -1699,7 +1689,7 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 }
 
 // CreateResetPasswordToken creates reset password token
-func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error) {
+func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	return c.APIClient.CreateResetPasswordToken(ctx, &proto.CreateResetPasswordTokenRequest{
 		Name: req.Name,
 		TTL:  proto.Duration(req.TTL),
@@ -1744,11 +1734,6 @@ func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID
 // DELETE IN 7.0.0
 func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
-}
-
-// GetSessionRecordingConfig gets session recording configuration.
-func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
-	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
 // GetNetworkRestrictions retrieves the network restrictions (allow/deny lists)
@@ -1908,16 +1893,16 @@ type IdentityService interface {
 	DeleteAllUsers() error
 
 	// CreateResetPasswordToken creates a new user reset token
-	CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error)
+	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
 	// ChangePasswordWithToken changes password with token
 	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error)
 
-	// GetResetPasswordToken returns token
-	GetResetPasswordToken(ctx context.Context, username string) (types.ResetPasswordToken, error)
+	// GetResetPasswordToken returns a reset password token.
+	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
 
-	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID
-	RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error)
+	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
+	RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)

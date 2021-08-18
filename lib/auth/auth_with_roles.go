@@ -134,7 +134,6 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	if !a.context.Checker.HasRole(name) {
 		return false
 	}
-
 	return true
 }
 
@@ -1583,21 +1582,21 @@ func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (*u2f.Regist
 	return a.authServer.CreateSignupU2FRegisterRequest(token)
 }
 
-func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error) {
+func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.CreateResetPasswordToken(ctx, req)
 }
 
-func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID string) (types.ResetPasswordToken, error) {
+func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error) {
 	// tokens are their own authz mechanism, no need to double check
-	return a.authServer.GetResetPasswordToken(ctx, tokenID)
+	return a.authServer.getResetPasswordToken(ctx, tokenID)
 }
 
-func (a *ServerWithRoles) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error) {
+func (a *ServerWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
 	// tokens are their own authz mechanism, no need to double check
-	return a.authServer.RotateResetPasswordTokenSecrets(ctx, tokenID)
+	return a.authServer.RotateUserTokenSecrets(ctx, tokenID)
 }
 
 func (a *ServerWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
@@ -2134,7 +2133,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.upsertRole(ctx, role)
+	return a.authServer.UpsertRole(ctx, role)
 }
 
 // GetRole returns role by name
@@ -3178,6 +3177,15 @@ func (a *ServerWithRoles) DeleteLock(ctx context.Context, name string) error {
 // DeleteAllLocks not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
+	role, ok := a.context.Identity.(RemoteBuiltinRole)
+	if !a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) || !ok || role.ClusterName != clusterName {
+		return trace.AccessDenied("this request can be only executed by a remote proxy of cluster %q", clusterName)
+	}
+	return a.authServer.ReplaceRemoteLocks(ctx, clusterName, locks)
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
