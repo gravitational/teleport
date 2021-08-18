@@ -495,7 +495,7 @@ github.com/siddontang/go-mysql/mysql
 github.com/siddontang/go-mysql/packet
 github.com/siddontang/go-mysql/server
 github.com/siddontang/go-mysql/utils
-# github.com/sirupsen/logrus v1.8.1-0.20210219125412-f104497f2b21
+# github.com/sirupsen/logrus v1.8.1-0.20210219125412-f104497f2b21 => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 ## explicit
 github.com/sirupsen/logrus
 github.com/sirupsen/logrus/hooks/syslog
@@ -1105,3 +1105,4 @@ sigs.k8s.io/yaml
 # github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.4
 # github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 # github.com/gravitational/teleport/api => ./api
+# github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
