@@ -2255,7 +2255,9 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 	}, true)
 	c.Assert(err, check.IsNil)
 
-	key, err := services.GetJWTSigner(ca, s.clock)
+	signer, err := s.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ca)
+	c.Assert(err, check.IsNil)
+	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
 	c.Assert(err, check.IsNil)
 
 	var tests = []struct {
@@ -2562,13 +2564,13 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 	_, _, err = CreateUserAndRole(clt, username, []string{"role1"})
 	c.Assert(err, check.IsNil)
 
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
 	})
 	c.Assert(err, check.IsNil)
 
-	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
+	secrets, err := s.server.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, check.IsNil)
 
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.server.Clock().Now())
@@ -2726,7 +2728,9 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := tlsca.FromAuthority(hostCA)
+	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA)
+	c.Assert(err, check.IsNil)
+	tlsCA, err := tlsca.FromCertAndSigner(cert, signer)
 	c.Assert(err, check.IsNil)
 	caPin := utils.CalculateSPKI(tlsCA.Cert)
 
@@ -2811,7 +2815,9 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := tlsca.FromAuthority(hostCA)
+	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA)
+	c.Assert(err, check.IsNil)
+	tlsCA, err := tlsca.FromCertAndSigner(cert, signer)
 	c.Assert(err, check.IsNil)
 	tlsBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
 	c.Assert(err, check.IsNil)

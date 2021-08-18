@@ -72,8 +72,12 @@ type FileConfig struct {
 	Apps Apps `yaml:"app_service,omitempty"`
 
 	// Databases is the "db_service" section in Teleport configuration file
-	// that defined database access configuration.
+	// that defines database access configuration.
 	Databases Databases `yaml:"db_service,omitempty"`
+
+	// Metrics is the "metrics_service" section in Teleport configuration file
+	// that defines the metrics service configuration
+	Metrics Metrics `yaml:"metrics_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -604,6 +608,7 @@ type AuthenticationConfig struct {
 	ConnectorName     string                     `yaml:"connector_name,omitempty"`
 	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
 	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
+	LockingMode       constants.LockingMode      `yaml:"locking_mode,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *types.BoolOption `yaml:"local_auth"`
@@ -627,6 +632,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		ConnectorName:     a.ConnectorName,
 		U2F:               &u,
 		RequireSessionMFA: a.RequireSessionMFA,
+		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 	})
 }
@@ -1138,4 +1144,23 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 	return v2, nil
+}
+
+// Metrics is a `metrics_service` section of the config file:
+type Metrics struct {
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
+
+	// KeyPairs is a list of x509 serving key pairs used for securing the metrics endpoint with mTLS.
+	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
+	KeyPairs []KeyPair `yaml:"keypairs,omitempty"`
+
+	// CACerts is a list of prometheus CA certificates to validate clients against.
+	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
+	CACerts []string `yaml:"ca_certs,omitempty"`
+}
+
+// MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
+func (m *Metrics) MTLSEnabled() bool {
+	return len(m.KeyPairs) > 0 && len(m.CACerts) > 0
 }

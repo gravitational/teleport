@@ -708,7 +708,7 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 			return
 		}
 		if err != nil {
-			c.WithError(err).Warning("Re-init the cache on error.")
+			c.Warningf("Re-init the cache on error: %v.", err)
 			if c.OnlyRecent.Enabled {
 				c.setReadOK(false)
 			}
@@ -911,15 +911,17 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			// TODO(fspmarshall): ^^^
 			//
 			if event.Type == types.OpPut && !event.Resource.Expiry().IsZero() {
-				staleEventCount++
-				if now := c.Clock.Now(); now.After(event.Resource.Expiry()) && now.After(lastStalenessWarning.Add(time.Minute)) {
-					kind := event.Resource.GetKind()
-					if sk := event.Resource.GetSubKind(); sk != "" {
-						kind = fmt.Sprintf("%s/%s", kind, sk)
+				if now := c.Clock.Now(); now.After(event.Resource.Expiry()) {
+					staleEventCount++
+					if now.After(lastStalenessWarning.Add(time.Minute)) {
+						kind := event.Resource.GetKind()
+						if sk := event.Resource.GetSubKind(); sk != "" {
+							kind = fmt.Sprintf("%s/%s", kind, sk)
+						}
+						c.Warningf("Encountered %d stale event(s), may indicate degraded backend or event system performance. last_kind=%q", staleEventCount, kind)
+						lastStalenessWarning = now
+						staleEventCount = 0
 					}
-					c.Warningf("Encountered %d stale event(s), may indicate degraded backend or event system performance. last_kind=%q", staleEventCount, kind)
-					lastStalenessWarning = now
-					staleEventCount = 0
 				}
 			}
 
@@ -1392,4 +1394,36 @@ func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestri
 	defer rg.Release()
 
 	return rg.restrictions.GetNetworkRestrictions(ctx)
+}
+
+// GetLock gets a lock by name.
+func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	lock, err := rg.access.GetLock(ctx, name)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if lock, err := c.Config.Access.GetLock(ctx, name); err == nil {
+			return lock, nil
+		}
+	}
+	return lock, trace.Wrap(err)
+}
+
+// GetLocks gets all/in-force locks that match at least one of the targets
+// when specified.
+func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.access.GetLocks(ctx, inForceOnly, targets...)
 }

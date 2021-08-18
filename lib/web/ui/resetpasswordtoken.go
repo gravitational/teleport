@@ -18,7 +18,7 @@ package ui
 
 import "time"
 
-// ResetPasswordToken describes ResetPasswordToken UI object
+// ResetPasswordToken describes a reset password token UI object.
 type ResetPasswordToken struct {
 	// TokenID is token ID
 	TokenID string `json:"tokenId"`

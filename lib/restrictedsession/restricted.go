@@ -20,7 +20,7 @@ package restrictedsession
 
 import (
 	"bytes"
-	_ "embed"
+	"embed"
 	"encoding/binary"
 	"sync"
 
@@ -46,14 +46,14 @@ var (
 	)
 )
 
+//go:embed bytecode
+var embedFS embed.FS
+
 func init() {
 	prometheus.MustRegister(lostRestrictedEvents)
 }
 
 var unit = make([]byte, 1)
-
-//go:embed bytecode/restricted.bpf.o
-var restrictedBPF []byte
 
 // sessionMgr implements restrctedsession.Manager interface
 // by enforcing the rules via LSM BPF hooks
@@ -94,6 +94,11 @@ func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
 	}
 
 	log.Debugf("Starting restricted session.")
+
+	restrictedBPF, err := embedFS.ReadFile("bytecode/restricted.bpf.o")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	mod, err := libbpfgo.NewModuleFromBuffer(restrictedBPF, "restricted")
 	if err != nil {

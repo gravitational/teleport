@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -158,6 +159,10 @@ const (
 	// DatabasesReady is generated when the Teleport database proxy service
 	// is ready to start accepting connections.
 	DatabasesReady = "DatabasesReady"
+
+	// MetricsReady is generated when the Teleport metrics service is ready to
+	// start accepting connections.
+	MetricsReady = "MetricsReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -722,6 +727,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if cfg.Apps.Enabled {
 		eventMapping.In = append(eventMapping.In, AppsReady)
 	}
+	if cfg.Metrics.Enabled {
+		eventMapping.In = append(eventMapping.In, MetricsReady)
+	}
 	process.RegisterEventMapping(eventMapping)
 
 	if cfg.Auth.Enabled {
@@ -771,6 +779,13 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDatabase), process.log)
+	}
+
+	if cfg.Metrics.Enabled {
+		process.initMetricsService()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentMetrics), process.log)
 	}
 
 	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
@@ -1184,24 +1199,10 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	process.setLocalAuth(authServer)
-
-	connector, err := process.connectToAuthService(types.RoleAdmin)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentAuth, process.id),
 	})
 
-	// second, create the API Server: it's actually a collection of API servers,
-	// each serving requests for a "role" which is assigned to every connected
-	// client based on their certificate (user, server, admin, etc)
-	sessionService, err := session.New(b)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
@@ -1209,6 +1210,22 @@ func (process *TeleportProcess) initAuthService() error {
 			Client:    authServer.Services,
 		},
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authServer.SetLockWatcher(lockWatcher)
+
+	process.setLocalAuth(authServer)
+
+	connector, err := process.connectToAuthService(types.RoleAdmin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// second, create the API Server: it's actually a collection of API servers,
+	// each serving requests for a "role" which is assigned to every connected
+	// client based on their certificate (user, server, admin, etc)
+	sessionService, err := session.New(b)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2031,11 +2048,101 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	return nil
 }
 
+// initMetricsService starts the metrics service currently serving metrics for
+// prometheus consumption
+func (process *TeleportProcess) initMetricsService() error {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+
+	log := process.log.WithFields(logrus.Fields{
+		trace.Component: teleport.Component(teleport.ComponentMetrics, process.id),
+	})
+
+	listener, err := process.importOrCreateListener(listenerMetrics, process.Config.Metrics.ListenAddr.Addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	warnOnErr(process.closeImportedDescriptors(teleport.ComponentMetrics), log)
+
+	tlsConfig := &tls.Config{}
+	if process.Config.Metrics.MTLS {
+		for _, pair := range process.Config.Metrics.KeyPairs {
+			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
+			if err != nil {
+				return trace.Wrap(err, "failed to read keypair: %+v", err)
+			}
+			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+		}
+
+		if len(tlsConfig.Certificates) == 0 {
+			return trace.BadParameter("no keypairs were provided for the metrics service with mtls enabled")
+		}
+
+		pool := x509.NewCertPool()
+		for _, caCertPath := range process.Config.Metrics.CACerts {
+			caCert, err := ioutil.ReadFile(caCertPath)
+			if err != nil {
+				return trace.Wrap(err, "failed to read prometheus CA certificate %+v", caCertPath)
+			}
+
+			if !pool.AppendCertsFromPEM(caCert) {
+				return trace.BadParameter("failed to parse prometheus CA certificate: %+v", caCertPath)
+			}
+		}
+
+		if len(pool.Subjects()) == 0 {
+			return trace.BadParameter("no prometheus ca certs were provided for the metrics service with mtls enabled")
+		}
+
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		tlsConfig.ClientCAs = pool
+		tlsConfig.BuildNameToCertificate()
+
+		listener = tls.NewListener(listener, tlsConfig)
+	}
+
+	server := &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentMetrics),
+		TLSConfig:         tlsConfig,
+	}
+
+	log.Infof("Starting metrics service on %v.", process.Config.Metrics.ListenAddr.Addr)
+
+	process.RegisterFunc("metrics.service", func() error {
+		err := server.Serve(listener)
+		if err != nil && err != http.ErrServerClosed {
+			log.Warningf("Metrics server exited with error: %v.", err)
+		}
+		return nil
+	})
+
+	process.OnExit("metrics.shutdown", func(payload interface{}) {
+		if payload == nil {
+			log.Infof("Shutting down immediately.")
+			warnOnErr(server.Close(), log)
+		} else {
+			log.Infof("Shutting down gracefully.")
+			ctx := payloadContext(payload, log)
+			warnOnErr(server.Shutdown(ctx), log)
+		}
+		log.Infof("Exited.")
+	})
+	return nil
+}
+
 // initDiagnosticService starts diagnostic service currently serving healthz
 // and prometheus endpoints
 func (process *TeleportProcess) initDiagnosticService() error {
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+
+	// support legacy metrics collection in the diagnostic service.
+	// metrics will otherwise be served by the metrics service if it's enabled
+	// in the config.
+	if !process.Config.Metrics.Enabled {
+		mux.Handle("/metrics", promhttp.Handler())
+	}
 
 	if process.Config.Debug {
 		process.log.Infof("Adding diagnostic debugging handlers. To connect with profiler, use `go tool pprof %v`.", process.Config.DiagnosticAddr.Addr)
@@ -2649,6 +2756,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Context:          process.ExitContext(),
 				StaticFS:         fs,
 				ClusterFeatures:  process.getClusterFeatures(),
+				WebIdleTimeout:   cfg.Auth.NetworkingConfig.GetWebIdleTimeout(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2854,21 +2962,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
-				Namespace:         apidefaults.Namespace,
-				Keygen:            cfg.Keygen,
-				ClusterName:       clusterName,
-				ReverseTunnelSrv:  tsrv,
-				Authz:             authorizer,
-				AuthClient:        conn.Client,
-				StreamEmitter:     streamEmitter,
-				DataDir:           cfg.DataDir,
-				CachingAuthClient: accessPoint,
-				ServerID:          cfg.HostUUID,
-				ClusterOverride:   cfg.Proxy.Kube.ClusterOverride,
-				KubeconfigPath:    cfg.Proxy.Kube.KubeconfigPath,
-				Component:         component,
-				KubeServiceType:   kubeServiceType,
-				LockWatcher:       lockWatcher,
+				Namespace:                     apidefaults.Namespace,
+				Keygen:                        cfg.Keygen,
+				ClusterName:                   clusterName,
+				ReverseTunnelSrv:              tsrv,
+				Authz:                         authorizer,
+				AuthClient:                    conn.Client,
+				StreamEmitter:                 streamEmitter,
+				DataDir:                       cfg.DataDir,
+				CachingAuthClient:             accessPoint,
+				ServerID:                      cfg.HostUUID,
+				ClusterOverride:               cfg.Proxy.Kube.ClusterOverride,
+				KubeconfigPath:                cfg.Proxy.Kube.KubeconfigPath,
+				Component:                     component,
+				KubeServiceType:               kubeServiceType,
+				LockWatcher:                   lockWatcher,
+				CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			},
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
@@ -3584,8 +3693,10 @@ func newHTTPFileSystem() (http.FileSystem, error) {
 		}
 		return fs, nil
 	}
-	// Use debug HTTP file system with default assets path
-	fs, err := web.NewDebugFileSystem("")
+
+	// Use the supplied HTTP filesystem path (defaults to the current dir).
+	assetsPath := os.Getenv(teleport.DebugAssetsPath)
+	fs, err := web.NewDebugFileSystem(assetsPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -104,6 +105,9 @@ type Config struct {
 
 	// Databases defines database proxy service configuration.
 	Databases DatabasesConfig
+
+	// Metrics defines the metrics service configuration.
+	Metrics MetricsConfig
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
@@ -323,7 +327,7 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	//DisableTLS is enabled if we don't want self-signed certs
+	// DisableTLS is enabled if we don't want self signed certs
 	DisableTLS bool
 
 	// DisableWebInterface allows to turn off serving the Web UI interface
@@ -537,14 +541,6 @@ type SSHConfig struct {
 	// RestrictedSession holds kernel objects restrictions for Teleport.
 	RestrictedSession *restricted.Config
 
-	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
-	// discovered proxy fails.
-	// This configuration is not exposed directly but can be set from environment via
-	// defaults.ProxyFallbackAddrEnvar.
-	//
-	// See github.com/gravitational/teleport/issues/4141 for details.
-	ProxyReverseTunnelFallbackAddr *utils.NetAddr
-
 	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
 	AllowTCPForwarding bool
 
@@ -580,6 +576,10 @@ type KubeConfig struct {
 
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
+
+	// CheckImpersonationPermissions is an optional override to the default
+	// impersonation permissions check, for use in testing.
+	CheckImpersonationPermissions proxy.ImpersonationPermissionsChecker
 }
 
 // DatabasesConfig configures the database proxy service.
@@ -770,6 +770,29 @@ func (a App) Check() error {
 	return nil
 }
 
+// MetricsConfig specifies configuration for the metrics service
+type MetricsConfig struct {
+	// Enabled turns the metrics service role on or off for this process
+	Enabled bool
+
+	// ListenAddr is the address to listen on for incoming metrics requests.
+	// Optional.
+	ListenAddr *utils.NetAddr
+
+	// MTLS turns mTLS on the metrics service on or off
+	MTLS bool
+
+	// KeyPairs are the key and certificate pairs that the metrics service will
+	// use for mTLS.
+	// Used in conjunction with MTLS = true
+	KeyPairs []KeyPairPath
+
+	// CACerts are prometheus ca certs
+	// use for mTLS.
+	// Used in conjunction with MTLS = true
+	CACerts []string
+}
+
 // Rewrite is a list of rewriting rules to apply to requests and responses.
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
@@ -905,6 +928,9 @@ func ApplyDefaults(cfg *Config) {
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false
+
+	// Metrics service defaults.
+	cfg.Metrics.Enabled = false
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

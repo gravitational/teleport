@@ -48,10 +48,7 @@ const (
 	// one of many SSH nodes
 	SSHProxyListenPort = 3023
 
-	// When running in "SSH Proxy" role this port will be used for incoming
-	// connections from SSH nodes who wish to use "reverse tunnell" (when they
-	// run behind an environment/firewall which only allows outgoing connections)
-	SSHProxyTunnelListenPort = 3024
+	SSHProxyTunnelListenPort = defaults.SSHProxyTunnelListenPort
 
 	// KubeListenPort is a default port for kubernetes proxies
 	KubeListenPort = 3026
@@ -62,6 +59,9 @@ const (
 
 	// MySQLListenPort is the default listen port for MySQL proxy.
 	MySQLListenPort = 3036
+
+	// MetricsListenPort is the default listen port for the metrics service.
+	MetricsListenPort = 3081
 
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
@@ -273,6 +273,10 @@ const (
 
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour
+
+	// LockMaxStaleness is the maximum staleness for cached lock resources
+	// to be deemed acceptable for strict locking mode.
+	LockMaxStaleness = 5 * time.Minute
 )
 
 var (
@@ -491,9 +495,6 @@ var (
 	// the Teleport configuration file that tctl reads on use
 	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
 
-	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
-	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
-
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"
 
@@ -573,6 +574,11 @@ func SSHServerListenAddr() *utils.NetAddr {
 // blocks inbound connecions to ssh_nodes
 func ReverseTunnelListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
+}
+
+// MetricsServiceListenAddr returns the default listening address for the metrics service
+func MetricsServiceListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, MetricsListenPort)
 }
 
 func makeAddr(host string, port int16) *utils.NetAddr {
