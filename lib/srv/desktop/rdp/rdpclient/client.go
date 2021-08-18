@@ -62,13 +62,6 @@ func init() {
 type Options struct {
 	// Addr is the network address of the RDP server, in the form host:port.
 	Addr string
-	// Username and Password are the RDP credentials to use for authentication.
-	Username string
-	Password string
-	// ClientWidth and ClientHeight define the size of the outbound desktop
-	// image.
-	ClientWidth  uint16
-	ClientHeight uint16
 	// InputMessage is called to receive a message from the client for the RDP
 	// server. This function should block until there is a message.
 	InputMessage func() (deskproto.Message, error)
@@ -79,12 +72,6 @@ type Options struct {
 func (o Options) validate() error {
 	if o.Addr == "" {
 		return trace.BadParameter("missing Addr in rdpclient.Options")
-	}
-	if o.ClientWidth == 0 {
-		return trace.BadParameter("missing ClientWidth in rdpclient.Options")
-	}
-	if o.ClientHeight == 0 {
-		return trace.BadParameter("missing ClientHeight in rdpclient.Options")
 	}
 	if o.InputMessage == nil {
 		return trace.BadParameter("missing InputMessage in rdpclient.Options")
@@ -97,15 +84,27 @@ func (o Options) validate() error {
 
 // Client is the RDP client.
 type Client struct {
-	opts          Options
-	rustClientRef *C.Client
-	wg            sync.WaitGroup
-	closeOnce     sync.Once
+	opts Options
+
+	clientWidth, clientHeight uint16
+	username, password        string
+	rustClientRef             *C.Client
+	wg                        sync.WaitGroup
+	closeOnce                 sync.Once
 }
 
 // New creates and connects a new Client based on opts.
 func New(opts Options) (*Client, error) {
 	c := &Client{opts: opts}
+
+	if err := c.readClientSize(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// For now, always prompt for username/password.
+	// Later we will implement autologin using certificates.
+	if err := c.promptClientCredentials(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := c.connect(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -113,20 +112,57 @@ func New(opts Options) (*Client, error) {
 	return c, nil
 }
 
+func (c *Client) readClientSize() error {
+	for {
+		msg, err := c.opts.InputMessage()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s, ok := msg.(deskproto.ClientScreenSpec)
+		if !ok {
+			logrus.Debugf("Expected ClientScreenSpec message, got %T", msg)
+			continue
+		}
+		c.clientWidth = uint16(s.Width)
+		c.clientHeight = uint16(s.Height)
+		return nil
+	}
+}
+
+func (c *Client) promptClientCredentials() error {
+	if err := c.opts.OutputMessage(deskproto.UsernamePasswordRequired{}); err != nil {
+		return trace.Wrap(err)
+	}
+	for {
+		msg, err := c.opts.InputMessage()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		r, ok := msg.(deskproto.UsernamePasswordResponse)
+		if !ok {
+			logrus.Debugf("Expected UsernamePasswordResponse message, got %T", msg)
+			continue
+		}
+		c.username = r.Username
+		c.password = r.Password
+		return nil
+	}
+}
+
 func (c *Client) connect() error {
 	addr := C.CString(c.opts.Addr)
 	defer C.free(unsafe.Pointer(addr))
-	username := C.CString(c.opts.Username)
+	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
-	password := C.CString(c.opts.Password)
+	password := C.CString(c.password)
 	defer C.free(unsafe.Pointer(password))
 
 	res := C.connect_rdp(
 		addr,
 		username,
 		password,
-		C.uint16_t(c.opts.ClientWidth),
-		C.uint16_t(c.opts.ClientHeight),
+		C.uint16_t(c.clientWidth),
+		C.uint16_t(c.clientHeight),
 	)
 	if err := cgoError(res.err); err != nil {
 		return trace.Wrap(err)

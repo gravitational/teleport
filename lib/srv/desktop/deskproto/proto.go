@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"image"
 	"image/png"
+	"io"
 
 	"github.com/gravitational/trace"
 )
@@ -18,10 +19,13 @@ import (
 type MessageType byte
 
 const (
-	TypePNGFrame       = MessageType(2)
-	TypeMouseMove      = MessageType(3)
-	TypeMouseButton    = MessageType(4)
-	TypeKeyboardButton = MessageType(5)
+	TypeClientScreenSpec         = MessageType(1)
+	TypePNGFrame                 = MessageType(2)
+	TypeMouseMove                = MessageType(3)
+	TypeMouseButton              = MessageType(4)
+	TypeKeyboardButton           = MessageType(5)
+	TypeUsernamePasswordRequired = MessageType(7)
+	TypeUsernamePasswordResponse = MessageType(8)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -35,6 +39,8 @@ func Decode(buf []byte) (Message, error) {
 		return nil, trace.BadParameter("input desktop protocol message is empty")
 	}
 	switch buf[0] {
+	case byte(TypeClientScreenSpec):
+		return decodeClientScreenSpec(buf)
 	case byte(TypePNGFrame):
 		return decodePNGFrame(buf)
 	case byte(TypeMouseMove):
@@ -43,6 +49,10 @@ func Decode(buf []byte) (Message, error) {
 		return decodeMouseButton(buf)
 	case byte(TypeKeyboardButton):
 		return decodeKeyboardButton(buf)
+	case byte(TypeUsernamePasswordRequired):
+		return decodeUsernamePasswordRequired(buf)
+	case byte(TypeUsernamePasswordResponse):
+		return decodeUsernamePasswordResponse(buf)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", buf[0])
 	}
@@ -176,4 +186,93 @@ func decodeKeyboardButton(buf []byte) (KeyboardButton, error) {
 	var k KeyboardButton
 	err := binary.Read(bytes.NewReader(buf[1:]), binary.BigEndian, &k)
 	return k, trace.Wrap(err)
+}
+
+// ClientScreenSpec is the client screen specification.
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#1---client-screen-spec
+type ClientScreenSpec struct {
+	Width  uint32
+	Height uint32
+}
+
+func (s ClientScreenSpec) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeClientScreenSpec))
+	if err := binary.Write(buf, binary.BigEndian, s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeClientScreenSpec(buf []byte) (ClientScreenSpec, error) {
+	var s ClientScreenSpec
+	err := binary.Read(bytes.NewReader(buf[1:]), binary.BigEndian, &s)
+	return s, trace.Wrap(err)
+}
+
+// UsernamePasswordRequired is the request for client username and password.
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#7---usernamepassword-required
+type UsernamePasswordRequired struct {
+}
+
+func (r UsernamePasswordRequired) Encode() ([]byte, error) {
+	return []byte{byte(TypeUsernamePasswordRequired)}, nil
+}
+
+func decodeUsernamePasswordRequired(buf []byte) (UsernamePasswordRequired, error) {
+	return UsernamePasswordRequired{}, nil
+}
+
+// UsernamePasswordResponse is the client username and password.
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#8---usernamepassword-response
+type UsernamePasswordResponse struct {
+	Username string
+	Password string
+}
+
+func (r UsernamePasswordResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeUsernamePasswordResponse))
+	if err := encodeString(buf, r.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := encodeString(buf, r.Password); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeUsernamePasswordResponse(buf []byte) (UsernamePasswordResponse, error) {
+	r := bytes.NewReader(buf[1:])
+	username, err := decodeString(r)
+	if err != nil {
+		return UsernamePasswordResponse{}, trace.Wrap(err)
+	}
+	password, err := decodeString(r)
+	if err != nil {
+		return UsernamePasswordResponse{}, trace.Wrap(err)
+	}
+	return UsernamePasswordResponse{Username: username, Password: password}, nil
+}
+
+func encodeString(w io.Writer, s string) error {
+	if err := binary.Write(w, binary.BigEndian, uint32(len(s))); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := w.Write([]byte(s)); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func decodeString(r io.Reader) (string, error) {
+	var length uint32
+	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+		return "", trace.Wrap(err)
+	}
+	s := make([]byte, int(length))
+	if _, err := io.ReadFull(r, s); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(s), nil
 }
