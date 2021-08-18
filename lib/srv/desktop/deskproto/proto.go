@@ -37,21 +37,38 @@ func Decode(buf []byte) (Message, error) {
 	if len(buf) == 0 {
 		return nil, trace.BadParameter("input desktop protocol message is empty")
 	}
-	switch buf[0] {
+	return decode(bytes.NewReader(buf))
+}
+
+type peekReader interface {
+	io.Reader
+	ReadByte() (byte, error)
+	UnreadByte() error
+}
+
+func decode(in peekReader) (Message, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := in.UnreadByte(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch t {
 	case byte(TypeClientScreenSpec):
-		return decodeClientScreenSpec(buf)
+		return decodeClientScreenSpec(in)
 	case byte(TypePNGFrame):
-		return decodePNGFrame(buf)
+		return decodePNGFrame(in)
 	case byte(TypeMouseMove):
-		return decodeMouseMove(buf)
+		return decodeMouseMove(in)
 	case byte(TypeMouseButton):
-		return decodeMouseButton(buf)
+		return decodeMouseButton(in)
 	case byte(TypeKeyboardButton):
-		return decodeKeyboardButton(buf)
+		return decodeKeyboardButton(in)
 	case byte(TypeClientUsername):
-		return decodeClientUsername(buf)
+		return decodeClientUsername(in)
 	default:
-		return nil, trace.BadParameter("unsupported desktop protocol message type %d", buf[0])
+		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
 }
 
@@ -84,16 +101,22 @@ func (f PNGFrame) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodePNGFrame(buf []byte) (PNGFrame, error) {
+func decodePNGFrame(in peekReader) (PNGFrame, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return PNGFrame{}, trace.Wrap(err)
+	}
+	if t != byte(TypePNGFrame) {
+		return PNGFrame{}, trace.BadParameter("got message type %v, expected TypePNGFrame(%v)", t, TypePNGFrame)
+	}
 	var header struct {
 		Left, Top     uint32
 		Right, Bottom uint32
 	}
-	r := bytes.NewReader(buf[1:])
-	if err := binary.Read(r, binary.BigEndian, &header); err != nil {
+	if err := binary.Read(in, binary.BigEndian, &header); err != nil {
 		return PNGFrame{}, trace.Wrap(err)
 	}
-	img, err := png.Decode(r)
+	img, err := png.Decode(in)
 	if err != nil {
 		return PNGFrame{}, trace.Wrap(err)
 	}
@@ -123,9 +146,16 @@ func (m MouseMove) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeMouseMove(buf []byte) (MouseMove, error) {
+func decodeMouseMove(in peekReader) (MouseMove, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return MouseMove{}, trace.Wrap(err)
+	}
+	if t != byte(TypeMouseMove) {
+		return MouseMove{}, trace.BadParameter("got message type %v, expected TypeMouseMove(%v)", t, TypeMouseMove)
+	}
 	var m MouseMove
-	err := binary.Read(bytes.NewReader(buf[1:]), binary.BigEndian, &m)
+	err = binary.Read(in, binary.BigEndian, &m)
 	return m, trace.Wrap(err)
 }
 
@@ -157,9 +187,16 @@ func (m MouseButton) Encode() ([]byte, error) {
 	return []byte{byte(TypeMouseButton), byte(m.Button), byte(m.State)}, nil
 }
 
-func decodeMouseButton(buf []byte) (MouseButton, error) {
+func decodeMouseButton(in peekReader) (MouseButton, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return MouseButton{}, trace.Wrap(err)
+	}
+	if t != byte(TypeMouseButton) {
+		return MouseButton{}, trace.BadParameter("got message type %v, expected TypeMouseButton(%v)", t, TypeMouseButton)
+	}
 	var m MouseButton
-	err := binary.Read(bytes.NewReader(buf[1:]), binary.BigEndian, &m)
+	err = binary.Read(in, binary.BigEndian, &m)
 	return m, trace.Wrap(err)
 }
 
@@ -179,9 +216,16 @@ func (k KeyboardButton) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeKeyboardButton(buf []byte) (KeyboardButton, error) {
+func decodeKeyboardButton(in peekReader) (KeyboardButton, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return KeyboardButton{}, trace.Wrap(err)
+	}
+	if t != byte(TypeKeyboardButton) {
+		return KeyboardButton{}, trace.BadParameter("got message type %v, expected TypeKeyboardButton(%v)", t, TypeKeyboardButton)
+	}
 	var k KeyboardButton
-	err := binary.Read(bytes.NewReader(buf[1:]), binary.BigEndian, &k)
+	err = binary.Read(in, binary.BigEndian, &k)
 	return k, trace.Wrap(err)
 }
 
@@ -201,9 +245,16 @@ func (s ClientScreenSpec) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeClientScreenSpec(buf []byte) (ClientScreenSpec, error) {
+func decodeClientScreenSpec(in peekReader) (ClientScreenSpec, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return ClientScreenSpec{}, trace.Wrap(err)
+	}
+	if t != byte(TypeClientScreenSpec) {
+		return ClientScreenSpec{}, trace.BadParameter("got message type %v, expected TypeClientScreenSpec(%v)", t, TypeClientScreenSpec)
+	}
 	var s ClientScreenSpec
-	err := binary.Read(bytes.NewReader(buf[1:]), binary.BigEndian, &s)
+	err = binary.Read(in, binary.BigEndian, &s)
 	return s, trace.Wrap(err)
 }
 
@@ -222,9 +273,15 @@ func (r ClientUsername) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeClientUsername(buf []byte) (ClientUsername, error) {
-	r := bytes.NewReader(buf[1:])
-	username, err := decodeString(r)
+func decodeClientUsername(in peekReader) (ClientUsername, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return ClientUsername{}, trace.Wrap(err)
+	}
+	if t != byte(TypeClientUsername) {
+		return ClientUsername{}, trace.BadParameter("got message type %v, expected TypeClientUsername(%v)", t, TypeClientUsername)
+	}
+	username, err := decodeString(in)
 	if err != nil {
 		return ClientUsername{}, trace.Wrap(err)
 	}

@@ -541,6 +541,13 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // WrapContextWithUser enriches the provided context with the identity information
 // extracted from the provided TLS connection.
 func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (context.Context, error) {
+	// Perform the handshake if it hasn't been already. Before the handshake we
+	// won't have client certs available.
+	if !conn.ConnectionState().HandshakeComplete {
+		if err := conn.Handshake(); err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
 	user, err := a.GetUser(conn.ConnectionState())
 	if err != nil {
 		return nil, trace.Wrap(err)
