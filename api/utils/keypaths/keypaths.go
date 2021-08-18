@@ -260,8 +260,8 @@ func IdentitySSHCertPath(path string) string {
 }
 
 // TrimCertPathSuffix returns the given path with any cert suffix/extension trimmed off.
-func TrimCertPathSuffix(path string) (trimmedPath string, isCertPath bool) {
-	trimmedPath = strings.TrimSuffix(path, fileExtTLSCert)
+func TrimCertPathSuffix(path string) string {
+	trimmedPath := strings.TrimSuffix(path, fileExtTLSCert)
 	trimmedPath = strings.TrimSuffix(trimmedPath, fileExtSSHCert)
-	return trimmedPath, path != trimmedPath
+	return trimmedPath
 }

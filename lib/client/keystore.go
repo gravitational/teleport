@@ -309,8 +309,8 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 			return trace.ConvertSystemError(err)
 		}
 		for _, certFile := range certFiles {
-			name, isCert := keypaths.TrimCertPathSuffix(certFile.Name())
-			if isCert {
+			name := keypaths.TrimCertPathSuffix(certFile.Name())
+			if isCert := name != certFile.Name(); isCert {
 				data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
 				if err != nil {
 					return trace.ConvertSystemError(err)

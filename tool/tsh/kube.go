@@ -385,7 +385,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 	}
 	if isKubeConfig {
 		if !strings.Contains(path, cf.KubernetesCluster) {
-			return trace.BadParameter("profile specific kubeconfig is in use, run 'tsh env unset' to switch contexts to another kube cluster")
+			return trace.BadParameter("profile specific kubeconfig is in use, run 'eval $(tsh env --unset)' to switch contexts to another kube cluster")
 		}
 		values.Exec.KubeClusters = []string{cf.KubernetesCluster}
 	}
