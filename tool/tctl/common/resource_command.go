@@ -695,6 +695,16 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("database %q has been deleted\n", rc.ref.Name)
+	case types.KindWindowsDesktopService:
+		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
+	case types.KindWindowsDesktop:
+		if err = client.DeleteWindowsDesktop(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("windows desktop %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1098,6 +1108,44 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.Wrap(err)
 		}
 		return &databaseCollection{databases: []types.Database{database}}, nil
+	case types.KindWindowsDesktopService:
+		services, err := client.GetWindowsDesktopServices(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if rc.ref.Name == "" {
+			return &windowsDesktopServiceCollection{services: services}, nil
+		}
+
+		var out []types.WindowsDesktopService
+		for _, service := range services {
+			if service.GetName() == rc.ref.Name {
+				out = append(out, service)
+			}
+		}
+		if len(out) == 0 {
+			return nil, trace.NotFound("Windows desktop service %q not found", rc.ref.Name)
+		}
+		return &windowsDesktopServiceCollection{services: out}, nil
+	case types.KindWindowsDesktop:
+		desktops, err := client.GetWindowsDesktops(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if rc.ref.Name == "" {
+			return &windowsDesktopCollection{desktops: desktops}, nil
+		}
+
+		var out []types.WindowsDesktop
+		for _, desktop := range desktops {
+			if desktop.GetName() == rc.ref.Name {
+				out = append(out, desktop)
+			}
+		}
+		if len(out) == 0 {
+			return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
+		}
+		return &windowsDesktopCollection{desktops: out}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

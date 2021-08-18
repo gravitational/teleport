@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -650,6 +651,50 @@ func (c *lockCollection) writeText(w io.Writer) error {
 			expires = apiutils.HumanTimeFormat(*lock.LockExpiry())
 		}
 		t.AddRow([]string{lock.GetName(), target.String(), lock.Message(), expires})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type windowsDesktopServiceCollection struct {
+	services []types.WindowsDesktopService
+}
+
+func (c *windowsDesktopServiceCollection) resources() (r []types.Resource) {
+	for _, resource := range c.services {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *windowsDesktopServiceCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Address", "Version"})
+	for _, service := range c.services {
+		addr := service.GetAddr()
+		if addr == reversetunnel.LocalWindowsDesktop {
+			addr = "<proxy tunnel>"
+		}
+		t.AddRow([]string{service.GetName(), addr, service.GetTeleportVersion()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type windowsDesktopCollection struct {
+	desktops []types.WindowsDesktop
+}
+
+func (c *windowsDesktopCollection) resources() (r []types.Resource) {
+	for _, resource := range c.desktops {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *windowsDesktopCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"UUID", "Address"})
+	for _, desktop := range c.desktops {
+		t.AddRow([]string{desktop.GetName(), desktop.GetAddr()})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

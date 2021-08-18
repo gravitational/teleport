@@ -208,4 +208,13 @@ type Presence interface {
 
 	// DeleteAllKubeServices deletes all registered kubernetes services.
 	DeleteAllKubeServices(context.Context) error
+
+	// GetWindowsDesktopServices returns all registered Windows desktop services.
+	GetWindowsDesktopServices(context.Context) ([]types.WindowsDesktopService, error)
+	// UpsertWindowsDesktopService creates or updates a new Windows desktop service.
+	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
+	// DeleteWindowsDesktopService removes the specified Windows desktop service.
+	DeleteWindowsDesktopService(ctx context.Context, name string) error
+	// DeleteAllWindowsDesktopServices removes all Windows desktop services.
+	DeleteAllWindowsDesktopServices(context.Context) error
 }
