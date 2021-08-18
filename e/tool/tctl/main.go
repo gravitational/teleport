@@ -25,6 +25,7 @@ func main() {
 		&SAMLCommand{},
 		&common.AppsCommand{},
 		&common.DBCommand{},
+		&common.LockCommand{},
 	}
 	common.Run(commands)
 }
