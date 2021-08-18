@@ -1,6 +1,6 @@
 ## Example workflows plugin
 
-This example plugin demonstrates how to create a workflows plugin to automatically approve/deny new access requests based on a simple whitelist.
+This example plugin demonstrates how to create a workflows plugin to automatically approve/deny new access requests based on a simple Allow List.
 
 ## Demo
 
@@ -42,4 +42,4 @@ $ tsh --proxy=proxy.example.com login --user=alice
 $ tsh --proxy=proxy.example.com request new --roles=admin
 ```
 
-Since `alice` is on the whitelist in `cofig.toml`, the request should be automatically approved by the plugin.
+Since `alice` is on the Allow List in `cofig.toml` with allowed role `requester`, the request should be automatically approved by the plugin.

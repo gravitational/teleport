@@ -12,5 +12,5 @@ spec:
   allow:
     rules:
       - resources: ['access_request']
-        verbs: ['list','read','update'] # Note that you can not provide the update permission to the Slack plugin in notify_only mode.
+        verbs: ['list','read','update']
 version: v3
