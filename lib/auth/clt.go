@@ -1447,9 +1447,16 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 	return retval, nil
 }
 
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	return c.APIClient.StreamSessionEvents(ctx, string(sessionID), startIndex)
+}
+
 // SearchEvents allows searching for audit events with pagination support.
-func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -1458,8 +1465,8 @@ func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventT
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, startKey)
+func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, order, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -1611,16 +1618,6 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return nil
 }
 
-// GetClusterAuditConfig gets cluster audit configuration.
-func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
-	return c.APIClient.GetClusterAuditConfig(ctx)
-}
-
-// GetClusterNetworkingConfig gets cluster networking configuration.
-func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
-	return c.APIClient.GetClusterNetworkingConfig(ctx)
-}
-
 // GetLocalClusterName returns local cluster name
 func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()
@@ -1692,7 +1689,7 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 }
 
 // CreateResetPasswordToken creates reset password token
-func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error) {
+func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	return c.APIClient.CreateResetPasswordToken(ctx, &proto.CreateResetPasswordTokenRequest{
 		Name: req.Name,
 		TTL:  proto.Duration(req.TTL),
@@ -1739,9 +1736,19 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (apieven
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
 
-// GetSessionRecordingConfig gets session recording configuration.
-func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
-	return c.APIClient.GetSessionRecordingConfig(ctx)
+// GetNetworkRestrictions retrieves the network restrictions (allow/deny lists)
+func (c *Client) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	return c.APIClient.GetNetworkRestrictions(ctx)
+}
+
+// SetNetworkRestrictions updates the network restrictions (allow/deny lists)
+func (c *Client) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
+	return c.APIClient.SetNetworkRestrictions(ctx, nr)
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions (allow/deny lists)
+func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
+	return c.APIClient.DeleteNetworkRestrictions(ctx)
 }
 
 // WebService implements features used by Web UI clients
@@ -1886,16 +1893,16 @@ type IdentityService interface {
 	DeleteAllUsers() error
 
 	// CreateResetPasswordToken creates a new user reset token
-	CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error)
+	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
 	// ChangePasswordWithToken changes password with token
 	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error)
 
-	// GetResetPasswordToken returns token
-	GetResetPasswordToken(ctx context.Context, username string) (types.ResetPasswordToken, error)
+	// GetResetPasswordToken returns a reset password token.
+	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
 
-	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID
-	RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error)
+	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
+	RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
@@ -1944,6 +1951,8 @@ type ClientI interface {
 	services.Access
 	services.DynamicAccess
 	services.DynamicAccessOracle
+	services.Restrictions
+	services.Databases
 	WebService
 	session.Service
 	services.ClusterConfiguration

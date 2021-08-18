@@ -87,6 +87,11 @@ message Event {
         // ClusterAuditConfig is a resource for cluster audit configuration.
         types.ClusterAuditConfigV2 ClusterAuditConfig = 23
             [ (gogoproto.jsontag) = "cluster_audit_config,omitempty" ];
+        // Lock is a lock resource.
+        types.LockV2 Lock = 24 [ (gogoproto.jsontag) = "lock,omitempty" ];
+        // NetworkRestrictions is a resource for network restrictions
+        types.NetworkRestrictionsV4 NetworkRestrictions = 25
+            [ (gogoproto.jsontag) = "network_restrictions,omitempty" ];
     }
 }
 
@@ -264,16 +269,13 @@ message RequestStateSetter {
 // RequestID is the unique identifier of an access request.
 message RequestID { string ID = 1 [ (gogoproto.jsontag) = "id" ]; }
 
-// RotateResetPasswordTokenSecretsRequest is a request to rotate token secrets.
-message RotateResetPasswordTokenSecretsRequest {
-    string TokenID = 1 [ (gogoproto.jsontag) = "token" ];
-}
+// RotateUserTokenSecretsRequest is a request to rotate token secrets.
+message RotateUserTokenSecretsRequest { string TokenID = 1 [ (gogoproto.jsontag) = "token" ]; }
 
 // GetResetPasswordTokenRequest is a request to get a reset password token.
 message GetResetPasswordTokenRequest { string TokenID = 1 [ (gogoproto.jsontag) = "token" ]; }
 
-// CreateResetPasswordTokenRequest is a request to create an instance of
-// ResetPasswordToken
+// CreateResetPasswordTokenRequest is a request to create a reset password token.
 message CreateResetPasswordTokenRequest {
     // Name is the user name.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
@@ -455,6 +457,8 @@ message CreateAppSessionRequest {
     string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
     // ClusterName is cluster within which the application is running.
     string ClusterName = 4 [ (gogoproto.jsontag) = "cluster_name" ];
+    // AWSRoleARN is AWS role the user wants to assume.
+    string AWSRoleARN = 5 [ (gogoproto.jsontag) = "aws_role_arn" ];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -805,6 +809,15 @@ message IsMFARequiredRequest {
     }
 }
 
+// StreamSessionEventsRequest is a request containing needed data to fetch a session recording.
+message StreamSessionEventsRequest {
+    // SessionID is the ID for a given session in an UUIDv4 format.
+    string SessionID = 1;
+    // StartIndex is the index of the event to resume the stream after.
+    // A StartIndex of 0 creates a new stream.
+    int32 StartIndex = 2;
+}
+
 // NodeLogin specifies an SSH node and OS login.
 message NodeLogin {
     // Node can be node's hostname or UUID.
@@ -824,6 +837,13 @@ message SingleUseUserCert {
     }
 }
 
+// Order specifies any ordering of some objects as returned in regards to some aspect
+// of said objects which may be trivially ordered such as a timestamp.
+enum Order {
+    DESCENDING = 0;
+    ASCENDING = 1;
+}
+
 message GetEventsRequest {
     // Namespace, if not set, defaults to 'default'
     string Namespace = 1;
@@ -841,6 +861,9 @@ message GetEventsRequest {
     // If the previous response had LastKey set then this should be
     // set to its value. Otherwise leave empty.
     string StartKey = 6;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 7;
 }
 
 message GetSessionEventsRequest {
@@ -856,6 +879,9 @@ message GetSessionEventsRequest {
     // If the previous response had LastKey set then this should be
     // set to its value. Otherwise leave empty.
     string StartKey = 4;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 5;
 }
 
 message Events {
@@ -865,6 +891,54 @@ message Events {
     // actual amount. this is the key clients can supply in another API request to continue fetching
     // events from the previous last position
     string LastKey = 2;
+}
+
+message ListNodesRequest {
+    // Namespace is the namespace of resources.
+    string Namespace = 1;
+    // Limit is the maximum amount of nodes to retrieve.
+    int32 Limit = 2;
+    // StartKey is used to start listing nodes from a specific spot. This should
+    // be set to the previous NextKey value if using pagination, or left empty.
+    string StartKey = 3;
+}
+
+message ListNodesResponse {
+    // Servers is a list of servers.
+    repeated types.ServerV2 Servers = 1;
+    // NextKey is the next Key to use as StartKey in a ListNodesRequest to continue
+    // retrieving pages of nodes. If NextKey is empty, there are no more pages.
+    string NextKey = 2;
+}
+
+message GetLocksRequest {
+    // Targets is a list of targets. Every returned lock must match at least
+    // one of the targets.
+    repeated types.LockTarget Targets = 1;
+    // InForceOnly specifies whether to return only those locks that are in force.
+    bool InForceOnly = 2;
+}
+
+message GetLocksResponse {
+    // Locks is a list of locks.
+    repeated types.LockV2 Locks = 1;
+}
+
+message GetLockRequest {
+    // Name is the name of the lock to get.
+    string Name = 1;
+}
+
+message DeleteLockRequest {
+    // Name is the name of the lock to delete.
+    string Name = 1;
+}
+
+message ReplaceRemoteLocksRequest {
+    // ClusterName identifies the cluster from which the locks originate.
+    string ClusterName = 1;
+    // Locks is a list of new remote locks to store.
+    repeated types.LockV2 Locks = 2;
 }
 
 // AuthService is authentication/authorization service implementation
@@ -877,7 +951,10 @@ service AuthService {
     // GetNode retrieves a node described by the given request.
     rpc GetNode(types.ResourceInNamespaceRequest) returns (types.ServerV2);
     // GetNodes retrieves all nodes.
+    // DELETE IN 8.0.0 in favor of ListNodes
     rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
+    // ListNodes retrieves a paginated list of nodes.
+    rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
     // UpsertNode upserts a node in a backend.
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
     // DeleteNode deletes an existing node in a backend described by the given request.
@@ -918,13 +995,16 @@ service AuthService {
     rpc Ping(PingRequest) returns (PingResponse);
 
     // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
-    rpc RotateResetPasswordTokenSecrets(RotateResetPasswordTokenSecretsRequest)
-        returns (types.ResetPasswordTokenSecretsV3);
-    // GetResetPasswordToken returns a token.
-    rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.ResetPasswordTokenV3);
-    // CreateResetPasswordToken creates ResetPasswordToken.
-    rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest)
-        returns (types.ResetPasswordTokenV3);
+    // DELETE IN: 9.0.0 in favor of RotateUserTokenSecrets.
+    rpc RotateResetPasswordTokenSecrets(RotateUserTokenSecretsRequest)
+        returns (types.UserTokenSecretsV3);
+    // RotateUserTokenSecrets rotates token secrets for a given tokenID.
+    rpc RotateUserTokenSecrets(RotateUserTokenSecretsRequest) returns (types.UserTokenSecretsV3);
+    // GetResetPasswordToken returns a reset password token.
+    rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
+    // CreateResetPasswordToken resets users current password and second factors and creates a reset
+    // password token.
+    rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
 
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);
@@ -1104,8 +1184,6 @@ service AuthService {
 
     // GetClusterAuditConfig gets cluster audit configuration.
     rpc GetClusterAuditConfig(google.protobuf.Empty) returns (types.ClusterAuditConfigV2);
-    // SetClusterAuditConfig sets cluster audit configuration.
-    rpc SetClusterAuditConfig(types.ClusterAuditConfigV2) returns (google.protobuf.Empty);
 
     // GetClusterNetworkingConfig gets cluster networking configuration.
     rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
@@ -1132,4 +1210,38 @@ service AuthService {
     rpc GetEvents(GetEventsRequest) returns (Events);
     // In-session request for audit events.
     rpc GetSessionEvents(GetSessionEventsRequest) returns (Events);
+
+    // GetLock gets a lock by name.
+    rpc GetLock(GetLockRequest) returns (types.LockV2);
+    // GetLocks gets all/in-force locks that match at least one of the targets when specified.
+    rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
+    // UpsertLock upserts a lock.
+    rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
+    // DeleteLock deletes a lock.
+    rpc DeleteLock(DeleteLockRequest) returns (google.protobuf.Empty);
+    // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+    rpc ReplaceRemoteLocks(ReplaceRemoteLocksRequest) returns (google.protobuf.Empty);
+
+    // StreamSessionEvents streams audit events from a given session recording.
+    rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);
+
+    // GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
+    rpc GetNetworkRestrictions(google.protobuf.Empty) returns (types.NetworkRestrictionsV4);
+    // SetNetworkRestrictions updates the network restrictions.
+    rpc SetNetworkRestrictions(types.NetworkRestrictionsV4) returns (google.protobuf.Empty);
+    // DeleteNetworkRestrictions delete the network restrictions.
+    rpc DeleteNetworkRestrictions(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetDatabases returns all registered databases.
+    rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);
+    // GetDatabase returns a database by name.
+    rpc GetDatabase(types.ResourceRequest) returns (types.DatabaseV3);
+    // CreateDatabase creates a new database resource.
+    rpc CreateDatabase(types.DatabaseV3) returns (google.protobuf.Empty);
+    // UpdateDatabase updates existing database resource.
+    rpc UpdateDatabase(types.DatabaseV3) returns (google.protobuf.Empty);
+    // DeleteDatabase removes specified database resource.
+    rpc DeleteDatabase(types.ResourceRequest) returns (google.protobuf.Empty);
+    // DeleteAllDatabases removes all database resources.
+    rpc DeleteAllDatabases(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

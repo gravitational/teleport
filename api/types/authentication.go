@@ -41,9 +41,9 @@ type AuthPreference interface {
 	// SetType sets the type of authentication: local, saml, or oidc.
 	SetType(string)
 
-	// GetSecondFactor gets the type of second factor: off, otp or u2f.
+	// GetSecondFactor gets the type of second factor.
 	GetSecondFactor() constants.SecondFactorType
-	// SetSecondFactor sets the type of second factor: off, otp, or u2f.
+	// SetSecondFactor sets the type of second factor.
 	SetSecondFactor(constants.SecondFactorType)
 
 	// GetConnectorName gets the name of the OIDC or SAML connector to use. If
@@ -71,6 +71,16 @@ type AuthPreference interface {
 	GetAllowLocalAuth() bool
 	// SetAllowLocalAuth sets if local authentication is allowed.
 	SetAllowLocalAuth(bool)
+
+	// GetMessageOfTheDay fetches the MOTD
+	GetMessageOfTheDay() string
+	// SetMessageOfTheDay sets the MOTD
+	SetMessageOfTheDay(string)
+
+	// GetLockingMode gets the cluster-wide locking mode default.
+	GetLockingMode() constants.LockingMode
+	// SetLockingMode sets the cluster-wide locking mode default.
+	SetLockingMode(constants.LockingMode)
 
 	// String represents a human readable version of authentication settings.
 	String() string
@@ -248,6 +258,26 @@ func (c *AuthPreferenceV2) SetAllowLocalAuth(b bool) {
 	c.Spec.AllowLocalAuth = NewBoolOption(b)
 }
 
+// GetMessageOfTheDay gets the current Message Of The Day. May be empty.
+func (c *AuthPreferenceV2) GetMessageOfTheDay() string {
+	return c.Spec.MessageOfTheDay
+}
+
+// SetMessageOfTheDay sets the current Message Of The Day. May be empty.
+func (c *AuthPreferenceV2) SetMessageOfTheDay(motd string) {
+	c.Spec.MessageOfTheDay = motd
+}
+
+// GetLockingMode gets the cluster-wide locking mode default.
+func (c *AuthPreferenceV2) GetLockingMode() constants.LockingMode {
+	return c.Spec.LockingMode
+}
+
+// SetLockingMode sets the cluster-wide locking mode default.
+func (c *AuthPreferenceV2) SetLockingMode(mode constants.LockingMode) {
+	c.Spec.LockingMode = mode
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
@@ -274,6 +304,9 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if c.Spec.DisconnectExpiredCert == nil {
 		c.Spec.DisconnectExpiredCert = NewBoolOption(false)
 	}
+	if c.Spec.LockingMode == "" {
+		c.Spec.LockingMode = constants.LockingModeBestEffort
+	}
 	if c.Origin() == "" {
 		c.SetOrigin(OriginDynamic)
 	}
@@ -297,6 +330,12 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	default:
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
+	}
+
+	switch c.Spec.LockingMode {
+	case constants.LockingModeBestEffort, constants.LockingModeStrict:
+	default:
+		return trace.BadParameter("locking mode %q not supported", c.Spec.LockingMode)
 	}
 
 	return nil

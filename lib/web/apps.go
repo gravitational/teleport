@@ -35,13 +35,17 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
-
 	"github.com/julienschmidt/httprouter"
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
 func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	appClusterName := p.ByName("site")
+
+	identity, err := ctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Get a list of application servers.
 	clt, err := ctx.GetUserClient(site)
@@ -53,7 +57,13 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	return makeResponse(ui.MakeApps(h.auth.clusterName, h.proxyDNSName(), appClusterName, appServers))
+	return makeResponse(ui.MakeApps(ui.MakeAppsConfig{
+		LocalClusterName:  h.auth.clusterName,
+		LocalProxyDNSName: h.proxyDNSName(),
+		AppClusterName:    appClusterName,
+		Identity:          identity,
+		Apps:              appServers,
+	}))
 }
 
 type GetAppFQDNRequest resolveAppParams
@@ -149,6 +159,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		Username:    ctx.GetUser(),
 		PublicAddr:  result.PublicAddr,
 		ClusterName: result.ClusterName,
+		AWSRoleARN:  req.AWSRole,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -189,7 +200,8 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 			WithMFA:   identity.MFAVerified,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User: ws.GetUser(),
+			User:       ws.GetUser(),
+			AWSRoleARN: req.AWSRole,
 		},
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: r.RemoteAddr,
@@ -221,6 +233,9 @@ type resolveAppParams struct {
 
 	// ClusterName is the cluster within which this application is running.
 	ClusterName string `json:"cluster_name"`
+
+	// AWSRole is the AWS role ARN when accessing AWS management console.
+	AWSRole string `json:"arn,omitempty"`
 }
 
 type resolveAppResult struct {

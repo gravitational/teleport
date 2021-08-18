@@ -33,6 +33,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime/pprof"
 	"strconv"
@@ -46,6 +47,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib"
@@ -209,6 +211,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
+	t.Run("SessionStreaming", suite.bind(testSessionStreaming))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -866,11 +869,8 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
-	nodeConf.SSH.ProxyReverseTunnelFallbackAddr = &utils.NetAddr{
-		// Configure the original proxy address as a fallback so the node is able to connect
-		Addr:        main.Secrets.WebProxyAddr,
-		AddrNetwork: "tcp",
-	}
+	os.Setenv(apidefaults.TunnelPublicAddrEnvar, main.Secrets.WebProxyAddr)
+	t.Cleanup(func() { os.Unsetenv(apidefaults.TunnelPublicAddrEnvar) })
 
 	// verify the node is able to join the cluster
 	_, err = main.StartReverseTunnelNode(nodeConf)
@@ -1513,7 +1513,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		for {
 			select {
 			case <-tickCh:
-				eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), apidefaults.Namespace, eventTypes, 0, "")
+				eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), apidefaults.Namespace, eventTypes, 0, types.EventOrderAscending, "")
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -5456,4 +5456,69 @@ func TestTraitsPropagation(t *testing.T) {
 	}, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello leaf", strings.TrimSpace(outputLeaf))
+}
+
+// testSessionStreaming tests streaming events from session recordings.
+func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
+	sessionID := session.ID(uuid.New())
+	teleport := suite.newTeleport(t, nil, true)
+	defer teleport.StopAll()
+
+	api := teleport.GetSiteAPI(Site)
+	uploadStream, err := api.CreateAuditStream(ctx, sessionID)
+	require.Nil(t, err)
+
+	generatedSession := events.GenerateTestSession(events.SessionParams{
+		PrintEvents: 100,
+		SessionID:   string(sessionID),
+		ServerID:    "00000000-0000-0000-0000-000000000000",
+	})
+
+	for _, event := range generatedSession {
+		err := uploadStream.EmitAuditEvent(ctx, event)
+		require.NoError(t, err)
+	}
+
+	err = uploadStream.Complete(ctx)
+	require.Nil(t, err)
+	start := time.Now()
+
+	// retry in case of error
+outer:
+	for time.Since(start) < time.Minute*5 {
+		time.Sleep(time.Second * 5)
+
+		receivedSession := make([]apievents.AuditEvent, 0)
+		sessionPlayback, e := api.StreamSessionEvents(ctx, sessionID, 0)
+
+	inner:
+		for {
+			select {
+			case event, more := <-sessionPlayback:
+				if !more {
+					break inner
+				}
+
+				receivedSession = append(receivedSession, event)
+			case <-ctx.Done():
+				require.Nil(t, ctx.Err())
+			case err := <-e:
+				require.Nil(t, err)
+			case <-time.After(time.Minute * 5):
+				t.FailNow()
+			}
+		}
+
+		for i := range generatedSession {
+			receivedSession[i].SetClusterName("")
+			if !reflect.DeepEqual(generatedSession[i], receivedSession[i]) {
+				continue outer
+			}
+		}
+
+		return
+	}
+
+	t.FailNow()
 }

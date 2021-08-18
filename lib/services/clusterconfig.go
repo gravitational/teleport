@@ -23,6 +23,56 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// ClusterConfigDerivedResources holds a set of the ClusterConfig-derived
+// resources following the reorganization of RFD 28.
+type ClusterConfigDerivedResources struct {
+	types.ClusterAuditConfig
+	types.ClusterNetworkingConfig
+	types.SessionRecordingConfig
+}
+
+// NewDerivedResourcesFromClusterConfig converts a legacy ClusterConfig to the new
+// configuration resources described in RFD 28.
+// DELETE IN 8.0.0
+func NewDerivedResourcesFromClusterConfig(cc types.ClusterConfig) (*ClusterConfigDerivedResources, error) {
+	ccV3, ok := cc.(*types.ClusterConfigV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected ClusterConfig type %T", cc)
+	}
+
+	auditConfig, err := ccV3.GetClusterAuditConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	netConfig, err := ccV3.GetClusterNetworkingConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	recConfig, err := ccV3.GetSessionRecordingConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ClusterConfigDerivedResources{
+		ClusterAuditConfig:      auditConfig,
+		ClusterNetworkingConfig: netConfig,
+		SessionRecordingConfig:  recConfig,
+	}, nil
+}
+
+// UpdateAuthPreferenceWithLegacyClusterConfig updates an AuthPreference with
+// auth-related values that used to be stored in ClusterConfig.
+// DELETE IN 8.0.0
+func UpdateAuthPreferenceWithLegacyClusterConfig(cc types.ClusterConfig, authPref types.AuthPreference) error {
+	ccV3, ok := cc.(*types.ClusterConfigV3)
+	if !ok {
+		return trace.BadParameter("unexpected ClusterConfig type %T", cc)
+	}
+	authPref.SetDisconnectExpiredCert(ccV3.Spec.DisconnectExpiredCert.Value())
+	authPref.SetAllowLocalAuth(ccV3.Spec.AllowLocalAuth.Value())
+	return nil
+}
+
 // UnmarshalClusterConfig unmarshals the ClusterConfig resource from JSON.
 func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (types.ClusterConfig, error) {
 	var clusterConfig types.ClusterConfigV3

@@ -25,6 +25,7 @@ import "C"
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/binary"
 	"net"
 	"strconv"
@@ -42,14 +43,50 @@ import (
 	"github.com/gravitational/ttlmap"
 )
 
+//go:embed bytecode
+var embedFS embed.FS
+
+// SessionWatch is a map of cgroup IDs that the BPF service is watching and
+// emitting events for.
+type SessionWatch struct {
+	watch map[uint64]*SessionContext
+	mu    sync.Mutex
+}
+
+func NewSessionWatch() SessionWatch {
+	return SessionWatch{
+		watch: make(map[uint64]*SessionContext),
+	}
+}
+
+func (w *SessionWatch) Get(cgoupID uint64) (ctx *SessionContext, ok bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	ctx, ok = w.watch[cgoupID]
+	return
+}
+
+func (w *SessionWatch) Add(cgroupID uint64, ctx *SessionContext) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.watch[cgroupID] = ctx
+}
+
+func (w *SessionWatch) Remove(cgroupID uint64) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	delete(w.watch, cgroupID)
+}
+
 // Service manages BPF and control groups orchestration.
 type Service struct {
 	*Config
 
 	// watch is a map of cgroup IDs that the BPF service is watching and
 	// emitting events for.
-	watch   map[uint64]*SessionContext
-	watchMu sync.Mutex
+	watch SessionWatch
 
 	// argsCache holds the arguments to execve because they come a different
 	// event than the result.
@@ -106,7 +143,7 @@ func New(config *Config) (BPF, error) {
 	s := &Service{
 		Config: config,
 
-		watch: make(map[uint64]*SessionContext),
+		watch: NewSessionWatch(),
 
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
@@ -181,7 +218,7 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 	}
 
 	// Start watching for any events that come from this cgroup.
-	s.addWatch(cgroupID, ctx)
+	s.watch.Add(cgroupID, ctx)
 
 	// Place requested PID into cgroup.
 	err = s.cgroup.Place(ctx.SessionID, ctx.PID)
@@ -201,7 +238,7 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	}
 
 	// Stop watching for events from this PID.
-	s.removeWatch(cgroupID)
+	s.watch.Remove(cgroupID)
 
 	// Move all PIDs to the root cgroup and remove the cgroup created for this
 	// session.
@@ -247,7 +284,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.getWatch(event.CgroupID)
+	ctx, ok := s.watch.Get(event.CgroupID)
 	if !ok {
 		return
 	}
@@ -303,7 +340,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			},
 			BPFMetadata: apievents.BPFMetadata{
 				CgroupID: event.CgroupID,
-				Program:  convertString(unsafe.Pointer(&event.Command)),
+				Program:  ConvertString(unsafe.Pointer(&event.Command)),
 				PID:      event.PID,
 			},
 			PPID:       event.PPID,
@@ -331,7 +368,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.getWatch(event.CgroupID)
+	ctx, ok := s.watch.Get(event.CgroupID)
 	if !ok {
 		return
 	}
@@ -360,11 +397,11 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
-			Program:  convertString(unsafe.Pointer(&event.Command)),
+			Program:  ConvertString(unsafe.Pointer(&event.Command)),
 			PID:      event.PID,
 		},
 		Flags:      event.Flags,
-		Path:       convertString(unsafe.Pointer(&event.Path)),
+		Path:       ConvertString(unsafe.Pointer(&event.Path)),
 		ReturnCode: event.ReturnCode,
 	}
 	// Logs can be DoS by event failures here
@@ -382,7 +419,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.getWatch(event.CgroupID)
+	ctx, ok := s.watch.Get(event.CgroupID)
 	if !ok {
 		return
 	}
@@ -421,7 +458,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
-			Program:  convertString(unsafe.Pointer(&event.Command)),
+			Program:  ConvertString(unsafe.Pointer(&event.Command)),
 			PID:      uint64(event.PID),
 		},
 		DstPort:    int32(event.DstPort),
@@ -445,7 +482,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.getWatch(event.CgroupID)
+	ctx, ok := s.watch.Get(event.CgroupID)
 	if !ok {
 		return
 	}
@@ -490,7 +527,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
-			Program:  convertString(unsafe.Pointer(&event.Command)),
+			Program:  ConvertString(unsafe.Pointer(&event.Command)),
 			PID:      uint64(event.PID),
 		},
 		DstPort:    int32(event.DstPort),
@@ -503,27 +540,6 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	}
 }
 
-func (s *Service) getWatch(cgoupID uint64) (ctx *SessionContext, ok bool) {
-	s.watchMu.Lock()
-	defer s.watchMu.Unlock()
-	ctx, ok = s.watch[cgoupID]
-	return
-}
-
-func (s *Service) addWatch(cgroupID uint64, ctx *SessionContext) {
-	s.watchMu.Lock()
-	defer s.watchMu.Unlock()
-
-	s.watch[cgroupID] = ctx
-}
-
-func (s *Service) removeWatch(cgroupID uint64) {
-	s.watchMu.Lock()
-	defer s.watchMu.Unlock()
-
-	delete(s.watch, cgroupID)
-}
-
 // unmarshalEvent will unmarshal the perf event.
 func unmarshalEvent(data []byte, v interface{}) error {
 	err := binary.Read(bytes.NewBuffer(data), binary.LittleEndian, v)
@@ -533,8 +549,8 @@ func unmarshalEvent(data []byte, v interface{}) error {
 	return nil
 }
 
-// convertString converts a C string to a Go string.
-func convertString(s unsafe.Pointer) string {
+// ConvertString converts a C string to a Go string.
+func ConvertString(s unsafe.Pointer) string {
 	return C.GoString((*C.char)(s))
 }
 

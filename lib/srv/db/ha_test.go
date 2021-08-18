@@ -22,7 +22,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -49,35 +48,44 @@ func TestHA(t *testing.T) {
 
 	// Offline database server will be tried first and trigger connection error.
 	offlineHostID := "host-id-1"
-	offlineDBServer, err := types.NewDatabaseServerV3("postgres", nil,
-		types.DatabaseServerSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      net.JoinHostPort("localhost", postgresServer.Port()),
-			Version:  teleport.Version,
-			Hostname: constants.APIDomain,
-			HostID:   offlineHostID,
-		})
+	offlineDB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "postgres",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      net.JoinHostPort("localhost", postgresServer.Port()),
+	})
 	require.NoError(t, err)
-	_, err = testCtx.authClient.UpsertDatabaseServer(ctx, offlineDBServer)
+	offlineResource, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: offlineHostID,
+	}, types.DatabaseServerSpecV3{
+		HostID:    offlineHostID,
+		Hostname:  constants.APIDomain,
+		Databases: []*types.DatabaseV3{offlineDB},
+	})
 	require.NoError(t, err)
+	testCtx.setupDatabaseServer(ctx, t, offlineResource)
 	testCtx.fakeRemoteSite.OfflineTunnels = map[string]struct{}{
 		fmt.Sprintf("%v.%v", offlineHostID, testCtx.clusterName): {},
 	}
 
 	// Online database server will serve the connection.
 	onlineHostID := "host-id-2"
-	onlineDBServer, err := types.NewDatabaseServerV3("postgres", nil,
-		types.DatabaseServerSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      net.JoinHostPort("localhost", postgresServer.Port()),
-			Version:  teleport.Version,
-			Hostname: constants.APIDomain,
-			HostID:   onlineHostID,
-		})
+	onlineDB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "postgres",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      net.JoinHostPort("localhost", postgresServer.Port()),
+	})
 	require.NoError(t, err)
-	_, err = testCtx.authClient.UpsertDatabaseServer(ctx, onlineDBServer)
+	onlineResource, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: onlineHostID,
+	}, types.DatabaseServerSpecV3{
+		HostID:    onlineHostID,
+		Hostname:  constants.APIDomain,
+		Databases: []*types.DatabaseV3{onlineDB},
+	})
 	require.NoError(t, err)
-	onlineServer := testCtx.setupDatabaseServer(ctx, t, onlineHostID, onlineDBServer)
+	onlineServer := testCtx.setupDatabaseServer(ctx, t, onlineResource)
 	go func() {
 		for conn := range testCtx.proxyConn {
 			go onlineServer.HandleConnection(conn)

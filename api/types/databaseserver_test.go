@@ -18,39 +18,44 @@ package types
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-// TestDatabaseServerRDSEndpoint verifies AWS info is correctly populated
-// based on the RDS endpoint.
-func TestDatabaseServerRDSEndpoint(t *testing.T) {
-	server, err := NewDatabaseServerV3("rds", nil, DatabaseServerSpecV3{
-		Protocol: "postgres",
-		URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-		Hostname: "host-1",
-		HostID:   "host-1",
+// TestDatabaseServerGetDatabases verifies that older agents get adapted to
+// the new database list interface for backward compatibility.
+//
+// DELETE IN 9.0.
+func TestDatabaseServerGetDatabases(t *testing.T) {
+	server, err := NewDatabaseServerV3(Metadata{
+		Name:   "server-1",
+		Labels: map[string]string{"a": "b"},
+	}, DatabaseServerSpecV3{
+		Description:   "description",
+		Protocol:      "postgres",
+		URI:           "localhost:5432",
+		CACert:        []byte("cert"),
+		AWS:           AWS{Region: "us-east-1", Redshift: Redshift{ClusterID: "cluster-1"}},
+		Version:       "1.0.0",
+		Hostname:      "host",
+		HostID:        "host-1",
+		DynamicLabels: map[string]CommandLabelV2{"c": {Period: Duration(time.Minute), Command: []string{"/bin/date"}}},
+		GCP:           GCPCloudSQL{ProjectID: "project-1", InstanceID: "instance-1"},
 	})
 	require.NoError(t, err)
-	require.Equal(t, AWS{
-		Region: "us-west-1",
-	}, server.GetAWS())
-}
-
-// TestDatabaseServerRedshiftEndpoint verifies AWS info is correctly populated
-// based on the Redshift endpoint.
-func TestDatabaseServerRedshiftEndpoint(t *testing.T) {
-	server, err := NewDatabaseServerV3("redshift", nil, DatabaseServerSpecV3{
-		Protocol: "postgres",
-		URI:      "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5438",
-		Hostname: "host-1",
-		HostID:   "host-1",
+	database, err := NewDatabaseV3(Metadata{
+		Name:        "server-1",
+		Description: "description",
+		Labels:      map[string]string{"a": "b"},
+	}, DatabaseSpecV3{
+		Protocol:      "postgres",
+		URI:           "localhost:5432",
+		CACert:        "cert",
+		AWS:           AWS{Region: "us-east-1", Redshift: Redshift{ClusterID: "cluster-1"}},
+		DynamicLabels: map[string]CommandLabelV2{"c": {Period: Duration(time.Minute), Command: []string{"/bin/date"}}},
+		GCP:           GCPCloudSQL{ProjectID: "project-1", InstanceID: "instance-1"},
 	})
 	require.NoError(t, err)
-	require.Equal(t, AWS{
-		Region: "us-east-1",
-		Redshift: Redshift{
-			ClusterID: "redshift-cluster-1",
-		},
-	}, server.GetAWS())
+	require.ElementsMatch(t, []Database{database}, server.GetDatabases())
 }

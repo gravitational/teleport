@@ -530,29 +530,68 @@ func (c *recConfigCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-type dbCollection struct {
+type netRestrictionsCollection struct {
+	netRestricts types.NetworkRestrictions
+}
+
+type writer struct {
+	w   io.Writer
+	err error
+}
+
+func (w *writer) write(s string) {
+	if w.err == nil {
+		_, w.err = w.w.Write([]byte(s))
+	}
+}
+
+func (c *netRestrictionsCollection) resources() (r []types.Resource) {
+	r = append(r, c.netRestricts)
+	return
+}
+
+func (c *netRestrictionsCollection) writeList(as []types.AddressCondition, w *writer) {
+	for _, a := range as {
+		w.write(a.CIDR)
+		w.write("\n")
+	}
+}
+
+func (c *netRestrictionsCollection) writeText(w io.Writer) error {
+	out := &writer{w: w}
+	out.write("ALLOW\n")
+	c.writeList(c.netRestricts.GetAllow(), out)
+
+	out.write("\nDENY\n")
+	c.writeList(c.netRestricts.GetDeny(), out)
+	return trace.Wrap(out.err)
+}
+
+type databaseServerCollection struct {
 	servers []types.DatabaseServer
 }
 
-func (c *dbCollection) resources() (r []types.Resource) {
+func (c *databaseServerCollection) resources() (r []types.Resource) {
 	for _, resource := range c.servers {
 		r = append(r, resource)
 	}
 	return r
 }
 
-func (c *dbCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Name", "Protocol", "Address", "Labels"})
+func (c *databaseServerCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Protocol", "URI", "Labels", "Hostname", "Version"})
 	for _, server := range c.servers {
-		t.AddRow([]string{
-			server.GetName(), server.GetProtocol(), server.GetURI(), server.LabelsString(),
-		})
+		for _, database := range server.GetDatabases() {
+			t.AddRow([]string{
+				database.GetName(), database.GetProtocol(), database.GetURI(), database.LabelsString(), server.GetHostname(), server.GetTeleportVersion(),
+			})
+		}
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
-func (c *dbCollection) writeJSON(w io.Writer) error {
+func (c *databaseServerCollection) writeJSON(w io.Writer) error {
 	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
 	if err != nil {
 		return trace.Wrap(err)
@@ -561,10 +600,57 @@ func (c *dbCollection) writeJSON(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (c *dbCollection) toMarshal() interface{} {
+func (c *databaseServerCollection) toMarshal() interface{} {
 	return c.servers
 }
 
-func (c *dbCollection) writeYAML(w io.Writer) error {
+func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.toMarshal())
+}
+
+type databaseCollection struct {
+	databases []types.Database
+}
+
+func (c *databaseCollection) resources() (r []types.Resource) {
+	for _, resource := range c.databases {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *databaseCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Protocol", "URI", "Labels"})
+	for _, database := range c.databases {
+		t.AddRow([]string{
+			database.GetName(), database.GetProtocol(), database.GetURI(), database.LabelsString(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type lockCollection struct {
+	locks []types.Lock
+}
+
+func (c *lockCollection) resources() (r []types.Resource) {
+	for _, resource := range c.locks {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *lockCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"ID", "Target", "Message", "Expires"})
+	for _, lock := range c.locks {
+		target := lock.Target()
+		expires := "never"
+		if lock.LockExpiry() != nil {
+			expires = apiutils.HumanTimeFormat(*lock.LockExpiry())
+		}
+		t.AddRow([]string{lock.GetName(), target.String(), lock.Message(), expires})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }

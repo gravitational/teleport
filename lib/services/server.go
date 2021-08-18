@@ -27,9 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -121,20 +120,11 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
-		return Different
-	}
-	if !cmp.Equal(a.GetDynamicLabels(), b.GetDynamicLabels()) {
+	if !cmp.Equal(a.GetDatabases(), b.GetDatabases()) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
-	}
-	if a.GetProtocol() != b.GetProtocol() {
-		return Different
-	}
-	if a.GetURI() != b.GetURI() {
-		return Different
 	}
 	return Equal
 }

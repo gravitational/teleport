@@ -28,6 +28,8 @@ type Services interface {
 	Access
 	DynamicAccessCore
 	Presence
+	Restrictions
+	Databases
 	AppSession
 	types.WebSessionsGetter
 	types.WebTokensGetter

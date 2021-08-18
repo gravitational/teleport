@@ -1349,14 +1349,14 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	// try searching for events with no filter (empty query) - should get all 3 events:
 	to := time.Now().In(time.UTC).Add(time.Hour)
 	from := to.Add(-time.Hour * 2)
-	history, _, err := clt.SearchEvents(from, to, apidefaults.Namespace, nil, 0, "")
+	history, _, err := clt.SearchEvents(from, to, apidefaults.Namespace, nil, 0, types.EventOrderDescending, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	// Extra event is the upload event
 	c.Assert(len(history), check.Equals, 5)
 
 	// try searching for only "session.end" events (real query)
-	history, _, err = clt.SearchEvents(from, to, apidefaults.Namespace, []string{events.SessionEndEvent}, 0, "")
+	history, _, err = clt.SearchEvents(from, to, apidefaults.Namespace, []string{events.SessionEndEvent}, 0, types.EventOrderDescending, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	c.Assert(len(history), check.Equals, 2)
@@ -2255,7 +2255,9 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 	}, true)
 	c.Assert(err, check.IsNil)
 
-	key, err := services.GetJWTSigner(ca, s.clock)
+	signer, err := s.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ca)
+	c.Assert(err, check.IsNil)
+	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
 	c.Assert(err, check.IsNil)
 
 	var tests = []struct {
@@ -2562,13 +2564,13 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 	_, _, err = CreateUserAndRole(clt, username, []string{"role1"})
 	c.Assert(err, check.IsNil)
 
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
 	})
 	c.Assert(err, check.IsNil)
 
-	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
+	secrets, err := s.server.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, check.IsNil)
 
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.server.Clock().Now())
@@ -2726,7 +2728,9 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := tlsca.FromAuthority(hostCA)
+	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA)
+	c.Assert(err, check.IsNil)
+	tlsCA, err := tlsca.FromCertAndSigner(cert, signer)
 	c.Assert(err, check.IsNil)
 	caPin := utils.CalculateSPKI(tlsCA.Cert)
 
@@ -2811,7 +2815,9 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := tlsca.FromAuthority(hostCA)
+	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA)
+	c.Assert(err, check.IsNil)
+	tlsCA, err := tlsca.FromCertAndSigner(cert, signer)
 	c.Assert(err, check.IsNil)
 	tlsBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
 	c.Assert(err, check.IsNil)
@@ -3161,6 +3167,16 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	clusterNameResource, err = s.server.Auth().ClusterConfiguration.GetClusterName()
 	c.Assert(err, check.IsNil)
 	suite.ExpectResource(c, w, 3*time.Second, clusterNameResource)
+}
+
+func (s *TLSSuite) TestNetworkRestrictions(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	suite := &suite.ServicesTestSuite{
+		RestrictionsS: clt,
+	}
+	suite.NetworkRestrictions(c)
 }
 
 // verifyJWT verifies that the token was signed by one the passed in key pair.

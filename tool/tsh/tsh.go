@@ -499,6 +499,8 @@ func Run(args []string, opts ...cliOption) error {
 	// MFA subcommands.
 	mfa := newMFACommand(app)
 
+	config := app.Command("config", "Print OpenSSH configuration details")
+
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
@@ -507,6 +509,9 @@ func Run(args []string, opts ...cliOption) error {
 		play.Hidden()
 		scp.Hidden()
 		bench.Hidden()
+
+		// Similarly, `config` for ssh depends on bash.
+		config.Hidden()
 	}
 
 	// parse CLI commands+flags:
@@ -632,6 +637,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onRequestCreate(&cf)
 	case reqReview.FullCommand():
 		err = onRequestReview(&cf)
+	case config.FullCommand():
+		err = onConfig(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -1287,11 +1294,11 @@ func showApps(servers []types.Server, active []tlsca.RouteToApp, verbose bool) {
 	}
 }
 
-func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsca.RouteToDatabase, verbose bool) {
+func showDatabases(cluster string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
-		for _, server := range servers {
-			name := server.GetName()
+		for _, database := range databases {
+			name := database.GetName()
 			var connect string
 			for _, a := range active {
 				if a.ServiceName == name {
@@ -1301,20 +1308,20 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 			}
 			t.AddRow([]string{
 				name,
-				server.GetDescription(),
-				server.GetProtocol(),
-				server.GetType(),
-				server.GetURI(),
-				server.LabelsString(),
+				database.GetDescription(),
+				database.GetProtocol(),
+				database.GetType(),
+				database.GetURI(),
+				database.LabelsString(),
 				connect,
-				server.Expiry().Format(constants.HumanDateFormatSeconds),
+				database.Expiry().Format(constants.HumanDateFormatSeconds),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Labels", "Connect"})
-		for _, server := range servers {
-			name := server.GetName()
+		for _, database := range databases {
+			name := database.GetName()
 			var connect string
 			for _, a := range active {
 				if a.ServiceName == name {
@@ -1324,8 +1331,8 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 			}
 			t.AddRow([]string{
 				name,
-				server.GetDescription(),
-				server.LabelsString(),
+				database.GetDescription(),
+				database.LabelsString(),
 				connect,
 			})
 		}

@@ -226,6 +226,9 @@ func TestConfigReading(t *testing.T) {
 			Logger: Log{
 				Output:   "stderr",
 				Severity: "INFO",
+				Format: LogFormat{
+					Output: "text",
+				},
 			},
 			Storage: backend.Config{
 				Type: "bolt",
@@ -241,6 +244,7 @@ func TestConfigReading(t *testing.T) {
 			LicenseFile:           "lic.pem",
 			DisconnectExpiredCert: types.NewBoolOption(true),
 			ClientIdleTimeout:     types.Duration(17 * time.Second),
+			WebIdleTimeout:        types.Duration(19 * time.Second),
 		},
 		SSH: SSH{
 			Service: Service{
@@ -304,6 +308,19 @@ func TestConfigReading(t *testing.T) {
 				},
 			},
 		},
+		Metrics: Metrics{
+			Service: Service{
+				ListenAddress: "tcp://metrics",
+				EnabledFlag:   "yes",
+			},
+			KeyPairs: []KeyPair{
+				KeyPair{
+					PrivateKey:  "/etc/teleport/proxy.key",
+					Certificate: "/etc/teleport/proxy.crt",
+				},
+			},
+			CACerts: []string{"/etc/teleport/ca.crt"},
+		},
 	}, cmp.AllowUnexported(Service{})))
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
@@ -317,6 +334,8 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Apps.Enabled())
 	require.True(t, conf.Databases.Configured())
 	require.True(t, conf.Databases.Enabled())
+	require.True(t, conf.Metrics.Configured())
+	require.True(t, conf.Metrics.Enabled())
 
 	// good config from file
 	conf, err = ReadFromFile(testConfigs.configFileStatic)
@@ -523,6 +542,8 @@ func TestApplyConfig(t *testing.T) {
 	require.Len(t, cfg.Proxy.MySQLPublicAddrs, 1)
 	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
 
+	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
+
 	u2fCAFromFile, err := ioutil.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cfg.Auth.Preference, &types.AuthPreferenceV2{
@@ -565,6 +586,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			},
 			AllowLocalAuth:        types.NewBoolOption(true),
 			DisconnectExpiredCert: types.NewBoolOption(false),
+			LockingMode:           constants.LockingModeBestEffort,
 		},
 	}))
 }
@@ -587,6 +609,7 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.Empty(t, cfg.SSH.PublicAddrs)
 	require.False(t, cfg.Apps.Enabled)
 	require.False(t, cfg.Databases.Enabled)
+	require.False(t, cfg.Metrics.Enabled)
 	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
 	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
 }
@@ -896,6 +919,7 @@ func makeConfigFixture() string {
 	conf.Limits.Rates = ConnectionRates
 	conf.Logger.Output = "stderr"
 	conf.Logger.Severity = "INFO"
+	conf.Logger.Format = LogFormat{Output: "text"}
 	conf.Storage.Type = "bolt"
 
 	// auth service:
@@ -903,6 +927,7 @@ func makeConfigFixture() string {
 	conf.Auth.ListenAddress = "tcp://auth"
 	conf.Auth.LicenseFile = "lic.pem"
 	conf.Auth.ClientIdleTimeout = types.NewDuration(17 * time.Second)
+	conf.Auth.WebIdleTimeout = types.NewDuration(19 * time.Second)
 	conf.Auth.DisconnectExpiredCert = types.NewBoolOption(true)
 
 	// ssh service:
@@ -957,6 +982,17 @@ func makeConfigFixture() string {
 			URI:           "localhost:5432",
 			StaticLabels:  Labels,
 			DynamicLabels: CommandLabels,
+		},
+	}
+
+	// Metrics service.
+	conf.Metrics.EnabledFlag = "yes"
+	conf.Metrics.ListenAddress = "tcp://metrics"
+	conf.Metrics.CACerts = []string{"/etc/teleport/ca.crt"}
+	conf.Metrics.KeyPairs = []KeyPair{
+		KeyPair{
+			PrivateKey:  "/etc/teleport/proxy.key",
+			Certificate: "/etc/teleport/proxy.crt",
 		},
 	}
 
@@ -1582,11 +1618,37 @@ func TestTextFormatter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
 			formatter := &textFormatter{
-				LogFormat: tt.formatConfig,
+				ExtraFields: tt.formatConfig,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
-
 		})
 	}
+}
 
+func TestJSONFormatter(t *testing.T) {
+	tests := []struct {
+		comment     string
+		extraFields []string
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			comment:     "invalid key (does not exist)",
+			extraFields: []string{"level", "invalid key"},
+			assertErr:   require.Error,
+		},
+		{
+			comment:     "valid keys and formatting",
+			extraFields: []string{"level", "caller", "component", "timestamp"},
+			assertErr:   require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.comment, func(t *testing.T) {
+			formatter := &jsonFormatter{
+				extraFields: tt.extraFields,
+			}
+			tt.assertErr(t, formatter.CheckAndSetDefaults())
+		})
+	}
 }

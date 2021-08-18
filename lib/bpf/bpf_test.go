@@ -32,10 +32,10 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/aquasecurity/tracee/libbpfgo"
+	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/teleport/api/constants"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -45,9 +45,6 @@ import (
 )
 
 type Suite struct{}
-
-//go:embed bytecode/counter_test.bpf.o
-var counterTestBPF []byte
 
 var _ = check.Suite(&Suite{})
 
@@ -201,7 +198,7 @@ func (s *Suite) TestObfuscate(c *check.C) {
 			c.Assert(err, check.IsNil)
 
 			// Check the event is what we expect, in this case "ls".
-			if convertString(unsafe.Pointer(&event.Command)) == "ls" {
+			if ConvertString(unsafe.Pointer(&event.Command)) == "ls" {
 				doneFunc()
 				break
 			}
@@ -275,7 +272,7 @@ func (s *Suite) TestScript(c *check.C) {
 			c.Assert(err, check.IsNil)
 
 			// Check the event is what we expect, in this case "ls".
-			if convertString(unsafe.Pointer(&event.Command)) == "ls" {
+			if ConvertString(unsafe.Pointer(&event.Command)) == "ls" {
 				doneFunc()
 				break
 			}
@@ -394,6 +391,11 @@ func (s *Suite) TestBPFCounter(c *check.C) {
 
 	// Check that the host is capable of running BPF programs.
 	err := IsHostCompatible()
+	if err != nil {
+		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
+	}
+
+	counterTestBPF, err := embedFS.ReadFile("bytecode/counter_test.bpf.o")
 	if err != nil {
 		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}

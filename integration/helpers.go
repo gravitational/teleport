@@ -60,6 +60,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -194,24 +196,27 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	rsaKey, err := ssh.ParseRawPrivateKey(cfg.Priv)
 	fatalIf(err)
 
-	tlsCAKey, tlsCACert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
+	tlsCACert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey.(*rsa.PrivateKey), pkix.Name{
 		CommonName:   cfg.ClusterName,
 		Organization: []string{cfg.ClusterName},
 	}, nil, defaults.CATTL)
 	fatalIf(err)
 
+	signer, err := ssh.ParsePrivateKey(cfg.Priv)
+	fatalIf(err)
+
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: cfg.Priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       cfg.Pub,
-		HostID:              cfg.HostID,
-		NodeName:            cfg.NodeName,
-		ClusterName:         cfg.ClusterName,
-		Roles:               types.SystemRoles{types.RoleAdmin},
-		TTL:                 24 * time.Hour,
+		CASigner:      signer,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: cfg.Pub,
+		HostID:        cfg.HostID,
+		NodeName:      cfg.NodeName,
+		ClusterName:   cfg.ClusterName,
+		Roles:         types.SystemRoles{types.RoleAdmin},
+		TTL:           24 * time.Hour,
 	})
 	fatalIf(err)
-	tlsCA, err := tlsca.FromKeys(tlsCACert, tlsCAKey)
+	tlsCA, err := tlsca.FromKeys(tlsCACert, cfg.Priv)
 	fatalIf(err)
 	cryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)
@@ -401,7 +406,7 @@ func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
 	return siteAPI
 }
 
-// Create creates a new instance of Teleport which trusts a lsit of other clusters (other
+// Create creates a new instance of Teleport which trusts a list of other clusters (other
 // instances)
 func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
 	tconf := service.MakeDefaultConfig()
@@ -612,9 +617,15 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
 	}
 
+	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
+
 	tconf.Keygen = testauthority.New()
 	i.Config = tconf
 	return tconf, nil
+}
+
+func nullImpersonationCheck(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {
+	return nil
 }
 
 // CreateEx creates a new instance of Teleport which trusts a list of other clusters (other

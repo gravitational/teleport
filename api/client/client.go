@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
@@ -38,6 +37,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -120,23 +120,20 @@ func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	dialer := cfg.Dialer
-	addr := constants.APIDomain
-	if dialer == nil && len(cfg.Addrs) == 0 {
-		return nil, trace.BadParameter("must have a Dialer or Addrs in config")
+	if cfg.Dialer != nil {
+		return dialerConnect(ctx, connectParams{
+			cfg:       cfg,
+			tlsConfig: tlsConfig,
+			dialer:    cfg.Dialer,
+		})
+	} else if len(cfg.Addrs) != 0 {
+		return authConnect(ctx, connectParams{
+			cfg:       cfg,
+			tlsConfig: tlsConfig,
+			addr:      cfg.Addrs[0],
+		})
 	}
-	if dialer == nil {
-		dialer = NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-		addr = cfg.Addrs[0]
-	}
-
-	clt := newClient(cfg, dialer, tlsConfig)
-	if err := clt.dialGRPC(ctx, addr); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clt, nil
+	return nil, trace.BadParameter("must provide Dialer or Addrs in config")
 }
 
 // connect connects the client to the server using the Credentials and
@@ -148,10 +145,9 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var wg sync.WaitGroup
-	cltChan := make(chan *Client)
-	errChan := make(chan error)
 
 	// sendError is used to send errors to errChan with context.
+	errChan := make(chan error)
 	sendError := func(err error) {
 		select {
 		case <-ctx.Done():
@@ -159,18 +155,19 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 		}
 	}
 
-	// syncConnect is used to concurrently test several connections, and apply
-	// the first successful connection to the client's connection attributes.
-	syncConnect := func(clt *Client, addr string) {
+	// syncConnect is used to concurrently create multiple clients
+	// with the different combination of connection parameters.
+	// The first successful client to be sent to cltChan will be returned.
+	cltChan := make(chan *Client)
+	syncConnect := func(ctx context.Context, connect connectFunc, params connectParams) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := clt.dialGRPC(ctx, addr); err != nil {
+			clt, err := connect(ctx, params)
+			if err != nil {
 				sendError(trace.Wrap(err))
 				return
 			}
-
-			// If cltChan is empty, send clt.
 			select {
 			case cltChan <- clt:
 			case <-ctx.Done():
@@ -199,39 +196,45 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 			// Connect with dialer provided in config.
 			if cfg.Dialer != nil {
-				clt := newClient(cfg, cfg.Dialer, tlsConfig)
-				syncConnect(clt, constants.APIDomain)
+				syncConnect(ctx, dialerConnect, connectParams{
+					cfg:       cfg,
+					tlsConfig: tlsConfig,
+				})
 			}
 
 			// Connect with dialer provided in creds.
 			if dialer, err := creds.Dialer(cfg); err != nil {
 				if !trace.IsNotImplemented(err) {
-					sendError(trace.Wrap(err))
+					sendError(trace.Wrap(err, "failed to retrieve dialer from creds of type %T", creds))
 				}
 			} else {
-				clt := newClient(cfg, dialer, tlsConfig)
-				syncConnect(clt, constants.APIDomain)
+				syncConnect(ctx, dialerConnect, connectParams{
+					cfg:       cfg,
+					tlsConfig: tlsConfig,
+					dialer:    dialer,
+				})
 			}
 
+			// Attempt to connect to each address as Auth, Proxy, and Tunnel
 			for _, addr := range cfg.Addrs {
-				// Connect to auth.
-				dialer := NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-				clt := newClient(cfg, dialer, tlsConfig)
-				syncConnect(clt, addr)
-
-				// Connect to proxy.
+				syncConnect(ctx, authConnect, connectParams{
+					cfg:       cfg,
+					tlsConfig: tlsConfig,
+					addr:      addr,
+				})
 				if sshConfig != nil {
-					wg.Add(1)
-					go func(addr string) {
-						defer wg.Done()
-						// Try connecting to web proxy to retrieve tunnel address.
-						if pr, err := webclient.Find(ctx, addr, cfg.InsecureAddressDiscovery, nil); err == nil {
-							addr = pr.Proxy.SSH.TunnelPublicAddr
-						}
-						dialer := newTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
-						clt := newClient(cfg, dialer, tlsConfig)
-						syncConnect(clt, addr)
-					}(addr)
+					syncConnect(ctx, proxyConnect, connectParams{
+						cfg:       cfg,
+						tlsConfig: tlsConfig,
+						sshConfig: sshConfig,
+						addr:      addr,
+					})
+					syncConnect(ctx, tunnelConnect, connectParams{
+						cfg:       cfg,
+						tlsConfig: tlsConfig,
+						sshConfig: sshConfig,
+						addr:      addr,
+					})
 				}
 			}
 		}
@@ -247,26 +250,85 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	var errs []error
 	for {
 		select {
+		// Use the first client to successfully connect in syncConnect.
 		case clt := <-cltChan:
 			return clt, nil
 		case err, ok := <-errChan:
 			if ok {
-				errs = append(errs, err)
+				// Add a new line to make errs human readable.
+				errs = append(errs, trace.Wrap(err, ""))
 				continue
 			}
 			// errChan is closed, return errors.
 			if len(errs) == 0 {
 				if len(cfg.Addrs) == 0 && cfg.Dialer == nil {
 					// Some credentials don't require these fields. If no errors propagate, then they need to provide these fields.
-					return nil, trace.Errorf("all auth methods failed: try providing Addrs or Dialer in config")
+					return nil, trace.BadParameter("no connection methods found, try providing Dialer or Addrs in config")
 				}
-				return nil, trace.Errorf("all auth methods failed")
+				// This case should never be reached with config validation and above case.
+				return nil, trace.Errorf("no connection methods found")
 			}
-			return nil, trace.Wrap(trace.NewAggregate(errs...), "all auth methods failed")
+			return nil, trace.Wrap(trace.NewAggregate(errs...), "all connection methods failed")
 		case <-ctx.Done():
 			return nil, trace.Wrap(ctx.Err())
 		}
 	}
+}
+
+type connectFunc func(ctx context.Context, params connectParams) (*Client, error)
+type connectParams struct {
+	cfg       Config
+	addr      string
+	tlsConfig *tls.Config
+	dialer    ContextDialer
+	sshConfig *ssh.ClientConfig
+}
+
+func authConnect(ctx context.Context, params connectParams) (*Client, error) {
+	dialer := NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
+	}
+	return clt, nil
+}
+
+func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.sshConfig == nil {
+		return nil, trace.BadParameter("must provide ssh client config")
+	}
+	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", params.addr)
+	}
+	return clt, nil
+}
+
+func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.sshConfig == nil {
+		return nil, trace.BadParameter("must provide ssh client config")
+	}
+	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
+	}
+	return clt, nil
+}
+
+func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.dialer == nil {
+		if params.cfg.Dialer == nil {
+			return nil, trace.BadParameter("must provide dialer to connectParams.dialer or params.cfg.Dialer")
+		}
+		params.dialer = params.cfg.Dialer
+	}
+	clt := newClient(params.cfg, params.dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, constants.APIDomain); err != nil {
+		return nil, trace.Wrap(err, "failed to connect using pre-defined dialer")
+	}
+	return clt, nil
 }
 
 // dialGRPC dials a connection between server and client. If withBlock is true,
@@ -318,14 +380,14 @@ func (c *Client) waitForConnectionReady(ctx context.Context) error {
 		switch state := c.conn.GetState(); state {
 		case connectivity.Ready:
 			return nil
-		case connectivity.TransientFailure, connectivity.Connecting:
+		case connectivity.TransientFailure, connectivity.Connecting, connectivity.Idle:
 			// Wait for expected state transitions. For details about grpc.ClientConn state changes
 			// see https://github.com/grpc/grpc/blob/master/doc/connectivity-semantics-and-api.md
 			if !c.conn.WaitForStateChange(ctx, state) {
 				// ctx canceled
 				return trace.Wrap(ctx.Err())
 			}
-		case connectivity.Idle, connectivity.Shutdown:
+		case connectivity.Shutdown:
 			return trace.Errorf("client gRPC connection entered an unexpected state: %v", state)
 		}
 	}
@@ -539,23 +601,34 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 	return nil
 }
 
-// RotateResetPasswordTokenSecrets rotates secrets for a given tokenID.
+// RotateUserTokenSecrets rotates secrets for a given tokenID.
 // It gets called every time a user fetches 2nd-factor secrets during registration attempt.
 // This ensures that an attacker that gains the ResetPasswordToken link can not view it,
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
-func (c *Client) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error) {
-	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateResetPasswordTokenSecretsRequest{
+func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
+	if secrets, err := c.grpc.RotateUserTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
+		TokenID: tokenID,
+	}, c.callOpts...); err != nil {
+		if !trace.IsNotImplemented(trail.FromGRPC(err)) {
+			return nil, trail.FromGRPC(err)
+		}
+	} else {
+		return secrets, nil
+	}
+
+	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
+
 	return secrets, nil
 }
 
-// GetResetPasswordToken returns a ResetPasswordToken for the specified tokenID.
-func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (types.ResetPasswordToken, error) {
+// GetResetPasswordToken returns a reset password token for the specified tokenID.
+func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error) {
 	token, err := c.grpc.GetResetPasswordToken(ctx, &proto.GetResetPasswordTokenRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
@@ -567,7 +640,7 @@ func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (typ
 }
 
 // CreateResetPasswordToken creates reset password token.
-func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error) {
+func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (types.UserToken, error) {
 	token, err := c.grpc.CreateResetPasswordToken(ctx, req, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -809,6 +882,7 @@ func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		Username:    req.Username,
 		PublicAddr:  req.PublicAddr,
 		ClusterName: req.ClusterName,
+		AWSRoleARN:  req.AWSRoleARN,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -1261,21 +1335,66 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 	return resp, nil
 }
 
-// GetNodes returns a list of nodes by namespace.
-// Nodes that the user doesn't have access to are filtered out.
+// GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
-	resp, err := c.grpc.GetNodes(ctx, &types.ResourcesInNamespaceRequest{Namespace: namespace}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
+
+	// Retrieve the complete list of nodes in chunks.
+	var (
+		nodes     []types.Server
+		startKey  string
+		chunkSize = defaults.DefaultChunkSize
+	)
+	for {
+		resp, nextKey, err := c.ListNodes(ctx, namespace, chunkSize, startKey)
+		if trace.IsLimitExceeded(err) {
+			// Cut chunkSize in half if gRPC max message size is exceeded.
+			chunkSize = chunkSize / 2
+			// This is an extremely unlikely scenario, but better to cover it anyways.
+			if chunkSize == 0 {
+				return nil, trace.Wrap(trail.FromGRPC(err), "Node is too large to retrieve over gRPC (over 4MiB).")
+			}
+			continue
+		} else if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+
+		nodes = append(nodes, resp...)
+		startKey = nextKey
+		if startKey == "" {
+			return nodes, nil
+		}
 	}
-	nodes := make([]types.Server, len(resp.Servers))
+}
+
+// ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
+// nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
+// ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
+func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error) {
+	if namespace == "" {
+		return nil, "", trace.BadParameter("missing parameter namespace")
+	}
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive parameter limit")
+	}
+
+	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
+		Namespace: namespace,
+		Limit:     int32(limit),
+		StartKey:  startKey,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	nodes = make([]types.Server, len(resp.Servers))
 	for i, node := range resp.Servers {
 		nodes[i] = node
 	}
-	return nodes, nil
+
+	return nodes, resp.NextKey, nil
 }
 
 // UpsertNode is used by SSH servers to report their presence
@@ -1319,8 +1438,56 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 	return trail.FromGRPC(err)
 }
 
+// StreamSessionEvents streams audit events from a given session recording.
+func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan events.AuditEvent, chan error) {
+	request := &proto.StreamSessionEventsRequest{
+		SessionID:  sessionID,
+		StartIndex: int32(startIndex),
+	}
+
+	ch := make(chan events.AuditEvent)
+	e := make(chan error, 1)
+
+	stream, err := c.grpc.StreamSessionEvents(ctx, request)
+	if err != nil {
+		e <- trace.Wrap(err)
+		return ch, e
+	}
+
+	go func() {
+	outer:
+		for {
+			oneOf, err := stream.Recv()
+			if err != nil {
+				if err != io.EOF {
+					e <- trace.Wrap(trail.FromGRPC(err))
+				} else {
+					close(ch)
+				}
+
+				break outer
+			}
+
+			event, err := events.FromOneOf(*oneOf)
+			if err != nil {
+				e <- trace.Wrap(trail.FromGRPC(err))
+				break outer
+			}
+
+			select {
+			case ch <- event:
+			case <-ctx.Done():
+				e <- trace.Wrap(ctx.Err())
+				break outer
+			}
+		}
+	}()
+
+	return ch, e
+}
+
 // SearchEvents allows searching for events with a full pagination support.
-func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetEventsRequest{
 		Namespace:  namespace,
 		StartDate:  fromUTC,
@@ -1328,6 +1495,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 		EventTypes: eventTypes,
 		Limit:      int32(limit),
 		StartKey:   startKey,
+		Order:      proto.Order(order),
 	}
 
 	response, err := c.grpc.GetEvents(ctx, request, c.callOpts...)
@@ -1348,12 +1516,13 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
-func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetSessionEventsRequest{
 		StartDate: fromUTC,
 		EndDate:   toUTC,
 		Limit:     int32(limit),
 		StartKey:  startKey,
+		Order:     proto.Order(order),
 	}
 
 	response, err := c.grpc.GetSessionEvents(ctx, request, c.callOpts...)
@@ -1472,17 +1641,176 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
-// SetClusterAuditConfig sets cluster audit configuration.
+// SetClusterAuditConfig not implemented: can only be called locally.
 func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
-	auditConfigV2, ok := auditConfig.(*types.ClusterAuditConfigV2)
-	if !ok {
-		return trace.BadParameter("invalid type %T", auditConfig)
-	}
-	_, err := c.grpc.SetClusterAuditConfig(ctx, auditConfigV2, c.callOpts...)
-	return trail.FromGRPC(err)
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteClusterAuditConfig not implemented: can only be called locally.
 func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetLock gets a lock by name.
+func (c *Client) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing lock name")
+	}
+	resp, err := c.grpc.GetLock(ctx, &proto.GetLockRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	targetPtrs := make([]*types.LockTarget, len(targets))
+	for i := range targets {
+		targetPtrs[i] = &targets[i]
+	}
+	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
+		InForceOnly: inForceOnly,
+		Targets:     targetPtrs,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	locks := make([]types.Lock, 0, len(resp.Locks))
+	for _, lock := range resp.Locks {
+		locks = append(locks, lock)
+	}
+	return locks, nil
+}
+
+// UpsertLock upserts a lock.
+func (c *Client) UpsertLock(ctx context.Context, lock types.Lock) error {
+	lockV2, ok := lock.(*types.LockV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", lock)
+	}
+	_, err := c.grpc.UpsertLock(ctx, lockV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteLock deletes a lock.
+func (c *Client) DeleteLock(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing lock name")
+	}
+	_, err := c.grpc.DeleteLock(ctx, &proto.DeleteLockRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllLocks not implemented: can only be called locally.
+func (c *Client) DeleteAllLocks(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (c *Client) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+	lockV2s := make([]*types.LockV2, 0, len(locks))
+	for _, lock := range locks {
+		lockV2, ok := lock.(*types.LockV2)
+		if !ok {
+			return trace.BadParameter("unexpected lock type %T", lock)
+		}
+		lockV2s = append(lockV2s, lockV2)
+	}
+	_, err := c.grpc.ReplaceRemoteLocks(ctx, &proto.ReplaceRemoteLocksRequest{
+		ClusterName: clusterName,
+		Locks:       lockV2s,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetNetworkRestrictions retrieves the network restrictions
+func (c *Client) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	nr, err := c.grpc.GetNetworkRestrictions(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return nr, nil
+}
+
+// SetNetworkRestrictions updates the network restrictions
+func (c *Client) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
+	restrictionsV4, ok := nr.(*types.NetworkRestrictionsV4)
+	if !ok {
+		return trace.BadParameter("invalid type %T", nr)
+	}
+	_, err := c.grpc.SetNetworkRestrictions(ctx, restrictionsV4, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions
+func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
+	_, err := c.grpc.DeleteNetworkRestrictions(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// CreateDatabase creates a new database resource.
+func (c *Client) CreateDatabase(ctx context.Context, database types.Database) error {
+	databaseV3, ok := database.(*types.DatabaseV3)
+	if !ok {
+		return trace.BadParameter("unsupported database type %T", database)
+	}
+	_, err := c.grpc.CreateDatabase(ctx, databaseV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateDatabase updates existing database resource.
+func (c *Client) UpdateDatabase(ctx context.Context, database types.Database) error {
+	databaseV3, ok := database.(*types.DatabaseV3)
+	if !ok {
+		return trace.BadParameter("unsupported database type %T", database)
+	}
+	_, err := c.grpc.UpdateDatabase(ctx, databaseV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetDatabase returns the specified database resource.
+func (c *Client) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing database name")
+	}
+	database, err := c.grpc.GetDatabase(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return database, nil
+}
+
+// GetDatabases returns all database resources.
+func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	items, err := c.grpc.GetDatabases(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	databases := make([]types.Database, len(items.Databases))
+	for i := range items.Databases {
+		databases[i] = items.Databases[i]
+	}
+	return databases, nil
+}
+
+// DeleteDatabase deletes specified database resource.
+func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteDatabase(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllDatabases deletes all database resources.
+func (c *Client) DeleteAllDatabases(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllDatabases(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
 }

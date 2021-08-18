@@ -1,28 +1,27 @@
 ---
-title: Enhances Session Recording for SSH with BPF
+title: Enhanced Session Recording for SSH with BPF
 description: How to record your SSH session commands using BPF.
 h1: Enhanced Session Recording with BPF
 ---
 
-Teleport [SSH and Kubernetes session recording](../../architecture/nodes.mdx#session-recording)
+Teleport's default [SSH and Kubernetes session recording](../../architecture/nodes.mdx#session-recording)
 feature captures what is echoed to a terminal.
 
-This has inherent advantages, for example because no input is captured, Teleport
+This has inherent advantages, for example, because no input is captured, Teleport
 session recordings typically do not contain passwords that were entered into a terminal.
 
-The disadvantage is that session recordings can by bypassed using several techniques:
+The disadvantage is that session recordings can be bypassed using several techniques:
 
 - **Obfuscation**. For example, even though the command
   `echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
   `curl http://www.example.com`, when decoded, that is what is run.
-- **Shell scripts**. For example, if a user uploads and executes a script, the commands
-  run within the script are not captured, simply the output.
-- **Terminal controls**. Terminals support a wide variety of controls including the
-  ability for users to disable terminal echo. This is frequently used when requesting
-  credentials. Disabling terminal echo allows commands to be run without being captured.
+- **Shell scripts**. For example, if a user uploads and executes a script, the commands run within the script are not captured, simply the output.
+- **Terminal controls**. Terminals support a wide variety of controls including the ability for users to disable terminal echo. This is frequently used when requesting credentials. Disabling terminal echo allows commands to be run without being captured.
 
 Furthermore, due to their unstructured nature, session recordings are difficult to
 ingest and perform monitoring/alerting on.
+
+Teleport Enhanced Session Recording mitigates all three concerns by providing advanced security, greater logging capabilities, and better correlates a user with their activities.
 
 ## Prerequisites
 

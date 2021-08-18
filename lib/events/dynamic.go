@@ -19,6 +19,7 @@ package events
 import (
 	"github.com/gravitational/teleport/api/types/events"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -164,7 +165,7 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		}
 		return &e, nil
 	case ResetPasswordTokenCreateEvent:
-		var e events.ResetPasswordTokenCreate
+		var e events.UserTokenCreate
 		if err := utils.FastUnmarshal(data, &e); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -355,6 +356,18 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
+	case LockCreatedEvent:
+		var e events.LockCreate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case LockDeletedEvent:
+		var e events.LockDelete
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
 	default:
 		return nil, trace.BadParameter("unknown event type: %q", eventType)
 	}
@@ -377,7 +390,7 @@ func GetSessionID(event apievents.AuditEvent) string {
 // with existing public API routes when the backend is updated with the typed events.
 func ToEventFields(event apievents.AuditEvent) (EventFields, error) {
 	var fields EventFields
-	if err := utils.ObjectToStruct(event, &fields); err != nil {
+	if err := apiutils.ObjectToStruct(event, &fields); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

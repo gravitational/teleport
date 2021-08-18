@@ -25,8 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -40,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -194,11 +193,15 @@ type Config struct {
 	// Emitter is event emitter
 	Emitter events.StreamEmitter
 
-	// DELETE IN: 5.1.
+	// DELETE IN: 8.0.0
 	//
-	// Pass in a access point that can be configured with the old access point
-	// policy until all clusters are migrated to 5.0 and above.
+	// NewCachingAccessPointOldProxy is an access point that can be configured
+	// with the old access point policy until all clusters are migrated to 7.0.0
+	// and above.
 	NewCachingAccessPointOldProxy auth.NewCachingAccessPoint
+
+	// LockWatcher is a lock watcher.
+	LockWatcher *services.LockWatcher
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -247,6 +250,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	cfg.Log = logger.WithFields(log.Fields{
 		trace.Component: cfg.Component,
 	})
+	if cfg.LockWatcher == nil {
+		return trace.BadParameter("missing parameter LockWatcher")
+	}
 	return nil
 }
 
@@ -270,12 +276,13 @@ func NewServer(cfg Config) (Server, error) {
 
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	proxyWatcher, err := services.NewProxyWatcher(services.ProxyWatcherConfig{
-		Context:   ctx,
-		Component: cfg.Component,
-		Client:    cfg.LocalAuthClient,
-		Entry:     cfg.Log,
-		ProxiesC:  make(chan []types.Server, 10),
+	proxyWatcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: cfg.Component,
+			Client:    cfg.LocalAuthClient,
+			Log:       cfg.Log,
+		},
+		ProxiesC: make(chan []types.Server, 10),
 	})
 	if err != nil {
 		cancel()
@@ -1026,18 +1033,19 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.remoteClient = clt
 
-	// DELETE IN: 5.1.0.
+	// DELETE IN: 8.0.0
 	//
-	// Check if the cluster that is connecting is an older cluster. If it is,
-	// don't request access to application servers because older servers policy
-	// will reject that causing the cache to go into a re-sync loop.
+	// Check if the cluster that is connecting is a pre-v7 cluster. If it is,
+	// don't assume the newer organization of cluster configuration resources
+	// (RFD 28) because older proxy servers will reject that causing the cache
+	// to go into a re-sync loop.
 	var accessPointFunc auth.NewCachingAccessPoint
-	ok, err := isOldCluster(closeContext, sconn)
+	ok, err := isPreV7Cluster(closeContext, sconn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if ok {
-		log.Debugf("Older cluster connecting, loading old cache policy.")
+		log.Debugf("Pre-v7 cluster connecting, loading old cache policy.")
 		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
 	} else {
 		accessPointFunc = srv.newAccessPoint
@@ -1062,29 +1070,29 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.certificateCache = certificateCache
 
 	go remoteSite.periodicUpdateCertAuthorities()
+	go remoteSite.periodicUpdateLocks()
 
 	return remoteSite, nil
 }
 
-// DELETE IN: 7.0.0.
+// DELETE IN: 8.0.0.
 //
-// isOldCluster checks if the cluster is older than 6.0.0.
-func isOldCluster(ctx context.Context, conn ssh.Conn) (bool, error) {
+// isPreV7Cluster checks if the cluster is older than 7.0.0.
+func isPreV7Cluster(ctx context.Context, conn ssh.Conn) (bool, error) {
 	version, err := sendVersionRequest(ctx, conn)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	// Return true if the version is older than 6.0.0, the check is actually for
-	// 5.99.99, a non-existent version, to allow this check to work during development.
 	remoteClusterVersion, err := semver.NewVersion(version)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	minClusterVersion, err := semver.NewVersion("5.99.99")
+	minClusterVersion, err := semver.NewVersion(utils.VersionBeforeAlpha("7.0.0"))
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+	// Return true if the version is older than 7.0.0
 	if remoteClusterVersion.LessThan(*minClusterVersion) {
 		return true, nil
 	}

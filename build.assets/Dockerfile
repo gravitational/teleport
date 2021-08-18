@@ -49,10 +49,12 @@ RUN apt-get update -y --fix-missing && \
         python-pip \
         pkg-config \
         shellcheck \
+        softhsm2 \
         tar \
         tree \
         unzip \
         zip \
+        zlib1g-dev \
         && \
     pip --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
@@ -77,8 +79,9 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNT
     chmod a-w /
 
 # Install libbpf
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v0.3.tar.gz | tar xz && \
-    cd /opt/libbpf-0.3/src && \
+ARG LIBBPF_VERSION
+RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
     make install
 
@@ -109,7 +112,7 @@ ARG GOGO_PROTO_TAG
 ENV PROTOC_TARBALL protoc-${PROTOC_VER}-${PROTOC_PLATFORM}.zip
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
-RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/google/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      rm /tmp/${PROTOC_TARBALL})
 RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && go install golang.org/x/tools/cmd/goimports@latest && \
@@ -122,6 +125,8 @@ ENV PROTO_INCLUDE "/usr/local/include":"${GOPATH}/src":"${GOPATH}/src/github.com
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
+
+ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

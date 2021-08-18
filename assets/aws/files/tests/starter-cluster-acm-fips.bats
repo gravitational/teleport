@@ -2,6 +2,7 @@ write_confd_file() {
     cat << EOF > ${TELEPORT_CONFD_DIR?}/conf
 TELEPORT_ROLE=auth,node,proxy
 EC2_REGION=us-west-2
+TELEPORT_AUTH_TYPE=oidc
 TELEPORT_AUTH_SERVER_LB=localhost
 TELEPORT_CLUSTER_NAME=gus-startercluster
 TELEPORT_DOMAIN_ADMIN_EMAIL=email@example.com
@@ -60,6 +61,12 @@ load fixtures/common
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${AUTH_BLOCK?}"
     echo "${AUTH_BLOCK?}" | grep -E "^  license_file: "
+}
+
+@test "[${TEST_SUITE?}] auth_service.authentication.type is set correctly" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${AUTH_BLOCK?}"
+    echo "${AUTH_BLOCK?}" | grep -E "^    type:" | grep -q "oidc"
 }
 
 @test "[${TEST_SUITE?}] proxy_service.ssh_public_addr is set correctly" {

@@ -81,6 +81,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 			rewrite:            app.Rewrite,
 			traits:             identity.Traits,
 			log:                s.log,
+			user:               identity.Username,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
