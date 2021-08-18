@@ -407,7 +407,7 @@ func (c *Client) GetDomainName() (string, error) {
 }
 
 // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
-// the cluster has multiple TLS certs, they will all be appended.
+// the cluster has multiple TLS certs, they will all be concatenated.
 func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
 	out, err := c.Get(c.Endpoint("cacert"), url.Values{})
 	if err != nil {
@@ -1982,7 +1982,7 @@ type ClientI interface {
 	GetDomainName() (string, error)
 
 	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster.
-	// If the cluster has multiple TLS certs, they will all be appended.
+	// If the cluster has multiple TLS certs, they will all be concatenated.
 	GetClusterCACert() (*LocalCAResponse, error)
 
 	// GenerateServerKeys generates new host private keys and certificates (signed

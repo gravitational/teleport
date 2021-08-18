@@ -460,14 +460,15 @@ func (a *Server) GetDomainName() (string, error) {
 	return clusterName.GetClusterName(), nil
 }
 
-// LocalCAResponse contains a PEM-encoded CA cert.
+// LocalCAResponse contains the concatenated PEM-encoded TLS certs for the local
+// cluster's Host CA
 type LocalCAResponse struct {
 	// TLSCA is a PEM-encoded TLS certificate authority.
 	TLSCA []byte `json:"tls_ca"`
 }
 
 // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
-// the cluster has multiple TLS certs, they will all be appended.
+// the cluster has multiple TLS certs, they will all be concatenated.
 func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
