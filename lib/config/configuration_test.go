@@ -321,6 +321,14 @@ func TestConfigReading(t *testing.T) {
 			},
 			CACerts: []string{"/etc/teleport/ca.crt"},
 		},
+		WindowsDesktop: WindowsDesktopService{
+			Service: Service{
+				EnabledFlag:   "yes",
+				ListenAddress: "tcp://windows_desktop",
+			},
+			PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
+			Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
+		},
 	}, cmp.AllowUnexported(Service{})))
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
@@ -336,6 +344,8 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Databases.Enabled())
 	require.True(t, conf.Metrics.Configured())
 	require.True(t, conf.Metrics.Enabled())
+	require.True(t, conf.WindowsDesktop.Configured())
+	require.True(t, conf.WindowsDesktop.Enabled())
 
 	// good config from file
 	conf, err = ReadFromFile(testConfigs.configFileStatic)
@@ -610,6 +620,7 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.False(t, cfg.Apps.Enabled)
 	require.False(t, cfg.Databases.Enabled)
 	require.False(t, cfg.Metrics.Enabled)
+	require.False(t, cfg.WindowsDesktop.Enabled)
 	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
 	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
 }
@@ -994,6 +1005,15 @@ func makeConfigFixture() string {
 			PrivateKey:  "/etc/teleport/proxy.key",
 			Certificate: "/etc/teleport/proxy.crt",
 		},
+	}
+
+	conf.WindowsDesktop = WindowsDesktopService{
+		Service: Service{
+			EnabledFlag:   "yes",
+			ListenAddress: "tcp://windows_desktop",
+		},
+		PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
+		Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 	}
 
 	return conf.DebugDumpToYAML()

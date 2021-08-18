@@ -63,6 +63,16 @@ const (
 	// MetricsListenPort is the default listen port for the metrics service.
 	MetricsListenPort = 3081
 
+	// WindowsDesktopListenPort is the default listed port for
+	// windows_desktop_service.
+	//
+	// TODO(awly): update to match HTTPListenPort once SNI routing is
+	// implemented.
+	WindowsDesktopListenPort = 3028
+
+	// RDPListenPort is the standard port for RDP servers.
+	RDPListenPort = 3389
+
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
 
@@ -366,6 +376,9 @@ var (
 
 	// DatabasesQueueSize is db service queue size.
 	DatabasesQueueSize = 128
+
+	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
+	WindowsDesktopQueueSize = 128
 
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
