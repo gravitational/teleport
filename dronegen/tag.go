@@ -50,7 +50,7 @@ func tagBuildCommands(b buildType) []string {
 	// For Windows builds, configure code signing.
 	if b.os == "windows" {
 		commands = append(commands,
-			`echo "${WINDOWS_SIGNING_CERT}" | base64 -d > windows-signing-cert.pfx`,
+			`echo -n "$WINDOWS_SIGNING_CERT" | base64 -d > windows-signing-cert.pfx`,
 		)
 	}
 
@@ -59,6 +59,12 @@ func tagBuildCommands(b buildType) []string {
 			`make -C build.assets %s`, releaseMakefileTarget(b),
 		),
 	)
+
+	if b.os == "windows" {
+		commands = append(commands,
+			`rm -f windows-signing-cert.pfx`,
+		)
+	}
 
 	return commands
 }
