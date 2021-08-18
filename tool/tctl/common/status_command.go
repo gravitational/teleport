@@ -101,7 +101,8 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 			}
 			info := fmt.Sprintf("%v CA ", strings.Title(string(ca.GetType())))
 			rotation := ca.GetRotation()
-			if rotation.Phase == types.RotationPhaseStandby && len(ca.GetAdditionalTrustedKeys().SSH) > 0 {
+			standbyPhase := rotation.Phase == types.RotationPhaseStandby || rotation.Phase == ""
+			if standbyPhase && len(ca.GetAdditionalTrustedKeys().SSH) > 0 {
 				// There should never be AdditionalTrusted keys present during
 				// the Standby phase unless an auth server has just started up
 				// with a new HSM (or without an HSM and all other auth servers
