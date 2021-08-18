@@ -1166,7 +1166,6 @@ func (process *TeleportProcess) initAuthService() error {
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
 		Authority:               cfg.Keygen,
-		KeyStoreConfig:          cfg.KeyStore,
 		ClusterConfiguration:    cfg.ClusterConfiguration,
 		ClusterConfig:           cfg.Auth.ClusterConfig,
 		ClusterAuditConfig:      cfg.Auth.AuditConfig,
@@ -1193,6 +1192,7 @@ func (process *TeleportProcess) initAuthService() error {
 		AuditLog:                process.auditLog,
 		CipherSuites:            cfg.CipherSuites,
 		CASigningAlg:            cfg.CASignatureAlgorithm,
+		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 	})

@@ -564,6 +564,10 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
+	if err := applyKeyStoreConfig(fc, cfg); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// read in and set the license file path (not used in open-source version)
 	licenseFile := fc.Auth.LicenseFile
 	if licenseFile != "" {
@@ -574,6 +578,24 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	return nil
+}
+
+func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
+	if fc.Auth.CAKeyParams == nil {
+		return nil
+	}
+	cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
+	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
+	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
+		pin, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Auth.KeyStore.Pin = string(pin)
+	}
 	return nil
 }
 
