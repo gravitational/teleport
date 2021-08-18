@@ -367,7 +367,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			if !ca.AllKeyTypesMatch() {
 				log.Warnf("%s CA contains a combination of raw and PKCS#11 keys. If you are attempting to"+
 					" configure HSM support, make sure it is configured on all auth servers in this"+
-					" cluster and then perform a CA rotation", caID.Type)
+					" cluster and then perform a CA rotation: https://goteleport.com/docs/admin-guide/#certificate-rotation", caID.Type)
 			}
 		}
 	}
