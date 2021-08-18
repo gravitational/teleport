@@ -311,35 +311,31 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 
 	// Fetch the root CA from the Auth Server. The NOP role has access to the
 	// GetClusterCACert endpoint.
-	caCerts, err := authClient.GetClusterCACerts()
+	localCA, err := authClient.GetClusterCACert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCAs := make([]*x509.Certificate, 0, len(caCerts.Certs))
-	for _, caCert := range caCerts.Certs {
-		tlsCA, err := tlsca.ParseCertificatePEM(caCert)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsCAs = append(tlsCAs, tlsCA)
+	certs, err := tlsca.ParseCertificatePEMs(localCA.TLSCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Check that the SPKI pin matches the CA we fetched over a insecure
 	// connection. This makes sure the CA fetched over a insecure connection is
 	// in-fact the expected CA.
-	err = utils.CheckSPKI(params.CAPins, tlsCAs)
+	err = utils.CheckSPKI(params.CAPins, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, tlsCA := range tlsCAs {
+	for _, cert := range certs {
 		// Check that the fetched CA is valid at the current time.
-		err = utils.VerifyCertificateExpiry(tlsCA, params.Clock)
+		err = utils.VerifyCertificateExpiry(cert, params.Clock)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		log.Infof("Joining remote cluster %v with CA pin.", tlsCA.Subject.CommonName)
+		log.Infof("Joining remote cluster %v with CA pin.", cert.Subject.CommonName)
 	}
 
 	// Create another client, but this time with the CA provided to validate
@@ -347,8 +343,8 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig = utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	certPool := x509.NewCertPool()
-	for _, tlsCA := range tlsCAs {
-		certPool.AddCert(tlsCA)
+	for _, cert := range certs {
+		certPool.AddCert(cert)
 	}
 	tlsConfig.RootCAs = certPool
 

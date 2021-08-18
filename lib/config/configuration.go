@@ -212,6 +212,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Metrics.Disabled() {
 		cfg.Metrics.Enabled = false
 	}
+	if fc.WindowsDesktop.Disabled() {
+		cfg.WindowsDesktop.Enabled = false
+	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// apply "advertise_ip" setting:
@@ -335,6 +338,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		&cfg.SSH.Limiter,
 		&cfg.Auth.Limiter,
 		&cfg.Proxy.Limiter,
+		&cfg.Kube.Limiter,
+		&cfg.WindowsDesktop.ConnLimiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
@@ -389,6 +394,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.Metrics.Enabled() {
 		if err := applyMetricsConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.WindowsDesktop.Enabled() {
+		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1096,6 +1106,30 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 
 		cfg.Metrics.CACerts = append(cfg.Metrics.CACerts, caCert)
+	}
+
+	return nil
+}
+
+// applyWindowsDesktopConfig applies file configuration for the "windows_desktop_service" section.
+func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
+	cfg.WindowsDesktop.Enabled = true
+
+	if fc.WindowsDesktop.ListenAddress != "" {
+		listenAddr, err := utils.ParseHostPortAddr(fc.WindowsDesktop.ListenAddress, int(defaults.WindowsDesktopListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.WindowsDesktop.ListenAddr = *listenAddr
+	}
+	var err error
+	cfg.WindowsDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
