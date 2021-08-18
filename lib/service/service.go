@@ -2756,7 +2756,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Context:          process.ExitContext(),
 				StaticFS:         fs,
 				ClusterFeatures:  process.getClusterFeatures(),
-				WebIdleTimeout:   cfg.Auth.NetworkingConfig.GetWebIdleTimeout(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3693,8 +3692,10 @@ func newHTTPFileSystem() (http.FileSystem, error) {
 		}
 		return fs, nil
 	}
-	// Use debug HTTP file system with default assets path
-	fs, err := web.NewDebugFileSystem("")
+
+	// Use the supplied HTTP filesystem path (defaults to the current dir).
+	assetsPath := os.Getenv(teleport.DebugAssetsPath)
+	fs, err := web.NewDebugFileSystem(assetsPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
