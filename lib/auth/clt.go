@@ -406,17 +406,18 @@ func (c *Client) GetDomainName() (string, error) {
 	return domain, nil
 }
 
-// GetClusterCACerts returns the CA certs for the cluster without signing keys.
-func (c *Client) GetClusterCACerts() (*ClusterCACertsResponse, error) {
-	out, err := c.Get(c.Endpoint("cacerts"), url.Values{})
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
+// the cluster has multiple TLS certs, they will all be concatenated.
+func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
+	out, err := c.Get(c.Endpoint("cacert"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var caCerts ClusterCACertsResponse
-	if err := json.Unmarshal(out.Bytes(), &caCerts); err != nil {
+	var localCA LocalCAResponse
+	if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &caCerts, nil
+	return &localCA, nil
 }
 
 func (c *Client) Close() error {
@@ -1953,6 +1954,7 @@ type ClientI interface {
 	services.DynamicAccessOracle
 	services.Restrictions
 	services.Databases
+	services.WindowsDesktops
 	WebService
 	session.Service
 	services.ClusterConfiguration
@@ -1980,9 +1982,9 @@ type ClientI interface {
 	// GetDomainName returns auth server cluster name
 	GetDomainName() (string, error)
 
-	// GetClusterCACerts returns the list of CA certs for the cluster without
-	// signing keys.
-	GetClusterCACerts() (*ClusterCACertsResponse, error)
+	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster.
+	// If the cluster has multiple TLS certs, they will all be concatenated.
+	GetClusterCACert() (*LocalCAResponse, error)
 
 	// GenerateServerKeys generates new host private keys and certificates (signed
 	// by the host certificate authority) for a node

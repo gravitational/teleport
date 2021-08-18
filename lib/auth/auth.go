@@ -124,6 +124,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Streamer == nil {
 		cfg.Streamer = events.NewDiscardEmitter()
 	}
+	if cfg.WindowsDesktops == nil {
+		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
+	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
 		cfg.KeyStoreConfig.RSAKeyPairSource = cfg.Authority.GenerateKeyPair
 	}
@@ -169,6 +172,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			Databases:            cfg.Databases,
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
+			WindowsDesktops:      cfg.WindowsDesktops,
 		},
 		keyStore: keyStore,
 	}
@@ -192,6 +196,7 @@ type Services struct {
 	services.ClusterConfiguration
 	services.Restrictions
 	services.Databases
+	services.WindowsDesktops
 	types.Events
 	events.IAuditLog
 }
@@ -466,14 +471,16 @@ func (a *Server) GetDomainName() (string, error) {
 	return clusterName.GetClusterName(), nil
 }
 
-// ClusterCACertsResponse contains PEM-encoded cluster CA certs.
-type ClusterCACertsResponse struct {
-	// Certs is the list of PEM-encoded TLS certificates.
-	Certs [][]byte `json:"certs"`
+// LocalCAResponse contains the concatenated PEM-encoded TLS certs for the local
+// cluster's Host CA
+type LocalCAResponse struct {
+	// TLSCA is a PEM-encoded TLS certificate authority.
+	TLSCA []byte `json:"tls_ca"`
 }
 
-// GetClusterCACerts returns the CA certs for the local cluster without signing keys.
-func (a *Server) GetClusterCACerts() (*ClusterCACertsResponse, error) {
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
+// the cluster has multiple TLS certs, they will all be concatenated.
+func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -488,11 +495,17 @@ func (a *Server) GetClusterCACerts() (*ClusterCACertsResponse, error) {
 	}
 	certs := services.GetTLSCerts(hostCA)
 	if len(certs) < 1 {
-		return nil, trace.BadParameter("no tls certs found in host CA")
+		return nil, trace.NotFound("no tls certs found in host CA")
 	}
 
-	return &ClusterCACertsResponse{
-		Certs: certs,
+	allCerts := certs[0]
+	for i := 1; i < len(certs); i++ {
+		allCerts = append(allCerts, '\n')
+		allCerts = append(allCerts, certs[i]...)
+	}
+
+	return &LocalCAResponse{
+		TLSCA: allCerts,
 	}, nil
 }
 
@@ -1588,12 +1601,12 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// HTTPS requests need to specify DNS name that should be present in the
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
-	if req.Roles.Include(types.RoleAuth) || req.Roles.Include(types.RoleAdmin) || req.Roles.Include(types.RoleProxy) || req.Roles.Include(types.RoleKube) || req.Roles.Include(types.RoleApp) {
+	if req.Roles.IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+constants.APIDomain, constants.APIDomain)
 	}
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
-	if req.Roles.Include(types.RoleAuth) || req.Roles.Include(types.RoleAdmin) || req.Roles.Include(types.RoleProxy) || req.Roles.Include(types.RoleKube) {
+	if req.Roles.IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleWindowsDesktop) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
@@ -1824,6 +1837,12 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	priv, pub, err := a.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1866,6 +1885,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		BearerToken:        bearerToken,
 		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
 		LoginTime:          req.LoginTime,
+		IdleTimeout:        types.Duration(netCfg.GetWebIdleTimeout()),
 	}
 	UserLoginCount.Inc()
 

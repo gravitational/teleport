@@ -2723,17 +2723,12 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Calculate what CA pin should be.
-	hostCA, err := s.server.AuthServer.AuthServer.GetCertAuthority(types.CertAuthID{
-		DomainName: s.server.AuthServer.ClusterName,
-		Type:       types.HostCA,
-	}, false)
+	localCAResponse, err := s.server.AuthServer.AuthServer.GetClusterCACert()
 	c.Assert(err, check.IsNil)
-	certs := services.GetTLSCerts(hostCA)
-	c.Assert(certs, check.HasLen, 1)
-	certPem := certs[0]
-	cert, err := tlsca.ParseCertificatePEM(certPem)
+	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 	c.Assert(err, check.IsNil)
-	caPin := utils.CalculateSPKI(cert)
+	c.Assert(caPins, check.HasLen, 1)
+	caPin := caPins[0]
 
 	// Attempt to register with valid CA pin, should work.
 	_, err = Register(RegisterParams{
@@ -2807,6 +2802,43 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		Clock:                s.clock,
 	})
 	c.Assert(err, check.NotNil)
+
+	// Add another cert to the CA (dupe the current one for simplicity)
+	hostCA, err := s.server.AuthServer.AuthServer.GetCertAuthority(types.CertAuthID{
+		DomainName: s.server.AuthServer.ClusterName,
+		Type:       types.HostCA,
+	}, true)
+	c.Assert(err, check.IsNil)
+	activeKeys := hostCA.GetActiveKeys()
+	activeKeys.TLS = append(activeKeys.TLS, activeKeys.TLS...)
+	hostCA.SetActiveKeys(activeKeys)
+	err = s.server.AuthServer.AuthServer.UpsertCertAuthority(hostCA)
+	c.Assert(err, check.IsNil)
+
+	// Calculate what CA pins should be.
+	localCAResponse, err = s.server.AuthServer.AuthServer.GetClusterCACert()
+	c.Assert(err, check.IsNil)
+	caPins, err = tlsca.CalculatePins(localCAResponse.TLSCA)
+	c.Assert(err, check.IsNil)
+	c.Assert(caPins, check.HasLen, 2)
+
+	// Attempt to register with multiple CA pins, should work
+	_, err = Register(RegisterParams{
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
+		Token:   token,
+		ID: IdentityID{
+			HostUUID: "once",
+			NodeName: "node-name",
+			Role:     types.RoleProxy,
+		},
+		AdditionalPrincipals: []string{"example.com"},
+		PrivateKey:           priv,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+		CAPins:               caPins,
+		Clock:                s.clock,
+	})
+	c.Assert(err, check.IsNil)
 }
 
 // TestRegisterCAPath makes sure registration only works with a valid CA

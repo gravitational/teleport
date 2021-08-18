@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -154,9 +153,13 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	// Calculate the CA pin for this cluster. The CA pin is used by the client
-	// to verify the identity of the Auth Server.
-	caPins, err := calculateCAPins(client)
+	// Calculate the CA pins for this cluster. The CA pins are used by the
+	// client to verify the identity of the Auth Server.
+	localCAResponse, err := client.GetClusterCACert()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -279,22 +282,4 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 		fmt.Print(string(data))
 	}
 	return nil
-}
-
-// calculateCAPins returns the SPKI pins for the local cluster.
-func calculateCAPins(client auth.ClientI) ([]string, error) {
-	caCerts, err := client.GetClusterCACerts()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pins := make([]string, 0, len(caCerts.Certs))
-	for _, caCert := range caCerts.Certs {
-		tlsCA, err := tlsca.ParseCertificatePEM(caCert)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		pins = append(pins, utils.CalculateSPKI(tlsCA))
-	}
-
-	return pins, nil
 }
