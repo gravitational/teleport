@@ -1128,6 +1128,16 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	return chal, nil
 }
 
+// GetMFAAuthenticateChallengeWithAuth returns mfa challenges for the currently signed in user.
+func (a *Server) GetMFAAuthenticateChallengeWithAuth(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithAuthRequest) (*proto.MFAAuthenticateChallenge, error) {
+	chal, err := a.mfaAuthChallenge(ctx, req.GetUsername(), a.Identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return chal, err
+}
+
 // GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user defined in the token.
 func (a *Server) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
 	token, err := a.GetUserToken(ctx, req.GetTokenID())
@@ -1173,7 +1183,7 @@ func (a *Server) GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADe
 	}, nil
 }
 
-// DeleteMFADeviceWithToken deletes a mfa device.
+// DeleteMFADeviceWithToken deletes a mfa device for user defined in token.
 func (a *Server) DeleteMFADeviceWithToken(ctx context.Context, req *proto.DeleteMFADeviceWithTokenRequest) error {
 	token, err := a.GetUserToken(ctx, req.GetTokenID())
 	if err != nil {
@@ -1181,7 +1191,8 @@ func (a *Server) DeleteMFADeviceWithToken(ctx context.Context, req *proto.Delete
 	}
 
 	// Restrict to certain kinds of user token and usage.
-	if token.GetSubKind() != UserTokenTypeRecoveryApproved || token.GetUsage() != types.UserTokenUsage_RECOVER_2FA {
+	not2FAApprovedTokenType := token.GetSubKind() != UserTokenTypeRecoveryApproved || token.GetUsage() != types.UserTokenUsage_RECOVER_2FA
+	if not2FAApprovedTokenType && token.GetSubKind() != UserTokenTypePrivilege {
 		return trace.BadParameter("invalid token")
 	}
 
@@ -1209,6 +1220,92 @@ func (a *Server) DeleteMFADeviceWithToken(ctx context.Context, req *proto.Delete
 		MFADeviceMetadata: mfaDeviceEventMetadata(device),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit delete mfa device event.")
+	}
+
+	return nil
+}
+
+// AddMFADeviceWithToken adds a mfa device for the user defined in token.
+func (a *Server) AddMFADeviceWithToken(ctx context.Context, req *proto.AddMFADeviceWithTokenRequest) error {
+	token, err := a.GetUserToken(ctx, req.GetTokenID())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Restrict to certain kinds of user token.
+	if token.GetSubKind() != UserTokenTypePrivilege {
+		return trace.BadParameter("invalid token")
+	}
+
+	if token.Expiry().Before(a.clock.Now().UTC()) {
+		return trace.BadParameter("expired token")
+	}
+
+	authPref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	secondFactor := authPref.GetSecondFactor()
+	var newDevice *types.MFADevice
+
+	switch req.GetSecondFactorCred().(type) {
+	case *proto.AddMFADeviceWithTokenRequest_U2FRegisterResponse:
+		if secondFactor == constants.SecondFactorOTP {
+			return trace.BadParameter("cluster only allows OTP for second factor")
+		}
+
+		cfg, err := authPref.GetU2F()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		device, err := a.createNewU2FDevice(ctx, newU2FDeviceRequest{
+			tokenID:    req.GetTokenID(),
+			username:   token.GetUser(),
+			deviceName: req.GetDeviceName(),
+			u2fRegisterResponse: u2f.RegisterChallengeResponse{
+				RegistrationData: req.GetU2FRegisterResponse().GetRegistrationData(),
+				ClientData:       req.GetU2FRegisterResponse().GetClientData(),
+			},
+			cfg: cfg,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newDevice = device
+
+	case *proto.AddMFADeviceWithTokenRequest_SecondFactorToken:
+		if secondFactor == constants.SecondFactorU2F {
+			return trace.BadParameter("cluster only allows U2F for second factor")
+		}
+
+		device, err := a.createNewTOTPDevice(ctx, newTOTPDeviceRequest{
+			tokenID:           req.GetTokenID(),
+			username:          token.GetUser(),
+			deviceName:        req.GetDeviceName(),
+			secondFactorToken: req.GetSecondFactorToken(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newDevice = device
+
+	default:
+		return trace.BadParameter("missing new mfa credentials")
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceAdd{
+		Metadata: apievents.Metadata{
+			Type: events.MFADeviceAddEvent,
+			Code: events.MFADeviceAddEventCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: token.GetUser(),
+		},
+		MFADeviceMetadata: mfaDeviceEventMetadata(newDevice),
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit add mfa device event.")
 	}
 
 	return nil

@@ -173,7 +173,7 @@ func TestCreateRecoveryCodesWithTokenRequest(t *testing.T) {
 	require.Len(t, res.RecoveryCodes, 3)
 }
 
-func TestMFADeviceGetAndDeleteWithToken(t *testing.T) {
+func TestMFADeviceGetAndDeleteWithRecoveryToken(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 

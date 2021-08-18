@@ -629,6 +629,26 @@ func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *proto.Cr
 	return r, nil
 }
 
+// CreatePrivilegeToken returns a new privilege token after user successfully re-auth with their second factor.
+func (g *GRPCServer) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := auth.CreatePrivilegeToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := token.(*types.UserTokenV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected UserToken type %T", token)
+	}
+
+	return r, nil
+}
+
 func (g *GRPCServer) RotateResetPasswordTokenSecrets(ctx context.Context, req *proto.RotateUserTokenSecretsRequest) (*types.UserTokenSecretsV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1962,6 +1982,21 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 	}, nil
 }
 
+// GetMFAAuthenticateChallengeWithAuth retrieves mfa challenges for the currently logged in user.
+func (g *GRPCServer) GetMFAAuthenticateChallengeWithAuth(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithAuthRequest) (*proto.MFAAuthenticateChallenge, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := actx.ServerWithRoles.GetMFAAuthenticateChallengeWithAuth(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
 // GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user defined in the token.
 func (g *GRPCServer) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
 	actx, err := g.authenticate(ctx)
@@ -2000,6 +2035,20 @@ func (g *GRPCServer) DeleteMFADeviceWithToken(ctx context.Context, req *proto.De
 	}
 
 	if err := actx.ServerWithRoles.DeleteMFADeviceWithToken(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// AddMFADeviceWithToken adds a mfa device for the user defined in the token.
+func (g *GRPCServer) AddMFADeviceWithToken(ctx context.Context, req *proto.AddMFADeviceWithTokenRequest) (*empty.Empty, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := actx.ServerWithRoles.AddMFADeviceWithToken(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

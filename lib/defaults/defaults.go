@@ -155,6 +155,9 @@ const (
 	// MaxRecoveryApprovedTokenTTL is a default expiry time for a recovery approved token.
 	MaxRecoveryApprovedTokenTTL = 15 * time.Minute
 
+	// MaxPrivilegeTokenTTL is a default expiry time for a privilege token.
+	MaxPrivilegeTokenTTL = 5 * time.Minute
+
 	// ResetPasswordLength is the length of the reset user password
 	ResetPasswordLength = 16
 

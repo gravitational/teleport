@@ -29,3 +29,11 @@ type ResetPasswordToken struct {
 	// Expiry is token expiration time
 	Expiry time.Time `json:"expiry,omitempty"`
 }
+
+// PrivilegeToken describes a privilege token UI object.
+type PrivilegeToken struct {
+	// TokenID is token ID
+	TokenID string `json:"tokenId"`
+	// QRCode is a QR code value
+	QRCode []byte `json:"qrCode,omitempty"`
+}

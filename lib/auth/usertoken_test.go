@@ -23,9 +23,14 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
+	"github.com/tstranex/u2f"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
@@ -376,6 +381,203 @@ func TestCreateRecoveryToken(t *testing.T) {
 
 	// Test usage setting.
 	require.Equal(t, types.UserTokenUsage_RECOVER_2FA, approvedToken.GetUsage())
+}
+
+func TestCreatePrivilegeTokenHelper(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	fakeClock := srv.Clock().(clockwork.FakeClock)
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+
+	username := "joe@example.com"
+	_, _, err := CreateUserAndRoleWithoutRoles(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	token, err := srv.Auth().createPrivilegeToken(context.Background(), username)
+	require.NoError(t, err)
+	require.Equal(t, token.GetSubKind(), UserTokenTypePrivilege)
+	require.Equal(t, token.GetUser(), username)
+	require.Equal(t, token.GetURL(), "https://<proxyhost>:3080")
+
+	event := mockEmitter.LastEvent()
+	require.Equal(t, event.GetType(), events.PrivilegeTokenCreateEvent)
+	require.Equal(t, event.GetCode(), events.PrivilegeTokenCreateCode)
+	require.Equal(t, event.(*apievents.UserTokenCreate).Name, username)
+	require.Equal(t, event.(*apievents.UserTokenCreate).User, username)
+
+	// Test token expires after designated time.
+	fakeClock.Advance(defaults.MaxPrivilegeTokenTTL)
+	_, err = srv.Auth().getPrivilegeToken(context.Background(), token.GetName())
+	require.True(t, trace.IsNotFound(err))
+}
+
+// TestCreatePrivilegeTokenWithTOTPAuthAndLock tests a user can authenticate
+// with their totp device and when attempting too many wrong attempts
+// locks the user.
+func TestCreatePrivilegeTokenWithTOTPAuthAndLock(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+	ctx := context.Background()
+
+	username := "joe@example.com"
+	_, _, err := CreateUserAndRoleWithoutRoles(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	// Test failure when second factor isn't enabled.
+	_, err = srv.Auth().CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOTP,
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	token1, err := srv.Auth().createPrivilegeToken(context.Background(), username)
+	require.NoError(t, err)
+
+	// Add a mfa device.
+	otp, err := getOTPCode(srv, token1.GetName())
+	require.NoError(t, err)
+	err = srv.Auth().AddMFADeviceWithToken(ctx, &proto.AddMFADeviceWithTokenRequest{
+		TokenID:          token1.GetName(),
+		SecondFactorCred: &proto.AddMFADeviceWithTokenRequest_SecondFactorToken{SecondFactorToken: otp},
+	})
+	require.NoError(t, err)
+
+	// Get new otp code.
+	mfas, err := srv.Auth().GetMFADevices(ctx, username)
+	require.NoError(t, err)
+
+	newOTP, err := totp.GenerateCode(mfas[0].GetTotp().Key, srv.Clock().Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	// Create token with otp auth.
+	token2, err := srv.Auth().CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{
+		Username:         username,
+		SecondFactorCred: &proto.CreatePrivilegeTokenRequest_SecondFactorToken{SecondFactorToken: newOTP},
+	})
+	require.NoError(t, err)
+	require.Equal(t, token2.GetSubKind(), UserTokenTypePrivilege)
+
+	// Test first privilege token is deleted.
+	_, err = srv.Auth().getPrivilegeToken(ctx, token1.GetName())
+	require.True(t, trace.IsNotFound(err))
+
+	// Test lock from max failed auth attempts.
+	for i := 0; i < defaults.MaxLoginAttempts; i++ {
+		_, err := srv.Auth().CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{
+			Username:         username,
+			SecondFactorCred: &proto.CreatePrivilegeTokenRequest_SecondFactorToken{SecondFactorToken: "wrong-value"},
+		})
+		require.Error(t, err)
+	}
+
+	// Test user is locked.
+	user, err := srv.Auth().GetUser(username, false)
+	require.NoError(t, err)
+	require.True(t, user.GetStatus().IsLocked)
+	require.False(t, user.GetStatus().LockExpires.IsZero())
+
+	// Test providing correct value fails after lock.
+	mfas, err = srv.Auth().GetMFADevices(ctx, username)
+	require.NoError(t, err)
+
+	newOTP, err = totp.GenerateCode(mfas[0].GetTotp().Key, srv.Clock().Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	_, err = srv.Auth().CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{
+		Username:         username,
+		SecondFactorCred: &proto.CreatePrivilegeTokenRequest_SecondFactorToken{SecondFactorToken: newOTP},
+	})
+	require.True(t, trace.IsAccessDenied(err))
+}
+
+// TestCreatePrivilegeTokenWithU2FAuthAndLock tests a user can authenticate
+// with their u2f device and when attempting too many wrong attempts
+// locks the user.
+func TestCreatePrivilegeTokenWithU2FAuthAndLock(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+	ctx := context.Background()
+
+	username := "joe@example.com"
+	_, _, err := CreateUserAndRoleWithoutRoles(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	token1, err := srv.Auth().createPrivilegeToken(context.Background(), username)
+	require.NoError(t, err)
+
+	// Add a u2f device.
+	u2fRegResp, u2fKey, err := getMockedU2FAndRegisterRes(srv, token1.GetName())
+	require.NoError(t, err)
+	err = srv.Auth().AddMFADeviceWithToken(ctx, &proto.AddMFADeviceWithTokenRequest{
+		TokenID:          token1.GetName(),
+		DeviceName:       "new-u2f",
+		SecondFactorCred: &proto.AddMFADeviceWithTokenRequest_U2FRegisterResponse{U2FRegisterResponse: u2fRegResp},
+	})
+	require.NoError(t, err)
+
+	// Get u2f challenge and sign.
+	chal, err := srv.Auth().GetMFAAuthenticateChallengeWithAuth(ctx, &proto.GetMFAAuthenticateChallengeWithAuthRequest{
+		Username: username,
+	})
+	require.NoError(t, err)
+
+	u2f, err := u2fKey.SignResponse(&u2f.SignRequest{
+		Version:   chal.GetU2F()[0].Version,
+		Challenge: chal.GetU2F()[0].Challenge,
+		KeyHandle: chal.GetU2F()[0].KeyHandle,
+		AppID:     chal.GetU2F()[0].AppID,
+	})
+	require.NoError(t, err)
+
+	// Successfully create token with u2f auth.
+	token2, err := srv.Auth().CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{
+		Username: username,
+		SecondFactorCred: &proto.CreatePrivilegeTokenRequest_U2FSignResponse{U2FSignResponse: &proto.U2FResponse{
+			KeyHandle:  u2f.KeyHandle,
+			ClientData: u2f.ClientData,
+			Signature:  u2f.SignatureData,
+		}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, token2.GetSubKind(), UserTokenTypePrivilege)
+
+	// Test lock from max failed auth attempts.
+	for i := 0; i < defaults.MaxLoginAttempts; i++ {
+		_, err := srv.Auth().CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{
+			Username:         username,
+			SecondFactorCred: &proto.CreatePrivilegeTokenRequest_U2FSignResponse{U2FSignResponse: &proto.U2FResponse{}},
+		})
+		require.Error(t, err)
+	}
+
+	// Test user is locked.
+	user, err := srv.Auth().GetUser(username, false)
+	require.NoError(t, err)
+	require.True(t, user.GetStatus().IsLocked)
 }
 
 type debugAuth struct {

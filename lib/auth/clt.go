@@ -1823,11 +1823,17 @@ type IdentityService interface {
 	// defined in the token.
 	GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error)
 
+	// GetMFAAuthenticateChallengeWithAuth retrieves mfa challenges for the currently logged in user.
+	GetMFAAuthenticateChallengeWithAuth(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithAuthRequest) (*proto.MFAAuthenticateChallenge, error)
+
 	// GetMFADevicesWithToken returns all mfa devices for the user defined in the token.
 	GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADevicesWithTokenRequest) (*proto.GetMFADevicesResponse, error)
 
 	// DeleteMFADeviceWithToken deletes a mfa device for the user defined in the token.
 	DeleteMFADeviceWithToken(ctx context.Context, req *proto.DeleteMFADeviceWithTokenRequest) error
+
+	// AddMFADeviceWithToken adds a mfa device for the user defined in the token.
+	AddMFADeviceWithToken(ctx context.Context, req *proto.AddMFADeviceWithTokenRequest) error
 
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
 	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
@@ -1898,6 +1904,9 @@ type IdentityService interface {
 
 	// ChangePasswordWithToken changes password with token
 	ChangePasswordWithToken(ctx context.Context, req *proto.ChangePasswordWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error)
+
+	// CreatePrivilegeToken returns a new privilege token after user successfully re-auth with their second factor.
+	CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error)
 
 	// CreateRecoveryStartToken creates a recovery start token after successful verification of
 	// username and recovery code.

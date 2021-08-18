@@ -32,6 +32,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1191,6 +1192,191 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	// Locks targeting nodes should not apply to other system roles.
 	_, err = p.a.GenerateHostCert(pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleProxy}, time.Minute)
 	require.NoError(t, err)
+}
+
+func TestAddDeleteMFADeviceWithTokenForTOTPDevice(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+	ctx := context.Background()
+
+	username := "joe@example.com"
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOTP,
+	})
+	require.NoError(t, err)
+
+	err = srv.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Create a privilege token required to add a mfa.
+	token, err := srv.Auth().createPrivilegeToken(ctx, username)
+	require.NoError(t, err)
+	require.Equal(t, token.GetSubKind(), UserTokenTypePrivilege)
+
+	// Setup otp.
+	otp, err := getOTPCode(srv, token.GetName())
+	require.NoError(t, err)
+
+	// Add a new second factor device.
+	err = srv.Auth().AddMFADeviceWithToken(ctx, &proto.AddMFADeviceWithTokenRequest{
+		TokenID:          token.GetName(),
+		DeviceName:       "new-otp",
+		SecondFactorCred: &proto.AddMFADeviceWithTokenRequest_SecondFactorToken{SecondFactorToken: otp},
+	})
+	require.NoError(t, err)
+
+	// Test events are emitted after add.
+	event := mockEmitter.LastEvent()
+	require.Equal(t, event.GetType(), events.MFADeviceAddEvent)
+	require.Equal(t, event.GetCode(), events.MFADeviceAddEventCode)
+	require.Equal(t, event.(*apievents.MFADeviceAdd).User, username)
+
+	// Test device was inserted.
+	mfas, err := srv.Auth().GetMFADevices(ctx, username)
+	require.NoError(t, err)
+	require.Len(t, mfas, 1)
+	require.Equal(t, "new-otp", mfas[0].GetName())
+
+	// Test a device can be deleted with privilege token.
+	err = srv.Auth().DeleteMFADeviceWithToken(ctx, &proto.DeleteMFADeviceWithTokenRequest{
+		TokenID:  token.GetName(),
+		DeviceID: mfas[0].Id,
+	})
+	require.NoError(t, err)
+
+	// Test device was indeed deleted.
+	mfas, err = srv.Auth().GetMFADevices(ctx, username)
+	require.NoError(t, err)
+	require.Len(t, mfas, 0)
+}
+
+func TestAddMFADeviceWithTokenForU2FDevice(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+	ctx := context.Background()
+
+	username := "joe@example.com"
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorU2F,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Create a privilege token required to add a mfa.
+	token, err := srv.Auth().createPrivilegeToken(ctx, username)
+	require.NoError(t, err)
+	require.Equal(t, token.GetSubKind(), UserTokenTypePrivilege)
+
+	// Add a u2f device.
+	u2fRegResp, _, err := getMockedU2FAndRegisterRes(srv, token.GetName())
+	require.NoError(t, err)
+
+	err = srv.Auth().AddMFADeviceWithToken(ctx, &proto.AddMFADeviceWithTokenRequest{
+		TokenID:          token.GetName(),
+		DeviceName:       "new-u2f",
+		SecondFactorCred: &proto.AddMFADeviceWithTokenRequest_U2FRegisterResponse{U2FRegisterResponse: u2fRegResp},
+	})
+	require.NoError(t, err)
+
+	// Test events are emitted after add.
+	event := mockEmitter.LastEvent()
+	require.Equal(t, event.GetType(), events.MFADeviceAddEvent)
+	require.Equal(t, event.GetCode(), events.MFADeviceAddEventCode)
+	require.Equal(t, event.(*apievents.MFADeviceAdd).User, username)
+
+	// Test device was inserted.
+	mfas, err := srv.Auth().GetMFADevices(ctx, username)
+	require.NoError(t, err)
+	require.Len(t, mfas, 1)
+	require.Equal(t, "new-u2f", mfas[0].GetName())
+}
+
+func TestAddMFADeviceWithErrors(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+	ctx := context.Background()
+
+	username := "joe@example.com"
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	// Enable second factor.
+	authPref := types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOTP,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	}
+	ap, err := types.NewAuthPreference(authPref)
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Create a reset password token.
+	token, err := srv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+		Name: username,
+		Type: UserTokenTypeResetPassword,
+	})
+	require.NoError(t, err)
+	require.Equal(t, token.GetSubKind(), UserTokenTypeResetPassword)
+
+	// Test reset password token is rejected.
+	err = srv.Auth().AddMFADeviceWithToken(ctx, &proto.AddMFADeviceWithTokenRequest{
+		TokenID: token.GetName(),
+	})
+	require.Equal(t, err.Error(), "invalid token")
+
+	// Test adding u2f when cluster only allows otp.
+	u2fRegResp, _, err := getMockedU2FAndRegisterRes(srv, token.GetName())
+	require.NoError(t, err)
+
+	err = srv.Auth().AddMFADeviceWithToken(ctx, &proto.AddMFADeviceWithTokenRequest{
+		TokenID:          token.GetName(),
+		DeviceName:       "new-u2f",
+		SecondFactorCred: &proto.AddMFADeviceWithTokenRequest_U2FRegisterResponse{U2FRegisterResponse: u2fRegResp},
+	})
+	require.True(t, trace.IsBadParameter(err))
+
+	// Test adding otp when cluster only allows u2f.
+	authPref.SecondFactor = constants.SecondFactorU2F
+	err = srv.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Setup otp.
+	otp, err := getOTPCode(srv, token.GetName())
+	require.NoError(t, err)
+
+	// Add a new second factor device.
+	err = srv.Auth().AddMFADeviceWithToken(ctx, &proto.AddMFADeviceWithTokenRequest{
+		TokenID:          token.GetName(),
+		DeviceName:       "new-otp",
+		SecondFactorCred: &proto.AddMFADeviceWithTokenRequest_SecondFactorToken{SecondFactorToken: otp},
+	})
+	require.True(t, trace.IsBadParameter(err))
+
 }
 
 func newTestServices(t *testing.T) Services {

@@ -2078,6 +2078,216 @@ func TestClusterKubesGet(t *testing.T) {
 	}, kbs[0])
 }
 
+// TestAddU2FDeviceWithPrivilegeToken tests for the following:
+// - creating a privilege token
+// - retrieving a u2f register challenge for currently signed in user
+// - adding a new u2f device
+// - getting list of devices for current user
+// - testing the re-auth with the new u2f device
+func TestAddU2FDeviceWithPrivilegeToken(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	// Enable both otp and u2f.
+	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		U2F: &types.U2F{
+			AppID:  "https://" + env.server.TLS.ClusterName(),
+			Facets: []string{"https://" + env.server.TLS.ClusterName()},
+		},
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(context.Background(), cap)
+	require.NoError(t, err)
+
+	// Create a privilege token that re-auths with existing otp, to access mfa related endpoints.
+	validToken, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	resp, err := pack.clt.PostJSON(context.Background(), endpoint, privilegeTokenRequest{
+		SecondFactorToken: validToken,
+	})
+	require.NoError(t, err)
+
+	var token1 ui.PrivilegeToken
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &token1))
+	require.NotEmpty(t, token1.TokenID)
+	require.Empty(t, token1.QRCode)
+
+	// Get a u2f register challenge with the privilege token to register a new u2f key.
+	endpoint = pack.clt.Endpoint("webapi", "u2f", "signuptokens", token1.TokenID)
+	resp, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var u2fRegReq u2f.RegisterChallenge
+	err = json.Unmarshal(resp.Bytes(), &u2fRegReq)
+	require.NoError(t, err)
+
+	// Register mock u2f response.
+	mockU2F, err := mocku2f.Create()
+	require.NoError(t, err)
+	u2fRegResp, err := mockU2F.RegisterResponse(&u2fRegReq)
+	require.NoError(t, err)
+
+	// Add new u2f device with the privilege token.
+	endpoint = pack.clt.Endpoint("webapi", "mfadevice")
+	resp, err = pack.clt.PostJSON(context.Background(), endpoint, addMFADeviceWithTokenRequest{
+		TokenID:             token1.TokenID,
+		DeviceName:          "new-u2f",
+		U2FRegisterResponse: u2fRegResp,
+	})
+	require.NoError(t, err)
+
+	var okReply struct {
+		Message string `json:"message"`
+	}
+	err = json.Unmarshal(resp.Bytes(), &okReply)
+	require.NoError(t, err)
+	require.Equal(t, "ok", okReply.Message)
+
+	// Get list of mfa devices to check it's been inserted.
+	endpoint = pack.clt.Endpoint("webapi", "mfadevice")
+	resp, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var mfas []ui.MFADevice
+	err = json.Unmarshal(resp.Bytes(), &mfas)
+	require.NoError(t, err)
+	require.Len(t, mfas, 2)
+
+	// Search for the recently added.
+	deviceNames := make([]string, 0, len(mfas))
+	for _, device := range mfas {
+		deviceNames = append(deviceNames, device.Name)
+	}
+	require.Contains(t, deviceNames, "new-u2f")
+
+	// To test our newly created u2f device,
+	// create another privilege token re-authing with the new device.
+	//
+	// First get the u2f challenge to create a sign response.
+	endpoint = pack.clt.Endpoint("webapi", "u2f", "signrequest", "auth")
+	resp, err = pack.clt.PostJSON(context.Background(), endpoint, nil)
+	require.NoError(t, err)
+
+	var chal auth.MFAAuthenticateChallenge
+	err = json.Unmarshal(resp.Bytes(), &chal)
+	require.NoError(t, err)
+	require.Len(t, chal.U2FChallenges, 1)
+
+	u2fSignResp, err := mockU2F.SignResponse(&chal.U2FChallenges[0])
+	require.NoError(t, err)
+
+	// Create another privilege token that re-auths with u2f.
+	endpoint = pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	resp, err = pack.clt.PostJSON(context.Background(), endpoint, privilegeTokenRequest{
+		U2FSignResponse: u2fSignResp,
+	})
+	require.NoError(t, err)
+
+	var token2 ui.PrivilegeToken
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &token2))
+	require.NotEmpty(t, token2.TokenID)
+	require.Empty(t, token2.QRCode)
+}
+
+// TestAddTOTPDeviceWithPrivilegeToken tests for the following:
+// - creating a privilege token with secrets for adding new totp device
+// - adding a new totp device
+// - getting list of devices for current user
+// - testing the re-auth with the new totp device
+func TestAddTOTPDeviceWithPrivilegeToken(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	// Create a privilege token that re-auths with existing otp, to access mfa related endpoints.
+	validToken, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token", "otp")
+	resp, err := pack.clt.PostJSON(context.Background(), endpoint, privilegeTokenRequest{
+		SecondFactorToken: validToken,
+	})
+	require.NoError(t, err)
+
+	var token1 ui.PrivilegeToken
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &token1))
+	require.NotEmpty(t, token1.TokenID)
+	require.NotEmpty(t, token1.QRCode)
+
+	// Get the token secrets directly to create a totp token value.
+	// In the UI, user will get the code by registering the returned QR code value.
+	secrets, err := env.server.Auth().GetUserTokenSecrets(context.Background(), token1.TokenID)
+	require.NoError(t, err)
+
+	// Create a new valid otp token.
+	newTOTPToken, err := totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	require.NoError(t, err)
+
+	// Add new totp device with the privilege token.
+	endpoint = pack.clt.Endpoint("webapi", "mfadevice")
+	resp, err = pack.clt.PostJSON(context.Background(), endpoint, addMFADeviceWithTokenRequest{
+		TokenID:           token1.TokenID,
+		DeviceName:        "new-otp",
+		SecondFactorToken: newTOTPToken,
+	})
+	require.NoError(t, err)
+
+	var okReply struct {
+		Message string `json:"message"`
+	}
+	err = json.Unmarshal(resp.Bytes(), &okReply)
+	require.NoError(t, err)
+	require.Equal(t, "ok", okReply.Message)
+
+	// Get list of mfa devices to check it's been inserted.
+	endpoint = pack.clt.Endpoint("webapi", "mfadevice")
+	resp, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var mfas []ui.MFADevice
+	err = json.Unmarshal(resp.Bytes(), &mfas)
+	require.NoError(t, err)
+	require.Len(t, mfas, 2)
+
+	// Search for the recently added.
+	deviceNames := make([]string, 0, len(mfas))
+	var newTOTPDevice ui.MFADevice
+	for _, device := range mfas {
+		deviceNames = append(deviceNames, device.Name)
+		if device.Name == "new-otp" {
+			newTOTPDevice = device
+		}
+	}
+	require.Contains(t, deviceNames, "new-otp")
+
+	// To test our newly created otp device,
+	// create another privilege token to re-auth with the new device.
+	//
+	// First directly get the new mfa device for its secrets to create a new otp token value.
+	device, err := env.server.Auth().GetMFADevice(context.Background(), pack.user, newTOTPDevice.ID)
+	require.NoError(t, err)
+	newTOTPToken, err = totp.GenerateCode(device.GetTotp().Key, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	endpoint = pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	resp, err = pack.clt.PostJSON(context.Background(), endpoint, privilegeTokenRequest{
+		SecondFactorToken: newTOTPToken,
+	})
+	require.NoError(t, err)
+
+	var token2 ui.PrivilegeToken
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &token2))
+	require.NotEmpty(t, token2.TokenID)
+	require.Empty(t, token2.QRCode)
+}
+
 // TestApplicationAccessDisabled makes sure application access can be disabled
 // via modules.
 func TestApplicationAccessDisabled(t *testing.T) {

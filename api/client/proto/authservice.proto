@@ -802,12 +802,32 @@ message DeleteMFADeviceWithTokenRequest {
     string DeviceID = 2;
 }
 
+// AddMFADeviceWithTokenRequest is a request to add a mfa device for the user defined in
+// token.
+message AddMFADeviceWithTokenRequest {
+    // TokenID is the ID of a user token.
+    string TokenID = 1;
+    // DeviceName is the name of the device.
+    string DeviceName = 2;
+    // SecondFactorCred is the new mfa device auth credentials.
+    oneof SecondFactorCred {
+        // SecondFactorToken is an totp value.
+        string SecondFactorToken = 3;
+        // U2FRegisterResponse is U2F registration challenge response.
+        U2FRegisterResponse U2FRegisterResponse = 4;
+    }
+}
+
 // GetMFAAuthenticateChallengeWithTokenRequest is a request for getting mfa challenges for the user
 // defined in token.
 message GetMFAAuthenticateChallengeWithTokenRequest {
     // TokenID is the ID of a user token.
     string TokenID = 1;
 }
+
+// GetMFAAuthenticateChallengeWithAuthRequest is a request for getting mfa challenges for the
+// currently signed in user.
+message GetMFAAuthenticateChallengeWithAuthRequest { string Username = 1; }
 
 // UserSingleUseCertsRequest is a request for a single-use user certificate.
 message UserSingleUseCertsRequest {
@@ -1053,6 +1073,19 @@ message CreateRecoveryCodesWithTokenResponse {
     repeated string RecoveryCodes = 1;
 }
 
+// CreatePrivilegeTokenRequest defines a request to create and get a user privilege token.
+message CreatePrivilegeTokenRequest {
+    // Username is the name of user requesting token.
+    string Username = 1;
+    // SecondFactorCred is one of users second factor auth credential.
+    oneof SecondFactorCred {
+        // SecondFactorToken is 2nd factor token value.
+        string SecondFactorToken = 2;
+        // U2FSignResponse is U2F sign response to a challenge.
+        U2FResponse U2FSignResponse = 3;
+    }
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1119,6 +1152,9 @@ service AuthService {
     // CreateResetPasswordToken resets users current password and second factors and creates a reset
     // password token.
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
+    // CreatePrivilegeToken returns a new privilege token after user successfully re-auth with their
+    // second factor.
+    rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
 
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);
@@ -1379,6 +1415,10 @@ service AuthService {
         returns (CreateRecoveryCodesWithTokenResponse);
 
     // GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user
+    // currently signed in.
+    rpc GetMFAAuthenticateChallengeWithAuth(GetMFAAuthenticateChallengeWithAuthRequest)
+        returns (MFAAuthenticateChallenge);
+    // GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user
     // defined in the token.
     rpc GetMFAAuthenticateChallengeWithToken(GetMFAAuthenticateChallengeWithTokenRequest)
         returns (MFAAuthenticateChallenge);
@@ -1386,4 +1426,6 @@ service AuthService {
     rpc GetMFADevicesWithToken(GetMFADevicesWithTokenRequest) returns (GetMFADevicesResponse);
     // DeleteMFADeviceWithToken deletes a mfa device for the user defined in the token.
     rpc DeleteMFADeviceWithToken(DeleteMFADeviceWithTokenRequest) returns (google.protobuf.Empty);
+    // AddMFADeviceWithToken adds a mfa device for the user defined in the token.
+    rpc AddMFADeviceWithToken(AddMFADeviceWithTokenRequest) returns (google.protobuf.Empty);
 }

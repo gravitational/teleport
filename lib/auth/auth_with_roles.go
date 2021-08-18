@@ -880,6 +880,14 @@ func (a *ServerWithRoles) GetMFAAuthenticateChallenge(user string, password []by
 	return a.authServer.GetMFAAuthenticateChallenge(user, password)
 }
 
+// GetMFAAuthenticateChallengeWithAuth retrieves mfa challenges for the currently logged in user.
+func (a *ServerWithRoles) GetMFAAuthenticateChallengeWithAuth(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithAuthRequest) (*proto.MFAAuthenticateChallenge, error) {
+	if err := a.currentUserAction(req.GetUsername()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetMFAAuthenticateChallengeWithAuth(ctx, req)
+}
+
 // GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user
 // defined in the token.
 func (a *ServerWithRoles) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
@@ -897,6 +905,12 @@ func (a *ServerWithRoles) GetMFADevicesWithToken(ctx context.Context, req *proto
 func (a *ServerWithRoles) DeleteMFADeviceWithToken(ctx context.Context, req *proto.DeleteMFADeviceWithTokenRequest) error {
 	// Token is its own authentication, no need to double check.
 	return a.authServer.DeleteMFADeviceWithToken(ctx, req)
+}
+
+// AddMFADeviceWithToken adds a mfa device for the user defined in the token.
+func (a *ServerWithRoles) AddMFADeviceWithToken(ctx context.Context, req *proto.AddMFADeviceWithTokenRequest) error {
+	// Token is its own authentication, no need to double check.
+	return a.authServer.AddMFADeviceWithToken(ctx, req)
 }
 
 // CreateWebSession creates a new web session for the specified user
@@ -1627,6 +1641,16 @@ func (a *ServerWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID st
 func (a *ServerWithRoles) ChangePasswordWithToken(ctx context.Context, req *proto.ChangePasswordWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
 	// Token is it's own authentication, no need to double check.
 	return a.authServer.ChangePasswordWithToken(ctx, req)
+}
+
+// CreatePrivilegeToken returns a new privilege token after user successfully re-auth with their second factor.
+func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error) {
+	// Allow user to create privilege token for themselves.
+	if err := a.currentUserAction(req.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.CreatePrivilegeToken(ctx, req)
 }
 
 // CreateRecoveryStartToken creates a recovery start token after successful verification of

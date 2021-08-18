@@ -681,6 +681,16 @@ func (c *Client) CreateRecoveryStartToken(ctx context.Context, req *proto.Create
 	return res, nil
 }
 
+// CreatePrivilegeToken returns a new privilege token after user successfully re-auth with their second factor.
+func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error) {
+	token, err := c.grpc.CreatePrivilegeToken(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return token, nil
+}
+
 // AuthenticateUserWithRecoveryToken authenticates user defined in token with either password or second factor.
 func (c *Client) AuthenticateUserWithRecoveryToken(ctx context.Context, req *proto.AuthenticateUserWithRecoveryTokenRequest) (types.UserToken, error) {
 	res, err := c.grpc.AuthenticateUserWithRecoveryToken(ctx, req, c.callOpts...)
@@ -1137,6 +1147,16 @@ func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesReque
 	return resp, nil
 }
 
+// GetMFAAuthenticateChallengeWithAuth gets mfa challenges for the currently logged in user.
+func (c *Client) GetMFAAuthenticateChallengeWithAuth(ctx context.Context, in *proto.GetMFAAuthenticateChallengeWithAuthRequest) (*proto.MFAAuthenticateChallenge, error) {
+	resp, err := c.grpc.GetMFAAuthenticateChallengeWithAuth(ctx, in, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
+}
+
 func (c *Client) GetMFAAuthenticateChallengeWithToken(ctx context.Context, in *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
 	resp, err := c.grpc.GetMFAAuthenticateChallengeWithToken(ctx, in, c.callOpts...)
 	if err != nil {
@@ -1157,6 +1177,15 @@ func (c *Client) GetMFADevicesWithToken(ctx context.Context, in *proto.GetMFADev
 
 func (c *Client) DeleteMFADeviceWithToken(ctx context.Context, in *proto.DeleteMFADeviceWithTokenRequest) error {
 	if _, err := c.grpc.DeleteMFADeviceWithToken(ctx, in, c.callOpts...); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// AddMFADeviceWithToken adds a new mfa device for the user defined in token.
+func (c *Client) AddMFADeviceWithToken(ctx context.Context, in *proto.AddMFADeviceWithTokenRequest) error {
+	if _, err := c.grpc.AddMFADeviceWithToken(ctx, in, c.callOpts...); err != nil {
 		return trail.FromGRPC(err)
 	}
 

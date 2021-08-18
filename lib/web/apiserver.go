@@ -287,6 +287,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
+	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
+	h.POST("/webapi/users/privilege/token/otp", h.WithAuth(h.createPrivilegeTokenWithSecretsHandle))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -349,12 +351,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.u2fChangePasswordRequest))
 	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.mfaChallengeRequest))
 	h.POST("/webapi/u2f/signrequest/token", httplib.MakeHandler(h.getMFAChallengeRequestWithTokenHandle))
+	h.POST("/webapi/u2f/signrequest/auth", h.WithAuth(h.getMFAChallengeRequestWithAuthHandle))
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithMFAChallengeResponse))
 
 	// MFA device related endpoints.
 	h.GET("/webapi/mfa/:token", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
 	h.DELETE("/webapi/mfa", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
+	h.POST("/webapi/mfa", h.WithAuth(h.addMFADeviceWithTokenHandle))
+	h.GET("/webapi/mfa", h.WithAuth(h.getMFADevicesHandle))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
