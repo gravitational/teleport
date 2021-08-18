@@ -349,7 +349,8 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 					// We need local keys to sign the Admin identity to support
 					// tctl. For this special case we add AdditionalTrustedKeys
 					// without any active keys. These keys will not be used for
-					// any signing operations until a CA rotation.
+					// any signing operations until a CA rotation. Only the Host
+					// CA is necessary to issue the Admin identity.
 					if err := asrv.ensureLocalAdditionalKeys(ca); err != nil {
 						return nil, trace.Wrap(err)
 					}

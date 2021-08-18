@@ -1522,8 +1522,10 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		}
 	}
 
+	isAdminRole := req.Roles.Equals(types.SystemRoles{types.RoleAdmin})
+
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
-	if trace.IsNotFound(err) {
+	if trace.IsNotFound(err) && isAdminRole {
 		// If there is no local TLS signer found in the host CA ActiveKeys, this
 		// auth server may have a newly configured HSM and has only populated
 		// local keys in the AdditionalTrustedKeys until the next CA rotation.
@@ -1540,7 +1542,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	}
 
 	caSigner, err := a.keyStore.GetSSHSigner(ca)
-	if trace.IsNotFound(err) {
+	if trace.IsNotFound(err) && isAdminRole {
 		// If there is no local SSH signer found in the host CA ActiveKeys, this
 		// auth server may have a newly configured HSM and has only populated
 		// local keys in the AdditionalTrustedKeys until the next CA rotation.
