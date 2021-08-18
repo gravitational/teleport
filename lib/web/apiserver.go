@@ -1528,7 +1528,7 @@ type joinTokenResponse struct {
 //
 // POST /webapi/join
 //
-// {"roles": ["db", ...], "ttl": "1h0m0s"}
+// {"roles": ["Db", ...], "ttl": "1h0m0s"}
 //
 // Successful response:
 //
@@ -1540,12 +1540,12 @@ func (h *Handler) generateJoinToken(w http.ResponseWriter, r *http.Request, _ ht
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := ctx.GetClient()
+	roles, err := types.NewTeleportRoles(req.Roles)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	roles, err := types.NewTeleportRoles(req.Roles)
+	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -3114,7 +3114,6 @@ func TestGenerateJoinToken(t *testing.T) {
 		var tokenResponse *joinTokenResponse
 		err = json.Unmarshal(resp.Bytes(), &tokenResponse)
 		require.NoError(t, err)
-
 		require.NotEmpty(t, tokenResponse.Token)
 	})
 
