@@ -1,4 +1,4 @@
-module example
+module workflows
 
 go 1.16
 

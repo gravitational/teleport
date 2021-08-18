@@ -6,4 +6,4 @@ spec:
     request:
       roles:
         - admin
-version: v3
+version: v4
