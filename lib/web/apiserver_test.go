@@ -2264,6 +2264,30 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	}
 }
 
+func TestNewSessionResponseWithRenewSession(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+
+	// Set a web idle timeout.
+	duration := time.Duration(5) * time.Minute
+	cfg := types.DefaultClusterNetworkingConfig()
+	cfg.SetWebIdleTimeout(duration)
+	env.server.Auth().SetClusterNetworkingConfig(context.Background(), cfg)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo")
+
+	var ns *CreateSessionResponse
+	resp := pack.renewSession(context.Background(), t)
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &ns))
+
+	require.Equal(t, int(duration.Milliseconds()), ns.SessionInactiveTimeoutMS)
+	require.Equal(t, roundtrip.AuthBearer, ns.TokenType)
+	require.NotEmpty(t, ns.SessionExpires)
+	require.NotEmpty(t, ns.Token)
+	require.NotEmpty(t, ns.TokenExpiresIn)
+}
+
 // TestWebSessionsRenewDoesNotBreakExistingTerminalSession validates that the
 // session renewed via one proxy does not force the terminals created by another
 // proxy to disconnect
@@ -2625,7 +2649,7 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
-	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn}, nil
+	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn, SessionInactiveTimeoutMS: r.SessionInactiveTimeoutMS}, nil
 }
 
 func newWebPack(t *testing.T, numProxies int) *webPack {
