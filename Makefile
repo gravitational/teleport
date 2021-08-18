@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=7.0.0-beta.1
+VERSION=7.0.0-dev.45
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -308,6 +308,11 @@ release-windows-unsigned: clean all
 #
 .PHONY: release-windows
 release-windows: release-windows-unsigned
+	pwd
+	ls -lh
+	ls -lh /go/src/github.com/gravitational/teleport/windows-signing-cert.pfx
+	ls -lh windows-signing-cert.pfx
+
 	@if [ ! -f "windows-signing-cert.pfx" ]; then \
 		echo "windows-signing-cert.pfx is missing or invalid, cannot create signed archive."; \
 		exit 1; \
