@@ -231,6 +231,12 @@ const (
 	// network restrictions
 	MetaNameNetworkRestrictions = "network-restrictions"
 
+	// KindWindowsDesktopService is a Windows desktop service resource.
+	KindWindowsDesktopService = "windows_desktop_service"
+
+	// KindWindowsDesktop is a Windows desktop host.
+	KindWindowsDesktop = "windows_desktop"
+
 	// V4 is the fourth version of resources.
 	V4 = "v4"
 
@@ -334,4 +340,7 @@ const (
 
 	// DatabaseTunnel is a tunnel where a database proxy dials back to the proxy.
 	DatabaseTunnel TunnelType = "db"
+
+	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
+	WindowsDesktopTunnel TunnelType = "windows_desktop"
 )
