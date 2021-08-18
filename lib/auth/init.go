@@ -362,7 +362,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			if !asrv.keyStore.HasLocalActiveKeys(ca) && asrv.keyStore.HasLocalAdditionalKeys(ca) {
 				log.Warnf("This auth server has a newly added or removed HSM and will not " +
 					"be able to perform any signing operations. You must rotate all CAs " +
-					"before routing traffic to this auth server. See https://goteleport.com/docs/ver/6.2/admin-guide/#certificate-rotation")
+					"before routing traffic to this auth server. See https://goteleport.com/docs/admin-guide/#certificate-rotation")
 			}
 			if !ca.AllKeyTypesMatch() {
 				log.Warnf("%s CA contains a combination of raw and PKCS#11 keys. If you are attempting to"+
