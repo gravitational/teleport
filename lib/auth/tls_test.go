@@ -2724,6 +2724,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 
 	// Calculate what CA pin should be.
 	localCAResponse, err := s.server.AuthServer.AuthServer.GetClusterCACert()
+	c.Assert(err, check.IsNil)
 	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 	c.Assert(err, check.IsNil)
 	c.Assert(caPins, check.HasLen, 1)
@@ -2816,6 +2817,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 
 	// Calculate what CA pins should be.
 	localCAResponse, err = s.server.AuthServer.AuthServer.GetClusterCACert()
+	c.Assert(err, check.IsNil)
 	caPins, err = tlsca.CalculatePins(localCAResponse.TLSCA)
 	c.Assert(err, check.IsNil)
 	c.Assert(caPins, check.HasLen, 2)
