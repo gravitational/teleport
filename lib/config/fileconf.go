@@ -544,7 +544,7 @@ type Auth struct {
 type CAKeyParams struct {
 	// PKCS11 configures a PKCS#11 HSM to be used for private key generation and
 	// storage.
-	PKCS11 PKCS11 `yaml:"pkcs11,omitempty"`
+	PKCS11 PKCS11 `yaml:"pkcs11"`
 }
 
 // PKCS11 configures a PKCS#11 HSM to be used for private key generation and
@@ -562,7 +562,8 @@ type PKCS11 struct {
 	// the pin.
 	Pin string `yaml:"pin,omitempty"`
 	// PinPath is a path to a file containing a pin for connecting to the HSM.
-	// Set this or Pin to set the pin.
+	// Trailing newlines will be removed, other whitespace will be left. Set
+	// this or Pin to set the pin.
 	PinPath string `yaml:"pin_path,omitempty"`
 }
 

@@ -590,11 +590,15 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
 	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
 	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
-		pin, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
+			return trace.BadParameter("can not set both pin and pin_path")
+		}
+		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.KeyStore.Pin = string(pin)
+		pin := strings.TrimRight(string(pinBytes), "\r\n")
+		cfg.Auth.KeyStore.Pin = pin
 	}
 	return nil
 }
