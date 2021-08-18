@@ -96,7 +96,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Operations on certificate authorities
 	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName))
 	srv.GET("/:version/cacert", srv.withAuth(srv.getClusterCACert))
-	srv.GET("/:version/cacerts", srv.withAuth(srv.getClusterCACerts))
 
 	srv.POST("/:version/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate", srv.withAuth(srv.rotateCertAuthority))
@@ -1138,8 +1137,9 @@ func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.R
 	return domain, nil
 }
 
-// DEPRECATED: This will not work with HA HSM clusters. Prefer getClusterCACerts
-// getClusterCACert returns the CAs for the local cluster without signing keys.
+// getClusterCACert returns the PEM-encoded TLS certs for the local cluster
+// without signing keys. If the cluster has multiple TLS certs, they will all
+// be appended.
 func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	localCA, err := auth.GetClusterCACert()
 	if err != nil {
@@ -1147,16 +1147,6 @@ func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *htt
 	}
 
 	return localCA, nil
-}
-
-// getClusterCACerts returns the CA certs for the local cluster without signing keys.
-func (s *APIServer) getClusterCACerts(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	clusterCerts, err := auth.GetClusterCACerts()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clusterCerts, nil
 }
 
 func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

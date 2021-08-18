@@ -406,8 +406,8 @@ func (c *Client) GetDomainName() (string, error) {
 	return domain, nil
 }
 
-// DEPRECATED: This will not work with HA HSM clusters. Prefer GetClusterCACerts.
-// GetClusterCACert returns a CA cert for the cluster without signing keys.
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
+// the cluster has multiple TLS certs, they will all be appended.
 func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
 	out, err := c.Get(c.Endpoint("cacert"), url.Values{})
 	if err != nil {
@@ -418,29 +418,6 @@ func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &localCA, nil
-}
-
-// GetClusterCACerts returns the CA certs for the cluster without signing keys.
-func (c *Client) GetClusterCACerts() (*ClusterCACertsResponse, error) {
-	var caCerts ClusterCACertsResponse
-	out, err := c.Get(c.Endpoint("cacerts"), url.Values{})
-	if err != nil {
-		// older servers may not have this endpoint, fall back to the older
-		// singular endpoint
-		localCAResponse, err := c.GetClusterCACert()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// avoid returning a slice with a nil value
-		if len(localCAResponse.TLSCA) > 0 {
-			caCerts.Certs = append(caCerts.Certs, localCAResponse.TLSCA)
-		}
-		return &caCerts, nil
-	}
-	if err := json.Unmarshal(out.Bytes(), &caCerts); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &caCerts, nil
 }
 
 func (c *Client) Close() error {
@@ -2004,13 +1981,9 @@ type ClientI interface {
 	// GetDomainName returns auth server cluster name
 	GetDomainName() (string, error)
 
-	// DEPRECATED: This will not work with HA HSM clusters. Prefer GetClusterCACerts.
-	// GetClusterCACert returns a CA cert for the cluster without signing keys.
+	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster.
+	// If the cluster has multiple TLS certs, they will all be appended.
 	GetClusterCACert() (*LocalCAResponse, error)
-
-	// GetClusterCACerts returns the list of CA certs for the cluster without
-	// signing keys.
-	GetClusterCACerts() (*ClusterCACertsResponse, error)
 
 	// GenerateServerKeys generates new host private keys and certificates (signed
 	// by the host certificate authority) for a node

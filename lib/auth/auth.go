@@ -466,8 +466,8 @@ type LocalCAResponse struct {
 	TLSCA []byte `json:"tls_ca"`
 }
 
-// DEPRECATED: This will not work with HA HSM clusters. Prefer GetClusterCACerts.
-// GetClusterCACert returns a CA for the local cluster without signing keys.
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
+// the cluster has multiple TLS certs, they will all be appended.
 func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
@@ -487,39 +487,14 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 		return nil, trace.NotFound("no tls certs found in host CA")
 	}
 
+	allCerts := certs[0]
+	for i := 1; i < len(certs); i++ {
+		allCerts = append(allCerts, '\n')
+		allCerts = append(allCerts, certs[i]...)
+	}
+
 	return &LocalCAResponse{
-		TLSCA: certs[0],
-	}, nil
-}
-
-// ClusterCACertsResponse contains PEM-encoded cluster CA certs.
-type ClusterCACertsResponse struct {
-	// Certs is the list of PEM-encoded TLS certificates.
-	Certs [][]byte `json:"certs"`
-}
-
-// GetClusterCACerts returns the CA certs for the local cluster without signing keys.
-func (a *Server) GetClusterCACerts() (*ClusterCACertsResponse, error) {
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Extract the TLS CA for this cluster.
-	hostCA, err := a.GetCache().GetCertAuthority(types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: clusterName.GetClusterName(),
-	}, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	certs := services.GetTLSCerts(hostCA)
-	if len(certs) < 1 {
-		return nil, trace.NotFound("no tls certs found in host CA")
-	}
-
-	return &ClusterCACertsResponse{
-		Certs: certs,
+		TLSCA: allCerts,
 	}, nil
 }
 
