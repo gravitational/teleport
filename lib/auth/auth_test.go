@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1191,6 +1192,44 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	// Locks targeting nodes should not apply to other system roles.
 	_, err = p.a.GenerateHostCert(pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleProxy}, time.Minute)
 	require.NoError(t, err)
+}
+
+func TestNewWebSession(t *testing.T) {
+	t.Parallel()
+	p, err := newTestPack(context.Background(), t.TempDir())
+	require.NoError(t, err)
+
+	// Set a web idle timeout.
+	duration := time.Duration(5) * time.Minute
+	cfg := types.DefaultClusterNetworkingConfig()
+	cfg.SetWebIdleTimeout(duration)
+	p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+
+	// Create a user.
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"})
+	require.NoError(t, err)
+
+	// Create a new web session.
+	req := types.NewWebSessionRequest{
+		User:       user.GetName(),
+		Roles:      user.GetRoles(),
+		Traits:     user.GetTraits(),
+		LoginTime:  p.a.clock.Now().UTC(),
+		SessionTTL: apidefaults.CertDuration,
+	}
+	bearerTokenTTL := utils.MinTTL(req.SessionTTL, BearerTokenTTL)
+
+	ws, err := p.a.NewWebSession(req)
+	require.NoError(t, err)
+	require.Equal(t, user.GetName(), ws.GetUser())
+	require.Equal(t, duration, ws.GetIdleTimeout())
+	require.Equal(t, req.LoginTime, ws.GetLoginTime())
+	require.Equal(t, req.LoginTime.UTC().Add(req.SessionTTL), ws.GetExpiryTime())
+	require.Equal(t, req.LoginTime.UTC().Add(bearerTokenTTL), ws.GetBearerTokenExpiryTime())
+	require.NotEmpty(t, ws.GetBearerToken())
+	require.NotEmpty(t, ws.GetPriv())
+	require.NotEmpty(t, ws.GetPub())
+	require.NotEmpty(t, ws.GetTLSCert())
 }
 
 func newTestServices(t *testing.T) Services {
