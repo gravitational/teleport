@@ -735,6 +735,9 @@ func TestHSMMigrate(t *testing.T) {
 	proxyConfig := newProxyConfig(ctx, t, *authAddr, log)
 	proxy := newTeleportService(proxyConfig, "proxy")
 	require.NoError(t, proxy.waitForStart(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, proxy.process.Close())
+	})
 
 	// make sure the admin identity used by tctl works
 	getAdminClient := func() *auth.Client {
