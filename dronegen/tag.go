@@ -50,7 +50,8 @@ func tagBuildCommands(b buildType) []string {
 	// For Windows builds, configure code signing.
 	if b.os == "windows" {
 		commands = append(commands,
-			`echo "${WINDOWS_SIGNING_CERT}" | base64 -d > windows-signing-cert.pfx`,
+			`echo "${WINDOWS_SIGNING_CERT}" | base64 -d > /tmpfs/windows-signing-cert.pfx`,
+			`ln -s /tmpfs/windows-signing-cert.pfx windows-signing-cert.pfx`,
 		)
 	}
 
@@ -189,6 +190,11 @@ func tagPipeline(b buildType) pipeline {
 		"OS":      value{raw: b.os},
 		"ARCH":    value{raw: b.arch},
 	}
+
+	tagDockerVolumes := dockerVolumes()
+	tagDockerVolumeRefs := dockerVolumeRefs()
+	tagDockerService := dockerService()
+
 	if b.fips {
 		pipelineName += "-fips"
 		tagEnvironment["FIPS"] = value{raw: "yes"}
@@ -196,6 +202,11 @@ func tagPipeline(b buildType) pipeline {
 
 	if b.os == "windows" {
 		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{fromSecret: "WINDOWS_SIGNING_CERT"}
+
+		// Configure a tmpfs to store the signing cert.
+		tagDockerVolumes = dockerVolumes(volumeTmpfs)
+		tagDockerVolumeRefs = dockerVolumeRefs(volumeRefTmpfs)
+		tagDockerService = dockerService(volumeRefTmpfs)
 	}
 
 	p := newKubePipeline(pipelineName)
@@ -204,9 +215,9 @@ func tagPipeline(b buildType) pipeline {
 	}
 	p.Trigger = triggerTag
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = dockerVolumes()
+	p.Volumes = tagDockerVolumes
 	p.Services = []service{
-		dockerService(),
+		tagDockerService,
 	}
 	p.Steps = []step{
 		{
@@ -222,7 +233,7 @@ func tagPipeline(b buildType) pipeline {
 			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: tagEnvironment,
-			Volumes:     dockerVolumeRefs(),
+			Volumes:     tagDockerVolumeRefs,
 			Commands:    tagBuildCommands(b),
 		},
 		{
