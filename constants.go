@@ -249,6 +249,9 @@ const (
 	// ComponentMetrics is a metrics server
 	ComponentMetrics = "metrics"
 
+	// ComponentWindowsDesktop is a Windows desktop access server.
+	ComponentWindowsDesktop = "windows_desktop"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -643,6 +646,10 @@ const (
 	// UsageDatabaseOnly specifies certificate usage metadata that only allows
 	// it to be used for proxying database connections.
 	UsageDatabaseOnly = "usage:db"
+
+	// UsageWindowsDesktopOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Windows desktop access
+	UsageWindowsDesktopOnly = "usage:windows_desktop"
 )
 
 const (

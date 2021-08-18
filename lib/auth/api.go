@@ -55,6 +55,14 @@ type Announcer interface {
 
 	// UpsertDatabaseServer registers a database proxy server.
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
+
+	// UpsertWindowsDesktopService registers a Windows desktop service.
+	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
+
+	// CreateWindowsDesktop registers a Windows desktop host.
+	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
+	// UpdateWindowsDesktop updates a Windows desktop host.
+	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
 }
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
@@ -157,6 +165,12 @@ type ReadAccessPoint interface {
 
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
+
+	// GetWindowsDesktops returns windows desktop hosts.
+	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
+
+	// GetWindowsDesktops returns windows desktop hosts.
+	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)
@@ -333,6 +347,21 @@ func (w *Wrapper) UpsertAppServer(ctx context.Context, server types.Server) (*ty
 // UpsertDatabaseServer registers a database proxy server.
 func (w *Wrapper) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
 	return w.NoCache.UpsertDatabaseServer(ctx, server)
+}
+
+// UpsertWindowsDesktopService registers a Windows desktop service.
+func (w *Wrapper) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {
+	return w.NoCache.UpsertWindowsDesktopService(ctx, s)
+}
+
+// CreateWindowsDesktop registers a Windows desktop host.
+func (w *Wrapper) CreateWindowsDesktop(ctx context.Context, d types.WindowsDesktop) error {
+	return w.NoCache.CreateWindowsDesktop(ctx, d)
+}
+
+// UpdateWindowsDesktop updates a Windows desktop host.
+func (w *Wrapper) UpdateWindowsDesktop(ctx context.Context, d types.WindowsDesktop) error {
+	return w.NoCache.UpdateWindowsDesktop(ctx, d)
 }
 
 // NewCachingAcessPoint returns new caching access point using
