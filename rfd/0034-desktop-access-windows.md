@@ -34,7 +34,7 @@ translates the Teleport desktop protocol into RDP:
     | desktop protocol over mTLS
     v
 +-------------------------+
-| windows_backend_service |--------------\
+| windows_desktop_service |--------------\
 +-------------------------+-\            |
    ^                        |            |
    | RDP                    | RDP        | LDAP
@@ -48,8 +48,11 @@ translates the Teleport desktop protocol into RDP:
 It can also talk to `localhost` RDP service, if installed on a Windows machine
 in agent mode (described below).
 
+If configured with Active Directory Domain Controller credentials,
 `windows_desktop_service` also discovers all available Windows hosts from
 Active Directory and registers them in Teleport as `WindowsDesktop` objects.
+Without Domain Controller credentials, `windows_desktop_service` uses a static
+list of Windows hosts provided in `teleport.yaml`.
 
 ### Supported versions
 
@@ -122,7 +125,7 @@ eBPF on Linux) and enforce extra restrictions.
 +---|------------------------------+
 |   v                              |
 | +-------------------------+      |
-| | windows_backend_service |      |
+| | windows_desktop_service |      |
 | +-------------------------+      |
 |   ^                              |
 |   | RDP over localhost           |

@@ -78,6 +78,10 @@ type FileConfig struct {
 	// Metrics is the "metrics_service" section in Teleport configuration file
 	// that defines the metrics service configuration
 	Metrics Metrics `yaml:"metrics_service,omitempty"`
+
+	// WindowsDesktop is the "windows_desktop_service" that defines the
+	// configuration for Windows Desktop Access.
+	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -1163,4 +1167,14 @@ type Metrics struct {
 // MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
 func (m *Metrics) MTLSEnabled() bool {
 	return len(m.KeyPairs) > 0 && len(m.CACerts) > 0
+}
+
+// WindowsDesktopService contains configuration for windows_desktop_service.
+type WindowsDesktopService struct {
+	Service `yaml:",inline"`
+	// PublicAddr is a list of advertised public addresses of this service.
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
+	// Hosts is a list of static Windows hosts connected to this service in
+	// gateway mode.
+	Hosts []string `yaml:"hosts,omitempty"`
 }
