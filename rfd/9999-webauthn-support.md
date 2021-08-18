@@ -140,7 +140,8 @@ auth_service:
       # Recommended.
       rp_id: ""
       # Attestation is explained in a following section.
-      # In unset defaults to u2f.device_attestation_cas.
+      # If both attestation_allowed_cas and attestation_denied_cas are unset,
+      # defaults to u2f.device_attestation_cas.
       # Optional.
       attestation_allowed_cas: []
       # Optional.
