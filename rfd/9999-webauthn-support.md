@@ -124,7 +124,7 @@ If the second factor setting is "on", then the backend sends both U2F and
 WebAuthn challenges. In this case user-facing interfaces, such as `tsh` and the
 Proxy UI, should favor replying to WebAuthn challenges (instead of U2F).
 
-Additions to `teleport.yaml` are as follows:
+Additions to configuration/`teleport.yaml` are as follows:
 
 ```yaml
 auth_service:
@@ -179,6 +179,16 @@ settings:
 		Timeout: 60000,
 	})
 ```
+
+### U2F phase out
+
+U2F phase out is planned as follows:
+
+* Teleport v+1 (major): "webauthn" mode released, "u2f" mode unchanged for
+  compatibility purposes
+* Teleport v+2 (major): "u2f" mode aliased to "webauthn". U2F is effectively
+  replaced by "webauthn" in both functionality and documentation.
+* Teleport v+3 (major): "u2f" mode removed
 
 ### Relying Party ID, Origin and U2F App ID
 
