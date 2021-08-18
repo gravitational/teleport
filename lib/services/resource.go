@@ -23,8 +23,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // MarshalConfig specifies marshalling options
@@ -162,6 +163,10 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindNetworkRestrictions, nil
 	case types.KindDatabase:
 		return types.KindDatabase, nil
+	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service":
+		return types.KindWindowsDesktopService, nil
+	case types.KindWindowsDesktop, "win_desktop":
+		return types.KindWindowsDesktop, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

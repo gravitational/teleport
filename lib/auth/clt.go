@@ -1954,6 +1954,7 @@ type ClientI interface {
 	services.DynamicAccessOracle
 	services.Restrictions
 	services.Databases
+	services.WindowsDesktops
 	WebService
 	session.Service
 	services.ClusterConfiguration

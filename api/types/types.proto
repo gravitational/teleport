@@ -29,6 +29,7 @@ message KeepAlive {
         NODE = 1;
         APP = 2;
         DATABASE = 3;
+        WINDOWS_DESKTOP = 4;
     }
     KeepAliveType Type = 9 [ (gogoproto.jsontag) = "type" ];
     // HostID is an optional UUID of the host the resource belongs to.
@@ -1895,6 +1896,9 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "login_time"
     ];
+    // IdleTimeout is the max time a user can be inactive in a session.
+    int64 IdleTimeout = 9
+        [ (gogoproto.jsontag) = "idle_timeout", (gogoproto.casttype) = "Duration" ];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
@@ -2355,4 +2359,37 @@ message NetworkRestrictionsV4 {
     // Spec contains the network restrictions data
     NetworkRestrictionsSpecV4 Spec = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WindowsDesktopServiceV3 represents a windows desktop access service.
+message WindowsDesktopServiceV3 {
+    // Header is the common resource header.
+    ResourceHeader Header = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+    // Spec is the windows desktop service spec.
+    WindowsDesktopServiceSpecV3 Spec = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WindowsDesktopServiceSpecV3 is the windows desktop service spec.
+message WindowsDesktopServiceSpecV3 {
+    // Addr is the address that this service can be reached at.
+    string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
+    // TeleportVersion is teleport binary version running this service.
+    string TeleportVersion = 2 [ (gogoproto.jsontag) = "teleport_version" ];
+}
+
+// WindowsDesktopV3 represents a Windows host for desktop access.
+message WindowsDesktopV3 {
+    // Header is the common resource header.
+    ResourceHeader Header = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+    // Spec is the Windows host spec.
+    WindowsDesktopSpecV3 Spec = 2 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WindowsDesktopSpecV3 is the Windows host spec.
+message WindowsDesktopSpecV3 {
+    // Addr is the address that this host can be reached at.
+    string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
 }
