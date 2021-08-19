@@ -577,6 +577,11 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			LockingMode:           constants.LockingModeBestEffort,
 		},
 	}))
+
+	require.Equal(t, "/usr/local/lib/example/path.so", cfg.Auth.KeyStore.Path)
+	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
+	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
+	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
