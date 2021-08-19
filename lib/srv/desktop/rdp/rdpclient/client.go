@@ -45,6 +45,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"os"
 	"sync"
 	"unsafe"
 
@@ -87,7 +88,7 @@ type Client struct {
 	opts Options
 
 	clientWidth, clientHeight uint16
-	username, password        string
+	username                  string
 	rustClientRef             *C.Client
 	wg                        sync.WaitGroup
 	closeOnce                 sync.Once
@@ -97,12 +98,10 @@ type Client struct {
 func New(opts Options) (*Client, error) {
 	c := &Client{opts: opts}
 
-	if err := c.readClientSize(); err != nil {
+	if err := c.readClientUsername(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// For now, always prompt for username/password.
-	// Later we will implement autologin using certificates.
-	if err := c.promptClientCredentials(); err != nil {
+	if err := c.readClientSize(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := c.connect(); err != nil {
@@ -110,6 +109,22 @@ func New(opts Options) (*Client, error) {
 	}
 	c.start()
 	return c, nil
+}
+
+func (c *Client) readClientUsername() error {
+	for {
+		msg, err := c.opts.InputMessage()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		u, ok := msg.(deskproto.ClientUsername)
+		if !ok {
+			logrus.Debugf("Expected ClientUsername message, got %T", msg)
+			continue
+		}
+		c.username = u.Username
+		return nil
+	}
 }
 
 func (c *Client) readClientSize() error {
@@ -129,32 +144,20 @@ func (c *Client) readClientSize() error {
 	}
 }
 
-func (c *Client) promptClientCredentials() error {
-	if err := c.opts.OutputMessage(deskproto.UsernamePasswordRequired{}); err != nil {
-		return trace.Wrap(err)
-	}
-	for {
-		msg, err := c.opts.InputMessage()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		r, ok := msg.(deskproto.UsernamePasswordResponse)
-		if !ok {
-			logrus.Debugf("Expected UsernamePasswordResponse message, got %T", msg)
-			continue
-		}
-		c.username = r.Username
-		c.password = r.Password
-		return nil
-	}
-}
-
 func (c *Client) connect() error {
 	addr := C.CString(c.opts.Addr)
 	defer C.free(unsafe.Pointer(addr))
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
-	password := C.CString(c.password)
+
+	// *Temporary* hack for injecting passwords until we implement cert-based
+	// authentication.
+	// TODO(awly): remove this after certificates are implemented.
+	passwordStr := os.Getenv("TELEPORT_DEV_RDP_PASSWORD")
+	if passwordStr == "" {
+		return trace.BadParameter("missing TELEPORT_DEV_RDP_PASSWORD env var and certificate authentication is not implemented yet")
+	}
+	password := C.CString(passwordStr)
 	defer C.free(unsafe.Pointer(password))
 
 	res := C.connect_rdp(

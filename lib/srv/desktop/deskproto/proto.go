@@ -19,13 +19,12 @@ import (
 type MessageType byte
 
 const (
-	TypeClientScreenSpec         = MessageType(1)
-	TypePNGFrame                 = MessageType(2)
-	TypeMouseMove                = MessageType(3)
-	TypeMouseButton              = MessageType(4)
-	TypeKeyboardButton           = MessageType(5)
-	TypeUsernamePasswordRequired = MessageType(7)
-	TypeUsernamePasswordResponse = MessageType(8)
+	TypeClientScreenSpec = MessageType(1)
+	TypePNGFrame         = MessageType(2)
+	TypeMouseMove        = MessageType(3)
+	TypeMouseButton      = MessageType(4)
+	TypeKeyboardButton   = MessageType(5)
+	TypeClientUsername   = MessageType(7)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -49,10 +48,8 @@ func Decode(buf []byte) (Message, error) {
 		return decodeMouseButton(buf)
 	case byte(TypeKeyboardButton):
 		return decodeKeyboardButton(buf)
-	case byte(TypeUsernamePasswordRequired):
-		return decodeUsernamePasswordRequired(buf)
-	case byte(TypeUsernamePasswordResponse):
-		return decodeUsernamePasswordResponse(buf)
+	case byte(TypeClientUsername):
+		return decodeClientUsername(buf)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", buf[0])
 	}
@@ -210,49 +207,28 @@ func decodeClientScreenSpec(buf []byte) (ClientScreenSpec, error) {
 	return s, trace.Wrap(err)
 }
 
-// UsernamePasswordRequired is the request for client username and password.
-// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#7---usernamepassword-required
-type UsernamePasswordRequired struct {
-}
-
-func (r UsernamePasswordRequired) Encode() ([]byte, error) {
-	return []byte{byte(TypeUsernamePasswordRequired)}, nil
-}
-
-func decodeUsernamePasswordRequired(buf []byte) (UsernamePasswordRequired, error) {
-	return UsernamePasswordRequired{}, nil
-}
-
-// UsernamePasswordResponse is the client username and password.
-// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#8---usernamepassword-response
-type UsernamePasswordResponse struct {
+// ClientUsername is the client username.
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#7---client-username
+type ClientUsername struct {
 	Username string
-	Password string
 }
 
-func (r UsernamePasswordResponse) Encode() ([]byte, error) {
+func (r ClientUsername) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeUsernamePasswordResponse))
+	buf.WriteByte(byte(TypeClientUsername))
 	if err := encodeString(buf, r.Username); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := encodeString(buf, r.Password); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return buf.Bytes(), nil
 }
 
-func decodeUsernamePasswordResponse(buf []byte) (UsernamePasswordResponse, error) {
+func decodeClientUsername(buf []byte) (ClientUsername, error) {
 	r := bytes.NewReader(buf[1:])
 	username, err := decodeString(r)
 	if err != nil {
-		return UsernamePasswordResponse{}, trace.Wrap(err)
+		return ClientUsername{}, trace.Wrap(err)
 	}
-	password, err := decodeString(r)
-	if err != nil {
-		return UsernamePasswordResponse{}, trace.Wrap(err)
-	}
-	return UsernamePasswordResponse{Username: username, Password: password}, nil
+	return ClientUsername{Username: username}, nil
 }
 
 func encodeString(w io.Writer, s string) error {

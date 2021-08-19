@@ -24,8 +24,7 @@ func TestEncodeDecode(t *testing.T) {
 			return PNGFrame{Img: img}
 		}(),
 		ClientScreenSpec{Width: 123, Height: 456},
-		UsernamePasswordRequired{},
-		UsernamePasswordResponse{Username: "admin", Password: "hunter1"},
+		ClientUsername{Username: "admin"},
 	} {
 
 		buf, err := m.Encode()
