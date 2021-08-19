@@ -1211,6 +1211,7 @@ func (process *TeleportProcess) initAuthService() error {
 		AuditLog:                process.auditLog,
 		CipherSuites:            cfg.CipherSuites,
 		CASigningAlg:            cfg.CASignatureAlgorithm,
+		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 	})
