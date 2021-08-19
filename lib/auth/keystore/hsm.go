@@ -189,11 +189,6 @@ func (c *hsmKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypt
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// if there is no key, this CA may only be used for checking
-	if len(keyPair.Key) == 0 {
-		return keyPair.Cert, nil, nil
-	}
-
 	signer, err := c.GetSigner(keyPair.Key)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

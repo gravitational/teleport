@@ -64,9 +64,8 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
-	// CAPin is the hash of the SKPI of the root CA. Used to verify the cluster
-	// being joined is the one expected.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 	// --listen-ip flag
 	ListenIP net.IP
 	// --advertise-ip flag
@@ -311,9 +310,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// Read in how nodes will validate the CA.
-	if fc.CAPin != "" {
-		cfg.CAPin = fc.CAPin
-	}
+	cfg.CAPins = fc.CAPin
 
 	// Set diagnostic address
 	if fc.DiagAddr != "" {
@@ -1417,8 +1414,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
-	if clf.CAPin != "" {
-		cfg.CAPin = clf.CAPin
+	if len(clf.CAPins) != 0 {
+		cfg.CAPins = clf.CAPins
 	}
 
 	// apply --listen-ip flag:
