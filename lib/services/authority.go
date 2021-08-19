@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -45,32 +44,6 @@ import (
 // This differs from normal equality only in that resource IDs are ignored.
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"))
-}
-
-// NewJWTAuthority creates and returns a types.CertAuthority with a new
-// key pair.
-func NewJWTAuthority(clusterName string, keyStore keystore.KeyStore) (types.CertAuthority, error) {
-	jwtPrivateKey, signer, err := keyStore.GenerateRSA()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	jwtPublicKey, err := utils.MarshalPublicKey(signer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.JWTSigner,
-		ClusterName: clusterName,
-		ActiveKeys: types.CAKeySet{
-			JWT: []*types.JWTKeyPair{
-				&types.JWTKeyPair{
-					PrivateKey:     jwtPrivateKey,
-					PrivateKeyType: keystore.KeyType(jwtPrivateKey),
-					PublicKey:      jwtPublicKey,
-				},
-			},
-		},
-	})
 }
 
 // ValidateCertAuthority validates the CertAuthority
