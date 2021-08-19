@@ -41,11 +41,7 @@ Host *.{{ .ClusterName }} {{ .ProxyHost }}
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
     Port 3022
-    {{- if .Leaf }}
     ProxyCommand {{ .TSHPath }} config-proxy --proxy={{ .ProxyHost }}:{{ .ProxyPort }} %h:%p "{{ .ClusterName }}"
-    {{- else }}
-    ProxyCommand {{ .TSHPath }} config-proxy --proxy={{ .ProxyHost }}:{{ .ProxyPort }} %h:%p
-    {{- end }}
 `
 
 type hostConfigParameters struct {
@@ -55,7 +51,6 @@ type hostConfigParameters struct {
 	CertificateFilePath string
 	ProxyHost           string
 	ProxyPort           string
-	Leaf                bool
 	TSHPath             string
 }
 
@@ -133,7 +128,6 @@ func onConfig(cf *CLIConf) error {
 		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName),
 		ProxyHost:           proxyHost,
 		ProxyPort:           proxyPort,
-		Leaf:                false,
 		TSHPath:             cf.executablePath,
 	})
 	if err != nil {
@@ -148,7 +142,6 @@ func onConfig(cf *CLIConf) error {
 			CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName),
 			ProxyHost:           proxyHost,
 			ProxyPort:           proxyPort,
-			Leaf:                true,
 			TSHPath:             cf.executablePath,
 		})
 		if err != nil {
@@ -174,7 +167,7 @@ func onConfigProxy(cf *CLIConf) error {
 
 	// If the node is suffixed by either the root or leaf cluster name, remove it.
 	targetHost = strings.TrimSuffix(targetHost, "."+proxyHost)
-	targetHost = strings.TrimSuffix(targetHost, "."+cf.ConfigProxyLeaf)
+	targetHost = strings.TrimSuffix(targetHost, "."+cf.SiteName)
 
 	args := []string{
 		"-p",
@@ -183,11 +176,7 @@ func onConfigProxy(cf *CLIConf) error {
 		"-s",
 	}
 
-	if cf.ConfigProxyLeaf != "" {
-		args = append(args, fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, cf.ConfigProxyLeaf))
-	} else {
-		args = append(args, fmt.Sprintf("proxy:%s:%s", targetHost, targetPort))
-	}
+	args = append(args, fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, cf.SiteName))
 
 	// NOTE: This should eventually make use of `tsh proxy ssh`.
 	child := exec.Command(getDefaultSSHPath(), args...)
