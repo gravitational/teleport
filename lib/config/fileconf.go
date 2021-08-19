@@ -78,6 +78,10 @@ type FileConfig struct {
 	// Metrics is the "metrics_service" section in Teleport configuration file
 	// that defines the metrics service configuration
 	Metrics Metrics `yaml:"metrics_service,omitempty"`
+
+	// WindowsDesktop is the "windows_desktop_service" that defines the
+	// configuration for Windows Desktop Access.
+	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -346,8 +350,9 @@ type Global struct {
 	// If omitted, the default will be used.
 	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
 
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string `yaml:"ca_pin"`
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
+	// a single value or a list.
+	CAPin apiutils.Strings `yaml:"ca_pin"`
 
 	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
 	DiagAddr string `yaml:"diag_addr"`
@@ -531,6 +536,36 @@ type Auth struct {
 	// WebIdleTimeout sets global cluster default setting for WebUI client
 	// idle timeouts
 	WebIdleTimeout types.Duration `yaml:"web_idle_timeout,omitempty"`
+
+	// CAKeyParams configures how CA private keys will be created and stored.
+	CAKeyParams *CAKeyParams `yaml:"ca_key_params,omitempty"`
+}
+
+// CAKeyParams configures how CA private keys will be created and stored.
+type CAKeyParams struct {
+	// PKCS11 configures a PKCS#11 HSM to be used for private key generation and
+	// storage.
+	PKCS11 PKCS11 `yaml:"pkcs11"`
+}
+
+// PKCS11 configures a PKCS#11 HSM to be used for private key generation and
+// storage.
+type PKCS11 struct {
+	// ModulePath is the path to the PKCS#11 library.
+	ModulePath string `yaml:"module_path"`
+	// TokenLabel is the CKA_LABEL of the HSM token to use. Set this or
+	// SlotNumber to select a token.
+	TokenLabel string `yaml:"token_label,omitempty"`
+	// SlotNumber is the slot number of the HSM token to use. Set this or
+	// TokenLabel to select a token.
+	SlotNumber *int `yaml:"slot_number,omitempty"`
+	// Pin is the raw pin for connecting to the HSM. Set this or PinPath to set
+	// the pin.
+	Pin string `yaml:"pin,omitempty"`
+	// PinPath is a path to a file containing a pin for connecting to the HSM.
+	// Trailing newlines will be removed, other whitespace will be left. Set
+	// this or Pin to set the pin.
+	PinPath string `yaml:"pin_path,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -1163,4 +1198,14 @@ type Metrics struct {
 // MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
 func (m *Metrics) MTLSEnabled() bool {
 	return len(m.KeyPairs) > 0 && len(m.CACerts) > 0
+}
+
+// WindowsDesktopService contains configuration for windows_desktop_service.
+type WindowsDesktopService struct {
+	Service `yaml:",inline"`
+	// PublicAddr is a list of advertised public addresses of this service.
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
+	// Hosts is a list of static Windows hosts connected to this service in
+	// gateway mode.
+	Hosts []string `yaml:"hosts,omitempty"`
 }

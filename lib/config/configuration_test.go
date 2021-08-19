@@ -234,6 +234,7 @@ func TestConfigReading(t *testing.T) {
 				Type: "bolt",
 			},
 			DataDir: "/path/to/data",
+			CAPin:   apiutils.Strings([]string{"rsa256:123", "rsa256:456"}),
 		},
 		Auth: Auth{
 			Service: Service{
@@ -321,6 +322,14 @@ func TestConfigReading(t *testing.T) {
 			},
 			CACerts: []string{"/etc/teleport/ca.crt"},
 		},
+		WindowsDesktop: WindowsDesktopService{
+			Service: Service{
+				EnabledFlag:   "yes",
+				ListenAddress: "tcp://windows_desktop",
+			},
+			PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
+			Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
+		},
 	}, cmp.AllowUnexported(Service{})))
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
@@ -336,6 +345,8 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Databases.Enabled())
 	require.True(t, conf.Metrics.Configured())
 	require.True(t, conf.Metrics.Enabled())
+	require.True(t, conf.WindowsDesktop.Configured())
+	require.True(t, conf.WindowsDesktop.Enabled())
 
 	// good config from file
 	conf, err = ReadFromFile(testConfigs.configFileStatic)
@@ -589,6 +600,11 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			LockingMode:           constants.LockingModeBestEffort,
 		},
 	}))
+
+	require.Equal(t, "/usr/local/lib/example/path.so", cfg.Auth.KeyStore.Path)
+	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
+	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
+	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -610,6 +626,7 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.False(t, cfg.Apps.Enabled)
 	require.False(t, cfg.Databases.Enabled)
 	require.False(t, cfg.Metrics.Enabled)
+	require.False(t, cfg.WindowsDesktop.Enabled)
 	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
 	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
 }
@@ -921,6 +938,7 @@ func makeConfigFixture() string {
 	conf.Logger.Severity = "INFO"
 	conf.Logger.Format = LogFormat{Output: "text"}
 	conf.Storage.Type = "bolt"
+	conf.CAPin = []string{"rsa256:123", "rsa256:456"}
 
 	// auth service:
 	conf.Auth.EnabledFlag = "Yeah"
@@ -994,6 +1012,15 @@ func makeConfigFixture() string {
 			PrivateKey:  "/etc/teleport/proxy.key",
 			Certificate: "/etc/teleport/proxy.crt",
 		},
+	}
+
+	conf.WindowsDesktop = WindowsDesktopService{
+		Service: Service{
+			EnabledFlag:   "yes",
+			ListenAddress: "tcp://windows_desktop",
+		},
+		PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
+		Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 	}
 
 	return conf.DebugDumpToYAML()
