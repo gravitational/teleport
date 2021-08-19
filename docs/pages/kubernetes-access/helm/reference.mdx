@@ -1342,6 +1342,27 @@ This can be used for joining a Teleport agent to a Teleport cluster which does n
   One option might be to use Teleport's built-in [ACME support](#acme) enable [cert-manager support](#highavailabilitycertmanager).
 </Admonition>
 
+## `existingDataVolume`
+
+| Type | Default value |
+| - | - |
+| `string` | `""` |
+
+When `existingDataVolume` is set to the name of an existing volume, the `/var/lib/teleport` mount will use this volume instead of creating a new `emptyDir` volume.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  existingDataVolume: my-volume
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```bash
+  --set existingDataVolume=my-volume
+  ```
+  </TabItem>
+</Tabs>
+
 ## `podSecurityPolicy`
 
 ### `podSecurityPolicy.enabled`
