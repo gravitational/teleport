@@ -350,12 +350,9 @@ type Global struct {
 	// If omitted, the default will be used.
 	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
 
-	// DEPRECATED: Prefer CAPins
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string `yaml:"ca_pin"`
-
-	// CAPins is the list of SKPI hashes fo the CAs used to verify Auth Servers.
-	CAPins []string `yaml:"ca_pins"`
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
+	// a single value or a list.
+	CAPin apiutils.Strings `yaml:"ca_pin"`
 
 	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
 	DiagAddr string `yaml:"diag_addr"`

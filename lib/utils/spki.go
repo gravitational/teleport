@@ -47,18 +47,16 @@ func CheckSPKI(pins []string, certs []*x509.Certificate) error {
 	}
 	// Timing of this check depends only on the number of pins and certs, not
 	// their contents.
+outer:
 	for _, cert := range certs {
-		certHasMatchingPin := false
 		for _, pin := range pins {
 			// Check that that pin itself matches that value calculated from the passed
 			// in certificate.
 			if subtle.ConstantTimeCompare([]byte(CalculateSPKI(cert)), []byte(pin)) == 1 {
-				certHasMatchingPin = true
+				continue outer
 			}
 		}
-		if !certHasMatchingPin {
-			return trace.BadParameter(errorMessage)
-		}
+		return trace.BadParameter(errorMessage)
 	}
 
 	return nil

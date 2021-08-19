@@ -24,6 +24,7 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/subtle"
@@ -497,12 +498,7 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	if len(certs) < 1 {
 		return nil, trace.NotFound("no tls certs found in host CA")
 	}
-
-	allCerts := certs[0]
-	for i := 1; i < len(certs); i++ {
-		allCerts = append(allCerts, '\n')
-		allCerts = append(allCerts, certs[i]...)
-	}
+	allCerts := bytes.Join(certs, []byte("\n"))
 
 	return &LocalCAResponse{
 		TLSCA: allCerts,
