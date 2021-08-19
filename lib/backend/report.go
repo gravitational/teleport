@@ -291,19 +291,14 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 // is masked if it is determined to be sensitive based on sensitivePrefixes.
 func buildKeyLabel(key string, sensitivePrefixes []string) string {
 	parts := strings.Split(key, string(Separator))
-
-	// If the key doesn't match the pattern "/prefix/keyname..." return the key as is.
-	if len(parts) < 3 || strings.Index(key, string(Separator)) != 0 {
-		return key
-	}
-
-	// Cut the key down to "/prefix/keyname". otherwise too
-	// many distinct requests can end up in the key label map.
 	if len(parts) > 3 {
+		// Cut the key down to 3 parts. otherwise too many
+		// distinct requests can end up in the key label map.
 		parts = parts[:3]
 	}
 
-	if apiutils.SliceContainsStr(sensitivePrefixes, parts[1]) {
+	// If the key matches "/sensitiveprefix/keyname", mask the key.
+	if len(parts) == 3 && len(parts[0]) == 0 && apiutils.SliceContainsStr(sensitivePrefixes, parts[1]) {
 		parts[2] = MaskKeyName(parts[2])
 	}
 
