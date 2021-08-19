@@ -154,7 +154,7 @@ func (u *UserTokenV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// // String represents a human readable version of the token
+// String represents a human readable version of the token
 func (u *UserTokenV3) String() string {
 	return fmt.Sprintf("UserTokenV3(tokenID=%v, type=%v user=%v, expires at %v)", u.GetName(), u.GetSubKind(), u.Spec.User, u.Expiry())
 }
