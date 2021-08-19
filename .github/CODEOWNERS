@@ -2,9 +2,7 @@
 * @klizhentas @russjones @r0mant
 
 # Documentation.
-/docs/ @klizhentas @russjones
-/docs/pages/application-access/ @klizhentas @r0mant @russjones
-/docs/pages/database-access/ @klizhentas @r0mant @russjones
+/docs/ @klizhentas @russjones @r0mant
 
 # Frontend Engineering.
 /lib/web/ @alex-kovoy @russjones @r0mant
