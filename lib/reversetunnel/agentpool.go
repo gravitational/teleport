@@ -50,13 +50,19 @@ type AgentPool struct {
 	log          *log.Entry
 	cfg          AgentPoolConfig
 	proxyTracker *track.Tracker
-	ctx          context.Context
-	cancel       context.CancelFunc
+
+	// ctx controls the lifespan o the agent pool, and is used to control
+	// all of the sub-processes it spawns.
+	ctx    context.Context
+	cancel context.CancelFunc
 	// spawnLimiter limits agent spawn rate
 	spawnLimiter utils.Retry
 
 	mu     sync.Mutex
 	agents map[utils.NetAddr][]*Agent
+
+	// waitResult is a value that will be returned to the caller of Wait
+	result error
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -177,13 +183,15 @@ func (m *AgentPool) Stop() {
 }
 
 // Wait returns when agent pool is closed
-func (m *AgentPool) Wait() {
+func (m *AgentPool) Wait() error {
 	if m == nil {
-		return
+		return nil
 	}
 	<-m.ctx.Done()
+	return m.result
 }
 
+// processSeekEvents
 func (m *AgentPool) processSeekEvents() {
 	limiter := m.spawnLimiter.Clone()
 	for {
@@ -191,9 +199,14 @@ func (m *AgentPool) processSeekEvents() {
 		case <-m.ctx.Done():
 			m.log.Debugf("Halting seek event processing (pool closing)")
 			return
+
+		// The proxy tracker has given us permission to act on a given
+		// tunnel address
 		case lease := <-m.proxyTracker.Acquire():
 			m.log.Debugf("Seeking: %+v.", lease.Key())
 			m.withLock(func() {
+				// Note that ownership of the lease is transferred to agent
+				// pool for the lifetime of the connection
 				if err := m.addAgent(lease); err != nil {
 					m.log.WithError(err).Errorf("Failed to add agent.")
 				}
@@ -243,6 +256,7 @@ func filterAndClose(agents []*Agent, matchAgent matchAgentFn) []*Agent {
 func (m *AgentPool) pollAndSyncAgents() {
 	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-m.ctx.Done():
@@ -250,11 +264,16 @@ func (m *AgentPool) pollAndSyncAgents() {
 			m.log.Debugf("Closing.")
 			return
 		case <-ticker.C:
-			m.withLock(m.removeDisconnected)
+			m.withLock(func() {
+				m.removeDisconnected()
+			})
 		}
 	}
 }
 
+// addAgent adds a new agent to the pool. Note that ownership of the lease
+// transfers into the AgentPool, and will be released whet the AgentPool
+// is done with it.
 func (m *AgentPool) addAgent(lease track.Lease) error {
 	addr := lease.Key().(utils.NetAddr)
 	agent, err := NewAgent(AgentConfig{

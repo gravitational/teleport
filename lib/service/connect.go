@@ -444,12 +444,28 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	})
 	defer periodic.Stop()
 
+	errors := utils.NewTimedCounter(process.Clock, defaults.ConnectionErrorMeasurementPeriod)
+
 	for {
 		err := process.syncRotationStateCycle()
 		if err == nil {
 			return nil
 		}
-		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after ~%v.", err, defaults.HighResPollingPeriod)
+		process.log.WithError(err).Warningf("Sync rotation state cycle failed: %v", err)
+
+		// If we have had a *lot* of failures very recently, then it's likely that our
+		// route to the auth server is gone. If we're using a tunnel then it's possible
+		// that the proxy has been reconfigured and the tunnel address has moved.
+		if count := errors.Push(); count > defaults.MaxConnectionErrorsBeforeRestart {
+			// signal quit
+			process.log.Errorf("%d connection errors in %v. Triggering restart", count,
+				defaults.ConnectionErrorMeasurementPeriod)
+			process.BroadcastEvent(Event{Name: TeleportReloadEvent})
+			return nil
+		}
+
+		process.log.Warningf("Retrying in ~%v", defaults.HighResPollingPeriod)
+
 		select {
 		case <-periodic.Next():
 		case <-process.ExitContext().Done():
@@ -461,7 +477,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 // syncRotationCycle executes a rotation cycle that returns:
 //
 // * nil whenever rotation state leads to teleport reload event
-// * error whenever rotation sycle has to be restarted
+// * error whenever rotation cycle has to be restarted
 //
 // the function accepts extra delay timer extraDelay in case if parent
 // function needs a

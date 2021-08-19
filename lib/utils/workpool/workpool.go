@@ -20,6 +20,7 @@ import (
 	"context"
 	"sync"
 
+	log "github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
 )
 
@@ -31,9 +32,11 @@ type Pool struct {
 	mu       sync.Mutex
 	leaseIDs *atomic.Uint64
 	groups   map[interface{}]*group
-	grantC   chan Lease
-	ctx      context.Context
-	cancel   context.CancelFunc
+	// grantC is an unbuffered channel that funnels available leases from the
+	// workgroups to the outside world
+	grantC chan Lease
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewPool(ctx context.Context) *Pool {
@@ -50,6 +53,9 @@ func NewPool(ctx context.Context) *Pool {
 // Acquire is the channel which must be received on to acquire
 // new leases.  Each lease acquired in this way *must* have its
 // Release method called when the lease is no longer needed.
+// Note this channel will deliver leases from all active work
+// groups. It's up to the receiver to differentiate what group
+// the lease refers to and act accordingly.
 func (p *Pool) Acquire() <-chan Lease {
 	return p.grantC
 }
@@ -86,7 +92,6 @@ func (p *Pool) Set(key interface{}, target uint64) {
 }
 
 // Start starts a new work group with the specified initial target.
-// If Start returns false, the group already exists.
 func (p *Pool) start(key interface{}, target uint64) {
 	ctx, cancel := context.WithCancel(p.ctx)
 	notifyC := make(chan struct{}, 1)
@@ -103,6 +108,10 @@ func (p *Pool) start(key interface{}, target uint64) {
 		cancel:   cancel,
 	}
 	p.groups[key] = g
+
+	// Start a routine to monitor the group's lease acquisition
+	// and handle notifications when a lease is returned to the
+	// pool
 	go g.run()
 }
 
@@ -192,27 +201,39 @@ func (g *group) setTarget(target uint64) {
 	g.notify()
 }
 
+// run manages the issuing of leases and handling their return to the pool for
+// a given work group.
 func (g *group) run() {
+	log.Debugf("Entering dispatcher for group at %p", g)
+	defer log.Debugf("Leaving dispatcher for group at %p", g)
+
 	var counts Counts
 	var nextLease Lease
 	var grant chan Lease
 	for {
 		counts = g.loadCounts()
 		if counts.Active < counts.Target {
-			// we are in a "granting" state; ensure that the
-			// grant channel is non-nil, and initialize `nextLease`
+			// we are in a "granting" state; ensure that the grant channel
+			// is non-nil so that the lease can be exported to the outside
+			// world, and initialize the `nextLease` to be issued,
 			// if it hasn't been already.
 			grant = g.grantC
 			if nextLease.id == 0 {
 				nextLease = newLease(g)
 			}
+			log.Debugf("Granting lease #%d for group %p", nextLease.id, g)
+
 		} else {
 			// we are not in a "granting" state, ensure that the
-			// grant channel is nil (prevents sends).
+			// grant channel is nil, preventing us sending a lease to the
+			// outside world when we attempt to write to the channel later.
 			grant = nil
 		}
-		// if grant is nil, this select statement blocks until
-		// notify() is called, or the context is canceled.
+
+		// if `grant` is nil, this select statement blocks until notify() is
+		// called (usually by a lease being returned), or the context is
+		// canceled. Otherwise we post the lease to the outside world and
+		// block on someone picking it up.
 		select {
 		case grant <- nextLease:
 			g.incrActive()
@@ -256,13 +277,14 @@ func (l Lease) IsZero() bool {
 	return l == Lease{}
 }
 
-// Release relenquishes this lease.  Each lease is unique,
-// so double-calling Release on the same Lease has no effect.
+// Release relinquishes this lease. Each lease is unique,
+// so double-calling Release() on the same Lease has no effect.
 func (l Lease) Release() {
 	if l.IsZero() {
 		return
 	}
 	l.relOnce.Do(func() {
+		log.Debugf("Releasing lease #%d from group at %p", l.id, l.group)
 		l.decrActive()
 	})
 }
