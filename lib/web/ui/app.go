@@ -27,6 +27,8 @@ import (
 type App struct {
 	// Name is the name of the application.
 	Name string `json:"name"`
+	// Description is the app description.
+	Description string `json:"description"`
 	// URI is the internal address the application is available at.
 	URI string `json:"uri"`
 	// PublicAddr is the public address the application is accessible at.
@@ -57,12 +59,13 @@ func MakeApps(localClusterName string, localProxyDNSName string, appClusterName 
 			sort.Sort(sortedLabels(labels))
 
 			result = append(result, App{
-				Name:       teleApp.Name,
-				URI:        teleApp.URI,
-				PublicAddr: teleApp.PublicAddr,
-				Labels:     labels,
-				ClusterID:  appClusterName,
-				FQDN:       fqdn,
+				Name:        teleApp.Name,
+				Description: teleApp.Description,
+				URI:         teleApp.URI,
+				PublicAddr:  teleApp.PublicAddr,
+				Labels:      labels,
+				ClusterID:   appClusterName,
+				FQDN:        fqdn,
 			})
 		}
 	}
