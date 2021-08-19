@@ -206,7 +206,7 @@ const (
 type Desktop struct {
 	// OS is the os of this desktop
 	OS OS `json:"os"`
-	// Name is name (uuid) of the windows desktop.
+	// Name is name (uuid) of the desktop.
 	Name string `json:"name"`
 	// Addr is the network address the windows desktop can be reached at.
 	Addr string `json:"addr"`
