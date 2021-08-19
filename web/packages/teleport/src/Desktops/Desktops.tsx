@@ -33,10 +33,10 @@ import AddDialog from './AddDatabase';
 export default function Container() {
   const ctx = useTeleport();
   const state = useDesktops(ctx);
-  return <Databases {...state} />;
+  return <Desktops {...state} />;
 }
 
-export function Databases(props: State) {
+export function Desktops(props: State) {
   const {
     databases,
     attempt,

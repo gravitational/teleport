@@ -14,5 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Databases from './Databases';
-export default Databases;
+import Desktops from './Desktops';
+export default Desktops;
