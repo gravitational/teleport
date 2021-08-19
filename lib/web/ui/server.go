@@ -203,9 +203,6 @@ type Desktop struct {
 	Name string `json:"name"`
 	// Addr is the network address the desktop can be reached at.
 	Addr string `json:"addr"`
-	// Labels is a map of static and dynamic labels associated with a windows desktop.
-	// TODO: Labels []Label `json:"labels"`
-	// TODO all other data we want to display, see avocode
 }
 
 // MakeDesktops makes desktop objects for the ui to display
