@@ -123,6 +123,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newLockParser()
 		case types.KindNetworkRestrictions:
 			parser = newNetworkRestrictionsParser()
+		case types.KindWindowsDesktopService:
+			parser = newWindowsDesktopServicesParser()
+		case types.KindWindowsDesktop:
+			parser = newWindowsDesktopsParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -1096,6 +1100,56 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 			return nil, trace.Wrap(err)
 		}
 		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newWindowsDesktopServicesParser() *windowsDesktopServicesParser {
+	return &windowsDesktopServicesParser{
+		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix)),
+	}
+}
+
+type windowsDesktopServicesParser struct {
+	baseParser
+}
+
+func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindWindowsDesktopService, types.V3, 0)
+	case types.OpPut:
+		return services.UnmarshalWindowsDesktopService(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newWindowsDesktopsParser() *windowsDesktopsParser {
+	return &windowsDesktopsParser{
+		baseParser: newBaseParser(backend.Key(windowsDeskoptsPrefix)),
+	}
+}
+
+type windowsDesktopsParser struct {
+	baseParser
+}
+
+func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindWindowsDesktop, types.V3, 0)
+	case types.OpPut:
+		return services.UnmarshalWindowsDesktop(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

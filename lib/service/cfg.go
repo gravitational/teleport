@@ -109,6 +109,9 @@ type Config struct {
 	// Metrics defines the metrics service configuration.
 	Metrics MetricsConfig
 
+	// WindowsDesktop defines the Windows desktop service configuration.
+	WindowsDesktop WindowsDesktopConfig
+
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
@@ -793,6 +796,21 @@ type MetricsConfig struct {
 	CACerts []string
 }
 
+// WindowsDesktopConfig specifies the configuration for the Windows Desktop
+// Access service.
+type WindowsDesktopConfig struct {
+	Enabled bool
+	// ListenAddr is the address to listed on for incoming desktop connections.
+	ListenAddr utils.NetAddr
+	// PublicAddrs is a list of advertised public addresses of the service.
+	PublicAddrs []utils.NetAddr
+	// Hosts is an optional list of static Windows hosts to expose through this
+	// service.
+	Hosts []utils.NetAddr
+	// ConnLimiter limits the connection and request rates.
+	ConnLimiter limiter.Config
+}
+
 // Rewrite is a list of rewriting rules to apply to requests and responses.
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
@@ -931,6 +949,10 @@ func ApplyDefaults(cfg *Config) {
 
 	// Metrics service defaults.
 	cfg.Metrics.Enabled = false
+
+	// Windows desktop service is disabled by default.
+	cfg.WindowsDesktop.Enabled = false
+	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
