@@ -27,6 +27,14 @@
       "title": "Setup",
       "entries": [
         {
+          "title": "Admin Guides",
+          "slug": "/setup/admin/",
+          "entries": [
+            { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
+            { "title": "Daemon", "slug": "/setup/admin/daemon/" }
+          ]
+        },
+        {
           "title": "Deployments",
           "slug": "/setup/deployments/",
           "entries": [
@@ -48,7 +56,11 @@
           "title": "Reference",
           "slug": "/setup/reference/",
           "entries": [
-            { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" }
+            { "title": "Config File", "slug": "/setup/reference/config/" },
+            { "title": "Config Resources", "slug": "/setup/reference/resources/" },            
+            { "title": "Command Line", "slug": "/setup/reference/cli/" },
+            { "title": "Metrics", "slug": "/setup/reference/metrics/" },
+            { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" }            
           ]
         }
       ]
@@ -188,6 +200,15 @@
       ]
     },
     {
+      "icon": "list",
+      "title": "API",
+      "entries": [
+        {"title": "Introduction", "slug": "/api/introduction/"},
+        {"title": "Getting Started", "slug": "/api/getting-started/"},
+        {"title": "Architecture", "slug": "/api/architecture/"}
+      ]
+    },    
+    {
       "icon": "wand",
       "title": "Preview",
       "entries": [
@@ -250,24 +271,6 @@
         { "title": "Teleport Proxy", "slug": "/architecture/proxy/" },
         { "title": "Trusted Clusters", "slug": "/trustedclusters/" }
       ]
-    },
-    {
-      "icon": "list",
-      "title": "Reference",
-      "entries": [
-        { "title": "YAML", "slug": "/config-reference/" },
-        { "title": "CLI", "slug": "/cli-docs/" },
-        { "title": "Metrics", "slug": "/metrics-logs-reference/" },
-        {
-          "title": "API",
-          "slug": "/reference/api/",
-          "entries": [
-            {"title": "Introduction", "slug": "/reference/api/introduction/"},
-            {"title": "Getting Started", "slug": "/reference/api/getting-started/"},
-            {"title": "Architecture", "slug": "/reference/api/architecture/"}
-          ]
-        }
-      ]
     }
   ],
   "variables": {
@@ -318,6 +321,36 @@
     }
   },
   "redirects": [
+    {
+      "source": "/reference/api/architecture/",
+      "destination": "/api/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/getting-started/",
+      "destination": "/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/introduction/",
+      "destination": "/api/introduction/",
+      "permanent": true
+    },    
+    {
+      "source": "/metrics-logs-reference/",
+      "destination": "/setup/reference/metrics/",
+      "permanent": true
+    },
+    {
+      "source": "/config-reference/",
+      "destination": "/setup/reference/config/",
+      "permanent": true
+    },    
+    {
+      "source": "/cli-docs/",
+      "destination": "/setup/reference/cli/",
+      "permanent": true
+    },
     {
       "source": "/enterprise/ssh-kubernetes-fedramp/",
       "destination": "/enterprise/fedramp/",
