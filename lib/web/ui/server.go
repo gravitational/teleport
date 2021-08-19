@@ -193,3 +193,39 @@ func MakeDatabases(clusterName string, databases []types.Database) []Database {
 
 	return uiServers
 }
+
+// TODO: move this stuff to a more sensible constants file
+// OS is the string representation of the major operating systems we support.
+type OS string
+
+const (
+	Windows OS = "windows"
+)
+
+// Desktop describes a desktop to pass to the ui.
+type Desktop struct {
+	// OS is the os of this desktop
+	OS OS `json:"os"`
+	// Name is name (uuid) of the windows desktop.
+	Name string `json:"name"`
+	// Addr is the network address the windows desktop can be reached at.
+	Addr string `json:"addr"`
+	// Labels is a map of static and dynamic labels associated with a windows desktop.
+	// TODO: Labels []Label `json:"labels"`
+	// TODO all other data we want to display, see avocode
+}
+
+// MakeDesktops makes desktop objects for the ui to display
+func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
+	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
+
+	for _, windowsDesktop := range windowsDesktops {
+		uiDesktops = append(uiDesktops, Desktop{
+			OS:   Windows,
+			Name: windowsDesktop.GetName(),
+			Addr: windowsDesktop.GetAddr(),
+		})
+	}
+
+	return uiDesktops
+}
