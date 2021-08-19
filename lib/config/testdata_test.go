@@ -112,6 +112,12 @@ auth_service:
   tokens:
   - "proxy,node:xxx"
   - "auth:yyy"
+  ca_key_params:
+    pkcs11:
+      module_path: /usr/local/lib/example/path.so
+      token_label: "example_token"
+      slot_number: 1
+      pin: "example_pin"
   authentication:
     u2f:
       app_id: "app-id"
