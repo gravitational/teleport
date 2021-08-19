@@ -236,6 +236,7 @@ func TestConfigReading(t *testing.T) {
 				Type: "bolt",
 			},
 			DataDir: "/path/to/data",
+			CAPin:   apiutils.Strings([]string{"rsa256:123", "rsa256:456"}),
 		},
 		Auth: Auth{
 			Service: Service{
@@ -907,6 +908,7 @@ func makeConfigFixture() string {
 	conf.Logger.Severity = "INFO"
 	conf.Logger.Format = LogFormat{Output: "text"}
 	conf.Storage.Type = "bolt"
+	conf.CAPin = []string{"rsa256:123", "rsa256:456"}
 
 	// auth service:
 	conf.Auth.EnabledFlag = "Yeah"

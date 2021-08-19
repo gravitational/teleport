@@ -24,6 +24,7 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/subtle"
@@ -455,13 +456,15 @@ func (a *Server) GetDomainName() (string, error) {
 	return clusterName.GetClusterName(), nil
 }
 
-// LocalCAResponse contains PEM-encoded local CAs.
+// LocalCAResponse contains the concatenated PEM-encoded TLS certs for the local
+// cluster's Host CA
 type LocalCAResponse struct {
-	// TLSCA is the PEM-encoded TLS certificate authority.
+	// TLSCA is a PEM-encoded TLS certificate authority.
 	TLSCA []byte `json:"tls_ca"`
 }
 
-// GetClusterCACert returns the CAs for the local cluster without signing keys.
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
+// the cluster has multiple TLS certs, they will all be concatenated.
 func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
@@ -475,13 +478,15 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, _, err := a.keyStore.GetTLSCertAndSigner(hostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	certs := services.GetTLSCerts(hostCA)
+	if len(certs) < 1 {
+		return nil, trace.NotFound("no tls certs found in host CA")
 	}
+	allCerts := bytes.Join(certs, []byte("\n"))
 
 	return &LocalCAResponse{
-		TLSCA: cert,
+		TLSCA: allCerts,
 	}, nil
 }
 
