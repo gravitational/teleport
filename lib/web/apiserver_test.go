@@ -371,6 +371,7 @@ func (r *authPack) validateAPI(ctx context.Context, t *testing.T) {
 type authPack struct {
 	otpSecret string
 	user      string
+	pwd       []byte
 	login     string
 	session   *CreateSessionResponse
 	clt       *client.WebClient
@@ -2956,6 +2957,7 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 	return &authPack{
 		otpSecret: otpSecret,
 		user:      user,
+		pwd:       []byte(pass),
 		login:     loginUser,
 		session:   session,
 		clt:       clt,

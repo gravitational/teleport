@@ -866,23 +866,15 @@ func (a *ServerWithRoles) GetMFAAuthenticateChallenge(user string, password []by
 	return a.authServer.GetMFAAuthenticateChallenge(user, password)
 }
 
-// GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user
-// defined in the token.
-func (a *ServerWithRoles) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
-	// Token is its own authentication, no need to double check.
-	return a.authServer.GetMFAAuthenticateChallengeWithToken(ctx, req)
+// CreateAuthenticationChallenge creates and returns challenges for a users MFA devices.
+func (a *ServerWithRoles) CreateAuthenticationChallenge(ctx context.Context, req *proto.CreateAuthenticationChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	return a.authServer.CreateAuthenticationChallenge(ctx, req)
 }
 
-// GetMFADevicesWithToken retrieves challenges for all mfa devices for the user defined in the token.
-func (a *ServerWithRoles) GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADevicesWithTokenRequest) (*proto.GetMFADevicesResponse, error) {
+// DeleteMFADeviceNonstream deletes a mfa device for the user defined in the token.
+func (a *ServerWithRoles) DeleteMFADeviceNonstream(ctx context.Context, req *proto.DeleteMFADeviceNonstreamRequest) error {
 	// Token is its own authentication, no need to double check.
-	return a.authServer.GetMFADevicesWithToken(ctx, req)
-}
-
-// DeleteMFADeviceWithToken deletes a mfa device for the user defined in the token.
-func (a *ServerWithRoles) DeleteMFADeviceWithToken(ctx context.Context, req *proto.DeleteMFADeviceWithTokenRequest) error {
-	// Token is its own authentication, no need to double check.
-	return a.authServer.DeleteMFADeviceWithToken(ctx, req)
+	return a.authServer.DeleteMFADeviceNonstream(ctx, req)
 }
 
 // CreateWebSession creates a new web session for the specified user
@@ -2997,14 +2989,18 @@ func (a *ServerWithRoles) DeleteNetworkRestrictions(ctx context.Context) error {
 	return a.authServer.DeleteNetworkRestrictions(ctx)
 }
 
+// GetMFADevices returns a list of MFA devices.
+func (a *ServerWithRoles) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+	// Logged in users can view their own devices.
+	if req.GetTokenID() == "" {
+		req.Request = &proto.GetMFADevicesRequest_AuthenticatedUser{AuthenticatedUser: a.context.User.GetName()}
+	}
+
+	return a.authServer.GetMFADevices(ctx, req)
+}
+
 // TODO(awly): decouple auth.ClientI from auth.ServerWithRoles, they exist on
 // opposite sides of the connection.
-
-// GetMFADevices exists to satisfy auth.ClientI but is not implemented here.
-// Use auth.GRPCServer.GetMFADevices or client.Client.GetMFADevices instead.
-func (a *ServerWithRoles) GetMFADevices(context.Context, *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
-	return nil, trace.NotImplemented("bug: GetMFADevices must not be called on auth.ServerWithRoles")
-}
 
 // AddMFADevice exists to satisfy auth.ClientI but is not implemented here.
 // Use auth.GRPCServer.AddMFADevice or client.Client.AddMFADevice instead.

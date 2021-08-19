@@ -76,11 +76,7 @@ func (s *Server) CreateRecoveryStartToken(ctx context.Context, req *proto.Create
 	}
 
 	token, err := s.createRecoveryToken(ctx, req.GetUsername(), UserTokenTypeRecoveryStart, req.GetIsRecoverPassword())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return token, nil
+	return token, trace.Wrap(err)
 }
 
 // verifyCodeWithRecoveryLock counts number of failed attempts at providing a valid recovery code.
@@ -402,7 +398,7 @@ func (s *Server) SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto
 		}
 
 	case types.UserTokenUsage_RECOVER_2FA:
-		var newDevice *types.MFADevice
+		isDeviceCreated := false
 
 		if req.GetU2FRegisterResponse() != nil {
 			cap, err := s.GetAuthPreference(ctx)
@@ -415,7 +411,7 @@ func (s *Server) SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto
 				return trace.Wrap(err)
 			}
 
-			device, err := s.createNewU2FDevice(ctx, newU2FDeviceRequest{
+			if err := s.createNewU2FDevice(ctx, newU2FDeviceRequest{
 				tokenID:    req.GetTokenID(),
 				username:   token.GetUser(),
 				deviceName: req.GetDeviceName(),
@@ -424,49 +420,26 @@ func (s *Server) SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto
 					ClientData:       req.GetU2FRegisterResponse().GetClientData(),
 				},
 				cfg: cfg,
-			})
-			if err != nil {
-				if trace.IsAlreadyExists(err) {
-					// Return a shorter error message to user.
-					return trace.AlreadyExists("mfa device %q already exists", req.GetDeviceName())
-				}
+			}); err != nil {
 				return trace.Wrap(err)
 			}
-			newDevice = device
+			isDeviceCreated = true
 		}
 
 		if req.GetSecondFactorToken() != "" {
-			device, err := s.createNewTOTPDevice(ctx, newTOTPDeviceRequest{
+			if err := s.createNewTOTPDevice(ctx, newTOTPDeviceRequest{
 				tokenID:           req.GetTokenID(),
 				username:          token.GetUser(),
 				deviceName:        req.GetDeviceName(),
 				secondFactorToken: req.GetSecondFactorToken(),
-			})
-			if err != nil {
-				if trace.IsAlreadyExists(err) {
-					// Return a shorter error message to user.
-					return trace.AlreadyExists("mfa device %q already exists", req.GetDeviceName())
-				}
+			}); err != nil {
 				return trace.Wrap(err)
 			}
-			newDevice = device
+			isDeviceCreated = true
 		}
 
-		if newDevice == nil {
-			return trace.BadParameter("expected a new second factor credential")
-		}
-
-		if err := s.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceAdd{
-			Metadata: apievents.Metadata{
-				Type: events.MFADeviceAddEvent,
-				Code: events.MFADeviceAddEventCode,
-			},
-			UserMetadata: apievents.UserMetadata{
-				User: token.GetUser(),
-			},
-			MFADeviceMetadata: mfaDeviceEventMetadata(newDevice),
-		}); err != nil {
-			log.WithError(err).Warn("Failed to emit add mfa device event.")
+		if !isDeviceCreated {
+			return trace.BadParameter("expected a new mfa credential")
 		}
 
 	default:

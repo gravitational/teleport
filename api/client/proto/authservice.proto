@@ -786,33 +786,46 @@ message DeleteMFADeviceRequestInit {
 // DeleteMFADeviceResponseAck is a confirmation of successful device deletion.
 message DeleteMFADeviceResponseAck {}
 
-// GetMFADeviceRequest is a request for MFA devices for the calling user.
-message GetMFADevicesRequest {}
+// GetMFADevicesRequest is a request for MFA devices for the calling user.
+message GetMFADevicesRequest {
+    // Request defines how the user will be verified before receiving list of devices.
+    oneof Request {
+        // TokenID verifies existence of token and retrieves devices for user defined in token.
+        string TokenID = 1;
+        // AuthenticatedUser is a user who has beeng authenticated (logged in) and can
+        // view their own devices.
+        string AuthenticatedUser = 2;
+    }
+}
 
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
 message GetMFADevicesResponse { repeated types.MFADevice Devices = 1; }
 
-// GetMFADevicesWithTokenRequest is a request to get all the mfa devices for the user defined in
+// DeleteMFADeviceNonstreamRequest is a request to delete a mfa device for the user defined in
 // token.
-message GetMFADevicesWithTokenRequest {
-    // TokenID is the ID of a user token.
-    string TokenID = 1;
-}
-
-// DeleteMFADeviceWithTokenRequest is a request to delete a mfa device for the user defined in
-// token.
-message DeleteMFADeviceWithTokenRequest {
+message DeleteMFADeviceNonstreamRequest {
     // TokenID is the ID of a user token.
     string TokenID = 1;
     // DeviceID is the id of device to delete.
     string DeviceID = 2;
 }
 
-// GetMFAAuthenticateChallengeWithTokenRequest is a request for getting mfa challenges for the user
-// defined in token.
-message GetMFAAuthenticateChallengeWithTokenRequest {
-    // TokenID is the ID of a user token.
-    string TokenID = 1;
+// UserPwd describes fields for a user's username and password.
+message UserPwd {
+    string Username = 1;
+    bytes Password = 2;
+}
+
+// CreateAuthenticationChallengeRequest is a request for creating and returning mfa challenges for a
+// users devices.
+message CreateAuthenticationChallengeRequest {
+    // Request defines how the user will be verified before receiving MFA challenges.
+    oneof Request {
+        // UserPwd verifies users username and password.
+        UserPwd UserPwd = 1;
+        // TokenID verifies existence of token and creates challenges for the user defined in token.
+        string TokenID = 2;
+    }
 }
 
 // UserSingleUseCertsRequest is a request for a single-use user certificate.
@@ -1285,6 +1298,11 @@ service AuthService {
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+    // CreateAuthenticationChallenge creates and returns challenges for a users MFA devices.
+    rpc CreateAuthenticationChallenge(CreateAuthenticationChallengeRequest)
+        returns (MFAAuthenticateChallenge);
+    // DeleteMFADeviceNonstream deletes a mfa device for the user defined in the token.
+    rpc DeleteMFADeviceNonstream(DeleteMFADeviceNonstreamRequest) returns (google.protobuf.Empty);
 
     // GetOIDCConnector gets an OIDC connector resource by name.
     rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
@@ -1437,13 +1455,4 @@ service AuthService {
     // in the token.
     rpc CreateRecoveryCodesWithToken(CreateRecoveryCodesWithTokenRequest)
         returns (CreateRecoveryCodesWithTokenResponse);
-
-    // GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user
-    // defined in the token.
-    rpc GetMFAAuthenticateChallengeWithToken(GetMFAAuthenticateChallengeWithTokenRequest)
-        returns (MFAAuthenticateChallenge);
-    // GetMFADevicesWithToken returns all mfa devices for the user defined in the token.
-    rpc GetMFADevicesWithToken(GetMFADevicesWithTokenRequest) returns (GetMFADevicesResponse);
-    // DeleteMFADeviceWithToken deletes a mfa device for the user defined in the token.
-    rpc DeleteMFADeviceWithToken(DeleteMFADeviceWithTokenRequest) returns (google.protobuf.Empty);
 }

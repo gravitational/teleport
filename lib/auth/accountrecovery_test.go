@@ -214,28 +214,34 @@ func TestMFADeviceGetAndDeleteWithToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test retrieving the list of devices and deleting one device.
-	res, err := srv.Auth().GetMFADevicesWithToken(ctx, &proto.GetMFADevicesWithTokenRequest{TokenID: approvedToken.GetName()})
+	res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
+		Request: &proto.GetMFADevicesRequest_TokenID{TokenID: approvedToken.GetName()},
+	})
 	require.NoError(t, err)
 	require.Len(t, res.GetDevices(), 2)
 
-	err = srv.Auth().DeleteMFADeviceWithToken(ctx, &proto.DeleteMFADeviceWithTokenRequest{
+	err = srv.Auth().DeleteMFADeviceNonstream(ctx, &proto.DeleteMFADeviceNonstreamRequest{
 		TokenID:  approvedToken.GetName(),
 		DeviceID: res.GetDevices()[0].Id,
 	})
 	require.NoError(t, err)
 
 	// Delete the rest of devices.
-	res, err = srv.Auth().GetMFADevicesWithToken(ctx, &proto.GetMFADevicesWithTokenRequest{TokenID: approvedToken.GetName()})
+	res, err = srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
+		Request: &proto.GetMFADevicesRequest_TokenID{TokenID: approvedToken.GetName()},
+	})
 	require.NoError(t, err)
 	require.Len(t, res.GetDevices(), 1)
 
-	err = srv.Auth().DeleteMFADeviceWithToken(ctx, &proto.DeleteMFADeviceWithTokenRequest{
+	err = srv.Auth().DeleteMFADeviceNonstream(ctx, &proto.DeleteMFADeviceNonstreamRequest{
 		TokenID:  approvedToken.GetName(),
 		DeviceID: res.GetDevices()[0].Id,
 	})
 	require.NoError(t, err)
 
-	res, err = srv.Auth().GetMFADevicesWithToken(ctx, &proto.GetMFADevicesWithTokenRequest{TokenID: approvedToken.GetName()})
+	res, err = srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
+		Request: &proto.GetMFADevicesRequest_TokenID{TokenID: approvedToken.GetName()},
+	})
 	require.NoError(t, err)
 	require.Len(t, res.GetDevices(), 0)
 }
@@ -291,7 +297,7 @@ func TestAddTOTPWithRecoveryTokenAndPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test there are 2 mfa devices.
-	mfas, err := srv.Auth().GetMFADevices(ctx, u.username)
+	mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username)
 	require.NoError(t, err)
 
 	deviceNames := make([]string, 0, len(mfas))
@@ -341,10 +347,17 @@ func TestAddU2FWithRecoveryTokenAndPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Preserve first u2f key handle.
-	chal, err := srv.Auth().GetMFAAuthenticateChallenge(u.username, u.password)
+	chal, err := srv.Auth().CreateAuthenticationChallenge(ctx, &proto.CreateAuthenticationChallengeRequest{
+		Request: &proto.CreateAuthenticationChallengeRequest_UserPwd{
+			UserPwd: &proto.UserPwd{
+				Username: u.username,
+				Password: u.password,
+			},
+		},
+	})
 	require.NoError(t, err)
-	require.Len(t, chal.U2FChallenges, 1)
-	firstChal := chal.U2FChallenges[0]
+	require.Len(t, chal.GetU2F(), 1)
+	firstChal := chal.GetU2F()[0]
 
 	// Get access to begin recovery.
 	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
@@ -383,17 +396,26 @@ func TestAddU2FWithRecoveryTokenAndPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// There should be 2 mfa devices.
-	res, err := srv.Auth().GetMFADevicesWithToken(ctx, &proto.GetMFADevicesWithTokenRequest{TokenID: approvedToken.GetName()})
+	res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
+		Request: &proto.GetMFADevicesRequest_TokenID{TokenID: approvedToken.GetName()},
+	})
 	require.NoError(t, err)
 	require.Len(t, res.GetDevices(), 2)
 
 	// Try authenticating with the two u2f devices.
-	chal, err = srv.Auth().GetMFAAuthenticateChallenge(u.username, u.password)
+	chal, err = srv.Auth().CreateAuthenticationChallenge(ctx, &proto.CreateAuthenticationChallengeRequest{
+		Request: &proto.CreateAuthenticationChallengeRequest_UserPwd{
+			UserPwd: &proto.UserPwd{
+				Username: u.username,
+				Password: u.password,
+			},
+		},
+	})
 	require.NoError(t, err)
-	require.Len(t, chal.U2FChallenges, 2)
+	require.Len(t, chal.GetU2F(), 2)
 
-	var secondChal u2f.SignRequest
-	for _, chal := range chal.U2FChallenges {
+	var secondChal *proto.U2FChallenge
+	for _, chal := range chal.GetU2F() {
 		if chal.KeyHandle != firstChal.KeyHandle {
 			secondChal = chal
 		} else {
@@ -463,7 +485,7 @@ func TestChangePasswordWithRecoveryTokenAndOTP(t *testing.T) {
 	require.Equal(t, UserTokenTypeRecoveryStart, startToken.GetSubKind())
 
 	// Get new otp code
-	mfas, err := srv.Auth().GetMFADevices(ctx, u.username)
+	mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username)
 	require.NoError(t, err)
 
 	newOTP, err := totp.GenerateCode(mfas[0].GetTotp().Key, srv.Clock().Now().Add(30*time.Second))
@@ -519,8 +541,8 @@ func TestChangePasswordWithRecoveryTokenAndU2F(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get u2f challenge and sign.
-	chal, err := srv.Auth().GetMFAAuthenticateChallengeWithToken(ctx, &proto.GetMFAAuthenticateChallengeWithTokenRequest{
-		TokenID: startToken.GetName(),
+	chal, err := srv.Auth().CreateAuthenticationChallenge(ctx, &proto.CreateAuthenticationChallengeRequest{
+		Request: &proto.CreateAuthenticationChallengeRequest_TokenID{TokenID: startToken.GetName()},
 	})
 	require.NoError(t, err)
 
@@ -705,7 +727,7 @@ func TestRecoveryAllowedWithLoginLocked(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set up new totp.
-	mfas, err := srv.Auth().GetMFADevices(ctx, u.username)
+	mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username)
 	require.NoError(t, err)
 
 	newOTP, err := totp.GenerateCode(mfas[0].GetTotp().Key, srv.Clock().Now().Add(30*time.Second))
@@ -777,7 +799,7 @@ func TestInvalidUserAuthCred(t *testing.T) {
 	token, err = srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, false)
 	require.NoError(t, err)
 	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{TokenID: token.GetName()})
-	require.Contains(t, err.Error(), "new second factor")
+	require.Contains(t, err.Error(), "new mfa")
 }
 
 type userAuthCreds struct {

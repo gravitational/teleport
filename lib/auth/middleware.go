@@ -362,11 +362,7 @@ func (a *Middleware) getCustomRate(endpoint string) *ratelimit.RateSet {
 		"/proto.AuthService/ChangePasswordWithToken",
 		"/proto.AuthService/CreateRecoveryStartToken",
 		"/proto.AuthService/AuthenticateUserWithRecoveryToken",
-		"/proto.AuthService/SetNewAuthCredWithRecoveryToken",
-		"/proto.AuthService/CreateRecoveryCodesWithToken",
-		"/proto.AuthService/GetMFAAuthenticateChallengeWithToken",
-		"/proto.AuthService/GetMFADevicesWithToken",
-		"/proto.AuthService/DeleteMFADeviceWithToken":
+		"/proto.AuthService/CreateAuthenticationChallenge":
 		rates := ratelimit.NewRateSet()
 		if err := rates.Add(time.Minute, 1, 10); err != nil {
 			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)

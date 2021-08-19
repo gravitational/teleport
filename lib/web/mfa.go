@@ -32,28 +32,28 @@ type mfaChallengeRequestWithTokenRequest struct {
 	TokenID string `json:"tokenId"`
 }
 
-// getMFAChallengeRequestWithTokenHandle retrieves mfa challengges for the user defined in token.
-func (h *Handler) getMFAChallengeRequestWithTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+// createAuthnChallengeWithTokenHandle retrieves MFA challengges for the user defined in token.
+func (h *Handler) createAuthnChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	var req mfaChallengeRequestWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := h.GetProxyClient().GetMFAAuthenticateChallengeWithToken(r.Context(), &proto.GetMFAAuthenticateChallengeWithTokenRequest{
-		TokenID: req.TokenID,
+	res, err := h.GetProxyClient().CreateAuthenticationChallenge(r.Context(), &proto.CreateAuthenticationChallengeRequest{
+		Request: &proto.CreateAuthenticationChallengeRequest_TokenID{TokenID: req.TokenID},
 	})
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to get mfa auth challenges.")
 		return nil, trace.AccessDenied("unable to get mfa challenges")
 	}
 
-	return makeMFAAuthenticateChallenge(res), nil
+	return makeAuthenticationChallenge(res), nil
 }
 
 // getMFADevicesWithTokenHandle retrieves all mfa devices for the user defined in the token.
 func (h *Handler) getMFADevicesWithTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	res, err := h.GetProxyClient().GetMFADevicesWithToken(r.Context(), &proto.GetMFADevicesWithTokenRequest{
-		TokenID: params.ByName("token"),
+	res, err := h.GetProxyClient().GetMFADevices(r.Context(), &proto.GetMFADevicesRequest{
+		Request: &proto.GetMFADevicesRequest_TokenID{TokenID: params.ByName("token")},
 	})
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to get mfa devices.")
@@ -76,7 +76,7 @@ func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := h.GetProxyClient().DeleteMFADeviceWithToken(r.Context(), &proto.DeleteMFADeviceWithTokenRequest{
+	if err := h.GetProxyClient().DeleteMFADeviceNonstream(r.Context(), &proto.DeleteMFADeviceNonstreamRequest{
 		TokenID:  req.TokenID,
 		DeviceID: req.DeviceID,
 	}); err != nil {
@@ -87,7 +87,7 @@ func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.
 	return OK(), nil
 }
 
-func makeMFAAuthenticateChallenge(res *proto.MFAAuthenticateChallenge) *auth.MFAAuthenticateChallenge {
+func makeAuthenticationChallenge(res *proto.MFAAuthenticateChallenge) *auth.MFAAuthenticateChallenge {
 	// Convert from proto to JSON format.
 	chal := &auth.MFAAuthenticateChallenge{
 		TOTPChallenge: res.TOTP != nil,

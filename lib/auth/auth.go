@@ -1143,42 +1143,67 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	return chal, nil
 }
 
-// GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user defined in the token.
-func (a *Server) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
-	token, err := a.GetUserToken(ctx, req.GetTokenID())
-	if err != nil {
-		return nil, trace.Wrap(err)
+// CreateAuthenticationChallenge creates and returns challenges for a users MFA devices.
+func (a *Server) CreateAuthenticationChallenge(ctx context.Context, req *proto.CreateAuthenticationChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	username := ""
+
+	// Determine how to verify user.
+	switch req.GetRequest().(type) {
+	case *proto.CreateAuthenticationChallengeRequest_UserPwd:
+		username = req.GetUserPwd().Username
+		err := a.WithUserLock(username, func() error {
+			return a.checkPasswordWOToken(username, req.GetUserPwd().Password)
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	case *proto.CreateAuthenticationChallengeRequest_TokenID:
+		token, err := a.getRecoveryStartToken(ctx, req.GetTokenID())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		username = token.GetUser()
+
+	default:
+		return nil, trace.BadParameter("missing request parameter")
 	}
 
-	// Restrict to certain kinds of user token.
-	if token.GetSubKind() != UserTokenTypeRecoveryStart {
-		return nil, trace.BadParameter("invalid token")
-	}
-
-	if token.Expiry().Before(a.clock.Now().UTC()) {
-		return nil, trace.BadParameter("expired token")
-	}
-
-	return a.mfaAuthChallenge(ctx, token.GetUser(), a.Identity)
+	protoChal, err := a.mfaAuthChallenge(ctx, username, a.Identity)
+	return protoChal, trace.Wrap(err)
 }
 
-// GetMFADevicesWithToken returns all mfa devices for the user defined in the token.
-func (a *Server) GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADevicesWithTokenRequest) (*proto.GetMFADevicesResponse, error) {
-	token, err := a.GetUserToken(ctx, req.GetTokenID())
-	if err != nil {
-		return nil, trace.Wrap(err)
+// GetMFADevices returns all mfa devices for the user defined in the token.
+func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+	username := ""
+
+	// Determine how to verify user.
+	switch req.GetRequest().(type) {
+	case *proto.GetMFADevicesRequest_TokenID:
+		token, err := a.GetUserToken(ctx, req.GetTokenID())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Restrict to certain kinds of user token and usage.
+		if !isTokenRecoveryApprovedFor2FA(token) {
+			return nil, trace.BadParameter("invalid token")
+		}
+
+		if token.Expiry().Before(a.clock.Now().UTC()) {
+			return nil, trace.BadParameter("expired token")
+		}
+
+		username = token.GetUser()
+
+	case *proto.GetMFADevicesRequest_AuthenticatedUser:
+		username = req.GetAuthenticatedUser()
+
+	default:
+		return nil, trace.BadParameter("missing request parameter")
 	}
 
-	// Restrict to certain kinds of user token and usage.
-	if token.GetSubKind() != UserTokenTypeRecoveryApproved || token.GetUsage() != types.UserTokenUsage_RECOVER_2FA {
-		return nil, trace.BadParameter("invalid token")
-	}
-
-	if token.Expiry().Before(a.clock.Now().UTC()) {
-		return nil, trace.BadParameter("expired token")
-	}
-
-	devs, err := a.GetMFADevices(ctx, token.GetUser())
+	devs, err := a.Identity.GetMFADevices(ctx, username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1188,15 +1213,15 @@ func (a *Server) GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADe
 	}, nil
 }
 
-// DeleteMFADeviceWithToken deletes a mfa device.
-func (a *Server) DeleteMFADeviceWithToken(ctx context.Context, req *proto.DeleteMFADeviceWithTokenRequest) error {
+// DeleteMFADeviceNonstream deletes a mfa device.
+func (a *Server) DeleteMFADeviceNonstream(ctx context.Context, req *proto.DeleteMFADeviceNonstreamRequest) error {
 	token, err := a.GetUserToken(ctx, req.GetTokenID())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Restrict to certain kinds of user token and usage.
-	if token.GetSubKind() != UserTokenTypeRecoveryApproved || token.GetUsage() != types.UserTokenUsage_RECOVER_2FA {
+	if !isTokenRecoveryApprovedFor2FA(token) {
 		return trace.BadParameter("invalid token")
 	}
 
@@ -2542,7 +2567,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 		}
 	}
 
-	devs, err := a.GetMFADevices(ctx, user)
+	devs, err := a.Identity.GetMFADevices(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2603,7 +2628,7 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 }
 
 func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
-	devs, err := a.GetMFADevices(ctx, user)
+	devs, err := a.Identity.GetMFADevices(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -177,7 +177,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 }
 
 func (s *Server) resetMFA(ctx context.Context, user string) error {
-	devs, err := s.GetMFADevices(ctx, user)
+	devs, err := s.Identity.GetMFADevices(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -407,6 +407,10 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 
 // createRecoveryToken creates a user token for account recovery.
 func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType string, isRecoverPassword bool) (types.UserToken, error) {
+	if tokenType != UserTokenTypeRecoveryStart && tokenType != UserTokenTypeRecoveryApproved {
+		return nil, trace.BadParameter("invalid recovery token type")
+	}
+
 	req := CreateUserTokenRequest{
 		Name: username,
 		Type: tokenType,
@@ -450,11 +454,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 	}
 
 	token, err := s.getRecoveryToken(ctx, newToken.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return token, nil
+	return token, trace.Wrap(err)
 }
 
 // getRecoveryToken returns user token with subkind set to either recovery start or approved token.
@@ -509,4 +509,8 @@ func (s *Server) getRecoveryStartToken(ctx context.Context, tokenID string) (typ
 	}
 
 	return token, nil
+}
+
+func isTokenRecoveryApprovedFor2FA(token types.UserToken) bool {
+	return token.GetSubKind() == UserTokenTypeRecoveryApproved && token.GetUsage() == types.UserTokenUsage_RECOVER_2FA
 }

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -74,7 +75,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.Equal(t, event.(*apievents.UserTokenCreate).User, teleport.UserSystem)
 
 	// verify that user has no MFA devices
-	devs, err := srv.Auth().GetMFADevices(ctx, username)
+	devs, err := srv.Auth().Identity.GetMFADevices(ctx, username)
 	require.NoError(t, err)
 	require.Empty(t, devs)
 
@@ -347,6 +348,9 @@ func TestBackwardsCompForUserTokenWithLegacyPrefix(t *testing.T) {
 func TestCreateRecoveryToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
+	fakeClock := srv.Clock().(clockwork.FakeClock)
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
 
 	username := "joe@example.com"
 	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
@@ -354,6 +358,7 @@ func TestCreateRecoveryToken(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Test creating recovery start token.
 	startToken, err := srv.Auth().createRecoveryToken(ctx, username, UserTokenTypeRecoveryStart, true)
 	require.NoError(t, err)
 	require.Equal(t, startToken.GetURL(), "https://<proxyhost>:3080/web/recovery/"+startToken.GetName())
@@ -366,6 +371,12 @@ func TestCreateRecoveryToken(t *testing.T) {
 	// Test usage setting.
 	require.Equal(t, types.UserTokenUsage_RECOVER_PWD, startToken.GetUsage())
 
+	// Test expired token.
+	fakeClock.Advance(defaults.MaxRecoveryStartTokenTTL)
+	_, err = srv.Auth().getRecoveryApprovedToken(ctx, startToken.GetName())
+	require.True(t, trace.IsNotFound(err))
+
+	// Test creating recovery approved token.
 	approvedToken, err := srv.Auth().createRecoveryToken(ctx, username, UserTokenTypeRecoveryApproved, false)
 	require.NoError(t, err)
 	require.Equal(t, approvedToken.GetURL(), "https://<proxyhost>:3080/web/recovery/"+approvedToken.GetName())
@@ -376,6 +387,17 @@ func TestCreateRecoveryToken(t *testing.T) {
 
 	// Test usage setting.
 	require.Equal(t, types.UserTokenUsage_RECOVER_2FA, approvedToken.GetUsage())
+
+	// Test events emitted.
+	event := mockEmitter.LastEvent()
+	require.Equal(t, event.GetType(), events.RecoveryTokenCreateEvent)
+	require.Equal(t, event.GetCode(), events.RecoveryTokenCreateCode)
+	require.Equal(t, event.(*apievents.UserTokenCreate).Name, "joe@example.com")
+
+	// Test expired token.
+	fakeClock.Advance(defaults.MaxRecoveryApprovedTokenTTL)
+	_, err = srv.Auth().getRecoveryApprovedToken(ctx, approvedToken.GetName())
+	require.True(t, trace.IsNotFound(err))
 }
 
 type debugAuth struct {

@@ -175,7 +175,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		case constants.SecondFactorOptional:
 			// 2FA is optional. Make sure that a user does not have MFA devices
 			// registered.
-			devs, err := s.GetMFADevices(ctx, req.Username)
+			devs, err := s.Identity.GetMFADevices(ctx, req.Username)
 			if err != nil && !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}

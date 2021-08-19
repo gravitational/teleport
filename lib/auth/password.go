@@ -143,7 +143,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 				return trace.Wrap(err)
 			}
 			// Check that a user has no MFA devices registered.
-			devs, err := s.GetMFADevices(ctx, userID)
+			devs, err := s.Identity.GetMFADevices(ctx, userID)
 			if err != nil && !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
@@ -273,7 +273,7 @@ func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 			return nil, trace.BadParameter("previously used totp token")
 		}
 
-		devs, err := s.GetMFADevices(ctx, user)
+		devs, err := s.Identity.GetMFADevices(ctx, user)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -435,16 +435,14 @@ func (s *Server) changeUserSecondFactor(req *proto.ChangePasswordWithTokenReques
 		if secondFactor == constants.SecondFactorU2F {
 			return trace.BadParameter("user %q sent an OTP token during password reset but cluster only allows U2F for second factor", username)
 		}
-		if _, err := s.createNewTOTPDevice(ctx, newTOTPDeviceRequest{
+		err := s.createNewTOTPDevice(ctx, newTOTPDeviceRequest{
 			tokenID:           req.GetTokenID(),
 			username:          username,
 			deviceName:        req.GetDeviceName(),
 			secondFactorToken: req.GetSecondFactorToken(),
-		}); err != nil {
-			return trace.Wrap(err)
-		}
+		})
 
-		return nil
+		return trace.Wrap(err)
 	}
 
 	if req.U2FRegisterResponse != nil {
@@ -457,7 +455,7 @@ func (s *Server) changeUserSecondFactor(req *proto.ChangePasswordWithTokenReques
 			return trace.Wrap(err)
 		}
 
-		if _, err := s.createNewU2FDevice(ctx, newU2FDeviceRequest{
+		err = s.createNewU2FDevice(ctx, newU2FDeviceRequest{
 			tokenID:    req.GetTokenID(),
 			username:   username,
 			deviceName: req.GetDeviceName(),
@@ -466,11 +464,9 @@ func (s *Server) changeUserSecondFactor(req *proto.ChangePasswordWithTokenReques
 				ClientData:       req.GetU2FRegisterResponse().GetClientData(),
 			},
 			cfg: cfg,
-		}); err != nil {
-			return trace.Wrap(err)
-		}
+		})
 
-		return nil
+		return trace.Wrap(err)
 	}
 
 	if secondFactor != constants.SecondFactorOptional {
@@ -486,10 +482,10 @@ type newTOTPDeviceRequest struct {
 	secondFactorToken string
 }
 
-func (s *Server) createNewTOTPDevice(ctx context.Context, req newTOTPDeviceRequest) (*types.MFADevice, error) {
+func (s *Server) createNewTOTPDevice(ctx context.Context, req newTOTPDeviceRequest) error {
 	secrets, err := s.Identity.GetUserTokenSecrets(ctx, req.tokenID)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	deviceName := req.deviceName
@@ -500,23 +496,35 @@ func (s *Server) createNewTOTPDevice(ctx context.Context, req newTOTPDeviceReque
 
 	dev, err := services.NewTOTPDevice(deviceName, secrets.GetOTPKey(), s.clock.Now())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	if err := s.checkTOTP(ctx, req.username, req.secondFactorToken, dev); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	if err := s.UpsertMFADevice(ctx, req.username, dev); err != nil {
-		return nil, trace.Wrap(err)
+		if trace.IsAlreadyExists(err) {
+			// Return a shorter error message to user.
+			return trace.AlreadyExists("MFA device named %q already exists", req.deviceName)
+		}
+		return trace.Wrap(err)
 	}
 
-	device, err := s.GetMFADevice(ctx, req.username, dev.Id)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceAdd{
+		Metadata: apievents.Metadata{
+			Type: events.MFADeviceAddEvent,
+			Code: events.MFADeviceAddEventCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: req.username,
+		},
+		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit add mfa device event.")
 	}
 
-	return device, nil
+	return nil
 }
 
 type newU2FDeviceRequest struct {
@@ -527,7 +535,7 @@ type newU2FDeviceRequest struct {
 	cfg                 *types.U2F
 }
 
-func (s *Server) createNewU2FDevice(ctx context.Context, req newU2FDeviceRequest) (*types.MFADevice, error) {
+func (s *Server) createNewU2FDevice(ctx context.Context, req newU2FDeviceRequest) error {
 	deviceName := req.deviceName
 	if deviceName == "" {
 		// Default value still used upon UI invite/reset forms.
@@ -544,13 +552,25 @@ func (s *Server) createNewU2FDevice(ctx context.Context, req newU2FDeviceRequest
 		AttestationCAs:         req.cfg.DeviceAttestationCAs,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if trace.IsAlreadyExists(err) {
+			// Return a shorter error message to user.
+			return trace.AlreadyExists("MFA device named %q already exists", req.deviceName)
+		}
+		return trace.Wrap(err)
 	}
 
-	device, err := s.GetMFADevice(ctx, req.username, dev.Id)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceAdd{
+		Metadata: apievents.Metadata{
+			Type: events.MFADeviceAddEvent,
+			Code: events.MFADeviceAddEventCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: req.username,
+		},
+		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit add mfa device event.")
 	}
 
-	return device, nil
+	return nil
 }

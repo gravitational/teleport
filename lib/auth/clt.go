@@ -1820,15 +1820,8 @@ type IdentityService interface {
 	// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
 	GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error)
 
-	// GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user
-	// defined in the token.
-	GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error)
-
-	// GetMFADevicesWithToken returns all mfa devices for the user defined in the token.
-	GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADevicesWithTokenRequest) (*proto.GetMFADevicesResponse, error)
-
-	// DeleteMFADeviceWithToken deletes a mfa device for the user defined in the token.
-	DeleteMFADeviceWithToken(ctx context.Context, req *proto.DeleteMFADeviceWithTokenRequest) error
+	// CreateAuthenticationChallenge creates and returns challenges for a users MFA devices.
+	CreateAuthenticationChallenge(ctx context.Context, req *proto.CreateAuthenticationChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
 	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
@@ -1930,6 +1923,8 @@ type IdentityService interface {
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
+	// DeleteMFADeviceNonstream deletes a mfa device for the user defined in the token.
+	DeleteMFADeviceNonstream(ctx context.Context, req *proto.DeleteMFADeviceNonstreamRequest) error
 }
 
 // ProvisioningService is a service in control

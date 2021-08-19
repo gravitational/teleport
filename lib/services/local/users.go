@@ -1126,11 +1126,8 @@ func (s *IdentityService) UpsertRecoveryCodes(ctx context.Context, user string, 
 		Value: value,
 	}
 
-	if _, err := s.Put(ctx, item); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	_, err = s.Put(ctx, item)
+	return trace.Wrap(err)
 }
 
 // CreateUserRecoveryAttempt creates new user recovery attempt.
@@ -1155,7 +1152,6 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 	}
 
 	_, err = s.Create(ctx, item)
-
 	return trace.Wrap(err)
 }
 

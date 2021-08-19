@@ -1625,7 +1625,7 @@ func addMFADeviceInit(gctx *grpcContext, stream proto.AuthService_AddMFADeviceSe
 	if initReq == nil {
 		return nil, trace.BadParameter("expected AddMFADeviceRequestInit, got %T", req)
 	}
-	devs, err := gctx.authServer.GetMFADevices(stream.Context(), gctx.User.GetName())
+	devs, err := gctx.authServer.Identity.GetMFADevices(stream.Context(), gctx.User.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1825,7 +1825,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	}
 
 	// Find the device and delete it from backend.
-	devs, err := auth.GetMFADevices(ctx, user)
+	devs, err := auth.Identity.GetMFADevices(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1960,54 +1960,30 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 		return nil, trace.Wrap(err)
 	}
 
-	devs, err := actx.authServer.GetMFADevices(ctx, actx.User.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	// TODO(awly): mfa: remove secrets from MFA devices.
-	return &proto.GetMFADevicesResponse{
-		Devices: devs,
-	}, nil
+	devs, err := actx.ServerWithRoles.GetMFADevices(ctx, req)
+	return devs, trace.Wrap(err)
 }
 
-// GetMFAAuthenticateChallengeWithToken retrieves challenges for all mfa devices for the user defined in the token.
-func (g *GRPCServer) GetMFAAuthenticateChallengeWithToken(ctx context.Context, req *proto.GetMFAAuthenticateChallengeWithTokenRequest) (*proto.MFAAuthenticateChallenge, error) {
+// CreateAuthenticationChallenge creates and returns challenges for a users MFA devices.
+func (g *GRPCServer) CreateAuthenticationChallenge(ctx context.Context, req *proto.CreateAuthenticationChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := actx.ServerWithRoles.GetMFAAuthenticateChallengeWithToken(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return res, nil
+	res, err := actx.ServerWithRoles.CreateAuthenticationChallenge(ctx, req)
+	return res, trace.Wrap(err)
 }
 
-// GetMFADevicesWithToken returns all mfa devices for the user defined in the token.
-func (g *GRPCServer) GetMFADevicesWithToken(ctx context.Context, req *proto.GetMFADevicesWithTokenRequest) (*proto.GetMFADevicesResponse, error) {
+// DeleteMFADeviceNonstream deletes a mfa device for the user defined in the token.
+func (g *GRPCServer) DeleteMFADeviceNonstream(ctx context.Context, req *proto.DeleteMFADeviceNonstreamRequest) (*empty.Empty, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := actx.ServerWithRoles.GetMFADevicesWithToken(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return res, nil
-}
-
-// DeleteMFADeviceWithToken deletes a mfa device for the user defined in the token.
-func (g *GRPCServer) DeleteMFADeviceWithToken(ctx context.Context, req *proto.DeleteMFADeviceWithTokenRequest) (*empty.Empty, error) {
-	actx, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := actx.ServerWithRoles.DeleteMFADeviceWithToken(ctx, req); err != nil {
+	if err := actx.ServerWithRoles.DeleteMFADeviceNonstream(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3249,11 +3225,7 @@ func (g *GRPCServer) ChangePasswordWithToken(ctx context.Context, req *proto.Cha
 	}
 
 	res, err := auth.ServerWithRoles.ChangePasswordWithToken(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return res, nil
+	return res, trace.Wrap(err)
 }
 
 // CreateRecoveryStartToken creates a recovery start token after successful verification of
@@ -3271,8 +3243,7 @@ func (g *GRPCServer) CreateRecoveryStartToken(ctx context.Context, req *proto.Cr
 
 	r, ok := resetToken.(*types.UserTokenV3)
 	if !ok {
-		err = trace.BadParameter("unexpected ResetPasswordToken type %T", resetToken)
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("unexpected ResetPasswordToken type %T", resetToken)
 	}
 
 	return r, nil
@@ -3293,8 +3264,7 @@ func (g *GRPCServer) AuthenticateUserWithRecoveryToken(ctx context.Context, req 
 
 	r, ok := resetToken.(*types.UserTokenV3)
 	if !ok {
-		err = trace.BadParameter("unexpected ResetPasswordToken type %T", resetToken)
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("unexpected ResetPasswordToken type %T", resetToken)
 	}
 
 	return r, nil
@@ -3322,7 +3292,8 @@ func (g *GRPCServer) CreateRecoveryCodesWithToken(ctx context.Context, req *prot
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.ServerWithRoles.CreateRecoveryCodesWithToken(ctx, req)
+	codes, err := auth.ServerWithRoles.CreateRecoveryCodesWithToken(ctx, req)
+	return codes, trace.Wrap(err)
 }
 
 // GRPCServerConfig specifies GRPC server configuration
