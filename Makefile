@@ -566,6 +566,11 @@ buildbox-grpc:
 		events.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/webauthn \
+		--gogofast_out=plugins=grpc:api/types/webauthn \
+		webauthn.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/wrappers \
 		--gogofast_out=plugins=grpc:api/types/wrappers \
 		wrappers.proto
@@ -745,7 +750,7 @@ update-vendor:
 	# delete the vendored api package. In its place
 	# create a symlink to the the original api package
 	rm -r vendor/github.com/gravitational/teleport/api
-	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+	cd vendor/github.com/gravitational/teleport && ln -s ../../../../api api
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.

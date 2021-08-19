@@ -68,6 +68,9 @@ type ClusterNetworkingConfig interface {
 
 	// GetWebIdleTimeout gets web idle timeout duration.
 	GetWebIdleTimeout() time.Duration
+
+	// SetWebIdleTimeout sets the web idle timeout duration.
+	SetWebIdleTimeout(time.Duration)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -216,9 +219,14 @@ func (c *ClusterNetworkingConfigV2) SetClientIdleTimeoutMessage(msg string) {
 	c.Spec.ClientIdleTimeoutMessage = msg
 }
 
-// GetWebIdleTimeout gets the session control timeout.
+// GetWebIdleTimeout gets the web idle timeout.
 func (c *ClusterNetworkingConfigV2) GetWebIdleTimeout() time.Duration {
 	return c.Spec.WebIdleTimeout.Duration()
+}
+
+// SetWebIdleTimeout sets the web idle timeout.
+func (c *ClusterNetworkingConfigV2) SetWebIdleTimeout(ttl time.Duration) {
+	c.Spec.WebIdleTimeout = Duration(ttl)
 }
 
 // setStaticFields sets static resource header and metadata fields.
