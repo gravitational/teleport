@@ -481,6 +481,16 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		if err := a.action(apidefaults.Namespace, types.KindDatabaseServer, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
+	case constants.KeepAliveWindowsDesktopService:
+		if serverName != handle.Name {
+			return trace.AccessDenied("access denied")
+		}
+		if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown keep alive type %q", handle.Type)
 	}
