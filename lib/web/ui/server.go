@@ -208,7 +208,7 @@ type Desktop struct {
 	OS OS `json:"os"`
 	// Name is name (uuid) of the desktop.
 	Name string `json:"name"`
-	// Addr is the network address the windows desktop can be reached at.
+	// Addr is the network address the desktop can be reached at.
 	Addr string `json:"addr"`
 	// Labels is a map of static and dynamic labels associated with a windows desktop.
 	// TODO: Labels []Label `json:"labels"`
