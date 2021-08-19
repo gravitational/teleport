@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/events"
-	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -94,8 +93,6 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 		kubeConfigPath: os.Getenv(teleport.EnvKubeConfig),
 	}
 	require.NotEmpty(t, suite.kubeConfigPath, "This test requires path to valid kubeconfig.")
-
-	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
 
 	var err error
 	SetTestTimeouts(time.Millisecond * time.Duration(100))

@@ -22,10 +22,8 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509/pkix"
-	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
@@ -127,66 +125,42 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 )
 
 func TestKeyStore(t *testing.T) {
+	skipSoftHSM := os.Getenv("SOFTHSM2_PATH") == ""
+	var softHSMConfig keystore.Config
+	if !skipSoftHSM {
+		softHSMConfig = keystore.SetupSoftHSMTest(t)
+		softHSMConfig.HostUUID = "server1"
+	}
+
 	yubiSlotNumber := 0
 	testcases := []struct {
 		desc       string
-		rawConfig  *keystore.RawConfig
-		hsmConfig  *keystore.HSMConfig
+		config     keystore.Config
+		isRaw      bool
 		shouldSkip func() bool
-		setup      func(t *testing.T)
 	}{
 		{
 			desc: "raw keystore",
-			rawConfig: &keystore.RawConfig{
+			config: keystore.Config{
 				RSAKeyPairSource: native.GenerateKeyPair,
 			},
+			isRaw:      true,
 			shouldSkip: func() bool { return false },
 		},
 		{
-			desc: "softhsm",
-			hsmConfig: &keystore.HSMConfig{
-				Path:       os.Getenv("SOFTHSM2_PATH"),
-				TokenLabel: "test",
-				Pin:        "password",
-				HostUUID:   "server1",
-			},
+			desc:   "softhsm",
+			config: softHSMConfig,
 			shouldSkip: func() bool {
-				if os.Getenv("SOFTHSM2_PATH") == "" {
+				if skipSoftHSM {
 					log.Println("Skipping softhsm test because SOFTHSM2_PATH is not set.")
 					return true
 				}
 				return false
 			},
-			setup: func(t *testing.T) {
-				// create tokendir
-				tokenDir, err := os.MkdirTemp("", "softhsm2-tokendir")
-				require.NoError(t, err)
-
-				// create config file
-				configFile, err := os.CreateTemp("", "softhsm2.conf")
-				require.NoError(t, err)
-				os.Setenv("SOFTHSM2_CONF", configFile.Name())
-
-				// write config file
-				_, err = configFile.WriteString(fmt.Sprintf(
-					"directories.tokendir = %s\nobjectstore.backend = file\nlog.level = DEBUG\n",
-					tokenDir))
-				require.NoError(t, err)
-				require.NoError(t, configFile.Close())
-
-				// create test token
-				cmd := exec.Command("softhsm2-util", "--init-token", "--slot", "0", "--label", "test", "--so-pin", "password", "--pin", "password")
-				require.NoError(t, cmd.Run())
-
-				t.Cleanup(func() {
-					require.NoError(t, os.Remove(configFile.Name()))
-					require.NoError(t, os.RemoveAll(tokenDir))
-				})
-			},
 		},
 		{
 			desc: "yubihsm",
-			hsmConfig: &keystore.HSMConfig{
+			config: keystore.Config{
 				Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
 				SlotNumber: &yubiSlotNumber,
 				Pin:        "0001password",
@@ -202,7 +176,7 @@ func TestKeyStore(t *testing.T) {
 		},
 		{
 			desc: "cloudhsm",
-			hsmConfig: &keystore.HSMConfig{
+			config: keystore.Config{
 				Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
 				TokenLabel: "cavium",
 				Pin:        os.Getenv("CLOUDHSM_PIN"),
@@ -222,24 +196,14 @@ func TestKeyStore(t *testing.T) {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.shouldSkip() {
+				t.SkipNow()
 				return
 			}
 			t.Parallel()
 
-			if tc.setup != nil {
-				tc.setup(t)
-			}
-
 			// create the keystore
-			var keyStore keystore.KeyStore
-			var err error
-			if tc.hsmConfig != nil {
-				keyStore, err = keystore.NewHSMKeyStore(tc.hsmConfig)
-			} else {
-				keyStore = keystore.NewRawKeyStore(tc.rawConfig)
-			}
+			keyStore, err := keystore.NewKeyStore(tc.config)
 			require.NoError(t, err)
-			require.NotNil(t, keyStore)
 
 			// create a key
 			key, signer, err := keyStore.GenerateRSA()
@@ -346,7 +310,7 @@ func TestKeyStore(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if tc.hsmConfig != nil {
+			if !tc.isRaw {
 				// hsm keyStore should not get any signer from raw keys
 				_, err = keyStore.GetSSHSigner(ca)
 				require.True(t, trace.IsNotFound(err))

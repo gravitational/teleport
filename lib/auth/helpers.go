@@ -327,11 +327,14 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
 			Client:    srv.AuthServer,
+			Clock:     cfg.Clock,
 		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
+
 	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer, srv.LockWatcher)
 	if err != nil {
 		return nil, trace.Wrap(err)
