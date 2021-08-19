@@ -335,8 +335,8 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		log.Infof("Joining remote cluster %v with CA pin.", cert.Subject.CommonName)
 	}
+	log.Infof("Joining remote cluster %v with CA pin.", certs[0].Subject.CommonName)
 
 	// Create another client, but this time with the CA provided to validate
 	// that the Auth Server was issued a certificate by the same CA.

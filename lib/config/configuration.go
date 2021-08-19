@@ -316,12 +316,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// Read in how nodes will validate the CA.
-	if fc.CAPin != "" {
-		cfg.CAPins = []string{fc.CAPin}
-	}
-	if len(fc.CAPins) != 0 {
-		cfg.CAPins = fc.CAPins
-	}
+	cfg.CAPins = fc.CAPin
 
 	// Set diagnostic address
 	if fc.DiagAddr != "" {
