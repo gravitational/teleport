@@ -57,6 +57,8 @@ const (
 	RoleApp SystemRole = "App"
 	// RoleDatabase is a role for a database proxy in the cluster.
 	RoleDatabase SystemRole = "Db"
+	// RoleWindowsDesktop is a role for a Windows desktop service.
+	RoleWindowsDesktop SystemRole = "WindowsDesktop"
 )
 
 // LegacyClusterTokenType exists for backwards compatibility reasons, needed to upgrade to 2.3
@@ -76,7 +78,13 @@ func NewTeleportRoles(in []string) (SystemRoles, error) {
 func ParseTeleportRoles(str string) (SystemRoles, error) {
 	var roles SystemRoles
 	for _, s := range strings.Split(str, ",") {
-		r := SystemRole(strings.Title(strings.ToLower(strings.TrimSpace(s))))
+		s = strings.TrimSpace(s)
+		if r := SystemRole(s); r.Check() == nil {
+			roles = append(roles, r)
+			continue
+		}
+		// If role is not valid as-is, attempt to canonicalize the format.
+		r := SystemRole(strings.Title(strings.ToLower(s)))
 		roles = append(roles, r)
 	}
 	return roles, roles.Check()
@@ -86,6 +94,17 @@ func ParseTeleportRoles(str string) (SystemRoles, error) {
 func (roles SystemRoles) Include(role SystemRole) bool {
 	for _, r := range roles {
 		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// IncludeAny returns 'true' if a given list of teleport roles includes any of
+// the given candidate roles.
+func (roles SystemRoles) IncludeAny(candidates ...SystemRole) bool {
+	for _, r := range candidates {
+		if roles.Include(r) {
 			return true
 		}
 	}
@@ -173,7 +192,7 @@ func (r *SystemRole) Check() error {
 	case RoleAuth, RoleNode, RoleApp, RoleDatabase,
 		RoleAdmin, RoleProvisionToken,
 		RoleTrustedCluster, LegacyClusterTokenType,
-		RoleSignup, RoleProxy, RoleNop, RoleKube:
+		RoleSignup, RoleProxy, RoleNop, RoleKube, RoleWindowsDesktop:
 		return nil
 	}
 	return trace.BadParameter("role %v is not registered", *r)

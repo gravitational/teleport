@@ -408,6 +408,58 @@ Teleport pods must not be scheduled on the same physical host.
   </TabItem>
 </Tabs>
 
+## `highAvailability.podDisruptionBudget`
+
+### `highAvailability.podDisruptionBudget.enabled`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `bool` | `false` | ✅ (when using HA storage) |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Enable a Pod Disruption Budget for the Teleport Pod to ensure HA during voluntary disruptions.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      enabled: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.enabled=true
+  ```
+  </TabItem>
+</Tabs>
+
+### `highAvailability.podDisruptionBudget.minAvailable`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `int` | `1` | ✅ (when using HA storage) |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Ensures that this number of replicas is available during voluntary disruptions, can be a number of replicas or a percentage.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      minAvailable: 1
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.minAvailable=1
+  ```
+  </TabItem>
+</Tabs>
+
 ## `highAvailability.certManager`
 
 See the [cert-manager](https://cert-manager.io/docs/) docs for more information.
@@ -1266,6 +1318,27 @@ This can be used for joining a Teleport agent to a Teleport cluster which does n
 
   One option might be to use Teleport's built-in [ACME support](#acme) enable [cert-manager support](#highavailabilitycertmanager).
 </Admonition>
+
+## `existingDataVolume`
+
+| Type | Default value |
+| - | - |
+| `string` | `""` |
+
+When `existingDataVolume` is set to the name of an existing volume, the `/var/lib/teleport` mount will use this volume instead of creating a new `emptyDir` volume.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  existingDataVolume: my-volume
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```bash
+  --set existingDataVolume=my-volume
+  ```
+  </TabItem>
+</Tabs>
 
 ## `podSecurityPolicy`
 

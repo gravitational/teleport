@@ -1344,7 +1344,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	s.createUser(c, "user1", "root", "password", "")
 
 	// create password change token
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: "user1",
 	})
 	c.Assert(err, IsNil)
@@ -1358,7 +1358,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	c.Assert(uiToken.User, Equals, token.GetUser())
 	c.Assert(uiToken.TokenID, Equals, token.GetName())
 
-	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
+	secrets, err := s.server.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)
 
 	// Advance the clock to invalidate the TOTP token
@@ -1407,7 +1407,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	s.createUser(c, "user2", "root", "password", "")
 
 	// create reset password token
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: "user2",
 	})
 	c.Assert(err, IsNil)
@@ -1483,7 +1483,7 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 	env.proxies[0].createUser(ctx, t, "bob", "root", "password", "")
 
 	// create password change token
-	token, err := env.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := env.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: "bob",
 	})
 	require.NoError(t, err)
@@ -1995,7 +1995,10 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.Len(t, dbs, 0)
 
 	// Register a database.
-	db, err := types.NewDatabaseServerV3("test-db-name", map[string]string{"test-field": "test-value"}, types.DatabaseServerSpecV3{
+	db, err := types.NewDatabaseServerV3(types.Metadata{
+		Name:   "test-db-name",
+		Labels: map[string]string{"test-field": "test-value"},
+	}, types.DatabaseServerSpecV3{
 		Description: "test-description",
 		Protocol:    "test-protocol",
 		URI:         "test-uri",
@@ -2259,6 +2262,30 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		c.Assert(session.GetUser(), Equals, tt.outUsername, tt.inComment)
 		c.Assert(session.GetName(), Equals, response.CookieValue, tt.inComment)
 	}
+}
+
+func TestNewSessionResponseWithRenewSession(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+
+	// Set a web idle timeout.
+	duration := time.Duration(5) * time.Minute
+	cfg := types.DefaultClusterNetworkingConfig()
+	cfg.SetWebIdleTimeout(duration)
+	env.server.Auth().SetClusterNetworkingConfig(context.Background(), cfg)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo")
+
+	var ns *CreateSessionResponse
+	resp := pack.renewSession(context.Background(), t)
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &ns))
+
+	require.Equal(t, int(duration.Milliseconds()), ns.SessionInactiveTimeoutMS)
+	require.Equal(t, roundtrip.AuthBearer, ns.TokenType)
+	require.NotEmpty(t, ns.SessionExpires)
+	require.NotEmpty(t, ns.Token)
+	require.NotEmpty(t, ns.TokenExpiresIn)
 }
 
 // TestWebSessionsRenewDoesNotBreakExistingTerminalSession validates that the
@@ -2622,7 +2649,7 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
-	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn}, nil
+	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn, SessionInactiveTimeoutMS: r.SessionInactiveTimeoutMS}, nil
 }
 
 func newWebPack(t *testing.T, numProxies int) *webPack {

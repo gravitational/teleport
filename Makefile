@@ -106,7 +106,7 @@ RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -Wl,-Bdynamic"
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -lelf -lz -Wl,-Bdynamic"
 endif
 endif
 endif
@@ -745,7 +745,7 @@ update-vendor:
 	# delete the vendored api package. In its place
 	# create a symlink to the the original api package
 	rm -r vendor/github.com/gravitational/teleport/api
-	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+	cd vendor/github.com/gravitational/teleport && ln -s ../../../../api api
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
