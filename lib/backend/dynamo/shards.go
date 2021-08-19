@@ -60,6 +60,7 @@ func (b *Backend) asyncPollStreams(ctx context.Context) error {
 			b.Errorf("Poll streams returned with error: %v.", err)
 		}
 		b.Debugf("Reloading %v.", retry)
+		b.buf.Reset()
 		select {
 		case <-retry.After():
 			retry.Inc()
@@ -235,6 +236,7 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynam
 					b.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
 					return io.EOF
 				}
+				iterator = out.NextShardIterator
 				continue
 			}
 			if out.NextShardIterator == nil {
