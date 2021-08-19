@@ -182,6 +182,7 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynam
 					b.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
 					return io.EOF
 				}
+				iterator = out.NextShardIterator
 				continue
 			}
 			if out.NextShardIterator == nil {
