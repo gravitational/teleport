@@ -68,21 +68,22 @@ TELEPORT_VERSION="{{.version}}"
 TARGET_HOSTNAME="{{.hostname}}"
 TARGET_PORT="{{.port}}"
 JOIN_TOKEN="{{.token}}"
-CA_PIN_HASH="{{.caPin}}"
+CA_PIN_HASHES="{{.caPins}}"
+ARG_CA_PIN_HASHES=""
 APP_INSTALL_MODE="{{.appInstallMode}}"
 APP_NAME="{{.appName}}"
 APP_URI="{{.appURI}}"
 
 # usage message
 # shellcheck disable=SC2086
-usage() { echo "Usage: $(basename $0) [-v teleport_version] [-h target_hostname] [-p target_port> [-j join_token ] [-c ca_pin_hash] [-q] [-l log_filename] [-a app_name] [-u app_uri] " 1>&2; exit 1; }
+usage() { echo "Usage: $(basename $0) [-v teleport_version] [-h target_hostname] [-p target_port> [-j join_token ] [-c ca_pin_hash]... [-q] [-l log_filename] [-a app_name] [-u app_uri] " 1>&2; exit 1; }
 while getopts ":v:h:p:j:c:f:ql:ika:u:" o; do
     case "${o}" in
         v)  TELEPORT_VERSION=${OPTARG};;
         h)  TARGET_HOSTNAME=${OPTARG};;
         p)  TARGET_PORT=${OPTARG};;
         j)  JOIN_TOKEN=${OPTARG};;
-        c)  CA_PIN_HASH=${OPTARG};;
+        c)  ARG_CA_PIN_HASHES="${ARG_CA_PIN_HASHES} ${OPTARG}";;
         f)  f=${OPTARG}; if [[ ${f} != "tarball" && ${f} != "deb" && ${f} != "rpm" && ${f} != "rpm-centos6" ]]; then usage; fi;;
         q)  QUIET=true;;
         l)  l=${OPTARG};;
@@ -94,6 +95,10 @@ while getopts ":v:h:p:j:c:f:ql:ika:u:" o; do
     esac
 done
 shift $((OPTIND-1))
+
+if [[ "${ARG_CA_PIN_HASHES}" != "" ]]; then
+    CA_PIN_HASHES="${ARG_CA_PIN_HASHES}"
+fi
 
 # function to construct a go template variable
 # go's template parser is a bit finicky, so we dynamically build the value one character at a time
@@ -161,7 +166,7 @@ assert_running_as_root
 ! check_variable TARGET_HOSTNAME hostname && INTERACTIVE=true && read_nonblank_input TARGET_HOSTNAME "Enter target hostname to connect to: "
 ! check_variable TARGET_PORT port && INTERACTIVE=true && { echo -n "Enter target port to connect to [${TARGET_PORT_DEFAULT}]: "; read -r TARGET_PORT; }
 ! check_variable JOIN_TOKEN token && INTERACTIVE=true && read_nonblank_input JOIN_TOKEN "Enter Teleport join token as provided: "
-! check_variable CA_PIN_HASH caPin && INTERACTIVE=true && read_nonblank_input CA_PIN_HASH "Enter CA pin hash: "
+! check_variable CA_PIN_HASHES caPins && INTERACTIVE=true && read_nonblank_input CA_PIN_HASHES "Enter CA pin hash (separate multiple hashes with spaces): "
 [ -n "${f}" ] && OVERRIDE_FORMAT=${f}
 [ -n "${l}" ] && LOG_FILENAME=${l}
 # if app service mode is not set (or is the default value) and we are running interactively (i.e. the user has provided some input already),
@@ -409,14 +414,26 @@ install_systemd_unit() {
     log "Reloading unit files (systemctl daemon-reload)"
     systemctl daemon-reload
 }
+# formats the arguments as a yaml list
+get_yaml_list() {
+    name="${1}"
+    list="${2}"
+    indentation="${3}"
+    echo "${indentation}${name}:"
+    for item in ${list}; do
+        echo "${indentation}- ${item}"
+    done
+}
+
 # installs the provided teleport config (for app service)
 install_teleport_app_config() {
     log "Writing Teleport app service config to ${TELEPORT_CONFIG_PATH}"
+    CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
     cat << EOF > ${TELEPORT_CONFIG_PATH}
 teleport:
   nodename: ${NODENAME}
   auth_token: ${JOIN_TOKEN}
-  ca_pin: ${CA_PIN_HASH}
+${CA_PINS_CONFIG}
   auth_servers:
   - ${TARGET_HOSTNAME}:${TARGET_PORT}
   log:
@@ -441,11 +458,12 @@ EOF
 # installs the provided teleport config (for node service)
 install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
+    CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
     cat << EOF > ${TELEPORT_CONFIG_PATH}
 teleport:
   nodename: ${NODENAME}
   auth_token: ${JOIN_TOKEN}
-  ca_pin: ${CA_PIN_HASH}
+${CA_PINS_CONFIG}
   auth_servers:
   - ${TARGET_HOSTNAME}:${TARGET_PORT}
   log:
@@ -552,7 +570,7 @@ check_set TELEPORT_VERSION
 check_set TARGET_HOSTNAME
 check_set TARGET_PORT
 check_set JOIN_TOKEN
-check_set CA_PIN_HASH
+check_set CA_PIN_HASHES
 if [[ "${APP_INSTALL_MODE}" == "true" ]]; then
     check_set APP_NAME
     check_set APP_URI

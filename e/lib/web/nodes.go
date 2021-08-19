@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
@@ -158,18 +159,15 @@ func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	// Get the CA pin hash of the cluster to join.
-	localCA, err := m.GetClusterCACert()
+	// Get the CA pin hashes of the cluster to join.
+	localCAResponse, err := m.GetClusterCACert()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-
-	tlsCA, err := tlsca.ParseCertificatePEM(localCA.TLSCA)
+	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-
-	caPin := utils.CalculateSPKI(tlsCA)
 
 	var buf bytes.Buffer
 	// If app install mode is requested but parameters are blank for some reason,
@@ -188,7 +186,7 @@ func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 		"token":          settings.token,
 		"hostname":       hostname,
 		"port":           portStr,
-		"caPin":          caPin,
+		"caPins":         strings.Join(caPins, " "),
 		"version":        version,
 		"appInstallMode": strconv.FormatBool(settings.appInstallMode),
 		"appName":        settings.appName,
