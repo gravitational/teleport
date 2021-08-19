@@ -251,7 +251,7 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig backend.C
 			}
 		}
 	}()
-	config.KeyStore = keystore.SetupSoftHSMTest(t)
+	config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
 	config.Log = log
 	return config
 }
@@ -698,13 +698,13 @@ func TestHSMMigrate(t *testing.T) {
 	// start a dual auth non-hsm cluster
 	log.Debug("TestHSMMigrate: Starting auth server 1")
 	auth1Config := newHSMAuthConfig(ctx, t, storageConfig, log)
-	auth1Config.KeyStore = keystore.Config{}
+	auth1Config.Auth.KeyStore = keystore.Config{}
 	auth1 := newTeleportService(auth1Config, "auth1")
 	t.Cleanup(func() {
 		require.NoError(t, auth1.process.Close())
 	})
 	auth2Config := newHSMAuthConfig(ctx, t, storageConfig, log)
-	auth2Config.KeyStore = keystore.Config{}
+	auth2Config.Auth.KeyStore = keystore.Config{}
 	auth2 := newTeleportService(auth2Config, "auth2")
 	t.Cleanup(func() {
 		require.NoError(t, auth2.process.Close())
@@ -769,7 +769,7 @@ func TestHSMMigrate(t *testing.T) {
 	lb.RemoveBackend(auth1Config.Auth.SSHAddr)
 	auth1.process.Close()
 	require.NoError(t, auth1.waitForShutdown(ctx))
-	auth1Config.KeyStore = keystore.SetupSoftHSMTest(t)
+	auth1Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
 	auth1 = newTeleportService(auth1Config, "auth1")
 	require.NoError(t, auth1.waitForStart(ctx))
 
@@ -836,7 +836,7 @@ func TestHSMMigrate(t *testing.T) {
 	lb.RemoveBackend(auth2Config.Auth.SSHAddr)
 	auth2.process.Close()
 	require.NoError(t, auth2.waitForShutdown(ctx))
-	auth2Config.KeyStore = keystore.SetupSoftHSMTest(t)
+	auth2Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
 	auth2 = newTeleportService(auth2Config, "auth2")
 	require.NoError(t, auth2.waitForStart(ctx))
 
