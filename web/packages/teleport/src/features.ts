@@ -31,6 +31,7 @@ import Roles from './Roles';
 import Recordings from './Recordings';
 import AuthConnectors from './AuthConnectors';
 import Databases from './Databases';
+import Desktops from './Desktops'
 
 export class FeatureClusters {
   getTopNavTitle() {
@@ -438,12 +439,44 @@ export class FeatureDatabases {
   }
 }
 
+export class FeatureDesktops {
+  getTopNavTitle() {
+    return '';
+  }
+
+  route = {
+    title: 'Desktops',
+    path: cfg.routes.desktops,
+    exact: true,
+    component: Desktops,
+  };
+
+  register(ctx: Ctx) {
+    // TODO
+    if (!ctx.getFeatureFlags().databases) {
+      return;
+    }
+
+    ctx.storeNav.addSideItem({
+      title: 'Desktops',
+      Icon: Icons.Database, // TODO
+      exact: true,
+      getLink(clusterId: string) {
+        return cfg.getDesktopsRoute(clusterId);
+      },
+    });
+
+    ctx.features.push(this);
+  }
+}
+
 export default function getFeatures() {
   return [
     new FeatureNodes(),
     new FeatureApps(),
     new FeatureKubes(),
     new FeatureDatabases(),
+    new FeatureDesktops(),
     new FeatureSessions(),
     new FeatureRecordings(),
     new FeatureAudit(),

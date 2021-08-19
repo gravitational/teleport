@@ -56,6 +56,7 @@ const cfg = {
     sessions: '/web/cluster/:clusterId/sessions',
     recordings: '/web/cluster/:clusterId/recordings',
     databases: '/web/cluster/:clusterId/databases',
+    desktops: '/web/cluster/:clusterId/desktops',
     users: '/web/users',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
@@ -168,6 +169,10 @@ const cfg = {
 
   getDatabasesRoute(clusterId: string) {
     return generatePath(cfg.routes.databases, { clusterId });
+  },
+
+  getDesktopsRoute(clusterId: string) {
+    return generatePath(cfg.routes.desktops, { clusterId });
   },
 
   getNodeJoinTokenUrl() {
