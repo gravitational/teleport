@@ -47,7 +47,7 @@ func CheckSPKI(pins []string, certs []*x509.Certificate) error {
 	}
 	// Timing of this check depends only on the number of pins and certs, not
 	// their contents.
-	outer:
+outer:
 	for _, cert := range certs {
 		for _, pin := range pins {
 			// Check that that pin itself matches that value calculated from the passed
