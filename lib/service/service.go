@@ -1185,7 +1185,6 @@ func (process *TeleportProcess) initAuthService() error {
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
 		Authority:               cfg.Keygen,
-		KeyStoreConfig:          cfg.KeyStore,
 		ClusterConfiguration:    cfg.ClusterConfiguration,
 		ClusterConfig:           cfg.Auth.ClusterConfig,
 		ClusterAuditConfig:      cfg.Auth.AuditConfig,
