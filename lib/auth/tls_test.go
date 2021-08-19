@@ -2885,14 +2885,11 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		Type:       types.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	cert, signer, err := s.server.Auth().GetKeyStore().GetTLSCertAndSigner(hostCA)
-	c.Assert(err, check.IsNil)
-	tlsCA, err := tlsca.FromCertAndSigner(cert, signer)
-	c.Assert(err, check.IsNil)
-	tlsBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
-	c.Assert(err, check.IsNil)
+	certs := services.GetTLSCerts(hostCA)
+	c.Assert(certs, check.HasLen, 1)
+	certPem := certs[0]
 	caPath := filepath.Join(s.dataDir, defaults.CACertFile)
-	err = ioutil.WriteFile(caPath, tlsBytes, teleport.FileMaskOwnerOnly)
+	err = ioutil.WriteFile(caPath, certPem, teleport.FileMaskOwnerOnly)
 	c.Assert(err, check.IsNil)
 
 	// Attempt to register with valid CA path, should work.

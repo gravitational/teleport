@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -108,6 +109,9 @@ type Config struct {
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
+
+	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
+	KeyStore keystore.Config
 
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start

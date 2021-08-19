@@ -122,6 +122,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Streamer == nil {
 		cfg.Streamer = events.NewDiscardEmitter()
 	}
+	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
+		cfg.KeyStoreConfig.RSAKeyPairSource = cfg.Authority.GenerateKeyPair
+	}
+	if cfg.KeyStoreConfig.HostUUID == "" {
+		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -130,10 +136,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(nic): update this with real keystore config
-	keyStore := keystore.NewRawKeyStore(&keystore.RawConfig{
-		RSAKeyPairSource: cfg.Authority.GenerateKeyPair,
-	})
+	keyStore, err := keystore.NewKeyStore(cfg.KeyStoreConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
@@ -351,7 +357,7 @@ func (a *Server) runPeriodicOperations() {
 	r := rand.New(rand.NewSource(a.GetClock().Now().UnixNano()))
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
-	ticker := time.NewTicker(period)
+	ticker := a.clock.NewTicker(period)
 	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
 		Duration: apidefaults.ServerKeepAliveTTL * 2,
@@ -364,7 +370,7 @@ func (a *Server) runPeriodicOperations() {
 		select {
 		case <-a.closeCtx.Done():
 			return
-		case <-ticker.C:
+		case <-ticker.Chan():
 			err := a.autoRotateCertAuthorities()
 			if err != nil {
 				if trace.IsCompareFailed(err) {
@@ -478,7 +484,6 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	certs := services.GetTLSCerts(hostCA)
 	if len(certs) < 1 {
 		return nil, trace.NotFound("no tls certs found in host CA")
@@ -1516,7 +1521,17 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		}
 	}
 
+	isAdminRole := req.Roles.Equals(types.SystemRoles{types.RoleAdmin})
+
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	if trace.IsNotFound(err) && isAdminRole {
+		// If there is no local TLS signer found in the host CA ActiveKeys, this
+		// auth server may have a newly configured HSM and has only populated
+		// local keys in the AdditionalTrustedKeys until the next CA rotation.
+		// This is the only case where we should be able to get a signer from
+		// AdditionalTrustedKeys but not ActiveKeys.
+		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ca)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1526,6 +1541,14 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	}
 
 	caSigner, err := a.keyStore.GetSSHSigner(ca)
+	if trace.IsNotFound(err) && isAdminRole {
+		// If there is no local SSH signer found in the host CA ActiveKeys, this
+		// auth server may have a newly configured HSM and has only populated
+		// local keys in the AdditionalTrustedKeys until the next CA rotation.
+		// This is the only case where we should be able to get a signer from
+		// AdditionalTrustedKeys but not ActiveKeys.
+		caSigner, err = a.keyStore.GetAdditionalTrustedSSHSigner(ca)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2545,6 +2568,159 @@ func (a *Server) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRes
 // DeleteNetworkRestrictions deletes the network restrictions in the backend
 func (a *Server) DeleteNetworkRestrictions(ctx context.Context) error {
 	return a.Services.Restrictions.DeleteNetworkRestrictions(ctx)
+}
+
+func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
+	newKeySet := a.Clone()
+	newKeySet.SSH = append(newKeySet.SSH, b.SSH...)
+	newKeySet.TLS = append(newKeySet.TLS, b.TLS...)
+	newKeySet.JWT = append(newKeySet.JWT, b.JWT...)
+	return newKeySet
+}
+
+// addAdditionalTrustedKeysAtomic performs an atomic CompareAndSwap to update
+// the given CA with newKeys added to the AdditionalTrustedKeys
+func (a *Server) addAddtionalTrustedKeysAtomic(
+	currentCA types.CertAuthority,
+	newKeys types.CAKeySet,
+	needsUpdate func(types.CertAuthority) bool) error {
+	for {
+		select {
+		case <-a.closeCtx.Done():
+			return trace.Wrap(a.closeCtx.Err())
+		default:
+		}
+		if !needsUpdate(currentCA) {
+			return nil
+		}
+
+		newCA := currentCA.Clone()
+		currentKeySet := newCA.GetAdditionalTrustedKeys()
+		mergedKeySet := mergeKeySets(currentKeySet, newKeys)
+		if err := newCA.SetAdditionalTrustedKeys(mergedKeySet); err != nil {
+			return trace.Wrap(err)
+		}
+
+		err := a.Trust.CompareAndSwapCertAuthority(newCA, currentCA)
+		if err != nil && !trace.IsCompareFailed(err) {
+			return trace.Wrap(err)
+		}
+		if err == nil {
+			// success!
+			return nil
+		}
+		// else trace.IsCompareFailed(err) == true (CA was concurrently updated)
+
+		currentCA, err = a.Trust.GetCertAuthority(currentCA.GetID(), true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+}
+
+func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySet, error) {
+	var keySet types.CAKeySet
+	switch caID.Type {
+	case types.UserCA, types.HostCA:
+		sshKeyPair, err := keyStore.NewSSHKeyPair()
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(caID.DomainName)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.SSH = append(keySet.SSH, sshKeyPair)
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	case types.JWTSigner:
+		jwtKeyPair, err := keyStore.NewJWTKeyPair()
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	default:
+		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
+	}
+	return keySet, nil
+}
+
+// ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
+// already present.
+func (a *Server) ensureLocalAdditionalKeys(ca types.CertAuthority) error {
+	if a.keyStore.HasLocalAdditionalKeys(ca) {
+		// nothing to do
+		return nil
+	}
+
+	newKeySet, err := newKeySet(a.keyStore, ca.GetID())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.addAddtionalTrustedKeysAtomic(ca, newKeySet, func(ca types.CertAuthority) bool {
+		return !a.keyStore.HasLocalAdditionalKeys(ca)
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	log.Infof("Successfully added local additional trusted keys to %s CA.", ca.GetType())
+	return nil
+}
+
+// createSelfSignedCA creates a new self-signed CA and writes it to the
+// backend, with the type and clusterName given by the argument caID.
+func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
+	keySet, err := newKeySet(a.keyStore, caID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sigAlg := defaults.CASignatureAlgorithm
+	if a.caSigningAlg != nil && *a.caSigningAlg != "" {
+		sigAlg = *a.caSigningAlg
+	}
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        caID.Type,
+		ClusterName: caID.DomainName,
+		ActiveKeys:  keySet,
+		SigningAlg:  sshutils.ParseSigningAlg(sigAlg),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.Trust.CreateCertAuthority(ca); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
+// auth server which are not currently used in any CAs.
+func (a *Server) deleteUnusedKeys() error {
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var usedKeys [][]byte
+	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
+		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
+		ca, err := a.Trust.GetCertAuthority(caID, true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
+			for _, sshKeyPair := range keySet.SSH {
+				usedKeys = append(usedKeys, sshKeyPair.PrivateKey)
+			}
+			for _, tlsKeyPair := range keySet.TLS {
+				usedKeys = append(usedKeys, tlsKeyPair.Key)
+			}
+			for _, jwtKeyPair := range keySet.JWT {
+				usedKeys = append(usedKeys, jwtKeyPair.PrivateKey)
+			}
+		}
+	}
+	return trace.Wrap(a.keyStore.DeleteUnusedKeys(usedKeys))
 }
 
 // authKeepAliver is a keep aliver using auth server directly

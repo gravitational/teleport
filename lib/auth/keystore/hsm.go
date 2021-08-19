@@ -18,6 +18,7 @@ package keystore
 
 import (
 	"crypto"
+	"crypto/rsa"
 	"encoding/json"
 
 	"golang.org/x/crypto/ssh"
@@ -31,8 +32,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
-
-var label = []byte("teleport")
 
 // HSMConfig is used to pass HSM client configuration parameters.
 type HSMConfig struct {
@@ -92,7 +91,7 @@ func (c *hsmKeyStore) findUnusedID() (uuid.UUID, error) {
 		if err != nil {
 			return id, trace.Wrap(err)
 		}
-		existingSigner, err := c.ctx.FindKeyPair(id[:], label)
+		existingSigner, err := c.ctx.FindKeyPair(id[:], []byte(c.hostUUID))
 		if err != nil {
 			return id, trace.Wrap(err)
 		}
@@ -113,12 +112,13 @@ func (c *hsmKeyStore) findUnusedID() (uuid.UUID, error) {
 // crypto.Signer. The returned identifier can be passed to GetSigner later to
 // get the same crypto.Signer.
 func (c *hsmKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
+	c.log.Debug("Creating new HSM keypair")
 	id, err := c.findUnusedID()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	signer, err := c.ctx.GenerateRSAKeyPairWithLabel(id[:], label, teleport.RSAKeySize)
+	signer, err := c.ctx.GenerateRSAKeyPairWithLabel(id[:], []byte(c.hostUUID), teleport.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -151,7 +151,7 @@ func (c *hsmKeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signer, err := c.ctx.FindKeyPair(pkcs11ID, label)
+		signer, err := c.ctx.FindKeyPair(pkcs11ID, []byte(c.hostUUID))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -165,9 +165,8 @@ func (c *hsmKeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
 	return nil, trace.BadParameter("unrecognized key type %s", keyType.String())
 }
 
-func (c *hsmKeyStore) selectTLSKeyPair(ca types.CertAuthority) (*types.TLSKeyPair, error) {
-	keyPairs := ca.GetActiveKeys().TLS
-	for _, keyPair := range keyPairs {
+func (c *hsmKeyStore) selectTLSKeyPair(keySet types.CAKeySet) (*types.TLSKeyPair, error) {
+	for _, keyPair := range keySet.TLS {
 		if keyPair.KeyType == types.PrivateKeyType_PKCS11 {
 			keyID, err := parseKeyID(keyPair.Key)
 			if err != nil {
@@ -179,12 +178,12 @@ func (c *hsmKeyStore) selectTLSKeyPair(ca types.CertAuthority) (*types.TLSKeyPai
 			return keyPair, nil
 		}
 	}
-	return nil, trace.NotFound("no local PKCS#11 TLS key pairs found in %s CA for %q", ca.GetType(), ca.GetClusterName())
+	return nil, trace.NotFound("no local PKCS#11 TLS key pairs found in CA")
 }
 
 // GetTLSCertAndSigner selects the local TLS keypair and returns the raw TLS cert and crypto.Signer.
 func (c *hsmKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
-	keyPair, err := c.selectTLSKeyPair(ca)
+	keyPair, err := c.selectTLSKeyPair(ca.GetActiveKeys())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -196,9 +195,8 @@ func (c *hsmKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypt
 	return keyPair.Cert, signer, nil
 }
 
-func (c *hsmKeyStore) selectSSHKeyPair(ca types.CertAuthority) (*types.SSHKeyPair, error) {
-	keyPairs := ca.GetActiveKeys().SSH
-	for _, keyPair := range keyPairs {
+func (c *hsmKeyStore) selectSSHKeyPair(keySet types.CAKeySet) (*types.SSHKeyPair, error) {
+	for _, keyPair := range keySet.SSH {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_PKCS11 {
 			keyID, err := parseKeyID(keyPair.PrivateKey)
 			if err != nil {
@@ -210,12 +208,12 @@ func (c *hsmKeyStore) selectSSHKeyPair(ca types.CertAuthority) (*types.SSHKeyPai
 			return keyPair, nil
 		}
 	}
-	return nil, trace.NotFound("no local PKCS#11 SSH key pairs found in %s CA for %q", ca.GetType(), ca.GetClusterName())
+	return nil, trace.NotFound("no local PKCS#11 SSH key pairs found in CA")
 }
 
 // GetSSHSigner selects the local SSH keypair and returns an ssh.Signer.
-func (c *hsmKeyStore) GetSSHSigner(ca types.CertAuthority) (sshSigner ssh.Signer, err error) {
-	keyPair, err := c.selectSSHKeyPair(ca)
+func (c *hsmKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
+	keyPair, err := c.selectSSHKeyPair(ca.GetActiveKeys())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -224,7 +222,7 @@ func (c *hsmKeyStore) GetSSHSigner(ca types.CertAuthority) (sshSigner ssh.Signer
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sshSigner, err = ssh.NewSignerFromSigner(signer)
+	sshSigner, err := ssh.NewSignerFromSigner(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -254,6 +252,76 @@ func (c *hsmKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error
 	return nil, trace.NotFound("no local PKCS#11 JWT key pairs found in %s CA for %q", ca.GetType(), ca.GetClusterName())
 }
 
+// NewSSHKeyPair creates and returns a new HSM-backed SSHKeyPair.
+func (c *hsmKeyStore) NewSSHKeyPair() (*types.SSHKeyPair, error) {
+	return newSSHKeyPair(c)
+}
+
+// NewTLSKeyPair creates and returns a new HSM-backed TLSKeyPair.
+func (c *hsmKeyStore) NewTLSKeyPair(clusterName string) (*types.TLSKeyPair, error) {
+	return newTLSKeyPair(c, clusterName)
+}
+
+// NewJWTKeyPair creates and returns a new HSM-backed JWTKeyPair.
+func (c *hsmKeyStore) NewJWTKeyPair() (*types.JWTKeyPair, error) {
+	return newJWTKeyPair(c)
+}
+
+func (c *hsmKeyStore) keySetHasLocalKeys(keySet types.CAKeySet) bool {
+	for _, sshKeyPair := range keySet.SSH {
+		if sshKeyPair.PrivateKeyType != types.PrivateKeyType_PKCS11 {
+			continue
+		}
+		keyID, err := parseKeyID(sshKeyPair.PrivateKey)
+		if err != nil {
+			c.log.WithError(err).Warnf("Failed to parse PKCS#11 key ID")
+			continue
+		}
+		if keyID.HostID == c.hostUUID {
+			return true
+		}
+	}
+	for _, tlsKeyPair := range keySet.TLS {
+		if tlsKeyPair.KeyType != types.PrivateKeyType_PKCS11 {
+			continue
+		}
+		keyID, err := parseKeyID(tlsKeyPair.Key)
+		if err != nil {
+			c.log.WithError(err).Warnf("Failed to parse PKCS#11 key ID")
+			continue
+		}
+		if keyID.HostID == c.hostUUID {
+			return true
+		}
+	}
+	for _, jwtKeyPair := range keySet.JWT {
+		if jwtKeyPair.PrivateKeyType != types.PrivateKeyType_PKCS11 {
+			continue
+		}
+		keyID, err := parseKeyID(jwtKeyPair.PrivateKey)
+		if err != nil {
+			c.log.WithError(err).Warnf("Failed to parse PKCS#11 key ID")
+			continue
+		}
+		if keyID.HostID == c.hostUUID {
+			return true
+		}
+	}
+	return false
+}
+
+// HasLocalActiveKeys returns true if the given CA has any active keys that
+// are usable with this KeyStore.
+func (c *hsmKeyStore) HasLocalActiveKeys(ca types.CertAuthority) bool {
+	return c.keySetHasLocalKeys(ca.GetActiveKeys())
+}
+
+// HasLocalAdditionalKeys returns true if the given CA has any additional
+// trusted keys that are usable with this KeyStore.
+func (c *hsmKeyStore) HasLocalAdditionalKeys(ca types.CertAuthority) bool {
+	return c.keySetHasLocalKeys(ca.GetAdditionalTrustedKeys())
+}
+
 // DeleteKey deletes the given key from the HSM
 func (c *hsmKeyStore) DeleteKey(rawKey []byte) error {
 	keyID, err := parseKeyID(rawKey)
@@ -267,7 +335,7 @@ func (c *hsmKeyStore) DeleteKey(rawKey []byte) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	signer, err := c.ctx.FindKeyPair(pkcs11ID, label)
+	signer, err := c.ctx.FindKeyPair(pkcs11ID, []byte(c.hostUUID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -275,6 +343,96 @@ func (c *hsmKeyStore) DeleteKey(rawKey []byte) error {
 		return trace.NotFound("failed to find keypair for given id")
 	}
 	return trace.Wrap(signer.Delete())
+}
+
+// DeleteUnusedKeys deletes all keys from the KeyStore if they are:
+// 1. Labeled by this KeyStore when they were created
+// 2. Not included in the argument usedKeys
+func (c *hsmKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
+	c.log.Debug("Deleting unused keys from HSM")
+	var usedPublicKeys []*rsa.PublicKey
+	for _, usedKey := range usedKeys {
+		keyType := KeyType(usedKey)
+		if keyType != types.PrivateKeyType_PKCS11 {
+			continue
+		}
+		signer, err := c.GetSigner(usedKey)
+		if trace.IsNotFound(err) {
+			// key is for different host, or truly not found in HSM. Either
+			// way, it won't be deleted below.
+			continue
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		rsaPublicKey, ok := signer.Public().(*rsa.PublicKey)
+		if !ok {
+			return trace.BadParameter("unknown public key type: %T", signer.Public())
+		}
+		usedPublicKeys = append(usedPublicKeys, rsaPublicKey)
+	}
+	keyIsUsed := func(signer crypto.Signer) bool {
+		rsaPublicKey, ok := signer.Public().(*rsa.PublicKey)
+		if !ok {
+			// unknown key type... we don't know what this is, so don't delete it
+			return true
+		}
+		for _, k := range usedPublicKeys {
+			if rsaPublicKey.Equal(k) {
+				return true
+			}
+		}
+		return false
+	}
+	signers, err := c.ctx.FindKeyPairs(nil, []byte(c.hostUUID))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, signer := range signers {
+		if keyIsUsed(signer) {
+			continue
+		}
+		if err := signer.Delete(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// GetAdditionalTrustedSSHSigner selects the local SSH keypair from the CA
+// AdditionalTrustedKeys and returns an ssh.Signer.
+func (c *hsmKeyStore) GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
+	keyPair, err := c.selectSSHKeyPair(ca.GetAdditionalTrustedKeys())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer, err := c.GetSigner(keyPair.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshSigner, err := ssh.NewSignerFromSigner(signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshSigner = sshutils.AlgSigner(sshSigner, sshutils.GetSigningAlgName(ca))
+	return sshSigner, nil
+}
+
+// GetAdditionalTrustedTLSCertAndSigner selects the local TLS keypair from the
+// CA AdditionalTrustedKeys and returns the PEM-encoded TLS cert and a
+// crypto.Signer.
+func (c *hsmKeyStore) GetAdditionalTrustedTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
+	keyPair, err := c.selectTLSKeyPair(ca.GetAdditionalTrustedKeys())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	signer, err := c.GetSigner(keyPair.Key)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return keyPair.Cert, signer, nil
 }
 
 type keyID struct {
