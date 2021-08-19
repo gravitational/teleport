@@ -174,9 +174,8 @@ func onConfigProxy(cf *CLIConf) error {
 		proxyPort,
 		proxyHost,
 		"-s",
+		fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, cf.SiteName),
 	}
-
-	args = append(args, fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, cf.SiteName))
 
 	// NOTE: This should eventually make use of `tsh proxy ssh`.
 	child := exec.Command(getDefaultSSHPath(), args...)
