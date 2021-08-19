@@ -114,7 +114,7 @@ https://www.googleapis.com/auth/admin.directory.group.member.readonly, https://w
 
 ## Create a OIDC Connector
 
-Now, create a OIDC connector [resource](../../admin-guide.mdx#resources).
+Now, create a OIDC connector [resource](../../setup/reference/resources.mdx).
 There are two options for setting the `google_service_account` value.  You can set the JSON file in the auth server and give a URI to the file.
 The second is populating the contents via inline.  Inline is required for Teleport Cloud.
 Write down this template as `gsuite-connector.yaml`:
@@ -182,4 +182,4 @@ $ sudo journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass the
-[`--debug`](../../cli-docs.mdx#teleport-start) flag to `teleport start` command.
+[`--debug`](../../setup/reference/cli.mdx#teleport-start) flag to `teleport start` command.
