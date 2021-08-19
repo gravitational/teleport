@@ -25,7 +25,7 @@ import {
 } from 'teleport/components/Layout';
 import InputSearch from 'teleport/components/InputSearch';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
-import DatabaseList from './DatabaseList';
+import DesktopList from './DesktopList';
 import useDesktops, { State } from './useDesktops';
 import ButtonAdd from './ButtonAdd';
 import AddDialog from './AddDatabase';
@@ -82,7 +82,7 @@ export function Desktops(props: State) {
           >
             <InputSearch mr={3} value={searchValue} onChange={setSearchValue} />
           </Flex>
-          <DatabaseList
+          <DesktopList
             databases={databases}
             username={username}
             clusterId={clusterId}

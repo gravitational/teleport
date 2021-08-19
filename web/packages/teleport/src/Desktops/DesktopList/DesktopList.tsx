@@ -32,7 +32,7 @@ import { AuthType } from 'teleport/services/user';
 import { Database, DbProtocol } from 'teleport/services/databases';
 import ConnectDialog from 'teleport/Databases/ConnectDialog';
 
-function DatabaseList(props: Props) {
+function DesktopList(props: Props) {
   const {
     databases = [],
     pageSize = 100,
@@ -181,4 +181,4 @@ type Props = {
   searchValue: string;
 };
 
-export default DatabaseList;
+export default DesktopList;

@@ -14,20 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import ConnectDialog from './ConnectDialog';
-
-export default {
-  title: 'Teleport/Databases/Connect',
-};
-
-export const Connect = () => (
-  <ConnectDialog
-    username="yassine"
-    dbName="aurora"
-    dbProtocol="postgres"
-    clusterId="im-a-cluster"
-    onClose={() => null}
-    authType="local"
-  />
-);
+import DesktopList from './DesktopList';
+export default DesktopList;
