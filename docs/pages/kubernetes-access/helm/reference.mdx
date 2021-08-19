@@ -408,6 +408,58 @@ Teleport pods must not be scheduled on the same physical host.
   </TabItem>
 </Tabs>
 
+## `highAvailability.podDisruptionBudget`
+
+### `highAvailability.podDisruptionBudget.enabled`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `bool` | `false` | ✅ (when using HA storage) |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Enable a Pod Disruption Budget for the Teleport Pod to ensure HA during voluntary disruptions.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      enabled: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.enabled=true
+  ```
+  </TabItem>
+</Tabs>
+
+### `highAvailability.podDisruptionBudget.minAvailable`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `int` | `1` | ✅ (when using HA storage) |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Ensures that this number of replicas is available during voluntary disruptions, can be a number of replicas or a percentage.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      minAvailable: 1
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.minAvailable=1
+  ```
+  </TabItem>
+</Tabs>
+
 ## `highAvailability.certManager`
 
 See the [cert-manager](https://cert-manager.io/docs/) docs for more information.
