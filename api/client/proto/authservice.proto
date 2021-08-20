@@ -918,6 +918,8 @@ message GetLocksRequest {
     // Targets is a list of targets. Every returned lock must match at least
     // one of the targets.
     repeated types.LockTarget Targets = 1;
+    // InForceOnly specifies whether to return only those locks that are in force.
+    bool InForceOnly = 2;
 }
 
 message GetLocksResponse {
@@ -933,6 +935,13 @@ message GetLockRequest {
 message DeleteLockRequest {
     // Name is the name of the lock to delete.
     string Name = 1;
+}
+
+message ReplaceRemoteLocksRequest {
+    // ClusterName identifies the cluster from which the locks originate.
+    string ClusterName = 1;
+    // Locks is a list of new remote locks to store.
+    repeated types.LockV2 Locks = 2;
 }
 
 // AuthService is authentication/authorization service implementation
@@ -1204,12 +1213,14 @@ service AuthService {
 
     // GetLock gets a lock by name.
     rpc GetLock(GetLockRequest) returns (types.LockV2);
-    // GetLocks gets all locks, matching at least one of the targets when specified.
+    // GetLocks gets all/in-force locks that match at least one of the targets when specified.
     rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
     // UpsertLock upserts a lock.
     rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
     // DeleteLock deletes a lock.
     rpc DeleteLock(DeleteLockRequest) returns (google.protobuf.Empty);
+    // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+    rpc ReplaceRemoteLocks(ReplaceRemoteLocksRequest) returns (google.protobuf.Empty);
 
     // StreamSessionEvents streams audit events from a given session recording.
     rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);

@@ -17,12 +17,14 @@ limitations under the License.
 package types
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/utils"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // Lock configures locking out of a particular access vector.
@@ -44,8 +46,8 @@ type Lock interface {
 	// SetLockExpiry sets the lock's expiry.
 	SetLockExpiry(*time.Time)
 
-	// IsInForce returns whether the lock is in force.
-	IsInForce(clockwork.Clock) bool
+	// IsInForce returns whether the lock is in force at a particular time.
+	IsInForce(time.Time) bool
 }
 
 // NewLock is a convenience method to create a Lock resource.
@@ -147,12 +149,12 @@ func (c *LockV2) SetLockExpiry(expiry *time.Time) {
 	c.Spec.Expires = expiry
 }
 
-// IsInForce returns whether the lock is in force.
-func (c *LockV2) IsInForce(clock clockwork.Clock) bool {
+// IsInForce returns whether the lock is in force at a particular time.
+func (c *LockV2) IsInForce(t time.Time) bool {
 	if c.Spec.Expires == nil {
 		return true
 	}
-	return clock.Now().Before(*c.Spec.Expires)
+	return t.Before(*c.Spec.Expires)
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -169,21 +171,15 @@ func (c *LockV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(c.Spec.Target.Check())
+	if c.Spec.Target.IsEmpty() {
+		return trace.BadParameter("at least one target field must be set")
+	}
+	return nil
 }
 
-// Check verifies the target's constraints.
-func (t LockTarget) Check() error {
-	targetMap, err := t.IntoMap()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, val := range targetMap {
-		if val != "" {
-			return nil
-		}
-	}
-	return trace.BadParameter("at least one target field must be set")
+// IsEmpty returns true if none of the target's fields is set.
+func (t LockTarget) IsEmpty() bool {
+	return cmp.Equal(t, LockTarget{})
 }
 
 // IntoMap returns the target attributes in the form of a map.
@@ -201,19 +197,35 @@ func (t *LockTarget) FromMap(m map[string]string) error {
 }
 
 // Match returns true if the lock's target is matched by this target.
-func (t LockTarget) Match(lock Lock) (bool, error) {
-	targetMap, err := t.IntoMap()
-	if err != nil {
-		return false, trace.Wrap(err)
+func (t LockTarget) Match(lock Lock) bool {
+	if t.IsEmpty() {
+		return false
 	}
-	lockTargetMap, err := lock.Target().IntoMap()
-	if err != nil {
-		return false, trace.Wrap(err)
+	lockTarget := lock.Target()
+	if t.User != "" && lockTarget.User != t.User {
+		return false
 	}
-	for key := range targetMap {
-		if targetMap[key] != "" && targetMap[key] != lockTargetMap[key] {
-			return false, nil
-		}
+	if t.Role != "" && lockTarget.Role != t.Role {
+		return false
 	}
-	return true, nil
+	if t.Login != "" && lockTarget.Login != t.Login {
+		return false
+	}
+	if t.Node != "" && lockTarget.Node != t.Node {
+		return false
+	}
+	if t.MFADevice != "" && lockTarget.MFADevice != t.MFADevice {
+		return false
+	}
+	return true
+}
+
+// String returns string representation of the LockTarget.
+func (t LockTarget) String() string {
+	return strings.TrimSpace(proto.CompactTextString(&t))
+}
+
+// Equals returns true when the two lock targets are equal.
+func (t LockTarget) Equals(t2 LockTarget) bool {
+	return proto.Equal(&t, &t2)
 }
