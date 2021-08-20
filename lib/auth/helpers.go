@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -175,6 +176,8 @@ type TestAuthServer struct {
 	Backend backend.Backend
 	// Authorizer is an authorizer used in tests
 	Authorizer Authorizer
+	// LockWatcher is a lock watcher used in tests.
+	LockWatcher *services.LockWatcher
 }
 
 // NewTestAuthServer returns new instances of Auth server
@@ -320,10 +323,23 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer)
+	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentAuth,
+			Client:    srv.AuthServer,
+			Clock:     cfg.Clock,
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
+
+	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer, srv.LockWatcher)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return srv, nil
 }
 
@@ -395,6 +411,16 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		}
 		return certs.tls, priv, nil
 	case BuiltinRole:
+		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
+			HostID:   id.Username,
+			NodeName: id.Username,
+			Roles:    types.SystemRoles{id.Role},
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return keys.TLSCert, keys.Key, nil
+	case RemoteBuiltinRole:
 		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
 			HostID:   id.Username,
 			NodeName: id.Username,
@@ -614,6 +640,7 @@ func TestUser(username string) TestIdentity {
 	return TestIdentity{
 		I: LocalUser{
 			Username: username,
+			Identity: tlsca.Identity{Username: username},
 		},
 	}
 }
@@ -646,6 +673,17 @@ func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 		I: BuiltinRole{
 			Role:     role,
 			Username: serverID,
+		},
+	}
+}
+
+// TestRemoteBuiltin returns TestIdentity for a remote builtin role.
+func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity {
+	return TestIdentity{
+		I: RemoteBuiltinRole{
+			Role:        role,
+			Username:    string(role),
+			ClusterName: remoteCluster,
 		},
 	}
 }
@@ -781,14 +819,14 @@ func (t *TestTLSServer) Close() error {
 
 // Shutdown closes the listener and HTTP server gracefully
 func (t *TestTLSServer) Shutdown(ctx context.Context) error {
-	err := t.TLSServer.Shutdown(ctx)
+	errs := []error{t.TLSServer.Shutdown(ctx)}
 	if t.Listener != nil {
-		t.Listener.Close()
+		errs = append(errs, t.Listener.Close())
 	}
 	if t.AuthServer.Backend != nil {
-		t.AuthServer.Backend.Close()
+		errs = append(errs, t.AuthServer.Backend.Close())
 	}
-	return err
+	return trace.NewAggregate(errs...)
 }
 
 // Stop stops listening server, but does not close the auth backend
