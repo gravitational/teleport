@@ -458,6 +458,14 @@ func isValidAttestationCert(certOrPath string) error {
 	return err
 }
 
+// Check validates WebauthnLocalAuth, returning an error if it's not valid.
+func (wal *WebauthnLocalAuth) Check() error {
+	if len(wal.UserID) == 0 {
+		return trace.BadParameter("missing UserID field")
+	}
+	return nil
+}
+
 // NewMFADevice creates a new MFADevice with the given name. Caller must set
 // the Device field in the returned MFADevice.
 func NewMFADevice(name, id string, addedAt time.Time) *MFADevice {
