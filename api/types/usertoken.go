@@ -23,8 +23,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ResetPasswordToken represents a temporary token used to reset passwords
-type ResetPasswordToken interface {
+// UserToken represents a temporary token used for various user related actions ie: change password.
+type UserToken interface {
 	// Resource provides common resource properties
 	Resource
 	// GetUser returns User
@@ -41,9 +41,9 @@ type ResetPasswordToken interface {
 	SetURL(string)
 }
 
-// NewResetPasswordToken creates an instance of ResetPasswordToken.
-func NewResetPasswordToken(tokenID string) (ResetPasswordToken, error) {
-	u := &ResetPasswordTokenV3{
+// NewUserToken creates an instance of UserToken.
+func NewUserToken(tokenID string) (UserToken, error) {
+	u := &UserTokenV3{
 		Metadata: Metadata{
 			Name: tokenID,
 		},
@@ -54,99 +54,99 @@ func NewResetPasswordToken(tokenID string) (ResetPasswordToken, error) {
 	return u, nil
 }
 
-// GetName returns Name
-func (u *ResetPasswordTokenV3) GetName() string {
+// GetName returns token ID.
+func (u *UserTokenV3) GetName() string {
 	return u.Metadata.Name
 }
 
 // SetName sets the name of the resource
-func (u *ResetPasswordTokenV3) SetName(name string) {
+func (u *UserTokenV3) SetName(name string) {
 	u.Metadata.Name = name
 }
 
 // GetUser returns User
-func (u *ResetPasswordTokenV3) GetUser() string {
+func (u *UserTokenV3) GetUser() string {
 	return u.Spec.User
 }
 
 // SetUser sets the name of the resource
-func (u *ResetPasswordTokenV3) SetUser(name string) {
+func (u *UserTokenV3) SetUser(name string) {
 	u.Spec.User = name
 }
 
 // GetCreated returns Created
-func (u *ResetPasswordTokenV3) GetCreated() time.Time {
+func (u *UserTokenV3) GetCreated() time.Time {
 	return u.Spec.Created
 }
 
 // SetCreated sets the name of the resource
-func (u *ResetPasswordTokenV3) SetCreated(t time.Time) {
+func (u *UserTokenV3) SetCreated(t time.Time) {
 	u.Spec.Created = t
 }
 
 // GetURL returns URL
-func (u *ResetPasswordTokenV3) GetURL() string {
+func (u *UserTokenV3) GetURL() string {
 	return u.Spec.URL
 }
 
 // SetURL sets URL
-func (u *ResetPasswordTokenV3) SetURL(url string) {
+func (u *UserTokenV3) SetURL(url string) {
 	u.Spec.URL = url
 }
 
 // Expiry returns object expiry setting
-func (u *ResetPasswordTokenV3) Expiry() time.Time {
+func (u *UserTokenV3) Expiry() time.Time {
 	return u.Metadata.Expiry()
 }
 
 // SetExpiry sets object expiry
-func (u *ResetPasswordTokenV3) SetExpiry(t time.Time) {
+func (u *UserTokenV3) SetExpiry(t time.Time) {
 	u.Metadata.SetExpiry(t)
 }
 
 // GetMetadata returns object metadata
-func (u *ResetPasswordTokenV3) GetMetadata() Metadata {
+func (u *UserTokenV3) GetMetadata() Metadata {
 	return u.Metadata
 }
 
 // GetVersion returns resource version
-func (u *ResetPasswordTokenV3) GetVersion() string {
+func (u *UserTokenV3) GetVersion() string {
 	return u.Version
 }
 
 // GetKind returns resource kind
-func (u *ResetPasswordTokenV3) GetKind() string {
+func (u *UserTokenV3) GetKind() string {
 	return u.Kind
 }
 
 // GetResourceID returns resource ID
-func (u *ResetPasswordTokenV3) GetResourceID() int64 {
+func (u *UserTokenV3) GetResourceID() int64 {
 	return u.Metadata.ID
 }
 
 // SetResourceID sets resource ID
-func (u *ResetPasswordTokenV3) SetResourceID(id int64) {
+func (u *UserTokenV3) SetResourceID(id int64) {
 	u.Metadata.ID = id
 }
 
 // GetSubKind returns resource sub kind
-func (u *ResetPasswordTokenV3) GetSubKind() string {
+func (u *UserTokenV3) GetSubKind() string {
 	return u.SubKind
 }
 
 // SetSubKind sets resource subkind
-func (u *ResetPasswordTokenV3) SetSubKind(s string) {
+func (u *UserTokenV3) SetSubKind(s string) {
 	u.SubKind = s
 }
 
 // setStaticFields sets static resource header and metadata fields.
-func (u *ResetPasswordTokenV3) setStaticFields() {
-	u.Kind = KindResetPasswordToken
+func (u *UserTokenV3) setStaticFields() {
+	u.Kind = KindUserToken
 	u.Version = V3
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
-func (u ResetPasswordTokenV3) CheckAndSetDefaults() error {
+func (u *UserTokenV3) CheckAndSetDefaults() error {
 	u.setStaticFields()
 	if err := u.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -155,6 +155,6 @@ func (u ResetPasswordTokenV3) CheckAndSetDefaults() error {
 }
 
 // // String represents a human readable version of the token
-func (u *ResetPasswordTokenV3) String() string {
-	return fmt.Sprintf("ResetPasswordTokenV3(tokenID=%v, user=%v, expires at %v)", u.GetName(), u.Spec.User, u.Expiry())
+func (u *UserTokenV3) String() string {
+	return fmt.Sprintf("UserTokenV3(tokenID=%v, type=%v user=%v, expires at %v)", u.GetName(), u.GetSubKind(), u.Spec.User, u.Expiry())
 }

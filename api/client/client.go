@@ -601,23 +601,34 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 	return nil
 }
 
-// RotateResetPasswordTokenSecrets rotates secrets for a given tokenID.
+// RotateUserTokenSecrets rotates secrets for a given tokenID.
 // It gets called every time a user fetches 2nd-factor secrets during registration attempt.
 // This ensures that an attacker that gains the ResetPasswordToken link can not view it,
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
-func (c *Client) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error) {
-	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateResetPasswordTokenSecretsRequest{
+func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
+	if secrets, err := c.grpc.RotateUserTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
+		TokenID: tokenID,
+	}, c.callOpts...); err != nil {
+		if !trace.IsNotImplemented(trail.FromGRPC(err)) {
+			return nil, trail.FromGRPC(err)
+		}
+	} else {
+		return secrets, nil
+	}
+
+	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
+
 	return secrets, nil
 }
 
-// GetResetPasswordToken returns a ResetPasswordToken for the specified tokenID.
-func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (types.ResetPasswordToken, error) {
+// GetResetPasswordToken returns a reset password token for the specified tokenID.
+func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error) {
 	token, err := c.grpc.GetResetPasswordToken(ctx, &proto.GetResetPasswordTokenRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
@@ -629,7 +640,7 @@ func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (typ
 }
 
 // CreateResetPasswordToken creates reset password token.
-func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error) {
+func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (types.UserToken, error) {
 	token, err := c.grpc.CreateResetPasswordToken(ctx, req, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -1661,7 +1672,7 @@ func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...type
 	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
 		InForceOnly: inForceOnly,
 		Targets:     targetPtrs,
-	})
+	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1696,6 +1707,26 @@ func (c *Client) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (c *Client) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+	lockV2s := make([]*types.LockV2, 0, len(locks))
+	for _, lock := range locks {
+		lockV2, ok := lock.(*types.LockV2)
+		if !ok {
+			return trace.BadParameter("unexpected lock type %T", lock)
+		}
+		lockV2s = append(lockV2s, lockV2)
+	}
+	_, err := c.grpc.ReplaceRemoteLocks(ctx, &proto.ReplaceRemoteLocksRequest{
+		ClusterName: clusterName,
+		Locks:       lockV2s,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GetNetworkRestrictions retrieves the network restrictions
 func (c *Client) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
 	nr, err := c.grpc.GetNetworkRestrictions(ctx, &empty.Empty{}, c.callOpts...)
@@ -1721,6 +1752,171 @@ func (c *Client) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRes
 // DeleteNetworkRestrictions deletes the network restrictions
 func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
 	_, err := c.grpc.DeleteNetworkRestrictions(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// CreateDatabase creates a new database resource.
+func (c *Client) CreateDatabase(ctx context.Context, database types.Database) error {
+	databaseV3, ok := database.(*types.DatabaseV3)
+	if !ok {
+		return trace.BadParameter("unsupported database type %T", database)
+	}
+	_, err := c.grpc.CreateDatabase(ctx, databaseV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateDatabase updates existing database resource.
+func (c *Client) UpdateDatabase(ctx context.Context, database types.Database) error {
+	databaseV3, ok := database.(*types.DatabaseV3)
+	if !ok {
+		return trace.BadParameter("unsupported database type %T", database)
+	}
+	_, err := c.grpc.UpdateDatabase(ctx, databaseV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetDatabase returns the specified database resource.
+func (c *Client) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing database name")
+	}
+	database, err := c.grpc.GetDatabase(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return database, nil
+}
+
+// GetDatabases returns all database resources.
+func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	items, err := c.grpc.GetDatabases(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	databases := make([]types.Database, len(items.Databases))
+	for i := range items.Databases {
+		databases[i] = items.Databases[i]
+	}
+	return databases, nil
+}
+
+// DeleteDatabase deletes specified database resource.
+func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteDatabase(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllDatabases deletes all database resources.
+func (c *Client) DeleteAllDatabases(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllDatabases(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetWindowsDesktopServices returns all registered windows desktop services.
+func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	services := make([]types.WindowsDesktopService, 0, len(resp.GetServices()))
+	for _, service := range resp.GetServices() {
+		services = append(services, service)
+	}
+	return services, nil
+}
+
+// UpsertWindowsDesktopService registers a new windows desktop service.
+func (c *Client) UpsertWindowsDesktopService(ctx context.Context, service types.WindowsDesktopService) (*types.KeepAlive, error) {
+	s, ok := service.(*types.WindowsDesktopServiceV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", service)
+	}
+	keepAlive, err := c.grpc.UpsertWindowsDesktopService(ctx, s, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteWindowsDesktopService removes the specified windows desktop service.
+func (c *Client) DeleteWindowsDesktopService(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteWindowsDesktopService(ctx, &proto.DeleteWindowsDesktopServiceRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAllWindowsDesktopServices removes all registered windows desktop services.
+func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllWindowsDesktopServices(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// GetWindowsDesktops returns all registered windows desktop hosts.
+func (c *Client) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+	resp, err := c.grpc.GetWindowsDesktops(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	desktops := make([]types.WindowsDesktop, 0, len(resp.GetDesktops()))
+	for _, desktop := range resp.GetDesktops() {
+		desktops = append(desktops, desktop)
+	}
+	return desktops, nil
+}
+
+// GetWindowsDesktop returns a registered windows desktop host.
+func (c *Client) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
+	desktop, err := c.grpc.GetWindowsDesktop(ctx, &proto.GetWindowsDesktopRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return desktop, nil
+}
+
+// CreateWindowsDesktop registers a new windows desktop host.
+func (c *Client) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	d, ok := desktop.(*types.WindowsDesktopV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.CreateWindowsDesktop(ctx, d, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateWindowsDesktop updates an existing windows desktop host.
+func (c *Client) UpdateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	d, ok := desktop.(*types.WindowsDesktopV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpdateWindowsDesktop(ctx, d, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteWindowsDesktop removes the specified windows desktop host.
+func (c *Client) DeleteWindowsDesktop(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteWindowsDesktop(ctx, &proto.DeleteWindowsDesktopRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAllWindowsDesktops removes all registered windows desktop hosts.
+func (c *Client) DeleteAllWindowsDesktops(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllWindowsDesktops(ctx, &empty.Empty{}, c.callOpts...)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}

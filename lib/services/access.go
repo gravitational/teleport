@@ -52,4 +52,6 @@ type Access interface {
 	DeleteLock(context.Context, string) error
 	// DeleteLock deletes all/in-force locks.
 	DeleteAllLocks(context.Context) error
+	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error
 }

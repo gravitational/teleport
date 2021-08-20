@@ -375,10 +375,11 @@ func TestLockInForce(t *testing.T) {
 	require.Eventually(t, sessionHasFinished, 1*time.Second, 100*time.Millisecond,
 		"Timed out waiting for session to finish")
 
-	// Expect that the idle timeout has been delivered via stderr
+	// Expect the lock-in-force message to have been delivered via stderr.
+	lockInForceMsg := services.LockInForceAccessDenied(lock).Error()
 	text, err := waitForBytes(stdErrCh)
 	require.NoError(t, err)
-	require.Equal(t, services.LockInForceMessage(lock), string(text))
+	require.Equal(t, lockInForceMsg, string(text))
 
 	// As long as the lock is in force, new sessions cannot be opened.
 	newClient, err := ssh.Dial("tcp", f.ssh.srvAddress, f.ssh.cltConfig)
@@ -390,7 +391,7 @@ func TestLockInForce(t *testing.T) {
 	})
 	_, err = newClient.NewSession()
 	require.Error(t, err)
-	require.Contains(t, err.Error(), services.LockInForceMessage(lock))
+	require.Contains(t, err.Error(), lockInForceMsg)
 
 	// Once the lock is lifted, new sessions should go through without error.
 	require.NoError(t, f.testSrv.Auth().DeleteLock(ctx, "test-lock"))
@@ -612,7 +613,7 @@ func TestAgentForward(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 
 	// type 'printenv SSH_AUTH_SOCK > /path/to/tmp/file' into the session (dumping the value of SSH_AUTH_STOCK into the temp file)
-	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", teleport.SSHAuthSock, tmpFile.Name())))
+	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v >> %s\n\r", teleport.SSHAuthSock, tmpFile.Name())))
 	require.NoError(t, err)
 
 	// wait for the output
