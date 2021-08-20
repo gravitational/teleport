@@ -57,7 +57,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
 	resp, err := webclient.Find(ctx, t.ProxyAddr, lib.IsInsecureDevMode(), nil)
 	if err == nil && resp.Proxy.ALPNSNIListenerEnabled {
-		opts = append(opts, proxy.WithTLSDialer())
+		opts = append(opts, proxy.WithALPNDialer())
 	}
 
 	dialer := proxy.DialerFromEnvironment(addr, opts...)

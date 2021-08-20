@@ -57,7 +57,7 @@ func NewSuite(t *testing.T) *Suite {
 
 	router := NewRouter()
 	router.Add(HandlerDecs{
-		Protocols: []string{ProtocolDefault},
+		Protocols: []Protocol{ProtocolDefault},
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			t.Fatal("default handler called")
 			return nil
@@ -108,7 +108,8 @@ func (s *Suite) Start(t *testing.T) {
 	<-syncC
 
 	t.Cleanup(func() {
-		svr.Close()
+		err := svr.Close()
+		require.NoError(t, err)
 	})
 }
 

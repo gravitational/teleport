@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"fmt"
 	"net"
 
@@ -69,7 +68,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	addr := "127.0.0.1:0"
+	addr := "localhost:0"
 	if cf.LocalProxyPort != "" {
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
@@ -77,14 +76,17 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		if err := listener.Close(); err != nil {
+			log.WithError(err).Warnf("Failed to close listener.")
+		}
+	}()
 	lp, err := mkLocalProxy(cf.Context, client.WebProxyAddr, database.Protocol, listener)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx, cancel := context.WithCancel(cf.Context)
-	defer cancel()
 	go func() {
-		<-ctx.Done()
+		<-cf.Context.Done()
 		lp.Close()
 	}()
 

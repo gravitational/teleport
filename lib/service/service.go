@@ -2951,18 +2951,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		if alpnRouter != nil && !cfg.Proxy.DisableDatabaseProxy {
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				Protocols: []string{alpnproxy.ProtocolMySQL},
+				Protocols: []alpnproxy.Protocol{alpnproxy.ProtocolMySQL},
 				Handler:   dbProxyServer.MySQLProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				Protocols: []string{alpnproxy.ProtocolPostgres},
+				Protocols: []alpnproxy.Protocol{alpnproxy.ProtocolPostgres},
 				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
 				// Add MongoDB teleport ALPN protocol without setting custom Handler.
 				// ALPN Proxy will handle MongoDB connection internally (terminate wrapped TLS traffic) and route
 				// extracted connection to ALPN Proxy DB TLS Handler.
-				Protocols: []string{alpnproxy.ProtocolMongoDB},
+				Protocols: []alpnproxy.Protocol{alpnproxy.ProtocolMongoDB},
 			})
 		}
 
@@ -3172,7 +3172,7 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 	if !cfg.Proxy.DisableReverseTunnel {
 		reverseTunnel := alpnproxy.NewMuxListenerWrapper(listeners.reverseTunnel, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
-			Protocols: []string{alpnproxy.ProtocolReverseTunnel},
+			Protocols: []alpnproxy.Protocol{alpnproxy.ProtocolReverseTunnel},
 			Handler:   reverseTunnel.HandleConnection,
 		})
 		listeners.reverseTunnel = reverseTunnel
@@ -3181,7 +3181,7 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 	if !cfg.Proxy.DisableWebService {
 		webWrapper := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
-			Protocols:  []string{alpnproxy.ProtocolHTTP, alpnproxy.ProtocolHTTP2, alpnproxy.ProtocolDefault, acme.ALPNProto},
+			Protocols:  []alpnproxy.Protocol{alpnproxy.ProtocolHTTP, alpnproxy.ProtocolHTTP2, alpnproxy.ProtocolDefault, acme.ALPNProto},
 			Handler:    webWrapper.HandleConnection,
 			ForwardTLS: false,
 		})
@@ -3189,7 +3189,7 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 	}
 	sshProxyListener := alpnproxy.NewMuxListenerWrapper(listeners.ssh, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
-		Protocols: []string{alpnproxy.ProtocolProxySSH},
+		Protocols: []alpnproxy.Protocol{alpnproxy.ProtocolProxySSH},
 		Handler:   sshProxyListener.HandleConnection,
 	})
 	listeners.ssh = sshProxyListener

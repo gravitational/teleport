@@ -259,7 +259,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
 	resp, err := webclient.Find(a.ctx, a.Addr.Addr, lib.IsInsecureDevMode(), nil)
 	if err == nil && resp.Proxy.ALPNSNIListenerEnabled {
-		opts = append(opts, proxy.WithTLSDialer())
+		opts = append(opts, proxy.WithALPNDialer())
 	} else {
 		a.log.Debugf("Failed to ping web proxy %q addr.", a.Addr.Addr)
 	}

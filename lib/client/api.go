@@ -2083,6 +2083,7 @@ func makeProxySSHClientWithTLSWrapper(cfg Config, sshConfig *ssh.ClientConfig) (
 	}
 	c, chans, reqs, err := ssh.NewClientConn(tlsConn, cfg.WebProxyAddr, sshConfig)
 	if err != nil {
+		// tlsConn is closed inside ssh.NewClientConn function
 		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.WebProxyAddr)
 	}
 	return ssh.NewClient(c, chans, reqs), nil

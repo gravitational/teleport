@@ -154,7 +154,6 @@ func proxySubsystemName(userHost, cluster string) string {
 		subsystem = fmt.Sprintf("%s@%s", subsystem, cluster)
 	}
 	return subsystem
-
 }
 
 func makeSSHClient(conn *tls.Conn, addr string, cfg *ssh.ClientConfig) (*ssh.Client, error) {
@@ -221,7 +220,7 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 				return nil
 			}
 			log.WithError(err).Errorf("Faield to accept client connection.")
-			continue
+			return trace.Wrap(err)
 		}
 		go func() {
 			if err := l.handleDownstreamConnection(ctx, conn, l.cfg.SNI); err != nil {
@@ -266,7 +265,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	for i := 0; i < 2; i++ {
 		select {
 		case <-ctx.Done():
-			return nil
+			return trace.NewAggregate(append(errs, ctx.Err())...)
 		case err := <-errC:
 			if err != nil && !errors.Is(err, io.EOF) {
 				errs = append(errs, err)
@@ -277,7 +276,12 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 }
 
 func getAgent() (agent.ExtendedAgent, error) {
-	conn, err := agentconn.Dial(os.Getenv(teleport.SSHAuthSock))
+	agentSocket :=  os.Getenv(teleport.SSHAuthSock)
+	if agentSocket == "" {
+		return nil, trace.NotFound("failed to connect to SSH agent, %s env var not set", teleport.SSHAuthSock)
+	}
+
+	conn, err := agentconn.Dial(agentSocket)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

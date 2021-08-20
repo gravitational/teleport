@@ -54,7 +54,10 @@ func dialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*s
 	return sshutils.NewClientConnWithDeadline(conn, addr, config)
 }
 
-func dialTLSWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+// dialALPNWithDeadline allows connecting to Teleport in single-port mode. SSH protocol is wrapped into
+// TLS connection where TLS ALPN protocol is set to ProtocolReverseTunnel allowing ALPN Proxy to route the
+// incoming connection to ReverseTunnel proxy service.
+func dialALPNWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	dialer := &net.Dialer{
 		Timeout: config.Timeout,
 	}
@@ -89,7 +92,7 @@ type directDial struct {
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	if d.useTLS {
-		client, err := dialTLSWithDeadline(network, addr, config)
+		client, err := dialALPNWithDeadline(network, addr, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -196,9 +199,11 @@ type dialerOptions struct {
 	dialTLS bool
 }
 
+// DialerOptionFunc allows setting options as functional arguments to DialerFromEnvironment
 type DialerOptionFunc func(options *dialerOptions)
 
-func WithTLSDialer() DialerOptionFunc {
+// WithALPNDialer creates a dialer that allows to Teleport running in single-port mode.
+func WithALPNDialer() DialerOptionFunc {
 	return func(options *dialerOptions) {
 		options.dialTLS = true
 	}

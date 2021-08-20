@@ -61,13 +61,13 @@ type ProxyConfig struct {
 // NewRouter creates a ALPN new router.
 func NewRouter() *Router {
 	return &Router{
-		alpnHandlers: make(map[string]*HandlerDecs),
+		alpnHandlers: make(map[Protocol]*HandlerDecs),
 	}
 }
 
 // Router contains information about protocol handlers and routing rules.
 type Router struct {
-	alpnHandlers       map[string]*HandlerDecs
+	alpnHandlers       map[Protocol]*HandlerDecs
 	kubeHandler        *HandlerDecs
 	databaseTLSHandler *HandlerDecs
 	mtx                sync.Mutex
@@ -104,7 +104,7 @@ func (r *Router) Add(desc HandlerDecs) {
 // HandlerDecs describes the handler for particular protocols.
 type HandlerDecs struct {
 	// Protocols is a list of supported protocols by handler.
-	Protocols []string
+	Protocols []Protocol
 	// Handler is protocol handling logic.
 	Handler HandlerFunc
 	// ForwardTLS tells is ALPN proxy service should terminate TLS traffic or delegate the
@@ -153,7 +153,7 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 	}
 	var supportedProtocols []string
 	for k := range cfg.Router.alpnHandlers {
-		supportedProtocols = append(supportedProtocols, k)
+		supportedProtocols = append(supportedProtocols, string(k))
 	}
 	return &Proxy{
 		cfg:                cfg,
@@ -177,11 +177,15 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		go func() {
+			// In case of successful handleConn call leave the connection Close() call up to service handler.
+			// For example in ReverseTunnel handles connection asynchronously and closing conn after
+			// service handler returned will break service logic.
+			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
 			if err := p.handleConn(ctx, clientConn); err != nil {
-				if err := clientConn.Close(); err != nil {
-					p.log.WithError(err).Warnf("failed to close client connection")
+				if err := clientConn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+					p.log.WithError(err).Warnf("Failed to close client connection.")
 				}
-				p.log.WithError(err).Warnf("failed to handle client connection")
+				p.log.WithError(err).Warnf("Failed to handle client connection.")
 			}
 		}()
 	}
@@ -265,14 +269,18 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 
 	tlsConn := tls.Server(conn, p.cfg.TLSConfig)
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
-		tlsConn.Close()
+		if err := tlsConn.Close(); err != nil {
+			p.log.WithError(err).Error("Failed to close TLS connection.")
+		}
 		return trace.Wrap(err)
 	}
 	if err := tlsConn.Handshake(); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
-		tlsConn.Close()
+		if err := tlsConn.Close(); err != nil {
+			p.log.WithError(err).Error("Failed to close TLS connection.")
+		}
 		return trace.Wrap(err)
 	}
 
@@ -286,7 +294,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn))
 }
 
-func isDBTLSProtocol(protocol string) bool {
+func isDBTLSProtocol(protocol Protocol) bool {
 	switch protocol {
 	case ProtocolMongoDB:
 		return true
@@ -309,12 +317,12 @@ func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHe
 func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
 	protocol := ProtocolDefault
 	if len(clientHelloInfo.SupportedProtos) != 0 {
-		protocol = clientHelloInfo.SupportedProtos[0]
+		protocol = Protocol(clientHelloInfo.SupportedProtos[0])
 	}
 
 	if isDBTLSProtocol(protocol) {
 		return &HandlerDecs{
-			Protocols:  []string{protocol},
+			Protocols:  []Protocol{protocol},
 			Handler:    p.databaseHandlerWithTLSTermination,
 			ForwardTLS: false,
 		}, nil

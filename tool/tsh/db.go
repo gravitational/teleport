@@ -294,7 +294,7 @@ Key:       %v
 }
 
 func startLocalALPNSNIProxy(cf *CLIConf, tc *client.TeleportClient, databaseProtocol string) (*alpnproxy.LocalProxy, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -339,7 +339,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		opts = append(opts, WithLocalProxyRoute(addr.Host(), addr.Port(0)))
+		opts = append(opts, WithLocalProxy(addr.Host(), addr.Port(0)))
 	}
 	cmd, err := getConnectCommand(cf, tc, profile, database, opts...)
 	if err != nil {
@@ -391,7 +391,7 @@ type connectionCommandOpts struct {
 
 type ConnectCommandFunc func(*connectionCommandOpts)
 
-func WithLocalProxyRoute(host string, port int) ConnectCommandFunc {
+func WithLocalProxy(host string, port int) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.localProxyPort = port
 		opts.localProxyHost = host
@@ -452,7 +452,7 @@ func toALPNProtocol(dbProtocol string) (alpnproxy.Protocol, error) {
 	case defaults.ProtocolMongoDB:
 		return alpnproxy.ProtocolMongoDB, nil
 	default:
-		return "", trace.NotImplemented("%q protocol not supported", dbProtocol)
+		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
 }
 
