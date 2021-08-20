@@ -93,7 +93,7 @@ Before you get started you’ll need:
 
 ## Create a SAML Connector
 
-Now, create a SAML connector [resource](../../admin-guide.mdx#resources).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the entity_descriptor resource.
+Now, create a SAML connector [resource](../../setup/reference/resources.mdx).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the entity_descriptor resource.
 Write down this template as `azure-connector.yaml`:
 
 ```yaml
@@ -393,7 +393,7 @@ $ sudo journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass the
-[`--debug`](../../cli-docs.mdx#teleport-start) flag to `teleport start` command.
+[`--debug`](../../setup/reference/cli.mdx#teleport-start) flag to `teleport start` command.
 
 **Failed to process SAML callback**
 
