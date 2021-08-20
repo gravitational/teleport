@@ -6,32 +6,32 @@ This example plugin demonstrates how to create a workflows plugin to automatical
 
 This demo can be used to quickly get the example plugin up and running.
 
-##### Create resources
+### Create resources
 
-```bash
+```console
 # create the access-plugin user and role
 $ tctl create -f access-plugin.yaml
 # generate an identity file for the access-plugin
 $ tctl auth sign --ttl=8760h --format=file --user=access-plugin --out=access-plugin-identity
 ```
 
-##### Edit the config file
+### Edit the config file
 
 Open `config.toml` and replace the `addr` with your own Auth or Proxy server address.
 
-##### Run the plugin
+### Run the plugin
 
 Start up the plugin and keep it running.
 
-```bash
+```console
 $ go run main.go
 ```
 
-##### Make an access request
+### Make an access request
 
 Open another terminal and execute the following commands to make a new access request.
 
-```bash
+```console
 # create the requester role
 $ tctl create -f requester.yaml
 # create a new user named alice using this role
