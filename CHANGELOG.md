@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.0.3
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue that could prevent DynamoDB users from logging into Teleport.
+
 ## 7.0.2
 
 This release of Teleport contains multiple bug fixes.
