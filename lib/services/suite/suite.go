@@ -28,24 +28,23 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
 
@@ -835,6 +834,77 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	devs, err = s.WebS.GetMFADevices(ctx, user1)
 	c.Assert(err, check.IsNil)
 	c.Assert(devs, check.HasLen, 2)
+}
+
+func (s *ServicesTestSuite) WebauthnSessionDataCRUD(c *check.C) {
+	const user1 = "llama"
+	const user2 = "alpaca"
+	// Prepare a few different objects so we can assert that both "user" and
+	// "session" key components are used correctly.
+	user1Reg := &wantypes.SessionData{
+		Challenge: []byte("challenge1-reg"),
+		UserId:    []byte("llamaid"),
+	}
+	user1Login := &wantypes.SessionData{
+		Challenge:        []byte("challenge1-login"),
+		UserId:           []byte("llamaid"),
+		AllowCredentials: [][]byte{[]byte("cred1"), []byte("cred2")},
+	}
+	user2Login := &wantypes.SessionData{
+		Challenge: []byte("challenge2"),
+		UserId:    []byte("alpacaid"),
+	}
+
+	// Usually there are only 2 sessions for each user: login and registration.
+	const registerSession = "register"
+	const loginSession = "login"
+	params := []struct {
+		user, session string
+		sd            *wantypes.SessionData
+	}{
+		{user: user1, session: registerSession, sd: user1Reg},
+		{user: user1, session: loginSession, sd: user1Login},
+		{user: user2, session: loginSession, sd: user2Login},
+	}
+
+	// Verify upsert/create.
+	for _, p := range params {
+		err := s.WebS.UpsertWebauthnSessionData(p.user, p.session, p.sd)
+		c.Assert(err, check.IsNil)
+	}
+
+	// Verify read.
+	for _, p := range params {
+		got, err := s.WebS.GetWebauthnSessionData(p.user, p.session)
+		c.Assert(err, check.IsNil)
+		if diff := cmp.Diff(p.sd, got); diff != "" {
+			c.Fatalf("GetWebauthnSessionData() mismatch (-want +got):\n%s", diff)
+		}
+	}
+
+	// Verify upsert/update.
+	user1Login = &wantypes.SessionData{
+		Challenge: []byte("challenge1-another"),
+		UserId:    []byte("llamaid"),
+	}
+	err := s.WebS.UpsertWebauthnSessionData(user1, loginSession, user1Login)
+	c.Assert(err, check.IsNil)
+	got, err := s.WebS.GetWebauthnSessionData(user1, loginSession)
+	c.Assert(err, check.IsNil)
+	if diff := cmp.Diff(user1Login, got); diff != "" {
+		c.Fatalf("GetWebauthnSessionData() mismatch (-want +got):\n%s", diff)
+	}
+
+	// Verify deletion.
+	err = s.WebS.DeleteWebauthnSessionData(user1, loginSession)
+	c.Assert(err, check.IsNil)
+	_, err = s.WebS.GetWebauthnSessionData(user1, loginSession)
+	c.Assert(trace.IsNotFound(err), check.Equals, true)
+	params = params[1:]
+	for _, p := range params {
+		_, err := s.WebS.GetWebauthnSessionData(p.user, p.session)
+		c.Assert(err, check.IsNil) // Other keys preserved
+	}
 }
 
 func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
