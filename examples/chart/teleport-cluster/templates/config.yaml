@@ -50,7 +50,7 @@ data:
   {{- end }}
   {{- if .Values.labels }}
       labels:
-    {{ toYaml .Values.labels | indent 8 }}
+    {{- toYaml .Values.labels | nindent 8 }}
   {{- end }}
     proxy_service:
       public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
