@@ -10,6 +10,7 @@
         "databases",
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
+        "existingDataVolume",
         "podSecurityPolicy",
         "labels",
         "image",
@@ -86,6 +87,11 @@
             "type": "boolean",
             "default": false
         },
+        "existingDataVolume": {
+            "$id": "#/properties/existingDataVolume",
+            "type": "string",
+            "default": ""
+        },
         "podSecurityPolicy": {
             "$id": "#/properties/podSecurityPolicy",
             "type": "object",
@@ -109,6 +115,11 @@
             "$id": "#/properties/image",
             "type": "string",
             "default": "quay.io/gravitational/teleport"
+        },
+        "imagePullSecrets": {
+            "$id": "#/properties/imagePullSecrets",
+            "type": "array",
+            "default": []
         },
         "replicaCount": {
             "$id": "#/properties/replicaCount",
