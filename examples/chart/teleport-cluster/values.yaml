@@ -120,6 +120,11 @@ highAvailability:
   # Setting 'requireAntiAffinity' to false (the default) uses 'preferredDuringSchedulingIgnoredDuringExecution' to make this a soft requirement.
   # This setting only has any effect when replicaCount is greater than 1.
   requireAntiAffinity: false
+  # If enabled will create a Pod Disruption Budget
+  # https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
   # Settings for cert-manager (can be used for provisioning TLS certs in HA mode)
   certManager:
     # If set to true, use cert-manager to get certificates for Teleport to use for TLS termination

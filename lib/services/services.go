@@ -33,4 +33,5 @@ type Services interface {
 	AppSession
 	types.WebSessionsGetter
 	types.WebTokensGetter
+	WindowsDesktops
 }

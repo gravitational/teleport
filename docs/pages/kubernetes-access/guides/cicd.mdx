@@ -38,7 +38,7 @@ spec:
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-Generate a `kubeconfig` using the `jenkins` user and its roles using [`tctl auth sign`](../../cli-docs.mdx#tctl-auth-sign):
+Generate a `kubeconfig` using the `jenkins` user and its roles using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign):
 
 ```bash
 # Create a new local user for Jenkins
@@ -64,7 +64,7 @@ kubectl --kubeconfig /path/to/kubeconfig get pods
   title="Short-Lived Certs"
 >
   Short-lived certificates expire in hours or minutes. You don't have to revoke them if the host gets compromised.
-  Generate a new kubeconfig every hour using `tctl` or [API](../../reference/api/introduction.mdx)
+  Generate a new kubeconfig every hour using `tctl` or [API](../../api/introduction.mdx)
   and publish it to secret storage, like [AWS](https://aws.amazon.com/secrets-manager/) or
   [GCP](https://cloud.google.com/secret-manager) secret managers.
 </Admonition>
