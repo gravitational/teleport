@@ -49,10 +49,10 @@ the [Auth Service](authentication.mdx#authentication-in-teleport).
 
 ![Teleport Proxy SSH](../../img/proxy-ssh-1.svg)
 
-1. A [`tsh` client](../cli-docs.mdx#tsh) generates an OpenSSH key pair. It forwards the generated public key, username, password, and second-factor token to the proxy.
+1. A [`tsh` client](../setup/reference/cli.mdx#tsh) generates an OpenSSH key pair. It forwards the generated public key, username, password, and second-factor token to the proxy.
 2. The Proxy Service forwards the request to the Auth Service.
 3. If Auth Service accepts credentials, it generates a new certificate signed by its user CA and sends it back to the Proxy Server. The certificate has a TTL
-   that defaults to 12 hours but can be configured in [`tctl`](../cli-docs.mdx#tctl).
+   that defaults to 12 hours but can be configured in [`tctl`](../setup/reference/cli.mdx#tctl).
 4. The Proxy Server returns the user certificate to the client and the client stores it in `~/.tsh/keys/example.com`. The certificate is also added to the local SSH agent if one is running.
 
 **Using Client Certificates**
