@@ -203,6 +203,11 @@ initContainers: []
 #  image: "alpine"
 #  args: ["echo test"]
 
+# If set, will run the command as a postStart handler
+# https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
+postStart:
+  command: []
+
 # Resources to request for each pod in the deployment
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 resources: {}
