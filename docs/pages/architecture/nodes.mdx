@@ -12,7 +12,7 @@ A node becomes a Teleport Node when the node joins a cluster with a "join" token
 
 ![Node joins a cluster](../../img/node_join.svg)
 
-A Teleport Node runs the [`teleport`](../cli-docs.mdx#teleport) daemon with the `node` role. This process handles incoming connection requests, authentication, and remote command execution on the node, similar to the function of OpenSSH's `sshd`.
+A Teleport Node runs the [`teleport`](../setup/reference/cli.mdx#teleport) daemon with the `node` role. This process handles incoming connection requests, authentication, and remote command execution on the node, similar to the function of OpenSSH's `sshd`.
 
 ![Node Service ping API](../../img/node_service_api.svg)
 
@@ -27,8 +27,8 @@ All cluster Nodes keep the Auth Server updated on their status with periodic pin
 
 The `node` service provides SSH access to every node with all of the following clients:
 
-- [OpenSSH: `ssh`](../admin-guide.mdx#using-teleport-with-openssh)
-- [Teleport CLI client: `tsh ssh`](../cli-docs.mdx#tsh-ssh)
+- [OpenSSH: `ssh`](../server-access/guides/openssh.mdx)
+- [Teleport CLI client: `tsh ssh`](../setup/reference/cli.mdx#tsh-ssh)
 - [Teleport Proxy UI](proxy.mdx#web-to-ssh-proxy) accessed via a web browser.
 
 Each client is authenticated via the [Auth Service](authentication.mdx#authentication-in-teleport) before being granted access to a Node.

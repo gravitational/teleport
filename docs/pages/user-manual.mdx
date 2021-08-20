@@ -17,14 +17,14 @@ In this document you will learn how to:
 - Replay recorded interactive sessions.
 
 In addition to this document, you can always simply type `tsh` into your
-terminal for the [CLI reference](cli-docs.mdx).
+terminal for the [CLI reference](./setup/reference/cli.mdx).
 
 ## Introduction
 
 (!docs/pages/includes/permission-warning.mdx!)
 
 For the impatient, here's an example of how a user would typically use
-[`tsh`](cli-docs.mdx#tsh):
+[`tsh`](./setup/reference/cli.mdx#tsh):
 
 ```bash
 # Login into a Teleport cluster. This command retrieves user's certificates
@@ -50,7 +50,7 @@ tsh logout
 
 In other words, Teleport was designed to be fully compatible with existing
 SSH-based workflows and does not require users to learn anything new, other than
-to call [`tsh login`](cli-docs.mdx#tsh-login) in the beginning.
+to call [`tsh login`](./setup/reference/cli.mdx#tsh-login) in the beginning.
 
 ## Installing tsh
 
@@ -74,7 +74,7 @@ passed as `login@host`, using syntax compatible with traditional `ssh`.
 tsh ssh --proxy=work.example.com --user=joe root@node
 ```
 
-[CLI Docs - tsh ssh](cli-docs.mdx#tsh-ssh)
+[CLI Docs - tsh ssh](./setup/reference/cli.mdx#tsh-ssh)
 
 ## Logging in
 
@@ -94,7 +94,7 @@ tsh login --proxy=work.example.com:5000
 tsh login --proxy=work.example.com:2002
 ```
 
-[CLI Docs - tsh login](cli-docs.mdx#tsh-login)
+[CLI Docs - tsh login](./setup/reference/cli.mdx#tsh-login)
 
 | Port | Description |
 | - | - |
@@ -110,7 +110,7 @@ This allows you to authenticate just once, maybe at the beginning of the day. Su
   type="tip"
   title="Tip"
 >
-  It is recommended to always use [`tsh login`](cli-docs.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
+  It is recommended to always use [`tsh login`](./setup/reference/cli.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
 </Admonition>
 
 A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via Github](admin-guide.mdx#github-oauth-20). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
@@ -135,7 +135,7 @@ tsh login --proxy=work.example.com --browser=none
 In this situation, a link will be printed on the screen. You can copy and paste this link into
 a browser of your choice to continue the login flow.
 
-[CLI Docs - tsh login](cli-docs.mdx#tsh-login)
+[CLI Docs - tsh login](./setup/reference/cli.mdx#tsh-login)
 
 ### Inspecting SSH certificate
 
@@ -157,7 +157,7 @@ tsh status
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-[CLI Docs - tsh status](cli-docs.mdx#tsh-status)
+[CLI Docs - tsh status](./setup/reference/cli.mdx#tsh-status)
 
 ### SSH agent support
 
@@ -178,7 +178,7 @@ variable to `false` in your shell profile to make this permanent.
 
 ### Identity files
 
-[`tsh login`](cli-docs.mdx#tsh-login) can also save the user certificate into a
+[`tsh login`](./setup/reference/cli.mdx#tsh-login) can also save the user certificate into a
 file:
 
 ```bash
@@ -228,7 +228,7 @@ jenkins user and storing it in a `jenkins.pem` file, which can be later used wit
 tctl auth sign --ttl=1h--user=jenkins --out=jenkins.pem
 ```
 
-[CLI Docs - tctl auth sign](cli-docs.mdx#tctl-auth-sign)
+[CLI Docs - tctl auth sign](./setup/reference/cli.mdx#tctl-auth-sign)
 
 Now `jenkins.pem` can be copied to the jenkins server and passed to `-i`
 (identity file) flag of `tsh`. Essentially `tctl auth sign` is an admin's
@@ -254,7 +254,7 @@ graviton      10.1.0.7:3022      os:osx
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-[CLI Docs - tsh ls](cli-docs.mdx#tsh-ls)
+[CLI Docs - tsh ls](./setup/reference/cli.mdx#tsh-ls)
 
 `tsh ls` can apply a filter based on the node labels.
 
@@ -269,7 +269,7 @@ graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-[CLI Docs -tsh ls](cli-docs.mdx#tsh-ls)
+[CLI Docs -tsh ls](./setup/reference/cli.mdx#tsh-ls)
 
 ## Interactive shell
 
@@ -470,7 +470,7 @@ production       offline
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-[CLI Docs - tsh clusters](cli-docs.mdx#tsh-clusters)
+[CLI Docs - tsh clusters](./setup/reference/cli.mdx#tsh-clusters)
 
 Now you can use the `--cluster` flag with any `tsh` command. For example, to list SSH nodes that are members of the `production` cluster, simply do:
 
@@ -568,7 +568,7 @@ the certificate must be passed to `ssh` via `IdentityFile` option (see `man
 ssh_config`). Consider this example: the Teleport user `joe` wants to login into
 the proxy named `lab.example.com`.
 
-He executes the [`tsh login`](cli-docs.mdx#tsh-login) command:
+He executes the [`tsh login`](./setup/reference/cli.mdx#tsh-login) command:
 
 ```bash
 tsh --proxy=lab.example.com login --user=joe
