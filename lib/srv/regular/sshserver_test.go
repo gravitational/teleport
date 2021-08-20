@@ -613,7 +613,7 @@ func TestAgentForward(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 
 	// type 'printenv SSH_AUTH_SOCK > /path/to/tmp/file' into the session (dumping the value of SSH_AUTH_STOCK into the temp file)
-	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", teleport.SSHAuthSock, tmpFile.Name())))
+	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v >> %s\n\r", teleport.SSHAuthSock, tmpFile.Name())))
 	require.NoError(t, err)
 
 	// wait for the output

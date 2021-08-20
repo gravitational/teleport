@@ -1269,6 +1269,8 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 		key = backend.Key(appsPrefix, serversPrefix, h.Namespace, h.Name)
 	case constants.KeepAliveDatabase:
 		key = backend.Key(dbServersPrefix, h.Namespace, h.HostID, h.Name)
+	case constants.KeepAliveWindowsDesktopService:
+		key = backend.Key(windowsDesktopServicesPrefix, h.Name)
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
 	}

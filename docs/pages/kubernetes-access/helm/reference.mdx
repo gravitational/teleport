@@ -50,6 +50,7 @@ This reference details available values for the `teleport-cluster` chart.
   If you are not using ACME certificates, you may also need to accept insecure warnings in your browser to view the page successfully.
 </Admonition>
 
+
 ## `kubeClusterName`
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
@@ -57,6 +58,15 @@ This reference details available values for the `teleport-cluster` chart.
 | `string` | `clusterName` value | no | `kubernetes_service.kube_cluster_name` |  ✅ |
 
 `kubeClusterName` sets the name used for the Kubernetes cluster. This name will be shown to Teleport users connecting to the cluster.
+
+## `authenticationType`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `local` | Yes | `auth_service.authentication.type` | ❌ |
+
+`authenticationType` controls the authentication scheme used by Teleport. Possible values are `local` and `github` for OSS, plus `oidc`, `saml`, and `false` for Enterprise.
+
 
 ## `enterprise`
 
@@ -404,6 +414,58 @@ Teleport pods must not be scheduled on the same physical host.
   <TabItem label="--set">
   ```shell
   --set highAvailability.requireAntiAffinity=true
+  ```
+  </TabItem>
+</Tabs>
+
+## `highAvailability.podDisruptionBudget`
+
+### `highAvailability.podDisruptionBudget.enabled`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `bool` | `false` | ✅ (when using HA storage) |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Enable a Pod Disruption Budget for the Teleport Pod to ensure HA during voluntary disruptions.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      enabled: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.enabled=true
+  ```
+  </TabItem>
+</Tabs>
+
+### `highAvailability.podDisruptionBudget.minAvailable`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `int` | `1` | ✅ (when using HA storage) |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Ensures that this number of replicas is available during voluntary disruptions, can be a number of replicas or a percentage.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      minAvailable: 1
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.minAvailable=1
   ```
   </TabItem>
 </Tabs>
@@ -899,6 +961,29 @@ A list of `initContainers` which will be run before the main Teleport container 
   </TabItem>
 </Tabs>
 
+## `postStart`
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/)
+
+A `postStart` lifecycle handler to be configured on the main Teleport container.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  postStart:
+    command:
+    - echo
+    - foo
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "postStart.command[0]=echo" \
+  --set "postStart.command[1]=foo"
+  ```
+  </TabItem>
+</Tabs>
+
 ## `resources`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -1267,6 +1352,27 @@ This can be used for joining a Teleport agent to a Teleport cluster which does n
   One option might be to use Teleport's built-in [ACME support](#acme) enable [cert-manager support](#highavailabilitycertmanager).
 </Admonition>
 
+## `existingDataVolume`
+
+| Type | Default value |
+| - | - |
+| `string` | `""` |
+
+When `existingDataVolume` is set to the name of an existing volume, the `/var/lib/teleport` mount will use this volume instead of creating a new `emptyDir` volume.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  existingDataVolume: my-volume
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```bash
+  --set existingDataVolume=my-volume
+  ```
+  </TabItem>
+</Tabs>
+
 ## `podSecurityPolicy`
 
 ### `podSecurityPolicy.enabled`
@@ -1426,6 +1532,30 @@ You can override this to use your own Teleport image rather than a Teleport-publ
   <TabItem label="--set">
   ```bash
   --set image=my.docker.registry/teleport-image-name
+  ```
+  </TabItem>
+</Tabs>
+
+## `imagePullSecrets`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod)
+
+A list of secrets containing authorization tokens which can be optionally used to access a private Docker registry.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  imagePullSecrets:
+  - name: my-docker-registry-key
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "imagePullSecrets[0].name=my-docker-registry-key"
   ```
   </TabItem>
 </Tabs>
