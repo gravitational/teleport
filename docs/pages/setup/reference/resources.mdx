@@ -1,0 +1,123 @@
+---
+title: Teleport CLI Reference
+description: The detailed guide and reference documentation for Teleport Command Line Interface (CLI) tools.
+h1: Command Line (CLI) Reference
+---
+
+## Resources
+
+A Teleport administrator has two tools to configure a Teleport cluster:
+
+- The [configuration file](./config.mdx) is used for static configuration like
+  the cluster name.
+- The [`tctl`](./cli.mdx#tctl) admin tool is used for manipulating dynamic
+  records like Teleport users.
+
+[`tctl`](./cli.mdx#tctl) has convenient subcommands for dynamic
+configuration, like `tctl users` or `tctl nodes`. However, for dealing with
+more advanced topics, like connecting clusters together or troubleshooting
+trust, [`tctl`](./cli.mdx#tctl) offers the more powerful, although
+lower-level CLI interface called `resources`.
+
+The concept is borrowed from the REST programming pattern. A cluster is composed
+of different objects (aka, resources) and there are just three common operations
+that can be performed on them: `get` , `create` , `remove` .
+
+A resource is defined as a [YAML](https://en.wikipedia.org/wiki/YAML) file.
+Every resource in Teleport has three required fields:
+
+- `Kind` - The type of resource
+- `Name` - A required field in the `metadata` to uniquely identify the resource
+- `Version` - The version of the resource format
+
+Everything else is resource-specific and any component of a Teleport cluster can
+be manipulated with just three CLI commands:
+
+| Command | Description | Examples |
+| - | - | - |
+| [`tctl get`](./cli.mdx#tctl-get) | Get one or multiple resources | `tctl get users` or `tctl get user/joe` |
+| [`tctl rm`](./cli.mdx#tctl-rm) | Delete a resource by type/name | `tctl rm user/joe` |
+| [`tctl create`](./cli.mdx#tctl-create) | Create a new resource from a YAML file. Use `-f` to override / update | `tctl create -f joe.yaml` |
+
+<Admonition
+  type="warning"
+  title="YAML Format"
+>
+  By default Teleport uses [YAML format](https://en.wikipedia.org/wiki/YAML) to describe resources.
+  YAML is a human-readable alternative to JSON or XML, but it's sensitive to white space.
+  Pay attention to spaces vs tabs.
+</Admonition>
+
+Here's an example how the YAML resource definition for a user Joe might look
+like. It can be retrieved by executing [`tctl get user/joe`](./cli.mdx#tctl-get)
+
+```yaml
+kind: user
+version: v2
+metadata:
+  name: joe
+spec:
+  roles: admin
+  status:
+    # Users can be temporarily locked in a Teleport system, but this
+    # functionality is reserved for internal use for now.
+    is_locked: false
+    lock_expires: 0001-01-01T00:00:00Z
+    locked_time: 0001-01-01T00:00:00Z
+  traits:
+    # These are "allowed logins" which are usually specified as the
+    # last argument to `tctl users add`
+    logins:
+    - joe
+    - root
+  # Any resource in Teleport can automatically expire.
+  expires: 0001-01-01T00:00:00Z
+  # for internal use only
+  created_by:
+    time: 0001-01-01T00:00:00Z
+    user:
+      name: builtin-Admin
+```
+
+<Admonition
+  type="tip"
+  title="Note"
+>
+  Some of the fields you will see when printing resources are used only internally and are not meant to be changed. Others are reserved for future use.
+</Admonition>
+
+Here's the list of resources currently exposed via [`tctl`](./cli.mdx#tctl):
+
+| Resource Kind | Description |
+| - | - |
+| user | A user record in the internal Teleport user DB. |
+| node | A registered SSH node. The same record is displayed via `tctl nodes ls` |
+| cluster | A trusted cluster. See [here](../../admin-guide.mdx#trusted-clusters) for more details on connecting clusters together. |
+| role | A role assumed by users. The Teleport Open Source Edition only includes one role: "admin", but Enterprise teleport users can define their own roles. |
+| connector | Authentication connectors for [Single Sign-On](../../enterprise/sso.mdx) (SSO) for SAML, OIDC and Github. |
+
+**Examples:**
+
+```bash
+# List all connectors:
+tctl get connectors
+
+# Dump a SAML connector called "okta":
+tctl get saml/okta
+
+# Delete a SAML connector called "okta":
+tctl rm saml/okta
+
+# Delete an OIDC connector called "gworkspace":
+tctl rm oidc/gworkspace
+
+# Delete a github connector called "myteam":
+tctl rm github/myteam
+
+# Delete a local user called "admin":
+tctl rm users/admin
+```
+
+<Admonition type="note">
+  Although `tctl get connectors` will show you every connector, when working with an individual connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each connector's `kind` at the top of its YAML output from `tctl get connectors`.
+</Admonition>
