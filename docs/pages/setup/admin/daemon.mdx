@@ -1,0 +1,58 @@
+---
+title: Teleport Daemon
+description: Teleport Daemon Configuration and Systemd Unit
+---
+
+## Teleport daemon
+
+The Teleport daemon is called [`teleport`](../reference/cli.mdx#teleport) and it supports
+the following commands:
+
+| Command | Description |
+| - | - |
+| start | Starts the Teleport daemon. |
+| configure | Dumps a sample configuration file in YAML format into standard output. |
+| version | Shows the Teleport version. |
+| status | Shows the status of a Teleport connection. This command is only available from inside of an active SSH session. |
+| help | Shows help options. |
+
+When experimenting, you can quickly start [`teleport`](../reference/cli.mdx#teleport) with verbose logging by typing [`teleport start -d`](../reference/cli.mdx#teleport-start).
+
+<Admonition
+  type="danger"
+  title="WARNING"
+>
+  Teleport stores data in `/var/lib/teleport` . Make sure that regular/non-admin users do not have access to this folder on the Auth server.
+</Admonition>
+
+## Systemd unit file
+
+In production, we recommend starting teleport daemon via an init system like `systemd`. Here's the recommended Teleport service unit file for `systemd`:
+
+```systemd
+[Unit]
+Description=Teleport SSH Service
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --pid-file=/run/teleport.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/teleport.pid
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## Daemon restarts
+
+As covered in the [Graceful Restarts](./graceful-restarts.mdx) section, Teleport
+supports graceful restarts. To upgrade a host to a newer Teleport version, an
+administrator must:
+
+1. Replace the Teleport binaries, usually [`teleport`](../reference/cli.mdx#teleport)
+   and [`tctl`](../reference/cli.mdx#tctl)
+2. Execute `systemctl restart teleport`
+
+This will perform a graceful restart, i.e. the Teleport daemon will fork a new process to handle new incoming requests, leaving the old daemon process running until existing clients disconnect.
