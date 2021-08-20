@@ -294,7 +294,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// list available sites
 	h.GET("/webapi/sites", h.WithAuth(h.getClusters))
 
-	h.POST("/webapi/join", h.WithAuth(h.generateJoinToken))
+	h.POST("/webapi/token", h.WithAuth(h.generateJoinToken))
 
 	// Site specific API
 
@@ -1521,7 +1521,8 @@ type joinTokenRequest struct {
 
 // A response to a request to create a join token.
 type joinTokenResponse struct {
-	Token string `json:"token"`
+	Token  string    `json:"id"`
+	Expiry time.Time `json:"expiry"`
 }
 
 // generateJoinToken generates a new join token, similar to tctl tokens add.
@@ -1558,7 +1559,7 @@ func (h *Handler) generateJoinToken(w http.ResponseWriter, r *http.Request, _ ht
 		return nil, trace.Wrap(err)
 	}
 
-	return &joinTokenResponse{token}, nil
+	return &joinTokenResponse{token, time.Now().Add(req.TTL.Value())}, nil
 }
 
 // u2fRegisterRequest is called to get a U2F challenge for registering a U2F key

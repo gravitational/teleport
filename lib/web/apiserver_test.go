@@ -3106,7 +3106,8 @@ func TestGenerateJoinToken(t *testing.T) {
 		err = proxy.auth.Auth().UpsertRole(context.Background(), role)
 		require.NoError(t, err)
 
-		endpoint := pack.clt.Endpoint("webapi", "join")
+		endpoint := pack.clt.Endpoint("webapi", "token")
+		start := time.Now()
 		resp, err := pack.clt.PostJSON(context.Background(), endpoint, tokenRequest)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.Code())
@@ -3115,13 +3116,16 @@ func TestGenerateJoinToken(t *testing.T) {
 		err = json.Unmarshal(resp.Bytes(), &tokenResponse)
 		require.NoError(t, err)
 		require.NotEmpty(t, tokenResponse.Token)
+		end := time.Now()
+		require.False(t, start.Add(time.Hour).After(tokenResponse.Expiry))
+		require.False(t, end.Add(time.Hour).Before(tokenResponse.Expiry))
 	})
 
 	t.Run("Requires auth", func(t *testing.T) {
 		env := newWebPack(t, 1)
 		proxy := env.proxies[0]
 		clt := proxy.newClient(t)
-		resp, err := clt.PostJSON(context.Background(), clt.Endpoint("webapi", "join"), tokenRequest)
+		resp, err := clt.PostJSON(context.Background(), clt.Endpoint("webapi", "token"), tokenRequest)
 		require.Error(t, err)
 		require.Equal(t, http.StatusForbidden, resp.Code())
 	})
@@ -3131,7 +3135,7 @@ func TestGenerateJoinToken(t *testing.T) {
 		proxy := env.proxies[0]
 		pack := proxy.authPack(t, "test-user")
 
-		endpoint := pack.clt.Endpoint("webapi", "join")
+		endpoint := pack.clt.Endpoint("webapi", "token")
 		resp, err := pack.clt.PostJSON(context.Background(), endpoint, tokenRequest)
 		require.Error(t, err)
 		require.Equal(t, http.StatusForbidden, resp.Code())
