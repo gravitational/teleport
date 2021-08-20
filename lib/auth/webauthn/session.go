@@ -20,3 +20,11 @@ func sessionToPB(sd *wan.SessionData) (*wantypes.SessionData, error) {
 		AllowCredentials: sd.AllowedCredentialIDs,
 	}, nil
 }
+
+func sessionFromPB(sd *wantypes.SessionData) *wan.SessionData {
+	return &wan.SessionData{
+		Challenge:            base64.RawURLEncoding.EncodeToString(sd.Challenge),
+		UserID:               sd.UserId,
+		AllowedCredentialIDs: sd.AllowCredentials,
+	}
+}
