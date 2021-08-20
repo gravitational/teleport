@@ -40,8 +40,8 @@ Install client libraries:
   <TabItem label="Linux">
     ```bash
     curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    # verify signature 
-    echo "$(curl  https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256)" | sha256sum --check 
+    # verify signature
+    echo "$(curl  https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256)" | sha256sum --check
     tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
     cd teleport-ent
     sudo ./install
@@ -53,11 +53,11 @@ Login into Teleport and test the connection:
 
 ```bash
 # tsh logs you in and receives short-lived certificates
-$ tsh login --proxy=myinstance.teleport.sh:443 --user=email@example.com
+$ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
 $ tsh ls
-Node Name Address    Labels 
---------- ---------- ------ 
-myserver  ⟵ Tunnel     
+Node Name Address    Labels
+--------- ---------- ------
+myserver  ⟵ Tunnel
 $ tsh ssh root@myserver
 ```
 
