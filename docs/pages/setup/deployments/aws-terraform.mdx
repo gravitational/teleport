@@ -703,12 +703,12 @@ $ journalctl -u teleport-node.service
 ## Adding EC2 instances to your Teleport cluster
 
 Customers run many workloads within EC2 and depending on how you work, there are many
-ways to integrate Teleport onto your servers. We recommend looking at our [Admin manual](https://gravitational.com/teleport/docs/admin-guide/#installing).
+ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../installation.mdx).
 
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
-- [Install the Teleport binary on the Server](../../admin-guide.mdx#installing)
-- [Run Teleport - we recommend using systemd](../../admin-guide.mdx#systemd-unit-file)
+- [Install the Teleport binary on the Server](../../installation.mdx)
+- [Run Teleport - we recommend using systemd](../admin/daemon.mdx#systemd-unit-file)
 - [Set the correct settings in /etc/teleport.yaml](../../admin-guide.mdx#configuration-file)
 - [Add nodes to the Teleport cluster](../../admin-guide.mdx#adding-nodes-to-the-cluster)
 
