@@ -868,14 +868,15 @@ func (s *ServicesTestSuite) WebauthnSessionDataCRUD(c *check.C) {
 	}
 
 	// Verify upsert/create.
+	ctx := context.Background()
 	for _, p := range params {
-		err := s.WebS.UpsertWebauthnSessionData(p.user, p.session, p.sd)
+		err := s.WebS.UpsertWebauthnSessionData(ctx, p.user, p.session, p.sd)
 		c.Assert(err, check.IsNil)
 	}
 
 	// Verify read.
 	for _, p := range params {
-		got, err := s.WebS.GetWebauthnSessionData(p.user, p.session)
+		got, err := s.WebS.GetWebauthnSessionData(ctx, p.user, p.session)
 		c.Assert(err, check.IsNil)
 		if diff := cmp.Diff(p.sd, got); diff != "" {
 			c.Fatalf("GetWebauthnSessionData() mismatch (-want +got):\n%s", diff)
@@ -887,22 +888,22 @@ func (s *ServicesTestSuite) WebauthnSessionDataCRUD(c *check.C) {
 		Challenge: []byte("challenge1reg--another"),
 		UserId:    []byte("llamaid"),
 	}
-	err := s.WebS.UpsertWebauthnSessionData(user1, registerSession, user1Reg)
+	err := s.WebS.UpsertWebauthnSessionData(ctx, user1, registerSession, user1Reg)
 	c.Assert(err, check.IsNil)
-	got, err := s.WebS.GetWebauthnSessionData(user1, registerSession)
+	got, err := s.WebS.GetWebauthnSessionData(ctx, user1, registerSession)
 	c.Assert(err, check.IsNil)
 	if diff := cmp.Diff(user1Reg, got); diff != "" {
 		c.Fatalf("GetWebauthnSessionData() mismatch (-want +got):\n%s", diff)
 	}
 
 	// Verify deletion.
-	err = s.WebS.DeleteWebauthnSessionData(user1, registerSession)
+	err = s.WebS.DeleteWebauthnSessionData(ctx, user1, registerSession)
 	c.Assert(err, check.IsNil)
-	_, err = s.WebS.GetWebauthnSessionData(user1, registerSession)
+	_, err = s.WebS.GetWebauthnSessionData(ctx, user1, registerSession)
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 	params = params[1:] // Remove user1/register from params
 	for _, p := range params {
-		_, err := s.WebS.GetWebauthnSessionData(p.user, p.session)
+		_, err := s.WebS.GetWebauthnSessionData(ctx, p.user, p.session)
 		c.Assert(err, check.IsNil) // Other keys preserved
 	}
 }

@@ -565,7 +565,7 @@ func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge,
 	return &u2fChal, nil
 }
 
-func (s *IdentityService) UpsertWebauthnSessionData(user, sessionID string, sd *wantypes.SessionData) error {
+func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
 	switch {
 	case user == "":
 		return trace.BadParameter("missing parameter user")
@@ -579,7 +579,7 @@ func (s *IdentityService) UpsertWebauthnSessionData(user, sessionID string, sd *
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = s.Put(context.TODO(), backend.Item{
+	_, err = s.Put(ctx, backend.Item{
 		Key:     sessionDataKey(user, sessionID),
 		Value:   value,
 		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnChallengeTimeout),
@@ -587,7 +587,7 @@ func (s *IdentityService) UpsertWebauthnSessionData(user, sessionID string, sd *
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetWebauthnSessionData(user, sessionID string) (*wantypes.SessionData, error) {
+func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
 	switch {
 	case user == "":
 		return nil, trace.BadParameter("missing parameter user")
@@ -595,7 +595,7 @@ func (s *IdentityService) GetWebauthnSessionData(user, sessionID string) (*wanty
 		return nil, trace.BadParameter("missing parameter sessionID")
 	}
 
-	item, err := s.Get(context.TODO(), sessionDataKey(user, sessionID))
+	item, err := s.Get(ctx, sessionDataKey(user, sessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -603,7 +603,7 @@ func (s *IdentityService) GetWebauthnSessionData(user, sessionID string) (*wanty
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 
-func (s *IdentityService) DeleteWebauthnSessionData(user, sessionID string) error {
+func (s *IdentityService) DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error {
 	switch {
 	case user == "":
 		return trace.BadParameter("missing parameter user")
@@ -611,7 +611,7 @@ func (s *IdentityService) DeleteWebauthnSessionData(user, sessionID string) erro
 		return trace.BadParameter("missing parameter sessionID")
 	}
 
-	return trace.Wrap(s.Delete(context.TODO(), sessionDataKey(user, sessionID)))
+	return trace.Wrap(s.Delete(ctx, sessionDataKey(user, sessionID)))
 }
 
 func sessionDataKey(user, sessionID string) []byte {

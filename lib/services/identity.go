@@ -125,15 +125,15 @@ type Identity interface {
 	// storage, for the purpose of later verifying an authentication or
 	// registration challenge.
 	// Session data is expected to expire according to backend settings.
-	UpsertWebauthnSessionData(user, sessionID string, sd *wantypes.SessionData) error
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
 
 	// GetWebauthnSessionData retrieves a previously-stored session data by ID,
 	// if it exists and has not expired.
-	GetWebauthnSessionData(user, sessionID string) (*wantypes.SessionData, error)
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
 
 	// DeleteWebauthnSessionData deletes session data by ID, if it exists and has
 	// not expired.
-	DeleteWebauthnSessionData(user, sessionID string) error
+	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 
 	// UpsertMFADevice upserts an MFA device for the user.
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
