@@ -32,6 +32,7 @@ func main() {
 		&common.AccessRequestCommand{},
 		&common.AppsCommand{},
 		&common.DBCommand{},
+		&common.LockCommand{},
 	}
 	common.Run(commands)
 }

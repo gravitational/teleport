@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -52,7 +53,7 @@ func TestLockCRUD(t *testing.T) {
 
 	t.Run("CreateLock", func(t *testing.T) {
 		// Initially expect no locks to be returned.
-		locks, err := access.GetLocks(ctx)
+		locks, err := access.GetLocks(ctx, false)
 		require.NoError(t, err)
 		require.Empty(t, locks)
 
@@ -67,16 +68,18 @@ func TestLockCRUD(t *testing.T) {
 	t.Run("LockGetters", func(t *testing.T) {
 		t.Run("GetLocks", func(t *testing.T) {
 			t.Parallel()
-			locks, err := access.GetLocks(ctx)
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			for _, inForceOnly := range []bool{true, false} {
+				locks, err := access.GetLocks(ctx, inForceOnly)
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			}
 		})
 		t.Run("GetLocks with targets", func(t *testing.T) {
 			t.Parallel()
 			// Match both locks with the targets.
-			locks, err := access.GetLocks(ctx, lock1.Target(), lock2.Target())
+			locks, err := access.GetLocks(ctx, false, lock1.Target(), lock2.Target())
 			require.NoError(t, err)
 			require.Len(t, locks, 2)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
@@ -84,14 +87,14 @@ func TestLockCRUD(t *testing.T) {
 
 			// Match only one of the locks.
 			roleTarget := types.LockTarget{Role: "role-A"}
-			locks, err = access.GetLocks(ctx, lock1.Target(), roleTarget)
+			locks, err = access.GetLocks(ctx, false, lock1.Target(), roleTarget)
 			require.NoError(t, err)
 			require.Len(t, locks, 1)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 			// Match none of the locks.
-			locks, err = access.GetLocks(ctx, roleTarget)
+			locks, err = access.GetLocks(ctx, false, roleTarget)
 			require.NoError(t, err)
 			require.Empty(t, locks)
 		})
@@ -143,7 +146,44 @@ func TestLockCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		// Expect no locks to be returned.
-		locks, err := access.GetLocks(ctx)
+		locks, err := access.GetLocks(ctx, false)
+		require.NoError(t, err)
+		require.Empty(t, locks)
+	})
+
+	t.Run("ReplaceRemoteLocks", func(t *testing.T) {
+		clusterName := "root-cluster"
+
+		newRemoteLocks := []types.Lock{lock1, lock2}
+		err = access.ReplaceRemoteLocks(ctx, clusterName, newRemoteLocks)
+		require.NoError(t, err)
+		locks, err := access.GetLocks(ctx, false)
+		require.NoError(t, err)
+		require.Len(t, locks, 2)
+		require.Empty(t, cmp.Diff(newRemoteLocks, locks,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		for _, lock := range locks {
+			require.True(t, strings.HasPrefix(lock.GetName(), clusterName+"/"))
+		}
+
+		// DeleteLock should work with remote locks.
+		require.NoError(t, access.DeleteLock(ctx, lock1.GetName()))
+
+		newRemoteLocks = []types.Lock{lock1}
+		err = access.ReplaceRemoteLocks(ctx, clusterName, newRemoteLocks)
+		require.NoError(t, err)
+		locks, err = access.GetLocks(ctx, false)
+		require.NoError(t, err)
+		require.Len(t, locks, 1)
+		require.Empty(t, cmp.Diff(newRemoteLocks, locks,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		_, err = access.GetLock(ctx, lock2.GetName())
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+
+		err = access.ReplaceRemoteLocks(ctx, clusterName, nil)
+		require.NoError(t, err)
+		locks, err = access.GetLocks(ctx, false)
 		require.NoError(t, err)
 		require.Empty(t, locks)
 	})
