@@ -539,15 +539,15 @@ User handles are stored within LocalAuthSecrets (messages below):
 ```proto
 message LocalAuthSecrets {
   // ...
-  WebAuthnSettings WebauthnSettings = 6 [
+  WebauthnLocalAuth Webauthn = 6 [
     (gogoproto.jsontag) = "webauthn_settings,omitempty"
   ];
 }
 
-message WebAuthnSettings {
-  // User ID is the random WebAuthn user handle generated for the user.
+message WebauthnLocalAuth {
+  // UserID is the random user handle generated for the user.
   // See https://www.w3.org/TR/webauthn-2/#sctn-user-handle-privacy.
-  bytes user_id = 1 [(gogoproto.jsontag) = "user_id,omitempty"];
+  bytes UserID = 1 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 ```
 
@@ -565,18 +565,18 @@ WebAuthn requires the persistence of SessionData between challenge attempts
 
 ```go
 type Identity interface {
-	// UpsertWebAuthnSessionData upserts WebAuthn SessionData for the purposes
+	// UpsertWebauthnSessionData upserts WebAuthn SessionData for the purposes
 	// of verifying a later authentication challenge.
 	// Upserted session data expires according to backend settings.
-	UpsertWebAuthnSessionData(user, sessionID string, sd *SessionData) error
+	UpsertWebauthnSessionData(user, sessionID string, sd *SessionData) error
 
-	// GetWebAuthnSessionData retrieves a previously-stored session data by ID,
+	// GetWebauthnSessionData retrieves a previously-stored session data by ID,
 	// if it exists and has not expired.
-	GetWebAuthnSessionData(user, sessionID string) (*SessionData, error)
+	GetWebauthnSessionData(user, sessionID string) (*SessionData, error)
 
-	// DeleteMFAAuthenticateChallenge deletes session data by ID,
-	// if it exists and has not expired.
-	DeleteWebAuthnSessionData(user, sessionID string) error
+	// DeleteWebauthnSessionData deletes session data by ID, if it exists and has
+	// not expired.
+	DeleteWebauthnSessionData(user, sessionID string) error
 }
 ```
 
