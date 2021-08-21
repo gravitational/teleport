@@ -226,7 +226,7 @@ Try `tsh login` with a local user. Use a custom `KUBECONFIG` to prevent overwrit
 the default one in case there is a problem.
 
 ```bash
-KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com:443 --user=alice
+KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com --user=alice
 ```
 
 Teleport updated `KUBECONFIG` with a short-lived 12-hour certificate.
@@ -336,13 +336,13 @@ the default one in case there is a problem.
 <Tabs>
   <TabItem label="Open Source">
     ```bash
-    KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com:443 --auth=github
+    KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com --auth=github
     ```
   </TabItem>
 
   <TabItem label="Enterprise">
     ```bash
-    KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com:443 --auth=okta
+    KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com --auth=okta
     ```
   </TabItem>
 </Tabs>
