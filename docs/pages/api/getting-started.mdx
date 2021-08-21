@@ -40,7 +40,7 @@ Log in as the newly created user with `tsh`.
 
 ```bash
 # generate tsh profile
-tsh login --user=api-admin --proxy=tele.example.com:443
+tsh login --user=api-admin --proxy=tele.example.com
 ```
 
 The [Profile Credentials loader](https://pkg.go.dev/github.com/gravitational/teleport/api/client#LoadProfile)
@@ -48,7 +48,7 @@ will automatically retrieve Credentials from the current profile in the next ste
 
 ## Step 3/3. Create a Go project
 
-Set up a new [Go module](https://golang.org/doc/tutorial/create-module) and import the `client` package: 
+Set up a new [Go module](https://golang.org/doc/tutorial/create-module) and import the `client` package:
 
 ```bash
 mkdir client-demo && cd client-demo
@@ -93,7 +93,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to ping server: %v", err)
 	}
-	
+
 	log.Printf("Example success!")
 	log.Printf("Example server response: %s", resp)
 	log.Printf("Server version: %s", resp.ServerVersion)
