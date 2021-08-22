@@ -27,9 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -51,6 +50,11 @@ func CompareServers(a, b types.Resource) int {
 	if dbA, ok := a.(types.DatabaseServer); ok {
 		if dbB, ok := b.(types.DatabaseServer); ok {
 			return compareDatabaseServers(dbA, dbB)
+		}
+	}
+	if winA, ok := a.(types.WindowsDesktopService); ok {
+		if winB, ok := b.(types.WindowsDesktopService); ok {
+			return compareWindowsDesktopServices(winA, winB)
 		}
 	}
 	return Different
@@ -121,20 +125,30 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
-		return Different
-	}
-	if !cmp.Equal(a.GetDynamicLabels(), b.GetDynamicLabels()) {
+	if !cmp.Equal(a.GetDatabases(), b.GetDatabases()) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}
-	if a.GetProtocol() != b.GetProtocol() {
+	return Equal
+}
+
+func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
+	if a.GetKind() != b.GetKind() {
 		return Different
 	}
-	if a.GetURI() != b.GetURI() {
+	if a.GetName() != b.GetName() {
 		return Different
+	}
+	if a.GetAddr() != b.GetAddr() {
+		return Different
+	}
+	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
+	}
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
 	}
 	return Equal
 }

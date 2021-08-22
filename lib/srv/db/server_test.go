@@ -40,35 +40,37 @@ func TestDatabaseServerStart(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		server types.DatabaseServer
+		database types.Database
 	}{
 		{
-			server: testCtx.postgres["postgres"].server,
+			database: testCtx.postgres["postgres"].resource,
 		},
 		{
-			server: testCtx.mysql["mysql"].server,
+			database: testCtx.mysql["mysql"].resource,
 		},
 		{
-			server: testCtx.mongo["mongo"].server,
+			database: testCtx.mongo["mongo"].resource,
 		},
 	}
 
 	for _, test := range tests {
-		labels, ok := testCtx.server.dynamicLabels[test.server.GetName()]
+		labels, ok := testCtx.server.dynamicLabels[test.database.GetName()]
 		require.True(t, ok)
 		require.Equal(t, "test", labels.Get()["echo"].GetResult())
-
-		heartbeat, ok := testCtx.server.heartbeats[test.server.GetName()]
-		require.True(t, ok)
-
-		err = heartbeat.ForceSend(time.Second)
-		require.NoError(t, err)
 	}
+
+	heartbeat, ok := testCtx.server.heartbeats[testCtx.server.cfg.Server.GetName()]
+	require.True(t, ok)
+
+	err = heartbeat.ForceSend(time.Second)
+	require.NoError(t, err)
 
 	// Make sure servers were announced and their labels updated.
 	servers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	for _, server := range servers {
-		require.Equal(t, map[string]string{"echo": "test"}, server.GetAllLabels())
+	require.Len(t, servers, 1)
+	require.Len(t, servers[0].GetDatabases(), 3)
+	for _, database := range servers[0].GetDatabases() {
+		require.Equal(t, map[string]string{"echo": "test"}, database.GetAllLabels())
 	}
 }

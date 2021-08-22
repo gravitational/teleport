@@ -4,13 +4,13 @@ description: The guide for installing Teleport on servers and into Kubernetes cl
 h1: Installation
 ---
 
-Teleport core service [`teleport`](cli-docs.mdx#teleport) and admin tool [`tctl`](cli-docs.mdx#tctl) have been designed to run on **Linux** and **Mac** operating systems. The Teleport user client [`tsh`](cli-docs.mdx#tsh) and UI are available for **Linux, Mac**, and **Windows** operating systems.
+Teleport core service [`teleport`](./setup/reference/cli.mdx#teleport) and admin tool [`tctl`](./setup/reference/cli.mdx#tctl) have been designed to run on **Linux** and **Mac** operating systems. The Teleport user client [`tsh`](./setup/reference/cli.mdx#tsh) and UI are available for **Linux, Mac**, and **Windows** operating systems.
 
 ## Linux
 
 The following examples install the 64-bit version of Teleport binaries, but
 32-bit (i386) and ARM binaries are also available. Check the [Latest
-Release](https://gravitational.com/teleport/download/) page for the most
+Release](https://goteleport.com/download/) page for the most
 up-to-date information.
 
 (!docs/pages/includes/permission-warning.mdx!)
@@ -97,7 +97,7 @@ helm install teleport teleport/teleport
 
 <Tabs>
   <TabItem label="Download">
-    [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=macos) (tsh client only, signed) file, double-click to run the Installer.
+    [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=mac) (tsh client only, signed) file, double-click to run the Installer.
 
     <Admonition type="note">
       This method only installs the `tsh` client for interacting with Teleport clusters.
@@ -113,7 +113,7 @@ helm install teleport teleport/teleport
     <Admonition type="note">
       The Teleport package in Homebrew is not maintained by Teleport and we can't
       guarantee its reliability or security. We recommend the use of our [own
-      Teleport packages](https://goteleport.com/teleport/download?os=macos).
+      Teleport packages](https://goteleport.com/teleport/download?os=mac).
     </Admonition>
 
     <Admonition type="note">

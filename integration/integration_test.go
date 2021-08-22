@@ -857,11 +857,8 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
-	nodeConf.SSH.ProxyReverseTunnelFallbackAddr = &utils.NetAddr{
-		// Configure the original proxy address as a fallback so the node is able to connect
-		Addr:        main.GetWebAddr(),
-		AddrNetwork: "tcp",
-	}
+	os.Setenv(apidefaults.TunnelPublicAddrEnvar, main.GetWebAddr())
+	t.Cleanup(func() { os.Unsetenv(apidefaults.TunnelPublicAddrEnvar) })
 
 	// verify the node is able to join the cluster
 	_, err = main.StartReverseTunnelNode(nodeConf)

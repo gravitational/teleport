@@ -179,8 +179,8 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		Verified:       sessionCtx.Identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
-	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server, mfaParams,
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Server.GetAllLabels()},
+	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams,
+		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Database.GetAllLabels()},
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 		&services.DatabaseNameMatcher{Name: sessionCtx.DatabaseName})
 	if err != nil {
@@ -204,7 +204,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 	// messages b/w server and client e.g. to get client's password.
 	conn, err := pgconn.ConnectConfig(ctx, connectConfig)
 	if err != nil {
-		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Server.IsRDS() {
+		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
 			return nil, nil, trace.AccessDenied(`Could not connect to database:
 
   %v
@@ -213,7 +213,7 @@ Make sure that Postgres user %q has "rds_iam" role and Teleport database
 agent's IAM policy has "rds-connect" permissions:
 
 %v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Server.GetAWS().Region))
+`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Database.GetAWS().Region))
 		}
 		return nil, nil, trace.Wrap(err)
 	}
@@ -369,7 +369,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// string so parse the basic template and then fill in the rest of
 	// parameters such as TLS configuration.
 	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s@%s/?database=%s",
-		sessionCtx.DatabaseUser, sessionCtx.Server.GetURI(), sessionCtx.DatabaseName))
+		sessionCtx.DatabaseUser, sessionCtx.Database.GetURI(), sessionCtx.DatabaseName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -381,7 +381,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	config.RuntimeParams = sessionCtx.StartupParameters
 	// AWS RDS/Aurora and GCP Cloud SQL use IAM authentication so request an
 	// auth token and use it as a password.
-	switch sessionCtx.Server.GetType() {
+	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeRDS:
 		config.Password, err = e.Auth.GetRDSAuthToken(sessionCtx)
 		if err != nil {
