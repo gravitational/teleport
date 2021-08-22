@@ -276,7 +276,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 }
 
 func getAgent() (agent.ExtendedAgent, error) {
-	agentSocket :=  os.Getenv(teleport.SSHAuthSock)
+	agentSocket := os.Getenv(teleport.SSHAuthSock)
 	if agentSocket == "" {
 		return nil, trace.NotFound("failed to connect to SSH agent, %s env var not set", teleport.SSHAuthSock)
 	}

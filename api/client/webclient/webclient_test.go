@@ -97,7 +97,7 @@ func TestTunnelAddr(t *testing.T) {
 	}))
 	t.Run("should use proxyAddr and SSHProxyTunnelListenPort", testTunnelAddr(testCase{
 		proxyAddr:          "proxy.example.com",
-		settings:           ProxySettings{ SSH: SSHProxySettings{}},
+		settings:           ProxySettings{SSH: SSHProxySettings{}},
 		expectedTunnelAddr: "proxy.example.com:3024",
 	}))
 	t.Run("should use PublicAddr and WebAddrPort if ALPNSNIListenerEnabled was enabled", testTunnelAddr(testCase{

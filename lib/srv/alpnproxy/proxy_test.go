@@ -39,7 +39,7 @@ func TestProxySSHHandler(t *testing.T) {
 	suite := NewSuite(t)
 
 	suite.router.Add(HandlerDecs{
-		Protocols:  []string{ProtocolProxySSH},
+		Protocols:  []Protocol{ProtocolProxySSH},
 		ForwardTLS: false,
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			defer conn.Close()
@@ -174,7 +174,7 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 
 	suite := NewSuite(t)
 	suite.router.Add(HandlerDecs{
-		Protocols: []string{ProtocolPostgres},
+		Protocols: []Protocol{ProtocolPostgres},
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			defer conn.Close()
 			_, err := fmt.Fprint(conn, databaseHandleResponse)
@@ -220,7 +220,7 @@ func TestProxyHTTPConnection(t *testing.T) {
 	mustStartHTTPServer(t, lw)
 
 	suite.router.Add(HandlerDecs{
-		Protocols: []string{ProtocolHTTP2, ProtocolHTTP, ProtocolDefault},
+		Protocols: []Protocol{ProtocolHTTP2, ProtocolHTTP, ProtocolDefault},
 		Handler:   lw.HandleConnection,
 	})
 	suite.Start(t)
