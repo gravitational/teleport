@@ -261,7 +261,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	if err == nil && resp.Proxy.ALPNSNIListenerEnabled {
 		opts = append(opts, proxy.WithALPNDialer())
 	} else {
-		a.log.Debugf("Failed to ping web proxy %q addr.", a.Addr.Addr)
+		a.log.WithError(err).Debugf("Failed to ping web proxy %q addr.", a.Addr.Addr)
 	}
 
 	for _, authMethod := range a.authMethods {

@@ -180,14 +180,17 @@ func proxySession(ctx context.Context, sess *ssh.Session) error {
 
 	errC := make(chan error)
 	go func() {
+		defer sess.Close()
 		_, err := io.Copy(os.Stdout, stdout)
 		errC <- err
 	}()
 	go func() {
+		defer sess.Close()
 		_, err := io.Copy(stdin, os.Stdin)
 		errC <- err
 	}()
 	go func() {
+		defer sess.Close()
 		_, err := io.Copy(os.Stderr, stderr)
 		errC <- err
 	}()

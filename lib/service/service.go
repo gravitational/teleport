@@ -3254,6 +3254,11 @@ func proxySettingsFromConfig(cfg *Config, proxySSHAddr utils.NetAddr) webclient.
 		proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
 	}
 	if cfg.Proxy.Kube.Enabled {
+		//if cfg.Proxy.DisableALPNSNIListener && !cfg.Proxy.DisableTLS {
+		//	proxySettings.Kube.ListenAddr = cfg.Proxy.WebAddr.String()
+		//} else {
+		//	proxySettings.Kube.ListenAddr = cfg.Proxy.Kube.ListenAddr.String()
+		//}
 		proxySettings.Kube.ListenAddr = cfg.Proxy.Kube.ListenAddr.String()
 	}
 	if len(cfg.Proxy.Kube.PublicAddrs) > 0 {

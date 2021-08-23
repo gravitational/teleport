@@ -86,17 +86,17 @@ func (l *ListenerMuxWrapper) startAcceptingConnectionServiceListener() {
 		return
 	}
 	for {
-		select {
-		case <-l.close:
-			return
-		default:
-		}
 		conn, err := l.Listener.Accept()
 		if err != nil {
 			l.errC <- err
 			return
 		}
-		l.connC <- conn
+		select {
+		case l.connC <- conn:
+		case <-l.close:
+			return
+
+		}
 	}
 }
 
