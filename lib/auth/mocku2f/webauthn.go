@@ -7,8 +7,9 @@ import (
 	"encoding/json"
 
 	"github.com/duo-labs/webauthn/protocol"
-	"github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/trace"
+
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
 // collectedClientData is part of the data signed by authenticators (after
@@ -22,7 +23,7 @@ type collectedClientData struct {
 
 // SignAssertion signs a WebAuthn assertion following the
 // U2F-compat-getAssertion algorithm.
-func (muk *Key) SignAssertion(origin string, assertion *webauthn.CredentialAssertion) (*webauthn.CredentialAssertionResponse, error) {
+func (muk *Key) SignAssertion(origin string, assertion *wanlib.CredentialAssertion) (*wanlib.CredentialAssertionResponse, error) {
 	// Is our credential allowed?
 	ok := false
 	for _, c := range assertion.Response.AllowedCredentials {
@@ -36,7 +37,7 @@ func (muk *Key) SignAssertion(origin string, assertion *webauthn.CredentialAsser
 	}
 
 	// Is the U2F app ID present?
-	appID := assertion.Response.Extensions["appid"].(string)
+	appID := assertion.Response.Extensions[wanlib.AppIDExtension].(string)
 	if appID == "" {
 		return nil, trace.Errorf("missing u2f app ID")
 	}
@@ -59,7 +60,7 @@ func (muk *Key) SignAssertion(origin string, assertion *webauthn.CredentialAsser
 		return nil, trace.Wrap(err)
 	}
 
-	return &webauthn.CredentialAssertionResponse{
+	return &wanlib.CredentialAssertionResponse{
 		PublicKeyCredential: protocol.PublicKeyCredential{
 			Credential: protocol.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(muk.KeyHandle),
@@ -67,7 +68,7 @@ func (muk *Key) SignAssertion(origin string, assertion *webauthn.CredentialAsser
 			},
 			RawID: muk.KeyHandle,
 			Extensions: protocol.AuthenticationExtensionsClientOutputs{
-				"appid": true, // U2F App ID used.
+				wanlib.AppIDExtension: true, // U2F App ID used.
 			},
 		},
 		AssertionResponse: protocol.AuthenticatorAssertionResponse{

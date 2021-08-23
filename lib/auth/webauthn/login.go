@@ -84,7 +84,7 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertio
 	if f.U2F != nil && f.U2F.AppID != "" {
 		// See https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
 		opts = append(opts, wan.WithAssertionExtensions(protocol.AuthenticationExtensions{
-			"appid": f.U2F.AppID,
+			AppIDExtension: f.U2F.AppID,
 		}))
 	}
 
@@ -135,7 +135,7 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	// TODO(codingllama): Consider ignoring appid and basing the decision solely
 	//  in the device type. May be safer than assuming compliance?
 	// Do not read from parsedResp here, extensions don't carry over.
-	appidExt, ok := resp.Extensions["appid"]
+	appidExt, ok := resp.Extensions[AppIDExtension]
 	if ok {
 		// Let's be as lenient as we can with the contents of "appid".
 		var err error
