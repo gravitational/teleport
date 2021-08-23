@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -336,8 +337,54 @@ func TestListNodes(t *testing.T) {
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
 }
 
+// TestAPILockedOut tests Auth API when there are locks involved.
+func TestAPILockedOut(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create user, role and client.
+	user, role, err := CreateUserAndRole(srv.Auth(), "test-user", nil)
+	require.NoError(t, err)
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Prepare an operation requiring authorization.
+	testOp := func() error {
+		_, err := clt.GetUser(user.GetName(), false)
+		return err
+	}
+
+	// With no locks, the operation should pass with no error.
+	require.NoError(t, testOp())
+
+	// With a lock targeting the user, the operation should be denied.
+	lock, err := types.NewLock("user-lock", types.LockSpecV2{
+		Target: types.LockTarget{User: user.GetName()},
+	})
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().UpsertLock(ctx, lock))
+	err = testOp()
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Delete the lock.
+	require.NoError(t, srv.Auth().DeleteLock(ctx, lock.GetName()))
+	require.NoError(t, testOp())
+
+	// Create a new lock targeting the user's role.
+	roleLock, err := types.NewLock("role-lock", types.LockSpecV2{
+		Target: types.LockTarget{Role: role.GetName()},
+	})
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().UpsertLock(ctx, roleLock))
+	err = testOp()
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+}
+
 func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.Rule) *ServerWithRoles {
-	username := "some-user"
+	username := "test-user"
 	_, role, err := CreateUserAndRoleWithoutRoles(srv.AuthServer, username, nil)
 	require.NoError(t, err)
 	role.SetRules(types.Allow, allowRules)
@@ -503,4 +550,64 @@ func TestGetAppServers(t *testing.T) {
 		servers[i].SetApps(testServers[i].GetApps())
 	}
 	require.Empty(t, cmp.Diff(testServers, servers))
+}
+
+// TestReplaceRemoteLocksRBAC verifies that only a remote proxy may replace the
+// remote locks associated with its cluster.
+func TestReplaceRemoteLocksRBAC(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(srv.AuthServer, "test-user", []string{})
+	require.NoError(t, err)
+
+	targetCluster := "cluster"
+	tests := []struct {
+		desc     string
+		identity TestIdentity
+		checkErr func(error) bool
+	}{
+		{
+			desc:     "users may not replace remote locks",
+			identity: TestUser(user.GetName()),
+			checkErr: trace.IsAccessDenied,
+		},
+		{
+			desc:     "local proxy may not replace remote locks",
+			identity: TestBuiltin(types.RoleProxy),
+			checkErr: trace.IsAccessDenied,
+		},
+		{
+			desc:     "remote proxy of a non-target cluster may not replace the target's remote locks",
+			identity: TestRemoteBuiltin(types.RoleProxy, "non-"+targetCluster),
+			checkErr: trace.IsAccessDenied,
+		},
+		{
+			desc:     "remote proxy of the target cluster may replace its remote locks",
+			identity: TestRemoteBuiltin(types.RoleProxy, targetCluster),
+			checkErr: func(err error) bool { return err == nil },
+		},
+	}
+
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: types.LockTarget{User: "test-user"}})
+	require.NoError(t, err)
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, test.identity.I))
+			require.NoError(t, err)
+
+			s := &ServerWithRoles{
+				authServer: srv.AuthServer,
+				sessions:   srv.SessionServer,
+				alog:       srv.AuditLog,
+				context:    *authContext,
+			}
+
+			err = s.ReplaceRemoteLocks(ctx, targetCluster, []types.Lock{lock})
+			require.True(t, test.checkErr(err), trace.DebugReport(err))
+		})
+	}
 }
