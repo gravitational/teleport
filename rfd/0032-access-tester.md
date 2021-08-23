@@ -1,14 +1,14 @@
 ---
 authors: Rui Li (rui@goteleport.com)
-state: draft
+state: 
 ---
 
-# RFD 32 - Datalog based role tester
+# RFD 32 - Datalog based access tester
 
 ## What
-This document will describe the implementation for a Datalog based role tester for Teleport's Role-Based Access Control system that will be able to answer access-related questions.
+This document will describe the implementation for a Datalog based access tester for Teleport's Role-Based Access Control system that will be able to answer access-related questions.
 
-The role tester should allow admins to answer questions such as:
+The access tester should allow admins to answer questions such as:
 - Can user Jean SSH into node-1 as root?
 - Which roles are preventing user Jean access to node-1?
 - Which nodes can user Jean access?
@@ -20,15 +20,15 @@ Teleport provides a Role-Based Access Control (RBAC) that allows admins to allow
 Role configurations can be complex and Teleport currently does not provide good tools for admins to troubleshoot any access related issues (e.g. why can't this user login to this node?).
 
 ## Scope
-This document will only be focusing on determining access to SSH nodes. The proposed role tester can be easily extended to determine access to database, application, kubernetes etc. By providing separate queries for different access types, we can also answer more specific queries (e.g. which databases does this user have access to? Which roles allow access to database production as user postgres?).
+This document will only be focusing on determining access to SSH nodes. The proposed access tester can be easily extended to determine access to database, application, kubernetes etc. By providing separate queries for different access types, we can also answer more specific queries (e.g. which databases does this user have access to? Which roles allow access to database production as user postgres?).
 
 ## Architecture
 For simple use cases and better UX, a provided tctl command can be used to query for access-related questions. For advanced use-cases, a provided admin tool lets users execute Datalog queries directly using a command or in a REPL-like shell.
 
-There are a few options for how we can architecture this role tester:
+There are a few options for how we can architecture this access tester:
 - Real-time deductive database (Datomic)
-- Extend existing Go Datalog libraries to use negation and build role tester directly into Teleport
-- Write own Go Datalog library and build role tester directly into Teleport
+- Extend existing Go Datalog libraries to use negation and build access tester directly into Teleport
+- Write own Go Datalog library and build access tester directly into Teleport
 - Use Rust library (Crepe) and connect to Teleport via Rust grpc client, and would act as a standalone program
 - Use Rust library (Crepe) and call Rust from Go to integrate directly with tctl
 
@@ -46,9 +46,9 @@ There are a few options for how we can architecture this role tester:
 
 ### Deductive database
 ```
-                |‾‾‾‾‾‾‾‾‾‾‾‾‾|        |‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾|
-teleport <----> | role tester | <----> | realtime deductive db |
-                |_____________|        |_______________________|
+                |‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾|        |‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾|
+teleport <----> | access tester | <----> | realtime deductive db |
+                |_______________|        |_______________________|
 ```
 **Pros:**
 - Simple integration with REST API (if available)
@@ -80,6 +80,8 @@ teleport <----> | role tester | <----> | realtime deductive db |
 
 **Cons:**
 - Hard to gauge how difficult implementation is
+
+Ultimately, going for the Rust and Go interop solution is the best option. This not only introduces Rust into the code base, but provides a way to utilize Rust Datalog libraries with Rust and Go FFI. Using protobufs, we would be able to painlessly pass inputs and outputs between the two languages.
 
 ## Details
 
@@ -113,7 +115,7 @@ HasRole(jean, admin).
 means that Jean has roles 'dev', 'cloud', and 'admin'. Similarly, this representation also applies to labels and logins for roles and nodes.
 
 ### Rules
-Rules are sentences that allow us to infer new facts from existing ones. We can combine multiple rules to create new rules. The most important question for the role tester is whether a user can access a given node as an os user, and we will define this as HasAccess(User, Login, Node, Role). Other rules will provide other contextually related facts that will help answer this overarching question. I have grouped the rules based on what their queries would mean so it is more clear what each rule is defining.
+Rules are sentences that allow us to infer new facts from existing ones. We can combine multiple rules to create new rules. The most important question for the access tester is whether a user can access a given node as an os user, and we will define this as HasAccess(User, Login, Node, Role). Other rules will provide other contextually related facts that will help answer this overarching question. I have grouped the rules based on what their queries would mean so it is more clear what each rule is defining.
 
 ***Does the given role allow or deny access to a node?***
 Rule | Logical interpretation
@@ -124,16 +126,19 @@ Rule | Logical interpretation
 ***Does the given user have access to a node as an os user?***
 Rule | Logical interpretation
 --- | ---
-`HasAllowRole(User, Login, Node) :- HasRole(User, Role), HasAllowNodeLabel(Role, Node, Key, Value), RoleAllowsLogin(Role, Login), not(RoleDeniesLogin(Role, Login)), not(HasLoginTrait(User))` | If the user has a role, the role allows access to the node, the role has a login that is not denied and the user does not have a defined login trait, then the user has a role that gives them access to the node as login
-`HasAllowRole(User, Login, Node) :- HasRole(User, Role), HasAllowNodeLabel(Role, Node, Key, Value), HasTrait(User, login, Login), not(RoleDeniesLogin(Role, Login))` | If the user has a role, the role allows access to the node and the user has a defined login trait that is not denied, then the user has a role that gives them access to the node as login
-`HasDenyRole(User, Node) :- HasRole(User, Role), HasDenyNodeLabel(Role, Node, Key, Value)` | If the user has a role and the role denies access to the node, then the user has a role that denies them access to the node
-`HasAccess(User, Login, Node) :- HasAllowRole(User, Login, Node), not(HasDenyRole(User, Node))` | If the user has a role that gives them access to the node as login and there are no roles denying access to the node, then the user has access to the node as login
+`HasAllowRole(User, Login, Node, Role) :- HasRole(User, Role), HasAllowNodeLabel(Role, Node, Key, Value), RoleAllowsLogin(Role, Login), not(RoleDeniesLogin(Role, Login)), not(HasLoginTrait(User))` | If the user has a role, the role allows access to the node, the role has a login that is not denied and the user does not have a defined login trait, then the user has a role that gives them access to the node as login
+`HasAllowRole(User, Login, Node, Role) :- HasRole(User, Role), HasAllowNodeLabel(Role, Node, Key, Value), HasTrait(User, login, Login), not(RoleDeniesLogin(Role, Login)), not(RoleDeniesLogin(Role, login))` | If the user has a role, the role allows access to the node and the user has a defined login trait that is not denied, then the user has a role that gives them access to the node as login
+`HasDenyRole(User, Node, Role) :- HasRole(User, Role), HasDenyNodeLabel(Role, Node, Key, Value)` | If the user has a role and the role denies access to the node, then the user has a role that denies them access to the node
+`HasDeniedLogin(User, Login, Role) :- HasRole(User, Role), RoleDeniesLogin(Role, Login)` | If the user has a role, and the role denies a login, then the user has a role that denies them access with the specified login
+`HasDeniedLogin(User, Login, Role) :- HasRole(User, Role), HasTrait(User, login, Login), RoleDeniesLogin(Role, login)` | If the user has a role and login trait, and the role denies the login traits, then the user has a role that denies them access with the all login traits
+`HasAccess(User, Login, Node, Role) :- HasAllowRole(User, Login, Node, Role), not(HasDenyRole(User, Node, Role)), not(HasDeniedLogin(User, Login, Role))` | If the user has a role that gives them access to the node as login and there are no roles denying access to the node as login, then the user has access to the node as login
 
 ***Which roles allow or deny a user access to a given node?***
 Rule | Logical interpretation
 --- | ---
-`AllowRoles(User, Role, Node) :- HasRole(User, Role), HasAllowNodeLabel(Role, Node, Key, Value)` | If the user has a role and the role allows access to the node, then that specific role gives the user access to node
-`DenyRoles(User, Role, Node) :- HasRole(User, Role), HasDenyNodeLabel(Role, Node, Key, Value)` | If the user has a role and the role denies access to the node, then that specific role denies the user access to node
+`DenyAccess(User, Login, Node, Role) :- HasDenyRole(User, Node, Role), HasTrait(User, login, Login)` | If the user has a role and login trait and the role denies access to the node, then that specific role denies the user access to node as the login trait
+`DenyAccess(User, Login, Node, Role) :- HasDenyRole(User, Node, Role), HasAllowRole(User, Login, Node, OtherRole)` | If the user has a role that denies them access, but also has other roles allowing access, then that specific role denies the user access to the node
+`DenyLogins(User, Login, Role) :- HasDeniedLogin(User, Login, Role)` | If the user is denied a login by role, then that login is denied to the user for all nodes
 
 Rules can be thought of as a simple implication between the body (the part after :-) and the head (the part before :-) where if body is true, then it implies the head.
 
@@ -144,11 +149,11 @@ Example | Query interpretation
 --- | ---
 `HasAllowNodeLabel(dev, node-1, environment, staging)?` | Does the role 'dev' allow access to SSH node 'node-1' given the label 'environment:staging'?
 `HasDenyNodeLabel(bad, node-1, environment, production)?` | Does the role 'bad' deny access to SSH node 'node-1' given the label 'environment:production'?
-`HasAllowRole(jean, root, node-1)?` | Does the user 'jean' have a role that gives them access to SSH node 'node-1' as 'root'?
-`HasDenyRole(jean, node-1)?` | Does the user 'jean' have a role that denies them access to SSH node 'node-1'?
-`HasAccess(jean, root, node-1)?` | Does user 'jean' have access to SSH node 'node-1' as 'root'?
-`HasAccess(jean, root, Node)?` | Which SSH nodes does user 'jean' have access to as 'root'?
-`HasAccess(jean, Login, Node)?` | Which SSH nodes does user 'jean' have access to?
-`AllowRoles(jean, Role, node-1)?` | Which roles allow user 'jean' to access SSH node 'node-1'?
-`DenyRoles(jean, Role, node-1)?` | Which roles deny user 'jean' to access SSH node 'node-1'?
-`DenyRoles(jean, Role, Node)?` | Which nodes are user 'jean' denied access to? (will be returned as Role/Node pairs)
+`HasAllowRole(jean, root, node-1, Role)?` | Does the user 'jean' have a role that gives them access to SSH node 'node-1' as 'root'?
+`HasDenyRole(jean, node-1, Role)?` | Does the user 'jean' have a role that denies them access to SSH node 'node-1'?
+`HasAccess(jean, root, node-1, Role)?` | Does user 'jean' have access to SSH node 'node-1' as 'root'?
+`HasAccess(jean, root, Node, Role)?` | Which SSH nodes does user 'jean' have access to as 'root'?
+`HasAccess(jean, Login, Node, Role)?` | Which SSH nodes does user 'jean' have access to?
+`DenyAccess(jean, Login, node-1, Role)?` | Which roles deny user 'jean' to access SSH node 'node-1'?
+`DenyAccess(jean, Login, Node, Role)?` | Which nodes are user 'jean' denied access to? (will be returned as Role/Node/Login pairs)
+`DenyLogins(jean, Login, Role)?` | Which logins are user 'jean' denied access to on all nodes?
