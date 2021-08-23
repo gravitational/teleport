@@ -136,7 +136,7 @@ Imagine the following cluster:
  * An SSH node (`ssh`) that connects to `auth` server via a tunnel
  
 Say that node `ssh` starts up and tries to connect to the cluster. It's initial attempts to find 
-the tunnel addresses are routed to `Dewey` the load balancer. `Dewey` responds with a tunnel 
+the tunnel addresses are routed to `Dewey` by the load balancer. `Dewey` responds with a tunnel 
 address, and after the requisite amount of handshaking, `ssh` has connection to `auth`, tunnelled through `Dewey`.
 
 ```
