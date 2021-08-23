@@ -2393,3 +2393,33 @@ message WindowsDesktopSpecV3 {
     // Addr is the address that this host can be reached at.
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
 }
+
+// RecoveryCodes holds a user's recovery code information.
+message RecoveryCodesV1 {
+    // Kind is the resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the resource spec.
+    RecoveryCodesSpecV1 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+// RecoveryCodesSpecV1 is the recovery codes spec.
+message RecoveryCodesSpecV1 {
+    // Codes hold a list of recovery codes.
+    repeated RecoveryCode Codes = 1 [ (gogoproto.nullable) = false ];
+    // Created is when the recovery codes were generated.
+    google.protobuf.Timestamp Created = 2
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+}
+
+// RecoveryCode describes a recovery code.
+message RecoveryCode {
+    // Value is the recovery code value.
+    bytes Value = 1;
+    // IsUsed determines if the recovery code was used.
+    bool IsUsed = 2;
+}
