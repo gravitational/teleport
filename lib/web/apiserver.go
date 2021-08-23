@@ -277,7 +277,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
 	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
-	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
+	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthnWithToken))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
 
@@ -834,6 +834,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	webCfg := ui.WebConfig{
 		Auth:            authSettings,
 		CanJoinSessions: canJoinSessions,
+		IsCloud:         h.clusterFeatures.GetCloud(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -1421,25 +1422,64 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 	return res, nil
 }
 
-func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req auth.ChangePasswordWithTokenRequest
+type changeUserAuthnWithTokenRequest struct {
+	// SecondFactorToken is 2nd factor token value
+	SecondFactorToken string `json:"second_factor_token"`
+	// TokenID is this token ID
+	TokenID string `json:"token"`
+	// Password is user password
+	Password []byte `json:"password"`
+	// U2FRegisterResponse is U2F registration challenge response.
+	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
+}
+
+func (h *Handler) changeUserAuthnWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req changeUserAuthnWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := h.auth.proxyClient.ChangePasswordWithToken(r.Context(), req)
+	protoReq := &proto.ChangeUserAuthenticationRequest{
+		TokenID:     req.TokenID,
+		NewPassword: req.Password,
+	}
+
+	if req.SecondFactorToken != "" {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
+		}}
+	}
+
+	if req.U2FRegisterResponse != nil {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+			U2F: &proto.U2FRegisterResponse{
+				RegistrationData: req.U2FRegisterResponse.RegistrationData,
+				ClientData:       req.U2FRegisterResponse.ClientData,
+			},
+		}}
+	}
+
+	res, err := h.auth.proxyClient.ChangeUserAuthentication(r.Context(), protoReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	sess := res.WebSession
 	ctx, err := h.auth.newSessionContext(sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := SetSessionCookie(w, sess.GetUser(), sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return newSessionResponse(ctx)
+	// Checks for at least one valid login.
+	if _, err := newSessionResponse(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res.RecoveryCodes, nil
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
