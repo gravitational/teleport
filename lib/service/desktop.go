@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"crypto/tls"
 	"net"
 	"net/http"
 	"strconv"
@@ -145,6 +146,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	connLimiter, err := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter)
 	if err != nil {
 		return trace.Wrap(err)

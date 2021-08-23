@@ -65,3 +65,18 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 
 	return ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)), nil
 }
+
+// getDesktopsHandle returns a list of desktops in a form the UI can present.
+func (h *Handler) getDesktopsHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	windowsDesktops, err := clt.GetWindowsDesktops(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeDesktops(windowsDesktops), nil
+}

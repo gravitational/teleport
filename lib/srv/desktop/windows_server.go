@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package desktop implements Desktop Access services, like
-// windows_desktop_access.
 package desktop
 
 import (
 	"context"
 	"crypto/tls"
 	"net"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
@@ -36,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
+	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -239,15 +240,17 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 
 func (s *WindowsService) handleConnection(con net.Conn) {
 	defer con.Close()
+	log := s.cfg.Log
 
 	// Check connection limits.
 	remoteAddr, _, err := net.SplitHostPort(con.RemoteAddr().String())
 	if err != nil {
-		s.cfg.Log.WithError(err).Errorf("Could not parse client IP from %q", con.RemoteAddr().String())
+		log.WithError(err).Errorf("Could not parse client IP from %q", con.RemoteAddr().String())
 		return
 	}
+	log = log.WithField("client-ip", remoteAddr)
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
-		s.cfg.Log.WithError(err).Warningf("Connection limit exceeded, rejecting connection from %q", remoteAddr)
+		log.WithError(err).Warning("Connection limit exceeded, rejecting connection")
 		return
 	}
 	defer s.cfg.ConnLimiter.ReleaseConnection(remoteAddr)
@@ -255,20 +258,46 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	// Authenticate the client.
 	tlsCon, ok := con.(*tls.Conn)
 	if !ok {
-		s.cfg.Log.Errorf("Got %T from TLS listener, expected *tls.Conn", con)
+		log.Errorf("Got %T from TLS listener, expected *tls.Conn", con)
 		return
 	}
 	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, tlsCon)
 	if err != nil {
-		s.cfg.Log.WithError(err).Warningf("mTLS authentication failed for inbound connection from %q", remoteAddr)
+		log.WithError(err).Warning("mTLS authentication failed for incoming connection")
 		return
 	}
-	s.cfg.Log.Debugf("Authenticated Windows desktop connection from %q", remoteAddr)
+	log.Debug("Authenticated Windows desktop connection")
 
-	// TODO(awly): connect to the target Windows host over RDP and proxy
-	// messages.
-	s.cfg.Log.Error("Windows desktop support not implemented beyond authentication.")
-	_ = ctx
+	desktopUUID := strings.TrimSuffix(tlsCon.ConnectionState().ServerName, SNISuffix)
+	log = log.WithField("desktop-uuid", desktopUUID)
+	log.Debug("Connecting to Windows desktop")
+	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopUUID)
+	if err != nil {
+		log.WithError(err).Warning("Failed to fetch desktop by UUID")
+		return
+	}
+	log = log.WithField("desktop-addr", desktop.GetAddr())
+
+	// TODO(awly): authorization
+
+	if err := s.connectRDP(log, tlsCon, desktop); err != nil {
+		log.WithError(err).Error("RDP connection failed")
+		return
+	}
+}
+
+func (s *WindowsService) connectRDP(log logrus.FieldLogger, con net.Conn, desktop types.WindowsDesktop) error {
+	dpc := deskproto.NewConn(con)
+	rdpc, err := rdpclient.New(rdpclient.Config{
+		Log:           log,
+		Addr:          desktop.GetAddr(),
+		InputMessage:  dpc.InputMessage,
+		OutputMessage: dpc.OutputMessage,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(rdpc.Wait())
 }
 
 func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {

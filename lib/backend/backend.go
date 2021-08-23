@@ -105,7 +105,7 @@ type Batch interface {
 //
 // lease, err := backend.Create()
 // lease.Expires = time.Now().Add(time.Second)
-// // Item TTL is extended
+// Item TTL is extended
 // err = backend.KeepAlive(lease)
 //
 type Lease struct {
