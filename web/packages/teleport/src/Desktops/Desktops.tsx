@@ -24,7 +24,6 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import InputSearch from 'teleport/components/InputSearch';
-import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import DesktopList from './DesktopList';
 import useDesktops, { State } from './useDesktops';
 import ButtonAdd from './ButtonAdd';
@@ -59,7 +58,7 @@ export function Desktops(props: State) {
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
-        <FeatureHeaderTitle>Databases</FeatureHeaderTitle>
+        <FeatureHeaderTitle>Desktops</FeatureHeaderTitle>
         <ButtonAdd
           isLeafCluster={isLeafCluster}
           canCreate={canCreate}
@@ -91,14 +90,6 @@ export function Desktops(props: State) {
           />
         </>
       )}
-      {isEmpty && (
-        <Empty
-          clusterId={clusterId}
-          canCreate={canCreate && !isLeafCluster}
-          onClick={showAddDialog}
-          emptyStateInfo={emptyStateInfo}
-        />
-      )}
       {isAddDialogVisible && (
         <AddDialog
           username={username}
@@ -111,26 +102,3 @@ export function Desktops(props: State) {
   );
 }
 
-const emptyStateInfo: EmptyStateInfo = {
-  title: 'ADD YOUR FIRST DATABASE',
-  description: (
-    <Text>
-      Consolidate access to databases running behind NAT, prevent data
-      exfiltration, meet compliance requirements, and have complete visibility
-      into access and behavior. Follow{' '}
-      <Link
-        target="_blank"
-        href="https://goteleport.com/docs/database-access/guides/"
-      >
-        the documentation
-      </Link>{' '}
-      to get started.
-    </Text>
-  ),
-  videoLink: 'https://www.youtube.com/watch?v=PCYyTecSzCY',
-  buttonText: 'ADD DATABASE',
-  readOnly: {
-    title: 'No Databases Found',
-    message: 'There are no databases for the "',
-  },
-};

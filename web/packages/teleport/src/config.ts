@@ -96,6 +96,7 @@ const cfg = {
     changeUserPasswordPath: '/v1/webapi/users/password',
     nodesPath: '/v1/webapi/sites/:clusterId/nodes',
     databasesPath: `/v1/webapi/sites/:clusterId/databases`,
+    desktopsPath: `/v1/webapi/sites/:clusterId/desktops`,
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     ttyWsAddr:
       'wss://:fqdm/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
@@ -285,6 +286,10 @@ const cfg = {
 
   getDatabasesUrl(clusterId: string) {
     return generatePath(cfg.api.databasesPath, { clusterId });
+  },
+
+  getDesktopsUrl(clusterId: string) {
+    return generatePath(cfg.api.desktopsPath, { clusterId });
   },
 
   getApplicationsUrl(clusterId: string) {

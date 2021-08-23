@@ -14,5 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import AddDatabase from './AddDatabase';
-export default AddDatabase;
+import { map } from 'lodash';
+import api from 'teleport/services/api';
+import cfg from 'teleport/config';
+import makeDesktop from './makeDesktop';
+
+class DesktopService {
+  fetchDesktops(clusterId?: string) {
+    return api
+      .get(cfg.getDesktopsUrl(clusterId))
+      .then(json => map(json, makeDesktop));
+  }
+}
+
+export default DesktopService;

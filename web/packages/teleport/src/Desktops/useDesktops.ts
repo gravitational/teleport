@@ -35,6 +35,11 @@ export default function useDesktops(ctx: Ctx) {
 
   useEffect(() => {
     run(() => ctx.databaseService.fetchDatabases(clusterId).then(setDatabases));
+    run(() =>
+      ctx.desktopService.fetchDesktops(clusterId).then(desktops => {
+        console.log(desktops);
+      })
+    );
   }, [clusterId]);
 
   const fetchDatabases = () => {

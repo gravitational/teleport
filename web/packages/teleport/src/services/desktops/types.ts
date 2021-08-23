@@ -14,5 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import ButtonAdd from './ButtonAdd';
-export default ButtonAdd;
+// Desktop is a remote desktop.
+export interface Desktop {
+  // OS is the os of this desktop.
+  os: OsString;
+  // Name is name (uuid) of the windows desktop.
+  name: string;
+  // Addr is the network address the desktop can be reached at.
+  addr: string;
+}
+
+// Corresponds to constants.WindowsOS, constants.LinuxOS, or constants.DarwinOS
+// in teleport.
+export type OsString = "windows" | "linux" | "darwin"
