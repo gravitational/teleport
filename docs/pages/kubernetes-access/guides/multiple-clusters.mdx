@@ -5,20 +5,11 @@ description: Connecting a Kubernetes cluster to Teleport.
 
 ## Prerequisites
 
-- [Kubernetes](https://kubernetes.io) >= v1.14.0
-- [Helm](https://helm.sh) >= v3.2.0
+- [Kubernetes](https://kubernetes.io) >= v(=kubernetes.major_version=).(=kubernetes_minor_version=).0
+- [Helm](https://helm.sh) >= (=helm.version=)
 - Installed and running Teleport Cluster
 
-Verify that helm and kubernetes are installed and up to date.
-
-```bash
-helm version
-# version.BuildInfo{Version:"v3.4.2"}
-
-kubectl version
-# Client Version: version.Info{Major:"1", Minor:"17+"}
-# Server Version: version.Info{Major:"1", Minor:"17+"}
-```
+(!docs/pages/includes/helm.mdx!)
 
 ## Connecting clusters
 
@@ -28,44 +19,42 @@ We have set up the Teleport cluster `tele.example.com` in [SSO and Kubernetes](.
 Let's start a lightweight agent in another Kubernetes cluster `cookie` and connect it to `tele.example.com`.
 We would need a join token from `tele.example.com`:
 
-```bash
+```code
 # A trick to save the pod ID in tele.example.com
-POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+$ POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 # Create a join token for the cluster cookie to authenticate
-TOKEN=$(kubectl exec -ti "${POD?}" -- tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
-echo $TOKEN
+$ TOKEN=$(kubectl exec -ti "${POD?}" -- tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
+$ echo $TOKEN
 ```
 
 Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 
-```bash
+```code
 # Add teleport chart repository
-helm repo add teleport https://charts.releases.teleport.dev
+$ helm repo add teleport https://charts.releases.teleport.dev
 
 # Install Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
-CLUSTER='cookie'
-PROXY='tele.example.com:443'
-helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
+$ CLUSTER='cookie'
+$ PROXY='tele.example.com:443'
+$ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
   --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
 ```
 
 List connected clusters using `tsh kube ls` and switch between
 them using `tsh kube login`:
 
-```bash
-tsh kube ls
+```code
+$ tsh kube ls
 
-# Output
-Kube Cluster Name Selected 
------------------ -------- 
-cookie
-tele.example.com    *
+# Kube Cluster Name Selected 
+# ----------------- -------- 
+# cookie
+# tele.example.com    *
 
 # kubeconfig now points to the cookie cluster
-tsh kube login cookie
+$ tsh kube login cookie
 # Logged into kubernetes cluster "cookie"
 
 # kubectl command executed on `cookie` but is routed through `tele.example.com` cluster.
-kubectl get pods
+$ kubectl get pods
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
