@@ -117,6 +117,8 @@ spec:
       verbs: [list, create, read, update, delete]
     - resources: [auth_connector]
       verbs: [list, create, read, update, delete]
+    - resources: [ssh_session]
+      verbs: [list, read]      
     - resources: [session]
       verbs: [list, read]
     - resources: [trusted_cluster]
@@ -288,6 +290,12 @@ List of all rule options defined below.
     - resources:
       - auth_connector
       verbs:  [list, create, read, update, delete]
+    # SSH Sessions: Provides access to active sessions
+    # e.g If ssh sessions list is denied, users can't see the list of active sessions
+    # If the session read is denied, the active sesion list will show empty.
+    - resources:
+      - ssh_session
+      verbs:  [list,read]    
     # Session: Provides access to Session Recordings.
     # e.g If session read is false, users can't play the recordings
     # It is possible to restrict "list" but to allow "read" (in this case a user will
