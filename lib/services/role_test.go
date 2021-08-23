@@ -3071,3 +3071,47 @@ func (f *userGetter) GetUser(name string, _ bool) (types.User, error) {
 	user.SetTraits(f.traits)
 	return user, nil
 }
+
+func TestRoleSetLockingMode(t *testing.T) {
+	t.Parallel()
+	t.Run("empty RoleSet gives default LockingMode", func(t *testing.T) {
+		t.Parallel()
+		set := RoleSet{}
+		for _, defaultMode := range []constants.LockingMode{constants.LockingModeBestEffort, constants.LockingModeStrict} {
+			require.Equal(t, defaultMode, set.LockingMode(defaultMode))
+		}
+	})
+
+	missingMode := constants.LockingMode("")
+	newRoleWithLockingMode := func(t *testing.T, mode constants.LockingMode) types.Role {
+		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Options: types.RoleOptions{Lock: mode}})
+		require.NoError(t, err)
+		return role
+	}
+
+	t.Run("RoleSet with missing LockingMode gives default LockingMode", func(t *testing.T) {
+		t.Parallel()
+		set := RoleSet{newRoleWithLockingMode(t, missingMode), newRoleWithLockingMode(t, missingMode)}
+		for _, defaultMode := range []constants.LockingMode{constants.LockingModeBestEffort, constants.LockingModeStrict} {
+			require.Equal(t, defaultMode, set.LockingMode(defaultMode))
+		}
+	})
+	t.Run("RoleSet with a set LockingMode gives the set LockingMode", func(t *testing.T) {
+		t.Parallel()
+		role1 := newRoleWithLockingMode(t, missingMode)
+		for _, mode := range []constants.LockingMode{constants.LockingModeBestEffort, constants.LockingModeStrict} {
+			role2 := newRoleWithLockingMode(t, mode)
+			set := RoleSet{role1, role2}
+			require.Equal(t, mode, set.LockingMode(mode))
+		}
+	})
+	t.Run("RoleSet featuring LockingModeStrict gives LockingModeStrict", func(t *testing.T) {
+		t.Parallel()
+		role1 := newRoleWithLockingMode(t, constants.LockingModeBestEffort)
+		for _, mode := range []constants.LockingMode{constants.LockingModeBestEffort, constants.LockingModeStrict} {
+			role2 := newRoleWithLockingMode(t, mode)
+			set := RoleSet{role1, role2}
+			require.Equal(t, mode, set.LockingMode(mode))
+		}
+	})
+}

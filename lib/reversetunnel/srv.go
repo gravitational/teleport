@@ -199,6 +199,9 @@ type Config struct {
 	// with the old access point policy until all clusters are migrated to 7.0.0
 	// and above.
 	NewCachingAccessPointOldProxy auth.NewCachingAccessPoint
+
+	// LockWatcher is a lock watcher.
+	LockWatcher *services.LockWatcher
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -247,6 +250,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	cfg.Log = logger.WithFields(log.Fields{
 		trace.Component: cfg.Component,
 	})
+	if cfg.LockWatcher == nil {
+		return trace.BadParameter("missing parameter LockWatcher")
+	}
 	return nil
 }
 
@@ -270,12 +276,11 @@ func NewServer(cfg Config) (Server, error) {
 
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	proxyWatcher, err := services.NewProxyWatcher(services.ProxyWatcherConfig{
+	proxyWatcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			ParentContext: ctx,
-			Component:     cfg.Component,
-			Client:        cfg.LocalAuthClient,
-			Log:           cfg.Log,
+			Component: cfg.Component,
+			Client:    cfg.LocalAuthClient,
+			Log:       cfg.Log,
 		},
 		ProxiesC: make(chan []types.Server, 10),
 	})
@@ -1065,6 +1070,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.certificateCache = certificateCache
 
 	go remoteSite.periodicUpdateCertAuthorities()
+	go remoteSite.periodicUpdateLocks()
 
 	return remoteSite, nil
 }

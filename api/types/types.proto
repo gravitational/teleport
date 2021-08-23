@@ -794,6 +794,12 @@ message AuthPreferenceSpecV2 {
     ];
 
     string MessageOfTheDay = 8 [ (gogoproto.jsontag) = "message_of_the_day,omitempty" ];
+
+    // LockingMode is the cluster-wide locking mode default.
+    string LockingMode = 9 [
+        (gogoproto.jsontag) = "locking_mode,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
+    ];
 }
 
 // LegacyClusterConfigAuthFields facilitates a backward compatible transition
@@ -1271,6 +1277,13 @@ message RoleOptions {
     // RequireSessionMFA specifies whether a user is required to do an MFA
     // check for every session.
     bool RequireSessionMFA = 13 [ (gogoproto.jsontag) = "require_session_mfa,omitempty" ];
+
+    // Lock specifies the locking mode (strict|best_effort) to be applied with
+    // the role.
+    string Lock = 14 [
+        (gogoproto.jsontag) = "lock,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
+    ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
@@ -2201,6 +2214,9 @@ message TrustedClusterSpecV2 {
 }
 
 // LockV2 represents a lock.
+// Locks are used to restrict access to a Teleport environment by disabling
+// interactions involving a user, an RBAC role, a node, etc.
+// See rfd/0009-locking.md for more details.
 message LockV2 {
     // Kind is a resource kind.
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
@@ -2230,6 +2246,9 @@ message LockSpecV2 {
 
 // LockTarget lists the attributes of interactions to be disabled.
 message LockTarget {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
     // User specifies the name of a Teleport user.
     string User = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
 

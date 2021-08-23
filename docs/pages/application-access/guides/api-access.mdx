@@ -41,7 +41,7 @@ app_service:
 Log into your Teleport cluster and view available applications:
 
 ```bash
-tsh login --proxy=teleport.example.com:443
+tsh login --proxy=teleport.example.com
 tsh app ls
 
 # Output
@@ -102,7 +102,7 @@ tsh app logout
 tsh app config
 ```
 
-shows current app URI and paths to the secrets. 
+shows current app URI and paths to the secrets.
 
 This is useful when configuring CLI tools (such as `curl`) or GUI tools (such as Postman).
 

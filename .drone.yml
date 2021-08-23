@@ -1227,91 +1227,6 @@ volumes:
     temp: {}
 
 ---
-kind: pipeline
-type: kubernetes
-name: teleport-helm-cron
-
-trigger:
-  cron:
-    - teleport-helm-cron
-  repo:
-    include:
-      - gravitational/teleport
-
-workspace:
-  path: /go
-
-clone:
-  disable: true
-
-steps:
-  - name: Check out code
-    image: alpine/git
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-      - git checkout ${DRONE_COMMIT}
-      - mkdir -p /go/chart
-      - cd /go/chart
-
-  - name: Download chart repo contents
-    image: amazon/aws-cli
-    environment:
-      AWS_S3_BUCKET:
-        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
-    commands:
-      - mkdir -p /go/chart
-      # download all previously packaged chart versions from the S3 bucket
-      - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
-
-  - name: Package helm charts
-    image: alpine/helm:latest
-    commands:
-      - cd /go/chart
-      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-cluster
-      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-kube-agent
-      # copy index.html to root of the S3 bucket
-      - cp /go/src/github.com/gravitational/teleport/examples/chart/index.html /go/chart
-      # this will index all previous versions of the charts downloaded from the S3 bucket,
-      # plus the just-packaged charts listed above
-      - helm repo index /go/chart
-
-  - name: Upload to S3
-    image: plugins/s3
-    settings:
-      bucket:
-        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
-      access_key:
-        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
-      secret_key:
-        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
-      region: us-east-2
-      acl: public-read
-      source: /go/chart/*
-      target: /
-      strip_prefix: /go/chart
-
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        Details: The `teleport-helm-cron` job in Drone failed to publish Helm charts to S3. This is unusual and should be investigated.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-    when:
-      status: [failure]
-
----
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
@@ -4248,6 +4163,49 @@ steps:
         make change-amis-to-public-ent
         make change-amis-to-public-ent-fips
 
+  # Download all previously packaged charts. This is needed to rebuild the
+  # index and re-publish the repository.
+  - name: "Helm: Download chart repository"
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+    commands:
+      - mkdir -p /go/chart
+      - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
+
+  - name: "Helm: Package chart repository"
+    image: alpine/helm:latest
+    commands:
+      - cd /go/chart
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-cluster
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-kube-agent
+      # copy index.html to root of the S3 bucket.
+      - cp /go/src/github.com/gravitational/teleport/examples/chart/index.html /go/chart
+      # this will index all previous versions of the charts downloaded from the S3 bucket,
+      # plus the just-packaged charts listed above
+      - helm repo index /go/chart
+      - ls /go/chart
+
+  - name: "Helm: Publish chart repository to S3"
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+      access_key:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+      region: us-east-2
+      acl: public-read
+      source: /go/chart/*
+      target: /
+      strip_prefix: /go/chart
+
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
   #
@@ -4423,6 +4381,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 8216b23707af038aa6d3c70065a7858fcf7fac69dcf11d3379908621797d6a93
+hmac: 94c64c4b8eb79102ae9e2a619ffdfc76f232ce49b29eb042f907bedd6c26f74e
 
 ...

@@ -180,6 +180,9 @@ type Server struct {
 	// allowTCPForwarding indicates whether the ssh server is allowed to offer
 	// TCP port forwarding.
 	allowTCPForwarding bool
+
+	// lockWatcher is the server's lock watcher.
+	lockWatcher *services.LockWatcher
 }
 
 // GetClock returns server clock implementation
@@ -228,9 +231,14 @@ func (s *Server) GetBPF() bpf.BPF {
 	return s.ebpf
 }
 
-// GetBPF returns the BPF service used by enhanced session recording.
+// GetRestrictedSessionManager returns the manager for restricting user activity.
 func (s *Server) GetRestrictedSessionManager() restricted.Manager {
 	return s.restrictedMgr
+}
+
+// GetLockWatcher gets the server's lock watcher.
+func (s *Server) GetLockWatcher() *services.LockWatcher {
+	return s.lockWatcher
 }
 
 // isAuditedAtProxy returns true if sessions are being recorded at the proxy
@@ -305,6 +313,7 @@ func (s *Server) Start() error {
 	// Heartbeat uses this address to announce. Avoid announcing an empty
 	// address on first heartbeat.
 	go s.heartbeat.Run()
+
 	return nil
 }
 
@@ -532,6 +541,14 @@ func SetAllowTCPForwarding(allow bool) ServerOption {
 	}
 }
 
+// SetLockWatcher sets the server's lock watcher.
+func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
+	return func(s *Server) error {
+		s.lockWatcher = lockWatcher
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -590,6 +607,10 @@ func New(addr utils.NetAddr,
 
 	if s.namespace == "" {
 		return nil, trace.BadParameter("setup valid namespace parameter using SetNamespace")
+	}
+
+	if s.lockWatcher == nil {
+		return nil, trace.BadParameter("setup valid LockWatcher parameter using SetLockWatcher")
 	}
 
 	var component string
@@ -892,32 +913,69 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 
 // HandleNewConn is called by sshutils.Server once for each new incoming connection,
 // prior to handling any channels or requests.  Currently this callback's only
-// function is to apply concurrent session control limits.
+// function is to apply session control restrictions.
 func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionContext) (context.Context, error) {
-	// we don't currently have any work to do in non-node contexts.
-	if s.Component() != teleport.ComponentNode {
-		return ctx, nil
-	}
-
 	identityContext, err := s.authHandlers.CreateIdentityContext(ccx.ServerConn)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
+	authPref, err := s.GetAccessPoint().GetAuthPreference(ctx)
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+	lockingMode := identityContext.RoleSet.LockingMode(authPref.GetLockingMode())
+
+	event := &apievents.SessionReject{
+		Metadata: apievents.Metadata{
+			Type: events.SessionRejectedEvent,
+			Code: events.SessionRejectedCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			Login:        identityContext.Login,
+			User:         identityContext.TeleportUser,
+			Impersonator: identityContext.Impersonator,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			Protocol:   events.EventProtocolSSH,
+			LocalAddr:  ccx.ServerConn.LocalAddr().String(),
+			RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID:        s.uuid,
+			ServerNamespace: s.GetNamespace(),
+		},
+	}
+
+	lockTargets, err := srv.ComputeLockTargets(s, identityContext)
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+	if lockErr := s.lockWatcher.CheckLockInForce(lockingMode, lockTargets...); lockErr != nil {
+		event.Reason = lockErr.Error()
+		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit session reject event.")
+		}
+		return ctx, trace.Wrap(lockErr)
+	}
+
+	// Don't apply the following checks in non-node contexts.
+	if s.Component() != teleport.ComponentNode {
+		return ctx, nil
+	}
 
 	maxConnections := identityContext.RoleSet.MaxConnections()
-
 	if maxConnections == 0 {
 		// concurrent session control is not active, nothing
 		// else needs to be done here.
 		return ctx, nil
 	}
 
-	netConfig, err := s.authService.GetClusterNetworkingConfig(ctx)
+	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
 
-	lock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: s.authService,
 		Expiry:  netConfig.GetSessionControlTimeout(),
 		Params: types.AcquireSemaphoreRequest{
@@ -931,28 +989,9 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
 			// user has exceeded their max concurrent ssh connections.
 			userSessionLimitHitCount.Inc()
-			if err := s.EmitAuditEvent(s.ctx, &apievents.SessionReject{
-				Metadata: apievents.Metadata{
-					Type: events.SessionRejectedEvent,
-					Code: events.SessionRejectedCode,
-				},
-				UserMetadata: apievents.UserMetadata{
-					Login:        identityContext.Login,
-					User:         identityContext.TeleportUser,
-					Impersonator: identityContext.Impersonator,
-				},
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					Protocol:   events.EventProtocolSSH,
-					LocalAddr:  ccx.ServerConn.LocalAddr().String(),
-					RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
-				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerID:        s.uuid,
-					ServerNamespace: s.GetNamespace(),
-				},
-				Reason:  events.SessionRejectedReasonMaxConnections,
-				Maximum: maxConnections,
-			}); err != nil {
+			event.Reason = events.SessionRejectedEvent
+			event.Maximum = maxConnections
+			if err := s.EmitAuditEvent(s.ctx, event); err != nil {
 				log.WithError(err).Warn("Failed to emit session reject event.")
 			}
 			err = trace.AccessDenied("too many concurrent ssh connections for user %q (max=%d)",
@@ -962,7 +1001,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 		return ctx, trace.Wrap(err)
 	}
-	go lock.KeepAlive(ctx)
+	go semLock.KeepAlive(ctx)
 	// ensure that losing the lock closes the connection context.  Under normal
 	// conditions, cancellation propagates from the connection context to the
 	// lock, but if we lose the lock due to some error (e.g. poor connectivity
@@ -970,7 +1009,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	go func() {
 		// TODO(fspmarshall): If lock was lost due to error, find a way to propagate
 		// an error message to user.
-		<-lock.Done()
+		<-semLock.Done()
 		ccx.Close()
 	}()
 	return ctx, nil
@@ -1130,8 +1169,11 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	// forwarding is complete.
 	ctx, scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
 	if err != nil {
-		log.Errorf("Unable to create connection context: %v.", err)
+		log.WithError(err).Error("Unable to create connection context.")
 		writeStderr(channel, "Unable to create connection context.")
+		if err := channel.Close(); err != nil {
+			log.WithError(err).Warn("Failed to close channel.")
+		}
 		return
 	}
 	scx.IsTestStub = s.isTestStub
@@ -1255,12 +1297,25 @@ Loop:
 // channel has been created this function's loop handles all the "exec",
 // "subsystem" and "shell" requests.
 func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
+	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		log.Errorf("Unable to fetch cluster networking config: %v.", err)
+		writeStderr(ch, "Unable to fetch cluster networking configuration.")
+		return
+	}
+
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
-	ctx, scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
+	ctx, scx, err := srv.NewServerContext(ctx, ccx, s, identityContext, func(cfg *srv.MonitorConfig) {
+		cfg.IdleTimeoutMessage = netConfig.GetClientIdleTimeoutMessage()
+		cfg.MessageWriter = &stderrWriter{channel: ch}
+	})
 	if err != nil {
-		log.Errorf("Unable to create connection context: %v.", err)
+		log.WithError(err).Error("Unable to create connection context.")
 		writeStderr(ch, "Unable to create connection context.")
+		if err := ch.Close(); err != nil {
+			log.WithError(err).Warn("Failed to close channel.")
+		}
 		return
 	}
 	scx.IsTestStub = s.isTestStub
@@ -1269,18 +1324,6 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	defer scx.Close()
 
 	ch = scx.TrackActivity(ch)
-
-	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		log.Errorf("Unable to fetch cluster networking config: %v.", err)
-		writeStderr(ch, "Unable to fetch cluster networking configuration.")
-		return
-	}
-
-	if scx.Monitor != nil {
-		scx.Monitor.IdleTimeoutMessage = netConfig.GetClientIdleTimeoutMessage()
-		scx.Monitor.MessageWriter = &stderrWriter{channel: ch}
-	}
 
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the
@@ -1558,8 +1601,11 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	// session request is complete.
 	ctx, scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
 	if err != nil {
-		log.Errorf("Unable to create connection context: %v.", err)
+		log.WithError(err).Error("Unable to create connection context.")
 		writeStderr(ch, "Unable to create connection context.")
+		if err := ch.Close(); err != nil {
+			log.WithError(err).Warn("Failed to close channel.")
+		}
 		return
 	}
 	scx.IsTestStub = s.isTestStub
