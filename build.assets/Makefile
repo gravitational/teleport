@@ -2,7 +2,7 @@
 # This Makefile is used for producing official Teleport releases
 #
 ifneq ("$(wildcard /bin/bash)","")
-SHELL := /bin/bash
+SHELL := /bin/bash -o pipefail
 endif
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
