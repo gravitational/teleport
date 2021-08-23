@@ -97,12 +97,38 @@ ID              NAME
 
 TODO: what else might we want to see? public addr? number (and kind) of certs?
 
-In the event of an incident, the bot can be locked with the new `tctl lock`
-functionality. A locked bot will be unable to renew certificates and will have
-its existing certificates revoked. (TODO: this is how it works, right?)
+##### Security
+
+It is important to consider the security implications of a credential that can
+be continuously renewed. In order to minimize the blast radius of an attack, we
+need to minimize both the scope and duration that an attacker could leverage a
+compromised credential.
+
+We limit the scope by allowing users to define exactly which roles the certificate
+should assume. We encourage all bot certificates to follow the principle of least
+privilege and define only the minimum set of permissions necessary.
+(TODO more on impersonation)
+
+We limit the amount of time an attacker can act with these certificates by
+setting an aggressive expiration time on renewable certificates and allowing
+users to prevent a bot from renewing certificates with the new `tctl lock`
+functionality. A locked bot is unable to renew its certificates, so an attacker
+who compromises a bot can only use the certificate until it expires. With a
+sufficiently small TTL, the window for a valid attack can be minimized. To
+further minimize this window, an administrator can initiate a CA rotation with a
+small (or zero) grace period immediately after locking the compromised bot.
+
+TODO:
+
+- this depends on someone noticing an anomoly and deciding to lock a bot - how
+  do we make it easier to detect? more audit events?
+- should probably generate a new keypair when we renew and not just bump the
+  cert's TTL - this prevents an attack from holding on to a private key and
+  attempting to use it to decrypt traffic in the future
 
 Note that a bot can manage multiple sets of certificates, and locking a
-particular bot will apply to *all* of the certificates it manages.
+particular bot will prevent it from renewing *any* of the certificates it
+manages.
 
 ```
 $ tctl lock --bot=0123-4567
@@ -123,12 +149,15 @@ Are you sure you want to continue? (y/n)
 
 #### Renewals
 
-There are two scenarios under which the bot will initiate a renewal:
+There are several scenarios under which the bot will initiate a renewal:
 
 1. When a certificate is nearing expiry. A certificate is considered near
    expiration if 75% of its TTL has elapsed, or when there are 4 hours or less
    until expiration (whichever is sooner).
 2. When a user and/or host CA rotation is taking place.
+3. When a renewal is requested manually. For testing and debugging purposes, the
+   bot will expose an API endpoint that can be used to trigger a renewal. This
+   API will be accessible on the loopback interface only.
 
 #### Certificate Specification
 
@@ -163,8 +192,6 @@ The mode also controls what the output of `tbot config` looks like.
 
 TODO:
 
-- do we need a mode equivalant to `tctl auth sign`'s `--compat` flag for openssh
-  compatibility?
 - should we use `user` and `host` instead of `client`/`server` terminology?
 
 ##### Destination
@@ -239,6 +266,11 @@ and there is no tbot-specific configuration file. This has several advantages:
   only (it must be run on the same host as the tbot agent)
 - if tbot is managing multiple `--cert`s, you can pass `mode:destination` to
   `tbot config` to tell it which cert to render configuration for
+
+Note: `tctl auth sign` has a tiny amount of configuration templating already for
+Postgres and MongoDB certificates. We should move this logic out into an
+`extconfig` package that can render configuration snippets for a variety of
+external systems. This work is out of scope for the purposes of this RFD.
 
 #### Polling for expiration
 
