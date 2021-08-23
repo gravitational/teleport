@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"os"
@@ -415,41 +414,6 @@ func getConnectCommand(cf *CLIConf, tc *client.TeleportClient, profile *client.P
 		return getMongoCommand(host, port, profile.DatabaseCertPath(db.ServiceName), cf.DatabaseName), nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol: %v", db)
-}
-
-func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, listener net.Listener) (*alpnproxy.LocalProxy, error) {
-	alpnProtocol, err := toALPNProtocol(protocol)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	address, err := utils.ParseAddr(remoteProxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr: remoteProxyAddr,
-		Protocol:        alpnProtocol,
-		Listener:        listener,
-		ParentContext:   ctx,
-		SNI:             address.Host(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return lp, nil
-}
-
-func toALPNProtocol(dbProtocol string) (alpnproxy.Protocol, error) {
-	switch dbProtocol {
-	case defaults.ProtocolMySQL:
-		return alpnproxy.ProtocolMySQL, nil
-	case defaults.ProtocolPostgres:
-		return alpnproxy.ProtocolPostgres, nil
-	case defaults.ProtocolMongoDB:
-		return alpnproxy.ProtocolMongoDB, nil
-	default:
-		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
-	}
 }
 
 func getPostgresCommand(db *tlsca.RouteToDatabase, cluster, user, name string, options connectionCommandOpts) *exec.Cmd {
