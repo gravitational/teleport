@@ -60,6 +60,8 @@ type NodeAccessResponse struct {
 	// Generated input for Rust.
 	facts Facts
 	// Mappings to convert from hash values to readable strings.
+	// Note: Improves performance compared to using strings. Avoids complications within the Rust code if done this way.
+	// Could be switched to strings in the future if needed.
 	mappings        map[string]uint32
 	reverseMappings map[uint32]string
 }
