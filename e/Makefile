@@ -66,15 +66,20 @@ endif
 endif
 endif
 
-# On platforms that support reproducible builds (at the moment, only Linux)
-# ensure the archive is created in a reproducible manner.
+# Reproducible builds are only availalbe on select targets, and only when OS=linux.
+REPRODUCIBLE ?=
+ifneq ("$(OS)","linux")
+REPRODUCIBLE = no
+endif
+
+# On platforms that support reproducible builds, ensure the archive is created in a reproducible manner.
 TAR_FLAGS ?=
-ifeq ("$(OS)","linux")
+ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
 
-RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_ENT_MESSAGE) and $(FIPS_ENT_MESSAGE) and $(BPF_ENT_MESSAGE)."
+RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_ENT_MESSAGE) and $(FIPS_ENT_MESSAGE) and $(BPF_ENT_MESSAGE)."
 
 # All build Enterprise version of "teleport" and "tctl" binaries and copy
 # over tsh from OSS.
