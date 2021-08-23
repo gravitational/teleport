@@ -63,32 +63,35 @@ crepe! {
 }
 
 #[repr(C)]
-pub struct Status {
-    output_length: size_t,
-    error: i32
+pub struct Output {
+    access: *mut u8,
+    length: size_t,
+    error: i32,
 }
 
+fn create_error_ptr(e: String) -> Output {
+    let mut err_bytes = e.into_bytes().into_boxed_slice();
+    let err_ptr = err_bytes.as_mut_ptr();
+    let err_len = err_bytes.len();
+    std::mem::forget(err_bytes);
+
+    Output {
+        access: err_ptr,
+        length: err_len,
+        error: -1,
+    }
+}
+
+/// # Safety
+///
+/// This function should not be called if input is invalid
 #[no_mangle]
-pub extern "C" fn process_access(
-    input: *mut c_uchar,
-    output: *mut c_uchar,
-    input_len: size_t,
-    output_len: size_t
-) -> *mut Status {
+pub unsafe extern "C" fn process_access(input: *mut c_uchar, input_len: size_t) -> *mut Output {
     let mut runtime = Crepe::new();
-    let b = unsafe { slice::from_raw_parts_mut(input, input_len) };
+    let b = slice::from_raw_parts_mut(input, input_len);
     let r = match types::Facts::decode(BytesMut::from(&b[..])) {
         Ok(b) => b,
-        Err(e) => {
-            let err_bytes = e.to_string().into_bytes();
-            unsafe {
-                ptr::copy(&(*err_bytes)[0], output, err_bytes.len());
-            }
-            return Box::into_raw(Box::new(Status{
-                output_length: err_bytes.len(),
-                error: -1,
-            }))
-        },
+        Err(e) => return Box::into_raw(Box::new(create_error_ptr(e.to_string()))),
     };
 
     for pred in &r.predicates {
@@ -127,94 +130,89 @@ pub extern "C" fn process_access(
                 atoms: vec![a, b, c, d],
             }),
     );
-    predicates.extend(
-        deny_accesses
-            .into_iter()
-            .map(|DenyAccess(a, b, c, d)| types::facts::Predicate {
-                name: types::facts::PredicateType::DenyAccess as i32,
-                atoms: vec![a, b, c, d],
-            })
-    );
+    predicates.extend(deny_accesses.into_iter().map(|DenyAccess(a, b, c, d)| {
+        types::facts::Predicate {
+            name: types::facts::PredicateType::DenyAccess as i32,
+            atoms: vec![a, b, c, d],
+        }
+    }));
     predicates.extend(
         deny_logins
             .into_iter()
             .map(|DenyLogins(a, b, c)| types::facts::Predicate {
                 name: types::facts::PredicateType::DenyLogins as i32,
                 atoms: vec![a, b, c],
-            })
+            }),
     );
 
-    let idb = types::Facts {
-        predicates,
-    };
+    let idb = types::Facts { predicates };
 
     let mut buf = Vec::with_capacity(idb.encoded_len());
-        if let Err(e) = idb.encode(&mut buf) {
-            let err_bytes = e.to_string().into_bytes();
-            unsafe {
-                ptr::copy(&(*err_bytes)[0], output, err_bytes.len());
-            }
-            return Box::into_raw(Box::new(Status{
-                output_length: err_bytes.len(),
-                error: -1,
-            }))
-        }
-    if buf.is_empty() || buf.len() > output_len {
-        return Box::into_raw(Box::new(Status{
-            output_length: buf.len(),
-            error: 0,
-        }))
-    }
-    // We can't guarantee the memory regions are non-overlapping, but we only need to copy the data to output so
-    // it is able to be presented on the Go end. The necessary checks for length is done before this call.
-    //
-    // buf is valid for reads of len * size_of::<T>() bytes.
-    // output is valid for writes of count * size_of::<T>() bytes.
-    // Both buf and output are properly aligned.
-    unsafe {
-        ptr::copy(&(*buf)[0], output, buf.len());
+    if let Err(e) = idb.encode(&mut buf) {
+        return Box::into_raw(Box::new(create_error_ptr(e.to_string())));
     }
 
-    Box::into_raw(Box::new(Status{
-        output_length: buf.len(),
-        error: 0
+    let mut ret = buf.into_boxed_slice();
+    let access_ptr = ret.as_mut_ptr();
+    let access_len = ret.len();
+    std::mem::forget(ret);
+
+    Box::into_raw(Box::new(Output {
+        access: access_ptr,
+        length: access_len,
+        error: 0,
     }))
 }
 
+/// # Safety
+///
+/// This function should not be called if output is invalid
 #[no_mangle]
-pub extern "C" fn status_output_length(
-    status: *mut Status
-) -> size_t {
-    if status.is_null() {
-        return 0
+pub unsafe extern "C" fn output_access(output: *mut Output) -> *mut u8 {
+    if let Some(db) = output.as_ref() {
+        return db.access;
     }
-    // We've checked that the pointer is not null.
-    let db = unsafe {
-        &*status
-    };
-    db.output_length
+    ptr::null_mut()
 }
 
+/// # Safety
+///
+/// This function should not be called if output is invalid
 #[no_mangle]
-pub extern "C" fn status_error(
-    status: *mut Status
-) -> i32 {
-    if status.is_null() {
-        return 0
+pub unsafe extern "C" fn output_length(output: *mut Output) -> size_t {
+    if let Some(db) = output.as_ref() {
+        return db.length;
     }
-    // We've checked that the pointer is not null.
-    let db = unsafe {
-        &*status
-    };
-    db.error
+    0
 }
 
+/// # Safety
+///
+/// This function should not be called if output is invalid
 #[no_mangle]
-extern "C" fn drop_status_struct(status: *mut Status) {
-    if status.is_null() {
-        return;
+pub unsafe extern "C" fn output_error(output: *mut Output) -> i32 {
+    // We've checked that the pointer is not null.
+    if let Some(db) = output.as_ref() {
+        return db.error;
     }
-    unsafe {
-        Box::from_raw(status);
+    0
+}
+
+/// # Safety
+///
+/// This function should not be called if output is invalid
+#[no_mangle]
+pub unsafe extern "C" fn drop_output_struct(output: *mut Output) {
+    let db = match output.as_ref() {
+        Some(s) => s,
+        None => return,
+    };
+    // Drop access buf
+    if db.length > 0 {
+        let s = std::slice::from_raw_parts_mut(db.access, db.length);
+        let s = s.as_mut_ptr();
+        Box::from_raw(s);
     }
+    // Drop struct
+    Box::from_raw(output);
 }

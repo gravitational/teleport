@@ -21,11 +21,12 @@ package datalog
 // #cgo LDFLAGS: -L./roletester/target/release -lrole_tester
 // #include <stdio.h>
 // #include <stdlib.h>
-// typedef struct status status_t;
-// extern status_t *process_access(unsigned char *input, unsigned char *output, size_t input_len, size_t output_len);
-// extern size_t status_output_length(status_t *);
-// extern int status_error(status_t *);
-// extern void drop_status_struct(status_t *status);
+// typedef struct output output_t;
+// extern output_t *process_access(unsigned char *input, size_t input_len);
+// extern unsigned char *output_access(output_t *);
+// extern size_t output_length(output_t *);
+// extern int output_error(output_t *);
+// extern void drop_output_struct(output_t *output);
 import "C"
 import (
 	"context"
@@ -123,31 +124,17 @@ func QueryNodeAccess(ctx context.Context, client auth.ClientI, req NodeAccessReq
 	// Create the byte buffer pointers for input and output
 	ptr := (*C.uchar)(C.CBytes(b))
 	defer C.free(unsafe.Pointer(ptr))
-	res := (*C.uchar)(C.CBytes(make([]byte, len(b))))
-	defer C.free(unsafe.Pointer(res))
 
-	// Status here is the returned length if the function succeeded, or an error code if the function failed.
-	status := C.process_access(ptr, res, C.size_t(len(b)), C.size_t(len(b)))
-	defer C.drop_status_struct(status)
+	output := C.process_access(ptr, C.size_t(len(b)))
+	defer C.drop_output_struct(output)
 
-	// Status code determines if there is an error, and the outputLength specifies the length of the string/byte buffer.
-	statusCode := C.status_error(status)
-	outputLength := C.status_output_length(status)
+	res := C.output_access(output)
+	statusCode := C.output_error(output)
+	outputLength := C.output_length(output)
 
 	// If statusCode != 0, then there was an error. We return the error string.
 	if int(statusCode) != 0 {
 		return nil, trace.BadParameter(C.GoStringN((*C.char)(unsafe.Pointer(res)), C.int(outputLength)))
-	}
-
-	// Couldn't write to result since there is not enough memory allocated. The length required for the output is larger than the input length (what we originally allocated).
-	if int(outputLength) > len(b) {
-		res = (*C.uchar)(C.CBytes(make([]byte, outputLength)))
-		status = C.process_access(ptr, res, C.size_t(len(b)), C.size_t(outputLength))
-		statusCode = C.status_error(status)
-		outputLength = C.status_output_length(status)
-		if int(statusCode) != 0 {
-			return nil, trace.BadParameter(C.GoStringN((*C.char)(unsafe.Pointer(res)), C.int(outputLength)))
-		}
 	}
 
 	err = proto.Unmarshal(C.GoBytes(unsafe.Pointer(res), C.int(outputLength)), &resp.Accesses)
