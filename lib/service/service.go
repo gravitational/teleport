@@ -2469,11 +2469,9 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	var err error
 	var listeners proxyListeners
 
-	if cfg.Proxy.SSHAddr.Addr != "" {
-		listeners.ssh, err = process.importOrCreateListener(listenerProxySSH, cfg.Proxy.SSHAddr.Addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	listeners.ssh, err = process.importOrCreateListener(listenerProxySSH, cfg.Proxy.SSHAddr.Addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if cfg.Proxy.Kube.Enabled && !cfg.Proxy.Kube.ListenAddr.IsEmpty() {
