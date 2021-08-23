@@ -22,20 +22,9 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
-
-type testWithCloudModules struct {
-	modules.Modules
-}
-
-func (m *testWithCloudModules) Features() modules.Features {
-	return modules.Features{
-		Cloud: true, // Enable cloud feature which is required for account recovery.
-	}
-}
 
 // TestGenerateAndUpsertRecoveryCodes tests the following:
 //  - generation of recovery codes are of correct format
