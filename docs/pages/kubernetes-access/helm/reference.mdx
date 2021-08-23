@@ -80,8 +80,8 @@ Setting `enterprise` to `true` will use the Teleport Enterprise image.
 
 You will also need to download your Enterprise license from the Teleport dashboard and add it as a Kubernetes secret to use this:
 
-```bash
-kubectl --namespace teleport create secret generic license --from-file=/path/to/downloaded/license.pem
+```code
+$ kubectl --namespace teleport create secret generic license --from-file=/path/to/downloaded/license.pem
 ```
 
 <Admonition type="tip">
@@ -91,8 +91,8 @@ kubectl --namespace teleport create secret generic license --from-file=/path/to/
 <Admonition type="note">
   The file added to the secret must be called `license.pem`. If you have renamed it, you can specify the filename to use in the secret creation command:
 
-  ```bash
-  kubectl --namespace teleport create secret generic license --from-file=license.pem=/path/to/downloaded/this-is-my-teleport-license.pem
+  ```code
+  $ kubectl --namespace teleport create secret generic license --from-file=license.pem=/path/to/downloaded/this-is-my-teleport-license.pem
   ```
 </Admonition>
 
@@ -103,8 +103,8 @@ kubectl --namespace teleport create secret generic license --from-file=/path/to/
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set enterprise=true
+  ```code
+  $ --set enterprise=true
   ```
   </TabItem>
 </Tabs>
@@ -132,8 +132,8 @@ See these links for information on Docker image versions:
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set teleportVersionOverride="7"
+  ```code
+  $ --set teleportVersionOverride="7"
   ```
   </TabItem>
 </Tabs>
@@ -189,8 +189,8 @@ You can also use any other ACME-compatible server.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set acme=true \
+  ``code
+  $ --set acme=true \
   --set acmeEmail=user@email.com \
   --set acmeURI=https://acme-staging-v02.api.letsencrypt.org/directory
   ```
@@ -219,8 +219,8 @@ To disable this, you can set `enabled` to `false`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set podSecurityPolicy.enabled=false
+  ``code
+  $ --set podSecurityPolicy.enabled=false
   ```
   </TabItem>
 </Tabs>
@@ -247,8 +247,8 @@ Teleport's RBAC policies to define access rules for the cluster.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set labels.environment=production \
+  ``code
+  $ --set labels.environment=production \
   --set labels.region=us-east
   ```
   </TabItem>
@@ -289,8 +289,8 @@ The default is left blank, which will automatically create a `PersistentVolumeCl
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set standalone.existingClaimName=my-existing-pvc-name
+  ``code
+  $ --set standalone.existingClaimName=my-existing-pvc-name
   ```
   </TabItem>
 </Tabs>
@@ -315,7 +315,7 @@ You can set `volumeSize` to request a different size of persistent volume when i
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
+  ```code
   --set standalone.volumeSize=50Gi
   ```
   </TabItem>
@@ -376,8 +376,8 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set highAvailability.replicaCount=3
+  ``code
+  $ --set highAvailability.replicaCount=3
   ```
   </TabItem>
 </Tabs>
@@ -412,8 +412,8 @@ Teleport pods must not be scheduled on the same physical host.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set highAvailability.requireAntiAffinity=true
+  ```code
+  $ --set highAvailability.requireAntiAffinity=true
   ```
   </TabItem>
 </Tabs>
@@ -515,8 +515,8 @@ Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issui
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set highAvailability.certManager.enabled=true \
+  ```code
+  $ --set highAvailability.certManager.enabled=true \
   --set highAvailability.certManager.issuerName=letsencrypt-production
   ```
   </TabItem>
@@ -540,7 +540,7 @@ scoped to a single namespace.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
+  ```code
   --set highAvailability.certManager.issuerKind=ClusterIssuer
   ```
   </TabItem>
@@ -563,7 +563,7 @@ You can override this to use your own Teleport Community image rather than a Tel
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
+  ```code
   --set image=my.docker.registry/teleport-community-image-name
   ```
   </TabItem>
@@ -586,7 +586,7 @@ You can override this to use your own Teleport Enterprise image rather than a Te
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
+  ```code
   --set enterpriseImage=my.docker.registry/teleport-enterprise-image
   ```
   </TabItem>
@@ -613,7 +613,7 @@ The default is `INFO`, which is recommended in production.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
+  ```code
   --set logLevel=DEBUG
   ```
   </TabItem>
@@ -648,8 +648,8 @@ Kubernetes affinity to set for pod assignments.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=gravitational.io/dedicated \
+  ```code
+  $ --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=gravitational.io/dedicated \
   --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In \
   --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=teleport
   ```
@@ -680,8 +680,8 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set annotations.config."kubernetes\.io\/annotation"=value
+  ```code
+  $ --set annotations.config."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -709,8 +709,8 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set annotations.deployment."kubernetes\.io\/annotation"=value
+  ```code
+  $ --set annotations.deployment."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -738,8 +738,8 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set annotations.pod."kubernetes\.io\/annotation"=value
+  ```code
+  $ --set annotations.pod."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -767,8 +767,8 @@ Kubernetes annotations which should be applied to the `Service` created by the c
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set annotations.service."kubernetes\.io\/annotation"=value
+  ```code
+  $ --set annotations.service."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -796,8 +796,8 @@ Kubernetes annotations which should be applied to the `serviceAccount` created b
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
+  ```code
+  $ --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -822,8 +822,8 @@ A list of extra arguments to pass to the `teleport start` command when running a
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set "extraArgs={--bootstrap=/etc/teleport-bootstrap/roles.yaml}"
+  ```code
+  $ --set "extraArgs={--bootstrap=/etc/teleport-bootstrap/roles.yaml}"
   ```
   </TabItem>
 </Tabs>
@@ -847,8 +847,8 @@ A list of extra environment variables to be set on the main Teleport container.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set "extraEnv[0].name=MY_ENV" \
+  ```code
+  $ --set "extraEnv[0].name=MY_ENV" \
   --set "extraEnv[0].value=my-value"
   ```
   </TabItem>
@@ -876,8 +876,8 @@ will also be available to any `initContainers` configured by the chart.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set "extraVolumes[0].name=myvolume" \
+  ```code
+  $ --set "extraVolumes[0].name=myvolume" \
   --set "extraVolumes[0].secret.secretName=mysecret"
   ```
   </TabItem>
@@ -903,8 +903,8 @@ mounts will also be mounted into any `initContainers` configured by the chart.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set "extraVolumeMounts[0].name=myvolume" \
+  ```code
+  $ --set "extraVolumeMounts[0].name=myvolume" \
   --set "extraVolumeMounts[0].path=/path/to/mount/volume"
   ```
   </TabItem>
@@ -927,8 +927,8 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set imagePullPolicy=Always
+  ```code
+  $ --set imagePullPolicy=Always
   ```
   </TabItem>
 </Tabs>
@@ -953,8 +953,8 @@ A list of `initContainers` which will be run before the main Teleport container 
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set "initContainers[0].name=teleport-init" \
+  ```code
+  $ --set "initContainers[0].name=teleport-init" \
   --set "initContainers[0].image=alpine" \
   --set "initContainers[0].args={echo test}"
   ```
@@ -1005,8 +1005,8 @@ will also be applied to `initContainers`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set resources.requests.cpu=1 \
+  ```code
+  $ --set resources.requests.cpu=1 \
   --set resources.requests.memory=2Gi
   ```
   </TabItem>
@@ -1033,8 +1033,8 @@ Kubernetes Tolerations to set for pod assignment.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set tolerations[0].key=dedicated \
+  ```code
+  $ --set tolerations[0].key=dedicated \
   --set tolerations[0].operator=Equal \
   --set tolerations[0].value=teleport \
   --set tolerations[0].effect=NoSchedule
@@ -1082,8 +1082,8 @@ This parameter is not mandatory to preserve backwards compatibility with older c
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set roles=kube\,app\,db
+  ```code
+  $ --set roles=kube\,app\,db
   ```
 
   <Admonition type="note">
@@ -1134,8 +1134,8 @@ fail to join the Teleport cluster.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set authToken=<replace-with-actual-token>
+  ```code
+  $ --set authToken=<replace-with-actual-token>
   ```
   </TabItem>
 </Tabs>
@@ -1174,8 +1174,8 @@ connecting to the cluster.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set kubeClusterName=my-gke-cluster
+  ```code
+  $ --set kubeClusterName=my-gke-cluster
   ```
   </TabItem>
 </Tabs>
@@ -1210,8 +1210,8 @@ You can specify multiple apps by adding additional list elements.
   </Admonition>
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set "apps[0].name=grafana" \
+  ```code
+  $ --set "apps[0].name=grafana" \
   --set "apps[0].uri=http://localhost:3000" \
   --set "apps[0].purpose=monitoring" \
   --set "apps[1].name=grafana" \
@@ -1266,8 +1266,8 @@ You can specify multiple databases by adding additional list elements.
   </Admonition>
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set "databases[0].name=aurora" \
+  ```code
+  $ --set "databases[0].name=aurora" \
   --set "databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432" \
   --set "databases[0].protocol=postgres" \
   --set "databases[0].aws.region=us-east-1" \
@@ -1315,8 +1315,8 @@ See [this link for information on Community Docker image versions](../../setup/g
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set teleportVersionOverride="7"
+  ```code
+  $ --set teleportVersionOverride="7"
   ```
   </TabItem>
 </Tabs>
@@ -1339,8 +1339,8 @@ This can be used for joining a Teleport agent to a Teleport cluster which does n
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set insecureSkipProxyTLSVerify=false
+  ```code
+  $ --set insecureSkipProxyTLSVerify=false
   ```
   </TabItem>
 </Tabs>
@@ -1395,8 +1395,8 @@ To disable this, you can set `enabled` to `false`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set podSecurityPolicy.enabled=false
+  ```code
+  $ --set podSecurityPolicy.enabled=false
   ```
   </TabItem>
 </Tabs>
@@ -1433,8 +1433,8 @@ These labels can then be used with Teleport's RBAC policies to define access rul
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set labels.environment=production \
+  ```code
+  $ --set labels.environment=production \
   --set labels.region=us-east
   ```
   </TabItem>
@@ -1530,8 +1530,8 @@ You can override this to use your own Teleport image rather than a Teleport-publ
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set image=my.docker.registry/teleport-image-name
+  ```code
+  $ --set image=my.docker.registry/teleport-image-name
   ```
   </TabItem>
 </Tabs>
@@ -1584,8 +1584,8 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set replicaCount=3
+  ```code
+  $ --set replicaCount=3
   ```
   </TabItem>
 </Tabs>
@@ -1609,8 +1609,8 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set clusterRoleName=kubernetes-clusterrole
+  ```code
+  $ --set clusterRoleName=kubernetes-clusterrole
   ```
   </TabItem>
 </Tabs>
@@ -1635,8 +1635,8 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set clusterRoleBindingName=kubernetes-clusterrolebinding
+  ```code
+  $ --set clusterRoleBindingName=kubernetes-clusterrolebinding
   ```
   </TabItem>
 </Tabs>
@@ -1660,8 +1660,8 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set serviceAccountName=kubernetes-serviceaccount
+  ```code
+  $ --set serviceAccountName=kubernetes-serviceaccount
   ```
   </TabItem>
 </Tabs>
@@ -1680,8 +1680,8 @@ join token stored in your Teleport chart values.
 
 To create your own join token secret, you can use a command like this:
 
-```bash
-kubectl --namespace teleport create secret generic teleport-kube-agent-join-token --from-literal=auth-token=<replace-with-actual-token>
+```code
+$ kubectl --namespace teleport create secret generic teleport-kube-agent-join-token --from-literal=auth-token=<replace-with-actual-token>
 ```
 
 <Admonition type="note">
@@ -1695,8 +1695,8 @@ kubectl --namespace teleport create secret generic teleport-kube-agent-join-toke
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set serviceAccountName=""
+  ```code
+  $ --set serviceAccountName=""
   ```
   </TabItem>
 </Tabs>
@@ -1722,8 +1722,8 @@ The default is `INFO`, which is recommended in production.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
-  --set logLevel=DEBUG
+  ```code
+  $ --set logLevel=DEBUG
   ```
   </TabItem>
 </Tabs>
@@ -1757,8 +1757,8 @@ Kubernetes affinity to set for pod assignments.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=gravitational.io/dedicated \
+  ```code
+  $ --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=gravitational.io/dedicated \
   --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In \
   --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=teleport
   ```
@@ -1815,8 +1815,8 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set annotations.config."kubernetes\.io\/annotation"=value
+  ```code
+  $ --set annotations.config."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1844,8 +1844,8 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set annotations.deployment."kubernetes\.io\/annotation"=value
+  ```code
+  $ --set annotations.deployment."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1873,8 +1873,8 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set annotations.pod."kubernetes\.io\/annotation"=value
+  ```code
+  $ --set annotations.pod."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1902,8 +1902,8 @@ Kubernetes annotations which should be applied to the `ServiceAccount` created b
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
+  ```code
+  $ --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1933,8 +1933,8 @@ will also be available to any `initContainers` configured by the chart.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set "extraVolumes[0].name=myvolume" \
+  ```code
+  $ --set "extraVolumes[0].name=myvolume" \
   --set "extraVolumes[0].secret.secretName=mysecret"
   ```
   </TabItem>
@@ -1960,8 +1960,8 @@ mounts will also be mounted into any `initContainers` configured by the chart.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set "extraVolumeMounts[0].name=myvolume" \
+  ```code
+  $ --set "extraVolumeMounts[0].name=myvolume" \
   --set "extraVolumeMounts[0].path=/path/to/mount/volume"
   ```
   </TabItem>
@@ -1984,8 +1984,8 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set imagePullPolicy=Always
+  ```code
+  $ --set imagePullPolicy=Always
   ```
   </TabItem>
 </Tabs>
@@ -2010,8 +2010,8 @@ A list of `initContainers` which will be run before the main Teleport container 
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set "initContainers[0].name=teleport-init" \
+  ```code
+  $ --set "initContainers[0].name=teleport-init" \
   --set "initContainers[0].image=alpine" \
   --set "initContainers[0].args={echo test}"
   ```
@@ -2039,8 +2039,8 @@ will also be applied to `initContainers`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set resources.requests.cpu=1 \
+  ```code
+  $ --set resources.requests.cpu=1 \
   --set resources.requests.memory=2Gi
   ```
   </TabItem>
@@ -2067,8 +2067,8 @@ Kubernetes Tolerations to set for pod assignment.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```shell
-  --set tolerations[0].key=dedicated \
+  ```code
+  $ --set tolerations[0].key=dedicated \
   --set tolerations[0].operator=Equal \
   --set tolerations[0].value=teleport \
   --set tolerations[0].effect=NoSchedule
