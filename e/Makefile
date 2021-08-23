@@ -1,5 +1,8 @@
 # This makefile usually runs as a sub-make by ../Makefile
 # But running regular 'make' and 'make clean' works.
+ifneq ("$(wildcard /bin/bash)","")
+SHELL := /bin/bash -o pipefail
+endif
 BUILDDIR ?= build
 LOCALDIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 WEBASSETS_BUILDDIR ?= $(LOCALDIR)../lib/web/build
