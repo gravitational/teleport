@@ -124,10 +124,10 @@ type Identity interface {
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
 
 	// GetMFADevices gets all MFA devices for the user.
-	GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error)
+	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 
 	// GetMFADevice gets a MFA device by user and id.
-	GetMFADevice(ctx context.Context, user, id string) (*types.MFADevice, error)
+	GetMFADevice(ctx context.Context, user, id string, withSecrets bool) (*types.MFADevice, error)
 
 	// DeleteMFADevice deletes an MFA device for the user by ID.
 	DeleteMFADevice(ctx context.Context, user, id string) error

@@ -308,7 +308,7 @@ func TestAddTOTPWithRecoveryTokenAndPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test there are 2 mfa devices.
-	mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username)
+	mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username, true)
 	require.NoError(t, err)
 
 	deviceNames := make([]string, 0, len(mfas))
@@ -500,7 +500,7 @@ func TestChangePasswordWithRecoveryTokenAndOTP(t *testing.T) {
 	require.Equal(t, UserTokenTypeRecoveryStart, startToken.GetSubKind())
 
 	// Get new otp code
-	mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username)
+	mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username, true)
 	require.NoError(t, err)
 
 	newOTP, err := totp.GenerateCode(mfas[0].GetTotp().Key, srv.Clock().Now().Add(30*time.Second))
@@ -750,7 +750,7 @@ func TestRecoveryAllowedWithLoginLocked(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set up new totp.
-	mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username)
+	mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username, true)
 	require.NoError(t, err)
 
 	newOTP, err := totp.GenerateCode(mfas[0].GetTotp().Key, srv.Clock().Now().Add(30*time.Second))

@@ -792,6 +792,8 @@ message GetMFADevicesRequest {
     // their devices. The type of token accepted are recovery approved user token that allows
     // access during the recovery process while not logged in.
     string TokenID = 1;
+    // WithSecrets specifies whether to load associated secrets.
+    bool WithSecrets = 2;
 }
 
 // GetMFADeviceResponse is a response for GetMFADevices RPC.

@@ -1202,7 +1202,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 		username = token.GetUser()
 	}
 
-	devs, err := a.Identity.GetMFADevices(ctx, username)
+	devs, err := a.Identity.GetMFADevices(ctx, username, req.GetWithSecrets())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1228,12 +1228,12 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 		return trace.BadParameter("expired token")
 	}
 
-	device, err := a.GetMFADevice(ctx, token.GetUser(), req.GetDeviceID())
+	device, err := a.Identity.GetMFADevice(ctx, token.GetUser(), req.GetDeviceID(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := a.DeleteMFADevice(ctx, token.GetUser(), req.GetDeviceID()); err != nil {
+	if err := a.Identity.DeleteMFADevice(ctx, token.GetUser(), req.GetDeviceID()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2566,7 +2566,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 		}
 	}
 
-	devs, err := a.Identity.GetMFADevices(ctx, user)
+	devs, err := a.Identity.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2627,7 +2627,7 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 }
 
 func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
-	devs, err := a.Identity.GetMFADevices(ctx, user)
+	devs, err := a.Identity.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

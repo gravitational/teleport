@@ -1626,7 +1626,7 @@ func addMFADeviceInit(gctx *grpcContext, stream proto.AuthService_AddMFADeviceSe
 	if initReq == nil {
 		return nil, trace.BadParameter("expected AddMFADeviceRequestInit, got %T", req)
 	}
-	devs, err := gctx.authServer.Identity.GetMFADevices(stream.Context(), gctx.User.GetName())
+	devs, err := gctx.authServer.Identity.GetMFADevices(stream.Context(), gctx.User.GetName(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1826,7 +1826,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	}
 
 	// Find the device and delete it from backend.
-	devs, err := auth.Identity.GetMFADevices(ctx, user)
+	devs, err := auth.Identity.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1961,7 +1961,6 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(awly): mfa: remove secrets from MFA devices.
 	devs, err := actx.ServerWithRoles.GetMFADevices(ctx, req)
 	return devs, trace.Wrap(err)
 }

@@ -573,7 +573,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 
 	// Check device Name for uniqueness.
-	devs, err := s.GetMFADevices(ctx, user)
+	devs, err := s.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -612,7 +612,7 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error) {
+func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing parameter user")
 	}
@@ -628,12 +628,17 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*ty
 		if err := json.Unmarshal(item.Value, &d); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if !withSecrets {
+			d.Device = nil
+		}
+
 		devices = append(devices, &d)
 	}
 	return devices, nil
 }
 
-func (s *IdentityService) GetMFADevice(ctx context.Context, user, id string) (*types.MFADevice, error) {
+func (s *IdentityService) GetMFADevice(ctx context.Context, user, id string, withSecrets bool) (*types.MFADevice, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing parameter user")
 	}
@@ -653,6 +658,10 @@ func (s *IdentityService) GetMFADevice(ctx context.Context, user, id string) (*t
 	var d types.MFADevice
 	if err := json.Unmarshal(item.Value, &d); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if !withSecrets {
+		d.Device = nil
 	}
 
 	return &d, nil

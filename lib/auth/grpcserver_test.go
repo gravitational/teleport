@@ -658,7 +658,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 	})
 	// Fetch MFA device ID.
-	devs, err := srv.Auth().Identity.GetMFADevices(ctx, user.GetName())
+	devs, err := srv.Auth().Identity.GetMFADevices(ctx, user.GetName(), false)
 	require.NoError(t, err)
 	require.Len(t, devs, 1)
 	u2fDevID := devs[0].Id

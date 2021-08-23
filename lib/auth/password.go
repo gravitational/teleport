@@ -143,7 +143,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 				return trace.Wrap(err)
 			}
 			// Check that a user has no MFA devices registered.
-			devs, err := s.Identity.GetMFADevices(ctx, userID)
+			devs, err := s.Identity.GetMFADevices(ctx, userID, false)
 			if err != nil && !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
@@ -273,7 +273,7 @@ func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 			return nil, trace.BadParameter("previously used totp token")
 		}
 
-		devs, err := s.Identity.GetMFADevices(ctx, user)
+		devs, err := s.Identity.GetMFADevices(ctx, user, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
