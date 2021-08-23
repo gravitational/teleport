@@ -111,21 +111,26 @@ endif
 endif
 endif
 
+
+# Reproducible builds are only availalbe on select targets, and only when OS=linux.
+REPRODUCIBLE ?=
+ifneq ("$(OS)","linux")
+REPRODUCIBLE = no
+endif
+
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
 
-# On platforms that support reproducible builds (at the moment, only Linux)
-# ensure the archive is created in a reproducible manner.
+# On platforms that support reproducible builds, ensure the archive is created in a reproducible manner.
 TAR_FLAGS ?=
-ifeq ("$(OS)","linux")
+ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
-
 
 VERSRC = version.go gitref.go api/version.go
 
