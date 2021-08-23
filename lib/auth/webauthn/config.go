@@ -22,6 +22,8 @@ func newWebAuthn(cfg *Config, rpID, origin string) (*wan.WebAuthn, error) {
 	var attestation protocol.ConveyancePreference
 	if len(cfg.AttestationAllowedCAs) > 0 && len(cfg.AttestationDeniedCAs) > 0 {
 		attestation = protocol.PreferDirectAttestation
+	} else {
+		attestation = protocol.PreferNoAttestation
 	}
 	return wan.New(&wan.Config{
 		RPID:                  rpID,
