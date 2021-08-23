@@ -15,17 +15,17 @@ When declaring access rules, keep in mind the following:
 - Deny rules get evaluated first and take priority.
 
 A rule consists of two parts: the resources and verbs. Here's an example of an
-`allow` rule describing a `list` verb applied to the SSH `sessions` resource.  It means "allow
+`allow` rule describing a `list` verb applied to the SSH `ssh_session` resource.  It means "allow
 users of this role to see a list of active SSH sessions".
 
 ```yaml
 allow:
-    - resources: [session]
+    - resources: [ssh_session]
       verbs: [list]
 ```
 
 If this rule was declared in the `deny` section of a role definition, it effectively 
-prohibits users from getting a list of trusted clusters and sessions. You can see
+prohibits users from getting a list of active sessions. You can see
 all of the available resources and verbs under the `allow` section in the `admin` role configuration
 below.
 
