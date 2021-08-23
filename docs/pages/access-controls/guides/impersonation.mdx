@@ -24,7 +24,7 @@ tctl status
 
 # Output
 Cluster  acme.example.com
-Version  6.0.2
+Version  (=teleport.version=)
 Host CA  never updated
 User CA  never updated
 Jwt CA   never updated
@@ -119,7 +119,7 @@ tctl users add alice  --roles=impersonator,access
 Alice can login using `tsh` and issue a cert for `jenkins`:
 
 ```bash
-tsh login --proxy=teleport.localhost:3080 --user=alice --auth=local
+tsh login --proxy=teleport.localhost --user=alice --auth=local
 tctl auth sign --user=jenkins --format=openssh --out=jenkins --ttl=240h
 ```
 

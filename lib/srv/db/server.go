@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -70,6 +71,8 @@ type Config struct {
 	Auth common.Auth
 	// CADownloader automatically downloads root certs for cloud hosted databases.
 	CADownloader CADownloader
+	// LockWatcher is a lock watcher.
+	LockWatcher *services.LockWatcher
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -119,6 +122,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CADownloader == nil {
 		c.CADownloader = NewRealDownloader(c.DataDir)
+	}
+	if c.LockWatcher == nil {
+		return trace.BadParameter("missing LockWatcher")
 	}
 	return nil
 }
@@ -361,6 +367,8 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	// idle connection and connection with expired cert.
 	conn, err = monitorConn(ctx, monitorConnConfig{
 		conn:         conn,
+		lockWatcher:  s.cfg.LockWatcher,
+		lockTargets:  sessionCtx.LockTargets,
 		identity:     sessionCtx.Identity,
 		checker:      sessionCtx.Checker,
 		clock:        s.cfg.Clock,
@@ -464,5 +472,6 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 			"id": id,
 			"db": server.GetName(),
 		}),
+		LockTargets: authContext.LockTargets(),
 	}, nil
 }

@@ -134,7 +134,6 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	if !a.context.Checker.HasRole(name) {
 		return false
 	}
-
 	return true
 }
 
@@ -2134,7 +2133,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.upsertRole(ctx, role)
+	return a.authServer.UpsertRole(ctx, role)
 }
 
 // GetRole returns role by name
@@ -3145,15 +3144,15 @@ func (a *ServerWithRoles) GetLock(ctx context.Context, name string) (types.Lock,
 	return a.authServer.GetLock(ctx, name)
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
-func (a *ServerWithRoles) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetLocks(ctx, targets...)
+	return a.authServer.GetLocks(ctx, inForceOnly, targets...)
 }
 
 // UpsertLock upserts a lock.
@@ -3178,6 +3177,15 @@ func (a *ServerWithRoles) DeleteLock(ctx context.Context, name string) error {
 // DeleteAllLocks not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
+	role, ok := a.context.Identity.(RemoteBuiltinRole)
+	if !a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) || !ok || role.ClusterName != clusterName {
+		return trace.AccessDenied("this request can be only executed by a remote proxy of cluster %q", clusterName)
+	}
+	return a.authServer.ReplaceRemoteLocks(ctx, clusterName, locks)
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
