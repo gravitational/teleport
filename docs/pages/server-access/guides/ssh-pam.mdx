@@ -22,7 +22,7 @@ Pluggable Authentication Modules (PAM) date back to 1995 when Sun Microsystems
 implemented a generic authentication framework for Solaris. Since then most GNU/Linux
 distributions have adopted PAM.
 
-```bash
+```code
 $ man pam
 ```
 
@@ -91,10 +91,10 @@ auth_service:
 This will be shown during the `tsh login` process, and must be positively acknowledged 
 before the user is allowed to log into the cluster.
 
-```bash
+```code
 $ tsh login --proxy teleport.example.com
-Welcome to the cluster. All activity will be logged. 
-Press [ENTER] to continue.
+# Welcome to the cluster. All activity will be logged. 
+# Press [ENTER] to continue.
 ```
 
 Alternatively, a per-node Message of the Day can be set using the traditional unix 
@@ -190,23 +190,23 @@ ssh_service:
 When PAM is enabled it will use the default `sshd` config file. This can differ per
 distro.
 
-```bash
+```code
 $ cat /etc/pam.d/sshd
 ```
 
 The default `sshd` will call two `pam_motd` files, one dynamic MOTD that prints the machine
 info, and a static MOTD that can be set by an admin.
 
-```bash
+```txt
 session    optional     pam_motd.so  motd=/run/motd.dynamic
 session    optional     pam_motd.so noupdate
 ```
 
 By updating `/etc/motd` you can provide a message to users accessing nodes via Teleport. 
 
-```bash
+```code
 $ cat /etc/motd
-WARNING: All activity on this node is being recorded by Teleport
+# WARNING: All activity on this node is being recorded by Teleport
 ```
 
 <Figure
@@ -249,7 +249,7 @@ to use `pam_exec.so` with Teleport.
 
 Start by creating a file `/etc/pam.d/teleport` with the following contents:
 
-```bash
+```txt
 account   required   pam_exec.so /etc/pam-exec.d/teleport_acct
 session   required   pam_motd.so
 session   required   pam_permit.so

@@ -98,24 +98,24 @@ Here's the list of resources currently exposed via [`tctl`](./cli.mdx#tctl):
 
 **Examples:**
 
-```bash
+```code
 # List all connectors:
-tctl get connectors
+$ tctl get connectors
 
 # Dump a SAML connector called "okta":
-tctl get saml/okta
+$ tctl get saml/okta
 
 # Delete a SAML connector called "okta":
-tctl rm saml/okta
+$ tctl rm saml/okta
 
 # Delete an OIDC connector called "gworkspace":
-tctl rm oidc/gworkspace
+$ tctl rm oidc/gworkspace
 
 # Delete a github connector called "myteam":
-tctl rm github/myteam
+$ tctl rm github/myteam
 
 # Delete a local user called "admin":
-tctl rm users/admin
+$ tctl rm users/admin
 ```
 
 <Admonition type="note">
