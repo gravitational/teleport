@@ -22,11 +22,11 @@ import (
 )
 
 // CredentialAssertion is the payload sent to authenticators to initiate login.
-type CredentialAssertion = protocol.CredentialAssertion
+type CredentialAssertion protocol.CredentialAssertion
 
 // CredentialAssertionResponse is the reply from authenticators to complete
 // login.
-type CredentialAssertionResponse = protocol.CredentialAssertionResponse
+type CredentialAssertionResponse protocol.CredentialAssertionResponse
 
 // loginSessionID is used as the per-user session identifier.
 // A fixed identifier means, in essence, that only one concurrent login is
@@ -115,7 +115,7 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertio
 		return nil, trace.Wrap(err)
 	}
 
-	return assertion, nil
+	return (*CredentialAssertion)(assertion), nil
 }
 
 // Finish is the second and last step of the LoginFlow.
