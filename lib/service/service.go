@@ -3116,7 +3116,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.AccessPoint, clusterName string) (*tls.Config, error) {
 	cfg := process.Config
 	var tlsConfig *tls.Config
-	var err error
 	acmeCfg := process.Config.Proxy.ACME
 	if !acmeCfg.Enabled {
 		tlsConfig = utils.TLSConfig(cfg.CipherSuites)
@@ -3176,6 +3175,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		// Build the client CA pool containing the cluster's user CA in
 		// order to be able to validate certificates provided by app
 		// access CLI clients.
+		var err error
 		tlsClone.ClientCAs, err = auth.ClientCertPool(accessPoint, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
