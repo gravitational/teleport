@@ -3254,12 +3254,7 @@ func proxySettingsFromConfig(cfg *Config, proxySSHAddr utils.NetAddr) webclient.
 		proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
 	}
 	if cfg.Proxy.Kube.Enabled {
-		//if cfg.Proxy.DisableALPNSNIListener && !cfg.Proxy.DisableTLS {
-		//	proxySettings.Kube.ListenAddr = cfg.Proxy.WebAddr.String()
-		//} else {
-		//	proxySettings.Kube.ListenAddr = cfg.Proxy.Kube.ListenAddr.String()
-		//}
-		proxySettings.Kube.ListenAddr = cfg.Proxy.Kube.ListenAddr.String()
+		proxySettings.Kube.ListenAddr = getProxyKubeAddress(cfg)
 	}
 	if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 		proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
@@ -3280,6 +3275,13 @@ func proxySettingsFromConfig(cfg *Config, proxySSHAddr utils.NetAddr) webclient.
 		}
 	}
 	return proxySettings
+}
+
+func getProxyKubeAddress(cfg *Config) string {
+	if !cfg.Proxy.DisableALPNSNIListener && !cfg.Proxy.DisableTLS {
+		return cfg.Proxy.WebAddr.String()
+	}
+	return cfg.Proxy.Kube.ListenAddr.String()
 }
 
 // registerAppDepend will register dependencies for application service.

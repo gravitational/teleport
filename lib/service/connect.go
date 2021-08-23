@@ -865,6 +865,7 @@ func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, tlsConf
 		Dialer: &reversetunnel.TunnelAuthDialer{
 			ProxyAddr:    proxyAddr,
 			ClientConfig: sshConfig,
+			Log:          process.log,
 		},
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),

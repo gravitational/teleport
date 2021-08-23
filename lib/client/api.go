@@ -802,10 +802,6 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SiteName = c.SiteName
 	cp.ALPNSNIListenerEnabled = c.ALPNSNIListenerEnabled
 
-	if c.ALPNSNIListenerEnabled {
-		cp.KubeProxyAddr = c.WebProxyAddr
-	}
-
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
 	}
@@ -902,9 +898,6 @@ func (c *Config) ParseProxyHost(proxyHost string) error {
 
 // KubeProxyHostPort returns the host and port of the Kubernetes proxy.
 func (c *Config) KubeProxyHostPort() (string, int) {
-	if c.ALPNSNIListenerEnabled {
-		return c.WebProxyHostPort()
-	}
 	if c.KubeProxyAddr != "" {
 		addr, err := utils.ParseAddr(c.KubeProxyAddr)
 		if err == nil {
@@ -2623,10 +2616,6 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	}
 
 	tc.ALPNSNIListenerEnabled = proxySettings.ALPNSNIListenerEnabled
-
-	if tc.ALPNSNIListenerEnabled {
-		tc.KubeProxyAddr = tc.WebProxyAddr
-	}
 
 	return nil
 }
