@@ -83,6 +83,10 @@ const (
 	// KeepAliveDatabase is the keep alive type for database server.
 	KeepAliveDatabase = "db"
 
+	// KeepAliveWindowsDesktopService is the keep alive type for a Windows
+	// desktop service.
+	KeepAliveWindowsDesktopService = "windows_desktop_service"
+
 	// WindowsOS is the GOOS constant used for Microsoft Windows.
 	WindowsOS = "windows"
 

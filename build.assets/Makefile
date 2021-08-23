@@ -206,7 +206,7 @@ test: buildbox
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
-.PHONY:test
+.PHONY:test-root
 test-root: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \
@@ -225,8 +225,12 @@ test-sh: buildbox
 
 .PHONY:integration
 integration: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
+	docker run \
+		--env TELEPORT_ETCD_TEST="yes" \
+		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
+		/bin/bash -c \
+		"examples/etcd/start-etcd.sh & sleep 1; \
+		make -C $(SRCDIR) FLAGS='-cover' integration"
 
 .PHONY:integration-root
 integration-root: buildbox
