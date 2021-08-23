@@ -37,11 +37,11 @@ There is no need to open any ports on your infrastructure for inbound traffic.
 We have made changes to allow you to log into your cluster using `tsh`, then use `tctl` remotely:
 
 ```bash
-$ tsh login --proxy=myinstance.teleport.sh:443
+$ tsh login --proxy=myinstance.teleport.sh
 # tctl (Enterprise edition) can use tsh credentials as of version 5.0
 $ tctl status
 ```
-You must use the enterprise version of `tctl`. 
+You must use the enterprise version of `tctl`.
 
 ### Why am I getting `permission denied` errors when using `tctl`?
 

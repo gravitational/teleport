@@ -116,6 +116,11 @@
             "type": "string",
             "default": "quay.io/gravitational/teleport"
         },
+        "imagePullSecrets": {
+            "$id": "#/properties/imagePullSecrets",
+            "type": "array",
+            "default": []
+        },
         "replicaCount": {
             "$id": "#/properties/replicaCount",
             "type": "integer",
