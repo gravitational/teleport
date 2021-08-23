@@ -1,5 +1,21 @@
 //+build desktop_access_beta
 
+/*
+Copyright 2021 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 // Package rdpclient implements an RDP client.
 package rdpclient
 
@@ -59,8 +75,8 @@ func init() {
 	C.init()
 }
 
-// Options for creating a new Client.
-type Options struct {
+// Config for creating a new Client.
+type Config struct {
 	// Addr is the network address of the RDP server, in the form host:port.
 	Addr string
 	// InputMessage is called to receive a message from the client for the RDP
@@ -68,35 +84,44 @@ type Options struct {
 	InputMessage func() (deskproto.Message, error)
 	// OutputMessage is called to send a message from RDP server to the client.
 	OutputMessage func(deskproto.Message) error
+	// Log is the logger for status messages.
+	Log logrus.FieldLogger
 }
 
-func (o Options) validate() error {
-	if o.Addr == "" {
-		return trace.BadParameter("missing Addr in rdpclient.Options")
+func (c *Config) checkAndSetDefaults() error {
+	if c.Addr == "" {
+		return trace.BadParameter("missing Addr in rdpclient.Config")
 	}
-	if o.InputMessage == nil {
-		return trace.BadParameter("missing InputMessage in rdpclient.Options")
+	if c.InputMessage == nil {
+		return trace.BadParameter("missing InputMessage in rdpclient.Config")
 	}
-	if o.OutputMessage == nil {
-		return trace.BadParameter("missing OutputMessage in rdpclient.Options")
+	if c.OutputMessage == nil {
+		return trace.BadParameter("missing OutputMessage in rdpclient.Config")
 	}
+	if c.Log == nil {
+		c.Log = logrus.New()
+	}
+	c.Log = c.Log.WithField("rdp-addr", c.Addr)
 	return nil
 }
 
 // Client is the RDP client.
 type Client struct {
-	opts Options
+	cfg Config
 
 	clientWidth, clientHeight uint16
 	username                  string
-	rustClientRef             *C.Client
+	rustClient                *C.Client
 	wg                        sync.WaitGroup
 	closeOnce                 sync.Once
 }
 
-// New creates and connects a new Client based on opts.
-func New(opts Options) (*Client, error) {
-	c := &Client{opts: opts}
+// New creates and connects a new Client based on cfg.
+func New(cfg Config) (*Client, error) {
+	if err := cfg.checkAndSetDefaults(); err != nil {
+		return nil, err
+	}
+	c := &Client{cfg: cfg}
 
 	if err := c.readClientUsername(); err != nil {
 		return nil, trace.Wrap(err)
@@ -113,13 +138,13 @@ func New(opts Options) (*Client, error) {
 
 func (c *Client) readClientUsername() error {
 	for {
-		msg, err := c.opts.InputMessage()
+		msg, err := c.cfg.InputMessage()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		u, ok := msg.(deskproto.ClientUsername)
 		if !ok {
-			logrus.Debugf("Expected ClientUsername message, got %T", msg)
+			c.cfg.Log.Debugf("Expected ClientUsername message, got %T", msg)
 			continue
 		}
 		c.username = u.Username
@@ -129,13 +154,13 @@ func (c *Client) readClientUsername() error {
 
 func (c *Client) readClientSize() error {
 	for {
-		msg, err := c.opts.InputMessage()
+		msg, err := c.cfg.InputMessage()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		s, ok := msg.(deskproto.ClientScreenSpec)
 		if !ok {
-			logrus.Debugf("Expected ClientScreenSpec message, got %T", msg)
+			c.cfg.Log.Debugf("Expected ClientScreenSpec message, got %T", msg)
 			continue
 		}
 		c.clientWidth = uint16(s.Width)
@@ -145,7 +170,7 @@ func (c *Client) readClientSize() error {
 }
 
 func (c *Client) connect() error {
-	addr := C.CString(c.opts.Addr)
+	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
@@ -170,7 +195,7 @@ func (c *Client) connect() error {
 	if err := cgoError(res.err); err != nil {
 		return trace.Wrap(err)
 	}
-	c.rustClientRef = res.client
+	c.rustClient = res.client
 	return nil
 }
 
@@ -180,13 +205,13 @@ func (c *Client) start() {
 	go func() {
 		defer c.wg.Done()
 		defer c.closeConn()
-		defer logrus.Info("RDP output streaming finished")
+		defer c.cfg.Log.Info("RDP output streaming finished")
 
 		clientRef := registerClient(c)
 		defer unregisterClient(clientRef)
 
-		if err := cgoError(C.read_rdp_output(c.rustClientRef, C.int64_t(clientRef))); err != nil {
-			logrus.Warningf("Failed reading RDP output frame: %v", err)
+		if err := cgoError(C.read_rdp_output(c.rustClient, C.int64_t(clientRef))); err != nil {
+			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
 		}
 	}()
 
@@ -195,26 +220,26 @@ func (c *Client) start() {
 	go func() {
 		defer c.wg.Done()
 		defer c.closeConn()
-		defer logrus.Info("RDP input streaming finished")
+		defer c.cfg.Log.Info("RDP input streaming finished")
 		var mouseX, mouseY uint32
 		for {
-			msg, err := c.opts.InputMessage()
+			msg, err := c.cfg.InputMessage()
 			if err != nil {
-				logrus.Warningf("Failed reading RDP input message: %v", err)
+				c.cfg.Log.Warningf("Failed reading RDP input message: %v", err)
 				return
 			}
 			switch m := msg.(type) {
 			case deskproto.MouseMove:
 				mouseX, mouseY = m.X, m.Y
 				if err := cgoError(C.write_rdp_pointer(
-					c.rustClientRef,
+					c.rustClient,
 					C.CGOPointer{
 						x:      C.uint16_t(m.X),
 						y:      C.uint16_t(m.Y),
 						button: C.PointerButtonNone,
 					},
 				)); err != nil {
-					logrus.Warningf("Failed forwarding RDP input message: %v", err)
+					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
 			case deskproto.MouseButton:
@@ -230,7 +255,7 @@ func (c *Client) start() {
 					button = C.PointerButtonNone
 				}
 				if err := cgoError(C.write_rdp_pointer(
-					c.rustClientRef,
+					c.rustClient,
 					C.CGOPointer{
 						x:      C.uint16_t(mouseX),
 						y:      C.uint16_t(mouseY),
@@ -238,22 +263,22 @@ func (c *Client) start() {
 						down:   m.State == deskproto.ButtonPressed,
 					},
 				)); err != nil {
-					logrus.Warningf("Failed forwarding RDP input message: %v", err)
+					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
 			case deskproto.KeyboardButton:
 				if err := cgoError(C.write_rdp_keyboard(
-					c.rustClientRef,
+					c.rustClient,
 					C.CGOKey{
 						code: C.uint16_t(m.KeyCode),
 						down: m.State == deskproto.ButtonPressed,
 					},
 				)); err != nil {
-					logrus.Warningf("Failed forwarding RDP input message: %v", err)
+					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
 			default:
-				logrus.Warningf("Skipping unimplemented desktop protocol message type %T", msg)
+				c.cfg.Log.Warningf("Skipping unimplemented desktop protocol message type %T", msg)
 			}
 		}
 	}()
@@ -281,7 +306,7 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	})
 	copy(img.Pix, data)
 
-	if err := c.opts.OutputMessage(deskproto.PNGFrame{Img: img}); err != nil {
+	if err := c.cfg.OutputMessage(deskproto.PNGFrame{Img: img}); err != nil {
 		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
 	}
 	return nil
@@ -290,14 +315,14 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 // Wait blocks until the client disconnects and runs the cleanup.
 func (c *Client) Wait() error {
 	c.wg.Wait()
-	C.free_rdp(c.rustClientRef)
+	C.free_rdp(c.rustClient)
 	return nil
 }
 
 func (c *Client) closeConn() {
 	c.closeOnce.Do(func() {
-		if err := cgoError(C.close_rdp(c.rustClientRef)); err != nil {
-			logrus.Warningf("Error closing RDP connection: %v", err)
+		if err := cgoError(C.close_rdp(c.rustClient)); err != nil {
+			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
 		}
 	})
 }

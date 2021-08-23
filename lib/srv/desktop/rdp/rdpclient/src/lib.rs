@@ -37,14 +37,14 @@ pub struct Client {
 }
 
 impl Client {
-    fn into_raw(self) -> *mut Client {
-        Box::into_raw(Box::new(self))
+    fn into_raw(self: Box<Self>) -> *mut Self {
+        Box::into_raw(self)
     }
-    unsafe fn from_raw<'a>(ptr: *mut Client) -> &'a mut Client {
-        ptr.as_mut().unwrap()
+    unsafe fn from_ptr<'a>(ptr: *const Self) -> Option<&'a Client> {
+        ptr.as_ref()
     }
-    unsafe fn free(&mut self) {
-        Box::from_raw(self as *mut Client);
+    unsafe fn from_raw(ptr: *mut Self) -> Box<Self> {
+        Box::from_raw(ptr)
     }
 }
 
@@ -58,7 +58,7 @@ impl From<Result<Client, ConnectError>> for ClientOrError {
     fn from(r: Result<Client, ConnectError>) -> ClientOrError {
         match r {
             Ok(client) => ClientOrError {
-                client: client.into_raw(),
+                client: Box::new(client).into_raw(),
                 err: CGO_OK,
             },
             Err(e) => ClientOrError {
@@ -200,7 +200,13 @@ fn wait_for_fd(fd: usize) -> bool {
 // handle_bitmap. handle_bitmap *must not* free the memory of CGOBitmap.
 #[no_mangle]
 pub extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: i64) -> CGOError {
-    let client = unsafe { Client::from_raw(client_ptr) };
+    let client = unsafe { Client::from_ptr(client_ptr) };
+    let client = match client {
+        Some(client) => client,
+        None => {
+            return to_cgo_error("invalid Rust client pointer".to_string());
+        }
+    };
     if let Some(err) = read_rdp_output_inner(client, client_ref) {
         to_cgo_error(err)
     } else {
@@ -208,7 +214,7 @@ pub extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: i64) -> C
     }
 }
 
-fn read_rdp_output_inner(client: &mut Client, client_ref: i64) -> Option<String> {
+fn read_rdp_output_inner(client: &Client, client_ref: i64) -> Option<String> {
     let tcp_fd = client.tcp_fd;
     // Read incoming events.
     while wait_for_fd(tcp_fd as usize) {
@@ -289,7 +295,13 @@ impl From<CGOPointer> for PointerEvent {
 
 #[no_mangle]
 pub extern "C" fn write_rdp_pointer(client_ptr: *mut Client, pointer: CGOPointer) -> CGOError {
-    let client = unsafe { Client::from_raw(client_ptr) };
+    let client = unsafe { Client::from_ptr(client_ptr) };
+    let client = match client {
+        Some(client) => client,
+        None => {
+            return to_cgo_error("invalid Rust client pointer".to_string());
+        }
+    };
     let res = client
         .rdp_client
         .lock()
@@ -321,7 +333,13 @@ impl From<CGOKey> for KeyboardEvent {
 
 #[no_mangle]
 pub extern "C" fn write_rdp_keyboard(client_ptr: *mut Client, key: CGOKey) -> CGOError {
-    let client = unsafe { Client::from_raw(client_ptr) };
+    let client = unsafe { Client::from_ptr(client_ptr) };
+    let client = match client {
+        Some(client) => client,
+        None => {
+            return to_cgo_error("invalid Rust client pointer".to_string());
+        }
+    };
     let res = client
         .rdp_client
         .lock()
@@ -336,7 +354,13 @@ pub extern "C" fn write_rdp_keyboard(client_ptr: *mut Client, key: CGOKey) -> CG
 
 #[no_mangle]
 pub extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOError {
-    let client = unsafe { Client::from_raw(client_ptr) };
+    let client = unsafe { Client::from_ptr(client_ptr) };
+    let client = match client {
+        Some(client) => client,
+        None => {
+            return to_cgo_error("invalid Rust client pointer".to_string());
+        }
+    };
     if let Err(e) = client.rdp_client.lock().unwrap().shutdown() {
         to_cgo_error(format!("failed writing RDP keyboard event: {:?}", e))
     } else {
@@ -346,7 +370,7 @@ pub extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOError {
 
 #[no_mangle]
 pub extern "C" fn free_rdp(client_ptr: *mut Client) {
-    unsafe { Client::from_raw(client_ptr).free() }
+    unsafe { drop(Client::from_raw(client_ptr)) }
 }
 
 #[no_mangle]

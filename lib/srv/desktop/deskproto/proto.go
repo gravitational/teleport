@@ -1,3 +1,19 @@
+/*
+Copyright 2021 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 // Package deskproto implements the desktop protocol encoder/decoder.
 // See https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
 //
@@ -18,12 +34,15 @@ import (
 // MessageType identifies the type of the message.
 type MessageType byte
 
+// For descriptions of each message type see:
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#message-types
 const (
 	TypeClientScreenSpec = MessageType(1)
 	TypePNGFrame         = MessageType(2)
 	TypeMouseMove        = MessageType(3)
 	TypeMouseButton      = MessageType(4)
 	TypeKeyboardButton   = MessageType(5)
+	TypeClipboardData    = MessageType(6)
 	TypeClientUsername   = MessageType(7)
 )
 
@@ -37,25 +56,25 @@ func Decode(buf []byte) (Message, error) {
 	if len(buf) == 0 {
 		return nil, trace.BadParameter("input desktop protocol message is empty")
 	}
-	switch buf[0] {
-	case byte(TypeClientScreenSpec):
+	switch MessageType(buf[0]) {
+	case TypeClientScreenSpec:
 		return decodeClientScreenSpec(buf)
-	case byte(TypePNGFrame):
+	case TypePNGFrame:
 		return decodePNGFrame(buf)
-	case byte(TypeMouseMove):
+	case TypeMouseMove:
 		return decodeMouseMove(buf)
-	case byte(TypeMouseButton):
+	case TypeMouseButton:
 		return decodeMouseButton(buf)
-	case byte(TypeKeyboardButton):
+	case TypeKeyboardButton:
 		return decodeKeyboardButton(buf)
-	case byte(TypeClientUsername):
+	case TypeClientUsername:
 		return decodeClientUsername(buf)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", buf[0])
 	}
 }
 
-// PNGFrame is the PNG frame message.
+// PNGFrame is the PNG frame message
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#2---png-frame
 type PNGFrame struct {
 	Img image.Image

@@ -39,7 +39,7 @@ func main() {
 func handleConnect(addr, username string) http.Handler {
 	return websocket.Handler(func(conn *websocket.Conn) {
 		usernameSent := false
-		c, err := rdpclient.New(rdpclient.Options{
+		c, err := rdpclient.New(rdpclient.Config{
 			Addr: addr,
 			OutputMessage: func(m deskproto.Message) error {
 				data, err := m.Encode()
@@ -62,10 +62,12 @@ func handleConnect(addr, username string) http.Handler {
 			},
 		})
 		if err != nil {
-			log.Fatalf("failed to create rdpclient: %v", err)
+			log.Printf("failed to create rdpclient: %v", err)
+			return
 		}
 		if err := c.Wait(); err != nil {
-			log.Fatalf("failed to wait for rdpclient to finish: %v", err)
+			log.Printf("failed to wait for rdpclient to finish: %v", err)
+			return
 		}
 	})
 }
