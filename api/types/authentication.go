@@ -48,6 +48,8 @@ type AuthPreference interface {
 	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
 	SetSecondFactor(constants.SecondFactorType)
+	// IsSecondFactorEnforced checks if second factor is enabled.
+	IsSecondFactorEnforced() bool
 
 	// GetConnectorName gets the name of the OIDC or SAML connector to use. If
 	// this value is empty, we fall back to the first connector in the backend.
@@ -213,6 +215,10 @@ func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
 // SetSecondFactor sets the type of second factor.
 func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
+}
+
+func (c *AuthPreferenceV2) IsSecondFactorEnforced() bool {
+	return c.Spec.SecondFactor != constants.SecondFactorOff && c.Spec.SecondFactor != constants.SecondFactorOptional
 }
 
 // GetConnectorName gets the name of the OIDC or SAML connector to use. If
