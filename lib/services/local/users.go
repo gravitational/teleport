@@ -23,6 +23,7 @@ import (
 	"sort"
 	"time"
 
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/google/go-cmp/cmp"
@@ -564,6 +565,59 @@ func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge,
 	return &u2fChal, nil
 }
 
+func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
+	switch {
+	case user == "":
+		return trace.BadParameter("missing parameter user")
+	case sessionID == "":
+		return trace.BadParameter("missing parameter sessionID")
+	case sd == nil:
+		return trace.BadParameter("missing parameter sd")
+	}
+
+	value, err := json.Marshal(sd)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:     sessionDataKey(user, sessionID),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnChallengeTimeout),
+	})
+	return trace.Wrap(err)
+}
+
+func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
+	switch {
+	case user == "":
+		return nil, trace.BadParameter("missing parameter user")
+	case sessionID == "":
+		return nil, trace.BadParameter("missing parameter sessionID")
+	}
+
+	item, err := s.Get(ctx, sessionDataKey(user, sessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sd := &wantypes.SessionData{}
+	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
+}
+
+func (s *IdentityService) DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error {
+	switch {
+	case user == "":
+		return trace.BadParameter("missing parameter user")
+	case sessionID == "":
+		return trace.BadParameter("missing parameter sessionID")
+	}
+
+	return trace.Wrap(s.Delete(ctx, sessionDataKey(user, sessionID)))
+}
+
+func sessionDataKey(user, sessionID string) []byte {
+	return backend.Key(webPrefix, usersPrefix, user, webauthnSessionData, sessionID)
+}
+
 func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
@@ -1075,6 +1129,7 @@ const (
 	usedTOTPTTL            = 30 * time.Second
 	mfaDevicePrefix        = "mfa"
 	u2fSignChallengePrefix = "u2fsignchallenge"
+	webauthnSessionData    = "webauthnsessiondata"
 
 	// DELETE IN 7.0: these prefixes are migrated to mfaDevicePrefix in 6.0 on
 	// first startup.
