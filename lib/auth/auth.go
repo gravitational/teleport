@@ -1022,7 +1022,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	if status.IsLocked {
 		if status.RecoveryAttemptLockExpires.After(a.clock.Now().UTC()) {
 			return trace.AccessDenied("%v exceeds %v failed account recovery attempts, locked until %v",
-				user.GetName(), defaults.MaxRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
+				user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
 		}
 		if status.LockExpires.After(a.clock.Now().UTC()) {
 			return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
@@ -1149,10 +1149,10 @@ func (a *Server) CreateAuthenticationChallenge(ctx context.Context, req *proto.C
 
 	// Determine how to verify user.
 	switch req.GetRequest().(type) {
-	case *proto.CreateAuthenticationChallengeRequest_UserPwd:
-		username = req.GetUserPwd().Username
+	case *proto.CreateAuthenticationChallengeRequest_UserCredentials:
+		username = req.GetUserCredentials().GetUsername()
 		err := a.WithUserLock(username, func() error {
-			return a.checkPasswordWOToken(username, req.GetUserPwd().Password)
+			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1169,7 +1169,7 @@ func (a *Server) CreateAuthenticationChallenge(ctx context.Context, req *proto.C
 		return nil, trace.BadParameter("missing request parameter")
 	}
 
-	protoChal, err := a.mfaAuthChallenge(ctx, username, a.Identity)
+	protoChal, err := a.mfaAuthChallenge(ctx, username, a.Identity /* u2fStorage */)
 	return protoChal, trace.Wrap(err)
 }
 
@@ -1177,9 +1177,14 @@ func (a *Server) CreateAuthenticationChallenge(ctx context.Context, req *proto.C
 func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
 	username := ""
 
-	// Determine how to verify user.
-	switch req.GetRequest().(type) {
-	case *proto.GetMFADevicesRequest_TokenID:
+	// Get username from context.
+	userI := ctx.Value(ContextUser)
+	userWithIdentity, ok := userI.(IdentityGetter)
+	if ok {
+		username = userWithIdentity.GetIdentity().Username
+	}
+
+	if req.TokenID != "" {
 		token, err := a.GetUserToken(ctx, req.GetTokenID())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1195,12 +1200,6 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 		}
 
 		username = token.GetUser()
-
-	case *proto.GetMFADevicesRequest_AuthenticatedUser:
-		username = req.GetAuthenticatedUser()
-
-	default:
-		return nil, trace.BadParameter("missing request parameter")
 	}
 
 	devs, err := a.Identity.GetMFADevices(ctx, username)
@@ -1213,8 +1212,8 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 	}, nil
 }
 
-// DeleteMFADeviceNonstream deletes a mfa device.
-func (a *Server) DeleteMFADeviceNonstream(ctx context.Context, req *proto.DeleteMFADeviceNonstreamRequest) error {
+// DeleteMFADeviceSync deletes a mfa device.
+func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
 	token, err := a.GetUserToken(ctx, req.GetTokenID())
 	if err != nil {
 		return trace.Wrap(err)

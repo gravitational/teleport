@@ -710,13 +710,14 @@ func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *proto.GetRe
 	return r, nil
 }
 
-func (g *GRPCServer) GetRecoveryToken(ctx context.Context, req *proto.GetRecoveryTokenRequest) (*types.UserTokenV3, error) {
+// GetAccountRecoveryToken is implemented by AuthService.GetAccountRecoveryToken.
+func (g *GRPCServer) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := auth.GetRecoveryToken(ctx, req.GetTokenID())
+	token, err := auth.GetAccountRecoveryToken(ctx, req.GetTokenID())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1976,14 +1977,14 @@ func (g *GRPCServer) CreateAuthenticationChallenge(ctx context.Context, req *pro
 	return res, trace.Wrap(err)
 }
 
-// DeleteMFADeviceNonstream deletes a mfa device for the user defined in the token.
-func (g *GRPCServer) DeleteMFADeviceNonstream(ctx context.Context, req *proto.DeleteMFADeviceNonstreamRequest) (*empty.Empty, error) {
+// DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
+func (g *GRPCServer) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) (*empty.Empty, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := actx.ServerWithRoles.DeleteMFADeviceNonstream(ctx, req); err != nil {
+	if err := actx.ServerWithRoles.DeleteMFADeviceSync(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3217,26 +3218,25 @@ func (g *GRPCServer) DeleteAllWindowsDesktops(ctx context.Context, _ *empty.Empt
 	return &empty.Empty{}, nil
 }
 
-// ChangePasswordWithToken changes password with a password reset token.
-func (g *GRPCServer) ChangePasswordWithToken(ctx context.Context, req *proto.ChangePasswordWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
+// ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
+func (g *GRPCServer) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := auth.ServerWithRoles.ChangePasswordWithToken(ctx, req)
+	res, err := auth.ServerWithRoles.ChangeUserAuthentication(ctx, req)
 	return res, trace.Wrap(err)
 }
 
-// CreateRecoveryStartToken creates a recovery start token after successful verification of
-// username and recovery code.
-func (g *GRPCServer) CreateRecoveryStartToken(ctx context.Context, req *proto.CreateRecoveryStartTokenRequest) (*types.UserTokenV3, error) {
+// CreateAccountRecoveryStartToken is implemented by AuthService.CreateAccountRecoveryStartToken.
+func (g *GRPCServer) CreateAccountRecoveryStartToken(ctx context.Context, req *proto.CreateAccountRecoveryStartTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resetToken, err := auth.ServerWithRoles.CreateRecoveryStartToken(ctx, req)
+	resetToken, err := auth.ServerWithRoles.CreateAccountRecoveryStartToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3249,15 +3249,14 @@ func (g *GRPCServer) CreateRecoveryStartToken(ctx context.Context, req *proto.Cr
 	return r, nil
 }
 
-// AuthenticateUserWithRecoveryToken authenticates user defined in token with either password or
-// second factor.
-func (g *GRPCServer) AuthenticateUserWithRecoveryToken(ctx context.Context, req *proto.AuthenticateUserWithRecoveryTokenRequest) (*types.UserTokenV3, error) {
+// CreateAccountRecoveryApprovedToken is implemented by AuthService.CreateAccountRecoveryApprovedToken.
+func (g *GRPCServer) CreateAccountRecoveryApprovedToken(ctx context.Context, req *proto.CreateAccountRecoveryApprovedTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resetToken, err := auth.ServerWithRoles.AuthenticateUserWithRecoveryToken(ctx, req)
+	resetToken, err := auth.ServerWithRoles.CreateAccountRecoveryApprovedToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3270,29 +3269,28 @@ func (g *GRPCServer) AuthenticateUserWithRecoveryToken(ctx context.Context, req 
 	return r, nil
 }
 
-// SetNewAuthCredWithRecoveryToken is the last step in the recovery flow that either changes a user
-// password or adds a new mfa device depending on the request.
-func (g *GRPCServer) SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto.SetNewAuthCredWithRecoveryTokenRequest) (*empty.Empty, error) {
+// ChangeAuthenticationFromAccountRecovery is implemented by AuthService.ChangeAuthenticationFromAccountRecovery.
+func (g *GRPCServer) ChangeAuthenticationFromAccountRecovery(ctx context.Context, req *proto.ChangeAuthenticationFromAccountRecoveryRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.ServerWithRoles.SetNewAuthCredWithRecoveryToken(ctx, req); err != nil {
+	if err := auth.ServerWithRoles.ChangeAuthenticationFromAccountRecovery(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &empty.Empty{}, nil
 }
 
-// CreateRecoveryCodesWithToken creates and returns new recovery codes for the user defined in the token.
-func (g *GRPCServer) CreateRecoveryCodesWithToken(ctx context.Context, req *proto.CreateRecoveryCodesWithTokenRequest) (*proto.CreateRecoveryCodesWithTokenResponse, error) {
+// CreateAccountRecoveryCodes is implemented by AuthService.CreateAccountRecoveryCodes.
+func (g *GRPCServer) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	codes, err := auth.ServerWithRoles.CreateRecoveryCodesWithToken(ctx, req)
+	codes, err := auth.ServerWithRoles.CreateAccountRecoveryCodes(ctx, req)
 	return codes, trace.Wrap(err)
 }
 

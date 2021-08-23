@@ -751,11 +751,11 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services
 	return cfg.GetSessionRecordingConfig()
 }
 
-// ChangePasswordWithToken changes user password with a user reset token and starts a web session.
+// ChangeUserAuthentication changes user password with a user reset token and starts a web session.
 //
 // Returns recovery tokens for cloud users with second factors turned on.
-func (c *Client) ChangePasswordWithToken(ctx context.Context, req *proto.ChangePasswordWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
-	if resp, err := c.APIClient.ChangePasswordWithToken(ctx, req); err != nil {
+func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
+	if resp, err := c.APIClient.ChangeUserAuthentication(ctx, req); err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
 		}
@@ -766,15 +766,15 @@ func (c *Client) ChangePasswordWithToken(ctx context.Context, req *proto.ChangeP
 	// DELETE IN 9.0.0
 	// Convert request back to fallback compatible object.
 	httpReq := ChangePasswordWithTokenRequest{
-		SecondFactorToken: req.GetSecondFactorToken(),
+		SecondFactorToken: req.GetNewMFARegisterResponse().GetTOTP().GetCode(),
 		TokenID:           req.GetTokenID(),
-		Password:          req.GetPassword(),
+		Password:          req.GetNewPassword(),
 	}
 
-	if req.GetU2FRegisterResponse() != nil {
+	if req.NewMFARegisterResponse.GetU2F() != nil {
 		httpReq.U2FRegisterResponse = &u2f.RegisterChallengeResponse{
-			RegistrationData: req.GetU2FRegisterResponse().GetRegistrationData(),
-			ClientData:       req.GetU2FRegisterResponse().GetClientData(),
+			RegistrationData: req.NewMFARegisterResponse.GetU2F().GetRegistrationData(),
+			ClientData:       req.NewMFARegisterResponse.GetU2F().GetClientData(),
 		}
 	}
 
@@ -794,7 +794,7 @@ func (c *Client) ChangePasswordWithToken(ctx context.Context, req *proto.ChangeP
 		return nil, trace.BadParameter("unexpected WebSessionV2 type %T", sess)
 	}
 
-	return &proto.ChangePasswordWithTokenResponse{
+	return &proto.ChangeUserAuthenticationResponse{
 		WebSession: sess,
 	}, nil
 }

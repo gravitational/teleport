@@ -90,7 +90,6 @@ type Handler struct {
 
 	// ClusterFeatures contain flags for supported and unsupported features.
 	ClusterFeatures proto.Features
-	webIdleTimeout  time.Duration
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -278,7 +277,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
 	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
-	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
+	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthnWithToken))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
 
@@ -1439,26 +1438,33 @@ type changePasswordWithTokenRequest struct {
 	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
 }
 
-func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) changeUserAuthnWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req changePasswordWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var u2f *proto.U2FRegisterResponse
-	if req.U2FRegisterResponse != nil {
-		u2f = &proto.U2FRegisterResponse{
-			RegistrationData: req.U2FRegisterResponse.RegistrationData,
-			ClientData:       req.U2FRegisterResponse.ClientData,
-		}
+	protoReq := &proto.ChangeUserAuthenticationRequest{
+		TokenID:     req.TokenID,
+		NewPassword: req.Password,
 	}
 
-	res, err := h.auth.proxyClient.ChangePasswordWithToken(r.Context(), &proto.ChangePasswordWithTokenRequest{
-		SecondFactorToken:   req.SecondFactorToken,
-		TokenID:             req.TokenID,
-		Password:            req.Password,
-		U2FRegisterResponse: u2f,
-	})
+	if req.SecondFactorToken != "" {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
+		}}
+	}
+
+	if req.U2FRegisterResponse != nil {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+			U2F: &proto.U2FRegisterResponse{
+				RegistrationData: req.U2FRegisterResponse.RegistrationData,
+				ClientData:       req.U2FRegisterResponse.ClientData,
+			},
+		}}
+	}
+
+	res, err := h.auth.proxyClient.ChangeUserAuthentication(r.Context(), protoReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

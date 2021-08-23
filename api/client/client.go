@@ -639,9 +639,9 @@ func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (typ
 	return token, nil
 }
 
-// GetRecoveryToken returns a recovery token for the specified tokenID.
-func (c *Client) GetRecoveryToken(ctx context.Context, tokenID string) (types.UserToken, error) {
-	token, err := c.grpc.GetRecoveryToken(ctx, &proto.GetRecoveryTokenRequest{
+// GetAccountRecoveryToken is implemented by AuthService.GetAccountRecoveryToken.
+func (c *Client) GetAccountRecoveryToken(ctx context.Context, tokenID string) (types.UserToken, error) {
+	token, err := c.grpc.GetAccountRecoveryToken(ctx, &proto.GetAccountRecoveryTokenRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
 
@@ -658,33 +658,33 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	return token, nil
 }
 
-// ChangePasswordWithToken changes user password with a reset password token.
-func (c *Client) ChangePasswordWithToken(ctx context.Context, req *proto.ChangePasswordWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error) {
-	res, err := c.grpc.ChangePasswordWithToken(ctx, req, c.callOpts...)
+// ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
+func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
+	res, err := c.grpc.ChangeUserAuthentication(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
 
-// CreateRecoveryStartToken creates a recovery start token after successful verification of username and recovery code.
-func (c *Client) CreateRecoveryStartToken(ctx context.Context, req *proto.CreateRecoveryStartTokenRequest) (types.UserToken, error) {
-	res, err := c.grpc.CreateRecoveryStartToken(ctx, req, c.callOpts...)
+// CreateAccountRecoveryStartToken is implemented by AuthService.CreateAccountRecoveryStartToken
+func (c *Client) CreateAccountRecoveryStartToken(ctx context.Context, req *proto.CreateAccountRecoveryStartTokenRequest) (types.UserToken, error) {
+	res, err := c.grpc.CreateAccountRecoveryStartToken(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
 
-// AuthenticateUserWithRecoveryToken authenticates user defined in token with either password or second factor.
-func (c *Client) AuthenticateUserWithRecoveryToken(ctx context.Context, req *proto.AuthenticateUserWithRecoveryTokenRequest) (types.UserToken, error) {
-	res, err := c.grpc.AuthenticateUserWithRecoveryToken(ctx, req, c.callOpts...)
+// CreateAccountRecoveryApprovedToken is implemented by AuthService.CreateAccountRecoveryApprovedToken.
+func (c *Client) CreateAccountRecoveryApprovedToken(ctx context.Context, req *proto.CreateAccountRecoveryApprovedTokenRequest) (types.UserToken, error) {
+	res, err := c.grpc.CreateAccountRecoveryApprovedToken(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
 
-// SetNewAuthCredWithRecoveryToken either changes a user password or adds a new mfa device depending on the request.
-func (c *Client) SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto.SetNewAuthCredWithRecoveryTokenRequest) error {
-	_, err := c.grpc.SetNewAuthCredWithRecoveryToken(ctx, req, c.callOpts...)
+// ChangeAuthenticationFromAccountRecovery is implemented by AuthService.ChangeAuthenticationFromAccountRecovery.
+func (c *Client) ChangeAuthenticationFromAccountRecovery(ctx context.Context, req *proto.ChangeAuthenticationFromAccountRecoveryRequest) error {
+	_, err := c.grpc.ChangeAuthenticationFromAccountRecovery(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
-// CreateRecoveryCodesWithToken creates and returns new recovery codes for the user defined in the token.
-func (c *Client) CreateRecoveryCodesWithToken(ctx context.Context, req *proto.CreateRecoveryCodesWithTokenRequest) (*proto.CreateRecoveryCodesWithTokenResponse, error) {
-	res, err := c.grpc.CreateRecoveryCodesWithToken(ctx, req, c.callOpts...)
+// CreateAccountRecoveryCodes is implemented by AuthService.CreateAccountRecoveryCodes.
+func (c *Client) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
+	res, err := c.grpc.CreateAccountRecoveryCodes(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
 
@@ -1121,8 +1121,8 @@ func (c *Client) CreateAuthenticationChallenge(ctx context.Context, in *proto.Cr
 	return resp, trail.FromGRPC(err)
 }
 
-func (c *Client) DeleteMFADeviceNonstream(ctx context.Context, in *proto.DeleteMFADeviceNonstreamRequest) error {
-	_, err := c.grpc.DeleteMFADeviceNonstream(ctx, in, c.callOpts...)
+func (c *Client) DeleteMFADeviceSync(ctx context.Context, in *proto.DeleteMFADeviceSyncRequest) error {
+	_, err := c.grpc.DeleteMFADeviceSync(ctx, in, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 

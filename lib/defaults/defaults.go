@@ -230,9 +230,9 @@ const (
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5
 
-	// MaxRecoveryAttempts sets the max number of allowed failed recovery attempts
+	// MaxAccountRecoveryAttempts sets the max number of allowed failed recovery attempts
 	// before a user is locked from login and further recovery attempts.
-	MaxRecoveryAttempts = 3
+	MaxAccountRecoveryAttempts = 3
 
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts

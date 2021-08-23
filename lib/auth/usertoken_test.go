@@ -359,7 +359,7 @@ func TestCreateRecoveryToken(t *testing.T) {
 	ctx := context.Background()
 
 	// Test creating recovery start token.
-	startToken, err := srv.Auth().createRecoveryToken(ctx, username, UserTokenTypeRecoveryStart, true)
+	startToken, err := srv.Auth().createRecoveryToken(ctx, username, UserTokenTypeRecoveryStart, types.UserTokenUsage_RECOVER_PWD)
 	require.NoError(t, err)
 	require.Equal(t, startToken.GetURL(), "https://<proxyhost>:3080/web/recovery/"+startToken.GetName())
 
@@ -377,7 +377,7 @@ func TestCreateRecoveryToken(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	// Test creating recovery approved token.
-	approvedToken, err := srv.Auth().createRecoveryToken(ctx, username, UserTokenTypeRecoveryApproved, false)
+	approvedToken, err := srv.Auth().createRecoveryToken(ctx, username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_RECOVER_2FA)
 	require.NoError(t, err)
 	require.Equal(t, approvedToken.GetURL(), "https://<proxyhost>:3080/web/recovery/"+approvedToken.GetName())
 

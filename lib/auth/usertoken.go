@@ -406,9 +406,13 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 }
 
 // createRecoveryToken creates a user token for account recovery.
-func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType string, isRecoverPassword bool) (types.UserToken, error) {
+func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType string, usage types.UserTokenUsage) (types.UserToken, error) {
 	if tokenType != UserTokenTypeRecoveryStart && tokenType != UserTokenTypeRecoveryApproved {
 		return nil, trace.BadParameter("invalid recovery token type")
+	}
+
+	if usage != types.UserTokenUsage_RECOVER_2FA && usage != types.UserTokenUsage_RECOVER_PWD {
+		return nil, trace.BadParameter("invalid recovery token usage type")
 	}
 
 	req := CreateUserTokenRequest{
@@ -426,11 +430,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 	}
 
 	// Mark what recover type user requested.
-	recoverType := types.UserTokenUsage_RECOVER_2FA
-	if isRecoverPassword {
-		recoverType = types.UserTokenUsage_RECOVER_PWD
-	}
-	newToken.SetUsage(recoverType)
+	newToken.SetUsage(usage)
 
 	if _, err := s.Identity.CreateUserToken(ctx, newToken); err != nil {
 		return nil, trace.Wrap(err)
@@ -453,12 +453,12 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 		log.WithError(err).Warn("Failed to emit create recovery token event.")
 	}
 
-	token, err := s.getRecoveryToken(ctx, newToken.GetName())
+	token, err := s.GetAccountRecoveryToken(ctx, newToken.GetName())
 	return token, trace.Wrap(err)
 }
 
-// getRecoveryToken returns user token with subkind set to either recovery start or approved token.
-func (s *Server) getRecoveryToken(ctx context.Context, tokenID string) (types.UserToken, error) {
+// GetAccountRecoveryToken implements AuthService.GetAccountRecoveryToken.
+func (s *Server) GetAccountRecoveryToken(ctx context.Context, tokenID string) (types.UserToken, error) {
 	token, err := s.GetUserToken(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)

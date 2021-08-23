@@ -53,7 +53,7 @@ func (h *Handler) createAuthnChallengeWithTokenHandle(w http.ResponseWriter, r *
 // getMFADevicesWithTokenHandle retrieves all mfa devices for the user defined in the token.
 func (h *Handler) getMFADevicesWithTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	res, err := h.GetProxyClient().GetMFADevices(r.Context(), &proto.GetMFADevicesRequest{
-		Request: &proto.GetMFADevicesRequest_TokenID{TokenID: params.ByName("token")},
+		TokenID: params.ByName("token"),
 	})
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to get mfa devices.")
@@ -76,7 +76,7 @@ func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := h.GetProxyClient().DeleteMFADeviceNonstream(r.Context(), &proto.DeleteMFADeviceNonstreamRequest{
+	if err := h.GetProxyClient().DeleteMFADeviceSync(r.Context(), &proto.DeleteMFADeviceSyncRequest{
 		TokenID:  req.TokenID,
 		DeviceID: req.DeviceID,
 	}); err != nil {

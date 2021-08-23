@@ -1890,29 +1890,26 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
-	// ChangePasswordWithToken changes password with token
-	ChangePasswordWithToken(ctx context.Context, req *proto.ChangePasswordWithTokenRequest) (*proto.ChangePasswordWithTokenResponse, error)
+	// ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
+	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
 
-	// CreateRecoveryStartToken creates a recovery start token after successful verification of
-	// username and recovery code.
-	CreateRecoveryStartToken(ctx context.Context, req *proto.CreateRecoveryStartTokenRequest) (types.UserToken, error)
+	// CreateAccountRecoveryStartToken is implemented by AuthService.CreateAccountRecoveryStartToken.
+	CreateAccountRecoveryStartToken(ctx context.Context, req *proto.CreateAccountRecoveryStartTokenRequest) (types.UserToken, error)
 
-	// AuthenticateUserWithRecoveryToken authenticates user defined in token with either password or
-	// second factor.
-	AuthenticateUserWithRecoveryToken(ctx context.Context, req *proto.AuthenticateUserWithRecoveryTokenRequest) (types.UserToken, error)
+	// CreateAccountRecoveryApprovedToken is implemented by AuthService.CreateAccountRecoveryApprovedToken.
+	CreateAccountRecoveryApprovedToken(ctx context.Context, req *proto.CreateAccountRecoveryApprovedTokenRequest) (types.UserToken, error)
 
-	// SetNewAuthCredWithRecoveryToken either changes a user password or adds a new mfa device
-	// depending on the request.
-	SetNewAuthCredWithRecoveryToken(ctx context.Context, req *proto.SetNewAuthCredWithRecoveryTokenRequest) error
+	// ChangeAuthenticationFromAccountRecovery is implemented by AuthService.ChangeAuthenticationFromAccountRecovery.
+	ChangeAuthenticationFromAccountRecovery(ctx context.Context, req *proto.ChangeAuthenticationFromAccountRecoveryRequest) error
 
-	// CreateRecoveryCodesWithToken creates and returns new recovery codes for the user defined in the token.
-	CreateRecoveryCodesWithToken(ctx context.Context, req *proto.CreateRecoveryCodesWithTokenRequest) (*proto.CreateRecoveryCodesWithTokenResponse, error)
+	// CreateAccountRecoveryCodes is implemented by AuthService.CreateAccountRecoveryCodes.
+	CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error)
 
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error)
 
-	// GetRecoveryToken returns a reset password token.
-	GetRecoveryToken(ctx context.Context, tokenID string) (types.UserToken, error)
+	// GetAccountRecoveryToken is implemented by AuthService.GetAccountRecoveryToken.
+	GetAccountRecoveryToken(ctx context.Context, tokenID string) (types.UserToken, error)
 
 	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
 	RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
@@ -1923,8 +1920,8 @@ type IdentityService interface {
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
-	// DeleteMFADeviceNonstream deletes a mfa device for the user defined in the token.
-	DeleteMFADeviceNonstream(ctx context.Context, req *proto.DeleteMFADeviceNonstreamRequest) error
+	// DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
+	DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error
 }
 
 // ProvisioningService is a service in control

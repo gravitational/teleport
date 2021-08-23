@@ -2576,10 +2576,12 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.server.Clock().Now())
 	c.Assert(err, check.IsNil)
 
-	_, err = s.server.Auth().ChangePasswordWithToken(ctx, &proto.ChangePasswordWithTokenRequest{
-		TokenID:           token.GetName(),
-		Password:          []byte("qweqweqwe"),
-		SecondFactorToken: otpToken,
+	_, err = s.server.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     token.GetName(),
+		NewPassword: []byte("qweqweqwe"),
+		NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
+		}},
 	})
 	c.Assert(err, check.IsNil)
 }

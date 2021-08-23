@@ -281,9 +281,9 @@ message RotateUserTokenSecretsRequest { string TokenID = 1 [ (gogoproto.jsontag)
 // GetResetPasswordTokenRequest is a request to get a reset password token.
 message GetResetPasswordTokenRequest { string TokenID = 1 [ (gogoproto.jsontag) = "token" ]; }
 
-// GetRecoveryTokenRequest is a request to get a recovery token.
-message GetRecoveryTokenRequest {
-    // TokenID is the ID of a user token.
+// GetAccountRecoveryTokenRequest is a request to retrieve a user recovery token by its ID.
+message GetAccountRecoveryTokenRequest {
+    // TokenID is the ID of a user recovery token.
     string TokenID = 1 [ (gogoproto.jsontag) = "token" ];
 }
 
@@ -788,42 +788,41 @@ message DeleteMFADeviceResponseAck {}
 
 // GetMFADevicesRequest is a request for MFA devices for the calling user.
 message GetMFADevicesRequest {
-    // Request defines how the user will be verified before receiving list of devices.
-    oneof Request {
-        // TokenID verifies existence of token and retrieves devices for user defined in token.
-        string TokenID = 1;
-        // AuthenticatedUser is a user who has beeng authenticated (logged in) and can
-        // view their own devices.
-        string AuthenticatedUser = 2;
-    }
+    // TokenID is the ID of a token that grants access for the user defined in token to view
+    // their devices. The type of token accepted are recovery approved user token that allows
+    // access during the recovery process while not logged in.
+    string TokenID = 1;
 }
 
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
 message GetMFADevicesResponse { repeated types.MFADevice Devices = 1; }
 
-// DeleteMFADeviceNonstreamRequest is a request to delete a mfa device for the user defined in
-// token.
-message DeleteMFADeviceNonstreamRequest {
-    // TokenID is the ID of a user token.
-    string TokenID = 1;
-    // DeviceID is the id of device to delete.
-    string DeviceID = 2;
+// DeleteMFADeviceSyncRequest is a request to delete a MFA device.
+message DeleteMFADeviceSyncRequest {
+    // DeviceID is the ID of device to delete.
+    string DeviceID = 1;
+    // TokenID is the ID of a token that grants access to delete a device for the user defined in
+    // the token. The type of token accepted are recovery approved user token that allows
+    // access during the recovery process while not logged in.
+    string TokenID = 2;
 }
 
-// UserPwd describes fields for a user's username and password.
-message UserPwd {
+// UserCredentials describes fields for a user's username and password.
+message UserCredentials {
     string Username = 1;
     bytes Password = 2;
 }
 
-// CreateAuthenticationChallengeRequest is a request for creating and returning mfa challenges for a
+// CreateAuthenticationChallengeRequest is a request for creating and returning MFA challenges for a
 // users devices.
 message CreateAuthenticationChallengeRequest {
     // Request defines how the user will be verified before receiving MFA challenges.
     oneof Request {
-        // UserPwd verifies users username and password.
-        UserPwd UserPwd = 1;
-        // TokenID verifies existence of token and creates challenges for the user defined in token.
+        // UserCredentials verifies request with username and password.
+        UserCredentials UserCredentials = 1;
+        // TokenID is the ID of a token that grants access to receive a challenge for the user
+        // defined in the token. The type of token accepted are recovery start user token
+        // that allows access during the recovery process while not logged in.
         string TokenID = 2;
     }
 }
@@ -1019,86 +1018,80 @@ message DeleteWindowsDesktopRequest {
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
 }
 
-// ChangePasswordWithTokenRequest defines a request to change one or more of a user's auth
-// credential.
-message ChangePasswordWithTokenRequest {
+// ChangeUserAuthenticationRequest defines a request to change a password and if enabled also adds a
+// new MFA device.
+message ChangeUserAuthenticationRequest {
+    // TokenID is the ID of a reset or invite user.
+    // The types of token accepted are reset and invite user tokens that allow users to change
+    // their authentication while not logged in.
     string TokenID = 1;
-    // SecondFactorToken is an otp value.
-    string SecondFactorToken = 2;
-    // Password is user's password.
-    bytes Password = 3;
-    // U2FRegisterResponse is U2F registration challenge response.
-    U2FRegisterResponse U2FRegisterResponse = 4;
-    // DeviceName is the name of the second factor device.
-    string DeviceName = 5;
+    // NewPassword is the new password.
+    bytes NewPassword = 2;
+    // NewMFARegisterResponse is a MFA response to a MFA authentication challenge.
+    MFARegisterResponse NewMFARegisterResponse = 3;
 }
 
-// ChangePasswordWithTokenResponse is a response for ChangePasswordWithToken.
-message ChangePasswordWithTokenResponse {
+// ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
+message ChangeUserAuthenticationResponse {
     // WebSession is a user's web sesssion created from successful changing of password.
     types.WebSessionV2 WebSession = 1;
     // RecoveryCodes are user's new recovery codes.
     repeated string RecoveryCodes = 2;
 }
 
-// CreateRecoveryStartTokenRequest defines a request to create a user token for starting account
-// recovery.
-message CreateRecoveryStartTokenRequest {
+// CreateAccountRecoveryStartTokenRequest defines a request to create a user token for starting
+// account recovery.
+message CreateAccountRecoveryStartTokenRequest {
     // Username is the requesting user.
     string Username = 1;
     // RecoveryCode is one of the user's recovery code.
     bytes RecoveryCode = 2;
-    // IsRecoverPassword is a flag to indicate if request is to recover password or second factor.
-    bool IsRecoverPassword = 3;
+    // RecoverType defines what type of authentication user wants to recover.
+    types.UserTokenUsage RecoverType = 3;
 }
 
-// AuthenticateUserWithRecoveryTokenRequest defines a request to authenticate the user defined in
-// token with either password or a second factor.
-message AuthenticateUserWithRecoveryTokenRequest {
-    // TokenID is the ID of a user recovery token.
-    string TokenID = 1;
-    // Username is the name of the user that the token belongs to.
+// CreateAccountRecoveryApprovedTokenRequest is a request to create a recovery approved token.
+message CreateAccountRecoveryApprovedTokenRequest {
+    // RecoveryStartTokenID is the ID of a user recovery token.
+    string RecoveryStartTokenID = 1;
+    // Username is the name of the user that the token belongs to, used to verify that this name
+    // is the same as defined in token for use with emails.
     string Username = 2;
-    // AuthCred is either a user's password or one of their second factor.
-    oneof AuthCred {
-        // SecondFactorToken is 2nd factor token value.
-        string SecondFactorToken = 3;
-        // Password is user password.
-        bytes Password = 4;
-        // U2FSignResponse is U2F sign response to a challenge.
-        U2FResponse U2FSignResponse = 5;
+    // AuthnCred is the authentication cred that needs to be verified.
+    oneof AuthnCred {
+        // Password is users password.
+        bytes Password = 3;
+        // MFAAuthenticateResponse is a response to a mfa challenge.
+        MFAAuthenticateResponse MFAAuthenticateResponse = 4;
     }
 }
 
-// SetNewAuthCredWithRecoveryTokenRequest defines a request to set either a new password or
+// ChangeAuthenticationFromAccountRecoveryRequest defines a request to set either a new password or
 // add a new mfa device.
-message SetNewAuthCredWithRecoveryTokenRequest {
-    // TokenID is the ID of a user recovery token.
-    string TokenID = 1;
-    // DeviceName is the name of a new mfa device.
-    string DeviceName = 2;
-    // AuthCred is either a user's password or one of their second factor.
-    oneof AuthCred {
-        // SecondFactorToken is 2nd factor token value.
-        string SecondFactorToken = 3;
-        // Password is user password.
-        bytes Password = 4;
-        // U2FRegisterResponse is U2F registration challenge response.
-        U2FRegisterResponse U2FRegisterResponse = 5;
+message ChangeAuthenticationFromAccountRecoveryRequest {
+    // RecoveryApprovedTokenID is the ID of a user recovery token.
+    string RecoveryApprovedTokenID = 1;
+    // NewDeviceName is the name of a new mfa device.
+    string NewDeviceName = 2;
+    // NewAuthnCred contains the new authentication credential.
+    oneof NewAuthnCred {
+        // NewPassword is user's new password.
+        bytes NewPassword = 3;
+        // NewMFAResponse is a user's new mfa response to a mfa authentication challenge.
+        MFARegisterResponse NewMFAResponse = 4;
     }
 }
 
-// CreateRecoveryCodesWithTokenRequest is a request to create new recovery codes for the user
-// defined in token.
-message CreateRecoveryCodesWithTokenRequest {
-    // TokenID is the ID of a user recovery token.
-    string TokenID = 1;
+// CreateAccountRecoveryCodesRequest is a request to create new account recovery codes.
+message CreateAccountRecoveryCodesRequest {
+    // RecoveryApprovedTokenID is the ID of a user recovery token.
+    string RecoveryApprovedTokenID = 1;
 }
 
-// CreateRecoveryCodesWithTokenResponse is the response to
-// CreateRecoveryCodesWithTokenRequest.
-message CreateRecoveryCodesWithTokenResponse {
-    // RecoveryCodes are user's new recovery codes.
+// CreateAccountRecoveryCodesResponse is the response to
+// CreateAccountRecoveryCodesRequest.
+message CreateAccountRecoveryCodesResponse {
+    // RecoveryCodes are user's new account recovery codes.
     repeated string RecoveryCodes = 1;
 }
 
@@ -1163,8 +1156,6 @@ service AuthService {
     rpc RotateUserTokenSecrets(RotateUserTokenSecretsRequest) returns (types.UserTokenSecretsV3);
     // GetResetPasswordToken returns a reset password token.
     rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
-    // GetRecoveryToken returns a recovery token.
-    rpc GetRecoveryToken(GetRecoveryTokenRequest) returns (types.UserTokenV3);
     // CreateResetPasswordToken resets users current password and second factors and creates a reset
     // password token.
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
@@ -1301,8 +1292,8 @@ service AuthService {
     // CreateAuthenticationChallenge creates and returns challenges for a users MFA devices.
     rpc CreateAuthenticationChallenge(CreateAuthenticationChallengeRequest)
         returns (MFAAuthenticateChallenge);
-    // DeleteMFADeviceNonstream deletes a mfa device for the user defined in the token.
-    rpc DeleteMFADeviceNonstream(DeleteMFADeviceNonstreamRequest) returns (google.protobuf.Empty);
+    // DeleteMFADeviceSync deletes a mfa device for the user.
+    rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
 
     // GetOIDCConnector gets an OIDC connector resource by name.
     rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
@@ -1437,22 +1428,45 @@ service AuthService {
     // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
     rpc DeleteAllWindowsDesktops(google.protobuf.Empty) returns (google.protobuf.Empty);
 
-    // ChangePasswordWithToken changes a user's password with a reset token.
-    rpc ChangePasswordWithToken(ChangePasswordWithTokenRequest)
-        returns (ChangePasswordWithTokenResponse);
-    // CreateRecoveryStartToken creates a recovery start token after successful verification of
-    // username and recovery code.
-    rpc CreateRecoveryStartToken(CreateRecoveryStartTokenRequest) returns (types.UserTokenV3);
-    // AuthenticateUserWithRecoveryToken authenticates the user defined in token, with either their
-    // password or second factor.
-    rpc AuthenticateUserWithRecoveryToken(AuthenticateUserWithRecoveryTokenRequest)
+    // ChangeUserAuthentication changes a user's password and if enabled also creates a new mfa
+    // device.
+    rpc ChangeUserAuthentication(ChangeUserAuthenticationRequest)
+        returns (ChangeUserAuthenticationResponse);
+    // CreateAccountRecoveryStartToken is the first out of two step user verification.
+    // It creates a recovery start token after successful verification of username and a recovery
+    // code. Start tokens last MaxRecoveryStartTokenTTL and contains the URL that is emailed to user
+    // which when URL is clicked upon, starts the recovery process.
+    //
+    // If a user fails to provide correct recovery code for MaxAccountRecoveryAttempts,
+    // user account gets temporarily locked from further attempts and from logging in.
+    rpc CreateAccountRecoveryStartToken(CreateAccountRecoveryStartTokenRequest)
         returns (types.UserTokenV3);
-    // SetNewAuthCredWithRecoveryToken either changes a user password or adds a new mfa device
-    // depending on the request.
-    rpc SetNewAuthCredWithRecoveryToken(SetNewAuthCredWithRecoveryTokenRequest)
+    // CreateAccountRecoveryApprovedToken is the second step of the two step verification.
+    // It creates a recovery approved token after successful verification of the users second
+    // authentication with either their password or a second factor (first authentication being
+    // their recovery code). The recovery start token to verify this request is deleted before
+    // creating a recovery approved token.
+    //
+    // If user fails to provide the correct second authentication for MaxAccountRecoveryAttempts
+    // (combined attempts with first authentication), users account will be temporarily locked from
+    // logging in and all user tokens are deleted for this user which means the user will have to
+    // restart the recovery process with another recovery code.
+    //
+    // Recovery approved tokens last MaxRecoveryApprovedTokenTTL and are used to request protected
+    // actions like setting a new password or mfa device, viewing their MFA devices, deleting their
+    // MFA devices, and generating new recovery codes.
+    rpc CreateAccountRecoveryApprovedToken(CreateAccountRecoveryApprovedTokenRequest)
+        returns (types.UserTokenV3);
+    // ChangeAuthenticationFromAccountRecovery sets a new password or a new mfa device as part of
+    // the account recovery flow. When new authentication is successfully set, all user lock is
+    // removed so the user can login immediately afterwards.
+    rpc ChangeAuthenticationFromAccountRecovery(ChangeAuthenticationFromAccountRecoveryRequest)
         returns (google.protobuf.Empty);
-    // CreateRecoveryCodesWithToken creates and returns new recovery codes for the user defined
-    // in the token.
-    rpc CreateRecoveryCodesWithToken(CreateRecoveryCodesWithTokenRequest)
-        returns (CreateRecoveryCodesWithTokenResponse);
+    // CreateAccountRecoveryCodes creates, upserts, and returns new set of recovery codes
+    // for the user defined in token.
+    rpc CreateAccountRecoveryCodes(CreateAccountRecoveryCodesRequest)
+        returns (CreateAccountRecoveryCodesResponse);
+    // GetAccountRecoveryToken looks up the tokenID defined in request and verifies that it is a
+    // user token with subkind field set to recovery start or recovery approved and returns it.
+    rpc GetAccountRecoveryToken(GetAccountRecoveryTokenRequest) returns (types.UserTokenV3);
 }

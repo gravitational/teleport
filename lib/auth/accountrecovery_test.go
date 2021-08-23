@@ -124,11 +124,11 @@ func TestRecoveryCodeEventsEmitted(t *testing.T) {
 	require.Equal(t, events.RecoveryCodeUsedFailureCode, event.GetCode())
 }
 
-// TestCreateRecoveryCodesWithTokenRequest tests the following:
+// TestCreateAccountRecoveryCodesRequest tests the following:
 //  - creating valid recovery start token
 //  - creating valid recovery approved token
 //  - generating recovery codes with token
-func TestCreateRecoveryCodesWithTokenRequest(t *testing.T) {
+func TestCreateAccountRecoveryCodesRequest(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
@@ -140,24 +140,26 @@ func TestCreateRecoveryCodesWithTokenRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get recovery start token.
-	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:          u.username,
-		RecoveryCode:      []byte(u.recoveryCodes[0]),
-		IsRecoverPassword: false,
+	startToken, err := srv.Auth().CreateAccountRecoveryStartToken(ctx, &proto.CreateAccountRecoveryStartTokenRequest{
+		Username:     u.username,
+		RecoveryCode: []byte(u.recoveryCodes[0]),
+		RecoverType:  types.UserTokenUsage_RECOVER_2FA,
 	})
 	require.NoError(t, err)
 	require.Equal(t, UserTokenTypeRecoveryStart, startToken.GetSubKind())
 	require.Equal(t, types.UserTokenUsage_RECOVER_2FA, startToken.GetUsage())
 
 	// Test passing an invalid token type returns error.
-	_, err = srv.Auth().CreateRecoveryCodesWithToken(ctx, &proto.CreateRecoveryCodesWithTokenRequest{TokenID: startToken.GetName()})
+	_, err = srv.Auth().CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
+		RecoveryApprovedTokenID: startToken.GetName(),
+	})
 	require.Error(t, err)
 
 	// Get recovery approved token.
-	approvedToken, err := srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
-		TokenID:  startToken.GetName(),
-		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_Password{Password: u.password},
-		Username: u.username,
+	approvedToken, err := srv.Auth().CreateAccountRecoveryApprovedToken(ctx, &proto.CreateAccountRecoveryApprovedTokenRequest{
+		RecoveryStartTokenID: startToken.GetName(),
+		Username:             u.username,
+		AuthnCred:            &proto.CreateAccountRecoveryApprovedTokenRequest_Password{Password: u.password},
 	})
 	require.NoError(t, err)
 	require.Equal(t, UserTokenTypeRecoveryApproved, approvedToken.GetSubKind())
@@ -168,7 +170,9 @@ func TestCreateRecoveryCodesWithTokenRequest(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	// Test creating recovery tokens.
-	res, err := srv.Auth().CreateRecoveryCodesWithToken(ctx, &proto.CreateRecoveryCodesWithTokenRequest{TokenID: approvedToken.GetName()})
+	res, err := srv.Auth().CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
+		RecoveryApprovedTokenID: approvedToken.GetName(),
+	})
 	require.NoError(t, err)
 	require.Len(t, res.RecoveryCodes, 3)
 }
@@ -186,18 +190,18 @@ func TestMFADeviceGetAndDeleteWithToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get access to begin recovery.
-	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:          u.username,
-		RecoveryCode:      []byte(u.recoveryCodes[0]),
-		IsRecoverPassword: false,
+	startToken, err := srv.Auth().CreateAccountRecoveryStartToken(ctx, &proto.CreateAccountRecoveryStartTokenRequest{
+		Username:     u.username,
+		RecoveryCode: []byte(u.recoveryCodes[0]),
+		RecoverType:  types.UserTokenUsage_RECOVER_2FA,
 	})
 	require.NoError(t, err)
 
 	// Get access to add a new device.
-	approvedToken, err := srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
-		TokenID:  startToken.GetName(),
-		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_Password{Password: []byte("abc123")},
-		Username: u.username,
+	approvedToken, err := srv.Auth().CreateAccountRecoveryApprovedToken(ctx, &proto.CreateAccountRecoveryApprovedTokenRequest{
+		RecoveryStartTokenID: startToken.GetName(),
+		AuthnCred:            &proto.CreateAccountRecoveryApprovedTokenRequest_Password{Password: []byte("abc123")},
+		Username:             u.username,
 	})
 	require.NoError(t, err)
 
@@ -206,21 +210,24 @@ func TestMFADeviceGetAndDeleteWithToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a new u2f device.
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{
-		TokenID:    approvedToken.GetName(),
-		AuthCred:   &proto.SetNewAuthCredWithRecoveryTokenRequest_U2FRegisterResponse{U2FRegisterResponse: u2fRegResp},
-		DeviceName: "new-u2f",
+	err = srv.Auth().ChangeAuthenticationFromAccountRecovery(ctx, &proto.ChangeAuthenticationFromAccountRecoveryRequest{
+		RecoveryApprovedTokenID: approvedToken.GetName(),
+		NewDeviceName:           "new-u2f",
+		NewAuthnCred: &proto.ChangeAuthenticationFromAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_U2F{
+				U2F: u2fRegResp,
+			}}},
 	})
 	require.NoError(t, err)
 
 	// Test retrieving the list of devices and deleting one device.
 	res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
-		Request: &proto.GetMFADevicesRequest_TokenID{TokenID: approvedToken.GetName()},
+		TokenID: approvedToken.GetName(),
 	})
 	require.NoError(t, err)
 	require.Len(t, res.GetDevices(), 2)
 
-	err = srv.Auth().DeleteMFADeviceNonstream(ctx, &proto.DeleteMFADeviceNonstreamRequest{
+	err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
 		TokenID:  approvedToken.GetName(),
 		DeviceID: res.GetDevices()[0].Id,
 	})
@@ -228,19 +235,19 @@ func TestMFADeviceGetAndDeleteWithToken(t *testing.T) {
 
 	// Delete the rest of devices.
 	res, err = srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
-		Request: &proto.GetMFADevicesRequest_TokenID{TokenID: approvedToken.GetName()},
+		TokenID: approvedToken.GetName(),
 	})
 	require.NoError(t, err)
 	require.Len(t, res.GetDevices(), 1)
 
-	err = srv.Auth().DeleteMFADeviceNonstream(ctx, &proto.DeleteMFADeviceNonstreamRequest{
+	err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
 		TokenID:  approvedToken.GetName(),
 		DeviceID: res.GetDevices()[0].Id,
 	})
 	require.NoError(t, err)
 
 	res, err = srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
-		Request: &proto.GetMFADevicesRequest_TokenID{TokenID: approvedToken.GetName()},
+		TokenID: approvedToken.GetName(),
 	})
 	require.NoError(t, err)
 	require.Len(t, res.GetDevices(), 0)
@@ -262,18 +269,18 @@ func TestAddTOTPWithRecoveryTokenAndPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get access to begin recovery.
-	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:          u.username,
-		RecoveryCode:      []byte(u.recoveryCodes[0]),
-		IsRecoverPassword: false,
+	startToken, err := srv.Auth().CreateAccountRecoveryStartToken(ctx, &proto.CreateAccountRecoveryStartTokenRequest{
+		Username:     u.username,
+		RecoveryCode: []byte(u.recoveryCodes[0]),
+		RecoverType:  types.UserTokenUsage_RECOVER_2FA,
 	})
 	require.NoError(t, err)
 
 	// Get access to add a new totp device.
-	approvedToken, err := srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
-		TokenID:  startToken.GetName(),
-		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_Password{Password: u.password},
-		Username: u.username,
+	approvedToken, err := srv.Auth().CreateAccountRecoveryApprovedToken(ctx, &proto.CreateAccountRecoveryApprovedTokenRequest{
+		RecoveryStartTokenID: startToken.GetName(),
+		AuthnCred:            &proto.CreateAccountRecoveryApprovedTokenRequest_Password{Password: u.password},
+		Username:             u.username,
 	})
 	require.NoError(t, err)
 
@@ -281,18 +288,22 @@ func TestAddTOTPWithRecoveryTokenAndPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add new totp device with existing device name.
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{
-		TokenID:    approvedToken.GetName(),
-		AuthCred:   &proto.SetNewAuthCredWithRecoveryTokenRequest_SecondFactorToken{SecondFactorToken: newOTP},
-		DeviceName: "otp",
+	err = srv.Auth().ChangeAuthenticationFromAccountRecovery(ctx, &proto.ChangeAuthenticationFromAccountRecoveryRequest{
+		RecoveryApprovedTokenID: approvedToken.GetName(),
+		NewDeviceName:           "otp",
+		NewAuthnCred: &proto.ChangeAuthenticationFromAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_TOTP{TOTP: &proto.TOTPRegisterResponse{Code: newOTP}},
+		}},
 	})
 	require.True(t, trace.IsAlreadyExists(err))
 
 	// Add new totp device with unique device name.
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{
-		TokenID:    approvedToken.GetName(),
-		AuthCred:   &proto.SetNewAuthCredWithRecoveryTokenRequest_SecondFactorToken{SecondFactorToken: newOTP},
-		DeviceName: "new-otp",
+	err = srv.Auth().ChangeAuthenticationFromAccountRecovery(ctx, &proto.ChangeAuthenticationFromAccountRecoveryRequest{
+		RecoveryApprovedTokenID: approvedToken.GetName(),
+		NewDeviceName:           "new-otp",
+		NewAuthnCred: &proto.ChangeAuthenticationFromAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_TOTP{TOTP: &proto.TOTPRegisterResponse{Code: newOTP}},
+		}},
 	})
 	require.NoError(t, err)
 
@@ -348,8 +359,8 @@ func TestAddU2FWithRecoveryTokenAndPassword(t *testing.T) {
 
 	// Preserve first u2f key handle.
 	chal, err := srv.Auth().CreateAuthenticationChallenge(ctx, &proto.CreateAuthenticationChallengeRequest{
-		Request: &proto.CreateAuthenticationChallengeRequest_UserPwd{
-			UserPwd: &proto.UserPwd{
+		Request: &proto.CreateAuthenticationChallengeRequest_UserCredentials{
+			UserCredentials: &proto.UserCredentials{
 				Username: u.username,
 				Password: u.password,
 			},
@@ -360,18 +371,18 @@ func TestAddU2FWithRecoveryTokenAndPassword(t *testing.T) {
 	firstChal := chal.GetU2F()[0]
 
 	// Get access to begin recovery.
-	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:          u.username,
-		RecoveryCode:      []byte(u.recoveryCodes[0]),
-		IsRecoverPassword: false,
+	startToken, err := srv.Auth().CreateAccountRecoveryStartToken(ctx, &proto.CreateAccountRecoveryStartTokenRequest{
+		Username:     u.username,
+		RecoveryCode: []byte(u.recoveryCodes[0]),
+		RecoverType:  types.UserTokenUsage_RECOVER_2FA,
 	})
 	require.NoError(t, err)
 
 	// Get access to add a new device.
-	approvedToken, err := srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
-		TokenID:  startToken.GetName(),
-		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_Password{Password: []byte("abc123")},
-		Username: u.username,
+	approvedToken, err := srv.Auth().CreateAccountRecoveryApprovedToken(ctx, &proto.CreateAccountRecoveryApprovedTokenRequest{
+		RecoveryStartTokenID: startToken.GetName(),
+		AuthnCred:            &proto.CreateAccountRecoveryApprovedTokenRequest_Password{Password: []byte("abc123")},
+		Username:             u.username,
 	})
 	require.NoError(t, err)
 
@@ -380,32 +391,36 @@ func TestAddU2FWithRecoveryTokenAndPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test adding new u2f device with an already existing device name.
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{
-		TokenID:    approvedToken.GetName(),
-		AuthCred:   &proto.SetNewAuthCredWithRecoveryTokenRequest_U2FRegisterResponse{U2FRegisterResponse: u2fRegResp},
-		DeviceName: "u2f",
+	err = srv.Auth().ChangeAuthenticationFromAccountRecovery(ctx, &proto.ChangeAuthenticationFromAccountRecoveryRequest{
+		RecoveryApprovedTokenID: approvedToken.GetName(),
+		NewDeviceName:           "u2f",
+		NewAuthnCred: &proto.ChangeAuthenticationFromAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_U2F{U2F: u2fRegResp},
+		}},
 	})
 	require.True(t, trace.IsAlreadyExists(err))
 
 	// Test adding new u2f device with unique device name
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{
-		TokenID:    approvedToken.GetName(),
-		AuthCred:   &proto.SetNewAuthCredWithRecoveryTokenRequest_U2FRegisterResponse{U2FRegisterResponse: u2fRegResp},
-		DeviceName: "new-u2f",
+	err = srv.Auth().ChangeAuthenticationFromAccountRecovery(ctx, &proto.ChangeAuthenticationFromAccountRecoveryRequest{
+		RecoveryApprovedTokenID: approvedToken.GetName(),
+		NewDeviceName:           "new-u2f",
+		NewAuthnCred: &proto.ChangeAuthenticationFromAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_U2F{U2F: u2fRegResp},
+		}},
 	})
 	require.NoError(t, err)
 
 	// There should be 2 mfa devices.
 	res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
-		Request: &proto.GetMFADevicesRequest_TokenID{TokenID: approvedToken.GetName()},
+		TokenID: approvedToken.GetName(),
 	})
 	require.NoError(t, err)
 	require.Len(t, res.GetDevices(), 2)
 
 	// Try authenticating with the two u2f devices.
 	chal, err = srv.Auth().CreateAuthenticationChallenge(ctx, &proto.CreateAuthenticationChallengeRequest{
-		Request: &proto.CreateAuthenticationChallengeRequest_UserPwd{
-			UserPwd: &proto.UserPwd{
+		Request: &proto.CreateAuthenticationChallengeRequest_UserCredentials{
+			UserCredentials: &proto.UserCredentials{
 				Username: u.username,
 				Password: u.password,
 			},
@@ -476,10 +491,10 @@ func TestChangePasswordWithRecoveryTokenAndOTP(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get access to begin recovery.
-	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:          u.username,
-		RecoveryCode:      []byte(u.recoveryCodes[0]),
-		IsRecoverPassword: true,
+	startToken, err := srv.Auth().CreateAccountRecoveryStartToken(ctx, &proto.CreateAccountRecoveryStartTokenRequest{
+		Username:     u.username,
+		RecoveryCode: []byte(u.recoveryCodes[0]),
+		RecoverType:  types.UserTokenUsage_RECOVER_PWD,
 	})
 	require.NoError(t, err)
 	require.Equal(t, UserTokenTypeRecoveryStart, startToken.GetSubKind())
@@ -492,9 +507,11 @@ func TestChangePasswordWithRecoveryTokenAndOTP(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get access to change password.
-	approvedToken, err := srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
-		TokenID:  startToken.GetName(),
-		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_SecondFactorToken{SecondFactorToken: newOTP},
+	approvedToken, err := srv.Auth().CreateAccountRecoveryApprovedToken(ctx, &proto.CreateAccountRecoveryApprovedTokenRequest{
+		RecoveryStartTokenID: startToken.GetName(),
+		AuthnCred: &proto.CreateAccountRecoveryApprovedTokenRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: newOTP}},
+		}},
 		Username: u.username,
 	})
 	require.NoError(t, err)
@@ -502,9 +519,9 @@ func TestChangePasswordWithRecoveryTokenAndOTP(t *testing.T) {
 
 	// Change password.
 	newPassword := []byte("some-new-password")
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{
-		TokenID:  approvedToken.GetName(),
-		AuthCred: &proto.SetNewAuthCredWithRecoveryTokenRequest_Password{Password: newPassword},
+	err = srv.Auth().ChangeAuthenticationFromAccountRecovery(ctx, &proto.ChangeAuthenticationFromAccountRecoveryRequest{
+		RecoveryApprovedTokenID: approvedToken.GetName(),
+		NewAuthnCred:            &proto.ChangeAuthenticationFromAccountRecoveryRequest_NewPassword{NewPassword: newPassword},
 	})
 	require.NoError(t, err)
 
@@ -533,10 +550,10 @@ func TestChangePasswordWithRecoveryTokenAndU2F(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get access to start recovery.
-	startToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:          u.username,
-		RecoveryCode:      []byte(u.recoveryCodes[0]),
-		IsRecoverPassword: true,
+	startToken, err := srv.Auth().CreateAccountRecoveryStartToken(ctx, &proto.CreateAccountRecoveryStartTokenRequest{
+		Username:     u.username,
+		RecoveryCode: []byte(u.recoveryCodes[0]),
+		RecoverType:  types.UserTokenUsage_RECOVER_PWD,
 	})
 	require.NoError(t, err)
 
@@ -555,12 +572,14 @@ func TestChangePasswordWithRecoveryTokenAndU2F(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get access to change password.
-	approvedToken, err := srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
-		TokenID: startToken.GetName(),
-		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_U2FSignResponse{U2FSignResponse: &proto.U2FResponse{
-			KeyHandle:  u2f.KeyHandle,
-			ClientData: u2f.ClientData,
-			Signature:  u2f.SignatureData,
+	approvedToken, err := srv.Auth().CreateAccountRecoveryApprovedToken(ctx, &proto.CreateAccountRecoveryApprovedTokenRequest{
+		RecoveryStartTokenID: startToken.GetName(),
+		AuthnCred: &proto.CreateAccountRecoveryApprovedTokenRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
+				KeyHandle:  u2f.KeyHandle,
+				ClientData: u2f.ClientData,
+				Signature:  u2f.SignatureData,
+			}},
 		}},
 		Username: u.username,
 	})
@@ -568,9 +587,9 @@ func TestChangePasswordWithRecoveryTokenAndU2F(t *testing.T) {
 
 	// Change password.
 	newPassword := []byte("some-new-password")
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{
-		TokenID:  approvedToken.GetName(),
-		AuthCred: &proto.SetNewAuthCredWithRecoveryTokenRequest_Password{Password: newPassword},
+	err = srv.Auth().ChangeAuthenticationFromAccountRecovery(ctx, &proto.ChangeAuthenticationFromAccountRecoveryRequest{
+		RecoveryApprovedTokenID: approvedToken.GetName(),
+		NewAuthnCred:            &proto.ChangeAuthenticationFromAccountRecoveryRequest_NewPassword{NewPassword: newPassword},
 	})
 	require.NoError(t, err)
 
@@ -599,15 +618,15 @@ func TestLockWhenMaxFailedVerifyingRecoveryCode(t *testing.T) {
 	require.NoError(t, err)
 
 	// Trigger max failed recovery attempts.
-	for i := 1; i <= defaults.MaxRecoveryAttempts; i++ {
-		_, err = srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
+	for i := 1; i <= defaults.MaxAccountRecoveryAttempts; i++ {
+		_, err = srv.Auth().CreateAccountRecoveryStartToken(ctx, &proto.CreateAccountRecoveryStartTokenRequest{
 			Username:     u.username,
 			RecoveryCode: []byte("invalid-code"),
 		})
 		require.Error(t, err)
 
 		// The third failed attempt should return error.
-		if i == defaults.MaxRecoveryAttempts {
+		if i == defaults.MaxAccountRecoveryAttempts {
 			require.EqualValues(t, ErrMaxFailedRecoveryAttempts, err)
 		}
 	}
@@ -621,7 +640,7 @@ func TestLockWhenMaxFailedVerifyingRecoveryCode(t *testing.T) {
 
 	// Advance time and make sure we can try recovery again with a valid code this time.
 	fakeClock.Advance(defaults.AccountLockInterval)
-	_, err = srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
+	_, err = srv.Auth().CreateAccountRecoveryStartToken(ctx, &proto.CreateAccountRecoveryStartTokenRequest{
 		Username:     u.username,
 		RecoveryCode: []byte(u.recoveryCodes[0]),
 	})
@@ -643,32 +662,36 @@ func TestLockWhenMaxFailedAuthenticatingWithToken(t *testing.T) {
 	u, err := createUserAuthCreds(srv, "otp")
 	require.NoError(t, err)
 
-	resetToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:          u.username,
-		RecoveryCode:      []byte(u.recoveryCodes[0]),
-		IsRecoverPassword: true,
+	resetToken, err := srv.Auth().CreateAccountRecoveryStartToken(ctx, &proto.CreateAccountRecoveryStartTokenRequest{
+		Username:     u.username,
+		RecoveryCode: []byte(u.recoveryCodes[0]),
+		RecoverType:  types.UserTokenUsage_RECOVER_PWD,
 	})
 	require.NoError(t, err)
 
 	// Trigger max failed recovery attempts.
-	for i := 1; i <= defaults.MaxRecoveryAttempts; i++ {
-		_, err = srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
-			TokenID:  resetToken.GetName(),
-			AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_SecondFactorToken{SecondFactorToken: "invalid-token"},
+	for i := 1; i <= defaults.MaxAccountRecoveryAttempts; i++ {
+		_, err = srv.Auth().CreateAccountRecoveryApprovedToken(ctx, &proto.CreateAccountRecoveryApprovedTokenRequest{
+			RecoveryStartTokenID: resetToken.GetName(),
+			AuthnCred: &proto.CreateAccountRecoveryApprovedTokenRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: "invalid-token"}},
+			}},
 			Username: u.username,
 		})
 		require.Error(t, err)
 
 		// The third failed attempt should return error.
-		if i == defaults.MaxRecoveryAttempts {
+		if i == defaults.MaxAccountRecoveryAttempts {
 			require.EqualValues(t, ErrMaxFailedRecoveryAttempts, err)
 		}
 	}
 
 	// Test after lock, token is deleted.
-	_, err = srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
-		TokenID:  resetToken.GetName(),
-		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_SecondFactorToken{SecondFactorToken: "invalid-token"},
+	_, err = srv.Auth().CreateAccountRecoveryApprovedToken(ctx, &proto.CreateAccountRecoveryApprovedTokenRequest{
+		RecoveryStartTokenID: resetToken.GetName(),
+		AuthnCred: &proto.CreateAccountRecoveryApprovedTokenRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: "invalid-token"}},
+		}},
 		Username: u.username,
 	})
 	require.Error(t, err)
@@ -719,10 +742,10 @@ func TestRecoveryAllowedWithLoginLocked(t *testing.T) {
 	require.False(t, user.GetStatus().LockExpires.IsZero())
 
 	// Still allow recovery.
-	resetToken, err := srv.Auth().CreateRecoveryStartToken(ctx, &proto.CreateRecoveryStartTokenRequest{
-		Username:          u.username,
-		RecoveryCode:      []byte(u.recoveryCodes[0]),
-		IsRecoverPassword: true,
+	resetToken, err := srv.Auth().CreateAccountRecoveryStartToken(ctx, &proto.CreateAccountRecoveryStartTokenRequest{
+		Username:     u.username,
+		RecoveryCode: []byte(u.recoveryCodes[0]),
+		RecoverType:  types.UserTokenUsage_RECOVER_PWD,
 	})
 	require.NoError(t, err)
 
@@ -733,18 +756,20 @@ func TestRecoveryAllowedWithLoginLocked(t *testing.T) {
 	newOTP, err := totp.GenerateCode(mfas[0].GetTotp().Key, srv.Clock().Now().Add(30*time.Second))
 	require.NoError(t, err)
 
-	resetToken, err = srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
-		TokenID:  resetToken.GetName(),
-		AuthCred: &proto.AuthenticateUserWithRecoveryTokenRequest_SecondFactorToken{SecondFactorToken: newOTP},
+	resetToken, err = srv.Auth().CreateAccountRecoveryApprovedToken(ctx, &proto.CreateAccountRecoveryApprovedTokenRequest{
+		RecoveryStartTokenID: resetToken.GetName(),
+		AuthnCred: &proto.CreateAccountRecoveryApprovedTokenRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: newOTP}},
+		}},
 		Username: u.username,
 	})
 	require.NoError(t, err)
 
 	// Recover password to trigger unlock.
 	newPassword := []byte("some-new-password")
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{
-		TokenID:  resetToken.GetName(),
-		AuthCred: &proto.SetNewAuthCredWithRecoveryTokenRequest_Password{Password: newPassword},
+	err = srv.Auth().ChangeAuthenticationFromAccountRecovery(ctx, &proto.ChangeAuthenticationFromAccountRecoveryRequest{
+		RecoveryApprovedTokenID: resetToken.GetName(),
+		NewAuthnCred:            &proto.ChangeAuthenticationFromAccountRecoveryRequest_NewPassword{NewPassword: newPassword},
 	})
 	require.NoError(t, err)
 
@@ -777,28 +802,32 @@ func TestInvalidUserAuthCred(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test wrong token type for authenticating user.
-	_, err = srv.Auth().AuthenticateUserWithRecoveryToken(ctx, &proto.AuthenticateUserWithRecoveryTokenRequest{
-		TokenID:  wrongToken.GetName(),
-		Username: u.username,
+	_, err = srv.Auth().CreateAccountRecoveryApprovedToken(ctx, &proto.CreateAccountRecoveryApprovedTokenRequest{
+		RecoveryStartTokenID: wrongToken.GetName(),
+		Username:             u.username,
 	})
 	require.Contains(t, err.Error(), "invalid token")
 
 	// Test wrong token type for changing a user auth cred.
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{
-		TokenID: wrongToken.GetName(),
+	err = srv.Auth().ChangeAuthenticationFromAccountRecovery(ctx, &proto.ChangeAuthenticationFromAccountRecoveryRequest{
+		RecoveryApprovedTokenID: wrongToken.GetName(),
 	})
 	require.Contains(t, err.Error(), "invalid token")
 
 	// Test a token for recovering password with empty password.
-	token, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, true)
+	token, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_RECOVER_PWD)
 	require.NoError(t, err)
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{TokenID: token.GetName()})
+	err = srv.Auth().ChangeAuthenticationFromAccountRecovery(ctx, &proto.ChangeAuthenticationFromAccountRecoveryRequest{
+		RecoveryApprovedTokenID: token.GetName(),
+	})
 	require.Contains(t, err.Error(), "new password")
 
 	// Test a token for recovering second factor with empty second factor creds.
-	token, err = srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, false)
+	token, err = srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_RECOVER_2FA)
 	require.NoError(t, err)
-	err = srv.Auth().SetNewAuthCredWithRecoveryToken(ctx, &proto.SetNewAuthCredWithRecoveryTokenRequest{TokenID: token.GetName()})
+	err = srv.Auth().ChangeAuthenticationFromAccountRecovery(ctx, &proto.ChangeAuthenticationFromAccountRecoveryRequest{
+		RecoveryApprovedTokenID: token.GetName(),
+	})
 	require.Contains(t, err.Error(), "new mfa")
 }
 
@@ -842,17 +871,19 @@ func createUserAuthCreds(srv *TestTLSServer, secondFactor string) (*userAuthCred
 		return nil, trace.Wrap(err)
 	}
 
-	var res *proto.ChangePasswordWithTokenResponse
+	var res *proto.ChangeUserAuthenticationResponse
 	if secondFactor == "otp" {
 		otp, err := getOTPCode(srv, resetToken.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		res, err = srv.Auth().ChangePasswordWithToken(ctx, &proto.ChangePasswordWithTokenRequest{
-			TokenID:           resetToken.GetName(),
-			Password:          password,
-			SecondFactorToken: otp,
+		res, err = srv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:     resetToken.GetName(),
+			NewPassword: password,
+			NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+				TOTP: &proto.TOTPRegisterResponse{Code: otp},
+			}},
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -867,10 +898,15 @@ func createUserAuthCreds(srv *TestTLSServer, secondFactor string) (*userAuthCred
 			return nil, trace.Wrap(err)
 		}
 
-		res, err = srv.Auth().ChangePasswordWithToken(ctx, &proto.ChangePasswordWithTokenRequest{
-			TokenID:             resetToken.GetName(),
-			Password:            password,
-			U2FRegisterResponse: u2fRegResp,
+		res, err = srv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:     resetToken.GetName(),
+			NewPassword: password,
+			NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+				U2F: &proto.U2FRegisterResponse{
+					RegistrationData: u2fRegResp.RegistrationData,
+					ClientData:       u2fRegResp.ClientData,
+				},
+			}},
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

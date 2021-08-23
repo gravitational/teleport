@@ -247,9 +247,9 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	_, err = s.a.changePasswordWithToken(ctx, &proto.ChangePasswordWithTokenRequest{
-		TokenID:  token.GetName(),
-		Password: password,
+	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     token.GetName(),
+		NewPassword: password,
 	})
 	c.Assert(err, IsNil)
 
@@ -285,10 +285,12 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
 	c.Assert(err, IsNil)
 
-	_, err = s.a.changePasswordWithToken(ctx, &proto.ChangePasswordWithTokenRequest{
-		TokenID:           token.GetName(),
-		Password:          password,
-		SecondFactorToken: otpToken,
+	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     token.GetName(),
+		NewPassword: password,
+		NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
+		}},
 	})
 	c.Assert(err, IsNil)
 
@@ -319,41 +321,43 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	type testCase struct {
 		desc         string
 		secondFactor constants.SecondFactorType
-		req          *proto.ChangePasswordWithTokenRequest
+		req          *proto.ChangeUserAuthenticationRequest
 	}
 
 	testCases := []testCase{
 		{
 			secondFactor: constants.SecondFactorOff,
 			desc:         "invalid tokenID value",
-			req: &proto.ChangePasswordWithTokenRequest{
-				TokenID:  "what_token",
-				Password: validPassword,
+			req: &proto.ChangeUserAuthenticationRequest{
+				TokenID:     "what_token",
+				NewPassword: validPassword,
 			},
 		},
 		{
 			secondFactor: constants.SecondFactorOff,
 			desc:         "invalid password",
-			req: &proto.ChangePasswordWithTokenRequest{
-				TokenID:  validTokenID,
-				Password: []byte("short"),
+			req: &proto.ChangeUserAuthenticationRequest{
+				TokenID:     validTokenID,
+				NewPassword: []byte("short"),
 			},
 		},
 		{
 			secondFactor: constants.SecondFactorOTP,
 			desc:         "missing second factor",
-			req: &proto.ChangePasswordWithTokenRequest{
-				TokenID:  validTokenID,
-				Password: validPassword,
+			req: &proto.ChangeUserAuthenticationRequest{
+				TokenID:     validTokenID,
+				NewPassword: validPassword,
 			},
 		},
 		{
 			secondFactor: constants.SecondFactorOTP,
 			desc:         "invalid OTP value",
-			req: &proto.ChangePasswordWithTokenRequest{
-				TokenID:           validTokenID,
-				Password:          validPassword,
-				SecondFactorToken: "invalid",
+			req: &proto.ChangeUserAuthenticationRequest{
+				TokenID:     validTokenID,
+				NewPassword: validPassword,
+				NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+					TOTP: &proto.TOTPRegisterResponse{Code: "invalid"},
+				}},
 			},
 		},
 	}
@@ -364,7 +368,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 		err = s.a.SetAuthPreference(ctx, authPreference)
 		c.Assert(err, IsNil)
 
-		_, err = s.a.changePasswordWithToken(ctx, tc.req)
+		_, err = s.a.changeUserAuthentication(ctx, tc.req)
 		c.Assert(err, NotNil, Commentf("test case %q", tc.desc))
 	}
 
@@ -372,16 +376,16 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	err = s.a.SetAuthPreference(ctx, authPreference)
 	c.Assert(err, IsNil)
 
-	_, err = s.a.changePasswordWithToken(ctx, &proto.ChangePasswordWithTokenRequest{
-		TokenID:  validTokenID,
-		Password: validPassword,
+	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     validTokenID,
+		NewPassword: validPassword,
 	})
 	c.Assert(err, IsNil)
 
 	// invite token cannot be reused
-	_, err = s.a.changePasswordWithToken(ctx, &proto.ChangePasswordWithTokenRequest{
-		TokenID:  validTokenID,
-		Password: validPassword,
+	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     validTokenID,
+		NewPassword: validPassword,
 	})
 	c.Assert(err, NotNil)
 }

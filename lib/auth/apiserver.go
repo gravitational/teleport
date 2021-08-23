@@ -1170,20 +1170,27 @@ func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	var u2f *proto.U2FRegisterResponse
-	if req.U2FRegisterResponse != nil {
-		u2f = &proto.U2FRegisterResponse{
-			RegistrationData: req.U2FRegisterResponse.RegistrationData,
-			ClientData:       req.U2FRegisterResponse.ClientData,
-		}
+	protoReq := &proto.ChangeUserAuthenticationRequest{
+		TokenID:     req.TokenID,
+		NewPassword: req.Password,
 	}
 
-	res, err := auth.ChangePasswordWithToken(r.Context(), &proto.ChangePasswordWithTokenRequest{
-		SecondFactorToken:   req.SecondFactorToken,
-		TokenID:             req.TokenID,
-		Password:            req.Password,
-		U2FRegisterResponse: u2f,
-	})
+	if req.U2FRegisterResponse != nil {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+			U2F: &proto.U2FRegisterResponse{
+				RegistrationData: req.U2FRegisterResponse.RegistrationData,
+				ClientData:       req.U2FRegisterResponse.ClientData,
+			},
+		}}
+	}
+
+	if req.SecondFactorToken != "" {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
+		}}
+	}
+
+	res, err := auth.ChangeUserAuthentication(r.Context(), protoReq)
 	if err != nil {
 		log.Debugf("Failed to change user password with token: %v.", err)
 		return nil, trace.Wrap(err)
