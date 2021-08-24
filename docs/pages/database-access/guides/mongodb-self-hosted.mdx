@@ -35,8 +35,8 @@ In this guide you will:
 
 Start Teleport Database service:
 
-```bash
-teleport db start \
+```code
+$ teleport db start \
   --token=/tmp/token \
   --auth-server=teleport.example.com:3080 \
   --name=example-mongo \
@@ -55,16 +55,16 @@ You can specify either a single connection address or a MongoDB
 [connection string](https://docs.mongodb.com/manual/reference/connection-string/)
 as a URI. For example, when connecting to a replica set:
 
-```bash
---uri="mongodb://mongo1.example.com:27017,mongo2.example.com:27017/?replicaSet=rs0"
+```code
+$ --uri="mongodb://mongo1.example.com:27017,mongo2.example.com:27017/?replicaSet=rs0"
 ```
 
 By default, Teleport will connect to the primary replica set member. If you'd
 like to connect to a secondary instead, Teleport will respect `readPreference`
 connection string setting:
 
-```bash
---uri="mongodb://mongo1.example.com:27017,mongo2.example.com:27017/?replicaSet=rs0&readPreference=secondary"
+```code
+$ --uri="mongodb://mongo1.example.com:27017,mongo2.example.com:27017/?replicaSet=rs0&readPreference=secondary"
 ```
 
 <Admonition type="tip">
@@ -119,8 +119,8 @@ Create the secrets:
   For example, if your MongoDB server is accessible at `mongo.example.com`
   hostname, run:
 
-  ```bash
-  tctl auth sign --format=mongodb --host=mongo.example.com --out=mongo --ttl=2190h
+  ```code
+  $ tctl auth sign --format=mongodb --host=mongo.example.com --out=mongo --ttl=2190h
   ```
 
   (!docs/pages/includes/database-access/ttl-note.mdx!)
@@ -136,9 +136,9 @@ Create the secrets:
   For example, if the first member is accessible at `mongo1.example.com` and
   the second at `mongo2.example.com`, run:
 
-  ```bash
-  tctl auth sign --format=mongodb --host=mongo1.example.com --out=mongo1 --ttl=2190h
-  tctl auth sign --format=mongodb --host=mongo2.example.com --out=mongo2 --ttl=2190h
+  ```code
+  $ tctl auth sign --format=mongodb --host=mongo1.example.com --out=mongo1 --ttl=2190h
+  $ tctl auth sign --format=mongodb --host=mongo2.example.com --out=mongo2 --ttl=2190h
   ```
 
   (!docs/pages/includes/database-access/ttl-note.mdx!)
@@ -191,19 +191,19 @@ in MongoDB documentation for more details.
 
 Log into your Teleport cluster and see available databases:
 
-```bash
-tsh login --proxy=teleport.example.com:3080 --user=alice
-tsh db ls
-Name          Description     Labels
-------------- --------------- --------
-example-mongo Example MongoDB env=dev
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh db ls
+# Name          Description     Labels
+# ------------- --------------- --------
+# example-mongo Example MongoDB env=dev
 ```
 
 To connect to a particular database instance, first retrieve its certificate
 using `tsh db login` command:
 
-```bash
-tsh db login example-mongo
+```code
+$ tsh db login example-mongo
 ```
 
 <Admonition type="tip">
@@ -213,14 +213,14 @@ tsh db login example-mongo
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
-```bash
-tsh db login --db-user=alice example-mongo
+```code
+$ tsh db login --db-user=alice example-mongo
 ```
 
 Once logged in, connect to the database:
 
-```bash
-tsh db connect example-mongo
+```code
+$ tsh db connect example-mongo
 ```
 
 <Admonition type="note" title="Note">
@@ -230,17 +230,17 @@ tsh db connect example-mongo
 
 If you would like to see the native `mongo` shell connect command, run:
 
-```bash
-tsh db config --format=cmd example-mongo
+```code
+$ tsh db config --format=cmd example-mongo
 ```
 
 To log out of the database and remove credentials:
 
-```bash
+```code
 # Remove credentials for a particular database instance.
-tsh db logout example-mongo
+$ tsh db logout example-mongo
 # Remove credentials for all database instances.
-tsh db logout
+$ tsh db logout
 ```
 
 ## Next steps

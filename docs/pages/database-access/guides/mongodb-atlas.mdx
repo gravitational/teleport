@@ -28,8 +28,8 @@ In this guide you will:
 
 Start Teleport Database service:
 
-```bash
-teleport db start \
+```code
+$ teleport db start \
   --token=/tmp/token \
   --auth-server=teleport.example.com:443 \
   --name=mongodb-atlas \
@@ -84,8 +84,8 @@ MongoDB shell" to view the connection string:
 
 Use only the scheme and hostname parts of the connection string in the URI:
 
-```txt
---uri=mongodb+srv://cluster0.abcde.mongodb.net
+```code
+$ --uri=mongodb+srv://cluster0.abcde.mongodb.net
 ```
 
 #### Atlas CA certificate `--ca-cert`
@@ -96,8 +96,8 @@ MongoDB Atlas uses certificates signed by Let's Encrypt as described in
 Download Let's Encrypt [root certificate](https://letsencrypt.org/certs/isrgrootx1.pem.txt)
 and use it as a CA in the database service configuration:
 
-```txt
---ca-cert=/tmp/isrgrootx1.pem
+```code
+$ --ca-cert=/tmp/isrgrootx1.pem
 ```
 
 ### Create Teleport user
@@ -114,8 +114,8 @@ Teleport will authenticate with MongoDB Atlas using
 First, obtain Teleport CA certificate by running the following `tctl auth sign`
 command against your Teleport cluster:
 
-```bash
-tctl auth sign --format=mongodb --host=mongo --out=mongo
+```code
+$ tctl auth sign --format=mongodb --host=mongo --out=mongo
 ```
 
 The `--host` and `--ttl` flag value doesn't matter in this case since you'll
@@ -151,19 +151,19 @@ certificate with `CN=alice` subject.
 
 Log into your Teleport cluster and see available databases:
 
-```bash
-tsh login --proxy=teleport.example.com:3080 --user=alice
-tsh db ls
-Name          Description Labels
-------------- ----------- --------
-mongodb-atlas             env=dev
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh db ls
+# Name          Description Labels
+# ------------- ----------- --------
+# mongodb-atlas             env=dev
 ```
 
 To connect to a particular database instance, first retrieve its certificate
 using `tsh db login` command:
 
-```bash
-tsh db login mongodb-atlas
+```code
+$ tsh db login mongodb-atlas
 ```
 
 <Admonition type="tip">
@@ -173,14 +173,14 @@ tsh db login mongodb-atlas
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
-```bash
-tsh db login --db-user=alice mongodb-atlas
+```code
+$ tsh db login --db-user=alice mongodb-atlas
 ```
 
 Once logged in, connect to the database:
 
-```bash
-tsh db connect mongodb-atlas
+```code
+$ tsh db connect mongodb-atlas
 ```
 
 <Admonition type="note" title="Note">
@@ -190,17 +190,17 @@ tsh db connect mongodb-atlas
 
 If you would like to see the native `mongo` shell connect command, run:
 
-```bash
-tsh db config --format=cmd mongodb-atlas
+```code
+$ tsh db config --format=cmd mongodb-atlas
 ```
 
 To log out of the database and remove credentials:
 
-```bash
+```code
 # Remove credentials for a particular database instance.
-tsh db logout mongodb-atlas
+$ tsh db logout mongodb-atlas
 # Remove credentials for all database instances.
-tsh db logout
+$ tsh db logout
 ```
 
 ## Next steps

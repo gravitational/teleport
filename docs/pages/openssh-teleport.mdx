@@ -73,7 +73,7 @@ by the Teleport User CA. Start by exporting the Teleport CA public key:
 
 Export the Teleport CA certificate into a file:
 
-```bash
+```code
 # tctl needs to be ran on the auth server.
 $ tctl auth export --type=user > teleport_user_ca.pub
 ```
@@ -110,7 +110,7 @@ auth_service:
 The recommended solution is to ask Teleport to issue valid host certificates for
 all OpenSSH nodes. To generate a host certificate, run this on your Teleport auth server:
 
-```bash
+```code
 # Creating host certs, with an array of every host to be accessed.
 # Wildcard certs aren't supported by OpenSSH, must be full FQDN.
 # Management of the host certificates can become complex, this is another
@@ -124,7 +124,7 @@ The credentials have been written to api.example.com, api.example.com-cert.pub
 
 # You can use ssh-keygen to verify the contents.
 $ sudo ssh-keygen -L -f api.example.com-cert.pub
-#api.example.com-cert.pub:
+# api.example.com-cert.pub:
 #        Type: ssh-rsa-cert-v01@openssh.com host certificate
 #        Public key: RSA-CERT SHA256:ireEc5HWFjhYPUhmztaFud7EgsopO8l+GpxNMd3wMSk
 #        Signing CA: RSA SHA256:/6HSHsoU5u+r85M26Ut+M9gl+HventwSwrbTvP/cmvo
@@ -149,10 +149,10 @@ HostKey /etc/ssh/api.example.com
 HostCertificate /etc/ssh/api.example.com-cert.pub
 ```
 
-Now you can use [`tsh ssh --port=22 user@api.example.com`](cli-docs.mdx#tsh) to login
+Now you can use [`tsh ssh --port=22 user@api.example.com`](./setup/reference/cli.mdx#tsh) to login
 into any `sshd` node in the cluster and the session will be recorded.
 
-```bash
+```code
 # tsh ssh to use default ssh port:22
 $ tsh ssh --port=22 user@host.example.com
 # Example for a Amazon EC2 Host
@@ -164,7 +164,7 @@ in "recording mode", you have to tell the `ssh` client to use the jump host and
 enable SSH agent forwarding, otherwise a recording proxy will not be able to
 terminate the SSH connection to record it:
 
-```bash
+```code
 # Note that agent forwarding is enabled twice: one from a client to a proxy
 # (mandatory if using a recording proxy), and then optionally from a proxy
 # to the end server if you want your agent running on the end server or not
@@ -244,7 +244,7 @@ certificate authorities for each cluster individually.
 Make sure you are running OpenSSH's `ssh-agent` , and have logged in to the
 Teleport proxy:
 
-```bash
+```code
 $ eval `ssh-agent`
 $ tsh --proxy=root.example.com login
 ```
@@ -259,7 +259,7 @@ Lastly, configure the OpenSSH client to use the Teleport proxy when connecting
 to nodes with matching names. Edit `~/.ssh/config` for your user or
 `/etc/ssh/ssh_config` for global changes:
 
-```bash
+```txt
 # root.example.com is the jump host (proxy). credentials will be obtained from the
 # openssh agent.
 Host root.example.com
@@ -285,7 +285,7 @@ Host *.leaf1.example.com
 When everything is configured properly, you can use ssh to connect to any node
 behind `root.example.com` :
 
-```bash
+```code
 $ ssh root@database.root.example.com
 ```
 
@@ -304,8 +304,8 @@ To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `ts
 
 Example ssh to `database.work.example.com` as `root` with a OpenSSH server on port 22 via `tsh`:
 
-```bash
-tsh ssh --port=22 dev@database.root.example.com
+```code
+$ tsh ssh --port=22 dev@database.root.example.com
 ```
 
 <Admonition
@@ -322,7 +322,7 @@ When using a Teleport proxy in "recording mode", be aware of OpenSSH built-in
 rate limiting. On large numbers of proxy connections you may encounter errors
 like:
 
-```bash
+```txt
 channel 0: open failed: connect failed: ssh: handshake failed: EOF
 ```
 

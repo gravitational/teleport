@@ -69,8 +69,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindLock},
 		{Kind: types.KindNetworkRestrictions},
+		{Kind: types.KindLock},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -101,7 +101,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindLock},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -173,7 +172,6 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindLock},
 		// Node only needs to "know" about default
 		// namespace events to avoid matching too much
 		// data about other namespaces or node events
@@ -710,7 +708,7 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 			return
 		}
 		if err != nil {
-			c.WithError(err).Warning("Re-init the cache on error.")
+			c.Warningf("Re-init the cache on error: %v.", err)
 			if c.OnlyRecent.Enabled {
 				c.setReadOK(false)
 			}
@@ -1387,6 +1385,17 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 	return rg.clusterConfig.GetSessionRecordingConfig(ctx, opts...)
 }
 
+// GetNetworkRestrictions gets the network restrictions.
+func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.restrictions.GetNetworkRestrictions(ctx)
+}
+
 // GetLock gets a lock by name.
 func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	rg, err := c.read()
@@ -1408,23 +1417,13 @@ func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	return lock, trace.Wrap(err)
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
-func (c *Cache) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+// GetLocks gets all/in-force locks that match at least one of the targets
+// when specified.
+func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.access.GetLocks(ctx, targets...)
-}
-
-// GetNetworkRestrictions gets the network restrictions.
-func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	return rg.restrictions.GetNetworkRestrictions(ctx)
+	return rg.access.GetLocks(ctx, inForceOnly, targets...)
 }
