@@ -189,6 +189,7 @@
           "slug": "/access-controls/guides/",
           "entries": [
             { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" },
+            { "title": "Session Locking", "slug": "/access-controls/guides/locking/" },
             { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
@@ -281,6 +282,13 @@
     "terraform": {
       "version": "0.12.0"
     },
+    "presets": {
+      "tokens": {
+        "first": "abcd123-insecure-do-not-use-this",
+        "second": "efgh456-insecure-do-not-use-this",
+        "third": "ijkl789-insecure-do-not-use-this"
+      }
+    },
     "fedramp": {
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
     },
@@ -301,6 +309,9 @@
       "compose": {
         "version": "1.25.0"
       }
+    },
+    "helm": {
+      "version": "3.4.2"
     },
     "kubernetes": {
       "major_version": "1",
