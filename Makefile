@@ -124,6 +124,7 @@ ROLETESTER_MESSAGE := "with access tester"
 ROLETESTER_TAG := roletester
 ROLETESTER_BUILDDIR := lib/datalog/roletester/Cargo.toml
 endif
+endif
 
 # Reproducible builds are only availalbe on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
