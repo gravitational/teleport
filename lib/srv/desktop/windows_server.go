@@ -270,13 +270,14 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 
 	desktopUUID := strings.TrimSuffix(tlsCon.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-uuid", desktopUUID)
-	log.Debug("Connecting to Windows desktop")
 	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopUUID)
 	if err != nil {
 		log.WithError(err).Warning("Failed to fetch desktop by UUID")
 		return
 	}
 	log = log.WithField("desktop-addr", desktop.GetAddr())
+	log.Debug("Connecting to Windows desktop")
+	defer log.Debug("Windows desktop disconnected")
 
 	// TODO(awly): authorization
 
