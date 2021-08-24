@@ -30,6 +30,7 @@
           "title": "Admin Guides",
           "slug": "/setup/admin/",
           "entries": [
+            { "title": "Troubleshooting", "slug": "/setup/admin/troubleshooting/" },
             { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
             { "title": "Daemon", "slug": "/setup/admin/daemon/" }
           ]
