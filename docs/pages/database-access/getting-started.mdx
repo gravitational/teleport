@@ -88,7 +88,7 @@ We will assume that you have configured DNS records for `teleport.example.com` a
 
 Let's generate a Teleport config with ACME enabled:
 
-```shell
+```code
 $ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com > /tmp/teleport.yaml
 ```
 
@@ -104,7 +104,7 @@ $ teleport configure --cluster-name=teleport.example.com --acme --acme-email=ali
 Now start Teleport and point it to your Aurora database instance. Make sure to
 update the database endpoint and region appropriately.
 
-```shell
+```code
 $ sudo teleport start --config=/tmp/teleport.yaml \
   --roles=proxy,auth,db \
   --db-name=aurora \
@@ -124,7 +124,7 @@ $ sudo teleport start --config=/tmp/teleport.yaml \
 Create the role that will allow a user to connect to any database using any
 database account:
 
-```sh
+```bash
 $ tctl create <<EOF
 kind: role
 version: v3
@@ -143,7 +143,7 @@ EOF
 
 Create the Teleport user assigned the `db` role we've just created:
 
-```sh
+```code
 $ tctl users add --roles=admin,db alice
 ```
 
@@ -155,23 +155,23 @@ the local user is created, we're ready to connect to the database.
 Log into Teleport with the user we've just created. Make sure to use `tsh`
 version `6.0` or newer that includes Database Access support.
 
-```shell
-tsh login --proxy=teleport.example.com:443 --user=alice
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
 ```
 
 Now we can inspect available databases and retrieve credentials for the
 configured Aurora instance:
 
-```shell
-tsh db ls
-tsh db login aurora
+```code
+$ tsh db ls
+$ tsh db login aurora
 ```
 
 Finally, connect to the database using `psql` command shown in the output of
 `tsh db login` command, which looks similar to this:
 
-```shell
-psql "service=<cluster>-aurora user=alice dbname=postgres"
+```code
+$ psql "service=<cluster>-aurora user=alice dbname=postgres"
 ```
 
 ## Next Steps
