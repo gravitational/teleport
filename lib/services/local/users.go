@@ -573,7 +573,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 
 	// Check device Name for uniqueness.
-	devs, err := s.GetMFADevices(ctx, user)
+	devs, err := s.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -612,7 +612,7 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error) {
+func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing parameter user")
 	}
@@ -627,6 +627,17 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*ty
 		var d types.MFADevice
 		if err := json.Unmarshal(item.Value, &d); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if !withSecrets {
+			// Sets device field to empty values.
+			switch d.Device.(type) {
+			case *types.MFADevice_Totp:
+				d.Device = &types.MFADevice_Totp{Totp: &types.TOTPDevice{}}
+			case *types.MFADevice_U2F:
+				d.Device = &types.MFADevice_U2F{U2F: &types.U2FDevice{}}
+			default:
+				d.Device = nil
+			}
 		}
 		devices = append(devices, &d)
 	}
