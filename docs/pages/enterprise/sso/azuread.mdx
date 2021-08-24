@@ -116,7 +116,7 @@ spec:
 
 Create the connector using `tctl` tool:
 
-```bash
+```code
 $ tctl create azure-connector.yaml
 ```
 
@@ -131,7 +131,7 @@ $ tctl create azure-connector.yaml
 
   Alternatively, you can generate your own keypair when creating a connector using `openssl`:
 
-  ```bash
+  ```code
   $ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
   ```
 </Admonition>
@@ -162,7 +162,7 @@ spec:
 
 **Notice:** Replace `ubuntu` with linux login available on your servers!
 
-```bash
+```code
 $ tctl create dev.yaml
 ```
 
@@ -181,7 +181,7 @@ auth_service:
 The Web UI will now contain a new button: "Login with Microsoft". The CLI is
 the same as before:
 
-```bash
+```code
 $ tsh --proxy=proxy.example.com login
 ```
 
@@ -213,13 +213,13 @@ AzureAD's SAML token encryption encrypts the SAML assertions sent to Teleport du
 Start with generating a public/private key and a certificate. You will setup the public
 certificate with AzureAD and the private key with Teleport.
 
-```bash
+```code
 $ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
 ```
 
 If you are modifying the existing connector, first, save it to YAML:
 
-```bash
+```code
 $ tctl get saml --with-secrets > azure-out.yaml
 ```
 
@@ -351,7 +351,7 @@ version: v2
 
 Update the connector:
 
-```bash
+```code
 $ tctl create -f azure-out.yaml 
 ```
 
@@ -388,7 +388,7 @@ Example of a user being denied due as the role `clusteradmin` wasn't setup.
 Some errors (like file-system permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
-```bash
+```code
 $ sudo journalctl -fu teleport
 ```
 
