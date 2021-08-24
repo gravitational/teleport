@@ -20,52 +20,128 @@ Teleport (=teleport.version=) on Linux machines.
 (!docs/pages/includes/permission-warning.mdx!)
 
 <Tabs>
-  <TabItem label="Amazon Linux 2/RHEL (RPM)">
+  <TabItem label="Community">
+  <Tabs>
+    <TabItem label="Amazon Linux 2/RHEL (RPM)">
+      ```code
+      $ sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+      $ sudo yum install teleport
+
+      # Optional:  Using DNF on newer distributions
+      # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+      # $ sudo dnf install teleport
+      ```
+      </TabItem>
+
+      <TabItem label="Debian/Ubuntu (DEB)">
+      ```code
+      $ curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
+      $ sudo add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
+      $ sudo apt-get update
+      $ sudo apt-get install teleport
+      ```
+      </TabItem>
+
+      <TabItem label="Linux">
+      ```code
+      $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+      $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+      $ cd teleport
+      $ sudo ./install
+      ```
+      </TabItem>
+
+      <TabItem label="ARMv7 (32-bit)">
+      ```code
+      $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+      $ tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+      $ cd teleport
+      $ sudo ./install
+      ```
+      </TabItem>
+
+      <TabItem label="ARMv8 (64-bit)">
+      ```code
+      $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+      $ tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+      $ cd teleport
+      $ sudo ./install
+      ```
+      </TabItem>
+
+    </Tabs>
+  </TabItem>
+  <TabItem label="Enterprise">
+  The Teleport Enterprise license file, `license.pem`, is required as part of the installation.
+
+  <Tabs>
+    <TabItem label="Amazon Linux 2/RHEL (RPM)">
     ```code
     $ sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    $ sudo yum install teleport
+    $ sudo yum install teleport-ent
 
     # Optional:  Using DNF on newer distributions
     # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    # $ sudo dnf install teleport
-    ```
-  </TabItem>
+    # $ sudo dnf install teleport-ent
 
-  <TabItem label="Debian/Ubuntu (DEB)">
+    # Install license file
+    $ sudo cp license.pem /var/lib/teleport
+    ```
+    </TabItem>
+
+    <TabItem label="Debian/Ubuntu (DEB)">
     ```code
     $ curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
     $ sudo add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
     $ sudo apt-get update
-    $ sudo apt-get install teleport
-    ```
-  </TabItem>
+    $ sudo apt-get install teleport-ent
 
-  <TabItem label="Linux">
-    ```code
-    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    $ cd teleport
-    $ sudo ./install
+    # Install license file
+    $ sudo cp license.pem /var/lib/teleport
     ```
-  </TabItem>
+    </TabItem>
 
-  <TabItem label="ARMv7 (32-bit)">
-    ```code
-    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-    $ tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-    $ cd teleport
-    $ sudo ./install
-    ```
-  </TabItem>
+    <TabItem label="Linux">
+      ```code
+      $ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+      $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+      $ cd teleport
+      $ sudo ./install
 
-  <TabItem label="ARMv8 (64-bit)">
-    ```code
-    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-    $ tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-    $ cd teleport
-    $ sudo ./install
-    ```
-  </TabItem>
+      # Install license file
+      $ sudo mkdir /var/lib/teleport
+      $ sudo cp license.pem /var/lib/teleport
+      ```
+    </TabItem>
+
+    <TabItem label="ARMv7 (32-bit)">
+      ```code
+      $ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-arm-bin.tar.gz
+      $ tar -xzf teleport-ent-v(=teleport.version=)-ent-linux-arm-bin.tar.gz
+      $ cd teleport
+      $ sudo ./install
+
+      # Install license file
+      $ sudo mkdir /var/lib/teleport
+      $ sudo cp license.pem /var/lib/teleport
+      ```
+    </TabItem>
+
+    <TabItem label="ARMv8 (64-bit)">
+      ```code
+      $ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-arm64-bin.tar.gz
+      $ tar -xzf teleport-ent-v(=teleport.version=)-linux-arm64-bin.tar.gz
+      $ cd teleport
+      $ sudo ./install
+
+      # Install license file
+      $ sudo mkdir /var/lib/teleport
+      $ sudo cp license.pem /var/lib/teleport
+      ```
+    </TabItem>
+  </Tabs>
+ </TabItem>
+
 </Tabs>
 
 Take a look at the [Installation Guide](../installation.mdx) for more options.
@@ -147,6 +223,9 @@ Here's a selection of compatible two-factor authentication apps:
 ### Install a Teleport client locally
 
 <Tabs>
+  <TabItem label="Community">
+
+<Tabs>
   <TabItem label="Mac">
     [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=mac) (`tsh` client only, signed) file, double-click to run the installer.
   </TabItem>
@@ -182,11 +261,54 @@ Here's a selection of compatible two-factor authentication apps:
     $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     $ cd teleport
     $ sudo ./install
-    # Teleport binaries have been copied to /usr/local/bin
-    # To configure the systemd service for Teleport take a look at examples/systemd/README.mdx
     ```
   </TabItem>
 </Tabs>
+  </TabItem>
+  <TabItem label="Enterprise">
+  <Tabs>
+    <TabItem label="Mac">
+      [Download Enterprise MacOS .pkg installer](https://get.gravitational.com/teleport-ent-(=teleport.version=).pkg), double-click to run the installer.
+    </TabItem>
+
+    <TabItem label="Mac - Homebrew">
+      ```code
+      $ brew install teleport
+      ```
+
+      <Admonition type="note">
+        The Teleport package in Homebrew is not maintained by Teleport and we can't
+        guarantee its reliability or security. We recommend the use of our [own Teleport Enterprise packages](https://get.gravitational.com/teleport-ent-(=teleport.version=).pkg).
+
+        If you choose to use Homebrew, you must verify that the versions of `tsh` and
+        `tctl` are compatible with the versions you run server-side. Homebrew usually
+        ships the latest release of Teleport, which may be incompatible with older
+        versions. See our [compatibility policy](../admin-guide.mdx#component-compatibility) for details.
+      </Admonition>
+    </TabItem>
+
+    <TabItem label="Windows - Powershell">
+      ```code
+      $ curl -O teleport-ent-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-ent-v(=teleport.version=)-windows-amd64-bin.zip
+      # Unzip the archive and move `tsh.exe` to your %PATH%
+      ```
+    </TabItem>
+
+    <TabItem label="Linux">
+      For more options (including RPM/DEB packages and downloads for i386/ARM/ARM64) please see our [installation page](../installation.mdx).
+
+      ```code
+      $ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+      $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+      $ cd teleport
+      $ sudo ./install
+
+      ```
+    </TabItem>
+  </Tabs>
+ </TabItem>
+ </Tabs>
+
 
 ## Step 3/4. Log in using tsh
 
@@ -299,7 +421,7 @@ Add a new application:
     $ sudo teleport start \
     --roles=app \
     --token=${TOKEN?} \
-    --auth-server=teleport.example.com:3080 \
+    --auth-server=teleport.example.com:443 \
     --app-name=example-app  \ # Change "example-app" to the name of your application.
     --app-uri=http://localhost:8080  # Change "http://localhost:8080" to the address of your application.
     ```
