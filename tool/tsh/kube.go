@@ -24,6 +24,8 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -208,6 +210,9 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 }
 
 func (c *kubeLoginCommand) run(cf *CLIConf) error {
+	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
+	cf.KubernetesCluster = c.kubeCluster
+
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -238,6 +243,18 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		if err := kubeconfig.SelectContext(currentTeleportCluster, c.kubeCluster); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	// Generate a profile specific kubeconfig which can be used
+	// by setting the kubeconfig environment variable (with `tsh env`)
+	profileKubeconfigPath := keypaths.KubeConfigPath(
+		profile.FullProfilePath(""), tc.WebProxyHost(), tc.Username, currentTeleportCluster, c.kubeCluster,
+	)
+	if err := kubeconfig.UpdateWithClient(cf.Context, profileKubeconfigPath, tc, cf.executablePath); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := kubeconfig.SelectContext(currentTeleportCluster, c.kubeCluster); err != nil {
+		return trace.Wrap(err)
 	}
 
 	fmt.Printf("Logged into kubernetes cluster %q\n", c.kubeCluster)

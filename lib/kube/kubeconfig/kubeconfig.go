@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -69,12 +70,27 @@ type ExecValues struct {
 func UpdateWithClient(ctx context.Context, path string, tc *client.TeleportClient, tshBinary string) error {
 	var v Values
 
+	if path == "" {
+		path = PathFromEnv()
+	}
+
+	// If this is a profile specific kubeconfig, we only need
+	// to put the selected kube cluster into the kubeconfig.
+	isProfileKubeConfig, err := keypaths.IsProfileKubeConfigPath(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if isProfileKubeConfig && !strings.Contains(path, tc.KubernetesCluster) {
+		return trace.BadParameter("profile specific kubeconfig is in use, run 'eval $(tsh env --unset)' to switch contexts to another kube cluster")
+	}
+
 	v.ClusterAddr = tc.KubeClusterAddr()
 	v.TeleportClusterName, _ = tc.KubeProxyHostPort()
 	if tc.SiteName != "" {
 		v.TeleportClusterName = tc.SiteName
 	}
-	var err error
+
 	v.Credentials, err = tc.LocalAgent().GetCoreKey()
 	if err != nil {
 		return trace.Wrap(err)
@@ -107,10 +123,16 @@ func UpdateWithClient(ctx context.Context, path string, tc *client.TeleportClien
 			return trace.Wrap(err)
 		}
 		defer ac.Close()
-		v.Exec.KubeClusters, err = kubeutils.KubeClusterNames(ctx, ac)
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+
+		if isProfileKubeConfig {
+			v.Exec.KubeClusters = []string{tc.KubernetesCluster}
+		} else {
+			v.Exec.KubeClusters, err = kubeutils.KubeClusterNames(ctx, ac)
+			if err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
 		}
+
 		// Use the same defaulting as the auth server.
 		v.Exec.SelectCluster, err = kubeutils.CheckOrSetKubeCluster(ctx, ac, tc.KubernetesCluster, v.TeleportClusterName)
 		if err != nil && !trace.IsNotFound(err) {
@@ -287,7 +309,7 @@ func Save(path string, config clientcmdapi.Config) error {
 // missing.
 func finalPath(customPath string) (string, error) {
 	if customPath == "" {
-		customPath = pathFromEnv()
+		customPath = PathFromEnv()
 	}
 	finalPath, err := utils.EnsureLocalPath(customPath, teleport.KubeConfigDir, teleport.KubeConfigFile)
 	if err != nil {
@@ -296,8 +318,8 @@ func finalPath(customPath string) (string, error) {
 	return finalPath, nil
 }
 
-// pathFromEnv extracts location of kubeconfig from the environment.
-func pathFromEnv() string {
+// PathFromEnv extracts location of kubeconfig from the environment.
+func PathFromEnv() string {
 	kubeconfig := os.Getenv(teleport.EnvKubeConfig)
 
 	// The KUBECONFIG environment variable is a list. On Windows it's

@@ -2139,9 +2139,14 @@ func onEnvironment(cf *CLIConf) error {
 	case cf.unsetEnvironment:
 		fmt.Printf("unset %v\n", proxyEnvVar)
 		fmt.Printf("unset %v\n", clusterEnvVar)
+		fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
 	case !cf.unsetEnvironment:
 		fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
 		fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
+		if kubeName := selectedKubeCluster(profile.Cluster); kubeName != "" {
+			fmt.Printf("# set %v to a standalone kubeconfig for the selected kube cluster\n", teleport.EnvKubeConfig)
+			fmt.Printf("export %v=%v\n", teleport.EnvKubeConfig, profile.KubeConfigPath(kubeName))
+		}
 	}
 
 	return nil
