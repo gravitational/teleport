@@ -17,44 +17,29 @@ limitations under the License.
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { sortBy } from 'lodash';
-import { ButtonBorder } from 'design';
 import {
   Column,
   SortHeaderCell,
-  Cell,
-  renderLabelCell,
   TextCell,
+  Cell,
   SortTypes,
 } from 'design/DataTable';
 import Table from 'design/DataTable/Paged';
 import isMatch from 'design/utils/match';
 import { AuthType } from 'teleport/services/user';
-import { Database, DbProtocol } from 'teleport/services/databases';
-import ConnectDialog from 'teleport/Databases/ConnectDialog';
+import { Desktop } from 'teleport/services/desktops';
 
 function DesktopList(props: Props) {
-  const {
-    databases = [],
-    pageSize = 100,
-    username,
-    clusterId,
-    authType,
-    searchValue,
-  } = props;
+  const { desktops = [], pageSize = 100, searchValue } = props;
 
   const [sortDir, setSortDir] = useState<Record<string, string>>({
     name: SortTypes.DESC,
   });
 
-  const [dbConnectInfo, setDbConnectInfo] = useState<{
-    name: string;
-    protocol: DbProtocol;
-  }>(null);
-
   function sortAndFilter(search) {
-    const filtered = databases.filter(obj =>
+    const filtered = desktops.filter(obj =>
       isMatch(obj, search, {
-        searchableProps: ['name', 'desc', 'title', 'tags'],
+        searchableProps: ['os', 'addr'],
         cb: searchAndFilterCb,
       })
     );
@@ -75,84 +60,39 @@ function DesktopList(props: Props) {
   const data = sortAndFilter(searchValue);
 
   return (
-    <>
-      <StyledTable pageSize={pageSize} data={data}>
-        <Column
-          columnKey="name"
-          header={
-            <SortHeaderCell
-              sortDir={sortDir.name}
-              onSortChange={onSortChange}
-              title="Name"
-            />
-          }
-          cell={<TextCell />}
-        />
-        <Column
-          columnKey="desc"
-          header={
-            <SortHeaderCell
-              sortDir={sortDir.desc}
-              onSortChange={onSortChange}
-              title="Description"
-            />
-          }
-          cell={<TextCell />}
-        />
-        <Column
-          columnKey="title"
-          header={
-            <SortHeaderCell
-              sortDir={sortDir.title}
-              onSortChange={onSortChange}
-              title="Type"
-            />
-          }
-          cell={<TextCell />}
-        />
-        <Column header={<Cell>Labels</Cell>} cell={<LabelCell />} />
-        <Column
-          header={<Cell />}
-          cell={<ConnectButton setDbConnectInfo={setDbConnectInfo} />}
-        />
-      </StyledTable>
-      {dbConnectInfo && (
-        <ConnectDialog
-          username={username}
-          clusterId={clusterId}
-          dbName={dbConnectInfo.name}
-          dbProtocol={dbConnectInfo.protocol}
-          onClose={() => setDbConnectInfo(null)}
-          authType={authType}
-        />
-      )}
-    </>
+    <StyledTable pageSize={pageSize} data={data}>
+      <Column
+        columnKey="addr"
+        header={
+          <SortHeaderCell
+            sortDir={sortDir.name}
+            onSortChange={onSortChange}
+            title="Domain"
+          />
+        }
+        cell={<TextCell />}
+      />
+      <Column
+        columnKey="os"
+        header={
+          <SortHeaderCell
+            sortDir={sortDir.desc}
+            onSortChange={onSortChange}
+            title="Operating System"
+          />
+        }
+        cell={<OSCell />}
+      />
+    </StyledTable>
   );
 }
 
-function LabelCell(props) {
-  const { rowIndex, data } = props;
-  const { tags = [] } = data[rowIndex];
-  return renderLabelCell(tags);
-}
-
-function ConnectButton(props) {
-  const { setDbConnectInfo, rowIndex, data } = props;
-  const { name, protocol } = data[rowIndex];
-
-  return (
-    <Cell align="right">
-      <ButtonBorder
-        size="small"
-        onClick={() => {
-          setDbConnectInfo({ name, protocol });
-        }}
-      >
-        Connect
-      </ButtonBorder>
-    </Cell>
-  );
-}
+const OSCell = props => {
+  const { rowIndex, data, columnKey, ...rest } = props;
+  var osText =
+    data[rowIndex][columnKey] === 'windows' ? 'Windows' : 'Unknown OS';
+  return <Cell {...rest}>{osText}</Cell>;
+};
 
 const StyledTable = styled(Table)`
   & > tbody > tr > td {
@@ -160,6 +100,7 @@ const StyledTable = styled(Table)`
   }
 `;
 
+// TODO
 function searchAndFilterCb(
   targetValue: any[],
   searchValue: string,
@@ -173,7 +114,7 @@ function searchAndFilterCb(
 }
 
 type Props = {
-  databases: Database[];
+  desktops: Desktop[];
   pageSize?: number;
   username: string;
   clusterId: string;

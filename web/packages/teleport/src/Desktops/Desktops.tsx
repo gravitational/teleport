@@ -26,8 +26,6 @@ import {
 import InputSearch from 'teleport/components/InputSearch';
 import DesktopList from './DesktopList';
 import useDesktops, { State } from './useDesktops';
-import ButtonAdd from './ButtonAdd';
-import AddDialog from './AddDatabase';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -37,33 +35,19 @@ export default function Container() {
 
 export function Desktops(props: State) {
   const {
-    databases,
     attempt,
-    isLeafCluster,
-    canCreate,
-    showAddDialog,
-    hideAddDialog,
-    isAddDialogVisible,
     username,
-    version,
     clusterId,
     authType,
     searchValue,
     setSearchValue,
+    desktops,
   } = props;
-
-  const isEmpty = attempt.status === 'success' && databases.length === 0;
-  const hasDatabases = attempt.status === 'success' && databases.length > 0;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Desktops</FeatureHeaderTitle>
-        <ButtonAdd
-          isLeafCluster={isLeafCluster}
-          canCreate={canCreate}
-          onClick={showAddDialog}
-        />
       </FeatureHeader>
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -71,34 +55,23 @@ export function Desktops(props: State) {
         </Box>
       )}
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-      {hasDatabases && (
-        <>
-          <Flex
-            mb={4}
-            alignItems="center"
-            flex="0 0 auto"
-            justifyContent="space-between"
-          >
-            <InputSearch mr={3} value={searchValue} onChange={setSearchValue} />
-          </Flex>
-          <DesktopList
-            databases={databases}
-            username={username}
-            clusterId={clusterId}
-            authType={authType}
-            searchValue={searchValue}
-          />
-        </>
-      )}
-      {isAddDialogVisible && (
-        <AddDialog
+      <>
+        <Flex
+          mb={4}
+          alignItems="center"
+          flex="0 0 auto"
+          justifyContent="space-between"
+        >
+          <InputSearch mr={3} value={searchValue} onChange={setSearchValue} />
+        </Flex>
+        <DesktopList
+          desktops={desktops}
           username={username}
-          version={version}
+          clusterId={clusterId}
           authType={authType}
-          onClose={hideAddDialog}
+          searchValue={searchValue}
         />
-      )}
+      </>
     </FeatureBox>
   );
 }
-

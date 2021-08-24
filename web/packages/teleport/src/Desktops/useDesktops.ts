@@ -19,6 +19,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Database } from 'teleport/services/databases';
+import { Desktop } from 'teleport/services/desktops';
 
 export default function useDesktops(ctx: Ctx) {
   const { attempt, run, setAttempt } = useAttempt('processing');
@@ -33,13 +34,11 @@ export default function useDesktops(ctx: Ctx) {
   const [isAddDialogVisible, setIsAddDialogVisible] = useState(false);
   const [searchValue, setSearchValue] = useState<string>('');
 
+  const [desktops, setDesktops] = useState<Desktop[]>([]);
+
   useEffect(() => {
     run(() => ctx.databaseService.fetchDatabases(clusterId).then(setDatabases));
-    run(() =>
-      ctx.desktopService.fetchDesktops(clusterId).then(desktops => {
-        console.log(desktops);
-      })
-    );
+    run(() => ctx.desktopService.fetchDesktops(clusterId).then(setDesktops));
   }, [clusterId]);
 
   const fetchDatabases = () => {
@@ -61,6 +60,7 @@ export default function useDesktops(ctx: Ctx) {
   };
 
   return {
+    desktops,
     databases,
     attempt,
     canCreate,
