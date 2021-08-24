@@ -601,7 +601,7 @@ func TestEnvFlags(t *testing.T) {
 
 	testEnvFlag := func(tc testCase) func(t *testing.T) {
 		return func(t *testing.T) {
-			readEnvFlags(&tc.inCLIConf, func(envName string) string {
+			setEnvFlags(&tc.inCLIConf, func(envName string) string {
 				return tc.envMap[envName]
 			})
 			require.Equal(t, tc.outCLIConf, tc.inCLIConf)
@@ -610,14 +610,19 @@ func TestEnvFlags(t *testing.T) {
 
 	t.Run("cluster env", func(t *testing.T) {
 		t.Run("nothing set", testEnvFlag(testCase{
-			inCLIConf: CLIConf{},
-			envMap:    map[string]string{},
 			outCLIConf: CLIConf{
 				SiteName: "",
 			},
 		}))
+		t.Run("CLI flag is set", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				SiteName: "a.example.com",
+			},
+			outCLIConf: CLIConf{
+				SiteName: "a.example.com",
+			},
+		}))
 		t.Run("TELEPORT_SITE set", testEnvFlag(testCase{
-			inCLIConf: CLIConf{},
 			envMap: map[string]string{
 				siteEnvVar: "a.example.com",
 			},
@@ -626,7 +631,6 @@ func TestEnvFlags(t *testing.T) {
 			},
 		}))
 		t.Run("TELEPORT_CLUSTER set", testEnvFlag(testCase{
-			inCLIConf: CLIConf{},
 			envMap: map[string]string{
 				clusterEnvVar: "b.example.com",
 			},
@@ -635,7 +639,6 @@ func TestEnvFlags(t *testing.T) {
 			},
 		}))
 		t.Run("TELEPORT_SITE and TELEPORT_CLUSTER set, prefer TELEPORT_CLUSTER", testEnvFlag(testCase{
-			inCLIConf: CLIConf{},
 			envMap: map[string]string{
 				clusterEnvVar: "d.example.com",
 				siteEnvVar:    "c.example.com",
@@ -660,14 +663,19 @@ func TestEnvFlags(t *testing.T) {
 
 	t.Run("kube cluster env", func(t *testing.T) {
 		t.Run("nothing set", testEnvFlag(testCase{
-			inCLIConf: CLIConf{},
-			envMap:    map[string]string{},
 			outCLIConf: CLIConf{
 				KubernetesCluster: "",
 			},
 		}))
+		t.Run("CLI flag is set", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				KubernetesCluster: "a.example.com",
+			},
+			outCLIConf: CLIConf{
+				KubernetesCluster: "a.example.com",
+			},
+		}))
 		t.Run("TELEPORT_KUBE_CLUSTER set", testEnvFlag(testCase{
-			inCLIConf: CLIConf{},
 			envMap: map[string]string{
 				kubeClusterEnvVar: "a.example.com",
 			},
@@ -690,12 +698,28 @@ func TestEnvFlags(t *testing.T) {
 
 	t.Run("teleport home env", func(t *testing.T) {
 		t.Run("nothing set", testEnvFlag(testCase{
-			inCLIConf:  CLIConf{},
-			envMap:     map[string]string{},
 			outCLIConf: CLIConf{},
 		}))
+		t.Run("CLI flag is set", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				HomePath: "teleport-data",
+			},
+			outCLIConf: CLIConf{
+				HomePath: "teleport-data",
+			},
+		}))
 		t.Run("TELEPORT_HOME set", testEnvFlag(testCase{
-			inCLIConf: CLIConf{},
+			envMap: map[string]string{
+				homeEnvVar: "teleport-data/",
+			},
+			outCLIConf: CLIConf{
+				HomePath: "teleport-data",
+			},
+		}))
+		t.Run("TELEPORT_HOME and CLI flag is set, prefer env", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				HomePath: "teleport-data",
+			},
 			envMap: map[string]string{
 				homeEnvVar: "teleport-data/",
 			},
