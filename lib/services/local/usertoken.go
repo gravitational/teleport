@@ -90,7 +90,7 @@ func (s *IdentityService) GetUserToken(ctx context.Context, tokenID string) (typ
 	// Handle errors from either Get.
 	switch {
 	case trace.IsNotFound(err):
-		return nil, trace.NotFound("user token(%v) not found", backend.MaskKeyName(tokenID))
+		return nil, trace.NotFound("user token(%s) not found", backend.MaskKeyName(tokenID))
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}
@@ -139,7 +139,7 @@ func (s *IdentityService) GetUserTokenSecrets(ctx context.Context, tokenID strin
 	// Handle errors from either Get.
 	switch {
 	case trace.IsNotFound(err):
-		return nil, trace.NotFound("user token(%v) secrets not found", backend.MaskKeyName(tokenID))
+		return nil, trace.NotFound("user token(%s) secrets not found", backend.MaskKeyName(tokenID))
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}

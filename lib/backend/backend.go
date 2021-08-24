@@ -246,10 +246,13 @@ func NextPaginationKey(r types.Resource) string {
 
 // MaskKeyName masks the given key name.
 // e.g "123456789" -> "******789"
-func MaskKeyName(keyName string) string {
+func MaskKeyName(keyName string) []byte {
+	maskedBytes := []byte(keyName)
 	hiddenBefore := int(0.75 * float64(len(keyName)))
-	asterisks := bytes.Repeat([]byte("*"), hiddenBefore)
-	return string(append(asterisks, keyName[hiddenBefore:]...))
+	for i := 0; i < hiddenBefore; i++ {
+		maskedBytes[i] = '*'
+	}
+	return maskedBytes
 }
 
 // Items is a sortable list of backend items

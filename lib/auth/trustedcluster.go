@@ -263,7 +263,7 @@ func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.Ce
 	}
 
 	// log the local certificate authorities that we are sending
-	log.Debugf("Sending validate request; token=%v, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
+	log.Debugf("Sending validate request; token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
 
 	// send the request to the remote auth server via the proxy
 	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
@@ -451,7 +451,7 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 		}
 	}()
 
-	log.Debugf("Received validate request: token=%v, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
+	log.Debugf("Received validate request: token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
 
 	domainName, err := a.GetDomainName()
 	if err != nil {

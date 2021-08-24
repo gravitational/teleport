@@ -299,7 +299,7 @@ func buildKeyLabel(key string, sensitivePrefixes []string) string {
 
 	// If the key matches "/sensitiveprefix/keyname", mask the key.
 	if len(parts) == 3 && len(parts[0]) == 0 && apiutils.SliceContainsStr(sensitivePrefixes, parts[1]) {
-		parts[2] = MaskKeyName(parts[2])
+		parts[2] = string(MaskKeyName(parts[2]))
 	}
 
 	return strings.Join(parts, string(Separator))

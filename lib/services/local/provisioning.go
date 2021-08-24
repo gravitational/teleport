@@ -76,7 +76,7 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types
 	}
 	item, err := s.Get(ctx, backend.Key(tokensPrefix, token))
 	if trace.IsNotFound(err) {
-		return nil, trace.NotFound("provisioning token(%v) not found", backend.MaskKeyName(token))
+		return nil, trace.NotFound("provisioning token(%s) not found", backend.MaskKeyName(token))
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -91,7 +91,7 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 	}
 	err := s.Delete(ctx, backend.Key(tokensPrefix, token))
 	if trace.IsNotFound(err) {
-		return trace.NotFound("provisioning token(%v) not found", backend.MaskKeyName(token))
+		return trace.NotFound("provisioning token(%s) not found", backend.MaskKeyName(token))
 	}
 	return trace.Wrap(err)
 }
