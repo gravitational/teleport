@@ -184,7 +184,7 @@ spec:
     impersonate:
       users: ['*']
       roles: ['*']
-      where: |
+      where: >
         equals(impersonate_role.metadata.labels["group"], "security") && 
         equals(impersonate_user.metadata.labels["group"], "security")
 
@@ -260,7 +260,7 @@ spec:
     impersonate:
       users: ['*']
       roles: ['*']
-      where: |
+      where: >
         contains(user.spec.traits["group"], impersonate_role.metadata.labels["group"]) && 
         contains(user.spec.traits["group"], impersonate_user.metadata.labels["group"])
 
