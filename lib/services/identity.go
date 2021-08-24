@@ -26,6 +26,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
@@ -119,6 +120,20 @@ type Identity interface {
 
 	// GetU2FSignChallenge returns a U2F sign (auth) challenge
 	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
+
+	// UpsertWebauthnSessionData creates or updates WebAuthn session data in
+	// storage, for the purpose of later verifying an authentication or
+	// registration challenge.
+	// Session data is expected to expire according to backend settings.
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
+
+	// GetWebauthnSessionData retrieves a previously-stored session data by ID,
+	// if it exists and has not expired.
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
+
+	// DeleteWebauthnSessionData deletes session data by ID, if it exists and has
+	// not expired.
+	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 
 	// UpsertMFADevice upserts an MFA device for the user.
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
