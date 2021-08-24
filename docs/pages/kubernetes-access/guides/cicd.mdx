@@ -40,15 +40,15 @@ spec:
 
 Generate a `kubeconfig` using the `jenkins` user and its roles using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign):
 
-```bash
+```code
 # Create a new local user for Jenkins
-tctl users add jenkins --roles=robot
+$ tctl users add jenkins --roles=robot
 # Creates a token for 25hrs
-tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=25h
+$ tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=25h
 
 #  The credentials have been written to kubeconfig
 
-cat kubeconfig
+$ cat kubeconfig
 #   apiVersion: v1
 #   clusters:
 #   - cluster:
@@ -56,7 +56,7 @@ cat kubeconfig
 # This kubeconfig can now be exported and will provide access to the automation tooling.
 
 # Uses kubectl to get pods, using the provided kubeconfig.
-kubectl --kubeconfig /path/to/kubeconfig get pods
+$ kubectl --kubeconfig /path/to/kubeconfig get pods
 ```
 
 <Admonition
