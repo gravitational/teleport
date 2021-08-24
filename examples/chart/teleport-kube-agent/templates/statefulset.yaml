@@ -139,7 +139,9 @@ spec:
       name: "{{ .Release.Name }}-teleport-data"
     spec:
       accessModes: [ "ReadWriteOnce" ]
+      {{- if .Values.storage.storageClassName }}
       storageClassName: {{ .Values.storage.storageClassName }}
+      {{- end}}
       resources:
         requests:
           storage: {{ .Values.storage.requests }}

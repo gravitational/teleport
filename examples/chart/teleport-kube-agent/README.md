@@ -14,10 +14,9 @@ To use it, you will need:
 - either a static or dynamic join token for the Teleport Cluster
   - a [static join token](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster)
     for this Teleport cluster (`$JOIN_TOKEN`) is used by default.
-  - optionally a [dynamic join token](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster) can
-    be used on Kubernetes clusters that support persistent volumes. Set `storage.enabled=true` and 
-    `storage.storageClassName=<storage class configured in kubernetes>` in the helm configuration to use persistent 
-    volumes.
+  - a [dynamic join token](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster) can
+    be used on Kubernetes clusters that support persistent volumes.
+- A working kubernetes storageclass to persist the uuid and state of the teleport agent. You can optionally disable this for ephemeral use cases where persistence isn't necessary or for kubernetes clusters without persistent storage. Set `storage.storageClassName=<storage class configured in kubernetes>` to use a non-default storageclass in your cluster. Set `storage.enabled=false` in the helm configuration to disable persistent storage altogether.
 
 
 ## Combining roles
