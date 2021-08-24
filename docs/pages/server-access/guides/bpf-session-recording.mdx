@@ -34,9 +34,9 @@ Teleport 7.0+ with Enhanced Session Recording requires Linux kernel 5.8 (or abov
 You can check your kernel version using the `uname` command. The output should look
 something like the following.
 
-```bash
+```code
 $ uname -r
-5.8.17
+# 5.8.17
 ```
 
 ### Linux distributions and supported kernels
@@ -120,25 +120,25 @@ ssh_service:
 
 The resulting enhanced session recording will be shown in [Teleport's Audit Log](../../architecture/authentication.mdx#audit-log).
 
-```bash
+```code
 $ teleport-auth ~:  tree /var/lib/teleport/log
-/var/lib/teleport/log
-├── 1048a649-8f3f-4431-9529-0c53339b65a5
-│   ├── 2020-01-13.00:00:00.log
-│   └── sessions
-│       └── default
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.chunks.gz
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.events.gz
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.command-events.gz
-│           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.network-events.gz
-│           └── fad07202-35bb-11ea-83aa-125400432324.index
-├── events.log -> /var/lib/teleport/log/1048a649-8f3f-4431-9529-0c53339b65a5/2020-01-13.00:00:00.log
-├── playbacks
-│   └── sessions
-│       └── default
-└── upload
-    └── sessions
-        └── default
+# /var/lib/teleport/log
+# ├── 1048a649-8f3f-4431-9529-0c53339b65a5
+# │   ├── 2020-01-13.00:00:00.log
+# │   └── sessions
+# │       └── default
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.chunks.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.events.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.command-events.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.network-events.gz
+# │           └── fad07202-35bb-11ea-83aa-125400432324.index
+# ├── events.log -> /var/lib/teleport/log/1048a649-8f3f-4431-9529-0c53339b65a5/2020-01-13.00:00:00.log
+# ├── playbacks
+# │   └── sessions
+# │       └── default
+# └── upload
+#    └── sessions
+#        └── default
 ```
 
 To quickly check the status of the audit log, you can simply tail the logs with

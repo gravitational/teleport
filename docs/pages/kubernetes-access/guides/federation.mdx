@@ -26,15 +26,15 @@ For example, consider the following setup:
 
 In this scenario, users usually log in using this command:
 
-```bash
+```code
 # Using login without arguments
-tsh --proxy=main.example.com login
+$ tsh --proxy=main.example.com login
 
 # User's `kubeconfig` now contains one entry for the main Kubernetes
 # endpoint, i.e. `main.example.com`.
 
 # Receive a certificate for "east":
-tsh --proxy=main.example.com login east
+$ tsh --proxy=main.example.com login east
 
 # User's `kubeconfig` now contains the entry for the "east" Kubernetes
 # endpoint, i.e. `east.main.example.com`.
