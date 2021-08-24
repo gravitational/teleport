@@ -292,7 +292,7 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 func buildKeyLabel(key string, sensitivePrefixes []string) string {
 	parts := strings.Split(key, string(Separator))
 	if len(parts) > 3 {
-		// Cut the key down to 3 parts. otherwise too many
+		// Cut the key down to 3 parts, otherwise too many
 		// distinct requests can end up in the key label map.
 		parts = parts[:3]
 	}
