@@ -1113,7 +1113,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 
 	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
-	mfaID := uuid.New()
+	mfaID := "test-mfa-id"
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
@@ -1126,34 +1126,16 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	_, err = p.a.generateUserCert(certReq)
 	require.NoError(t, err)
 
-	type testCase struct {
-		desc   string
-		target types.LockTarget
-	}
-
-	testCases := []testCase{
-		{
-			desc:   "User by name",
-			target: types.LockTarget{User: user.GetName()},
-		}, {
-			desc:   "MFA device",
-			target: types.LockTarget{MFADevice: mfaID},
-		},
-	}
-
-	for _, roleTarget := range services.RolesToLockTargets(user.GetRoles()) {
-		testCases = append(testCases, testCase{
-			desc:   fmt.Sprintf("Role %q", roleTarget.Role),
-			target: roleTarget,
-		})
-	}
-
-	for _, test := range testCases {
-		t.Run(test.desc, func(t *testing.T) {
-			lockWatch, err := p.a.lockWatcher.Subscribe(ctx, test.target)
+	testTargets := append(
+		[]types.LockTarget{{User: user.GetName()}, {MFADevice: mfaID}},
+		services.RolesToLockTargets(user.GetRoles())...,
+	)
+	for _, target := range testTargets {
+		t.Run(fmt.Sprintf("lock targeting %v", target), func(t *testing.T) {
+			lockWatch, err := p.a.lockWatcher.Subscribe(ctx, target)
 			require.NoError(t, err)
 			defer lockWatch.Close()
-			lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: test.target})
+			lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: target})
 			require.NoError(t, err)
 
 			require.NoError(t, p.a.UpsertLock(ctx, lock))
