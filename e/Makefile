@@ -124,7 +124,9 @@ teleport-fips-check:
 	@if [ "$(FIPS)" != "" ]; then \
 		echo "FIPS mode requested, pre-compiling and checking binary for BoringCrypto symbols."; \
 		GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport-unstripped -ldflags "" ./tool/teleport; \
-		if ! go tool nm $(BUILDDIR)/teleport-unstripped 2>&1 | grep -q boringcrypto; then \
+		if go tool nm $(BUILDDIR)/teleport-unstripped 2>&1 | grep boringcrypto; then \
+			echo "BoringCrypto appears enabled."; \
+		else \
 			echo "-- FIPS mode was requested, but the compiled teleport binary does not contain any BoringCrypto symbols. This is an error!"; \
 			echo "-- BoringCrypto is currently only supported for linux/amd64 as per https://go.googlesource.com/go/+/dev.boringcrypto/misc/boring#caveat"; \
 			exit 1; \
