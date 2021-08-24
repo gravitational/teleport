@@ -28,21 +28,31 @@ exit, potentially forking replacement depending on signal.
 
 ## Reverse Tunnel
 
-A node can be configured to use a tunnel, where a node will initiate a 
-connection with a proxy that the proxy will route commands over. 
+The "normal" mode of operation for a node is to
+ 1. Connect to the cluster auth server directly, and
+ 2. Proxies make direct connections to the node as and when they're
+    needed to provide user sessions.
 
+In some cases (e.g. the node being on the wrong side of a NAT boundary)
+the node will have to use a "reverse tunnel" connection instead. This 
+means that the node will
+ 1. Connect to a proxy using SSH, and the proxy will forward requests 
+    on to the auth server, and
+ 2. User sessions are multiplexed over this tunnel, rather than being 
+    independent TCP connections.
 ## An SSH Node Lifecycle
 
 `initSSH()`: 
 
-RegisterWithAuthServer() starts the `register.node` critical service.
- Asynchronously:
- - (re)connects to auth server & creates `auth.Client`
- - registers a process-exit handler that closes the client gracefully
- - Broadcasts the `SSHIdentity` event, with the new client in the payload
+Calls RegisterWithAuthServer(). This registers the `register.node` critical 
+service that will:
+ - (re)connect to auth server & creates `auth.Client`
+ - register a process-exit handler that closes the client gracefully
+ - Broadcast the `SSHIdentity` event once the connection is established, 
+   with the new client in the payload
 
 Calls `WaitForEvent` to act as a message pump that will route the payload 
-from a `SSHIdentity` event in the broadcast system into a locally-created 
+from a `SSHIdentity` event in the event broadcast system into a locally-created 
 channel.
 
 Registers the `ssh.node` service with the supervisor:
@@ -133,7 +143,7 @@ proxies find each other.
 Imagine the following cluster:
  * 3 Internet-facing proxies (`Huey`, `Dewey` and `Louie`) behind a load balancer.
  * A single auth server (`auth`)
- * An SSH node (`ssh`) that connects to `auth` server via a tunnel
+ * An SSH node (`node`) that connects to `auth` server via a tunnel
  
 Say that node `ssh` starts up and tries to connect to the cluster. It's initial attempts to find 
 the tunnel addresses are routed to `Dewey` by the load balancer. `Dewey` responds with a tunnel 
@@ -158,7 +168,7 @@ address, and after the requisite amount of handshaking, `ssh` has connection to 
 ```
 
 So far, so good. Except that if a client tries to connect to `node`
-via `Huey`, the connection will fail, because `Huey` has know knowledge 
+via `Huey`, the connection will fail, because `Huey` has no knowledge 
 of `node`'s existence. In order to get around this problem, `auth` will
 issue a discovery message to `node`, telling it about the other proxies 
 in the cluster.
@@ -189,8 +199,8 @@ connections via each proxy in the cluster until they all know that
 
 The `AgentPool` exists to manage the node-side execution of the discovery protocol. 
 Discovery is initiated by the auth server, which sends a discovery message to an 
-`Agent` once the `Agent` has established a tunnel. This discovery message contains 
-a list of all known proxies in the cluster.
+`Agent` once the `Agent` has established a tunnel (and intermittently thereafter). 
+This discovery message contains a list of all known proxies in the cluster.
 
 Once a new proxy is discovered, the `AgentPool` spawns a new agent to create and 
 manage a new tunnel to the auth server via the new proxy. The Agent handles things 
