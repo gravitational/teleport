@@ -85,6 +85,7 @@ export const ChevronCircleUp = makeFontIcon(
   'ChevronCircleUp',
   'icon-chevron-up-circle'
 );
+export const Circle = makeFontIcon('Circle', 'icon-circle')
 export const CircleArrowLeft = makeFontIcon(
   'CircleArrowLeft',
   'icon-arrow-left-circle'
@@ -126,6 +127,7 @@ export const CreditCardAlt2 = makeFontIcon(
 );
 export const Cross = makeFontIcon('Cross', 'icon-cross');
 export const Database = makeFontIcon('Database', 'icon-database');
+export const Desktop = makeFontIcon('Desktop', 'icon-desktop');
 export const Discover = makeFontIcon('Discover', 'icon-cc-discover');
 export const Download = makeFontIcon('Download', 'icon-get_app');
 export const Earth = makeFontIcon('Earth', 'icon-earth');

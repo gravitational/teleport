@@ -31,7 +31,7 @@ import Roles from './Roles';
 import Recordings from './Recordings';
 import AuthConnectors from './AuthConnectors';
 import Databases from './Databases';
-import Desktops from './Desktops'
+import Desktops from './Desktops';
 
 export class FeatureClusters {
   getTopNavTitle() {
@@ -459,7 +459,7 @@ export class FeatureDesktops {
 
     ctx.storeNav.addSideItem({
       title: 'Desktops',
-      Icon: Icons.Database, // TODO
+      Icon: Icons.Desktop,
       exact: true,
       getLink(clusterId: string) {
         return cfg.getDesktopsRoute(clusterId);

@@ -28,6 +28,7 @@ import Table from 'design/DataTable/Paged';
 import isMatch from 'design/utils/match';
 import { AuthType } from 'teleport/services/user';
 import { Desktop } from 'teleport/services/desktops';
+import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
 
 function DesktopList(props: Props) {
   const { desktops = [], pageSize = 100, searchValue } = props;
@@ -83,9 +84,52 @@ function DesktopList(props: Props) {
         }
         cell={<OSCell />}
       />
+      <Column
+        header={<Cell />}
+        cell={<LoginCell onOpen={() => []} onSelect={() => {}} />}
+      />
     </StyledTable>
   );
 }
+
+// TODO: may be able to be abstracted out from here/NodeList.tsx
+const LoginCell: React.FC<Required<{
+  onSelect?: (e: React.SyntheticEvent, login: string, serverId: string) => void;
+  onOpen: (serverUuid: string) => LoginItem[];
+  [key: string]: any;
+}>> = props => {
+  const { rowIndex, data, onOpen, onSelect } = props;
+  const { name } = data[rowIndex] as Desktop;
+  const serverUuid = name;
+  function handleOnOpen() {
+    return onOpen(serverUuid);
+  }
+
+  function handleOnSelect(e: React.SyntheticEvent, login: string) {
+    if (!onSelect) {
+      return [];
+    }
+
+    return onSelect(e, login, serverUuid);
+  }
+
+  return (
+    <Cell align="right">
+      <MenuSshLogin
+        onOpen={handleOnOpen}
+        onSelect={handleOnSelect}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        anchorOrigin={{
+          vertical: 'center',
+          horizontal: 'right',
+        }}
+      />
+    </Cell>
+  );
+};
 
 const OSCell = props => {
   const { rowIndex, data, columnKey, ...rest } = props;
