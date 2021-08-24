@@ -14,9 +14,9 @@ This section will cover:
 - Teleport v(=teleport.version=) Open Source or Enterprise.
 - Docker v(=docker.version=) or later.
 
-```bash
-docker version
-#Client: Docker Engine - Community
+```code
+$ docker version
+# Client: Docker Engine - Community
 # Version:           (=docker.version=)
 ```
 
@@ -28,17 +28,17 @@ docker version
 
 Create teleport configs and start the process with sample `docker run` commands:
 
-```bash
+```code
 # Create local config and data directories for teleport, which will be mounted into the container
-mkdir -p ~/teleport/config ~/teleport/data
+$ mkdir -p ~/teleport/config ~/teleport/data
 # Generate a sample teleport config and write it to the local config directory.
 # This container will write the config and immediately exit - this is expected.
-docker run --hostname localhost --rm \
+$ docker run --hostname localhost --rm \
   --entrypoint=/bin/sh \
   -v ~/teleport/config:/etc/teleport \
   (=teleport.latest_oss_docker_image=) -c "teleport configure > /etc/teleport/teleport.yaml"
 # Start teleport with mounted config and data directories, plus all ports
-docker run --hostname localhost --name teleport \
+$ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
   -p 3023:3023 -p 3025:3025 -p 3080:3080 \
@@ -51,19 +51,19 @@ To create a user inside your Teleport container, use `docker exec`.
 
 This example command will create a Teleport user called `testuser` which is allowed to log in as either operating system user `root` or `ubuntu`:
 
-```bash
-docker exec teleport tctl users add testuser --roles=editor,access --logins=root,ubuntu,ec2-user
+```code
+$ docker exec teleport tctl users add testuser --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
 
 When you run this command, Teleport will output a URL that you must open to complete the user signup process:
 
-```bash
+```txt
 User testuser has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s:
 https://localhost:3080/web/invite/4f2718a52ce107568b191f222ba069f7
 NOTE: Make sure localhost:3080 points at a Teleport proxy which users can access.
 ```
 
-The Web UI will be available at the displayed URL. 
+The Web UI will be available at the displayed URL.
 
 (!docs/pages/includes/insecure-certificate.mdx!)
 
@@ -75,8 +75,8 @@ Finish signing up and creating your user using the generated link created previo
 
 Open a second terminal and issue the command:
 
-```bash
-tsh login --proxy=localhost:3080 --insecure --user=testuser
+```code
+$ tsh login --proxy=localhost --insecure --user=testuser
 ```
 
 <Admonition type="note" title="Note">
@@ -85,7 +85,7 @@ tsh login --proxy=localhost:3080 --insecure --user=testuser
 
 You will be prompted to enter the password and One-Time Passcode you created for your user `testuser`:
 
-```bash
+```txt
 Enter password for Teleport user testuser:
 Enter your OTP token:
 9999999
@@ -107,26 +107,23 @@ WARNING: You are using insecure connection to SSH proxy https://localhost:3080
 
 Running the next command will display all Teleport Nodes you're connected to:
 
-```bash
-tsh ls
-```
+```code
+$ tsh ls
 
-```
-# Output
-Node Name Address        Labels                          
---------- -------------- ------------------------------- 
-localhost 127.0.0.1:3022 env=example, hostname=localhost 
+# Node Name Address        Labels                          
+# --------- -------------- ------------------------------- 
+# localhost 127.0.0.1:3022 env=example, hostname=localhost 
 ```
 
 To SSH into the local Node `localhost` (running in your Docker container) issue the following `tsh` command:
 
-```bash
-tsh ssh root@localhost
+```code
+$ tsh ssh root@localhost
 ```
 
 This will bring up the Linux command prompt where you can issue Bash commands, traverse the directory tree, and explore the container contents:
 
-```bash
+```txt
 root@localhost:~# 
 ```
 

@@ -81,6 +81,8 @@ type CLIConf struct {
 	RequestReason string
 	// SuggestedReviewers is a list of suggested request reviewers.
 	SuggestedReviewers string
+	// NoWait can be used with an access request to exit without waiting for a request resolution.
+	NoWait bool
 	// RequestID is an access request ID
 	RequestID string
 	// ReviewReason indicates the reason for an access review.
@@ -436,6 +438,8 @@ func Run(args []string, opts ...cliOption) error {
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Flag("request-reason", "Reason for requesting additional roles").StringVar(&cf.RequestReason)
 	login.Flag("request-reviewers", "Suggested reviewers for role request").StringVar(&cf.SuggestedReviewers)
+	login.Flag("request-nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
+	login.Flag("request-id", "Login with the roles requested in the given request").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").StringVar(&cf.KubernetesCluster)
@@ -487,6 +491,7 @@ func Run(args []string, opts ...cliOption) error {
 	reqCreate.Flag("roles", "Roles to be requested").Required().StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
+	reqCreate.Flag("nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
 
 	reqReview := req.Command("review", "Review an access request")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -741,16 +746,16 @@ func onLogin(cf *CLIConf) error {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
-		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.IdentityFileOut == "":
-			if err := updateKubeConfig(cf, tc); err != nil {
+		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
 			return nil
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
-		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "":
-			if err := updateKubeConfig(cf, tc); err != nil {
+		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
@@ -770,18 +775,18 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc); err != nil {
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
 		// proxy is unspecified or the same as the currently provided proxy,
-		// but desired roles are specified, treat this as a privilege escalation
-		// request for the same login session.
-		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
+		// but desired roles or request ID is specified, treat this as a
+		// privilege escalation request for the same login session.
+		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && (cf.DesiredRoles != "" || cf.RequestID != "") && cf.IdentityFileOut == "":
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc); err != nil {
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -843,7 +848,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := updateKubeConfig(cf, tc); err != nil {
+		if err := updateKubeConfig(cf, tc, ""); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -853,7 +858,7 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if autoRequest && cf.DesiredRoles == "" {
+	if autoRequest && cf.DesiredRoles == "" && cf.RequestID == "" {
 		var requireReason, auto bool
 		var prompt string
 		roleNames, err := key.CertRoles()
@@ -896,7 +901,7 @@ func onLogin(cf *CLIConf) error {
 		}
 	}
 
-	if cf.DesiredRoles != "" {
+	if cf.DesiredRoles != "" || cf.RequestID != "" {
 		fmt.Println("") // visually separate access request output
 		if err := executeAccessRequest(cf, tc); err != nil {
 			logoutErr := tc.Logout()
@@ -1143,50 +1148,85 @@ func onListNodes(cf *CLIConf) error {
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
-	if cf.DesiredRoles == "" {
-		return trace.BadParameter("one or more roles must be specified")
+	if cf.DesiredRoles == "" && cf.RequestID == "" {
+		return trace.BadParameter("at least one role or a request ID must be specified")
 	}
-	roles := utils.SplitIdentifiers(cf.DesiredRoles)
-	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
 	if cf.Username == "" {
 		cf.Username = tc.Username
 	}
-	req, err := services.NewAccessRequest(cf.Username, roles...)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	req.SetRequestReason(cf.RequestReason)
-	req.SetSuggestedReviewers(reviewers)
-	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
 
-	var res types.AccessRequest
-	// always create access request against the root cluster
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		res, err = getRequestResolution(cf, clt, req)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if !res.GetState().IsApproved() {
-		msg := fmt.Sprintf("request %s has been set to %s", res.GetName(), res.GetState().String())
-		if reason := res.GetResolveReason(); reason != "" {
-			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
+	var req types.AccessRequest
+	var err error
+	if cf.RequestID != "" {
+		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+			reqs, err := clt.GetAccessRequests(cf.Context, types.AccessRequestFilter{
+				ID:   cf.RequestID,
+				User: cf.Username,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if len(reqs) != 1 {
+				return trace.BadParameter(`invalid access request "%v"`, cf.RequestID)
+			}
+			req = reqs[0]
+			return nil
+		})
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		return trace.Errorf(msg)
+
+		// If the request isn't pending, handle resolution
+		if !req.GetState().IsPending() {
+			err := onRequestResolution(cf, tc, req)
+			return trace.Wrap(err)
+		}
+
+		fmt.Fprint(os.Stdout, "Request pending...\n")
+	} else {
+		roles := utils.SplitIdentifiers(cf.DesiredRoles)
+		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
+		req, err = services.NewAccessRequest(cf.Username, roles...)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetRequestReason(cf.RequestReason)
+		req.SetSuggestedReviewers(reviewers)
 	}
 
-	msg := "\nApproval received, getting updated certificates...\n\n"
-	if reason := res.GetResolveReason(); reason != "" {
-		msg = fmt.Sprintf("\nApproval received, reason=%q\nGetting updated certificates...\n\n", reason)
+	// Watch for resolution events on the given request. Start watcher before
+	// creating the request to avoid a potential race.
+	errChan := make(chan error)
+	if !cf.NoWait {
+		go func() {
+			errChan <- waitForRequestResolution(cf, tc, req)
+		}()
 	}
-	fmt.Fprint(os.Stderr, msg)
 
-	if err := reissueWithRequests(cf, tc, req.GetName()); err != nil {
-		return trace.Wrap(err)
+	// Create request if it doesn't already exist
+	if cf.RequestID == "" {
+		cf.RequestID = req.GetName()
+		fmt.Fprint(os.Stdout, "Creating request...\n")
+		// always create access request against the root cluster
+		if err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+			err := clt.CreateAccessRequest(cf.Context, req)
+			return trace.Wrap(err)
+		}); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	return nil
+
+	onRequestShow(cf)
+	fmt.Println("")
+
+	// Dont wait for request to get resolved, just print out request info
+	if cf.NoWait {
+		return nil
+	}
+
+	// Wait for watcher to return
+	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
+	return trace.Wrap(<-errChan)
 }
 
 func printNodes(nodes []types.Server, format string, verbose bool) error {
@@ -2062,29 +2102,28 @@ func host(in string) string {
 	return out
 }
 
-// getRequestResolution registers an access request with the auth server and waits for it to be resolved.
-func getRequestResolution(cf *CLIConf, clt auth.ClientI, req types.AccessRequest) (types.AccessRequest, error) {
-	// set up request watcher before submitting the request to the admin server
-	// in order to avoid potential race.
+// waitForRequestResolution waits for an access request to be resolved.
+func waitForRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {
 	filter := types.AccessRequestFilter{
 		User: req.GetUser(),
 	}
-	watcher, err := clt.NewWatcher(cf.Context, types.Watch{
-		Name: "await-request-approval",
-		Kinds: []types.WatchKind{
-			types.WatchKind{
+	var err error
+	var watcher types.Watcher
+	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		watcher, err = tc.NewWatcher(cf.Context, types.Watch{
+			Name: "await-request-approval",
+			Kinds: []types.WatchKind{{
 				Kind:   types.KindAccessRequest,
 				Filter: filter.IntoMap(),
-			},
-		},
+			}},
+		})
+		return trace.Wrap(err)
 	})
+
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer watcher.Close()
-	if err := clt.CreateAccessRequest(cf.Context, req); err != nil {
-		return nil, trace.Wrap(err)
-	}
 Loop:
 	for {
 		select {
@@ -2096,26 +2135,45 @@ Loop:
 			case types.OpPut:
 				r, ok := event.Resource.(*types.AccessRequestV3)
 				if !ok {
-					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
+					return trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
 				if r.GetName() != req.GetName() || r.GetState().IsPending() {
 					log.Debugf("Skipping put event id=%s,state=%s.", r.GetName(), r.GetState())
 					continue Loop
 				}
-				return r, nil
+				return onRequestResolution(cf, tc, r)
 			case types.OpDelete:
 				if event.Resource.GetName() != req.GetName() {
 					log.Debugf("Skipping delete event id=%s", event.Resource.GetName())
 					continue Loop
 				}
-				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				return trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
 			default:
 				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
 		case <-watcher.Done():
-			return nil, trace.Wrap(watcher.Error())
+			return trace.Wrap(watcher.Error())
 		}
 	}
+}
+
+func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {
+	if !req.GetState().IsApproved() {
+		msg := fmt.Sprintf("request %s has been set to %s", req.GetName(), req.GetState().String())
+		if reason := req.GetResolveReason(); reason != "" {
+			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
+		}
+		return trace.Errorf(msg)
+	}
+
+	msg := "\nApproval received, getting updated certificates...\n\n"
+	if reason := req.GetResolveReason(); reason != "" {
+		msg = fmt.Sprintf("\nApproval received, reason=%q\nGetting updated certificates...\n\n", reason)
+	}
+	fmt.Fprint(os.Stderr, msg)
+
+	err := reissueWithRequests(cf, tc, req.GetName())
+	return trace.Wrap(err)
 }
 
 // reissueWithRequests handles a certificate reissue, applying new requests by ID,
@@ -2142,7 +2200,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.SaveProfile("", true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := updateKubeConfig(cf, tc); err != nil {
+	if err := updateKubeConfig(cf, tc, ""); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -2191,9 +2249,14 @@ func onEnvironment(cf *CLIConf) error {
 	case cf.unsetEnvironment:
 		fmt.Printf("unset %v\n", proxyEnvVar)
 		fmt.Printf("unset %v\n", clusterEnvVar)
+		fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
 	case !cf.unsetEnvironment:
 		fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
 		fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
+		if kubeName := selectedKubeCluster(profile.Cluster); kubeName != "" {
+			fmt.Printf("# set %v to a standalone kubeconfig for the selected kube cluster\n", teleport.EnvKubeConfig)
+			fmt.Printf("export %v=%v\n", teleport.EnvKubeConfig, profile.KubeConfigPath(kubeName))
+		}
 	}
 
 	return nil

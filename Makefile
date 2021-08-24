@@ -18,7 +18,7 @@ DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
-SHELL := /bin/bash
+SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
 ASSETS_BUILDDIR ?= lib/web/build
@@ -111,12 +111,25 @@ endif
 endif
 endif
 
+
+# Reproducible builds are only availalbe on select targets, and only when OS=linux.
+REPRODUCIBLE ?=
+ifneq ("$(OS)","linux")
+REPRODUCIBLE = no
+endif
+
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
+endif
+
+# On platforms that support reproducible builds, ensure the archive is created in a reproducible manner.
+TAR_FLAGS ?=
+ifeq ("$(REPRODUCIBLE)","yes")
+TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
 VERSRC = version.go gitref.go api/version.go
@@ -277,7 +290,7 @@ release-unix: clean full
 		CHANGELOG.md \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
-	tar --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu -c teleport | gzip -n > $(RELEASE).tar.gz
+	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 	@if [ -f e/Makefile ]; then \
@@ -566,6 +579,11 @@ buildbox-grpc:
 		events.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/webauthn \
+		--gogofast_out=plugins=grpc:api/types/webauthn \
+		webauthn.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/wrappers \
 		--gogofast_out=plugins=grpc:api/types/wrappers \
 		wrappers.proto
@@ -745,7 +763,7 @@ update-vendor:
 	# delete the vendored api package. In its place
 	# create a symlink to the the original api package
 	rm -r vendor/github.com/gravitational/teleport/api
-	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+	cd vendor/github.com/gravitational/teleport && ln -s ../../../../api api
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
