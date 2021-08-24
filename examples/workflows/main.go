@@ -25,7 +25,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
@@ -65,13 +64,11 @@ func main() {
 
 	cfg, err := loadConfig("config.toml")
 	if err != nil {
-		log.Printf("ERROR: %s", err)
-		os.Exit(1)
+		log.Fatalf("ERROR: %s", err)
 	}
 
 	if err := run(ctx, cfg); err != nil {
-		log.Printf("ERROR: %s", err)
-		os.Exit(1)
+		log.Fatalf("ERROR: %s", err)
 	}
 }
 
