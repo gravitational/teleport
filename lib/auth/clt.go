@@ -1903,6 +1903,16 @@ type IdentityService interface {
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
+	// DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
+	DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error
+	// AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
+	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) error
+
+	// CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
+	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+
+	// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+	CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error)
 }
 
 // ProvisioningService is a service in control

@@ -799,6 +799,55 @@ message UserSingleUseCertsRequest {
     }
 }
 
+// DeleteMFADeviceSyncRequest is a request to delete a MFA device (nonstream).
+message DeleteMFADeviceSyncRequest {
+    // TokenID is the ID of a recovery or privilege token. There are two specific use cases
+    // depending on the type of token:
+    //   1) recovery approved token allows a user to delete a device without being logged in.
+    //   Recovery approved tokens are obtained after user goes through a two step verification
+    //   process.
+    //
+    //   2) privilege user token allows a logged in user to delete a device. Privilege tokens are
+    //   obtained after a logged in user re-authenticates with their second factor.
+    string TokenID = 1;
+    // DeviceName is the name of the device to delete.
+    string DeviceName = 2;
+}
+
+// AddMFADeviceSyncRequest is a request to add a mfa device (nonstream).
+message AddMFADeviceSyncRequest {
+    // TokenID is the ID of a privilege token that allows a logged in user to add a device.
+    // Privilege tokens are obtained after a logged in user re-authenticates with their second
+    // factor.
+    string TokenID = 1;
+    // NewDeviceName is the name of the device.
+    string NewDeviceName = 2;
+    // NewMFARegisterResponse is one of the mfa register response to a register challenge.
+    MFARegisterResponse NewMFARegisterResponse = 3;
+}
+
+// UserCredentials describes fields for a user's username and password.
+message UserCredentials {
+    string Username = 1;
+    bytes Password = 2;
+}
+
+// CreateAuthenticateChallengeRequest is a request for creating and returning MFA challenges for a
+// users mfa devices.
+message CreateAuthenticateChallengeRequest {
+    // Request defines how the user will be verified before receiving MFA challenges.
+    // Request field can be empty, which implies the request is to get challenges for the
+    // request caller (the logged in user).
+    oneof Request {
+        // UserCredentials verifies request with username and password.
+        UserCredentials UserCredentials = 1;
+        // TokenID is the ID of a recovery start token. The token allows a user to retrieve their
+        // challenges without being logged in. Recovery start token is obtained after the user
+        // verifies their username and a recovery code.
+        string TokenID = 2;
+    }
+}
+
 // UserSingleUseCertsResponse is a response with a single-use user certificate.
 message UserSingleUseCertsResponse {
     oneof Response {
@@ -1014,6 +1063,16 @@ message ChangeUserAuthenticationResponse {
     repeated string RecoveryCodes = 2;
 }
 
+// CreatePrivilegeTokenRequest defines a request to create and get a privilege token.
+// Only logged in users are allowed to get privilege tokens for themselves.
+message CreatePrivilegeTokenRequest {
+    // ExistingMFAResponse is a response to one of the user's existing mfa challenge.
+    // This field can be empty to create a UserTokenTypePrivilegeException token that
+    // allows a user to bypass second factor re-authentication eg: allowing a user
+    // with no mfa devices to add one without re-authing.
+    MFAAuthenticateResponse ExistingMFAResponse = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1208,6 +1267,13 @@ service AuthService {
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+    // DeleteMFADeviceSync deletes a users MFA device (nonstream).
+    rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
+    // AddMFADeviceSync adds a users MFA device (nonstream).
+    rpc AddMFADeviceSync(AddMFADeviceSyncRequest) returns (google.protobuf.Empty);
+    // CreateAuthenticateChallenge creates and returns challenges for a users MFA devices.
+    rpc CreateAuthenticateChallenge(CreateAuthenticateChallengeRequest)
+        returns (MFAAuthenticateChallenge);
 
     // GetOIDCConnector gets an OIDC connector resource by name.
     rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
@@ -1348,4 +1414,9 @@ service AuthService {
     // any existing codes the user previously had.
     rpc ChangeUserAuthentication(ChangeUserAuthenticationRequest)
         returns (ChangeUserAuthenticationResponse);
+
+    // CreatePrivilegeToken returns a new privilege token after a logged in user successfully
+    // re-authenticates with their mfa device. Privilege token lasts PrivilegeTokenTTL and is
+    // used to gain access to privileged actions eg: deleting/adding a mfa device.
+    rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
 }

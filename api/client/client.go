@@ -1928,3 +1928,27 @@ func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	res, err := c.grpc.ChangeUserAuthentication(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
+
+// DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
+func (c *Client) DeleteMFADeviceSync(ctx context.Context, in *proto.DeleteMFADeviceSyncRequest) error {
+	_, err := c.grpc.DeleteMFADeviceSync(ctx, in, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
+func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) error {
+	_, err := c.grpc.AddMFADeviceSync(ctx, in, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
+func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	resp, err := c.grpc.CreateAuthenticateChallenge(ctx, in, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error) {
+	token, err := c.grpc.CreatePrivilegeToken(ctx, req, c.callOpts...)
+	return token, trail.FromGRPC(err)
+}
