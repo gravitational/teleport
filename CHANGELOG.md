@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.1.0
+
+This release of Teleport contains a feature and bug fix.
+
+* Added support for user and session locking. [RFD#9](https://github.com/gravitational/teleport/blob/master/rfd/0009-locking.md)
+* Fixed DynamoDB performance issues. [#7992](https://github.com/gravitational/teleport/pull/7992)
+* Fixed issue in build pipeline that was generating empty CentOS 6 archives. [#8033](https://github.com/gravitational/teleport/pull/8033)
+
 ## 7.0.3
 
 This release of Teleport contains a bug fix.
