@@ -102,8 +102,16 @@ spec:
 ```
 
 Next, create an interactive user `alice` and assign the impersonator role so
-that `alice` can impersonate `jenkins`.who can Note: we also assign the preset
-`access` role that allows users to access clusters for Alice's convenience.
+that `alice` can impersonate `jenkins`. 
+
+
+<Admonition
+  type="note"
+  title="Access Role"
+>
+We also assign the preset `access` role that allows users to access clusters for
+Alice's convenience.
+</Admonition>
 
 ```code
 $ tctl users add alice  --roles=impersonator,access
@@ -149,8 +157,8 @@ $ ssh -J jenkins@teleport.localhost:3023 -p 3022 jenkins@127.0.0.1
 To prevent unintended consequences, Teleport defines the following impersonation rules:
 
 - Even though Alice's `max_session_ttl` is 10 hours, she can issue a cert with a
-  longer TTL of 240 hours, because `jenkins` role allows it. A certificate's TTL
-  issued using impersonation is limited to the `max_session_ttl` of the roles
+  longer TTL of 240 hours, because the `jenkins` role allows it. A certificate's
+  TTL issued using impersonation is extended to the maximum TTL of the roles
   being impersonated.
 - Even if the `jenkins` role could impersonate some other roles, Alice would not
   be able to use this permission. Teleport prevents recursive impersonation.
@@ -271,7 +279,7 @@ spec:
       '*': '*'
 ```
 
-While user traits typically from from an external identity provider, we can test
+While user traits typically come from an external identity provider, we can test
 with local user `alice` by manually updating Alices's account with traits.
 
 ```yaml
@@ -291,7 +299,12 @@ Since Alice's `group` trait contains `security`, and the `security-scanner` user
 has a label of `group: security`, Alice will be able to impersonate the security
 scanner.
 
-Note that Alice will need to log in again to receive the newly updated traits.
+<Admonition
+  type="note"
+  title="Login"
+>
+Alice will need to log in again to receive the newly updated traits.
+</Admonition>
 
 ```code
 # Once Alice logs in again, she will receive a new certificate with updated roles.
