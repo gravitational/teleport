@@ -280,6 +280,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthentication))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
+	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -346,6 +347,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// MFA related endpoints
 	h.GET("/webapi/mfa", h.WithAuth(h.getMFADevicesHandle))
+	h.POST("/webapi/mfa", h.WithAuth(h.addMFADeviceWithTokenHandle))
+
+	h.DELETE("/webapi/mfa/:token/:name", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
+	h.GET("/webapi/mfa/qrcode/:token", httplib.MakeHandler(h.createQRCodeWithTokenHandle))
+	h.GET("/webapi/mfa/authnchallenge/:token", httplib.MakeHandler(h.createAuthnChallengWithTokeneHandle))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
