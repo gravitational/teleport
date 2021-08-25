@@ -1113,7 +1113,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 
 	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
-	mfaID := uuid.New()
+	mfaID := "test-mfa-id"
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
