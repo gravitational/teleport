@@ -111,6 +111,20 @@ endif
 endif
 endif
 
+# Check if rust and cargo are installed before compiling
+with_roletester := no
+ROLETESTER_MESSAGE := "without access tester"
+CHECK_CARGO := $(shell cargo --version 2>/dev/null)
+CHECK_RUST := $(shell rustc --version 2>/dev/null)
+
+ifneq ($(CHECK_RUST),)
+ifneq ($(CHECK_CARGO),)
+with_roletester := yes
+ROLETESTER_MESSAGE := "with access tester"
+ROLETESTER_TAG := roletester
+ROLETESTER_BUILDDIR := lib/datalog/roletester/Cargo.toml
+endif
+endif
 
 # Reproducible builds are only availalbe on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
@@ -121,7 +135,7 @@ endif
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(ROLETESTER_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
@@ -156,8 +170,8 @@ all: version
 # * Manual change detection was broken on a large dependency tree
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
-$(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+$(BUILDDIR)/tctl: roletester
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode
@@ -205,6 +219,19 @@ update-vmlinux-h:
 else
 .PHONY: bpf-bytecode
 bpf-bytecode:
+endif
+
+#
+# tctl role tester
+# Requires a recent version of Rust and Cargo installed (tested rustc >= 1.52.1 and cargo >= 1.52.0)
+#
+ifeq ("$(with_roletester)", "yes")
+.PHONY: roletester
+roletester:
+	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release
+else
+.PHONY: roletester
+roletester:
 endif
 
 #
@@ -356,24 +383,24 @@ test: test-sh test-api test-go
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test-go
-test-go: ensure-webassets bpf-bytecode
+test-go: ensure-webassets bpf-bytecode roletester
 test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover $(ADDFLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets bpf-bytecode
+test-go-root: ensure-webassets bpf-bytecode roletester
 test-go-root: FLAGS ?= '-race'
 test-go-root: PACKAGES := $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
-	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Runs API Go tests. These have to be run separately as the package name is different.
 #
@@ -382,7 +409,7 @@ test-api:
 test-api: FLAGS ?= '-race'
 test-api: PACKAGES := $(shell cd api && go list ./...)
 test-api: $(VERSRC)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -403,7 +430,7 @@ integration: FLAGS ?= -v -race
 integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS)
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -605,6 +632,10 @@ buildbox-grpc:
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
 	  --gogofast_out=plugins=grpc:.\
     *.proto
+
+	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
+	  --gogofast_out=plugins=grpc:.\
+    types.proto
 
 .PHONY: goinstall
 goinstall:
