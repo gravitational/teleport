@@ -57,33 +57,37 @@ WriteToBuffer(char* source, size_t len)
 	return len;
 }
 
+// DataAvailable waits for either a new input event, a quit event, or for a
+// handle to close.
 BOOL
-DataAvailable(HANDLE h)
+DataAvailable(HANDLE hInput, HANDLE hQuitEvent)
 {
-	DWORD dwRet = WaitForSingleObjectEx(h, INFINITE, TRUE);
-	if (dwRet == WAIT_OBJECT_0)
+	const HANDLE handles[] = { hInput, hQuitEvent };
+	DWORD dwRet = WaitForMultipleObjectsEx(2, handles, FALSE, INFINITE, TRUE);
+	if (dwRet == WAIT_OBJECT_0) {
+		// Data is ready.
 		return TRUE;
-	if (dwRet == WAIT_FAILED)
+	} else if (dwRet == WAIT_OBJECT_0 + 1) {
+		// Quit signal is ready.
 		return FALSE;
+	} else if (dwRet == WAIT_FAILED) {
+		return FALSE;
+	}
 	return FALSE;
 }
 
 int
-ReadConsoleForTermEmul(HANDLE hInput)
+ReadConsoleForTermEmul(HANDLE hInput, HANDLE hQuitEvent)
 {
-	HANDLE hHandle[] = { hInput, NULL };
-	DWORD nHandle = 1;
 	DWORD dwInput = 0;
-	DWORD rc = 0;
 	unsigned char octets[20];
-	char aChar = 0;
 	INPUT_RECORD inputRecordArray[16];
 	int inputRecordArraySize = sizeof(inputRecordArray) / sizeof(INPUT_RECORD);
 	static WCHAR utf16_surrogatepair[2] = {0,};
 	int n = 0;
 
 	int outlen = 0;
-	while (DataAvailable(hInput)) {
+	while (DataAvailable(hInput, hQuitEvent)) {
 		ReadConsoleInputW(hInput, inputRecordArray, inputRecordArraySize, &dwInput);
 
 		for (DWORD i=0; i < dwInput; i++) {
@@ -147,19 +151,14 @@ ReadConsoleForTermEmul(HANDLE hInput)
 				break;
 			}
 		}
-		break;
 	}
 
 	return outlen;
 }
 
-// ReadInputContinuous reads all console input events until the program exits.
-// This is a blocking call and will not return; callers should spawn this in
-// a background thread and subscribe to events via the Go interface.
-void ReadInputContinuous() {
+// ReadInputContinuous reads all console input events until the program exits,
+// stdin closes, or the quit event is triggered.
+void ReadInputContinuous(HANDLE hQuitEvent) {
 	HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
-
-	while (TRUE) {
-		ReadConsoleForTermEmul(hInput);
-	}
+	ReadConsoleForTermEmul(hInput, hQuitEvent);
 }

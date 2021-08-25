@@ -1,3 +1,4 @@
+//go:build windows && cgo
 // +build windows,cgo
 
 /*
@@ -21,6 +22,7 @@ package tncon
 /*
 #include <Windows.h>
 #include <stdlib.h>
+#include <synchapi.h>
 #include "tncon.h"
 */
 import "C"
@@ -35,8 +37,9 @@ var (
 	subscribers      []chan interface{}
 	subscribersMutex sync.Mutex
 
-	running      bool = false
-	runningMutex sync.Mutex
+	running           bool = false
+	runningMutex      sync.Mutex
+	runningQuitHandle C.HANDLE
 )
 
 // SequenceEvent is emitted when one or more key sequences are generated. This
@@ -100,16 +103,70 @@ func Subscribe() chan interface{} {
 	return ch
 }
 
-// ReadInputContinuous is a blocking call that continuously reads console
-// input events. Events will be emitted via channels to subscribers.
-func ReadInputContinuous() error {
+// readInputContinuous is a blocking call that continuously reads console
+// input events. Events will be emitted via channels to subscribers. This
+// function returns when stdin is closed, or the quit event is triggered.
+func readInputContinuous(quitHandle C.HANDLE) error {
+	C.ReadInputContinuous(quitHandle)
+
+	// Once finished, close all existing subscriber channels to notify them
+	// of the close (they can resubscribe if it's ever restarted).
+	subscribersMutex.Lock()
+	defer subscribersMutex.Unlock()
+
+	for _, ch := range subscribers {
+		close(ch)
+	}
+	subscribers = subscribers[:0]
+
+	runningMutex.Lock()
+	defer runningMutex.Unlock()
+	running = false
+
+	// Close the quit event handle.
+	if runningQuitHandle != nil {
+		C.CloseHandle(runningQuitHandle)
+		runningQuitHandle = nil
+	}
+
+	return nil
+}
+
+// IsRunning determines if a tncon session is currently active.
+func IsRunning() bool {
+	runningMutex.Lock()
+	defer runningMutex.Unlock()
+
+	return running
+}
+
+// Start begins a new tncon session, capturing raw input events and emitting
+// them as events. Only one session may be active at a time, but sessions can
+// be stopped
+func Start() error {
 	runningMutex.Lock()
 	defer runningMutex.Unlock()
 
 	if running {
-		return fmt.Errorf("only one call to ReadInputContinuous is allowed")
+		return fmt.Errorf("a tncon session is already active")
 	}
 
-	C.ReadInputContinuous()
+	running = true
+	runningQuitHandle = C.CreateEventA(nil, C.TRUE, C.FALSE, nil)
+
+	go readInputContinuous(runningQuitHandle)
+
 	return nil
+}
+
+// Stop sets the stop event, requesting that the input reader quits. Subscriber
+// channels will close shortly after calling, and the subscriber list will be
+// cleared.
+func Stop() {
+	runningMutex.Lock()
+	defer runningMutex.Unlock()
+
+	if running && runningQuitHandle != nil {
+		C.SetEvent(runningQuitHandle)
+	}
 }

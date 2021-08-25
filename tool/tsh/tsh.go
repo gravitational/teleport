@@ -509,9 +509,6 @@ func Run(args []string, opts ...cliOption) error {
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
-		join.Hidden()
-		play.Hidden()
-		scp.Hidden()
 		bench.Hidden()
 
 		// Similarly, `config` for ssh depends on bash.
