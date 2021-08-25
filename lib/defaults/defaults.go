@@ -48,10 +48,7 @@ const (
 	// one of many SSH nodes
 	SSHProxyListenPort = 3023
 
-	// When running in "SSH Proxy" role this port will be used for incoming
-	// connections from SSH nodes who wish to use "reverse tunnell" (when they
-	// run behind an environment/firewall which only allows outgoing connections)
-	SSHProxyTunnelListenPort = 3024
+	SSHProxyTunnelListenPort = defaults.SSHProxyTunnelListenPort
 
 	// KubeListenPort is a default port for kubernetes proxies
 	KubeListenPort = 3026
@@ -62,6 +59,19 @@ const (
 
 	// MySQLListenPort is the default listen port for MySQL proxy.
 	MySQLListenPort = 3036
+
+	// MetricsListenPort is the default listen port for the metrics service.
+	MetricsListenPort = 3081
+
+	// WindowsDesktopListenPort is the default listed port for
+	// windows_desktop_service.
+	//
+	// TODO(awly): update to match HTTPListenPort once SNI routing is
+	// implemented.
+	WindowsDesktopListenPort = 3028
+
+	// RDPListenPort is the standard port for RDP servers.
+	RDPListenPort = 3389
 
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
@@ -90,10 +100,6 @@ const (
 	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
 	// to a cluster
 	InviteTokenTTL = 15 * time.Minute
-
-	// DefaultDialTimeout is a default TCP dial timeout we set for our
-	// connection attempts
-	DefaultDialTimeout = defaults.DefaultDialTimeout
 
 	// HTTPMaxIdleConns is the max idle connections across all hosts.
 	HTTPMaxIdleConns = 2000
@@ -131,6 +137,10 @@ const (
 	// ReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
 	ReadHeadersTimeout = time.Second
+
+	// DatabaseConnectTimeout is a timeout for connecting to a database via
+	// database access.
+	DatabaseConnectTimeout = time.Minute
 
 	// HandshakeReadDeadline is the default time to wait for the client during
 	// the TLS handshake.
@@ -218,9 +228,6 @@ const (
 	// is locked after MaxLoginAttempts
 	AccountLockInterval = 20 * time.Minute
 
-	// Namespace is default namespace
-	Namespace = defaults.Namespace
-
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30
 
@@ -276,21 +283,15 @@ const (
 
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour
+
+	// LockMaxStaleness is the maximum staleness for cached lock resources
+	// to be deemed acceptable for strict locking mode.
+	LockMaxStaleness = 5 * time.Minute
 )
 
 var (
 	// ResyncInterval is how often tunnels are resynced.
 	ResyncInterval = 5 * time.Second
-
-	// ServerAnnounceTTL is a period between heartbeats
-	// Median sleep time between node pings is this value / 2 + random
-	// deviation added to this time to avoid lots of simultaneous
-	// heartbeats coming to auth server
-	ServerAnnounceTTL = defaults.ServerAnnounceTTL
-
-	// ServerKeepAliveTTL is a period between server keep alives,
-	// when servers announce only presence withough sending full data
-	ServerKeepAliveTTL = defaults.ServerKeepAliveTTL
 
 	// AuthServersRefreshPeriod is a period for clients to refresh their
 	// their stored list of auth servers
@@ -343,17 +344,6 @@ var (
 	// period used in services
 	HighResReportingPeriod = 10 * time.Second
 
-	// KeepAliveInterval is interval at which Teleport will send keep-alive
-	// messages to the client. The default interval of 5 minutes (300 seconds) is
-	// set to help keep connections alive when using AWS NLBs (which have a default
-	// timeout of 350 seconds)
-	KeepAliveInterval = defaults.KeepAliveInterval
-
-	// KeepAliveCountMax is the number of keep-alive messages that can be sent
-	// without receiving a response from the client before the client is
-	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
-	KeepAliveCountMax = defaults.KeepAliveCountMax
-
 	// DiskAlertThreshold is the disk space alerting threshold.
 	DiskAlertThreshold = 90
 
@@ -386,6 +376,9 @@ var (
 
 	// DatabasesQueueSize is db service queue size.
 	DatabasesQueueSize = 128
+
+	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
+	WindowsDesktopQueueSize = 128
 
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
@@ -431,19 +424,18 @@ const (
 const (
 	// MinCertDuration specifies minimum duration of validity of issued certificate
 	MinCertDuration = time.Minute
-	// MaxCertDuration limits maximum duration of validity of issued certificate
-	MaxCertDuration = defaults.MaxCertDuration
-	// CertDuration is a default certificate duration.
-	CertDuration = defaults.CertDuration
+
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
-	RotationGracePeriod = MaxCertDuration
+	RotationGracePeriod = defaults.MaxCertDuration
+
 	// PendingAccessDuration defines the expiry of a pending access request.
 	PendingAccessDuration = time.Hour
+
 	// MaxAccessDuration defines the maximum time for which an access request
 	// can be active.
-	MaxAccessDuration = MaxCertDuration
+	MaxAccessDuration = defaults.MaxCertDuration
 )
 
 // list of roles teleport service can run as:
@@ -466,12 +458,15 @@ const (
 	ProtocolPostgres = "postgres"
 	// ProtocolMySQL is the MySQL database protocol.
 	ProtocolMySQL = "mysql"
+	// ProtocolMongoDB is the MongoDB database protocol.
+	ProtocolMongoDB = "mongodb"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
 var DatabaseProtocols = []string{
 	ProtocolPostgres,
 	ProtocolMySQL,
+	ProtocolMongoDB,
 }
 
 const (
@@ -492,9 +487,6 @@ const (
 	ArgsCacheSize = 1024
 )
 
-// EnhancedEvents returns the default list of enhanced events.
-var EnhancedEvents = defaults.EnhancedEvents
-
 var (
 	// ConfigFilePath is default path to teleport config file
 	ConfigFilePath = "/etc/teleport.yaml"
@@ -504,7 +496,7 @@ var (
 	DataDir = "/var/lib/teleport"
 
 	// StartRoles is default roles teleport assumes when started via 'start' command
-	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp}
+	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp, RoleDatabase}
 
 	// ETCDPrefix is default key in ETCD clustered configurations
 	ETCDPrefix = "/teleport"
@@ -515,9 +507,6 @@ var (
 	// ConfigFileEnvar is the name of the environment variable used to specify a path to
 	// the Teleport configuration file that tctl reads on use
 	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
-
-	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
-	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
 
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"
@@ -539,6 +528,10 @@ const (
 const (
 	// U2FChallengeTimeout is hardcoded in the U2F library
 	U2FChallengeTimeout = 5 * time.Minute
+	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
+	// or registration challenges.
+	// TODO(codingllama): Apply this to the lib/auth/webauthn package.
+	WebauthnChallengeTimeout = 5 * time.Minute
 )
 
 const (
@@ -598,6 +591,11 @@ func SSHServerListenAddr() *utils.NetAddr {
 // blocks inbound connecions to ssh_nodes
 func ReverseTunnelListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
+}
+
+// MetricsServiceListenAddr returns the default listening address for the metrics service
+func MetricsServiceListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, MetricsListenPort)
 }
 
 func makeAddr(host string, port int16) *utils.NetAddr {

@@ -23,6 +23,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -50,7 +52,6 @@ var stateGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 })
 
 func init() {
-	prometheus.MustRegister(stateGauge)
 	stateGauge.Set(float64(stateStarting))
 }
 
@@ -67,11 +68,16 @@ type componentState struct {
 }
 
 // newProcessState returns a new FSM that tracks the state of the Teleport process.
-func newProcessState(process *TeleportProcess) *processState {
+func newProcessState(process *TeleportProcess) (*processState, error) {
+	err := utils.RegisterPrometheusCollectors(stateGauge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &processState{
 		process: process,
 		states:  make(map[string]*componentState),
-	}
+	}, nil
 }
 
 // update the state of a Teleport component.

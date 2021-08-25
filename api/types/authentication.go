@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -42,9 +41,9 @@ type AuthPreference interface {
 	// SetType sets the type of authentication: local, saml, or oidc.
 	SetType(string)
 
-	// GetSecondFactor gets the type of second factor: off, otp or u2f.
+	// GetSecondFactor gets the type of second factor.
 	GetSecondFactor() constants.SecondFactorType
-	// SetSecondFactor sets the type of second factor: off, otp, or u2f.
+	// SetSecondFactor sets the type of second factor.
 	SetSecondFactor(constants.SecondFactorType)
 
 	// GetConnectorName gets the name of the OIDC or SAML connector to use. If
@@ -63,9 +62,25 @@ type AuthPreference interface {
 	// require an MFA check.
 	GetRequireSessionMFA() bool
 
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for AuthPreference.
-	CheckAndSetDefaults() error
+	// GetDisconnectExpiredCert returns disconnect expired certificate setting
+	GetDisconnectExpiredCert() bool
+	// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
+	SetDisconnectExpiredCert(bool)
+
+	// GetAllowLocalAuth gets if local authentication is allowed.
+	GetAllowLocalAuth() bool
+	// SetAllowLocalAuth sets if local authentication is allowed.
+	SetAllowLocalAuth(bool)
+
+	// GetMessageOfTheDay fetches the MOTD
+	GetMessageOfTheDay() string
+	// SetMessageOfTheDay sets the MOTD
+	SetMessageOfTheDay(string)
+
+	// GetLockingMode gets the cluster-wide locking mode default.
+	GetLockingMode() constants.LockingMode
+	// SetLockingMode sets the cluster-wide locking mode default.
+	SetLockingMode(constants.LockingMode)
 
 	// String represents a human readable version of authentication settings.
 	String() string
@@ -87,40 +102,24 @@ func NewAuthPreferenceFromConfigFile(spec AuthPreferenceSpecV2) (AuthPreference,
 // NewAuthPreferenceWithLabels is a convenience method to create
 // AuthPreferenceV2 with a specific map of labels.
 func newAuthPreferenceWithLabels(spec AuthPreferenceSpecV2, labels map[string]string) (AuthPreference, error) {
-	pref := AuthPreferenceV2{
-		Kind:    KindClusterAuthPreference,
-		Version: V2,
+	pref := &AuthPreferenceV2{
 		Metadata: Metadata{
-			Name:      MetaNameClusterAuthPreference,
-			Namespace: defaults.Namespace,
-			Labels:    labels,
+			Labels: labels,
 		},
 		Spec: spec,
 	}
-
 	if err := pref.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pref, nil
+	return pref, nil
 }
 
 // DefaultAuthPreference returns the default authentication preferences.
 func DefaultAuthPreference() AuthPreference {
-	return &AuthPreferenceV2{
-		Kind:    KindClusterAuthPreference,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameClusterAuthPreference,
-			Namespace: defaults.Namespace,
-			Labels: map[string]string{
-				OriginLabel: OriginDefaults,
-			},
-		},
-		Spec: AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOTP,
-		},
-	}
+	authPref, _ := newAuthPreferenceWithLabels(AuthPreferenceSpecV2{}, map[string]string{
+		OriginLabel: OriginDefaults,
+	})
+	return authPref
 }
 
 // GetVersion returns resource version.
@@ -146,13 +145,6 @@ func (c *AuthPreferenceV2) SetExpiry(expires time.Time) {
 // Expiry returns object expiry setting.
 func (c *AuthPreferenceV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *AuthPreferenceV2) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
 }
 
 // GetMetadata returns object metadata.
@@ -246,25 +238,77 @@ func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
 	return c.Spec.RequireSessionMFA
 }
 
+// GetDisconnectExpiredCert returns disconnect expired certificate setting
+func (c *AuthPreferenceV2) GetDisconnectExpiredCert() bool {
+	return c.Spec.DisconnectExpiredCert.Value
+}
+
+// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
+func (c *AuthPreferenceV2) SetDisconnectExpiredCert(b bool) {
+	c.Spec.DisconnectExpiredCert = NewBoolOption(b)
+}
+
+// GetAllowLocalAuth gets if local authentication is allowed.
+func (c *AuthPreferenceV2) GetAllowLocalAuth() bool {
+	return c.Spec.AllowLocalAuth.Value
+}
+
+// SetAllowLocalAuth gets if local authentication is allowed.
+func (c *AuthPreferenceV2) SetAllowLocalAuth(b bool) {
+	c.Spec.AllowLocalAuth = NewBoolOption(b)
+}
+
+// GetMessageOfTheDay gets the current Message Of The Day. May be empty.
+func (c *AuthPreferenceV2) GetMessageOfTheDay() string {
+	return c.Spec.MessageOfTheDay
+}
+
+// SetMessageOfTheDay sets the current Message Of The Day. May be empty.
+func (c *AuthPreferenceV2) SetMessageOfTheDay(motd string) {
+	c.Spec.MessageOfTheDay = motd
+}
+
+// GetLockingMode gets the cluster-wide locking mode default.
+func (c *AuthPreferenceV2) GetLockingMode() constants.LockingMode {
+	return c.Spec.LockingMode
+}
+
+// SetLockingMode sets the cluster-wide locking mode default.
+func (c *AuthPreferenceV2) SetLockingMode(mode constants.LockingMode) {
+	c.Spec.LockingMode = mode
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (c *AuthPreferenceV2) setStaticFields() {
+	c.Kind = KindClusterAuthPreference
+	c.Version = V2
+	c.Metadata.Name = MetaNameClusterAuthPreference
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
-	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Make sure origin value is always set.
-	if c.Origin() == "" {
-		c.SetOrigin(OriginDynamic)
-	}
-
-	// if nothing is passed in, set defaults
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
 	}
 	if c.Spec.SecondFactor == "" {
 		c.Spec.SecondFactor = constants.SecondFactorOTP
+	}
+	if c.Spec.AllowLocalAuth == nil {
+		c.Spec.AllowLocalAuth = NewBoolOption(true)
+	}
+	if c.Spec.DisconnectExpiredCert == nil {
+		c.Spec.DisconnectExpiredCert = NewBoolOption(false)
+	}
+	if c.Spec.LockingMode == "" {
+		c.Spec.LockingMode = constants.LockingModeBestEffort
+	}
+	if c.Origin() == "" {
+		c.SetOrigin(OriginDynamic)
 	}
 
 	// make sure type makes sense
@@ -286,6 +330,12 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	default:
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
+	}
+
+	switch c.Spec.LockingMode {
+	case constants.LockingModeBestEffort, constants.LockingModeStrict:
+	default:
+		return trace.BadParameter("locking mode %q not supported", c.Spec.LockingMode)
 	}
 
 	return nil
@@ -315,7 +365,6 @@ func (u *U2F) Check() error {
 // the Device field in the returned MFADevice.
 func NewMFADevice(name, id string, addedAt time.Time) *MFADevice {
 	return &MFADevice{
-		Kind: KindMFADevice,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -325,17 +374,18 @@ func NewMFADevice(name, id string, addedAt time.Time) *MFADevice {
 	}
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (d *MFADevice) setStaticFields() {
+	d.Kind = KindMFADevice
+	d.Version = V1
+}
+
 // CheckAndSetDefaults validates MFADevice fields and populates empty fields
 // with default values.
 func (d *MFADevice) CheckAndSetDefaults() error {
+	d.setStaticFields()
 	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if d.Kind == "" {
-		return trace.BadParameter("MFADevice missing Kind field")
-	}
-	if d.Version == "" {
-		d.Version = V1
 	}
 	if d.Id == "" {
 		return trace.BadParameter("MFADevice missing ID field")
@@ -355,18 +405,17 @@ func (d *MFADevice) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (d *MFADevice) GetKind() string                       { return d.Kind }
-func (d *MFADevice) GetSubKind() string                    { return d.SubKind }
-func (d *MFADevice) SetSubKind(sk string)                  { d.SubKind = sk }
-func (d *MFADevice) GetVersion() string                    { return d.Version }
-func (d *MFADevice) GetMetadata() Metadata                 { return d.Metadata }
-func (d *MFADevice) GetName() string                       { return d.Metadata.GetName() }
-func (d *MFADevice) SetName(n string)                      { d.Metadata.SetName(n) }
-func (d *MFADevice) GetResourceID() int64                  { return d.Metadata.ID }
-func (d *MFADevice) SetResourceID(id int64)                { d.Metadata.SetID(id) }
-func (d *MFADevice) Expiry() time.Time                     { return d.Metadata.Expiry() }
-func (d *MFADevice) SetExpiry(exp time.Time)               { d.Metadata.SetExpiry(exp) }
-func (d *MFADevice) SetTTL(clock Clock, ttl time.Duration) { d.Metadata.SetTTL(clock, ttl) }
+func (d *MFADevice) GetKind() string         { return d.Kind }
+func (d *MFADevice) GetSubKind() string      { return d.SubKind }
+func (d *MFADevice) SetSubKind(sk string)    { d.SubKind = sk }
+func (d *MFADevice) GetVersion() string      { return d.Version }
+func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
+func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
+func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
+func (d *MFADevice) GetResourceID() int64    { return d.Metadata.ID }
+func (d *MFADevice) SetResourceID(id int64)  { d.Metadata.SetID(id) }
+func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }
+func (d *MFADevice) SetExpiry(exp time.Time) { d.Metadata.SetExpiry(exp) }
 
 // MFAType returns the human-readable name of the MFA protocol of this device.
 func (d *MFADevice) MFAType() string {

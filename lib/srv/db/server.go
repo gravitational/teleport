@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -31,13 +32,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
-
-	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
-	"github.com/aws/aws-sdk-go/aws"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -59,32 +57,30 @@ type Config struct {
 	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
 	NewAudit NewAuditFn
-	// NewAuth allows to override authenticator in tests.
-	NewAuth NewAuthFn
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
 	// Authorizer is used to authorize requests coming from proxy.
 	Authorizer auth.Authorizer
 	// GetRotation returns the certificate rotation state.
-	GetRotation func(role teleport.Role) (*services.Rotation, error)
-	// Servers contains a list of database servers this service proxies.
-	Servers types.DatabaseServers
+	GetRotation func(role types.SystemRole) (*types.Rotation, error)
+	// Server is the resource representing this database server.
+	Server types.DatabaseServer
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
-	// GCPIAM allows to override GCP IAM client used in tests.
-	GCPIAM *gcpcredentials.IamCredentialsClient
+	// Auth is responsible for generating database auth tokens.
+	Auth common.Auth
+	// CADownloader automatically downloads root certs for cloud hosted databases.
+	CADownloader CADownloader
+	// LockWatcher is a lock watcher.
+	LockWatcher *services.LockWatcher
 }
 
-type (
-	// NewAuditFn defines a function that creates an audit logger.
-	NewAuditFn func(common.AuditConfig) (common.Audit, error)
-	// NewAuthFn defines a function that creates authenticator.
-	NewAuthFn func(common.AuthConfig) (common.Auth, error)
-)
+// NewAuditFn defines a function that creates an audit logger.
+type NewAuditFn func(common.AuditConfig) (common.Audit, error)
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
 // to function.
-func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
+func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
@@ -103,8 +99,14 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	if c.NewAudit == nil {
 		c.NewAudit = common.NewAudit
 	}
-	if c.NewAuth == nil {
-		c.NewAuth = common.NewAuth
+	if c.Auth == nil {
+		c.Auth, err = common.NewAuth(common.AuthConfig{
+			AuthClient: c.AuthClient,
+			Clock:      c.Clock,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing TLSConfig")
@@ -115,8 +117,14 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	if c.GetRotation == nil {
 		return trace.BadParameter("missing GetRotation")
 	}
-	if len(c.Servers) == 0 {
-		return trace.BadParameter("missing Servers")
+	if c.Server == nil {
+		return trace.BadParameter("missing Server")
+	}
+	if c.CADownloader == nil {
+		c.CADownloader = NewRealDownloader(c.DataDir)
+	}
+	if c.LockWatcher == nil {
+		return trace.BadParameter("missing LockWatcher")
 	}
 	return nil
 }
@@ -132,7 +140,7 @@ type Server struct {
 	closeFunc context.CancelFunc
 	// middleware extracts identity from client certificates.
 	middleware *auth.Middleware
-	// dynamicLabels contains dynamic labels for database servers.
+	// dynamicLabels contains dynamic labels for databases.
 	dynamicLabels map[string]*labels.Dynamic
 	// heartbeats holds hearbeats for database servers.
 	heartbeats map[string]*srv.Heartbeat
@@ -140,9 +148,6 @@ type Server struct {
 	mu sync.RWMutex
 	// log is used for logging.
 	log *logrus.Entry
-	// awsSessions contains per-region AWS sessions which are only initialized
-	// if there are any RDS/Aurora/Redshift databases in respective regions.
-	awsSessions map[string]*awssession.Session
 }
 
 // New returns a new database server.
@@ -160,7 +165,6 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		closeFunc:     cancel,
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		heartbeats:    make(map[string]*srv.Heartbeat),
-		awsSessions:   make(map[string]*awssession.Session),
 		middleware: &auth.Middleware{
 			AccessPoint:   config.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
@@ -172,81 +176,47 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
 		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log)
 
+	// Initialize the heartbeat which will periodically register
+	// this server with the auth server.
+	if err := server.initHeartbeat(ctx, server.cfg.Server); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Perform various initialization actions on each proxied database, like
 	// starting up dynamic labels and loading root certs for RDS dbs.
-	for _, db := range server.cfg.Servers {
-		if err := server.initDatabaseServer(ctx, db); err != nil {
-			return nil, trace.Wrap(err)
+	for _, db := range server.cfg.Server.GetDatabases() {
+		if err := server.initDatabase(ctx, db); err != nil {
+			return nil, trace.Wrap(err, "failed to initialize %v", server)
 		}
 	}
 
 	return server, nil
 }
 
-func (s *Server) initDatabaseServer(ctx context.Context, server types.DatabaseServer) error {
-	if err := s.initDynamicLabels(ctx, server); err != nil {
+func (s *Server) initDatabase(ctx context.Context, database types.Database) error {
+	if err := s.initDynamicLabels(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.initHeartbeat(ctx, server); err != nil {
+	if err := s.initCACert(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.initCACert(ctx, server); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := s.initCloudClients(ctx, server); err != nil {
-		return trace.Wrap(err)
-	}
+	s.log.Debugf("Initialized %v.", database)
 	return nil
 }
 
-func (s *Server) initCloudClients(ctx context.Context, server types.DatabaseServer) error {
-	var err error
-	switch server.GetType() {
-	case types.DatabaseTypeRDS, types.DatabaseTypeRedshift:
-		region := server.GetAWS().Region
-		if _, ok := s.awsSessions[region]; ok {
-			return nil // Already initialized.
-		}
-		session, err := awssession.NewSessionWithOptions(awssession.Options{
-			SharedConfigState: awssession.SharedConfigEnable,
-			Config: aws.Config{
-				Region: aws.String(region),
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err, "failed to initialize AWS session in region %q for database %q",
-				region, server.GetName())
-		}
-		s.awsSessions[region] = session
-	case types.DatabaseTypeCloudSQL:
-		if s.cfg.GCPIAM != nil {
-			return nil // Already initialized.
-		}
-		s.cfg.GCPIAM, err = gcpcredentials.NewIamCredentialsClient(ctx)
-		if err != nil {
-			return trace.Wrap(err, "failed to initialize GCP IAM client for database %q",
-				server.GetName())
-		}
-	default:
-		// For other types of databases e.g. self-hosted we don't need to
-		// initialize any cloud API clients.
-	}
-	return nil
-}
-
-func (s *Server) initDynamicLabels(ctx context.Context, server types.DatabaseServer) error {
-	if len(server.GetDynamicLabels()) == 0 {
+func (s *Server) initDynamicLabels(ctx context.Context, database types.Database) error {
+	if len(database.GetDynamicLabels()) == 0 {
 		return nil // Nothing to do.
 	}
 	dynamic, err := labels.NewDynamic(ctx, &labels.DynamicConfig{
-		Labels: server.GetDynamicLabels(),
+		Labels: database.GetDynamicLabels(),
 		Log:    s.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	dynamic.Sync()
-	s.dynamicLabels[server.GetName()] = dynamic
+	s.dynamicLabels[database.GetName()] = dynamic
 	return nil
 }
 
@@ -257,10 +227,10 @@ func (s *Server) initHeartbeat(ctx context.Context, server types.DatabaseServer)
 		Mode:            srv.HeartbeatModeDB,
 		Announcer:       s.cfg.AccessPoint,
 		GetServerInfo:   s.getServerInfoFunc(server),
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
-		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		ServerTTL:       defaults.ServerAnnounceTTL,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
 		OnHeartbeat:     s.cfg.OnHeartbeat,
 	})
 	if err != nil {
@@ -270,20 +240,25 @@ func (s *Server) initHeartbeat(ctx context.Context, server types.DatabaseServer)
 	return nil
 }
 
-func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services.Resource, error) {
-	return func() (services.Resource, error) {
+func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (types.Resource, error) {
+	return func() (types.Resource, error) {
 		// Make sure to return a new object, because it gets cached by
 		// heartbeat and will always compare as equal otherwise.
 		s.mu.RLock()
 		server = server.Copy()
 		s.mu.RUnlock()
 		// Update dynamic labels.
-		labels, ok := s.dynamicLabels[server.GetName()]
-		if ok {
-			server.SetDynamicLabels(labels.Get())
+		databases := make([]types.Database, 0, len(server.GetDatabases()))
+		for _, database := range server.GetDatabases() {
+			labels, ok := s.dynamicLabels[database.GetName()]
+			if ok {
+				database.SetDynamicLabels(labels.Get())
+			}
+			databases = append(databases, database)
 		}
+		server.SetDatabases(databases)
 		// Update CA rotation state.
-		rotation, err := s.cfg.GetRotation(teleport.RoleDatabase)
+		rotation, err := s.cfg.GetRotation(types.RoleDatabase)
 		if err != nil && !trace.IsNotFound(err) {
 			s.log.WithError(err).Warn("Failed to get rotation state.")
 		} else {
@@ -292,7 +267,7 @@ func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services
 			}
 		}
 		// Update TTL.
-		server.SetExpiry(s.cfg.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
+		server.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 		return server, nil
 	}
 }
@@ -322,10 +297,7 @@ func (s *Server) Close() error {
 	for _, heartbeat := range s.heartbeats {
 		errors = append(errors, heartbeat.Close())
 	}
-	// Close the GCP IAM client if needed.
-	if s.cfg.GCPIAM != nil {
-		errors = append(errors, s.cfg.GCPIAM.Close())
-	}
+	errors = append(errors, s.cfg.Auth.Close())
 	return trace.NewAggregate(errors...)
 }
 
@@ -365,7 +337,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Dispatch the connection for processing by an appropriate database
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
-	if err != nil {
+	if err != nil && !utils.IsOKNetworkError(err) && !trace.IsAccessDenied(err) {
 		log.WithError(err).Error("Failed to handle connection.")
 		return
 	}
@@ -398,6 +370,27 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Wrap a client connection into monitor that auto-terminates
+	// idle connection and connection with expired cert.
+	conn, err = monitorConn(ctx, monitorConnConfig{
+		conn:         conn,
+		lockWatcher:  s.cfg.LockWatcher,
+		lockTargets:  sessionCtx.LockTargets,
+		identity:     sessionCtx.Identity,
+		checker:      sessionCtx.Checker,
+		clock:        s.cfg.Clock,
+		serverID:     s.cfg.Server.GetHostID(),
+		authClient:   s.cfg.AuthClient,
+		teleportUser: sessionCtx.Identity.Username,
+		emitter:      s.cfg.AuthClient,
+		log:          s.log,
+		ctx:          s.closeContext,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	err = engine.HandleConnection(ctx, sessionCtx, conn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -407,25 +400,16 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 
 // dispatch returns an appropriate database engine for the session.
 func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter) (common.Engine, error) {
-	auth, err := s.cfg.NewAuth(common.AuthConfig{
-		AuthClient: s.cfg.AuthClient,
-		AWSSession: s.awsSessions[sessionCtx.Server.GetAWS().Region],
-		GCPIAM:     s.cfg.GCPIAM,
-		Clock:      s.cfg.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
 		Emitter: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch sessionCtx.Server.GetProtocol() {
+	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolPostgres:
 		return &postgres.Engine{
-			Auth:    auth,
+			Auth:    s.cfg.Auth,
 			Audit:   audit,
 			Context: s.closeContext,
 			Clock:   s.cfg.Clock,
@@ -433,7 +417,16 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 		}, nil
 	case defaults.ProtocolMySQL:
 		return &mysql.Engine{
-			Auth:    auth,
+			Auth:       s.cfg.Auth,
+			Audit:      audit,
+			AuthClient: s.cfg.AuthClient,
+			Context:    s.closeContext,
+			Clock:      s.cfg.Clock,
+			Log:        sessionCtx.Log,
+		}, nil
+	case defaults.ProtocolMongoDB:
+		return &mongodb.Engine{
+			Auth:    s.cfg.Auth,
 			Audit:   audit,
 			Context: s.closeContext,
 			Clock:   s.cfg.Clock,
@@ -441,7 +434,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 		}, nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
-		sessionCtx.Server.GetProtocol())
+		sessionCtx.Database.GetProtocol())
 }
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
@@ -460,23 +453,24 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	identity := authContext.Identity.GetIdentity()
 	s.log.Debugf("Client identity: %#v.", identity)
 	// Fetch the requested database server.
-	var server types.DatabaseServer
-	for _, s := range s.cfg.Servers {
-		if s.GetName() == identity.RouteToDatabase.ServiceName {
-			server = s
+	var database types.Database
+	for _, db := range s.cfg.Server.GetDatabases() {
+		if db.GetName() == identity.RouteToDatabase.ServiceName {
+			database = db
 		}
 	}
-	if server == nil {
-		return nil, trace.NotFound("%q not found among registered database servers: %v",
-			identity.RouteToDatabase.ServiceName, s.cfg.Servers)
+	if database == nil {
+		return nil, trace.NotFound("%q not found among registered databases: %v",
+			identity.RouteToDatabase.ServiceName, s.cfg.Server.GetDatabases())
 	}
-	s.log.Debugf("Will connect to database %q at %v.", server.GetName(),
-		server.GetURI())
+	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
+		database.GetURI())
 	id := uuid.New()
 	return &common.Session{
 		ID:                id,
 		ClusterName:       identity.RouteToCluster,
-		Server:            server,
+		Server:            s.cfg.Server,
+		Database:          database,
 		Identity:          identity,
 		DatabaseUser:      identity.RouteToDatabase.Username,
 		DatabaseName:      identity.RouteToDatabase.Database,
@@ -485,7 +479,8 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		Statements:        common.NewStatementsCache(),
 		Log: s.log.WithFields(logrus.Fields{
 			"id": id,
-			"db": server.GetName(),
+			"db": database.GetName(),
 		}),
+		LockTargets: authContext.LockTargets(),
 	}, nil
 }

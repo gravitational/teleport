@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -41,7 +42,7 @@ func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 }
 
 // CreateAccessRequest stores a new access request.
-func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
+func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
 	if err := services.ValidateAccessRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -56,9 +57,9 @@ func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req serv
 }
 
 // SetAccessRequestState updates the state of an existing access request.
-func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
+func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) (types.AccessRequest, error) {
 	if err := params.Check(); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	retryPeriod := retryPeriodMs * time.Millisecond
 	retry, err := utils.NewLinear(utils.LinearConfig{
@@ -66,7 +67,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		Max:  retryPeriod,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// Setting state is attempted multiple times in the event of concurrent writes.
 	// The reason we bother to re-attempt is because state updates aren't meant
@@ -76,23 +77,23 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return trace.NotFound("cannot set state of access request %q (not found)", params.RequestID)
+				return nil, trace.NotFound("cannot set state of access request %q (not found)", params.RequestID)
 			}
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		req, err := itemToAccessRequest(*item)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if err := req.SetState(params.State); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		req.SetResolveReason(params.Reason)
 		req.SetResolveAnnotations(params.Annotations)
 		if len(params.Roles) > 0 {
 			for _, role := range params.Roles {
-				if !utils.SliceContainsStr(req.GetRoles(), role) {
-					return trace.BadParameter("role %q not in original request, overrides must be a subset of original role list", role)
+				if !apiutils.SliceContainsStr(req.GetRoles(), role) {
+					return nil, trace.BadParameter("role %q not in original request, overrides must be a subset of original role list", role)
 				}
 			}
 			req.SetRoles(params.Roles)
@@ -105,7 +106,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		}
 		newItem, err := itemFromAccessRequest(req)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
 			if trace.IsCompareFailed(err) {
@@ -114,18 +115,18 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 					retry.Inc()
 					continue
 				case <-ctx.Done():
-					return trace.Wrap(ctx.Err())
+					return nil, trace.Wrap(ctx.Err())
 				}
 			}
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		return nil
+		return req, nil
 	}
-	return trace.CompareFailed("too many concurrent writes to access request %s, try again later", params.RequestID)
+	return nil, trace.CompareFailed("too many concurrent writes to access request %s, try again later", params.RequestID)
 }
 
 // ApplyAccessReview applies a review to a request and returns the post-application state.
-func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker services.ReviewPermissionChecker) (services.AccessRequest, error) {
+func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker services.ReviewPermissionChecker) (types.AccessRequest, error) {
 	if err := params.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,7 +186,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 	return nil, trace.CompareFailed("too many concurrent writes to access request %s, try again later", params.RequestID)
 }
 
-func (s *DynamicAccessService) GetAccessRequest(ctx context.Context, name string) (services.AccessRequest, error) {
+func (s *DynamicAccessService) GetAccessRequest(ctx context.Context, name string) (types.AccessRequest, error) {
 	item, err := s.Get(ctx, accessRequestKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -201,7 +202,7 @@ func (s *DynamicAccessService) GetAccessRequest(ctx context.Context, name string
 }
 
 // GetAccessRequests gets all currently active access requests.
-func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	// Filters which specify ID are a special case since they will match exactly zero or one
 	// possible requests.
 	if filter.ID != "" {
@@ -219,20 +220,20 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter ser
 			// happens to return an empty slice.
 			return nil, nil
 		}
-		return []services.AccessRequest{req}, nil
+		return []types.AccessRequest{req}, nil
 	}
 	result, err := s.GetRange(ctx, backend.Key(accessRequestsPrefix), backend.RangeEnd(backend.Key(accessRequestsPrefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var requests []services.AccessRequest
+	var requests []types.AccessRequest
 	for _, item := range result.Items {
 		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
 			// Item represents a different resource type in the
 			// same namespace.
 			continue
 		}
-		req, err := itemToAccessRequest(item, services.SkipValidation())
+		req, err := itemToAccessRequest(item)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -260,7 +261,7 @@ func (s *DynamicAccessService) DeleteAllAccessRequests(ctx context.Context) erro
 	return trace.Wrap(s.DeleteRange(ctx, backend.Key(accessRequestsPrefix), backend.RangeEnd(backend.Key(accessRequestsPrefix))))
 }
 
-func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req services.AccessRequest) error {
+func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req types.AccessRequest) error {
 	if err := services.ValidateAccessRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -275,9 +276,9 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req serv
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
-func (s *DynamicAccessService) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
+func (s *DynamicAccessService) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	switch filter.Kind {
-	case services.KindAccessRequest:
+	case types.KindAccessRequest:
 		data, err := s.getAccessRequestPluginData(ctx, filter)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -288,11 +289,11 @@ func (s *DynamicAccessService) GetPluginData(ctx context.Context, filter service
 	}
 }
 
-func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
+func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	// Filters which specify Resource are a special case since they will match exactly zero or one
 	// possible PluginData instances.
 	if filter.Resource != "" {
-		item, err := s.Get(ctx, pluginDataKey(services.KindAccessRequest, filter.Resource))
+		item, err := s.Get(ctx, pluginDataKey(types.KindAccessRequest, filter.Resource))
 		if err != nil {
 			// A filter with zero matches is still a success, it just
 			// happens to return an empty slice.
@@ -310,14 +311,14 @@ func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, f
 			// happens to return an empty slice.
 			return nil, nil
 		}
-		return []services.PluginData{data}, nil
+		return []types.PluginData{data}, nil
 	}
-	prefix := backend.Key(pluginDataPrefix, services.KindAccessRequest)
+	prefix := backend.Key(pluginDataPrefix, types.KindAccessRequest)
 	result, err := s.GetRange(ctx, prefix, backend.RangeEnd(prefix), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var matches []services.PluginData
+	var matches []types.PluginData
 	for _, item := range result.Items {
 		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
 			// Item represents a different resource type in the
@@ -337,16 +338,16 @@ func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, f
 }
 
 // UpdatePluginData updates a per-resource PluginData entry.
-func (s *DynamicAccessService) UpdatePluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
+func (s *DynamicAccessService) UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
 	switch params.Kind {
-	case services.KindAccessRequest:
+	case types.KindAccessRequest:
 		return trace.Wrap(s.updateAccessRequestPluginData(ctx, params))
 	default:
 		return trace.BadParameter("unsupported resource kind %q", params.Kind)
 	}
 }
 
-func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
+func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
 	retryPeriod := retryPeriodMs * time.Millisecond
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Step: retryPeriod / 7,
@@ -358,8 +359,8 @@ func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context
 	// Update is attempted multiple times in the event of concurrent writes.
 	for i := 0; i < maxCmpAttempts; i++ {
 		var create bool
-		var data services.PluginData
-		item, err := s.Get(ctx, pluginDataKey(services.KindAccessRequest, params.Resource))
+		var data types.PluginData
+		item, err := s.Get(ctx, pluginDataKey(types.KindAccessRequest, params.Resource))
 		if err == nil {
 			data, err = itemToPluginData(*item)
 			if err != nil {
@@ -379,7 +380,7 @@ func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			data, err = services.NewPluginData(params.Resource, services.KindAccessRequest)
+			data, err = types.NewPluginData(params.Resource, types.KindAccessRequest)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -428,7 +429,7 @@ func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context
 	return trace.CompareFailed("too many concurrent writes to plugin data %s", params.Resource)
 }
 
-func itemFromAccessRequest(req services.AccessRequest) (backend.Item, error) {
+func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	value, err := services.MarshalAccessRequest(req)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
@@ -441,7 +442,7 @@ func itemFromAccessRequest(req services.AccessRequest) (backend.Item, error) {
 	}, nil
 }
 
-func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (services.AccessRequest, error) {
+func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (types.AccessRequest, error) {
 	opts = append(
 		opts,
 		services.WithResourceID(item.ID),
@@ -457,7 +458,7 @@ func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (ser
 	return req, nil
 }
 
-func itemFromPluginData(data services.PluginData) (backend.Item, error) {
+func itemFromPluginData(data types.PluginData) (backend.Item, error) {
 	value, err := services.MarshalPluginData(data)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
@@ -475,7 +476,7 @@ func itemFromPluginData(data services.PluginData) (backend.Item, error) {
 	}, nil
 }
 
-func itemToPluginData(item backend.Item) (services.PluginData, error) {
+func itemToPluginData(item backend.Item) (types.PluginData, error) {
 	data, err := services.UnmarshalPluginData(
 		item.Value,
 		services.WithResourceID(item.ID),

@@ -18,86 +18,23 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// GithubConnectorV3SchemaTemplate is the JSON schema for a Github connector
-const GithubConnectorV3SchemaTemplate = `{
-    "type": "object",
-    "additionalProperties": false,
-    "required": ["kind", "spec", "metadata", "version"],
-    "properties": {
-      "kind": {"type": "string"},
-      "version": {"type": "string", "default": "v3"},
-      "metadata": %v,
-      "spec": %v
-    }
-  }`
-
-// GithubConnectorSpecV3Schema is the JSON schema for Github connector spec
-var GithubConnectorSpecV3Schema = fmt.Sprintf(`{
-    "type": "object",
-    "additionalProperties": false,
-    "required": ["client_id", "client_secret", "redirect_url"],
-    "properties": {
-      "client_id": {"type": "string"},
-      "client_secret": {"type": "string"},
-      "redirect_url": {"type": "string"},
-      "display": {"type": "string"},
-      "teams_to_logins": {
-        "type": "array",
-        "items": %v
-      }
-    }
-  }`, TeamMappingSchema)
-
-// TeamMappingSchema is the JSON schema for team membership mapping
-var TeamMappingSchema = `{
-    "type": "object",
-    "additionalProperties": false,
-    "required": ["organization", "team"],
-    "properties": {
-      "organization": {"type": "string"},
-      "team": {"type": "string"},
-      "logins": {
-        "type": "array",
-        "items": {
-            "type": "string"
-        }
-      },
-      "kubernetes_groups": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      },
-      "kubernetes_users": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      }
-    }
-  }`
-
-// GetGithubConnectorSchema returns schema for Github connector
-func GetGithubConnectorSchema() string {
-	return fmt.Sprintf(GithubConnectorV3SchemaTemplate, MetadataSchema, GithubConnectorSpecV3Schema)
-}
-
 // UnmarshalGithubConnector unmarshals the GithubConnector resource from JSON.
-func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
-	var h ResourceHeader
+func UnmarshalGithubConnector(bytes []byte) (types.GithubConnector, error) {
+	var h types.ResourceHeader
 	if err := json.Unmarshal(bytes, &h); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
-	case V3:
-		var c GithubConnectorV3
-		if err := utils.UnmarshalWithSchema(GetGithubConnectorSchema(), &c, bytes); err != nil {
+	case types.V3:
+		var c types.GithubConnectorV3
+		if err := utils.FastUnmarshal(bytes, &c); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if err := c.CheckAndSetDefaults(); err != nil {
@@ -110,17 +47,18 @@ func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
 }
 
 // MarshalGithubConnector marshals the GithubConnector resource to JSON.
-func MarshalGithubConnector(githubConnector GithubConnector, opts ...MarshalOption) ([]byte, error) {
+func MarshalGithubConnector(githubConnector types.GithubConnector, opts ...MarshalOption) ([]byte, error) {
+	if err := githubConnector.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch githubConnector := githubConnector.(type) {
-	case *GithubConnectorV3:
-		if version := githubConnector.GetVersion(); version != V3 {
-			return nil, trace.BadParameter("mismatched github connector version %v and type %T", version, githubConnector)
-		}
+	case *types.GithubConnectorV3:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

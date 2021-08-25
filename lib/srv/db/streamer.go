@@ -22,7 +22,8 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/services"
@@ -36,7 +37,7 @@ import (
 // newStreamWriter creates a streamer that will be used to stream the
 // requests that occur within this session to the audit log.
 func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWriter, error) {
-	clusterConfig, err := s.cfg.AccessPoint.GetClusterConfig()
+	recConfig, err := s.cfg.AccessPoint.GetSessionRecordingConfig(s.closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -46,7 +47,7 @@ func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWr
 	}
 	// TODO(r0mant): Add support for record-at-proxy.
 	// Create a sync or async streamer depending on configuration of cluster.
-	streamer, err := s.newStreamer(s.closeContext, sessionCtx.ID, clusterConfig)
+	streamer, err := s.newStreamer(s.closeContext, sessionCtx.ID, recConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,9 +58,9 @@ func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWr
 		Streamer:     streamer,
 		Clock:        s.cfg.Clock,
 		SessionID:    session.ID(sessionCtx.ID),
-		Namespace:    defaults.Namespace,
+		Namespace:    apidefaults.Namespace,
 		ServerID:     sessionCtx.Server.GetHostID(),
-		RecordOutput: clusterConfig.GetSessionRecording() != services.RecordOff,
+		RecordOutput: recConfig.GetMode() != types.RecordOff,
 		Component:    teleport.ComponentDatabase,
 		ClusterName:  clusterName.GetClusterName(),
 	})
@@ -69,16 +70,15 @@ func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWr
 // of the server and the session, sync streamer sends the events
 // directly to the auth server and blocks if the events can not be received,
 // async streamer buffers the events to disk and uploads the events later
-func (s *Server) newStreamer(ctx context.Context, sessionID string, clusterConfig services.ClusterConfig) (libevents.Streamer, error) {
-	mode := clusterConfig.GetSessionRecording()
-	if services.IsRecordSync(mode) {
+func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig types.SessionRecordingConfig) (libevents.Streamer, error) {
+	if services.IsRecordSync(recConfig.GetMode()) {
 		s.log.Debugf("Using sync streamer for session %v.", sessionID)
 		return s.cfg.AuthClient, nil
 	}
 	s.log.Debugf("Using async streamer for session %v.", sessionID)
 	uploadDir := filepath.Join(
 		s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		libevents.StreamingLogsDir, defaults.Namespace)
+		libevents.StreamingLogsDir, apidefaults.Namespace)
 	// Make sure the upload dir exists, otherwise file streamer will fail.
 	_, err := utils.StatDir(uploadDir)
 	if err != nil && !trace.IsNotFound(err) {

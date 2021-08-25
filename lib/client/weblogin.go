@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -262,13 +263,13 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO) (*auth.SSHLoginRes
 	if login.Browser != teleport.BrowserNone {
 		switch runtime.GOOS {
 		// macOS.
-		case teleport.DarwinOS:
+		case constants.DarwinOS:
 			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
 			if err == nil {
 				execCmd = exec.Command(path, clickableURL)
 			}
 		// Windows.
-		case teleport.WindowsOS:
+		case constants.WindowsOS:
 			path, err := exec.LookPath(teleport.OpenBrowserWindows)
 			if err == nil {
 				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", clickableURL)

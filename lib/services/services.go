@@ -23,12 +23,15 @@ type Services interface {
 	UsersService
 	Provisioner
 	Trust
-	Events
+	types.Events
 	ClusterConfiguration
 	Access
 	DynamicAccessCore
 	Presence
+	Restrictions
+	Databases
 	AppSession
 	types.WebSessionsGetter
 	types.WebTokensGetter
+	WindowsDesktops
 }

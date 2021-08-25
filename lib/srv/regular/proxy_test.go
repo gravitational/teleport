@@ -17,7 +17,7 @@ limitations under the License.
 package regular
 
 import (
-	"github.com/gravitational/teleport/lib/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/srv"
 
 	"gopkg.in/check.v1"
@@ -74,7 +74,7 @@ func (s *ProxyTestSuite) TestParseProxyRequest(c *check.C) {
 			// test cases without a defined namespace are testing for
 			// the presence of the default namespace; namespace should
 			// never actually be empty.
-			t.namespace = defaults.Namespace
+			t.namespace = apidefaults.Namespace
 		}
 		cmt := check.Commentf("Test case %d: %+v", i, t)
 		req, err := parseProxySubsysRequest(t.req)

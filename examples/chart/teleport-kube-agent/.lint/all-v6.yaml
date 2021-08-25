@@ -1,0 +1,27 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: kube,app,db
+kubeClusterName: test-kube-cluster-name
+labels:
+  cluster: testing
+apps:
+  - name: grafana
+    uri: http://localhost:3000
+    labels:
+      environment: test
+databases:
+  - name: aurora
+    uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
+    protocol: "postgres"
+    labels:
+      database: staging
+annotations:
+  config:
+    kubernetes.io/config: "test-annotation"
+    kubernetes.io/config-different: 2
+  deployment:
+    kubernetes.io/deployment: "test-annotation"
+    kubernetes.io/deployment-different: 3
+  pod:
+    kubernetes.io/pod: "test-annotation"
+    kubernetes.io/pod-different: 4

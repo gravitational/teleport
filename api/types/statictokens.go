@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
 )
 
@@ -35,26 +33,22 @@ type StaticTokens interface {
 	SetStaticTokens([]ProvisionToken)
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens() []ProvisionToken
-	// CheckAndSetDefaults checks and set default values for missing fields.
-	CheckAndSetDefaults() error
 }
 
 // NewStaticTokens is a convenience wrapper to create a StaticTokens resource.
 func NewStaticTokens(spec StaticTokensSpecV2) (StaticTokens, error) {
-	st := StaticTokensV2{
-		Kind:    KindStaticTokens,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameStaticTokens,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
-	}
+	st := &StaticTokensV2{Spec: spec}
 	if err := st.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return st, nil
+}
 
-	return &st, nil
+// DefaultStaticTokens is used to get the default static tokens (empty list)
+// when nothing is specified in file configuration.
+func DefaultStaticTokens() StaticTokens {
+	token, _ := NewStaticTokens(StaticTokensSpecV2{})
+	return token
 }
 
 // GetVersion returns resource version
@@ -107,13 +101,6 @@ func (c *StaticTokensV2) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *StaticTokensV2) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (c *StaticTokensV2) GetMetadata() Metadata {
 	return c.Metadata
@@ -129,14 +116,19 @@ func (c *StaticTokensV2) GetStaticTokens() []ProvisionToken {
 	return ProvisionTokensFromV1(c.Spec.StaticTokens)
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (c *StaticTokensV2) setStaticFields() {
+	c.Kind = KindStaticTokens
+	c.Version = V2
+	c.Metadata.Name = MetaNameStaticTokens
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *StaticTokensV2) CheckAndSetDefaults() error {
-	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 

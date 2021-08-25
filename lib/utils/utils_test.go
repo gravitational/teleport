@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/stretchr/testify/require"
@@ -130,14 +131,14 @@ func (s *UtilsSuite) TestRandomDuration(c *check.C) {
 
 func (s *UtilsSuite) TestMiscFunctions(c *check.C) {
 	// SliceContainsStr
-	c.Assert(SliceContainsStr([]string{"two", "one"}, "one"), check.Equals, true)
-	c.Assert(SliceContainsStr([]string{"two", "one"}, "five"), check.Equals, false)
-	c.Assert(SliceContainsStr([]string(nil), "one"), check.Equals, false)
+	c.Assert(apiutils.SliceContainsStr([]string{"two", "one"}, "one"), check.Equals, true)
+	c.Assert(apiutils.SliceContainsStr([]string{"two", "one"}, "five"), check.Equals, false)
+	c.Assert(apiutils.SliceContainsStr([]string(nil), "one"), check.Equals, false)
 
 	// Deduplicate
-	c.Assert(Deduplicate([]string{}), check.DeepEquals, []string{})
-	c.Assert(Deduplicate([]string{"a", "b"}), check.DeepEquals, []string{"a", "b"})
-	c.Assert(Deduplicate([]string{"a", "b", "b", "a", "c"}), check.DeepEquals, []string{"a", "b", "c"})
+	c.Assert(apiutils.Deduplicate([]string{}), check.DeepEquals, []string{})
+	c.Assert(apiutils.Deduplicate([]string{"a", "b"}), check.DeepEquals, []string{"a", "b"})
+	c.Assert(apiutils.Deduplicate([]string{"a", "b", "b", "a", "c"}), check.DeepEquals, []string{"a", "b", "c"})
 
 	// RemoveFromSlice
 	c.Assert(RemoveFromSlice([]string{}, "a"), check.DeepEquals, []string{})
@@ -163,7 +164,7 @@ func (s *UtilsSuite) TestVersions(c *check.C) {
 	}
 	for i, testCase := range testCases {
 		comment := check.Commentf("test case %v %q", i, testCase.info)
-		err := CheckVersions(testCase.client, testCase.minClient)
+		err := CheckVersion(testCase.client, testCase.minClient)
 		if testCase.err == nil {
 			c.Assert(err, check.IsNil, comment)
 		} else {

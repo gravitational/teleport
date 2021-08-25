@@ -19,9 +19,32 @@ ENV LANGUAGE="en_US.UTF-8" \
 
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
-    apt-get install -q -y apt-utils curl gcc git gzip libbpfcc-dev libc6-dev libpam-dev libsqlite3-0 locales make net-tools tar tree zip && \
+    apt-get install -y --no-install-recommends apt-utils ca-certificates curl && \
+    apt-get install -q -y --no-install-recommends \
+        clang-10 \
+        clang-format-10 \
+        gcc \
+        git \
+        gzip \
+        libc6-dev \
+        libelf-dev \
+        libpam-dev \
+        libsqlite3-0 \
+        llvm-10 \
+        locales \
+        make \
+        net-tools \
+        openssh-client \
+        pkg-config \
+        tar \
+        tree \
+        unzip \
+        zip \
+        zlib1g-dev \
+        && \
     dpkg-reconfigure locales && \
-    apt-get -y autoclean && apt-get -y clean
+    apt-get -y clean && \
+    rm -rf /var/lib/apt/lists/*
 
 ARG UID
 ARG GID
@@ -39,6 +62,13 @@ RUN mkdir -p /opt && cd /opt && curl https://go-boringcrypto.storage.googleapis.
     chmod a+w /go && \
     chmod a+w /var/lib && \
     chmod a-w /
+
+# Install libbpf
+ARG LIBBPF_VERSION
+RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
+    make && \
+    make install
 
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \

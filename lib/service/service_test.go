@@ -28,10 +28,11 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
 
@@ -264,6 +265,9 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 		{events: []string{"file://localhost"}, isErr: true},
 	}
 
+	backend, err := memory.New(memory.Config{})
+	c.Assert(err, check.IsNil)
+
 	for i, tt := range tts {
 		// isErr implies isNil.
 		if tt.isErr {
@@ -272,9 +276,11 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 
 		cmt := check.Commentf("tt[%v]: %+v", i, tt)
 
-		loggers, err := initExternalLog(context.Background(), services.AuditConfig{
+		auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 			AuditEventsURI: tt.events,
-		}, t.Log)
+		})
+		c.Assert(err, check.IsNil, cmt)
+		loggers, err := initExternalLog(context.Background(), auditConfig, t.Log, backend)
 
 		if tt.isErr {
 			c.Assert(err, check.NotNil, cmt)
@@ -319,12 +325,12 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 		},
 	}
 	tests := []struct {
-		role           teleport.Role
+		role           types.SystemRole
 		wantPrincipals []string
 		wantDNS        []string
 	}{
 		{
-			role: teleport.RoleProxy,
+			role: types.RoleProxy,
 			wantPrincipals: []string{
 				"global-hostname",
 				"proxy-public-1",
@@ -352,7 +358,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			},
 		},
 		{
-			role: teleport.RoleAuth,
+			role: types.RoleAuth,
 			wantPrincipals: []string{
 				"global-hostname",
 				"auth-public-1",
@@ -361,7 +367,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			wantDNS: []string{},
 		},
 		{
-			role: teleport.RoleAdmin,
+			role: types.RoleAdmin,
 			wantPrincipals: []string{
 				"global-hostname",
 				"auth-public-1",
@@ -370,7 +376,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			wantDNS: []string{},
 		},
 		{
-			role: teleport.RoleNode,
+			role: types.RoleNode,
 			wantPrincipals: []string{
 				"global-hostname",
 				"global-uuid",
@@ -381,7 +387,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			wantDNS: []string{},
 		},
 		{
-			role: teleport.RoleKube,
+			role: types.RoleKube,
 			wantPrincipals: []string{
 				"global-hostname",
 				string(teleport.PrincipalLocalhost),
@@ -394,7 +400,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			wantDNS: []string{},
 		},
 		{
-			role: teleport.RoleApp,
+			role: types.RoleApp,
 			wantPrincipals: []string{
 				"global-hostname",
 				"global-uuid",
@@ -402,7 +408,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			wantDNS: []string{},
 		},
 		{
-			role: teleport.Role("unknown"),
+			role: types.SystemRole("unknown"),
 			wantPrincipals: []string{
 				"global-hostname",
 			},

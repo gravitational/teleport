@@ -23,10 +23,12 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
-	jwt_pkg "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	session_pkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -48,7 +50,7 @@ type session struct {
 }
 
 // newSession creates a new session.
-func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *services.App) (*session, error) {
+func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *types.App) (*session, error) {
 	// Create the stream writer that will write this chunk to the audit log.
 	streamWriter, err := s.newStreamWriter(identity)
 	if err != nil {
@@ -56,7 +58,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	}
 
 	// Request a JWT token that will be attached to all requests.
-	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, jwt_pkg.GenerateAppTokenRequest{
+	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
 		Roles:    identity.Groups,
 		URI:      app.URI,
@@ -79,6 +81,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 			rewrite:            app.Rewrite,
 			traits:             identity.Traits,
 			log:                s.log,
+			user:               identity.Username,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -102,7 +105,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 // newStreamWriter creates a streamer that will be used to stream the
 // requests that occur within this session to the audit log.
 func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter, error) {
-	clusterConfig, err := s.c.AccessPoint.GetClusterConfig()
+	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(s.closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,7 +121,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 	chunkID := uuid.New()
 
 	// Create a sync or async streamer depending on configuration of cluster.
-	streamer, err := s.newStreamer(s.closeContext, chunkID, clusterConfig)
+	streamer, err := s.newStreamer(s.closeContext, chunkID, recConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,9 +132,9 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		Streamer:     streamer,
 		Clock:        s.c.Clock,
 		SessionID:    session_pkg.ID(chunkID),
-		Namespace:    defaults.Namespace,
+		Namespace:    apidefaults.Namespace,
 		ServerID:     s.c.Server.GetName(),
-		RecordOutput: clusterConfig.GetSessionRecording() != services.RecordOff,
+		RecordOutput: recConfig.GetMode() != types.RecordOff,
 		Component:    teleport.ComponentApp,
 		ClusterName:  clusterName.GetClusterName(),
 	})
@@ -140,21 +143,21 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 	}
 
 	// Emit an event to the Audit Log that a new session chunk has been created.
-	appSessionChunkEvent := &events.AppSessionChunk{
-		Metadata: events.Metadata{
+	appSessionChunkEvent := &apievents.AppSessionChunk{
+		Metadata: apievents.Metadata{
 			Type:        events.AppSessionChunkEvent,
 			Code:        events.AppSessionChunkCode,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
-		ServerMetadata: events.ServerMetadata{
+		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        s.c.Server.GetName(),
-			ServerNamespace: defaults.Namespace,
+			ServerNamespace: apidefaults.Namespace,
 		},
-		SessionMetadata: events.SessionMetadata{
+		SessionMetadata: apievents.SessionMetadata{
 			SessionID: identity.RouteToApp.SessionID,
 			WithMFA:   identity.MFAVerified,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         identity.Username,
 			Impersonator: identity.Impersonator,
 		},
@@ -171,9 +174,8 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 // of the server and the session, sync streamer sends the events
 // directly to the auth server and blocks if the events can not be received,
 // async streamer buffers the events to disk and uploads the events later
-func (s *Server) newStreamer(ctx context.Context, sessionID string, clusterConfig services.ClusterConfig) (events.Streamer, error) {
-	mode := clusterConfig.GetSessionRecording()
-	if services.IsRecordSync(mode) {
+func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig types.SessionRecordingConfig) (events.Streamer, error) {
+	if services.IsRecordSync(recConfig.GetMode()) {
 		s.log.Debugf("Using sync streamer for session %v.", sessionID)
 		return s.c.AuthClient, nil
 	}
@@ -181,7 +183,7 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, clusterConfi
 	s.log.Debugf("Using async streamer for session %v.", sessionID)
 	uploadDir := filepath.Join(
 		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, defaults.Namespace,
+		events.StreamingLogsDir, apidefaults.Namespace,
 	)
 	fileStreamer, err := filesessions.NewStreamer(uploadDir)
 	if err != nil {

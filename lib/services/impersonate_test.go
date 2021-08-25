@@ -20,31 +20,31 @@ import (
 	"fmt"
 	"testing"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCheckImpersonate(t *testing.T) {
-	noLabelsRole := &types.RoleV3{
+	noLabelsRole := &types.RoleV4{
 		Metadata: types.Metadata{
 			Name:      "no-labels",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 			},
 		},
 	}
-	wildcardRole := &types.RoleV3{
+	wildcardRole := &types.RoleV4{
 		Metadata: types.Metadata{
 			Name:      "wildcard",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
 				Impersonate: &types.ImpersonateConditions{
 					Users: []string{types.Wildcard},
@@ -53,12 +53,12 @@ func TestCheckImpersonate(t *testing.T) {
 			},
 		},
 	}
-	wildcardDenyRole := &types.RoleV3{
+	wildcardDenyRole := &types.RoleV4{
 		Metadata: types.Metadata{
 			Name:      "wildcard-deny-user",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Deny: types.RoleConditions{
 				Impersonate: &types.ImpersonateConditions{
 					Users: []string{types.Wildcard},
@@ -73,12 +73,12 @@ func TestCheckImpersonate(t *testing.T) {
 	}
 	var empty props
 	newUser := func(name string, props props) types.User {
-		u := &UserV2{
+		u := &types.UserV2{
 			Kind:    types.KindUser,
 			Version: types.V2,
 			Metadata: types.Metadata{
 				Name:      name,
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 				Labels:    props.labels,
 			},
 			Spec: types.UserSpecV2{
@@ -153,12 +153,12 @@ func TestCheckImpersonate(t *testing.T) {
 			name: "impersonate condition is limited to a certain set users and roles",
 			user: newUser("alice", empty),
 			roles: []types.Role{
-				&types.RoleV3{
+				&types.RoleV4{
 					Metadata: types.Metadata{
 						Name:      "limited",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV3{
+					Spec: types.RoleSpecV4{
 						Allow: types.RoleConditions{
 							Impersonate: &types.ImpersonateConditions{
 								Users: []string{"bob"},
@@ -196,16 +196,16 @@ func TestCheckImpersonate(t *testing.T) {
 			name: "Alice can impersonate any user and role from dev team",
 			user: newUser("alice", props{traits: map[string][]string{"team": []string{"dev"}}}),
 			roles: []types.Role{
-				&types.RoleV3{
+				&types.RoleV4{
 					Metadata: types.Metadata{
 						Name:      "team-impersonator",
-						Namespace: defaults.Namespace,
+						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV3{
+					Spec: types.RoleSpecV4{
 						Allow: types.RoleConditions{
 							Impersonate: &types.ImpersonateConditions{
-								Users: []string{Wildcard},
-								Roles: []string{Wildcard},
+								Users: []string{types.Wildcard},
+								Roles: []string{types.Wildcard},
 								Where: `equals(user.spec.traits["team"], impersonate_user.spec.traits["team"]) && contains(user.spec.traits["team"], impersonate_role.metadata.labels["team"])`,
 							},
 						},
@@ -219,15 +219,15 @@ func TestCheckImpersonate(t *testing.T) {
 						traits: map[string][]string{"team": []string{"dev"}},
 					}),
 					roles: []types.Role{
-						&types.RoleV3{
+						&types.RoleV4{
 							Metadata: types.Metadata{
 								Name:      "dev",
-								Namespace: defaults.Namespace,
+								Namespace: apidefaults.Namespace,
 								Labels: map[string]string{
 									"team": "dev",
 								},
 							},
-							Spec: types.RoleSpecV3{},
+							Spec: types.RoleSpecV4{},
 						},
 					},
 				},
@@ -239,15 +239,15 @@ func TestCheckImpersonate(t *testing.T) {
 					}),
 					roles: []types.Role{
 						wildcardRole,
-						&types.RoleV3{
+						&types.RoleV4{
 							Metadata: types.Metadata{
 								Name:      "dev",
-								Namespace: defaults.Namespace,
+								Namespace: apidefaults.Namespace,
 								Labels: map[string]string{
 									"team": "dev",
 								},
 							},
-							Spec: types.RoleSpecV3{},
+							Spec: types.RoleSpecV4{},
 						},
 					},
 				},

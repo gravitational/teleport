@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
@@ -81,11 +83,31 @@ type Server interface {
 	MatchAgainst(labels map[string]string) bool
 	// LabelsString returns a comma separated string with all node's labels
 	LabelsString() string
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
+}
+
+// NewServer creates an instance of Server.
+func NewServer(name, kind string, spec ServerSpecV2) (Server, error) {
+	return NewServerWithLabels(name, kind, spec, map[string]string{})
+}
+
+// NewServerWithLabels is a convenience method to create
+// ServerV2 with a specific map of labels.
+func NewServerWithLabels(name, kind string, spec ServerSpecV2, labels map[string]string) (Server, error) {
+	server := &ServerV2{
+		Kind: kind,
+		Metadata: Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		Spec: spec,
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
 }
 
 // GetVersion returns resource version
@@ -146,13 +168,6 @@ func (s *ServerV2) SetExpiry(expires time.Time) {
 // Expiry returns object expiry setting
 func (s *ServerV2) Expiry() time.Time {
 	return s.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (s *ServerV2) SetTTL(clock Clock, ttl time.Duration) {
-	s.Metadata.SetTTL(clock, ttl)
 }
 
 // SetPublicAddr sets the public address this cluster can be reached at.
@@ -304,15 +319,20 @@ func LabelsAsString(static map[string]string, dynamic map[string]CommandLabelV2)
 	return strings.Join(labels, ",")
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (s *ServerV2) setStaticFields() {
+	s.Version = V2
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
 	// defaults.ServerAnnounceTTL).
-
-	err := s.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	s.setStaticFields()
+	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if s.Kind == "" {
 		return trace.BadParameter("server Kind is empty")
 	}
@@ -334,6 +354,16 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
 	return proto.Clone(s).(*ServerV2)
+}
+
+// IsAWSConsole returns true if this app is AWS management console.
+func (a *App) IsAWSConsole() bool {
+	return strings.HasPrefix(a.URI, constants.AWSConsoleURL)
+}
+
+// GetAWSAccountID returns value of label containing AWS account ID on this app.
+func (a *App) GetAWSAccountID() string {
+	return a.StaticLabels[constants.AWSAccountIDLabel]
 }
 
 // CommandLabel is a label that has a value as a result of the

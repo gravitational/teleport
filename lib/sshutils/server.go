@@ -41,6 +41,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var proxyConnectionLimitHitCount = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricProxyConnectionLimitHit,
+		Help: "Number of times the proxy connection limit was exceeded",
+	},
+)
+
 // Server is a generic implementation of an SSH server. All Teleport
 // services (auth, proxy, ssh) use this as a base to accept SSH connections.
 type Server struct {
@@ -145,8 +152,12 @@ func NewServer(
 	h NewChanHandler,
 	hostSigners []ssh.Signer,
 	ah AuthMethods,
-	opts ...ServerOption) (*Server, error) {
-	var err error
+	opts ...ServerOption,
+) (*Server, error) {
+	err := utils.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
@@ -392,19 +403,6 @@ func (s *Server) trackConnections(delta int32) int32 {
 	return atomic.AddInt32(&s.conns, delta)
 }
 
-var (
-	proxyConnectionLimitHitCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricProxyConnectionLimitHit,
-			Help: "Number of times the proxy connection limit was exceeded",
-		},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(proxyConnectionLimitHitCount)
-}
-
 // HandleConnection is called every time an SSH server accepts a new
 // connection from a client.
 //
@@ -615,8 +613,10 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 	return nil
 }
 
-type PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
-type PasswordFunc func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
+type (
+	PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
+	PasswordFunc  func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
+)
 
 // HandshakePayload structure is sent as a JSON blob by the teleport
 // proxy to every SSH server who identifies itself as Teleport server
@@ -670,7 +670,7 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	}
 	// chop off extra unused bytes at the end of the buffer:
 	buff = buff[:n]
-	var skip = 0
+	skip := 0
 
 	// are we reading from a Teleport proxy?
 	if bytes.HasPrefix(buff, []byte(ProxyHelloSignature)) {

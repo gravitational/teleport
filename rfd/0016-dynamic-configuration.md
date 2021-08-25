@@ -14,7 +14,7 @@ Finally, the actual implementation is discussed.
 
 ## Why
 
-Some resources like `services.AuthPreference` or `services.ClusterConfig` are
+Some resources like `types.AuthPreference` or `services.ClusterConfig` are
 live representations of parts of the `auth_service` configuration section.
 These resources can be understood to constitute *dynamic* configuration of
 an auth server, as opposed to *static* configuration defined by the
@@ -34,7 +34,7 @@ This RFD allows the dynamic configuration to be created/updated explicitly via
 
 We use the example of the `authentication` subsection of `auth_service`
 in `teleport.yaml` (as "the" static configuration) and the corresponding
-resource `services.AuthPreference` (as "the" dynamic configuration).
+resource `types.AuthPreference` (as "the" dynamic configuration).
 The latter is assumed to be manipulable via `tctl` using the identifier `cap`.
 
 ### Scenario 1: static configuration specified

@@ -23,9 +23,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -56,6 +56,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 			urlParams := launcherURLParams{
 				clusterName: q.Get("cluster"),
 				publicAddr:  q.Get("addr"),
+				awsRole:     q.Get("awsrole"),
 				stateToken:  stateToken,
 			}
 			return h.redirectToLauncher(w, r, urlParams)
@@ -92,7 +93,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 		h.setAuthStateCookie(w, "")
 
 		// Validate that the caller is asking for a session that exists.
-		_, err = h.c.AccessPoint.GetAppSession(r.Context(), services.GetAppSessionRequest{
+		_, err = h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
 			SessionID: req.CookieValue,
 		})
 		if err != nil {

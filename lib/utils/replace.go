@@ -26,13 +26,22 @@ func GlobToRegexp(in string) string {
 // * Wildcard globs '*' are treated as regular expression .* expression
 // * Expression is treated as regular expression if it starts with ^ and ends with $
 // * Full match is expected, partial replacements ignored
-// * If there is no match, returns not found error
+// * If there is no match, returns a NotFound error
 func ReplaceRegexp(expression string, replaceWith string, input string) (string, error) {
+	return ReplaceRegexpWithConfig(expression, replaceWith, input, RegexpConfig{})
+}
+
+// ReplaceRegexpWithConfig behaves exactly like ReplaceRegexp but its behavior
+// can be customized
+func ReplaceRegexpWithConfig(expression string, replaceWith string, input string, config RegexpConfig) (string, error) {
 	if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
 		// replace glob-style wildcards with regexp wildcards
 		// for plain strings, and quote all characters that could
 		// be interpreted in regular expression
 		expression = "^" + GlobToRegexp(expression) + "$"
+	}
+	if config.IgnoreCase {
+		expression = "(?i)" + expression
 	}
 	expr, err := regexp.Compile(expression)
 	if err != nil {
@@ -44,6 +53,12 @@ func ReplaceRegexp(expression string, replaceWith string, input string) (string,
 		return "", trace.NotFound("no match found")
 	}
 	return expr.ReplaceAllString(input, replaceWith), nil
+}
+
+// RegexpConfig defines the configuration of the regular expression matcher
+type RegexpConfig struct {
+	// IgnoreCase specifies whether matching is case-insensitive
+	IgnoreCase bool
 }
 
 // SliceMatchesRegex checks if input matches any of the expressions. The

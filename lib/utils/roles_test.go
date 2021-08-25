@@ -17,7 +17,7 @@ limitations under the License.
 package utils
 
 import (
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"gopkg.in/check.v1"
 )
 
@@ -27,9 +27,9 @@ type RolesTestSuite struct {
 var _ = check.Suite(&RolesTestSuite{})
 
 func (s *RolesTestSuite) TestParsing(c *check.C) {
-	roles, err := teleport.ParseRoles("auth, Proxy,nODE")
+	roles, err := types.ParseTeleportRoles("auth, Proxy,nODE")
 	c.Assert(err, check.IsNil)
-	c.Assert(roles, check.DeepEquals, teleport.Roles{
+	c.Assert(roles, check.DeepEquals, types.SystemRoles{
 		"Auth",
 		"Proxy",
 		"Node",
@@ -43,28 +43,28 @@ func (s *RolesTestSuite) TestParsing(c *check.C) {
 }
 
 func (s *RolesTestSuite) TestBadRoles(c *check.C) {
-	bad := teleport.Role("bad-role")
+	bad := types.SystemRole("bad-role")
 	c.Assert(bad.Check(), check.ErrorMatches, "role bad-role is not registered")
-	badRoles := teleport.Roles{
+	badRoles := types.SystemRoles{
 		bad,
-		teleport.RoleAdmin,
+		types.RoleAdmin,
 	}
 	c.Assert(badRoles.Check(), check.ErrorMatches, "role bad-role is not registered")
 }
 
 func (s *RolesTestSuite) TestEquivalence(c *check.C) {
-	nodeProxyRole := teleport.Roles{
-		teleport.RoleNode,
-		teleport.RoleProxy,
+	nodeProxyRole := types.SystemRoles{
+		types.RoleNode,
+		types.RoleProxy,
 	}
-	authRole := teleport.Roles{
-		teleport.RoleAdmin,
-		teleport.RoleAuth,
+	authRole := types.SystemRoles{
+		types.RoleAdmin,
+		types.RoleAuth,
 	}
 
-	c.Assert(authRole.Include(teleport.RoleAdmin), check.Equals, true)
-	c.Assert(authRole.Include(teleport.RoleProxy), check.Equals, false)
+	c.Assert(authRole.Include(types.RoleAdmin), check.Equals, true)
+	c.Assert(authRole.Include(types.RoleProxy), check.Equals, false)
 	c.Assert(authRole.Equals(nodeProxyRole), check.Equals, false)
-	c.Assert(authRole.Equals(teleport.Roles{teleport.RoleAuth, teleport.RoleAdmin}),
+	c.Assert(authRole.Equals(types.SystemRoles{types.RoleAuth, types.RoleAdmin}),
 		check.Equals, true)
 }

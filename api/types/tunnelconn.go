@@ -44,10 +44,6 @@ type TunnelConnection interface {
 	GetType() TunnelType
 	// SetType sets the type of ReverseTunnel.
 	SetType(TunnelType)
-	// Check checks tunnel for errors
-	Check() error
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 	// String returns user friendly representation of this connection
 	String() string
 	// Clone returns a copy of this tunnel connection
@@ -57,12 +53,9 @@ type TunnelConnection interface {
 // NewTunnelConnection returns new connection from V2 spec
 func NewTunnelConnection(name string, spec TunnelConnectionSpecV2) (TunnelConnection, error) {
 	conn := &TunnelConnectionV2{
-		Kind:    KindTunnelConnection,
 		SubKind: spec.ClusterName,
-		Version: V2,
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 		Spec: spec,
 	}
@@ -129,13 +122,6 @@ func (r *TunnelConnectionV2) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (r *TunnelConnectionV2) SetTTL(clock Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
-}
-
 // GetName returns the name of the User
 func (r *TunnelConnectionV2) GetName() string {
 	return r.Metadata.Name
@@ -151,15 +137,16 @@ func (r *TunnelConnectionV2) V2() *TunnelConnectionV2 {
 	return r
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (r *TunnelConnectionV2) setStaticFields() {
+	r.Kind = KindTunnelConnection
+	r.Version = V2
+}
+
 // CheckAndSetDefaults checks and sets default values
 func (r *TunnelConnectionV2) CheckAndSetDefaults() error {
-	err := r.Metadata.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = r.Check()
-	if err != nil {
+	r.setStaticFields()
+	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -173,6 +160,13 @@ func (r *TunnelConnectionV2) CheckAndSetDefaults() error {
 			from = time.Now()
 		}
 		r.SetExpiry(from.UTC().Add(defaults.ServerAnnounceTTL))
+	}
+
+	if strings.TrimSpace(r.Spec.ClusterName) == "" {
+		return trace.BadParameter("empty cluster name")
+	}
+	if len(r.Spec.ProxyName) == 0 {
+		return trace.BadParameter("missing parameter proxy name")
 	}
 
 	return nil
@@ -209,20 +203,4 @@ func (r *TunnelConnectionV2) GetType() TunnelType {
 // SetType sets the type of ReverseTunnel.
 func (r *TunnelConnectionV2) SetType(tt TunnelType) {
 	r.Spec.Type = tt
-}
-
-// Check returns nil if all parameters are good, error otherwise
-func (r *TunnelConnectionV2) Check() error {
-	if r.Version == "" {
-		return trace.BadParameter("missing version")
-	}
-	if strings.TrimSpace(r.Spec.ClusterName) == "" {
-		return trace.BadParameter("empty cluster name")
-	}
-
-	if len(r.Spec.ProxyName) == 0 {
-		return trace.BadParameter("missing parameter proxy name")
-	}
-
-	return nil
 }

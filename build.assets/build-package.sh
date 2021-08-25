@@ -62,11 +62,11 @@ LINUX_CONFIG_DIR=/etc
 LINUX_DATA_DIR=/var/lib/teleport
 
 # extra package information for linux
-MAINTAINER="info@gravitational.com"
+MAINTAINER="info@goteleport.com"
 LICENSE="Apache-2.0"
 VENDOR="Gravitational"
-DESCRIPTION="Gravitational Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
-DOCS_URL="https://gravitational.com/teleport/docs"
+DESCRIPTION="Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
+DOCS_URL="https://goteleport.com/docs"
 
 # signing IDs to use for mac (must be pre-loaded into the keychain on the build box)
 DEVELOPER_ID_APPLICATION="Developer ID Application: Gravitational Inc." # used for signing binaries
@@ -249,6 +249,8 @@ else
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${ARCH}.rpm"
         FILE_PERMISSIONS_STANZA="--rpm-user root --rpm-group root --rpm-use-file-permissions "
+        # the rpm/rpmmacros file suppresses the creation of .build-id files (see https://github.com/gravitational/teleport/issues/7040)
+        EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm/rpmmacros:/root/.rpmmacros"
         # if we set this environment variable, don't sign RPMs (can be useful for building test RPMs
         # without having the signing keys)
         if [ "${UNSIGNED_RPM}" == "true" ]; then
@@ -257,6 +259,7 @@ else
             # the GNUPG_DIR location here is assumed to contain a complete ~/.gnupg directory structure
             # with pubring.kbx and trustdb.gpg files, plus a private-keys-v1.d directory with signing keys
             # it needs to contain the "Gravitational, Inc" private key and signing key.
+            # we also use the rpm-sign/rpmmacros file instead which contains extra directives used for signing.
             EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm-sign/rpmmacros:/root/.rpmmacros -v $(pwd)/rpm-sign/popt-override:/etc/popt.d/rpmsign-override -v ${GNUPG_DIR}:/root/.gnupg"
             RPM_SIGN_STANZA="--rpm-sign"
         fi

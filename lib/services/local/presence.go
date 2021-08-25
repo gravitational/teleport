@@ -23,7 +23,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -79,12 +80,12 @@ func (s *PresenceService) DeleteAllNamespaces() error {
 }
 
 // GetNamespaces returns a list of namespaces
-func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
+func (s *PresenceService) GetNamespaces() ([]types.Namespace, error) {
 	result, err := s.GetRange(context.TODO(), backend.Key(namespacesPrefix), backend.RangeEnd(backend.Key(namespacesPrefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]services.Namespace, 0, len(result.Items))
+	out := make([]types.Namespace, 0, len(result.Items))
 	for _, item := range result.Items {
 		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
 			continue
@@ -96,12 +97,12 @@ func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
 		}
 		out = append(out, *ns)
 	}
-	sort.Sort(services.SortedNamespaces(out))
+	sort.Sort(types.SortedNamespaces(out))
 	return out, nil
 }
 
 // UpsertNamespace upserts namespace
-func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
+func (s *PresenceService) UpsertNamespace(n types.Namespace) error {
 	if err := n.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,7 +125,7 @@ func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
 }
 
 // GetNamespace returns a namespace by name
-func (s *PresenceService) GetNamespace(name string) (*services.Namespace, error) {
+func (s *PresenceService) GetNamespace(name string) (*types.Namespace, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing namespace name")
 	}
@@ -153,16 +154,15 @@ func (s *PresenceService) DeleteNamespace(namespace string) error {
 	return trace.Wrap(err)
 }
 
-func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) ([]services.Server, error) {
+func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) ([]types.Server, error) {
 	result, err := s.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers := make([]services.Server, len(result.Items))
+	servers := make([]types.Server, len(result.Items))
 	for i, item := range result.Items {
 		server, err := services.UnmarshalServer(
 			item.Value, kind,
-			services.SkipValidation(),
 			services.WithResourceID(item.ID),
 			services.WithExpires(item.Expires),
 		)
@@ -176,7 +176,7 @@ func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) (
 	return servers, nil
 }
 
-func (s *PresenceService) upsertServer(ctx context.Context, prefix string, server services.Server) error {
+func (s *PresenceService) upsertServer(ctx context.Context, prefix string, server types.Server) error {
 	value, err := services.MarshalServer(server)
 	if err != nil {
 		return trace.Wrap(err)
@@ -219,12 +219,11 @@ func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (
 		types.KindNode,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
-		services.SkipValidation(),
 	)
 }
 
 // GetNodes returns a list of registered servers
-func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace value")
 	}
@@ -236,11 +235,11 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 		return nil, trace.Wrap(err)
 	}
 	// Marshal values into a []services.Server slice.
-	servers := make([]services.Server, len(result.Items))
+	servers := make([]types.Server, len(result.Items))
 	for i, item := range result.Items {
 		server, err := services.UnmarshalServer(
 			item.Value,
-			services.KindNode,
+			types.KindNode,
 			services.AddOptions(opts,
 				services.WithResourceID(item.ID),
 				services.WithExpires(item.Expires))...)
@@ -253,9 +252,51 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 	return servers, nil
 }
 
+// ListNodes returns a paginated list of registered servers.
+// StartKey is a resource name, which is the suffix of its key.
+func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+	if namespace == "" {
+		return nil, "", trace.BadParameter("missing namespace value")
+	}
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive limit value")
+	}
+
+	// Get all items in the bucket within the given range.
+	rangeStart := backend.Key(nodesPrefix, namespace, startKey)
+	keyPrefix := backend.Key(nodesPrefix, namespace)
+	rangeEnd := backend.RangeEnd(keyPrefix)
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Marshal values into a []services.Server slice.
+	servers := make([]types.Server, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.UnmarshalServer(
+			item.Value,
+			types.KindNode,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		servers[i] = server
+	}
+
+	// If a full page was filled, set nextKey using the last node.
+	if len(result.Items) == limit {
+		nextKey = backend.NextPaginationKey(servers[len(servers)-1])
+	}
+
+	return servers, nextKey, nil
+}
+
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
 // specified duration with second resolution if it's >= 1 second.
-func (s *PresenceService) UpsertNode(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	if server.GetNamespace() == "" {
 		return nil, trace.BadParameter("missing node namespace")
 	}
@@ -273,10 +314,10 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server services.Server
 		return nil, trace.Wrap(err)
 	}
 	if server.Expiry().IsZero() {
-		return &services.KeepAlive{}, nil
+		return &types.KeepAlive{}, nil
 	}
-	return &services.KeepAlive{
-		Type:    services.KeepAlive_NODE,
+	return &types.KeepAlive{
+		Type:    types.KeepAlive_NODE,
 		LeaseID: lease.ID,
 		Name:    server.GetName(),
 	}, nil
@@ -287,7 +328,7 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server services.Server
 // This logic has been moved to KeepAliveServer.
 //
 // KeepAliveNode updates node expiry
-func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAlive) error {
+func (s *PresenceService) KeepAliveNode(ctx context.Context, h types.KeepAlive) error {
 	if err := h.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -298,9 +339,8 @@ func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAliv
 	return trace.Wrap(err)
 }
 
-// UpsertNodes is used for bulk insertion of nodes. Schema validation is
-// always skipped during bulk insertion.
-func (s *PresenceService) UpsertNodes(namespace string, servers []services.Server) error {
+// UpsertNodes is used for bulk insertion of nodes.
+func (s *PresenceService) UpsertNodes(namespace string, servers []types.Server) error {
 	batch, ok := s.Backend.(backend.Batch)
 	if !ok {
 		return trace.BadParameter("backend does not support batch interface")
@@ -337,13 +377,13 @@ func (s *PresenceService) UpsertNodes(namespace string, servers []services.Serve
 }
 
 // GetAuthServers returns a list of registered servers
-func (s *PresenceService) GetAuthServers() ([]services.Server, error) {
-	return s.getServers(context.TODO(), services.KindAuthServer, authServersPrefix)
+func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
+	return s.getServers(context.TODO(), types.KindAuthServer, authServersPrefix)
 }
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertAuthServer(server services.Server) error {
+func (s *PresenceService) UpsertAuthServer(server types.Server) error {
 	return s.upsertServer(context.TODO(), authServersPrefix, server)
 }
 
@@ -361,13 +401,13 @@ func (s *PresenceService) DeleteAuthServer(name string) error {
 
 // UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertProxy(server services.Server) error {
+func (s *PresenceService) UpsertProxy(server types.Server) error {
 	return s.upsertServer(context.TODO(), proxiesPrefix, server)
 }
 
 // GetProxies returns a list of registered proxies
-func (s *PresenceService) GetProxies() ([]services.Server, error) {
-	return s.getServers(context.TODO(), services.KindProxy, proxiesPrefix)
+func (s *PresenceService) GetProxies() ([]types.Server, error) {
+	return s.getServers(context.TODO(), types.KindProxy, proxiesPrefix)
 }
 
 // DeleteAllProxies deletes all proxies
@@ -389,7 +429,7 @@ func (s *PresenceService) DeleteAllReverseTunnels() error {
 }
 
 // UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
+func (s *PresenceService) UpsertReverseTunnel(tunnel types.ReverseTunnel) error {
 	if err := services.ValidateReverseTunnel(tunnel); err != nil {
 		return trace.Wrap(err)
 	}
@@ -407,7 +447,7 @@ func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel) err
 }
 
 // GetReverseTunnel returns reverse tunnel by name
-func (s *PresenceService) GetReverseTunnel(name string, opts ...services.MarshalOption) (services.ReverseTunnel, error) {
+func (s *PresenceService) GetReverseTunnel(name string, opts ...services.MarshalOption) (types.ReverseTunnel, error) {
 	item, err := s.Get(context.TODO(), backend.Key(reverseTunnelsPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -417,13 +457,13 @@ func (s *PresenceService) GetReverseTunnel(name string, opts ...services.Marshal
 }
 
 // GetReverseTunnels returns a list of registered servers
-func (s *PresenceService) GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error) {
+func (s *PresenceService) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	startKey := backend.Key(reverseTunnelsPrefix)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tunnels := make([]services.ReverseTunnel, len(result.Items))
+	tunnels := make([]types.ReverseTunnel, len(result.Items))
 	for i, item := range result.Items {
 		tunnel, err := services.UnmarshalReverseTunnel(
 			item.Value, services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
@@ -444,7 +484,7 @@ func (s *PresenceService) DeleteReverseTunnel(clusterName string) error {
 }
 
 // UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
-func (s *PresenceService) UpsertTrustedCluster(ctx context.Context, trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
+func (s *PresenceService) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
 	if err := services.ValidateTrustedCluster(trustedCluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -465,7 +505,7 @@ func (s *PresenceService) UpsertTrustedCluster(ctx context.Context, trustedClust
 }
 
 // GetTrustedCluster returns a single TrustedCluster by name.
-func (s *PresenceService) GetTrustedCluster(ctx context.Context, name string) (services.TrustedCluster, error) {
+func (s *PresenceService) GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing trusted cluster name")
 	}
@@ -477,13 +517,13 @@ func (s *PresenceService) GetTrustedCluster(ctx context.Context, name string) (s
 }
 
 // GetTrustedClusters returns all TrustedClusters in the backend.
-func (s *PresenceService) GetTrustedClusters(ctx context.Context) ([]services.TrustedCluster, error) {
+func (s *PresenceService) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	startKey := backend.Key(trustedClustersPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]services.TrustedCluster, len(result.Items))
+	out := make([]types.TrustedCluster, len(result.Items))
 	for i, item := range result.Items {
 		tc, err := services.UnmarshalTrustedCluster(item.Value,
 			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
@@ -493,7 +533,7 @@ func (s *PresenceService) GetTrustedClusters(ctx context.Context) ([]services.Tr
 		out[i] = tc
 	}
 
-	sort.Sort(services.SortedTrustedCluster(out))
+	sort.Sort(types.SortedTrustedCluster(out))
 	return out, nil
 }
 
@@ -512,7 +552,7 @@ func (s *PresenceService) DeleteTrustedCluster(ctx context.Context, name string)
 }
 
 // UpsertTunnelConnection updates or creates tunnel connection
-func (s *PresenceService) UpsertTunnelConnection(conn services.TunnelConnection) error {
+func (s *PresenceService) UpsertTunnelConnection(conn types.TunnelConnection) error {
 	if err := conn.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -534,7 +574,7 @@ func (s *PresenceService) UpsertTunnelConnection(conn services.TunnelConnection)
 }
 
 // GetTunnelConnection returns connection by cluster name and connection name
-func (s *PresenceService) GetTunnelConnection(clusterName, connectionName string, opts ...services.MarshalOption) (services.TunnelConnection, error) {
+func (s *PresenceService) GetTunnelConnection(clusterName, connectionName string, opts ...services.MarshalOption) (types.TunnelConnection, error) {
 	item, err := s.Get(context.TODO(), backend.Key(tunnelConnectionsPrefix, clusterName, connectionName))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -551,7 +591,7 @@ func (s *PresenceService) GetTunnelConnection(clusterName, connectionName string
 }
 
 // GetTunnelConnections returns connections for a trusted cluster
-func (s *PresenceService) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
+func (s *PresenceService) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
@@ -560,7 +600,7 @@ func (s *PresenceService) GetTunnelConnections(clusterName string, opts ...servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	conns := make([]services.TunnelConnection, len(result.Items))
+	conns := make([]types.TunnelConnection, len(result.Items))
 	for i, item := range result.Items {
 		conn, err := services.UnmarshalTunnelConnection(item.Value,
 			services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
@@ -574,14 +614,14 @@ func (s *PresenceService) GetTunnelConnections(clusterName string, opts ...servi
 }
 
 // GetAllTunnelConnections returns all tunnel connections
-func (s *PresenceService) GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
+func (s *PresenceService) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
 	startKey := backend.Key(tunnelConnectionsPrefix)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	conns := make([]services.TunnelConnection, len(result.Items))
+	conns := make([]types.TunnelConnection, len(result.Items))
 	for i, item := range result.Items {
 		conn, err := services.UnmarshalTunnelConnection(item.Value,
 			services.AddOptions(opts,
@@ -625,7 +665,7 @@ func (s *PresenceService) DeleteAllTunnelConnections() error {
 }
 
 // CreateRemoteCluster creates remote cluster
-func (s *PresenceService) CreateRemoteCluster(rc services.RemoteCluster) error {
+func (s *PresenceService) CreateRemoteCluster(rc types.RemoteCluster) error {
 	value, err := json.Marshal(rc)
 	if err != nil {
 		return trace.Wrap(err)
@@ -644,7 +684,7 @@ func (s *PresenceService) CreateRemoteCluster(rc services.RemoteCluster) error {
 
 // UpdateRemoteCluster updates selected remote cluster fields: expiry and labels
 // other changed fields will be ignored by the method
-func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
+func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
 	if err := rc.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -679,14 +719,14 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc services.R
 }
 
 // GetRemoteClusters returns a list of remote clusters
-func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
+func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	startKey := backend.Key(remoteClustersPrefix)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusters := make([]services.RemoteCluster, len(result.Items))
+	clusters := make([]types.RemoteCluster, len(result.Items))
 	for i, item := range result.Items {
 		cluster, err := services.UnmarshalRemoteCluster(item.Value,
 			services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
@@ -699,7 +739,7 @@ func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]s
 }
 
 // getRemoteCluster returns a remote cluster in raw form and unmarshaled
-func (s *PresenceService) getRemoteCluster(clusterName string) (*backend.Item, services.RemoteCluster, error) {
+func (s *PresenceService) getRemoteCluster(clusterName string) (*backend.Item, types.RemoteCluster, error) {
 	if clusterName == "" {
 		return nil, nil, trace.BadParameter("missing parameter cluster name")
 	}
@@ -719,7 +759,7 @@ func (s *PresenceService) getRemoteCluster(clusterName string) (*backend.Item, s
 }
 
 // GetRemoteCluster returns a remote cluster by name
-func (s *PresenceService) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
+func (s *PresenceService) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
 	_, rc, err := s.getRemoteCluster(clusterName)
 	return rc, trace.Wrap(err)
 }
@@ -745,7 +785,7 @@ func (s *PresenceService) DeleteAllRemoteClusters() error {
 // *same* semaphore, separate semaphores can be modified concurrently without issue).  Note that this function
 // is the only semaphore method that handles retries internally.  This is because this method both blocks
 // user-facing operations, and contains multiple different potential contention points.
-func (s *PresenceService) AcquireSemaphore(ctx context.Context, req services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error) {
+func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	// this combination of backoff parameters leads to worst-case total time spent
 	// in backoff between 1200ms and 2400ms depending on jitter.  tests are in
 	// place to verify that this is sufficient to resolve a 20-lease contention
@@ -813,7 +853,7 @@ Acquire:
 
 // initSemaphore attempts to initialize/acquire a semaphore which does not yet exist.
 // Returns AlreadyExistsError if the semaphore is concurrently created.
-func (s *PresenceService) initSemaphore(ctx context.Context, key []byte, leaseID string, req services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error) {
+func (s *PresenceService) initSemaphore(ctx context.Context, key []byte, leaseID string, req types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	// create a new empty semaphore resource configured to specifically match
 	// this acquire request.
 	sem, err := req.ConfigureSemaphore()
@@ -842,7 +882,7 @@ func (s *PresenceService) initSemaphore(ctx context.Context, key []byte, leaseID
 
 // acquireSemaphore attempts to acquire an existing semaphore.  Returns NotFoundError if no semaphore exists,
 // and CompareFailed if the semaphore was concurrently updated.
-func (s *PresenceService) acquireSemaphore(ctx context.Context, key []byte, leaseID string, req services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error) {
+func (s *PresenceService) acquireSemaphore(ctx context.Context, key []byte, leaseID string, req types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	item, err := s.Get(ctx, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -878,7 +918,7 @@ func (s *PresenceService) acquireSemaphore(ctx context.Context, key []byte, leas
 
 // KeepAliveSemaphoreLease updates semaphore lease, if the lease expiry is updated,
 // semaphore is renewed
-func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	if err := lease.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -929,7 +969,7 @@ func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease ser
 }
 
 // CancelSemaphoreLease cancels semaphore lease early.
-func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	if err := lease.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -975,7 +1015,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease servic
 }
 
 // GetSemaphores returns all semaphores matching the supplied filter.
-func (s *PresenceService) GetSemaphores(ctx context.Context, filter services.SemaphoreFilter) ([]services.Semaphore, error) {
+func (s *PresenceService) GetSemaphores(ctx context.Context, filter types.SemaphoreFilter) ([]types.Semaphore, error) {
 	var items []backend.Item
 	if filter.SemaphoreKind != "" && filter.SemaphoreName != "" {
 		// special case: filter corresponds to a single semaphore
@@ -1004,7 +1044,7 @@ func (s *PresenceService) GetSemaphores(ctx context.Context, filter services.Sem
 		items = result.Items
 	}
 
-	sems := make([]services.Semaphore, 0, len(items))
+	sems := make([]types.Semaphore, 0, len(items))
 
 	for _, item := range items {
 		sem, err := services.UnmarshalSemaphore(item.Value)
@@ -1020,7 +1060,7 @@ func (s *PresenceService) GetSemaphores(ctx context.Context, filter services.Sem
 }
 
 // DeleteSemaphore deletes a semaphore matching the supplied filter
-func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter services.SemaphoreFilter) error {
+func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilter) error {
 	if filter.SemaphoreKind == "" || filter.SemaphoreName == "" {
 		return trace.BadParameter("semaphore kind and name must be specified for deletion")
 	}
@@ -1028,15 +1068,15 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter services.S
 }
 
 // UpsertKubeService registers kubernetes service presence.
-func (s *PresenceService) UpsertKubeService(ctx context.Context, server services.Server) error {
+func (s *PresenceService) UpsertKubeService(ctx context.Context, server types.Server) error {
 	// TODO(awly): verify that no other KubeService has the same kubernetes
 	// cluster names with different labels to avoid RBAC check confusion.
 	return s.upsertServer(ctx, kubeServicesPrefix, server)
 }
 
 // GetKubeServices returns a list of registered kubernetes services.
-func (s *PresenceService) GetKubeServices(ctx context.Context) ([]services.Server, error) {
-	return s.getServers(ctx, services.KindKubeService, kubeServicesPrefix)
+func (s *PresenceService) GetKubeServices(ctx context.Context) ([]types.Server, error) {
+	return s.getServers(ctx, types.KindKubeService, kubeServicesPrefix)
 }
 
 // DeleteKubeService deletes a named kubernetes service.
@@ -1143,7 +1183,7 @@ func (s *PresenceService) DeleteAllDatabaseServers(ctx context.Context, namespac
 }
 
 // GetAppServers gets all application servers.
-func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace")
 	}
@@ -1156,11 +1196,11 @@ func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, o
 	}
 
 	// Marshal values into a []services.Server slice.
-	servers := make([]services.Server, len(result.Items))
+	servers := make([]types.Server, len(result.Items))
 	for i, item := range result.Items {
 		server, err := services.UnmarshalServer(
 			item.Value,
-			services.KindAppServer,
+			types.KindAppServer,
 			services.AddOptions(opts,
 				services.WithResourceID(item.ID),
 				services.WithExpires(item.Expires))...)
@@ -1174,7 +1214,7 @@ func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, o
 }
 
 // UpsertAppServer adds an application server.
-func (s *PresenceService) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+func (s *PresenceService) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1193,10 +1233,10 @@ func (s *PresenceService) UpsertAppServer(ctx context.Context, server services.S
 		return nil, trace.Wrap(err)
 	}
 	if server.Expiry().IsZero() {
-		return &services.KeepAlive{}, nil
+		return &types.KeepAlive{}, nil
 	}
-	return &services.KeepAlive{
-		Type:    services.KeepAlive_APP,
+	return &types.KeepAlive{
+		Type:    types.KeepAlive_APP,
 		LeaseID: lease.ID,
 		Name:    server.GetName(),
 	}, nil
@@ -1215,7 +1255,7 @@ func (s *PresenceService) DeleteAllAppServers(ctx context.Context, namespace str
 }
 
 // KeepAliveServer updates expiry time of a server resource.
-func (s *PresenceService) KeepAliveServer(ctx context.Context, h services.KeepAlive) error {
+func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	if err := h.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1223,12 +1263,14 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h services.KeepAl
 	// Update the prefix off the type information in the keep alive.
 	var key []byte
 	switch h.GetType() {
-	case teleport.KeepAliveNode:
+	case constants.KeepAliveNode:
 		key = backend.Key(nodesPrefix, h.Namespace, h.Name)
-	case teleport.KeepAliveApp:
+	case constants.KeepAliveApp:
 		key = backend.Key(appsPrefix, serversPrefix, h.Namespace, h.Name)
-	case teleport.KeepAliveDatabase:
+	case constants.KeepAliveDatabase:
 		key = backend.Key(dbServersPrefix, h.Namespace, h.HostID, h.Name)
+	case constants.KeepAliveWindowsDesktopService:
+		key = backend.Key(windowsDesktopServicesPrefix, h.Name)
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
 	}
@@ -1240,19 +1282,87 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h services.KeepAl
 	return trace.Wrap(err)
 }
 
+// GetWindowsDesktopServices returns all registered Windows desktop services.
+func (s *PresenceService) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	startKey := backend.Key(windowsDesktopServicesPrefix, "")
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	srvs := make([]types.WindowsDesktopService, len(result.Items))
+	for i, item := range result.Items {
+		s, err := services.UnmarshalWindowsDesktopService(
+			item.Value,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		srvs[i] = s
+	}
+	return srvs, nil
+}
+
+// UpsertWindowsDesktopService registers new Windows desktop service.
+func (s *PresenceService) UpsertWindowsDesktopService(ctx context.Context, srv types.WindowsDesktopService) (*types.KeepAlive, error) {
+	if err := srv.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalWindowsDesktopService(srv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := s.Put(ctx, backend.Item{
+		Key:     backend.Key(windowsDesktopServicesPrefix, srv.GetName()),
+		Value:   value,
+		Expires: srv.Expiry(),
+		ID:      srv.GetResourceID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if srv.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:      types.KeepAlive_WINDOWS_DESKTOP,
+		LeaseID:   lease.ID,
+		Name:      srv.GetName(),
+		Namespace: apidefaults.Namespace,
+		Expires:   srv.Expiry(),
+	}, nil
+}
+
+// DeleteWindowsDesktopService removes the specified Windows desktop service.
+func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing windows desktop service name")
+	}
+	key := backend.Key(windowsDesktopServicesPrefix, name)
+	return s.Delete(ctx, key)
+}
+
+// DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
+func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) error {
+	startKey := backend.Key(windowsDesktopServicesPrefix)
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
 const (
-	localClusterPrefix      = "localCluster"
-	reverseTunnelsPrefix    = "reverseTunnels"
-	tunnelConnectionsPrefix = "tunnelConnections"
-	trustedClustersPrefix   = "trustedclusters"
-	remoteClustersPrefix    = "remoteClusters"
-	nodesPrefix             = "nodes"
-	appsPrefix              = "apps"
-	serversPrefix           = "servers"
-	dbServersPrefix         = "databaseServers"
-	namespacesPrefix        = "namespaces"
-	authServersPrefix       = "authservers"
-	proxiesPrefix           = "proxies"
-	semaphoresPrefix        = "semaphores"
-	kubeServicesPrefix      = "kubeServices"
+	localClusterPrefix           = "localCluster"
+	reverseTunnelsPrefix         = "reverseTunnels"
+	tunnelConnectionsPrefix      = "tunnelConnections"
+	trustedClustersPrefix        = "trustedclusters"
+	remoteClustersPrefix         = "remoteClusters"
+	nodesPrefix                  = "nodes"
+	appsPrefix                   = "apps"
+	serversPrefix                = "servers"
+	dbServersPrefix              = "databaseServers"
+	namespacesPrefix             = "namespaces"
+	authServersPrefix            = "authservers"
+	proxiesPrefix                = "proxies"
+	semaphoresPrefix             = "semaphores"
+	kubeServicesPrefix           = "kubeServices"
+	windowsDesktopServicesPrefix = "windowsDesktopServices"
 )

@@ -24,21 +24,17 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
+	"github.com/ThalesIgnite/crypto11"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/cryptosigner"
 	"gopkg.in/square/go-jose.v2/jwt"
 	josejwt "gopkg.in/square/go-jose.v2/jwt"
 )
-
-// GenerateAppTokenRequest are the parameters used to generate an application token.
-// Moved to /api/types/jwt.go, aliased here for backwards compatibility.
-// DELETE IN 7.0.0
-type GenerateAppTokenRequest = types.GenerateAppTokenRequest
 
 // Config defines the clock and PEM encoded bytes of a public and private
 // key that form a *jwt.Key.
@@ -140,9 +136,16 @@ func (k *Key) Sign(p SignParams) (string, error) {
 	}
 
 	// Create a signer with configured private key and algorithm.
+	var signer interface{}
+	switch k.config.PrivateKey.(type) {
+	case crypto11.Signer:
+		signer = cryptosigner.Opaque(k.config.PrivateKey)
+	default:
+		signer = k.config.PrivateKey
+	}
 	signingKey := jose.SigningKey{
 		Algorithm: k.config.Algorithm,
-		Key:       k.config.PrivateKey,
+		Key:       signer,
 	}
 	sig, err := jose.NewSigner(signingKey, (&jose.SignerOptions{}).WithType("JWT"))
 	if err != nil {

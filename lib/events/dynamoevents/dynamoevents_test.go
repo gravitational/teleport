@@ -19,8 +19,11 @@ package dynamoevents
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -29,6 +32,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -40,6 +47,8 @@ import (
 
 	"github.com/gravitational/trace"
 )
+
+const dynamoDBLargeQueryRetries int = 10
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
@@ -61,24 +70,78 @@ func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
 		c.Skip("Skipping AWS-dependent test suite.")
 	}
 
+	backend, err := memory.New(memory.Config{})
+	c.Assert(err, check.IsNil)
+
 	fakeClock := clockwork.NewFakeClock()
 	log, err := New(context.Background(), Config{
-		Region:       "us-west-1",
+		Region:       "eu-north-1",
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
-	})
+	}, backend)
 	c.Assert(err, check.IsNil)
 	s.log = log
 	s.EventsSuite.Log = log
 	s.EventsSuite.Clock = fakeClock
-	s.EventsSuite.QueryDelay = time.Second
-
+	s.EventsSuite.QueryDelay = time.Second * 5
 }
 
 func (s *DynamoeventsSuite) SetUpTest(c *check.C) {
 	err := s.log.deleteAllItems()
 	c.Assert(err, check.IsNil)
+}
+
+func (s *DynamoeventsSuite) TestPagination(c *check.C) {
+	s.EventPagination(c)
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randStringAlpha(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
+func (s *DynamoeventsSuite) TestSizeBreak(c *check.C) {
+	const eventSize = 50 * 1024
+	blob := randStringAlpha(eventSize)
+
+	const eventCount int = 10
+	for i := 0; i < eventCount; i++ {
+		err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
+			events.LoginMethod:        events.LoginMethodSAML,
+			events.AuthAttemptSuccess: true,
+			events.EventUser:          "bob",
+			events.EventTime:          s.Clock.Now().UTC().Add(time.Second * time.Duration(i)),
+			"test.data":               blob,
+		})
+		c.Assert(err, check.IsNil)
+	}
+
+	var checkpoint string
+	events := make([]apievents.AuditEvent, 0)
+
+	for {
+		fetched, lCheckpoint, err := s.log.SearchEvents(s.Clock.Now().UTC().Add(-time.Hour), s.Clock.Now().UTC().Add(time.Hour), apidefaults.Namespace, nil, eventCount, types.EventOrderDescending, checkpoint)
+		c.Assert(err, check.IsNil)
+		checkpoint = lCheckpoint
+		events = append(events, fetched...)
+
+		if checkpoint == "" {
+			break
+		}
+	}
+
+	lastTime := s.Clock.Now().UTC().Add(time.Hour)
+
+	for _, event := range events {
+		c.Assert(event.GetTime().Before(lastTime), check.Equals, true)
+		lastTime = event.GetTime()
+	}
 }
 
 func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
@@ -89,7 +152,8 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 	err := s.log.deleteAllItems()
 	c.Assert(err, check.IsNil)
 
-	for i := 0; i < 4000; i++ {
+	const eventCount int = 4000
+	for i := 0; i < eventCount; i++ {
 		err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
 			events.LoginMethod:        events.LoginMethodSAML,
 			events.AuthAttemptSuccess: true,
@@ -99,13 +163,21 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 		c.Assert(err, check.IsNil)
 	}
 
-	time.Sleep(s.EventsSuite.QueryDelay)
+	var history []apievents.AuditEvent
 
-	history, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), "", 0)
-	c.Assert(err, check.IsNil)
+	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
+		time.Sleep(s.EventsSuite.QueryDelay)
+
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 0, types.EventOrderAscending, "")
+		c.Assert(err, check.IsNil)
+
+		if len(history) == eventCount {
+			break
+		}
+	}
 
 	// `check.HasLen` prints the entire array on failure, which pollutes the output
-	c.Assert(len(history), check.Equals, 4000)
+	c.Assert(len(history), check.Equals, eventCount)
 }
 
 // TestIndexExists tests functionality of the `Log.indexExists` function.
@@ -163,21 +235,21 @@ func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 	end := start.Add(time.Hour * time.Duration(24*11))
 	attemptWaitFor := time.Minute * 5
 	waitStart := time.Now()
+	var eventArr []event
 
 	for time.Since(waitStart) < attemptWaitFor {
-		events, err := s.log.SearchEvents(start, end, "?event=test.event", 1000)
+		err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+			eventArr, _, err = s.log.searchEventsRaw(start, end, apidefaults.Namespace, []string{"test.event"}, 1000, types.EventOrderAscending, "")
+			return err
+		})
 		c.Assert(err, check.IsNil)
+		sort.Sort(byTimeAndIndexRaw(eventArr))
 		correct := true
 
-		for _, event := range events {
-			timestampUnix := event[keyCreatedAt].(int64)
+		for _, event := range eventArr {
+			timestampUnix := event.CreatedAt
 			dateString := time.Unix(timestampUnix, 0).Format(iso8601DateFormat)
-			eventDateInterface, ok := event[keyDate]
-			if !ok {
-				correct = false
-			}
-			eventDateString, ok := eventDateInterface.(string)
-			if !ok || dateString != eventDateString {
+			if dateString != event.CreatedAtDate {
 				correct = false
 			}
 		}
@@ -190,6 +262,57 @@ func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 	}
 
 	c.Error("Events failed to migrate within 5 minutes")
+}
+
+type byTimeAndIndexRaw []event
+
+func (f byTimeAndIndexRaw) Len() int {
+	return len(f)
+}
+
+func (f byTimeAndIndexRaw) Less(i, j int) bool {
+	var fi events.EventFields
+	data := []byte(f[i].Fields)
+	if err := json.Unmarshal(data, &fi); err != nil {
+		panic("failed to unmarshal event")
+	}
+	var fj events.EventFields
+	data = []byte(f[j].Fields)
+	if err := json.Unmarshal(data, &fj); err != nil {
+		panic("failed to unmarshal event")
+	}
+
+	itime := getTime(fi[events.EventTime])
+	jtime := getTime(fj[events.EventTime])
+	if itime.Equal(jtime) && fi[events.SessionEventID] == fj[events.SessionEventID] {
+		return getEventIndex(fi[events.EventIndex]) < getEventIndex(fj[events.EventIndex])
+	}
+	return itime.Before(jtime)
+}
+
+func (f byTimeAndIndexRaw) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
+// getTime converts json time to string
+func getTime(v interface{}) time.Time {
+	sval, ok := v.(string)
+	if !ok {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, sval)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
+func getEventIndex(v interface{}) float64 {
+	switch val := v.(type) {
+	case float64:
+		return val
+	}
+	return 0
 }
 
 type preRFD24event struct {

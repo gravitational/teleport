@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
 
@@ -69,21 +69,21 @@ func TestCRUDs(t *testing.T) {
 	}
 
 	m := &mockedUserAPIGetter{}
-	m.mockCreateUser = func(ctx context.Context, user services.User) error {
+	m.mockCreateUser = func(ctx context.Context, user types.User) error {
 		return nil
 	}
 
-	m.mockGetUser = func(name string, withSecrets bool) (services.User, error) {
-		return services.NewUser(name)
+	m.mockGetUser = func(name string, withSecrets bool) (types.User, error) {
+		return types.NewUser(name)
 	}
 
-	m.mockUpdateUser = func(ctx context.Context, user services.User) error {
+	m.mockUpdateUser = func(ctx context.Context, user types.User) error {
 		return nil
 	}
 
-	m.mockGetUsers = func(withSecrets bool) ([]services.User, error) {
-		u, err := services.NewUser("testname")
-		return []services.User{u}, err
+	m.mockGetUsers = func(withSecrets bool) ([]types.User, error) {
+		u, err := types.NewUser("testname")
+		return []types.User{u}, err
 	}
 
 	m.mockDeleteUser = func(ctx context.Context, user string) error {
@@ -120,19 +120,19 @@ func TestCRUDs(t *testing.T) {
 
 func TestCRUDErrors(t *testing.T) {
 	m := &mockedUserAPIGetter{}
-	m.mockCreateUser = func(ctx context.Context, user services.User) error {
+	m.mockCreateUser = func(ctx context.Context, user types.User) error {
 		return trace.AlreadyExists("")
 	}
 
-	m.mockGetUser = func(name string, withSecrets bool) (services.User, error) {
+	m.mockGetUser = func(name string, withSecrets bool) (types.User, error) {
 		return nil, trace.NotFound("")
 	}
 
-	m.mockUpdateUser = func(ctx context.Context, user services.User) error {
+	m.mockUpdateUser = func(ctx context.Context, user types.User) error {
 		return trace.NotFound("")
 	}
 
-	m.mockGetUsers = func(withSecrets bool) ([]services.User, error) {
+	m.mockGetUsers = func(withSecrets bool) ([]types.User, error) {
 		return nil, trace.AccessDenied("")
 	}
 
@@ -189,35 +189,35 @@ func newRequest(t *testing.T, body interface{}) *http.Request {
 }
 
 type mockedUserAPIGetter struct {
-	mockGetUser    func(name string, withSecrets bool) (services.User, error)
-	mockCreateUser func(ctx context.Context, user services.User) error
-	mockUpdateUser func(ctx context.Context, user services.User) error
-	mockGetUsers   func(withSecrets bool) ([]services.User, error)
+	mockGetUser    func(name string, withSecrets bool) (types.User, error)
+	mockCreateUser func(ctx context.Context, user types.User) error
+	mockUpdateUser func(ctx context.Context, user types.User) error
+	mockGetUsers   func(withSecrets bool) ([]types.User, error)
 	mockDeleteUser func(ctx context.Context, user string) error
 }
 
-func (m *mockedUserAPIGetter) GetUser(name string, withSecrets bool) (services.User, error) {
+func (m *mockedUserAPIGetter) GetUser(name string, withSecrets bool) (types.User, error) {
 	if m.mockGetUser != nil {
 		return m.mockGetUser(name, withSecrets)
 	}
 	return nil, trace.NotImplemented("mockGetUser not implemented")
 }
 
-func (m *mockedUserAPIGetter) CreateUser(ctx context.Context, user services.User) error {
+func (m *mockedUserAPIGetter) CreateUser(ctx context.Context, user types.User) error {
 	if m.mockCreateUser != nil {
 		return m.mockCreateUser(ctx, user)
 	}
 	return trace.NotImplemented("mockCreateUser not implemented")
 }
 
-func (m *mockedUserAPIGetter) UpdateUser(ctx context.Context, user services.User) error {
+func (m *mockedUserAPIGetter) UpdateUser(ctx context.Context, user types.User) error {
 	if m.mockUpdateUser != nil {
 		return m.mockUpdateUser(ctx, user)
 	}
 	return trace.NotImplemented("mockUpdateUser not implemented")
 }
 
-func (m *mockedUserAPIGetter) GetUsers(withSecrets bool) ([]services.User, error) {
+func (m *mockedUserAPIGetter) GetUsers(withSecrets bool) ([]types.User, error) {
 	if m.mockGetUsers != nil {
 		return m.mockGetUsers(withSecrets)
 	}

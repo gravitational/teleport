@@ -1,11 +1,11 @@
 ---
 title: Kubernetes 5.0 Migration Guide
-description: How to migrate pre-5.0 Teleport clusters to new configuration
+description: How to migrate pre-5.0 Teleport clusters to new configuration.
 h1: Migrating to Teleport Kubernetes Access 5.0
 ---
 
 In release 5.0, Teleport has changed the [Kubernetes integration](../../kubernetes-access/introduction.mdx) to improve configuration and user experience.
-These changes are backwards compatible and there is no *required* migration.
+These changes are backward compatible and there is no *required* migration.
 However, to get the most out of Teleport, you should consider migrating as
 described below.
 
@@ -15,7 +15,7 @@ The main changes in 5.0 are:
   from `proxy_service`
 - Support for multiple Kubernetes clusters per Teleport cluster (replaces the
   need to use [Trusted Clusters](../../admin-guide.mdx#trusted-clusters) to achieve this)
-- RBAC support for Kubernetes clusters
+- Role-Based Access Control (RBAC) support for Kubernetes clusters
 
 Important note: `proxy_service` with an open port for Kubernetes requests is
 still required. A proxy is always the public-facing gateway into the Teleport
@@ -197,20 +197,21 @@ kubernetes_service:
 After all the Teleport agents are running, you can view the list of Kubernetes
 clusters using `tsh kube ls` and switch between them using `tsh kube login <kube_cluster_name>`:
 
-```sh
+```code
 $ tsh kube ls
-Kube Cluster Name Selected
------------------ --------
-kube-1            *
-kube-2
+
+# Kube Cluster Name Selected
+# ----------------- --------
+# kube-1            *
+# kube-2
 
 $ tsh kube login kube-2
-Logged into kubernetes cluster "kube-2"
+# Logged into kubernetes cluster "kube-2"
 ```
 
 #### Option 2: One Teleport agent connected to multiple clusters
 
-This approach requires you to manually craft a `kubeconfig` file which contains
+This approach requires you to manually craft a `kubeconfig` file that contains
 the exact set of Kubernetes cluster entries you wish to connect. Updates to the
 set of clusters require a restart.
 
@@ -304,15 +305,15 @@ users:
 You can view the list of Kubernetes clusters using `tsh kube ls` and switch
 between them using `tsh kube login <kube_cluster_name>`:
 
-```sh
+```code
 $ tsh kube ls
-Kube Cluster Name Selected
------------------ --------
-kube-1            *
-kube-2
+
+# Kube Cluster Name Selected
+# ----------------- --------
+# kube-1            *
+# kube-2
 
 $ tsh kube login kube-2
-Logged into kubernetes cluster "kube-2"
 ```
 
 #### Option 3: Keep using Trusted Clusters
@@ -327,8 +328,7 @@ cluster you are currently logged into.
 ## RBAC
 
 <Admonition type="note">
-  Kubernetes RBAC integration only works with `kubernetes_service`. Make sure
-  you've migrated all the clusters as described above before proceeding.
+  Kubernetes RBAC integration only works with `kubernetes_service`. Make sure you've migrated all the clusters as described above before proceeding.
 </Admonition>
 
 By default, all users have access to all Kubernetes clusters (as a limited set
@@ -355,13 +355,13 @@ spec:
 
     # List of kubernetes labels a user will be allowed to connect to:
     kubernetes_labels:
-      # a user can only connect to clusters marked with 'test' label:
+      # A user can only connect to clusters marked with 'test' label:
       'environment': 'test'
-      # the wildcard ('*') means "any cluster"
+      # The wildcard ('*') means "any cluster"
       '*': '*'
-      # labels can be specified as a list:
+      # Labels can be specified as a list:
       'environment': ['test', 'staging']
-      # regular expressions are also supported, for example the equivalent
+      # Regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
       'environment': '^test|staging$'
   # You can also strictly restrict access using deny kubernetes_labels.
@@ -387,6 +387,6 @@ kubernetes_service:
     period: 1h
 ```
 
-Users with a role that matches a specific Kubernetes cluster labels will be
+Users with a role that matches a specific Kubernetes cluster label will be
 able to see and connect to that cluster. Other users will neither see nor
 be able to connect to it.

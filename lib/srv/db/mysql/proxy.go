@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
@@ -76,7 +77,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serviceConn, err := p.Service.Connect(ctx, server.GetUser(), server.GetDatabase())
+	serviceConn, authContext, err := p.Service.Connect(ctx, server.GetUser(), server.GetDatabase())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -88,9 +89,10 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// Auth has completed, the client enters command phase, start proxying
 	// all messages back-and-forth.
-	err = p.Service.Proxy(ctx, tlsConn, serviceConn)
+	err = p.Service.Proxy(ctx, authContext, tlsConn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -173,7 +175,7 @@ func (p *Proxy) maybeReadProxyLine(conn *multiplexer.Conn) error {
 // waitForOK waits for OK_PACKET from the database service which indicates
 // that auth on the other side completed successfully.
 func (p *Proxy) waitForOK(server *server.Conn, serviceConn net.Conn) error {
-	err := serviceConn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	err := serviceConn.SetReadDeadline(time.Now().Add(2 * defaults.DatabaseConnectTimeout))
 	if err != nil {
 		return trace.Wrap(err)
 	}

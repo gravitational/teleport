@@ -35,7 +35,7 @@ import (
 // correctly set with DNS names and IP addresses based on the provided
 // principals.
 func TestPrincipals(t *testing.T) {
-	ca, err := FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
@@ -68,7 +68,7 @@ func TestPrincipals(t *testing.T) {
 // TestKubeExtensions test ASN1 subject kubernetes extensions
 func TestKubeExtensions(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ca, err := FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)

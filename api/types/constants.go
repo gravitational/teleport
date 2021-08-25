@@ -115,6 +115,9 @@ const (
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
+	// KindDatabase is a database resource.
+	KindDatabase = "db"
+
 	// KindToken is a provisioning token resource
 	KindToken = "token"
 
@@ -142,11 +145,25 @@ const (
 	// MetaNameClusterAuthPreference is the type of authentication for this cluster.
 	MetaNameClusterAuthPreference = "cluster-auth-preference"
 
+	// KindSessionRecordingConfig is the resource for session recording configuration.
+	KindSessionRecordingConfig = "session_recording_config"
+
+	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
+	// session recording configuration.
+	MetaNameSessionRecordingConfig = "session-recording-config"
+
 	// KindClusterConfig is the resource that holds cluster level configuration.
 	KindClusterConfig = "cluster_config"
 
 	// MetaNameClusterConfig is the exact name of the cluster config singleton resource.
 	MetaNameClusterConfig = "cluster-config"
+
+	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
+	KindClusterAuditConfig = "cluster_audit_config"
+
+	// MetaNameClusterAuditConfig is the exact name of the singleton resource holding
+	// cluster audit configuration.
+	MetaNameClusterAuditConfig = "cluster-audit-config"
 
 	// KindClusterNetworkingConfig is the resource that holds cluster networking configuration.
 	KindClusterNetworkingConfig = "cluster_networking_config"
@@ -183,11 +200,11 @@ const (
 	// to proxy
 	KindRemoteCluster = "remote_cluster"
 
-	// KindResetPasswordToken is a token used to change user passwords
-	KindResetPasswordToken = "user_token"
+	// KindUserToken is a user token used for various user related actions.
+	KindUserToken = "user_token"
 
-	// KindResetPasswordTokenSecrets is reset password token secrets
-	KindResetPasswordTokenSecrets = "reset_password_token_secrets"
+	// KindUserTokenSecrets is user token secrets.
+	KindUserTokenSecrets = "user_token_secrets"
 
 	// KindIdentity is local on disk identity resource
 	KindIdentity = "identity"
@@ -203,6 +220,25 @@ const (
 
 	// KindBilling represents access to cloud billing features
 	KindBilling = "billing"
+
+	// KindLock is a lock resource.
+	KindLock = "lock"
+
+	// KindNetworkRestrictions are restrictions for SSH sessions
+	KindNetworkRestrictions = "network_restrictions"
+
+	// MetaNameNetworkRestrictions is the exact name of the singleton resource for
+	// network restrictions
+	MetaNameNetworkRestrictions = "network-restrictions"
+
+	// KindWindowsDesktopService is a Windows desktop service resource.
+	KindWindowsDesktopService = "windows_desktop_service"
+
+	// KindWindowsDesktop is a Windows desktop host.
+	KindWindowsDesktop = "windows_desktop"
+
+	// V4 is the fourth version of resources.
+	V4 = "v4"
 
 	// V3 is the third version of resources.
 	V3 = "v3"
@@ -283,15 +319,8 @@ const (
 	RecordAtProxySync = "proxy-sync"
 )
 
-const (
-	// HostKeyCheckYes is the default. The proxy will check the host key of the
-	// target node it connects to.
-	HostKeyCheckYes = "yes"
-
-	// HostKeyCheckNo is used to disable host key checking. This is a insecure
-	// settings which makes MITM possible with no indications, use with caution.
-	HostKeyCheckNo = "no"
-)
+// SessionRecordingModes lists all possible session recording modes.
+var SessionRecordingModes = []string{RecordAtNode, RecordAtProxy, RecordOff, RecordAtNodeSync, RecordAtProxySync}
 
 // TunnelType is the type of tunnel.
 type TunnelType string
@@ -311,4 +340,7 @@ const (
 
 	// DatabaseTunnel is a tunnel where a database proxy dials back to the proxy.
 	DatabaseTunnel TunnelType = "db"
+
+	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
+	WindowsDesktopTunnel TunnelType = "windows_desktop"
 )

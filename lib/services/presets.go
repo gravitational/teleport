@@ -19,42 +19,45 @@ package services
 import (
 	"github.com/gravitational/teleport"
 
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+
 	"github.com/pborman/uuid"
 )
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
-func NewPresetEditorRole() Role {
-	role := &RoleV3{
-		Kind:    KindRole,
-		Version: V3,
-		Metadata: Metadata{
+func NewPresetEditorRole() types.Role {
+	role := &types.RoleV4{
+		Kind:    types.KindRole,
+		Version: types.V3,
+		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
-			Namespace:   defaults.Namespace,
+			Namespace:   apidefaults.Namespace,
 			Description: "Edit cluster configuration",
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
-				CertificateFormat: teleport.CertificateFormatStandard,
-				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
-				PortForwarding:    NewBoolOption(true),
-				ForwardAgent:      NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
+		Spec: types.RoleSpecV4{
+			Options: types.RoleOptions{
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				PortForwarding:    types.NewBoolOption(true),
+				ForwardAgent:      types.NewBool(true),
+				BPF:               apidefaults.EnhancedEvents(),
 			},
-			Allow: RoleConditions{
-				Namespaces: []string{defaults.Namespace},
-				Rules: []Rule{
-					NewRule(KindUser, RW()),
-					NewRule(KindRole, RW()),
-					NewRule(KindOIDC, RW()),
-					NewRule(KindSAML, RW()),
-					NewRule(KindGithub, RW()),
-					NewRule(KindClusterAuthPreference, RW()),
-					NewRule(KindClusterConfig, RW()),
-					NewRule(KindTrustedCluster, RW()),
-					NewRule(KindRemoteCluster, RW()),
-					NewRule(KindToken, RW()),
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				Rules: []types.Rule{
+					types.NewRule(types.KindUser, RW()),
+					types.NewRule(types.KindRole, RW()),
+					types.NewRule(types.KindOIDC, RW()),
+					types.NewRule(types.KindSAML, RW()),
+					types.NewRule(types.KindGithub, RW()),
+					types.NewRule(types.KindClusterAuthPreference, RW()),
+					types.NewRule(types.KindClusterConfig, RW()),
+					types.NewRule(types.KindTrustedCluster, RW()),
+					types.NewRule(types.KindRemoteCluster, RW()),
+					types.NewRule(types.KindToken, RW()),
 				},
 			},
 		},
@@ -64,33 +67,33 @@ func NewPresetEditorRole() Role {
 
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
-func NewPresetAccessRole() Role {
-	role := &RoleV3{
-		Kind:    KindRole,
-		Version: V3,
-		Metadata: Metadata{
+func NewPresetAccessRole() types.Role {
+	role := &types.RoleV4{
+		Kind:    types.KindRole,
+		Version: types.V3,
+		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
-			Namespace:   defaults.Namespace,
+			Namespace:   apidefaults.Namespace,
 			Description: "Access cluster resources",
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
-				CertificateFormat: teleport.CertificateFormatStandard,
-				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
-				PortForwarding:    NewBoolOption(true),
-				ForwardAgent:      NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
+		Spec: types.RoleSpecV4{
+			Options: types.RoleOptions{
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				PortForwarding:    types.NewBoolOption(true),
+				ForwardAgent:      types.NewBool(true),
+				BPF:               apidefaults.EnhancedEvents(),
 			},
-			Allow: RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
-				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
-				AppLabels:        Labels{Wildcard: []string{Wildcard}},
-				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
-				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
+			Allow: types.RoleConditions{
+				Namespaces:       []string{apidefaults.Namespace},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-				Rules: []Rule{
-					NewRule(KindEvent, RO()),
+				Rules: []types.Rule{
+					types.NewRule(types.KindEvent, RO()),
 				},
 			},
 		},
@@ -104,33 +107,33 @@ func NewPresetAccessRole() Role {
 // NewPresetAuditorRole returns a new pre-defined role for cluster
 // auditor - someone who can review cluster events and replay sessions,
 // but can't initiate interactive sessions or modify configuration.
-func NewPresetAuditorRole() Role {
-	role := &RoleV3{
-		Kind:    KindRole,
-		Version: V3,
-		Metadata: Metadata{
+func NewPresetAuditorRole() types.Role {
+	role := &types.RoleV4{
+		Kind:    types.KindRole,
+		Version: types.V3,
+		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
-			Namespace:   defaults.Namespace,
+			Namespace:   apidefaults.Namespace,
 			Description: "Review cluster events and replay sessions",
 		},
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
-				CertificateFormat: teleport.CertificateFormatStandard,
-				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
+		Spec: types.RoleSpecV4{
+			Options: types.RoleOptions{
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 			},
-			Allow: RoleConditions{
-				Namespaces: []string{defaults.Namespace},
-				Rules: []Rule{
-					NewRule(KindSession, RO()),
-					NewRule(KindEvent, RO()),
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				Rules: []types.Rule{
+					types.NewRule(types.KindSession, RO()),
+					types.NewRule(types.KindEvent, RO()),
 				},
 			},
-			Deny: RoleConditions{
-				Namespaces:       []string{Wildcard},
-				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
-				AppLabels:        Labels{Wildcard: []string{Wildcard}},
-				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
-				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
+			Deny: types.RoleConditions{
+				Namespaces:       []string{types.Wildcard},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
 	}

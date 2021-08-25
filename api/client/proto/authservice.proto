@@ -49,7 +49,7 @@ message Event {
         // User is a user resource
         types.UserV2 User = 8 [ (gogoproto.jsontag) = "user,omitempty" ];
         // Role is a role resource
-        types.RoleV3 Role = 9 [ (gogoproto.jsontag) = "role,omitempty" ];
+        types.RoleV4 Role = 9 [ (gogoproto.jsontag) = "role,omitempty" ];
         // Namespace is a namespace resource
         types.Namespace Namespace = 10 [ (gogoproto.jsontag) = "namespace,omitempty" ];
         // Server is a node or proxy resource
@@ -78,6 +78,26 @@ message Event {
         // ClusterNetworkingConfig is a resource for cluster networking configuration.
         types.ClusterNetworkingConfigV2 ClusterNetworkingConfig = 20
             [ (gogoproto.jsontag) = "cluster_networking_config,omitempty" ];
+        // SessionRecordingConfig is a resource for session recording configuration.
+        types.SessionRecordingConfigV2 SessionRecordingConfig = 21
+            [ (gogoproto.jsontag) = "session_recording_config,omitempty" ];
+        // AuthPreference is cluster auth preference.
+        types.AuthPreferenceV2 AuthPreference = 22
+            [ (gogoproto.jsontag) = "auth_preference,omitempty" ];
+        // ClusterAuditConfig is a resource for cluster audit configuration.
+        types.ClusterAuditConfigV2 ClusterAuditConfig = 23
+            [ (gogoproto.jsontag) = "cluster_audit_config,omitempty" ];
+        // Lock is a lock resource.
+        types.LockV2 Lock = 24 [ (gogoproto.jsontag) = "lock,omitempty" ];
+        // NetworkRestrictions is a resource for network restrictions
+        types.NetworkRestrictionsV4 NetworkRestrictions = 25
+            [ (gogoproto.jsontag) = "network_restrictions,omitempty" ];
+        // WindowsDesktopService is a resource for Windows desktop services.
+        types.WindowsDesktopServiceV3 WindowsDesktopService = 26
+            [ (gogoproto.jsontag) = "windows_desktop_service,omitempty" ];
+        // WindowsDesktop is a resource for Windows desktop host.
+        types.WindowsDesktopV3 WindowsDesktop = 27
+            [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
     }
 }
 
@@ -152,10 +172,21 @@ message UserCertsRequest {
     string NodeName = 9 [ (gogoproto.jsontag) = "node_name,omitempty" ];
 
     enum CertUsage {
+        // All means a request for both SSH and TLS certificates for the
+        // overall user session. These certificates are not specific to any SSH
+        // node, Kubernetes cluster, database or web app.
         All = 0;
+        // SSH means a request for an SSH certificate for access to a specific
+        // SSH node, as specified by NodeName.
         SSH = 1;
+        // Kubernetes means a request for a TLS certificate for access to a
+        // specific Kubernetes cluster, as specified by KubernetesCluster.
         Kubernetes = 2;
+        // Database means a request for a TLS certificate for access to a
+        // specific database, as specified by RouteToDatabase.
         Database = 3;
+        // App means a request for a TLS certificate for access to a specific
+        // web app, as specified by RouteToApp.
         App = 4;
     }
     // CertUsage limits the resulting user certificate to a single protocol.
@@ -244,16 +275,13 @@ message RequestStateSetter {
 // RequestID is the unique identifier of an access request.
 message RequestID { string ID = 1 [ (gogoproto.jsontag) = "id" ]; }
 
-// RotateResetPasswordTokenSecretsRequest is a request to rotate token secrets.
-message RotateResetPasswordTokenSecretsRequest {
-    string TokenID = 1 [ (gogoproto.jsontag) = "token" ];
-}
+// RotateUserTokenSecretsRequest is a request to rotate token secrets.
+message RotateUserTokenSecretsRequest { string TokenID = 1 [ (gogoproto.jsontag) = "token" ]; }
 
 // GetResetPasswordTokenRequest is a request to get a reset password token.
 message GetResetPasswordTokenRequest { string TokenID = 1 [ (gogoproto.jsontag) = "token" ]; }
 
-// CreateResetPasswordTokenRequest is a request to create an instance of
-// ResetPasswordToken
+// CreateResetPasswordTokenRequest is a request to create a reset password token.
 message CreateResetPasswordTokenRequest {
     // Name is the user name.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
@@ -361,8 +389,8 @@ message FlushAndCloseStream {}
 message GetAppServersRequest {
     // Namespace is the namespace for application.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
-    // SkipValidation is used to skip JSON schema validation.
-    bool SkipValidation = 2 [ (gogoproto.jsontag) = "skip_validation" ];
+    // DEPRECATED: SkipValidation is used to skip JSON schema validation.
+    bool SkipValidation = 2 [ deprecated = true, (gogoproto.jsontag) = "skip_validation" ];
 }
 
 // GetAppServersResponse contains all requested application servers.
@@ -435,6 +463,8 @@ message CreateAppSessionRequest {
     string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
     // ClusterName is cluster within which the application is running.
     string ClusterName = 4 [ (gogoproto.jsontag) = "cluster_name" ];
+    // AWSRoleARN is AWS role the user wants to assume.
+    string AWSRoleARN = 5 [ (gogoproto.jsontag) = "aws_role_arn" ];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -497,8 +527,8 @@ message DeleteAllKubeServicesRequest {}
 message GetDatabaseServersRequest {
     // Namespace is the database server namespace.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
-    // SkipValidation allows to turn off JSON schema validation.
-    bool SkipValidation = 2 [ (gogoproto.jsontag) = "skip_validation" ];
+    // DEPRECATED: SkipValidation allows to turn off JSON schema validation.
+    bool SkipValidation = 2 [ deprecated = true, (gogoproto.jsontag) = "skip_validation" ];
 }
 
 // GetDatabaseServersResponse contains all registered database servers.
@@ -574,7 +604,7 @@ message GetRoleRequest {
 // GetRolesResponse is a response to querying for all roles.
 message GetRolesResponse {
     // Roles is a list of roles.
-    repeated types.RoleV3 Roles = 1;
+    repeated types.RoleV4 Roles = 1;
 }
 
 // DeleteRoleRequest is a request to delete a role.
@@ -785,6 +815,15 @@ message IsMFARequiredRequest {
     }
 }
 
+// StreamSessionEventsRequest is a request containing needed data to fetch a session recording.
+message StreamSessionEventsRequest {
+    // SessionID is the ID for a given session in an UUIDv4 format.
+    string SessionID = 1;
+    // StartIndex is the index of the event to resume the stream after.
+    // A StartIndex of 0 creates a new stream.
+    int32 StartIndex = 2;
+}
+
 // NodeLogin specifies an SSH node and OS login.
 message NodeLogin {
     // Node can be node's hostname or UUID.
@@ -804,6 +843,140 @@ message SingleUseUserCert {
     }
 }
 
+// Order specifies any ordering of some objects as returned in regards to some aspect
+// of said objects which may be trivially ordered such as a timestamp.
+enum Order {
+    DESCENDING = 0;
+    ASCENDING = 1;
+}
+
+message GetEventsRequest {
+    // Namespace, if not set, defaults to 'default'
+    string Namespace = 1;
+    // StartDate is the oldest date of returned events
+    google.protobuf.Timestamp StartDate = 2
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // EndDate is the newest date of returned events
+    google.protobuf.Timestamp EndDate = 3
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // EventTypes is optional, if not set, returns all events
+    repeated string EventTypes = 4;
+    // Limit is the maximum amount of events returned
+    int32 Limit = 5;
+    // StartKey is used to resume a query in order to enable pagination.
+    // If the previous response had LastKey set then this should be
+    // set to its value. Otherwise leave empty.
+    string StartKey = 6;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 7;
+}
+
+message GetSessionEventsRequest {
+    // StartDate is the oldest date of returned events
+    google.protobuf.Timestamp StartDate = 1
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // EndDate is the newest date of returned events
+    google.protobuf.Timestamp EndDate = 2
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // Limit is the maximum amount of events to retrieve.
+    int32 Limit = 3;
+    // StartKey is used to resume a query in order to enable pagination.
+    // If the previous response had LastKey set then this should be
+    // set to its value. Otherwise leave empty.
+    string StartKey = 4;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 5;
+}
+
+message Events {
+    // Items is a list of typed gRPC formatted audit events.
+    repeated events.OneOf Items = 1;
+    // the key of the last event if the returned set did not contain all events found i.e limit <
+    // actual amount. this is the key clients can supply in another API request to continue fetching
+    // events from the previous last position
+    string LastKey = 2;
+}
+
+message ListNodesRequest {
+    // Namespace is the namespace of resources.
+    string Namespace = 1;
+    // Limit is the maximum amount of nodes to retrieve.
+    int32 Limit = 2;
+    // StartKey is used to start listing nodes from a specific spot. This should
+    // be set to the previous NextKey value if using pagination, or left empty.
+    string StartKey = 3;
+}
+
+message ListNodesResponse {
+    // Servers is a list of servers.
+    repeated types.ServerV2 Servers = 1;
+    // NextKey is the next Key to use as StartKey in a ListNodesRequest to continue
+    // retrieving pages of nodes. If NextKey is empty, there are no more pages.
+    string NextKey = 2;
+}
+
+message GetLocksRequest {
+    // Targets is a list of targets. Every returned lock must match at least
+    // one of the targets.
+    repeated types.LockTarget Targets = 1;
+    // InForceOnly specifies whether to return only those locks that are in force.
+    bool InForceOnly = 2;
+}
+
+message GetLocksResponse {
+    // Locks is a list of locks.
+    repeated types.LockV2 Locks = 1;
+}
+
+message GetLockRequest {
+    // Name is the name of the lock to get.
+    string Name = 1;
+}
+
+message DeleteLockRequest {
+    // Name is the name of the lock to delete.
+    string Name = 1;
+}
+
+message ReplaceRemoteLocksRequest {
+    // ClusterName identifies the cluster from which the locks originate.
+    string ClusterName = 1;
+    // Locks is a list of new remote locks to store.
+    repeated types.LockV2 Locks = 2;
+}
+
+// GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
+message GetWindowsDesktopServicesResponse {
+    // Servers is a list of Windows desktop services.
+    repeated types.WindowsDesktopServiceV3 services = 1 [ (gogoproto.jsontag) = "services" ];
+}
+
+// DeleteWindowsDesktopServiceRequest is a request to delete a Windows desktop service.
+message DeleteWindowsDesktopServiceRequest {
+    // Name is the Windows desktop service name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// GetWindowsDesktopsResponse contains all registered Windows desktop hosts.
+message GetWindowsDesktopsResponse {
+    // Servers is a list of Windows desktop hosts.
+    repeated types.WindowsDesktopV3 Desktops = 1 [ (gogoproto.jsontag) = "desktops" ];
+}
+
+// GetWindowsDesktopRequest is a request for a single Windows desktop host.
+message GetWindowsDesktopRequest {
+    // Name is the name of the Windows desktop host.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// DeleteWindowsDesktopRequest is a request to delete a Windows desktop host.
+message DeleteWindowsDesktopRequest {
+    // Name is the name of the Windows desktop host.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -814,7 +987,10 @@ service AuthService {
     // GetNode retrieves a node described by the given request.
     rpc GetNode(types.ResourceInNamespaceRequest) returns (types.ServerV2);
     // GetNodes retrieves all nodes.
+    // DELETE IN 8.0.0 in favor of ListNodes
     rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
+    // ListNodes retrieves a paginated list of nodes.
+    rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
     // UpsertNode upserts a node in a backend.
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
     // DeleteNode deletes an existing node in a backend described by the given request.
@@ -855,13 +1031,16 @@ service AuthService {
     rpc Ping(PingRequest) returns (PingResponse);
 
     // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
-    rpc RotateResetPasswordTokenSecrets(RotateResetPasswordTokenSecretsRequest)
-        returns (types.ResetPasswordTokenSecretsV3);
-    // GetResetPasswordToken returns a token.
-    rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.ResetPasswordTokenV3);
-    // CreateResetPasswordToken creates ResetPasswordToken.
-    rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest)
-        returns (types.ResetPasswordTokenV3);
+    // DELETE IN: 9.0.0 in favor of RotateUserTokenSecrets.
+    rpc RotateResetPasswordTokenSecrets(RotateUserTokenSecretsRequest)
+        returns (types.UserTokenSecretsV3);
+    // RotateUserTokenSecrets rotates token secrets for a given tokenID.
+    rpc RotateUserTokenSecrets(RotateUserTokenSecretsRequest) returns (types.UserTokenSecretsV3);
+    // GetResetPasswordToken returns a reset password token.
+    rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
+    // CreateResetPasswordToken resets users current password and second factors and creates a reset
+    // password token.
+    rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
 
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);
@@ -961,11 +1140,11 @@ service AuthService {
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
 
     // GetRole retrieves a role described by the given request.
-    rpc GetRole(GetRoleRequest) returns (types.RoleV3);
+    rpc GetRole(GetRoleRequest) returns (types.RoleV4);
     // GetRole retrieves all roles.
     rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
     // UpsertRole upserts a role in a backend.
-    rpc UpsertRole(types.RoleV3) returns (google.protobuf.Empty);
+    rpc UpsertRole(types.RoleV4) returns (google.protobuf.Empty);
     // DeleteRole deletes an existing role in a backend described by the given request.
     rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 
@@ -1039,8 +1218,90 @@ service AuthService {
     // DeleteToken deletes an existing token in a backend described by the given request.
     rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 
+    // GetClusterAuditConfig gets cluster audit configuration.
+    rpc GetClusterAuditConfig(google.protobuf.Empty) returns (types.ClusterAuditConfigV2);
+
     // GetClusterNetworkingConfig gets cluster networking configuration.
     rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
     // SetClusterNetworkingConfig sets cluster networking configuration.
     rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty);
+    // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
+    rpc ResetClusterNetworkingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetSessionRecordingConfig gets session recording configuration.
+    rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2);
+    // SetSessionRecordingConfig sets session recording configuration.
+    rpc SetSessionRecordingConfig(types.SessionRecordingConfigV2) returns (google.protobuf.Empty);
+    // ResetSessionRecordingConfig resets session recording configuration to defaults.
+    rpc ResetSessionRecordingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetAuthPreference gets cluster auth preference.
+    rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2);
+    // SetAuthPreference sets cluster auth preference.
+    rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty);
+    // ResetAuthPreference resets cluster auth preference to defaults.
+    rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // Out-of-session request for audit events.
+    rpc GetEvents(GetEventsRequest) returns (Events);
+    // In-session request for audit events.
+    rpc GetSessionEvents(GetSessionEventsRequest) returns (Events);
+
+    // GetLock gets a lock by name.
+    rpc GetLock(GetLockRequest) returns (types.LockV2);
+    // GetLocks gets all/in-force locks that match at least one of the targets when specified.
+    rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
+    // UpsertLock upserts a lock.
+    rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
+    // DeleteLock deletes a lock.
+    rpc DeleteLock(DeleteLockRequest) returns (google.protobuf.Empty);
+    // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+    rpc ReplaceRemoteLocks(ReplaceRemoteLocksRequest) returns (google.protobuf.Empty);
+
+    // StreamSessionEvents streams audit events from a given session recording.
+    rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);
+
+    // GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
+    rpc GetNetworkRestrictions(google.protobuf.Empty) returns (types.NetworkRestrictionsV4);
+    // SetNetworkRestrictions updates the network restrictions.
+    rpc SetNetworkRestrictions(types.NetworkRestrictionsV4) returns (google.protobuf.Empty);
+    // DeleteNetworkRestrictions delete the network restrictions.
+    rpc DeleteNetworkRestrictions(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetDatabases returns all registered databases.
+    rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);
+    // GetDatabase returns a database by name.
+    rpc GetDatabase(types.ResourceRequest) returns (types.DatabaseV3);
+    // CreateDatabase creates a new database resource.
+    rpc CreateDatabase(types.DatabaseV3) returns (google.protobuf.Empty);
+    // UpdateDatabase updates existing database resource.
+    rpc UpdateDatabase(types.DatabaseV3) returns (google.protobuf.Empty);
+    // DeleteDatabase removes specified database resource.
+    rpc DeleteDatabase(types.ResourceRequest) returns (google.protobuf.Empty);
+    // DeleteAllDatabases removes all database resources.
+    rpc DeleteAllDatabases(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetWindowsDesktopServices returns all registered Windows desktop services.
+    rpc GetWindowsDesktopServices(google.protobuf.Empty)
+        returns (GetWindowsDesktopServicesResponse);
+    // UpsertWindowsDesktopService registers a new Windows desktop service.
+    rpc UpsertWindowsDesktopService(types.WindowsDesktopServiceV3) returns (types.KeepAlive);
+    // DeleteWindowsDesktopService removes the specified Windows desktop service.
+    rpc DeleteWindowsDesktopService(DeleteWindowsDesktopServiceRequest)
+        returns (google.protobuf.Empty);
+    // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
+    rpc DeleteAllWindowsDesktopServices(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetWindowsDesktops returns all registered Windows desktop hosts.
+    rpc GetWindowsDesktops(google.protobuf.Empty) returns (GetWindowsDesktopsResponse);
+    // GetWindowsDesktop returns a registered Windows desktop host.
+    rpc GetWindowsDesktop(GetWindowsDesktopRequest) returns (types.WindowsDesktopV3);
+    // CreateWindowsDesktop registers a new Windows desktop host.
+    rpc CreateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
+    // UpdateWindowsDesktop updates an existing Windows desktop host.
+    rpc UpdateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
+    // DeleteWindowsDesktop removes the specified Windows desktop host.
+    rpc DeleteWindowsDesktop(DeleteWindowsDesktopRequest) returns (google.protobuf.Empty);
+    // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
+    rpc DeleteAllWindowsDesktops(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

@@ -1,6 +1,9 @@
 # Default owners for items not matched below.
 * @klizhentas @russjones @r0mant
 
+# Documentation.
+/docs/ @klizhentas @russjones @r0mant
+
 # Frontend Engineering.
-/lib/web/ @alex-kovoy @russjones  @r0mant
-/webassets/ @alex-kovoy @russjones  @r0mant
+/lib/web/ @alex-kovoy @russjones @r0mant
+/webassets/ @alex-kovoy @russjones @r0mant

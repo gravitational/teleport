@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/trace"
 )
@@ -37,8 +36,6 @@ const SemaphoreKindConnection = "connection"
 type Semaphore interface {
 	// Resource contains common resource values
 	Resource
-	// CheckAndSetDefaults checks and sets default parameters
-	CheckAndSetDefaults() error
 	// Contains checks if lease is member of this semaphore.
 	Contains(lease SemaphoreLease) bool
 	// Acquire attempts to acquire a lease with this semaphore.
@@ -58,12 +55,9 @@ type Semaphore interface {
 // these acquire parameters.
 func (s *AcquireSemaphoreRequest) ConfigureSemaphore() (Semaphore, error) {
 	sem := SemaphoreV3{
-		Kind:    KindSemaphore,
 		SubKind: s.SemaphoreKind,
-		Version: V3,
 		Metadata: Metadata{
-			Name:      s.SemaphoreName,
-			Namespace: defaults.Namespace,
+			Name: s.SemaphoreName,
 		},
 	}
 	sem.SetExpiry(s.Expires)
@@ -262,13 +256,6 @@ func (c *SemaphoreV3) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *SemaphoreV3) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (c *SemaphoreV3) GetMetadata() Metadata {
 	return c.Metadata
@@ -280,13 +267,19 @@ func (c *SemaphoreV3) String() string {
 		c.SubKind, c.Metadata.Name, c.leaseCount())
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (c *SemaphoreV3) setStaticFields() {
+	c.Kind = KindSemaphore
+	c.Version = V3
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *SemaphoreV3) CheckAndSetDefaults() error {
-	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	// While theoretically there are scenarios with non-expiring semaphores
 	// however the flow don't need them right now, and they add a lot of edge
 	// cases, so the code does not support them.

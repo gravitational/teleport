@@ -138,7 +138,7 @@ func asAgentForwardingMode(s string) client.AgentForwardingMode {
 
 	default:
 		log.Errorf(
-			"Invalid agent forwarding mode %q. Defaulting to %q",
+			"Invalid agent forwarding mode %q. Defaulting to %q.",
 			s, forwardAgentTextNo)
 		return client.ForwardAgentNo
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -37,7 +38,7 @@ type ChangePasswordWithTokenRequest struct {
 }
 
 // ChangePasswordWithToken changes password with token
-func (s *Server) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
+func (s *Server) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
 	user, err := s.changePasswordWithToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,7 +83,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 
 	}
 
-	authPreference, err := s.GetAuthPreference()
+	authPreference, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -146,12 +147,12 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 		return trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.UserPasswordChange{
-		Metadata: events.Metadata{
+	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.UserPasswordChange{
+		Metadata: apievents.Metadata{
 			Type: events.UserPasswordChangeEvent,
 			Code: events.UserPasswordChangeCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: userID,
 		},
 	}); err != nil {
@@ -311,7 +312,8 @@ func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *type
 // CreateSignupU2FRegisterRequest initiates registration for a new U2F token.
 // The returned challenge should be sent to the client to sign.
 func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (*u2f.RegisterChallenge, error) {
-	cap, err := s.GetAuthPreference()
+	ctx := context.TODO()
+	cap, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -321,7 +323,7 @@ func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (*u2f.RegisterCh
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.GetResetPasswordToken(context.TODO(), tokenID)
+	_, err = s.getResetPasswordToken(context.TODO(), tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -346,13 +348,13 @@ func (s *Server) getOTPType(user string) (teleport.OTPType, error) {
 	return teleport.HOTP, nil
 }
 
-func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.User, error) {
+func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.User, error) {
 	// Get cluster configuration and check if local auth is allowed.
-	clusterConfig, err := s.GetClusterConfig()
+	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !clusterConfig.GetLocalAuth() {
+	if !authPref.GetAllowLocalAuth() {
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
@@ -362,7 +364,7 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	}
 
 	// Check if token exists.
-	token, err := s.GetResetPasswordToken(ctx, req.TokenID)
+	token, err := s.getResetPasswordToken(ctx, req.TokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -379,7 +381,7 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	username := token.GetUser()
 	// Delete this token first to minimize the chances
 	// of partially updated user with still valid token.
-	err = s.deleteResetPasswordTokens(ctx, username)
+	err = s.deleteUserTokens(ctx, username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -398,14 +400,14 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	return user, nil
 }
 
-func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, token services.ResetPasswordToken) error {
+func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, token types.UserToken) error {
+	ctx := context.TODO()
 	username := token.GetUser()
-	cap, err := s.GetAuthPreference()
+	cap, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	ctx := context.TODO()
 	secondFactor := cap.GetSecondFactor()
 	if secondFactor == constants.SecondFactorOff {
 		return nil
@@ -414,7 +416,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, toke
 		if secondFactor == constants.SecondFactorU2F {
 			return trace.BadParameter("user %q sent an OTP token during password reset but cluster only allows U2F for second factor", username)
 		}
-		secrets, err := s.Identity.GetResetPasswordTokenSecrets(ctx, req.TokenID)
+		secrets, err := s.Identity.GetUserTokenSecrets(ctx, req.TokenID)
 		if err != nil {
 			return trace.Wrap(err)
 		}

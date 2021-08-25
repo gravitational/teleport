@@ -29,8 +29,8 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -41,9 +41,6 @@ import (
 )
 
 const (
-	kubeDirSuffix = "-kube"
-	dbDirSuffix   = "-db"
-	appDirSuffix  = "-app"
 
 	// profileDirPerms is the default permissions applied to the profile
 	// directory (usually ~/.tsh)
@@ -78,7 +75,7 @@ type LocalKeyStore interface {
 
 	// AddKnownHostKeys adds the public key to the list of known hosts for
 	// a hostname.
-	AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error
+	AddKnownHostKeys(hostname, proxyHost string, keys []ssh.PublicKey) error
 
 	// GetKnownHostKeys returns all public keys for a hostname.
 	GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error)
@@ -92,38 +89,8 @@ type LocalKeyStore interface {
 }
 
 // FSLocalKeyStore implements LocalKeyStore interface using the filesystem.
-// Here's the file layout for the FS store:
 //
-// ~/.tsh/
-// ├── known_hosts                   --> trusted certificate authorities (their keys) in a format similar to known_hosts
-// └── keys
-//    ├── one.example.com            --> Proxy hostname
-//    │   ├── certs.pem              --> TLS CA certs for the Teleport CA
-//    │   ├── foo                    --> RSA Private Key for user "foo"
-//    │   ├── foo.pub                --> Public Key
-//    │   ├── foo-x509.pem           --> TLS client certificate for Auth Server
-//    │   ├── foo-ssh                --> SSH certs for user "foo"
-//    │   │   ├── root-cert.pub      --> SSH cert for Teleport cluster "root"
-//    │   │   └── leaf-cert.pub      --> SSH cert for Teleport cluster "leaf"
-//    │   ├── foo-kube               --> Kubernetes certs for user "foo"
-//    │   │   ├── root               --> Kubernetes certs for Teleport cluster "root"
-//    │   │   │   ├── kubeA-x509.pem --> TLS cert for Kubernetes cluster "kubeA"
-//    │   │   │   └── kubeB-x509.pem --> TLS cert for Kubernetes cluster "kubeB"
-//    │   │   └── leaf               --> Kubernetes certs for Teleport cluster "leaf"
-//    │   │       └── kubeC-x509.pem --> TLS cert for Kubernetes cluster "kubeC"
-//    │   └── foo-db                 --> Database access certs for user "foo"
-//    │       ├── root               --> Database access certs for cluster "root"
-//    │       │   ├── dbA-x509.pem   --> TLS cert for database service "dbA"
-//    │       │   └── dbB-x509.pem   --> TLS cert for database service "dbB"
-//    │       └── leaf               --> Database access certs for cluster "leaf"
-//    │           └── dbC-x509.pem   --> TLS cert for database service "dbC"
-//    └── two.example.com
-//        ├── certs.pem
-//        ├── bar
-//        ├── bar.pub
-//        ├── bar-x509.pem
-//        └── bar-ssh
-//            └── clusterA-cert.pub
+// The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSLocalKeyStore struct {
 	fsLocalNonSessionKeyStore
 }
@@ -159,24 +126,19 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	if err := key.KeyIndex.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	inProxyHostDir := func(path ...string) string {
-		return fs.inSessionKeyDir(key.ProxyHost, filepath.Join(path...))
-	}
-
 	// Store core key data.
-	if err := fs.writeBytes(key.Priv, inProxyHostDir(key.Username)); err != nil {
+	if err := fs.writeBytes(key.Priv, fs.UserKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := fs.writeBytes(key.Pub, inProxyHostDir(key.Username+constants.FileExtPub)); err != nil {
+	if err := fs.writeBytes(key.Pub, fs.sshCAsPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := fs.writeBytes(key.TLSCert, inProxyHostDir(key.Username+constants.FileExtTLSCert)); err != nil {
+	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Store per-cluster key data.
-	if err := fs.writeBytes(key.Cert, inProxyHostDir(key.Username+constants.SSHDirSuffix, key.ClusterName+constants.FileExtSSHCert)); err != nil {
+	if err := fs.writeBytes(key.Cert, fs.sshCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 	// TODO(awly): unit test this.
@@ -188,19 +150,19 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 		// don't expect any well-meaning user to create bad names.
 		kubeCluster = filepath.Clean(kubeCluster)
 
-		path := inProxyHostDir(key.Username+kubeDirSuffix, key.ClusterName, kubeCluster+constants.FileExtTLSCert)
+		path := fs.kubeCertPath(key.KeyIndex, kubeCluster)
 		if err := fs.writeBytes(cert, path); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for db, cert := range key.DBTLSCerts {
-		path := inProxyHostDir(key.Username+dbDirSuffix, key.ClusterName, filepath.Clean(db)+constants.FileExtTLSCert)
+		path := fs.databaseCertPath(key.KeyIndex, filepath.Clean(db))
 		if err := fs.writeBytes(cert, path); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for app, cert := range key.AppTLSCerts {
-		path := inProxyHostDir(key.Username+appDirSuffix, key.ClusterName, filepath.Clean(app)+constants.FileExtTLSCert)
+		path := fs.appCertPath(key.KeyIndex, filepath.Clean(app))
 		if err := fs.writeBytes(cert, path); err != nil {
 			return trace.Wrap(err)
 		}
@@ -224,9 +186,9 @@ func (fs *FSLocalKeyStore) writeBytes(bytes []byte, fp string) error {
 // DeleteKey deletes the user's key with all its certs.
 func (fs *FSLocalKeyStore) DeleteKey(idx KeyIndex) error {
 	files := []string{
-		fs.inSessionKeyDir(idx.ProxyHost, idx.Username),
-		fs.inSessionKeyDir(idx.ProxyHost, idx.Username+constants.FileExtPub),
-		fs.inSessionKeyDir(idx.ProxyHost, idx.Username+constants.FileExtTLSCert),
+		fs.UserKeyPath(idx),
+		fs.sshCAsPath(idx),
+		fs.tlsCertPath(idx),
 	}
 	for _, fn := range files {
 		if err := os.Remove(fn); err != nil {
@@ -247,7 +209,7 @@ func (fs *FSLocalKeyStore) DeleteKey(idx KeyIndex) error {
 // database proxy.
 func (fs *FSLocalKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
 	for _, o := range opts {
-		certPath := fs.inSessionKeyDir(o.relativeCertPath(idx))
+		certPath := o.certPath(fs.KeyDir, idx)
 		if err := os.RemoveAll(certPath); err != nil {
 			return trace.ConvertSystemError(err)
 		}
@@ -257,7 +219,7 @@ func (fs *FSLocalKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) err
 
 // DeleteKeys removes all session keys.
 func (fs *FSLocalKeyStore) DeleteKeys() error {
-	if err := os.RemoveAll(fs.inSessionKeyDir()); err != nil {
+	if err := os.RemoveAll(fs.KeyDir); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil
@@ -272,21 +234,21 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		}
 	}
 
-	if _, err := ioutil.ReadDir(fs.inSessionKeyDir()); err != nil && trace.IsNotFound(err) {
+	if _, err := ioutil.ReadDir(fs.KeyDir); err != nil && trace.IsNotFound(err) {
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	priv, err := ioutil.ReadFile(fs.inSessionKeyDir(idx.ProxyHost, idx.Username))
+	priv, err := ioutil.ReadFile(fs.UserKeyPath(idx))
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
-	pub, err := ioutil.ReadFile(fs.inSessionKeyDir(idx.ProxyHost, idx.Username+constants.FileExtPub))
+	pub, err := ioutil.ReadFile(fs.sshCAsPath(idx))
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
-	tlsCertFile := fs.inSessionKeyDir(idx.ProxyHost, idx.Username+constants.FileExtTLSCert)
+	tlsCertFile := fs.tlsCertPath(idx)
 	tlsCert, err := ioutil.ReadFile(tlsCertFile)
 	if err != nil {
 		fs.log.Error(err)
@@ -332,7 +294,7 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 }
 
 func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
-	certPath := fs.inSessionKeyDir(o.relativeCertPath(key.KeyIndex))
+	certPath := o.certPath(fs.KeyDir, key.KeyIndex)
 	info, err := os.Stat(certPath)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -347,12 +309,14 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 			return trace.ConvertSystemError(err)
 		}
 		for _, certFile := range certFiles {
-			data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
-			if err != nil {
-				return trace.ConvertSystemError(err)
+			name := keypaths.TrimCertPathSuffix(certFile.Name())
+			if isCert := name != certFile.Name(); isCert {
+				data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
+				certDataMap[name] = data
 			}
-			name := strings.TrimSuffix(certFile.Name(), constants.FileExtTLSCert)
-			certDataMap[name] = data
 		}
 		return o.updateKeyWithMap(key, certDataMap)
 	}
@@ -366,9 +330,9 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 
 // CertOption is an additional step to run when loading/deleting user certificates.
 type CertOption interface {
-	// relativeCertPath returns a path to the cert (or to a dir holding the certs)
-	// relative to the session key dir. For use with FSLocalKeyStore.
-	relativeCertPath(idx KeyIndex) string
+	// certPath returns a path to the cert (or to a dir holding the certs)
+	// within the given key dir. For use with FSLocalKeyStore.
+	certPath(keyDir string, idx KeyIndex) string
 	// updateKeyWithBytes adds the cert bytes to the key and performs related checks.
 	updateKeyWithBytes(key *Key, certBytes []byte) error
 	// updateKeyWithMap adds the cert data map to the key and performs related checks.
@@ -383,12 +347,11 @@ var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, 
 // WithSSHCerts is a CertOption for handling SSH certificates.
 type WithSSHCerts struct{}
 
-func (o WithSSHCerts) relativeCertPath(idx KeyIndex) string {
-	components := []string{idx.ProxyHost, idx.Username + constants.SSHDirSuffix}
-	if idx.ClusterName != "" {
-		components = append(components, idx.ClusterName+constants.FileExtSSHCert)
+func (o WithSSHCerts) certPath(keyDir string, idx KeyIndex) string {
+	if idx.ClusterName == "" {
+		return keypaths.SSHDir(keyDir, idx.ProxyHost, idx.Username)
 	}
-	return filepath.Join(components...)
+	return keypaths.SSHCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
 }
 
 func (o WithSSHCerts) updateKeyWithBytes(key *Key, certBytes []byte) error {
@@ -414,12 +377,11 @@ func (o WithSSHCerts) deleteFromKey(key *Key) {
 // WithKubeCerts is a CertOption for handling kubernetes certificates.
 type WithKubeCerts struct{}
 
-func (o WithKubeCerts) relativeCertPath(idx KeyIndex) string {
-	components := []string{idx.ProxyHost, idx.Username + kubeDirSuffix}
-	if idx.ClusterName != "" {
-		components = append(components, idx.ClusterName)
+func (o WithKubeCerts) certPath(keyDir string, idx KeyIndex) string {
+	if idx.ClusterName == "" {
+		return keypaths.KubeDir(keyDir, idx.ProxyHost, idx.Username)
 	}
-	return filepath.Join(components...)
+	return keypaths.KubeCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
 }
 
 func (o WithKubeCerts) updateKeyWithBytes(key *Key, certBytes []byte) error {
@@ -440,15 +402,14 @@ type WithDBCerts struct {
 	dbName string
 }
 
-func (o WithDBCerts) relativeCertPath(idx KeyIndex) string {
-	components := []string{idx.ProxyHost, idx.Username + dbDirSuffix}
-	if idx.ClusterName != "" {
-		components = append(components, idx.ClusterName)
-		if o.dbName != "" {
-			components = append(components, o.dbName+constants.FileExtTLSCert)
-		}
+func (o WithDBCerts) certPath(keyDir string, idx KeyIndex) string {
+	if idx.ClusterName == "" {
+		return keypaths.DatabaseDir(keyDir, idx.ProxyHost, idx.Username)
 	}
-	return filepath.Join(components...)
+	if o.dbName == "" {
+		return keypaths.DatabaseCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	}
+	return keypaths.DatabaseCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.dbName)
 }
 
 func (o WithDBCerts) updateKeyWithBytes(key *Key, certBytes []byte) error {
@@ -469,15 +430,14 @@ type WithAppCerts struct {
 	appName string
 }
 
-func (o WithAppCerts) relativeCertPath(idx KeyIndex) string {
-	components := []string{idx.ProxyHost, idx.Username + appDirSuffix}
-	if idx.ClusterName != "" {
-		components = append(components, idx.ClusterName)
-		if o.appName != "" {
-			components = append(components, o.appName+constants.FileExtTLSCert)
-		}
+func (o WithAppCerts) certPath(keyDir string, idx KeyIndex) string {
+	if idx.ClusterName == "" {
+		return keypaths.AppDir(keyDir, idx.ProxyHost, idx.Username)
 	}
-	return filepath.Join(components...)
+	if o.appName == "" {
+		return keypaths.AppCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	}
+	return keypaths.AppCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.appName)
 }
 
 func (o WithAppCerts) updateKeyWithBytes(key *Key, certBytes []byte) error {
@@ -504,15 +464,59 @@ type fsLocalNonSessionKeyStore struct {
 	KeyDir string
 }
 
-// inSessionKeyDir prepends the given path components with the session key dir,
-// usually returning a path of the form `~/.tsh/keys/<path0>/<path1>/<...>`.
-func (fs *fsLocalNonSessionKeyStore) inSessionKeyDir(path ...string) string {
-	return filepath.Join(fs.KeyDir, constants.SessionKeyDir, filepath.Join(path...))
+// proxyKeyDir returns the keystore's keys directory for the given proxy.
+func (fs *fsLocalNonSessionKeyStore) proxyKeyDir(proxy string) string {
+	return keypaths.ProxyKeyDir(fs.KeyDir, proxy)
+}
+
+// knownHostsPath returns the keystore's known hosts file path.
+func (fs *fsLocalNonSessionKeyStore) knownHostsPath() string {
+	return keypaths.KnownHostsPath(fs.KeyDir)
+}
+
+// UserKeyPath returns the private key path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) UserKeyPath(idx KeyIndex) string {
+	return keypaths.UserKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
+// tlsCertPath returns the TLS certificate path given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) tlsCertPath(idx KeyIndex) string {
+	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
+// tlsCAsPath returns the TLS CA certificates path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) tlsCAsPath(proxy string) string {
+	return keypaths.TLSCAsPath(fs.KeyDir, proxy)
+}
+
+// sshCertPath returns the SSH certificate path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) sshCertPath(idx KeyIndex) string {
+	return keypaths.SSHCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+}
+
+// sshCAsPath returns the SSH CA certificates path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) sshCAsPath(idx KeyIndex) string {
+	return keypaths.SSHCAsPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
+//  appCertPath returns the TLS certificate path for the given KeyIndex and app name.
+func (fs *fsLocalNonSessionKeyStore) appCertPath(idx KeyIndex, appname string) string {
+	return keypaths.AppCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, appname)
+}
+
+// databaseCertPath returns the TLS certificate path for the given KeyIndex and database name.
+func (fs *fsLocalNonSessionKeyStore) databaseCertPath(idx KeyIndex, dbname string) string {
+	return keypaths.DatabaseCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, dbname)
+}
+
+// kubeCertPath returns the TLS certificate path for the given KeyIndex and kube cluster name.
+func (fs *fsLocalNonSessionKeyStore) kubeCertPath(idx KeyIndex, kubename string) string {
+	return keypaths.KubeCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
 }
 
 // AddKnownHostKeys adds a new entry to `known_hosts` file.
-func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.PublicKey) (retErr error) {
-	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, constants.FileNameKnownHosts), os.O_CREATE|os.O_RDWR, 0640)
+func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname, proxyHost string, hostKeys []ssh.PublicKey) (retErr error) {
+	fp, err := os.OpenFile(fs.knownHostsPath(), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -534,13 +538,28 @@ func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname string, hostKeys 
 	}
 	// add every host key to the list of entries
 	for i := range hostKeys {
-		fs.log.Debugf("Adding known host %s with key: %v", hostname, sshutils.Fingerprint(hostKeys[i]))
+		fs.log.Debugf("Adding known host %s with proxy %s and key: %v", hostname, proxyHost, sshutils.Fingerprint(hostKeys[i]))
 		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
-		line := strings.TrimSpace(fmt.Sprintf("%s %s", hostname, bytes))
+
+		// Write keys in an OpenSSH-compatible format. A previous format was not
+		// quite OpenSSH-compatible, so we may write a duplicate entry here. Any
+		// duplicates will be pruned below.
+		// We include both the proxy server and original hostname as well as the
+		// root domain wildcard. OpenSSH clients match against both the proxy
+		// host and nodes (via the wildcard). Teleport itself occasionally uses
+		// the root cluster name.
+		line := fmt.Sprintf(
+			"@cert-authority %s,%s,*.%s %s type=host",
+			proxyHost, hostname, hostname, strings.TrimSpace(string(bytes)),
+		)
 		if _, exists := entries[line]; !exists {
 			output = append(output, line)
 		}
 	}
+	// Prune any duplicate host entries for migrated hosts. Note that only
+	// duplicates matching the current hostname/proxyHost will be pruned; others
+	// will be cleaned up at subsequent logins.
+	output = pruneOldHostKeys(output)
 	// re-create the file:
 	_, err = fp.Seek(0, 0)
 	if err != nil {
@@ -555,9 +574,39 @@ func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname string, hostKeys 
 	return fp.Sync()
 }
 
+// matchesWildcard ensures the given `hostname` matches the given `pattern`.
+// The `pattern` may be prefixed with `*.` which will match exactly one domain
+// segment, meaning `*.example.com` will match `foo.example.com` but not
+// `foo.bar.example.com`.
+func matchesWildcard(hostname, pattern string) bool {
+	// Trim any trailing "." in case of an absolute domain.
+	hostname = strings.TrimSuffix(hostname, ".")
+
+	// Don't allow non-wildcard patterns.
+	if !strings.HasPrefix(pattern, "*.") {
+		return false
+	}
+
+	// Never match a top-level hostname.
+	if !strings.Contains(hostname, ".") {
+		return false
+	}
+
+	// Don't allow empty matches.
+	pattern = pattern[2:]
+	if strings.TrimSpace(pattern) == "" {
+		return false
+	}
+
+	hostnameParts := strings.Split(hostname, ".")
+	hostnameRoot := strings.Join(hostnameParts[1:], ".")
+
+	return hostnameRoot == pattern
+}
+
 // GetKnownHostKeys returns all known public keys from `known_hosts`.
 func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
-	bytes, err := ioutil.ReadFile(filepath.Join(fs.KeyDir, constants.FileNameKnownHosts))
+	bytes, err := ioutil.ReadFile(fs.knownHostsPath())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -576,7 +625,7 @@ func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) ([]ssh.Pu
 			hostMatch = (hostname == "")
 			if !hostMatch {
 				for i := range hosts {
-					if hosts[i] == hostname {
+					if hosts[i] == hostname || matchesWildcard(hostname, hosts[i]) {
 						hostMatch = true
 						break
 					}
@@ -595,11 +644,11 @@ func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) ([]ssh.Pu
 
 // SaveTrustedCerts saves trusted TLS certificates of certificate authorities.
 func (fs *fsLocalNonSessionKeyStore) SaveTrustedCerts(proxyHost string, cas []auth.TrustedCerts) (retErr error) {
-	if err := os.MkdirAll(fs.inSessionKeyDir(proxyHost), os.ModeDir|profileDirPerms); err != nil {
+	if err := os.MkdirAll(fs.proxyKeyDir(proxyHost), os.ModeDir|profileDirPerms); err != nil {
 		fs.log.Error(err)
 		return trace.ConvertSystemError(err)
 	}
-	certsFile := fs.inSessionKeyDir(proxyHost, constants.FileNameTLSCerts)
+	certsFile := fs.tlsCAsPath(proxyHost)
 	fp, err := os.OpenFile(certsFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -621,7 +670,7 @@ func (fs *fsLocalNonSessionKeyStore) SaveTrustedCerts(proxyHost string, cas []au
 // GetTrustedCertsPEM returns trusted TLS certificates of certificate authorities PEM
 // blocks.
 func (fs *fsLocalNonSessionKeyStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, error) {
-	data, err := ioutil.ReadFile(fs.inSessionKeyDir(proxyHost, constants.FileNameTLSCerts))
+	data, err := ioutil.ReadFile(fs.tlsCAsPath(proxyHost))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -633,6 +682,7 @@ func (fs *fsLocalNonSessionKeyStore) GetTrustedCertsPEM(proxyHost string) ([][]b
 		}
 		if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
 			fs.log.Debugf("Skipping PEM block type=%v headers=%v.", block.Type, block.Headers)
+			data = rest
 			continue
 		}
 		// rest contains the remainder of data after reading a block.
@@ -664,7 +714,7 @@ func (noLocalKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
 	return errNoLocalKeyStore
 }
 func (noLocalKeyStore) DeleteKeys() error { return errNoLocalKeyStore }
-func (noLocalKeyStore) AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error {
+func (noLocalKeyStore) AddKnownHostKeys(hostname, proxyHost string, keys []ssh.PublicKey) error {
 	return errNoLocalKeyStore
 }
 func (noLocalKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {

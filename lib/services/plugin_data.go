@@ -17,38 +17,25 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// PluginDataSpecSchema is JSON schema for PluginData
-const PluginDataSpecSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"entries": { "type":"object" }
-	}
-}`
-
-// GetPluginDataSchema returns the full PluginDataSchema string
-func GetPluginDataSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, PluginDataSpecSchema, DefaultDefinitions)
-}
-
 //MarshalPluginData marshals the PluginData resource to JSON.
-func MarshalPluginData(pluginData PluginData, opts ...MarshalOption) ([]byte, error) {
+func MarshalPluginData(pluginData types.PluginData, opts ...MarshalOption) ([]byte, error) {
+	if err := pluginData.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch pluginData := pluginData.(type) {
-	case *PluginDataV3:
-		if version := pluginData.GetVersion(); version != V3 {
-			return nil, trace.BadParameter("mismatched plugin data version %v and type %T", version, pluginData)
-		}
+	case *types.PluginDataV3:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -63,20 +50,14 @@ func MarshalPluginData(pluginData PluginData, opts ...MarshalOption) ([]byte, er
 }
 
 // UnmarshalPluginData unmarshals the PluginData resource from JSON.
-func UnmarshalPluginData(raw []byte, opts ...MarshalOption) (PluginData, error) {
+func UnmarshalPluginData(raw []byte, opts ...MarshalOption) (types.PluginData, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var data PluginDataV3
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(raw, &data); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := utils.UnmarshalWithSchema(GetPluginDataSchema(), &data, raw); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	var data types.PluginDataV3
+	if err := utils.FastUnmarshal(raw, &data); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := data.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

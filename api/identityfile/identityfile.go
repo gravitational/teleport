@@ -27,7 +27,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
@@ -123,7 +123,7 @@ func Read(path string) (*IdentityFile, error) {
 	// Did not find the SSH certificate in the file? look in a
 	// separate file with -cert.pub suffix.
 	if len(ident.Certs.SSH) == 0 {
-		certFn := path + constants.FileExtSSHCert
+		certFn := keypaths.IdentitySSHCertPath(path)
 		if ident.Certs.SSH, err = ioutil.ReadFile(certFn); err != nil {
 			return nil, trace.Wrap(err, "could not find SSH cert in the identity file or %v", certFn)
 		}

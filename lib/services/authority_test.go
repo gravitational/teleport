@@ -31,49 +31,74 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 	// CA for cluster1 with 1 key pair.
 	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster1"}, nil, time.Minute)
 	require.NoError(t, err)
-	ca1 := types.NewCertAuthority(types.CertAuthoritySpecV2{
+	ca1, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "cluster1",
-		TLSKeyPairs: []types.TLSKeyPair{{
-			Cert: cert,
-			Key:  key,
-		}},
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  key,
+			}},
+		},
 	})
+	require.NoError(t, err)
+
 	// CA for cluster2 with 2 key pairs.
 	key, cert, err = tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster2"}, nil, time.Minute)
 	require.NoError(t, err)
 	key2, cert2, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster2"}, nil, time.Minute)
 	require.NoError(t, err)
-	ca2 := types.NewCertAuthority(types.CertAuthoritySpecV2{
+	ca2, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "cluster2",
-		TLSKeyPairs: []types.TLSKeyPair{
-			{
-				Cert: cert,
-				Key:  key,
-			},
-			{
-				Cert: cert2,
-				Key:  key2,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert: cert,
+					Key:  key,
+				},
+				{
+					Cert: cert2,
+					Key:  key2,
+				},
 			},
 		},
 	})
+	require.NoError(t, err)
+
+	// CA for cluster3 with old schema
+	key, cert, err = tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster3"}, nil, time.Minute)
+	require.NoError(t, err)
+	ca3, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "cluster3",
+		TLSKeyPairs: []types.TLSKeyPair{{
+			Cert: cert,
+			Key:  key,
+		}},
+	})
+	require.NoError(t, err)
 
 	t.Run("ca1 with 1 cert", func(t *testing.T) {
-		pool, err := CertPoolFromCertAuthorities([]CertAuthority{ca1})
+		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1})
 		require.NoError(t, err)
 		require.Len(t, pool.Subjects(), 1)
 	})
 	t.Run("ca2 with 2 certs", func(t *testing.T) {
-		pool, err := CertPoolFromCertAuthorities([]CertAuthority{ca2})
+		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca2})
 		require.NoError(t, err)
 		require.Len(t, pool.Subjects(), 2)
 	})
-
-	t.Run("ca1 + ca2 with 3 certs total", func(t *testing.T) {
-		pool, err := CertPoolFromCertAuthorities([]CertAuthority{ca1, ca2})
+	t.Run("ca3 with 1 cert", func(t *testing.T) {
+		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca3})
 		require.NoError(t, err)
-		require.Len(t, pool.Subjects(), 3)
+		require.Len(t, pool.Subjects(), 1)
+	})
+
+	t.Run("ca1 + ca2 + ca3 with 4 certs total", func(t *testing.T) {
+		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1, ca2, ca3})
+		require.NoError(t, err)
+		require.Len(t, pool.Subjects(), 4)
 	})
 }
 
@@ -81,33 +106,40 @@ func TestCertAuthorityEquivalence(t *testing.T) {
 	// CA for cluster1 with 1 key pair.
 	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster1"}, nil, time.Minute)
 	require.NoError(t, err)
-	ca1 := types.NewCertAuthority(types.CertAuthoritySpecV2{
+	ca1, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "cluster1",
-		TLSKeyPairs: []types.TLSKeyPair{{
-			Cert: cert,
-			Key:  key,
-		}},
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  key,
+			}},
+		},
 	})
+	require.NoError(t, err)
+
 	// CA for cluster2 with 2 key pairs.
 	key, cert, err = tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster2"}, nil, time.Minute)
 	require.NoError(t, err)
 	key2, cert2, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster2"}, nil, time.Minute)
 	require.NoError(t, err)
-	ca2 := types.NewCertAuthority(types.CertAuthoritySpecV2{
+	ca2, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "cluster2",
-		TLSKeyPairs: []types.TLSKeyPair{
-			{
-				Cert: cert,
-				Key:  key,
-			},
-			{
-				Cert: cert2,
-				Key:  key2,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert: cert,
+					Key:  key,
+				},
+				{
+					Cert: cert2,
+					Key:  key2,
+				},
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// different CAs are different
 	require.False(t, CertAuthoritiesEquivalent(ca1, ca2))

@@ -27,12 +27,15 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -149,6 +152,9 @@ type Server struct {
 
 	// parentContext is used to signal server closure
 	parentContext context.Context
+
+	// lockWatcher is the server's lock watcher.
+	lockWatcher *services.LockWatcher
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -198,6 +204,9 @@ type ServerConfig struct {
 	// ParentContext is a parent context, used to signal global
 	// closure
 	ParentContext context.Context
+
+	// LockWatcher is a lock watcher.
+	LockWatcher *services.LockWatcher
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -231,6 +240,9 @@ func (s *ServerConfig) CheckDefaults() error {
 	}
 	if s.ParentContext == nil {
 		s.ParentContext = context.TODO()
+	}
+	if s.LockWatcher == nil {
+		return trace.BadParameter("missing parameter LockWatcher")
 	}
 	return nil
 }
@@ -275,6 +287,7 @@ func New(c ServerConfig) (*Server, error) {
 		hostUUID:        c.HostUUID,
 		StreamEmitter:   c.Emitter,
 		parentContext:   c.ParentContext,
+		lockWatcher:     c.LockWatcher,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -289,17 +302,18 @@ func New(c ServerConfig) (*Server, error) {
 	}
 
 	// Common auth handlers.
-	s.authHandlers = &srv.AuthHandlers{
-		Entry: logrus.WithFields(logrus.Fields{
-			trace.Component:       teleport.ComponentForwardingNode,
-			trace.ComponentFields: logrus.Fields{},
-		}),
+	authHandlerConfig := srv.AuthHandlerConfig{
 		Server:      s,
 		Component:   teleport.ComponentForwardingNode,
+		Emitter:     c.Emitter,
 		AccessPoint: c.AuthClient,
 		FIPS:        c.FIPS,
-		Emitter:     c.Emitter,
 		Clock:       c.Clock,
+	}
+
+	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Common term handlers.
@@ -338,7 +352,7 @@ func (s *Server) HostUUID() string {
 
 // GetNamespace returns the namespace the forwarding server resides in.
 func (s *Server) GetNamespace() string {
-	return defaults.Namespace
+	return apidefaults.Namespace
 }
 
 // AdvertiseAddr is the address of the remote host this forwarding server is
@@ -387,16 +401,23 @@ func (s Server) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
 }
 
+// GetRestrictedSessionManager returns a NOP manager since for a
+// forwarding server it makes no sense (it has to run on the actual
+// node).
+func (s Server) GetRestrictedSessionManager() restricted.Manager {
+	return &restricted.NOP{}
+}
+
 // GetInfo returns a services.Server that represents this server.
-func (s *Server) GetInfo() services.Server {
-	return &services.ServerV2{
-		Kind:    services.KindNode,
-		Version: services.V2,
-		Metadata: services.Metadata{
+func (s *Server) GetInfo() types.Server {
+	return &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.GetNamespace(),
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr: s.AdvertiseAddr(),
 		},
 	}
@@ -412,11 +433,16 @@ func (s *Server) GetClock() clockwork.Clock {
 	return s.clock
 }
 
-// GetUtmpPath returns returns the optional override of the utmp and wtmp path.
+// GetUtmpPath returns the optional override of the utmp and wtmp path.
 // These values are never set for the forwarding server because utmp and wtmp
 // are updated by the target server and not the forwarding server.
 func (s *Server) GetUtmpPath() (string, string) {
 	return "", ""
+}
+
+// GetLockWatcher gets the server's lock watcher.
+func (s *Server) GetLockWatcher() *services.LockWatcher {
+	return s.lockWatcher
 }
 
 func (s *Server) Serve() {
@@ -553,7 +579,7 @@ func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 			authMethod,
 		},
 		HostKeyCallback: s.authHandlers.HostKeyAuth,
-		Timeout:         defaults.DefaultDialTimeout,
+		Timeout:         apidefaults.DefaultDialTimeout,
 	}
 
 	// Ciphers, KEX, and MACs preferences are honored by both the in-memory
@@ -706,22 +732,22 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 	defer conn.Close()
 
-	if err := s.EmitAuditEvent(s.closeContext, &events.PortForward{
-		Metadata: events.Metadata{
+	if err := s.EmitAuditEvent(s.closeContext, &apievents.PortForward{
+		Metadata: apievents.Metadata{
 			Type: events.PortForwardEvent,
 			Code: events.PortForwardCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			Login:        s.identityContext.Login,
 			User:         s.identityContext.TeleportUser,
 			Impersonator: s.identityContext.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),
 			RemoteAddr: s.sconn.RemoteAddr().String(),
 		},
 		Addr: scx.DstAddr,
-		Status: events.Status{
+		Status: apievents.Status{
 			Success: true,
 		},
 	}); err != nil {
@@ -1045,16 +1071,16 @@ func (s *Server) serveX11Channels(ctx context.Context) error {
 
 // handleX11Forward handles an X11 forwarding request from the client.
 func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
-	event := events.X11Forward{
-		Metadata: events.Metadata{
+	event := apievents.X11Forward{
+		Metadata: apievents.Metadata{
 			Type: events.X11ForwardEvent,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			Login:        s.identityContext.Login,
 			User:         s.identityContext.TeleportUser,
 			Impersonator: s.identityContext.Impersonator,
 		},
-		ConnectionMetadata: events.ConnectionMetadata{
+		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),
 			RemoteAddr: s.sconn.RemoteAddr().String(),
 		},
@@ -1163,7 +1189,11 @@ func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCont
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	s.log.Error(err)
-	message := utils.UserMessageFromError(err)
+	// Terminate the error with a newline when writing to remote channel's
+	// stderr so the output does not mix with the rest of the output if the remote
+	// side is not doing additional formatting for extended data.
+	// See github.com/gravitational/teleport/issues/4542
+	message := utils.FormatErrorWithNewline(err)
 	s.stderrWrite(ch, message)
 	if req.WantReply {
 		if err := req.Reply(false, []byte(message)); err != nil {

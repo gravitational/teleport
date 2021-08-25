@@ -20,7 +20,6 @@ import (
 	"sort"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // Label describes label for webapp
@@ -63,7 +62,7 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []services.Server) []Server {
+func MakeServers(clusterName string, servers []types.Server) []Server {
 	uiServers := []Server{}
 	for _, server := range servers {
 		uiLabels := []Label{}
@@ -108,33 +107,40 @@ type Kube struct {
 
 // MakeKubes creates ui kube objects and returns a list..
 func MakeKubes(clusterName string, servers []types.Server) []Kube {
-	uiKubeClusters := []Kube{}
+	kubeClusters := map[string]*types.KubernetesCluster{}
+
+	// Get unique kube clusters
 	for _, server := range servers {
 		// Process each kube cluster.
 		for _, cluster := range server.GetKubernetesClusters() {
-			uiLabels := []Label{}
+			kubeClusters[cluster.Name] = cluster
+		}
+	}
 
-			for name, value := range cluster.StaticLabels {
-				uiLabels = append(uiLabels, Label{
-					Name:  name,
-					Value: value,
-				})
-			}
+	uiKubeClusters := make([]Kube, 0, len(kubeClusters))
+	for _, cluster := range kubeClusters {
+		uiLabels := []Label{}
 
-			for name, cmd := range cluster.DynamicLabels {
-				uiLabels = append(uiLabels, Label{
-					Name:  name,
-					Value: cmd.GetResult(),
-				})
-			}
-
-			sort.Sort(sortedLabels(uiLabels))
-
-			uiKubeClusters = append(uiKubeClusters, Kube{
-				Name:   cluster.Name,
-				Labels: uiLabels,
+		for name, value := range cluster.StaticLabels {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: value,
 			})
 		}
+
+		for name, cmd := range cluster.DynamicLabels {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: cmd.GetResult(),
+			})
+		}
+
+		sort.Sort(sortedLabels(uiLabels))
+
+		uiKubeClusters = append(uiKubeClusters, Kube{
+			Name:   cluster.Name,
+			Labels: uiLabels,
+		})
 	}
 
 	return uiKubeClusters
@@ -154,20 +160,20 @@ type Database struct {
 	Labels []Label `json:"labels"`
 }
 
-// MakeDatabases creates server database objects.
-func MakeDatabases(clusterName string, servers []types.DatabaseServer) []Database {
-	uiServers := make([]Database, 0, len(servers))
-	for _, server := range servers {
+// MakeDatabases creates database objects.
+func MakeDatabases(clusterName string, databases []types.Database) []Database {
+	uiServers := make([]Database, 0, len(databases))
+	for _, database := range databases {
 		uiLabels := []Label{}
 
-		for name, value := range server.GetStaticLabels() {
+		for name, value := range database.GetStaticLabels() {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: value,
 			})
 		}
 
-		for name, cmd := range server.GetDynamicLabels() {
+		for name, cmd := range database.GetDynamicLabels() {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: cmd.GetResult(),
@@ -177,10 +183,10 @@ func MakeDatabases(clusterName string, servers []types.DatabaseServer) []Databas
 		sort.Sort(sortedLabels(uiLabels))
 
 		uiServers = append(uiServers, Database{
-			Name:     server.GetName(),
-			Desc:     server.GetDescription(),
-			Protocol: server.GetProtocol(),
-			Type:     server.GetType(),
+			Name:     database.GetName(),
+			Desc:     database.GetDescription(),
+			Protocol: database.GetProtocol(),
+			Type:     database.GetType(),
 			Labels:   uiLabels,
 		})
 	}

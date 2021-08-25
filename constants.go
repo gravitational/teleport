@@ -17,35 +17,11 @@ limitations under the License.
 package teleport
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-)
-
-// The following constants have been moved to /api/constants/constants.go, and are now
-// imported here for backwards compatibility. DELETE IN 7.0.0
-const (
-	Local                        = constants.Local
-	OIDC                         = constants.OIDC
-	SAML                         = constants.SAML
-	Github                       = constants.Github
-	HumanDateFormatSeconds       = constants.HumanDateFormatSeconds
-	DefaultImplicitRole          = constants.DefaultImplicitRole
-	APIDomain                    = constants.APIDomain
-	CertificateFormatStandard    = constants.CertificateFormatStandard
-	DurationNever                = constants.DurationNever
-	EnhancedRecordingMinKernel   = constants.EnhancedRecordingMinKernel
-	EnhancedRecordingCommand     = constants.EnhancedRecordingCommand
-	EnhancedRecordingDisk        = constants.EnhancedRecordingDisk
-	EnhancedRecordingNetwork     = constants.EnhancedRecordingNetwork
-	KeepAliveNode                = constants.KeepAliveNode
-	KeepAliveApp                 = constants.KeepAliveApp
-	KeepAliveDatabase            = constants.KeepAliveDatabase
-	WindowsOS                    = constants.WindowsOS
-	LinuxOS                      = constants.LinuxOS
-	DarwinOS                     = constants.DarwinOS
-	UseOfClosedNetworkConnection = constants.UseOfClosedNetworkConnection
+	"github.com/coreos/go-semver/semver"
 )
 
 // WebAPIVersion is a current webapi version
@@ -258,6 +234,9 @@ const (
 	// ComponentBPF is the eBPF packagae.
 	ComponentBPF = "bpf"
 
+	// ComponentRestrictedSession is restriction of user access to kernel objects
+	ComponentRestrictedSession = "restrictedsess"
+
 	// ComponentCgroup is the cgroup package.
 	ComponentCgroup = "cgroups"
 
@@ -267,8 +246,20 @@ const (
 	// ComponentSAML is a SAML service provider.
 	ComponentSAML = "saml"
 
+	// ComponentMetrics is a metrics server
+	ComponentMetrics = "metrics"
+
+	// ComponentWindowsDesktop is a Windows desktop access server.
+	ComponentWindowsDesktop = "windows_desktop"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
+
+	// DebugAssetsPath allows users to set the path of the webassets if debug
+	// mode is enabled.
+	// For example,
+	// `DEBUG=1 DEBUG_ASSETS_PATH=/path/to/webassets/ teleport start`.
+	DebugAssetsPath = "DEBUG_ASSETS_PATH"
 
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
@@ -453,6 +444,9 @@ const (
 	NetIQ = "netiq"
 	// ADFS is Microsoft Active Directory Federation Services
 	ADFS = "adfs"
+	// Ping is the common backend for all Ping Identity-branded identity
+	// providers (including PingOne, PingFederate, etc).
+	Ping = "ping"
 )
 
 const (
@@ -578,7 +572,14 @@ const (
 const OSSMigratedV6 = "migrate-v6.0"
 
 // MinClientVersion is the minimum client version required by the server.
-const MinClientVersion = "3.0.0"
+var MinClientVersion string
+
+func init() {
+	// Per https://github.com/gravitational/teleport/blob/master/rfd/0012-teleport-versioning.md,
+	// only one major version backwards is supported for clients.
+	ver := semver.New(Version)
+	MinClientVersion = fmt.Sprintf("%d.0.0", ver.Major-1)
+}
 
 const (
 	// RemoteClusterStatusOffline indicates that cluster is considered as
@@ -645,6 +646,10 @@ const (
 	// UsageDatabaseOnly specifies certificate usage metadata that only allows
 	// it to be used for proxying database connections.
 	UsageDatabaseOnly = "usage:db"
+
+	// UsageWindowsDesktopOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Windows desktop access
+	UsageWindowsDesktopOnly = "usage:windows_desktop"
 )
 
 const (

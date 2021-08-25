@@ -25,7 +25,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -54,7 +57,7 @@ func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 	req.RedirectURL = client.AuthCodeURL(req.StateToken, "", "")
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
-	req.SetTTL(a.GetClock(), defaults.GithubAuthRequestTTL)
+	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
 	err = a.Identity.CreateGithubAuthRequest(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -63,20 +66,20 @@ func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 }
 
 // upsertGithubConnector creates or updates a Github connector.
-func (a *Server) upsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
+func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
 	if err := a.Identity.UpsertGithubConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &events.GithubConnectorCreate{
-		Metadata: events.Metadata{
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.GithubConnectorCreate{
+		Metadata: apievents.Metadata{
 			Type: events.GithubConnectorCreatedEvent,
 			Code: events.GithubConnectorCreatedCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
 	}); err != nil {
@@ -92,16 +95,16 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 		return trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &events.GithubConnectorDelete{
-		Metadata: events.Metadata{
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.GithubConnectorDelete{
+		Metadata: apievents.Metadata{
 			Type: events.GithubConnectorDeletedEvent,
 			Code: events.GithubConnectorDeletedCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connectorName,
 		},
 	}); err != nil {
@@ -116,9 +119,9 @@ type GithubAuthResponse struct {
 	// Username is the name of authenticated user
 	Username string `json:"username"`
 	// Identity is the external identity
-	Identity services.ExternalIdentity `json:"identity"`
+	Identity types.ExternalIdentity `json:"identity"`
 	// Session is the created web session
-	Session services.WebSession `json:"session,omitempty"`
+	Session types.WebSession `json:"session,omitempty"`
 	// Cert is the generated SSH client certificate
 	Cert []byte `json:"cert,omitempty"`
 	// TLSCert is PEM encoded TLS client certificate
@@ -127,7 +130,7 @@ type GithubAuthResponse struct {
 	Req services.GithubAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
-	HostSigners []services.CertAuthority `json:"host_signers"`
+	HostSigners []types.CertAuthority `json:"host_signers"`
 }
 
 type githubManager interface {
@@ -139,9 +142,9 @@ func (a *Server) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 	return validateGithubAuthCallbackHelper(a.closeCtx, a, q, a.emitter)
 }
 
-func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q url.Values, emitter events.Emitter) (*GithubAuthResponse, error) {
-	event := &events.UserLogin{
-		Metadata: events.Metadata{
+func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q url.Values, emitter apievents.Emitter) (*GithubAuthResponse, error) {
+	event := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 		},
 		Method: events.LoginMethodGithub,
@@ -149,7 +152,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 
 	re, err := m.validateGithubAuthCallback(q)
 	if re != nil && re.claims != nil {
-		attributes, err := events.EncodeMapStrings(re.claims)
+		attributes, err := apievents.EncodeMapStrings(re.claims)
 		if err != nil {
 			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
 			log.WithError(err).Debug("Failed to encode identity attributes.")
@@ -256,7 +259,7 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 	// Auth was successful, return session, certificate, etc. to caller.
 	re.auth = GithubAuthResponse{
 		Req: *req,
-		Identity: services.ExternalIdentity{
+		Identity: types.ExternalIdentity{
 			ConnectorID: params.connectorName,
 			Username:    params.username,
 		},
@@ -296,8 +299,8 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 		re.auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
-		authority, err := a.GetCertAuthority(services.CertAuthID{
-			Type:       services.HostCA,
+		authority, err := a.GetCertAuthority(types.CertAuthID{
+			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
@@ -337,7 +340,7 @@ type createUserParams struct {
 	sessionTTL time.Duration
 }
 
-func (a *Server) calculateGithubUser(connector services.GithubConnector, claims *services.GithubClaims, request *services.GithubAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *services.GithubAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),
 		username:      claims.Username,
@@ -362,13 +365,13 @@ func (a *Server) calculateGithubUser(connector services.GithubConnector, claims 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleTTL := roles.AdjustSessionTTL(defaults.MaxCertDuration)
+	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
 	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
 
 	return &p, nil
 }
 
-func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
+func (a *Server) createGithubUser(p *createUserParams) (types.User, error) {
 
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Generating dynamic identity %v/%v with logins: %v.",
@@ -376,26 +379,26 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
-	user := &services.UserV2{
-		Kind:    services.KindUser,
-		Version: services.V2,
-		Metadata: services.Metadata{
+	user := &types.UserV2{
+		Kind:    types.KindUser,
+		Version: types.V2,
+		Metadata: types.Metadata{
 			Name:      p.username,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Expires:   &expires,
 		},
-		Spec: services.UserSpecV2{
+		Spec: types.UserSpecV2{
 			Roles:  p.roles,
 			Traits: p.traits,
-			GithubIdentities: []services.ExternalIdentity{{
+			GithubIdentities: []types.ExternalIdentity{{
 				ConnectorID: p.connectorName,
 				Username:    p.username,
 			}},
-			CreatedBy: services.CreatedBy{
-				User: services.UserRef{Name: teleport.UserSystem},
+			CreatedBy: types.CreatedBy{
+				User: types.UserRef{Name: teleport.UserSystem},
 				Time: a.GetClock().Now().UTC(),
-				Connector: &services.ConnectorRef{
-					Type:     teleport.Github,
+				Connector: &types.ConnectorRef{
+					Type:     constants.Github,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},
@@ -431,7 +434,7 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 
 // populateGithubClaims retrieves information about user and its team
 // memberships by calling Github API using the access token
-func populateGithubClaims(client githubAPIClientI) (*services.GithubClaims, error) {
+func populateGithubClaims(client githubAPIClientI) (*types.GithubClaims, error) {
 	// find out the username
 	user, err := client.getUser()
 	if err != nil {
@@ -453,7 +456,7 @@ func populateGithubClaims(client githubAPIClientI) (*services.GithubClaims, erro
 		return nil, trace.AccessDenied(
 			"list of user teams is empty, did you grant access?")
 	}
-	claims := &services.GithubClaims{
+	claims := &types.GithubClaims{
 		Username:            user.Login,
 		OrganizationToTeams: orgToTeams,
 	}
@@ -462,7 +465,7 @@ func populateGithubClaims(client githubAPIClientI) (*services.GithubClaims, erro
 	return claims, nil
 }
 
-func (a *Server) getGithubOAuth2Client(connector services.GithubConnector) (*oauth2.Client, error) {
+func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2.Client, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	config := oauth2.Config{
@@ -575,13 +578,13 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 
 			// Print warning to Teleport logs as well as the Audit Log.
 			log.Warnf(warningMessage)
-			if err := c.authServer.emitter.EmitAuditEvent(c.authServer.closeCtx, &events.UserLogin{
-				Metadata: events.Metadata{
+			if err := c.authServer.emitter.EmitAuditEvent(c.authServer.closeCtx, &apievents.UserLogin{
+				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserSSOLoginFailureCode,
 				},
 				Method: events.LoginMethodGithub,
-				Status: events.Status{
+				Status: apievents.Status{
 					Success: false,
 					Error:   warningMessage,
 				},

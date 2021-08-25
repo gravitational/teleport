@@ -24,11 +24,12 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -118,7 +119,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		TLSServerConfig: cfg,
 		Server: &http.Server{
 			Handler:           limiter,
-			ReadHeaderTimeout: defaults.DefaultDialTimeout * 2,
+			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
 		},
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient
@@ -128,7 +129,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// Only announce when running in an actual kubernetes_service, or when
 	// running in proxy_service with local kube credentials. This means that
 	// proxy_service will pretend to also be kubernetes_service.
-	if cfg.NewKubeService || len(fwd.kubeClusters()) > 0 {
+	if cfg.KubeServiceType == KubeService ||
+		(cfg.KubeServiceType == LegacyProxyService && len(fwd.kubeClusters()) > 0) {
 		log.Debugf("Starting kubernetes_service heartbeats for %q", cfg.Component)
 		server.heartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
 			Mode:            srv.HeartbeatModeKube,
@@ -136,9 +138,9 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			Component:       cfg.Component,
 			Announcer:       cfg.AuthClient,
 			GetServerInfo:   server.GetServerInfo,
-			KeepAlivePeriod: defaults.ServerKeepAliveTTL,
-			AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
-			ServerTTL:       defaults.ServerAnnounceTTL,
+			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+			ServerTTL:       apidefaults.ServerAnnounceTTL,
 			CheckPeriod:     defaults.HeartbeatCheckPeriod,
 			Clock:           cfg.Clock,
 			OnHeartbeat:     cfg.OnHeartbeat,
@@ -249,7 +251,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 
 // GetServerInfo returns a services.Server object for heartbeats (aka
 // presence).
-func (t *TLSServer) GetServerInfo() (services.Resource, error) {
+func (t *TLSServer) GetServerInfo() (types.Resource, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -264,23 +266,23 @@ func (t *TLSServer) GetServerInfo() (services.Resource, error) {
 	// Note: we *don't* want to add suffix for kubernetes_service!
 	// This breaks reverse tunnel routing, which uses server.Name.
 	name := t.ServerID
-	if !t.NewKubeService {
+	if t.KubeServiceType != KubeService {
 		name += "-proxy_service"
 	}
 
-	srv := &services.ServerV2{
-		Kind:    services.KindKubeService,
-		Version: services.V2,
-		Metadata: services.Metadata{
+	srv := &types.ServerV2{
+		Kind:    types.KindKubeService,
+		Version: types.V2,
+		Metadata: types.Metadata{
 			Name:      name,
 			Namespace: t.Namespace,
 		},
-		Spec: services.ServerSpecV2{
+		Spec: types.ServerSpecV2{
 			Addr:               addr,
 			Version:            teleport.Version,
 			KubernetesClusters: t.fwd.kubeClusters(),
 		},
 	}
-	srv.SetExpiry(t.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
+	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	return srv, nil
 }

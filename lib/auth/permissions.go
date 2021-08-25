@@ -35,7 +35,12 @@ import (
 
 // NewAdminContext returns new admin auth context
 func NewAdminContext() (*Context, error) {
-	authContext, err := contextForBuiltinRole(BuiltinRole{Role: teleport.RoleAdmin, Username: fmt.Sprintf("%v", teleport.RoleAdmin)}, nil)
+	return NewBuiltinRoleContext(types.RoleAdmin)
+}
+
+// NewBuiltinRoleContext create auth context for the provided builtin role.
+func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
+	authContext, err := contextForBuiltinRole(BuiltinRole{Role: role, Username: fmt.Sprintf("%v", role)}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -43,20 +48,18 @@ func NewAdminContext() (*Context, error) {
 }
 
 // NewAuthorizer returns new authorizer using backends
-func NewAuthorizer(clusterName string, access services.Access, identity services.UserGetter, trust services.Trust) (Authorizer, error) {
+func NewAuthorizer(clusterName string, accessPoint ReadAccessPoint, lockWatcher *services.LockWatcher) (Authorizer, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing parameter clusterName")
 	}
-	if access == nil {
-		return nil, trace.BadParameter("missing parameter access")
+	if accessPoint == nil {
+		return nil, trace.BadParameter("missing parameter accessPoint")
 	}
-	if identity == nil {
-		return nil, trace.BadParameter("missing parameter identity")
-	}
-	if trust == nil {
-		return nil, trace.BadParameter("missing parameter trust")
-	}
-	return &authorizer{clusterName: clusterName, access: access, identity: identity, trust: trust}, nil
+	return &authorizer{
+		clusterName: clusterName,
+		accessPoint: accessPoint,
+		lockWatcher: lockWatcher,
+	}, nil
 }
 
 // Authorizer authorizes identity and returns auth context
@@ -68,15 +71,14 @@ type Authorizer interface {
 // authorizer creates new local authorizer
 type authorizer struct {
 	clusterName string
-	access      services.Access
-	identity    services.UserGetter
-	trust       services.Trust
+	accessPoint ReadAccessPoint
+	lockWatcher *services.LockWatcher
 }
 
 // AuthContext is authorization context
 type Context struct {
 	// User is the user name
-	User services.User
+	User types.User
 	// Checker is access checker
 	Checker services.AccessChecker
 	// Identity holds the caller identity:
@@ -93,27 +95,58 @@ type Context struct {
 	UnmappedIdentity IdentityGetter
 }
 
+// LockTargets returns a list of LockTargets inferred from the context's
+// Identity and UnmappedIdentity.
+func (c *Context) LockTargets() []types.LockTarget {
+	lockTargets := services.LockTargetsFromTLSIdentity(c.Identity.GetIdentity())
+Loop:
+	for _, unmappedTarget := range services.LockTargetsFromTLSIdentity(c.UnmappedIdentity.GetIdentity()) {
+		// Append a lock target from UnmappedIdentity only if it is not already
+		// known from Identity.
+		for _, knownTarget := range lockTargets {
+			if unmappedTarget.Equals(knownTarget) {
+				continue Loop
+			}
+		}
+		lockTargets = append(lockTargets, unmappedTarget)
+	}
+	if r, ok := c.Identity.(BuiltinRole); ok && r.Role == types.RoleNode {
+		lockTargets = append(lockTargets,
+			types.LockTarget{Node: r.GetServerID()},
+			types.LockTarget{Node: r.Identity.Username})
+	}
+	return lockTargets
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
 	userI := ctx.Value(ContextUser)
-	authContext, err := a.fromUser(userI)
+	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// Enforce applicable locks.
+	authPref, err := a.accessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if lockErr := a.lockWatcher.CheckLockInForce(authContext.Checker.LockingMode(authPref.GetLockingMode()), authContext.LockTargets()...); lockErr != nil {
+		return nil, trace.Wrap(lockErr)
 	}
 	return authContext, nil
 }
 
-func (a *authorizer) fromUser(userI interface{}) (*Context, error) {
+func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, error) {
 	switch user := userI.(type) {
 	case LocalUser:
 		return a.authorizeLocalUser(user)
 	case RemoteUser:
 		return a.authorizeRemoteUser(user)
 	case BuiltinRole:
-		return a.authorizeBuiltinRole(user)
+		return a.authorizeBuiltinRole(ctx, user)
 	case RemoteBuiltinRole:
 		return a.authorizeRemoteBuiltinRole(user)
 	default:
@@ -123,12 +156,15 @@ func (a *authorizer) fromUser(userI interface{}) (*Context, error) {
 
 // authorizeLocalUser returns authz context based on the username
 func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
-	return contextForLocalUser(u, a.identity, a.access)
+	return contextForLocalUser(u, a.accessPoint)
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
 func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
-	ca, err := a.trust.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: u.ClusterName}, false)
+	ca, err := a.accessPoint.GetCertAuthority(types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: u.ClusterName,
+	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -165,13 +201,13 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 	}
 	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.",
 		u.RemoteRoles, u.Username, roleNames, traits)
-	checker, err := services.FetchRoles(roleNames, a.access, traits)
+	checker, err := services.FetchRoles(roleNames, a.accessPoint, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// The user is prefixed with "remote-" and suffixed with cluster name with
 	// the hope that it does not match a real local user.
-	user, err := services.NewUser(fmt.Sprintf("remote-%v-%v", u.Username, u.ClusterName))
+	user, err := types.NewUser(fmt.Sprintf("remote-%v-%v", u.Username, u.ClusterName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -229,42 +265,46 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 }
 
 // authorizeBuiltinRole authorizes builtin role
-func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*Context, error) {
-	config, err := r.GetClusterConfig()
+func (a *authorizer) authorizeBuiltinRole(ctx context.Context, r BuiltinRole) (*Context, error) {
+	recConfig, err := a.accessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return contextForBuiltinRole(r, config)
+	return contextForBuiltinRole(r, recConfig)
 }
 
 func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, error) {
-	if r.Role != teleport.RoleProxy {
+	if r.Role != types.RoleProxy {
 		return nil, trace.AccessDenied("access denied for remote %v connecting to cluster", r.Role)
 	}
 	roles, err := services.FromSpec(
-		string(teleport.RoleRemoteProxy),
-		services.RoleSpecV3{
-			Allow: services.RoleConditions{
-				Namespaces: []string{services.Wildcard},
-				Rules: []services.Rule{
-					services.NewRule(services.KindNode, services.RO()),
-					services.NewRule(services.KindProxy, services.RO()),
-					services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
-					services.NewRule(services.KindNamespace, services.RO()),
-					services.NewRule(services.KindUser, services.RO()),
-					services.NewRule(services.KindRole, services.RO()),
-					services.NewRule(services.KindAuthServer, services.RO()),
-					services.NewRule(services.KindReverseTunnel, services.RO()),
-					services.NewRule(services.KindTunnelConnection, services.RO()),
-					services.NewRule(services.KindClusterConfig, services.RO()),
-					services.NewRule(services.KindKubeService, services.RO()),
+		string(types.RoleRemoteProxy),
+		types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Namespaces: []string{types.Wildcard},
+				Rules: []types.Rule{
+					types.NewRule(types.KindNode, services.RO()),
+					types.NewRule(types.KindProxy, services.RO()),
+					types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+					types.NewRule(types.KindNamespace, services.RO()),
+					types.NewRule(types.KindUser, services.RO()),
+					types.NewRule(types.KindRole, services.RO()),
+					types.NewRule(types.KindAuthServer, services.RO()),
+					types.NewRule(types.KindReverseTunnel, services.RO()),
+					types.NewRule(types.KindTunnelConnection, services.RO()),
+					types.NewRule(types.KindClusterName, services.RO()),
+					types.NewRule(types.KindClusterConfig, services.RO()),
+					types.NewRule(types.KindClusterAuditConfig, services.RO()),
+					types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+					types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+					types.NewRule(types.KindKubeService, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
 					{
-						Resources: []string{services.KindCertAuthority},
+						Resources: []string{types.KindCertAuthority},
 						// It is important that remote proxy can only rotate
 						// existing certificate authority, and not create or update new ones
-						Verbs: []string{services.VerbRead, services.VerbRotate},
+						Verbs: []string{types.VerbRead, types.VerbRotate},
 						// allow administrative access to the certificate authority names
 						// matching the cluster name only
 						Where: builder.Equals(services.ResourceNameExpr, builder.String(r.ClusterName)).String(),
@@ -275,11 +315,11 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.NewUser(r.Username)
+	user, err := types.NewUser(r.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user.SetRoles([]string{string(teleport.RoleRemoteProxy)})
+	user.SetRoles([]string{string(types.RoleRemoteProxy)})
 	return &Context{
 		User:             user,
 		Checker:          RemoteBuiltinRoleSet{roles},
@@ -289,146 +329,165 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 }
 
 // GetCheckerForBuiltinRole returns checkers for embedded builtin role
-func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, role teleport.Role) (services.RoleSet, error) {
+func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordingConfig, role types.SystemRole) (services.RoleSet, error) {
 	switch role {
-	case teleport.RoleAuth:
+	case types.RoleAuth:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
-				Allow: services.RoleConditions{
-					Namespaces: []string{services.Wildcard},
-					Rules: []services.Rule{
-						services.NewRule(services.KindAuthServer, services.RW()),
+			types.RoleSpecV4{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindAuthServer, services.RW()),
 					},
 				},
 			})
-	case teleport.RoleProvisionToken:
-		return services.FromSpec(role.String(), services.RoleSpecV3{})
-	case teleport.RoleNode:
+	case types.RoleProvisionToken:
+		return services.FromSpec(role.String(), types.RoleSpecV4{})
+	case types.RoleNode:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
-				Allow: services.RoleConditions{
-					Namespaces: []string{services.Wildcard},
-					Rules: []services.Rule{
-						services.NewRule(services.KindNode, services.RW()),
-						services.NewRule(services.KindSSHSession, services.RW()),
-						services.NewRule(services.KindEvent, services.RW()),
-						services.NewRule(services.KindProxy, services.RO()),
-						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
-						services.NewRule(services.KindUser, services.RO()),
-						services.NewRule(services.KindNamespace, services.RO()),
-						services.NewRule(services.KindRole, services.RO()),
-						services.NewRule(services.KindAuthServer, services.RO()),
-						services.NewRule(services.KindReverseTunnel, services.RW()),
-						services.NewRule(services.KindTunnelConnection, services.RO()),
-						services.NewRule(services.KindClusterConfig, services.RO()),
-						services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						services.NewRule(services.KindClusterAuthPreference, services.RO()),
-						services.NewRule(services.KindSemaphore, services.RW()),
+			types.RoleSpecV4{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindNode, services.RW()),
+						types.NewRule(types.KindSSHSession, services.RW()),
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindProxy, services.RO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindAuthServer, services.RO()),
+						types.NewRule(types.KindReverseTunnel, services.RW()),
+						types.NewRule(types.KindTunnelConnection, services.RO()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterConfig, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindNetworkRestrictions, services.RO()),
 					},
 				},
 			})
-	case teleport.RoleApp:
+	case types.RoleApp:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
-				Allow: services.RoleConditions{
-					Namespaces: []string{services.Wildcard},
-					Rules: []services.Rule{
-						services.NewRule(services.KindEvent, services.RW()),
-						services.NewRule(services.KindProxy, services.RO()),
-						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
-						services.NewRule(services.KindUser, services.RO()),
-						services.NewRule(services.KindNamespace, services.RO()),
-						services.NewRule(services.KindRole, services.RO()),
-						services.NewRule(services.KindAuthServer, services.RO()),
-						services.NewRule(services.KindReverseTunnel, services.RW()),
-						services.NewRule(services.KindTunnelConnection, services.RO()),
-						services.NewRule(services.KindClusterConfig, services.RO()),
-						services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						services.NewRule(services.KindClusterAuthPreference, services.RO()),
-						services.NewRule(services.KindAppServer, services.RW()),
-						services.NewRule(services.KindWebSession, services.RO()),
-						services.NewRule(services.KindWebToken, services.RO()),
-						services.NewRule(services.KindJWT, services.RW()),
+			types.RoleSpecV4{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindProxy, services.RO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindAuthServer, services.RO()),
+						types.NewRule(types.KindReverseTunnel, services.RW()),
+						types.NewRule(types.KindTunnelConnection, services.RO()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterConfig, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindAppServer, services.RW()),
+						types.NewRule(types.KindWebSession, services.RO()),
+						types.NewRule(types.KindWebToken, services.RO()),
+						types.NewRule(types.KindJWT, services.RW()),
+						types.NewRule(types.KindLock, services.RO()),
 					},
 				},
 			})
-	case teleport.RoleDatabase:
+	case types.RoleDatabase:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
-				Allow: services.RoleConditions{
-					Namespaces: []string{services.Wildcard},
-					Rules: []services.Rule{
-						services.NewRule(services.KindEvent, services.RW()),
-						services.NewRule(services.KindProxy, services.RO()),
-						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
-						services.NewRule(services.KindUser, services.RO()),
-						services.NewRule(services.KindNamespace, services.RO()),
-						services.NewRule(services.KindRole, services.RO()),
-						services.NewRule(services.KindAuthServer, services.RO()),
-						services.NewRule(services.KindReverseTunnel, services.RW()),
-						services.NewRule(services.KindTunnelConnection, services.RO()),
-						services.NewRule(services.KindClusterConfig, services.RO()),
-						services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						services.NewRule(services.KindClusterAuthPreference, services.RO()),
-						services.NewRule(types.KindDatabaseServer, services.RW()),
+			types.RoleSpecV4{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindProxy, services.RO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindAuthServer, services.RO()),
+						types.NewRule(types.KindReverseTunnel, services.RW()),
+						types.NewRule(types.KindTunnelConnection, services.RO()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterConfig, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindDatabaseServer, services.RW()),
+						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindLock, services.RO()),
 					},
 				},
 			})
-	case teleport.RoleProxy:
+	case types.RoleProxy:
 		// if in recording mode, return a different set of permissions than regular
 		// mode. recording proxy needs to be able to generate host certificates.
-		if services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
+		if services.IsRecordAtProxy(recConfig.GetMode()) {
 			return services.FromSpec(
 				role.String(),
-				services.RoleSpecV3{
-					Allow: services.RoleConditions{
-						Namespaces:    []string{services.Wildcard},
-						ClusterLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
-						Rules: []services.Rule{
-							services.NewRule(services.KindProxy, services.RW()),
-							services.NewRule(services.KindOIDCRequest, services.RW()),
-							services.NewRule(services.KindSSHSession, services.RW()),
-							services.NewRule(services.KindSession, services.RO()),
-							services.NewRule(services.KindEvent, services.RW()),
-							services.NewRule(services.KindSAMLRequest, services.RW()),
-							services.NewRule(services.KindOIDC, services.ReadNoSecrets()),
-							services.NewRule(services.KindSAML, services.ReadNoSecrets()),
-							services.NewRule(services.KindGithub, services.ReadNoSecrets()),
-							services.NewRule(services.KindGithubRequest, services.RW()),
-							services.NewRule(services.KindNamespace, services.RO()),
-							services.NewRule(services.KindNode, services.RO()),
-							services.NewRule(services.KindAuthServer, services.RO()),
-							services.NewRule(services.KindReverseTunnel, services.RO()),
-							services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
-							services.NewRule(services.KindUser, services.RO()),
-							services.NewRule(services.KindRole, services.RO()),
-							services.NewRule(services.KindClusterAuthPreference, services.RO()),
-							services.NewRule(services.KindClusterConfig, services.RO()),
-							services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-							services.NewRule(services.KindClusterName, services.RO()),
-							services.NewRule(services.KindStaticTokens, services.RO()),
-							services.NewRule(services.KindTunnelConnection, services.RW()),
-							services.NewRule(services.KindHostCert, services.RW()),
-							services.NewRule(services.KindRemoteCluster, services.RO()),
-							services.NewRule(services.KindSemaphore, services.RW()),
-							services.NewRule(services.KindAppServer, services.RO()),
-							services.NewRule(services.KindWebSession, services.RW()),
-							services.NewRule(services.KindWebToken, services.RW()),
-							services.NewRule(services.KindKubeService, services.RW()),
-							services.NewRule(types.KindDatabaseServer, services.RO()),
+				types.RoleSpecV4{
+					Allow: types.RoleConditions{
+						Namespaces:    []string{types.Wildcard},
+						ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						Rules: []types.Rule{
+							types.NewRule(types.KindProxy, services.RW()),
+							types.NewRule(types.KindOIDCRequest, services.RW()),
+							types.NewRule(types.KindSSHSession, services.RW()),
+							types.NewRule(types.KindSession, services.RO()),
+							types.NewRule(types.KindEvent, services.RW()),
+							types.NewRule(types.KindSAMLRequest, services.RW()),
+							types.NewRule(types.KindOIDC, services.ReadNoSecrets()),
+							types.NewRule(types.KindSAML, services.ReadNoSecrets()),
+							types.NewRule(types.KindGithub, services.ReadNoSecrets()),
+							types.NewRule(types.KindGithubRequest, services.RW()),
+							types.NewRule(types.KindNamespace, services.RO()),
+							types.NewRule(types.KindNode, services.RO()),
+							types.NewRule(types.KindAuthServer, services.RO()),
+							types.NewRule(types.KindReverseTunnel, services.RO()),
+							types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+							types.NewRule(types.KindUser, services.RO()),
+							types.NewRule(types.KindRole, services.RO()),
+							types.NewRule(types.KindClusterAuthPreference, services.RO()),
+							types.NewRule(types.KindClusterName, services.RO()),
+							types.NewRule(types.KindClusterConfig, services.RO()),
+							types.NewRule(types.KindClusterAuditConfig, services.RO()),
+							types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+							types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+							types.NewRule(types.KindStaticTokens, services.RO()),
+							types.NewRule(types.KindTunnelConnection, services.RW()),
+							types.NewRule(types.KindHostCert, services.RW()),
+							types.NewRule(types.KindRemoteCluster, services.RO()),
+							types.NewRule(types.KindSemaphore, services.RW()),
+							types.NewRule(types.KindAppServer, services.RO()),
+							types.NewRule(types.KindWebSession, services.RW()),
+							types.NewRule(types.KindWebToken, services.RW()),
+							types.NewRule(types.KindKubeService, services.RW()),
+							types.NewRule(types.KindDatabaseServer, services.RO()),
+							types.NewRule(types.KindLock, services.RO()),
+							types.NewRule(types.KindWindowsDesktopService, services.RO()),
+							types.NewRule(types.KindWindowsDesktop, services.RO()),
 							// this rule allows local proxy to update the remote cluster's host certificate authorities
 							// during certificates renewal
 							{
-								Resources: []string{services.KindCertAuthority},
-								Verbs:     []string{services.VerbCreate, services.VerbRead, services.VerbUpdate},
+								Resources: []string{types.KindCertAuthority},
+								Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbUpdate},
 								// allow administrative access to the host certificate authorities
 								// matching any cluster name except local
 								Where: builder.And(
-									builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(services.HostCA))),
+									builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.HostCA))),
 									builder.Not(
 										builder.Equals(
 											services.ResourceNameExpr,
@@ -443,50 +502,55 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 		}
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
-				Allow: services.RoleConditions{
-					Namespaces:    []string{services.Wildcard},
-					ClusterLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
-					Rules: []services.Rule{
-						services.NewRule(services.KindProxy, services.RW()),
-						services.NewRule(services.KindOIDCRequest, services.RW()),
-						services.NewRule(services.KindSSHSession, services.RW()),
-						services.NewRule(services.KindSession, services.RO()),
-						services.NewRule(services.KindEvent, services.RW()),
-						services.NewRule(services.KindSAMLRequest, services.RW()),
-						services.NewRule(services.KindOIDC, services.ReadNoSecrets()),
-						services.NewRule(services.KindSAML, services.ReadNoSecrets()),
-						services.NewRule(services.KindGithub, services.ReadNoSecrets()),
-						services.NewRule(services.KindGithubRequest, services.RW()),
-						services.NewRule(services.KindNamespace, services.RO()),
-						services.NewRule(services.KindNode, services.RO()),
-						services.NewRule(services.KindAuthServer, services.RO()),
-						services.NewRule(services.KindReverseTunnel, services.RO()),
-						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
-						services.NewRule(services.KindUser, services.RO()),
-						services.NewRule(services.KindRole, services.RO()),
-						services.NewRule(services.KindClusterAuthPreference, services.RO()),
-						services.NewRule(services.KindClusterConfig, services.RO()),
-						services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						services.NewRule(services.KindClusterName, services.RO()),
-						services.NewRule(services.KindStaticTokens, services.RO()),
-						services.NewRule(services.KindTunnelConnection, services.RW()),
-						services.NewRule(services.KindRemoteCluster, services.RO()),
-						services.NewRule(services.KindSemaphore, services.RW()),
-						services.NewRule(services.KindAppServer, services.RO()),
-						services.NewRule(services.KindWebSession, services.RW()),
-						services.NewRule(services.KindWebToken, services.RW()),
-						services.NewRule(services.KindKubeService, services.RW()),
-						services.NewRule(types.KindDatabaseServer, services.RO()),
+			types.RoleSpecV4{
+				Allow: types.RoleConditions{
+					Namespaces:    []string{types.Wildcard},
+					ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Rules: []types.Rule{
+						types.NewRule(types.KindProxy, services.RW()),
+						types.NewRule(types.KindOIDCRequest, services.RW()),
+						types.NewRule(types.KindSSHSession, services.RW()),
+						types.NewRule(types.KindSession, services.RO()),
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindSAMLRequest, services.RW()),
+						types.NewRule(types.KindOIDC, services.ReadNoSecrets()),
+						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
+						types.NewRule(types.KindGithub, services.ReadNoSecrets()),
+						types.NewRule(types.KindGithubRequest, services.RW()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindAuthServer, services.RO()),
+						types.NewRule(types.KindReverseTunnel, services.RO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterConfig, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindStaticTokens, services.RO()),
+						types.NewRule(types.KindTunnelConnection, services.RW()),
+						types.NewRule(types.KindRemoteCluster, services.RO()),
+						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindAppServer, services.RO()),
+						types.NewRule(types.KindWebSession, services.RW()),
+						types.NewRule(types.KindWebToken, services.RW()),
+						types.NewRule(types.KindKubeService, services.RW()),
+						types.NewRule(types.KindDatabaseServer, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindWindowsDesktopService, services.RO()),
+						types.NewRule(types.KindWindowsDesktop, services.RO()),
 						// this rule allows local proxy to update the remote cluster's host certificate authorities
 						// during certificates renewal
 						{
-							Resources: []string{services.KindCertAuthority},
-							Verbs:     []string{services.VerbCreate, services.VerbRead, services.VerbUpdate},
+							Resources: []string{types.KindCertAuthority},
+							Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbUpdate},
 							// allow administrative access to the certificate authority names
 							// matching any cluster name except local
 							Where: builder.And(
-								builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(services.HostCA))),
+								builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.HostCA))),
 								builder.Not(
 									builder.Equals(
 										services.ResourceNameExpr,
@@ -498,60 +562,88 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					},
 				},
 			})
-	case teleport.RoleSignup:
+	case types.RoleSignup:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
-				Allow: services.RoleConditions{
-					Namespaces: []string{services.Wildcard},
-					Rules: []services.Rule{
-						services.NewRule(services.KindAuthServer, services.RO()),
-						services.NewRule(services.KindClusterAuthPreference, services.RO()),
+			types.RoleSpecV4{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindAuthServer, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 					},
 				},
 			})
-	case teleport.RoleAdmin:
+	case types.RoleAdmin:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
-				Options: services.RoleOptions{
-					MaxSessionTTL: services.MaxDuration(),
+			types.RoleSpecV4{
+				Options: types.RoleOptions{
+					MaxSessionTTL: types.MaxDuration(),
 				},
-				Allow: services.RoleConditions{
-					Namespaces:    []string{services.Wildcard},
+				Allow: types.RoleConditions{
+					Namespaces:    []string{types.Wildcard},
 					Logins:        []string{},
-					NodeLabels:    services.Labels{services.Wildcard: []string{services.Wildcard}},
-					ClusterLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
-					Rules: []services.Rule{
-						services.NewRule(services.Wildcard, services.RW()),
+					NodeLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+					ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Rules: []types.Rule{
+						types.NewRule(types.Wildcard, services.RW()),
 					},
 				},
 			})
-	case teleport.RoleNop:
+	case types.RoleNop:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
-				Allow: services.RoleConditions{
+			types.RoleSpecV4{
+				Allow: types.RoleConditions{
 					Namespaces: []string{},
-					Rules:      []services.Rule{},
+					Rules:      []types.Rule{},
 				},
 			})
-	case teleport.RoleKube:
+	case types.RoleKube:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV3{
-				Allow: services.RoleConditions{
-					Namespaces: []string{services.Wildcard},
-					Rules: []services.Rule{
-						services.NewRule(services.KindKubeService, services.RW()),
-						services.NewRule(services.KindEvent, services.RW()),
-						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
-						services.NewRule(services.KindClusterConfig, services.RO()),
-						services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						services.NewRule(services.KindClusterAuthPreference, services.RO()),
-						services.NewRule(services.KindUser, services.RO()),
-						services.NewRule(services.KindRole, services.RO()),
-						services.NewRule(services.KindNamespace, services.RO()),
+			types.RoleSpecV4{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindKubeService, services.RW()),
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterConfig, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+					},
+				},
+			})
+	case types.RoleWindowsDesktop:
+		return services.FromSpec(
+			role.String(),
+			types.RoleSpecV4{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterConfig, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindWindowsDesktopService, services.RW()),
+						types.NewRule(types.KindWindowsDesktop, services.RW()),
 					},
 				},
 			})
@@ -560,12 +652,12 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	return nil, trace.NotFound("%q is not recognized", role.String())
 }
 
-func contextForBuiltinRole(r BuiltinRole, clusterConfig services.ClusterConfig) (*Context, error) {
-	checker, err := GetCheckerForBuiltinRole(r.ClusterName, clusterConfig, r.Role)
+func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig) (*Context, error) {
+	checker, err := GetCheckerForBuiltinRole(r.ClusterName, recConfig, r.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.NewUser(r.Username)
+	user, err := types.NewUser(r.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -578,17 +670,17 @@ func contextForBuiltinRole(r BuiltinRole, clusterConfig services.ClusterConfig) 
 	}, nil
 }
 
-func contextForLocalUser(u LocalUser, identity services.UserGetter, access services.Access) (*Context, error) {
+func contextForLocalUser(u LocalUser, accessPoint ReadAccessPoint) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
-	user, err := identity.GetUser(u.Username, false)
+	user, err := accessPoint.GetUser(u.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, traits, err := services.ExtractFromIdentity(identity, u.Identity)
+	roles, traits, err := services.ExtractFromIdentity(accessPoint, u.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(roles, access, traits)
+	checker, err := services.FetchRoles(roles, accessPoint, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -683,11 +775,8 @@ func (i WrapIdentity) GetIdentity() tlsca.Identity {
 
 // BuiltinRole is the role of the Teleport service.
 type BuiltinRole struct {
-	// GetClusterConfig fetches cluster configuration.
-	GetClusterConfig GetClusterConfigFunc
-
 	// Role is the builtin role this username is associated with
-	Role teleport.Role
+	Role types.SystemRole
 
 	// Username is for authentication tracking purposes
 	Username string
@@ -701,12 +790,12 @@ type BuiltinRole struct {
 
 // IsServer returns true if the role is one of the builtin server roles.
 func (r BuiltinRole) IsServer() bool {
-	return r.Role == teleport.RoleProxy ||
-		r.Role == teleport.RoleNode ||
-		r.Role == teleport.RoleAuth ||
-		r.Role == teleport.RoleApp ||
-		r.Role == teleport.RoleKube ||
-		r.Role == teleport.RoleDatabase
+	return r.Role == types.RoleProxy ||
+		r.Role == types.RoleNode ||
+		r.Role == types.RoleAuth ||
+		r.Role == types.RoleApp ||
+		r.Role == types.RoleKube ||
+		r.Role == types.RoleDatabase
 }
 
 // GetServerID extracts the identity from the full name. The username
@@ -755,7 +844,7 @@ type RemoteUserRoleSet struct {
 // Teleport service.
 type RemoteBuiltinRole struct {
 	// Role is the builtin role of the user
-	Role teleport.Role
+	Role types.SystemRole
 
 	// Username is for authentication tracking purposes
 	Username string
@@ -807,6 +896,3 @@ type RemoteUser struct {
 func (r RemoteUser) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
-
-// GetClusterConfigFunc returns a cached services.ClusterConfig.
-type GetClusterConfigFunc func(opts ...services.MarshalOption) (services.ClusterConfig, error)

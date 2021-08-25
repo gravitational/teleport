@@ -1,0 +1,130 @@
+---
+title: Graceful Restarts
+description: Graceful restarts of Teleport.
+---
+
+## Signals
+
+You can send signals to a Teleport daemon to get diagnostic or gracefully shut it down:
+
+| Signal | Teleport Daemon Behavior |
+| - | - |
+| `USR1` | Dumps diagnostics/debugging information into syslog. |
+| `QUIT`| Graceful shutdown. The daemon will wait until connections are dropped. |
+| `TERM` , `INT` or `KILL` | Immediate non-graceful shutdown. All existing connections will be dropped. |
+| `USR2` | Forks a new Teleport daemon to serve new connections. |
+| `HUP` | Forks a new Teleport daemon to serve new connections **and** initiates the graceful shutdown of the existing process when there are no more clients connected to it. |
+
+## Graceful upgrades
+
+In this guide we will try a manual graceful
+upgrade of a binary and a rollback using signals.
+
+Locate a running teleport daemon PID:
+
+```code
+# Locate teleport process PID
+$ pidof teleport
+235119
+```
+
+Unpack a new binary and replace a binary without stopping a server.
+Preserve the old binary, just in case if the upgrade goes wrong.
+
+```code
+$ mv /usr/bin/teleport /usr/bin/teleport.bak
+$ cp /new/binary/teleport /usr/bin/teleport
+```
+
+Fork a new teleport process:
+
+```code
+$ kill -USR2 $(pidof teleport)
+```
+
+The original teleport process forked a new child process and passed existing file descriptors
+to the child. You now have two processes handling requests on the same socket:
+
+```code
+$ pidof teleport
+# 235276 235119
+```
+
+In our example, `235276` is a PID of the child process, and `235119` is a PID of the parent.
+
+In the logs you will see that the parent process reports that it has forked a new child
+process, and the child accepts file descriptors from it's parent.
+
+```txt
+2021-08-19T10:16:51-07:00 [PROC:1]  INFO Forked new child process. path:/usr/local/teleport service/signals.go:457
+2021-08-19T10:16:51-07:00 [PROC:1]  INFO Using file descriptor diag 127.0.0.1:3434 passed by the parent process. service/signals.go:207
+```
+
+Examine the logs and use the system. You have two options:
+
+<Tabs>
+  <TabItem label="Rollback">
+  If the new binary behaves with errors, shut down the child process:
+  ```code
+  $ kill -TERM 235276
+  ```
+  <Admonition
+  type="danger"
+  title="WARNING"
+  >
+    Do not forget to restore the original binary
+    ```code
+    $ mv /usr/bin/teleport.bak /usr/bin/teleport
+    ```
+  </Admonition>
+    
+  You can retry the process again later.
+  </TabItem>
+  <TabItem label="Finish the upgrade">
+    <Admonition
+     type="danger"
+     title="WARNING"
+     >
+     If you are upgrading the Teleport using SSH connection using Teleport,
+     make sure to re-establish a new connection to the new teleport instance and launch shut down from it.
+     You can always see which node process handles the connection by using `pstree`:
+
+    ```code
+    $ pstree -aps $$
+    # systemd,1 splash
+    #  └─systemd,6247 --user
+    #      └─teleport-,235276
+    #          └─bash,190718
+    #              └─pstree,242371 -aps 190718
+    ```
+    </Admonition>
+     
+    Shut down the parent process gracefully using `SIGQUIT`:
+
+    ```code
+    $ kill -QUIT 235119
+    ```
+
+    The parent process will log graceful shutdown:
+
+    ```txt
+    2021-08-19T10:32:10-07:00 INFO [PROXY:SER] Shutting down gracefully. service/service.go:2952
+    ```
+
+    In a couple of minutes all existing connections drain off and the parent will exit:
+
+    ```code
+    $ pidof teleport
+    # 235276
+    ```
+    
+    If for some reason, the parent process gets stuck, for example waiting on existing connections to finish,
+    you can shut it down non-gracefully:
+
+    ```code
+    $ kill -TERM 235119
+    ```
+
+    You are all set.
+  </TabItem>
+</Tabs>

@@ -1,0 +1,224 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "type": "object",
+    "required": [
+        "authToken",
+        "proxyAddr",
+        "roles",
+        "kubeClusterName",
+        "apps",
+        "databases",
+        "teleportVersionOverride",
+        "insecureSkipProxyTLSVerify",
+        "existingDataVolume",
+        "podSecurityPolicy",
+        "labels",
+        "image",
+        "replicaCount",
+        "clusterRoleName",
+        "clusterRoleBindingName",
+        "serviceAccountName",
+        "secretName",
+        "logLevel",
+        "affinity",
+        "annotations",
+        "extraVolumes",
+        "extraVolumeMounts",
+        "imagePullPolicy",
+        "initContainers",
+        "resources",
+        "tolerations"
+    ],
+    "properties": {
+        "authToken": {
+            "$id": "#/properties/authToken",
+            "type": "string",
+            "default": ""
+        },
+        "proxyAddr": {
+            "$id": "#/properties/proxyAddr",
+            "type": "string",
+            "default": ""
+        },
+        "roles": {
+            "$id": "#/properties/roles",
+            "type": "string",
+            "default": "kube"
+        },
+        "kubeClusterName": {
+            "$id": "#/properties/kubeClusterName",
+            "type": "string",
+            "default": ""
+        },
+        "apps": {
+            "$id": "#/properties/apps",
+            "type": "array",
+            "default": [],
+            "required": [
+                "name",
+                "uri"
+            ],
+            "properties": {
+                "name": {
+                    "$id": "#/properties/apps/name",
+                    "type": "string",
+                    "default": ""
+                },
+                "uri": {
+                    "$id": "#/properties/apps/uri",
+                    "type": "string",
+                    "default": ""
+                },
+                "additionalProperties": true
+            }
+        },
+        "databases": {
+            "$id": "#/properties/databases",
+            "type": "array",
+            "default": []
+        },
+        "teleportVersionOverride": {
+            "$id": "#/properties/teleportVersionOverride",
+            "type": "string",
+            "default": ""
+        },
+        "insecureSkipProxyTLSVerify": {
+            "$id": "#/properties/insecureSkipProxyTLSVerify",
+            "type": "boolean",
+            "default": false
+        },
+        "existingDataVolume": {
+            "$id": "#/properties/existingDataVolume",
+            "type": "string",
+            "default": ""
+        },
+        "podSecurityPolicy": {
+            "$id": "#/properties/podSecurityPolicy",
+            "type": "object",
+            "required": [
+                "enabled"
+            ],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podSecurityPolicy/properties/enabled",
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "labels": {
+            "$id": "#/properties/labels",
+            "type": "object",
+            "default": {}
+        },
+        "image": {
+            "$id": "#/properties/image",
+            "type": "string",
+            "default": "quay.io/gravitational/teleport"
+        },
+        "imagePullSecrets": {
+            "$id": "#/properties/imagePullSecrets",
+            "type": "array",
+            "default": []
+        },
+        "replicaCount": {
+            "$id": "#/properties/replicaCount",
+            "type": "integer",
+            "default": 1
+        },
+        "clusterRoleName": {
+            "$id": "#/properties/clusterRoleName",
+            "type": "string",
+            "default": ""
+        },
+        "clusterRoleBindingName": {
+            "$id": "#/properties/clusterRoleBindingName",
+            "type": "string",
+            "default": ""
+        },
+        "serviceAccountName": {
+            "$id": "#/properties/serviceAccountName",
+            "type": "string",
+            "default": ""
+        },
+        "secretName": {
+            "$id": "#/properties/secretName",
+            "type": "string",
+            "default": "teleport-kube-agent-join-token"
+        },
+        "logLevel": {
+            "$id": "#/properties/logLevel",
+            "type": "string",
+            "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+            "default": "INFO"
+        },
+        "affinity": {
+            "$id": "#/properties/affinity",
+            "type": "object",
+            "default": {}
+        },
+        "annotations": {
+            "$id": "#/properties/annotations",
+            "type": "object",
+            "required": [
+                "config",
+                "deployment",
+                "pod",
+                "serviceAccount"
+            ],
+            "properties": {
+                "config": {
+                    "$id": "#/properties/annotations/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/annotations/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                },
+                "serviceAccount": {
+                    "$id": "#/properties/annotations/properties/serviceAccount",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
+        "extraVolumes": {
+            "$id": "#/properties/extraVolumes",
+            "type": "array",
+            "default": []
+        },
+        "extraVolumeMounts": {
+            "$id": "#/properties/extraVolumeMounts",
+            "type": "array",
+            "default": []
+        },
+        "imagePullPolicy": {
+            "$id": "#/properties/imagePullPolicy",
+            "type": "string",
+            "enum": ["Never", "IfNotPresent", "Always"],
+            "default": "IfNotPresent"
+        },
+        "initContainers": {
+            "$id": "#/properties/initContainers",
+            "type": "array",
+            "default": []
+        },
+        "resources": {
+            "$id": "#/properties/resources",
+            "type": "object",
+            "default": {}
+        },
+        "tolerations": {
+            "$id": "#/properties/tolerations",
+            "type": "array",
+            "default": []
+        }
+    }
+}

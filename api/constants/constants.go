@@ -27,7 +27,7 @@ const (
 
 	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
 	// recording feature.
-	EnhancedRecordingMinKernel = "4.18.0"
+	EnhancedRecordingMinKernel = "5.8.0"
 
 	// EnhancedRecordingCommand is a role option that implies command events are
 	// captured.
@@ -83,6 +83,10 @@ const (
 	// KeepAliveDatabase is the keep alive type for database server.
 	KeepAliveDatabase = "db"
 
+	// KeepAliveWindowsDesktopService is the keep alive type for a Windows
+	// desktop service.
+	KeepAliveWindowsDesktopService = "windows_desktop_service"
+
 	// WindowsOS is the GOOS constant used for Microsoft Windows.
 	WindowsOS = "windows"
 
@@ -97,6 +101,11 @@ const (
 	//
 	// TODO(r0mant): See if we can use net.ErrClosed and errors.Is() instead.
 	UseOfClosedNetworkConnection = "use of closed network connection"
+
+	// AWSConsoleURL is the URL of AWS management console.
+	AWSConsoleURL = "https://console.aws.amazon.com"
+	// AWSAccountIDLabel is the key of the label containing AWS account ID.
+	AWSAccountIDLabel = "aws_account_id"
 )
 
 // SecondFactorType is the type of 2FA authentication.
@@ -119,6 +128,20 @@ const (
 	SecondFactorOptional = SecondFactorType("optional")
 )
 
+// LockingMode determines how a (possibly stale) set of locks should be applied
+// to an interaction.
+type LockingMode string
+
+const (
+	// LockingModeStrict causes all interactions to be terminated when the
+	// available lock view becomes unreliable.
+	LockingModeStrict = LockingMode("strict")
+
+	// LockingModeBestEffort applies the most recently known locks under all
+	// circumstances.
+	LockingModeBestEffort = LockingMode("best_effort")
+)
+
 const (
 	// ChanTransport is a channel type that can be used to open a net.Conn
 	// through the reverse tunnel server. Used for trusted clusters and dial back
@@ -133,26 +156,4 @@ const (
 	// RemoteAuthServer is a special non-resolvable address that indicates client
 	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
-)
-
-const (
-	// SessionKeyDir is the sub-directory where session keys are stored (.tsh/keys).
-	SessionKeyDir = "keys"
-	// SSHDirSuffix is the suffix of the sub-directory where
-	// ssh keys are stored (.tsh/keys/profilename/username-ssh).
-	SSHDirSuffix = "-ssh"
-	// FileNameKnownHosts is a file that stores known hosts.
-	FileNameKnownHosts = "known_hosts"
-	// FileExtTLSCert is the filename extension/suffix of TLS certs
-	// stored in a profile (./tsh/keys/profilename/username-x509.pem).
-	FileExtTLSCert = "-x509.pem"
-	// FileNameTLSCerts is the filename of Cert Authorities stored in a
-	// profile (./tsh/keys/profilename/certs.pem).
-	FileNameTLSCerts = "certs.pem"
-	// FileExtCert is a file extension used for SSH Certificate files
-	// (.tsh/keys/profilename/username-ssh/clustername-cert.pub).
-	FileExtSSHCert = "-cert.pub"
-	// FileExtPub is a file extension used for SSH Certificate Authorities
-	// stored in a profile (./tsh/keys/profilename/username.pub).
-	FileExtPub = ".pub"
 )

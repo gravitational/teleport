@@ -193,16 +193,17 @@ func TestAppAccessClientCert(t *testing.T) {
 // even when the cluster is in proxy recording mode.
 func TestAppAccessForwardModes(t *testing.T) {
 	// Create cluster, user, sessions, and credentials package.
+	ctx := context.Background()
 	pack := setup(t)
 
 	// Update root and leaf clusters to record sessions at the proxy.
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtProxy,
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)
-	err = pack.rootCluster.Process.GetAuthServer().SetClusterConfig(clusterConfig)
+	err = pack.rootCluster.Process.GetAuthServer().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
-	err = pack.leafCluster.Process.GetAuthServer().SetClusterConfig(clusterConfig)
+	err = pack.leafCluster.Process.GetAuthServer().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Requests to root and leaf cluster are successful.
@@ -538,7 +539,7 @@ type pack struct {
 
 	tc *client.TeleportClient
 
-	user services.User
+	user types.User
 
 	webCookie string
 	webToken  string
@@ -746,9 +747,9 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.SSH.Enabled = false
 	lcConf.Apps.Enabled = false
 
-	err = p.leafCluster.CreateEx(p.rootCluster.Secrets.AsSlice(), lcConf)
+	err = p.leafCluster.CreateEx(t, p.rootCluster.Secrets.AsSlice(), lcConf)
 	require.NoError(t, err)
-	err = p.rootCluster.CreateEx(p.leafCluster.Secrets.AsSlice(), rcConf)
+	err = p.rootCluster.CreateEx(t, p.leafCluster.Secrets.AsSlice(), rcConf)
 	require.NoError(t, err)
 
 	err = p.leafCluster.Start()
@@ -868,7 +869,7 @@ func (p *pack) initUser(t *testing.T, opts appTestOptions) {
 	p.username = uuid.New()
 	p.password = uuid.New()
 
-	user, err := services.NewUser(p.username)
+	user, err := types.NewUser(p.username)
 	require.NoError(t, err)
 
 	role := services.RoleForUser(user)
@@ -1014,8 +1015,8 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 // initCertPool initializes root cluster CA pool.
 func (p *pack) initCertPool(t *testing.T) {
 	authClient := p.rootCluster.GetSiteAPI(p.rootCluster.Secrets.SiteName)
-	ca, err := authClient.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	ca, err := authClient.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: p.rootCluster.Secrets.SiteName,
 	}, false)
 	require.NoError(t, err)

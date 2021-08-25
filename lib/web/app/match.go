@@ -21,10 +21,11 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -32,10 +33,10 @@ import (
 // Getter returns a list of registered apps and the local cluster name.
 type Getter interface {
 	// GetAppServers returns a list of app servers
-	GetAppServers(context.Context, string, ...services.MarshalOption) ([]services.Server, error)
+	GetAppServers(context.Context, string, ...services.MarshalOption) ([]types.Server, error)
 
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // Match will match an application with the passed in matcher function. Matcher
@@ -48,14 +49,14 @@ type Getter interface {
 //
 // In the future this function should be updated to keep state on application
 // servers that are down and to not route requests to that server.
-func Match(ctx context.Context, authClient Getter, fn Matcher) (*services.App, services.Server, error) {
+func Match(ctx context.Context, authClient Getter, fn Matcher) (*types.App, types.Server, error) {
 	servers, err := authClient.GetAppServers(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	var am []*services.App
-	var sm []services.Server
+	var am []*types.App
+	var sm []types.Server
 
 	for _, server := range servers {
 		for _, app := range server.GetApps() {
@@ -74,18 +75,18 @@ func Match(ctx context.Context, authClient Getter, fn Matcher) (*services.App, s
 }
 
 // Matcher allows matching on different properties of an application.
-type Matcher func(*services.App) bool
+type Matcher func(*types.App) bool
 
 // MatchPublicAddr matches on the public address of an application.
 func MatchPublicAddr(publicAddr string) Matcher {
-	return func(app *services.App) bool {
+	return func(app *types.App) bool {
 		return app.PublicAddr == publicAddr
 	}
 }
 
 // MatchName matches on the name of an application.
 func MatchName(name string) Matcher {
-	return func(app *services.App) bool {
+	return func(app *types.App) bool {
 		return app.Name == name
 	}
 }
@@ -98,7 +99,7 @@ func MatchName(name string) Matcher {
 // cluster, this method will always return "acme" running within the root
 // cluster. Always supply public address and cluster name to deterministically
 // resolve an application.
-func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, proxyDNSNames []string, fqdn string) (*services.App, services.Server, string, error) {
+func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, proxyDNSNames []string, fqdn string) (*types.App, types.Server, string, error) {
 	// Try and match FQDN to public address of application within cluster.
 	application, server, err := Match(ctx, clt, MatchPublicAddr(fqdn))
 	if err == nil {
@@ -116,7 +117,7 @@ func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, p
 	if len(fqdnParts) != 2 {
 		return nil, nil, "", trace.BadParameter("invalid FQDN: %v", fqdn)
 	}
-	if !utils.SliceContainsStr(proxyDNSNames, fqdnParts[1]) {
+	if !apiutils.SliceContainsStr(proxyDNSNames, fqdnParts[1]) {
 		return nil, nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 	}
 	appName := fqdnParts[0]

@@ -60,8 +60,8 @@ With every user combination, try to login and signup with invalid second factor,
 - [ ] Backends
   - [ ] Teleport runs with etcd
   - [ ] Teleport runs with dynamodb
-  - [ ] Teleport runs with boltdb
-  - [ ] Teleport runs with dir
+  - [ ] Teleport runs with SQLite
+  - [ ] Teleport runs with Firestore
 
 - [ ] Session Recording
   - [ ] Session recording can be disabled
@@ -74,11 +74,32 @@ With every user combination, try to login and signup with invalid second factor,
 - [ ] Audit Log
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
-    - [ ] Server ID is the ID of the node in regular mode
-    - [ ] Server ID is randomly generated for proxy node
+    - [ ] Server ID is the ID of the node in "session_recording: node" mode
+    - [ ] Server ID is the ID of the proxy in "session_recording: proxy" mode
+
+    Node/Proxy ID may be found at `/var/lib/teleport/host_uuid` in the
+    corresponding machine.
+
+    Node IDs may also be queried via `tctl nodes ls`.
+
   - [ ] Exec commands are recorded
   - [ ] `scp` commands are recorded
   - [ ] Subsystem results are recorded
+
+    Subsystem testing may be achieved using both
+    [Recording Proxy mode](
+    https://goteleport.com/teleport/docs/architecture/proxy/#recording-proxy-mode)
+    and
+    [OpenSSH integration](
+    https://goteleport.com/docs/server-access/guides/openssh/).
+
+    Assuming the proxy is `proxy.example.com:3023` and `node1` is a node running
+    OpenSSH/sshd, you may use the following command to trigger a subsystem audit
+    log:
+
+    ```shell
+    sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
+    ```
 
 - [ ] Interact with a cluster using `tsh`
 
@@ -173,10 +194,19 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
   * [ ] Verify that the audit log recorded the above request and session
 * [ ] Deploy combo auth/proxy/kubernetes_service outside of a Kubernetes cluster, using a kubeconfig with multiple clusters in it
   * [ ] Login with `tsh login`, check that `tsh kube ls` has all clusters
+* [ ] Test Kubernetes screen in the web UI (tab is located on left side nav on dashboard):
+  * [ ] Verify that all kubes registered are shown with correct `name` and `labels`
+  * [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
+  * [ ] Verify searching for `name` or `labels` in the search bar works
+  * [ ] Verify you can sort by `name` colum
 
 ### Teleport with FIPS mode
 
 * [ ] Perform trusted clusters, Web and SSH sanity check with all teleport components deployed in FIPS mode.
+
+### ACME
+
+- [ ] Teleport can fetch TLS certificate automatically using ACME protocol.
 
 ### Migrations
 
@@ -270,14 +300,14 @@ For main, test with admin role that has access to all resources.
   - [ ] Verify that clicking back to `Automatically` tab renders bash command
 
 #### Applications
-- [ ] Verify that all apps registered are shown
-- [ ] Verify that clicking on the app icon takes you to another tab
 - [ ] Verify that clicking on `Add Application` button renders dialogue
   - [ ] Verify input validation (prevent empty value and invalid url)
   - [ ] Verify after input and clicking on `Generate Script`, bash command is rendered
   - [ ] Verify clicking on `Regenerate` button regenerates token value in bash command
-  - [ ] Verify using the bash command successfully adds the application (refresh app list)
 
+#### Databases
+- [ ] Verify that clicking on `Add Database` button renders dialogue for manual instructions:
+  - [ ] Verify selecting different options on `Step 4` changes `Step 5` commands
 #### Active Sessions
 - [ ] Verify that "empty" state is handled
 - [ ] Verify that it displays the session when session is active
@@ -455,16 +485,13 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify after login, pending dialogue is rendered
 - [ ] Verify after approving a request, dashboard is rendered
 - [ ] Verify after denying a request, access denied dialogue is rendered
+- [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
+- [ ] Verify switchback button says `Logout` and clicking goes back to the login screen
 
 #### Strategy Optional
 With the previous role you created from `Strategy Reason`, change `request_access` to `optional`:
 - [ ] Verify after login, dashboard is rendered
-- [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
-  - [ ] Verify switchback button says `Logout` and clicking goes back to the login screen
-
-## Account
-- [ ] Verify that Account screen is accessibly from the user menu for local users.
-- [ ] Verify that changing a local password works (OTP, U2F)
+- [ ] Verify switchback button says `Switch Back` and clicking goes back to the login screen
 
 ## Terminal
 - [ ] Verify that top nav has a user menu (Main and Logout)
@@ -508,12 +535,14 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 ## Login Form
 - [ ] Verify that input validates
 - [ ] Verify that login works with 2FA disabled
+- [ ] Verify that changing passwords works for 2FA disabled
 - [ ] Verify that login works with OTP enabled
+- [ ] Verify that changing passwords works for OTP enabled
 - [ ] Verify that login works with U2F enabled
+- [ ] Verify that changing passwords works for U2F enabled
 - [ ] Verify that login works for Github/SAML/OIDC
 - [ ] Verify that account is locked after several unsuccessful attempts
 - [ ] Verify that redirect to original URL works after successful login
-
 
 ## Multi-factor Authentication (mfa)
 Create/modify `teleport.yaml` and set the following authentication settings under `auth_service`
@@ -541,6 +570,7 @@ Through the CLI, `tsh login` and register a u2f key with `tsh mfa add` (not supp
 Using the same user as above:
 - [ ] Verify logging in with registered u2f key works
 - [ ] Verify connecting to a ssh node prompts you to tap your registered u2f key
+- [ ] Verify in the web terminal, you can scp upload/download files
 
 ## RBAC
 Create a role, with no `allow.rules` defined:
@@ -560,10 +590,9 @@ spec:
     max_session_ttl: 8h0m0s
 version: v3
 ```
-- [ ] Verify that a user has access only to: "Servers", "Applications", "Active Sessions", "Access Requests" and "Manage Clusters"
-- [ ] Verify there is no `Add Server` button in Server view
-- [ ] Verify there is no `Add Application` button in Applications view
-- [ ] Verify only `Nodes` and `Apps` are listed under `options` button in `Manage Clusters`
+- [ ] Verify that a user has access only to: "Servers", "Applications", "Databases", "Kubernetes", "Active Sessions", "Access Requests" and "Manage Clusters"
+- [ ] Verify there is no `Add Server, Application, Databases, Kubernetes` button in each respective view
+- [ ] Verify only `Nodes`, `Apps`, `Databases`, and `Kubernetes` are listed under `options` button in `Manage Clusters`
 
 Note: User has read/create access_request access to their own requests, despite resource settings
 
@@ -596,7 +625,7 @@ Add the following to enable read access to the roles
       - read
 ```
 - [ ] Verify that a user can see the roles
-- [ ] Verify that a user cannot reset password and create/delete/update a role
+- [ ] Verify that a user cannot create/delete/update a role
 
 Add the following to enable read access to the auth connectors
 
@@ -619,7 +648,7 @@ Add the following to enable read access to users
       - read
 ```
 - [ ] Verify that a user can access the "Users" screen
-- [ ] Verify that a user cannot create/delete/update a user
+- [ ] Verify that a user cannot reset password and create/delete/update a user
 
 Add the following to enable read access to trusted clusters
 ```
@@ -699,19 +728,32 @@ and non interactive tsh bench loads.
   - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
+- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
+- [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
+  - [ ] Verify that all apps registered are shown
+  - [ ] Verify that clicking on the app icon takes you to another tab
+  - [ ] Verify using the bash command produced from `Add Application` dialogue works (refresh app screen to see it registered)
 
 ## Database Access
 
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MongoDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS Redshift.
+  - [ ] GCP Cloud SQL Postgres.
+  - [ ] GCP Cloud SQL MySQL.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MongoDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS Redshift.
+  - [ ] GCP Cloud SQL Postgres.
+  - [ ] GCP Cloud SQL MySQL.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -720,4 +762,11 @@ and non interactive tsh bench loads.
   - [ ] `tsh db ls` shows only databases matching role's `db_labels`.
   - [ ] Can only connect as users from `db_users`.
   - [ ] _(Postgres only)_ Can only connect to databases from `db_names`.
-  - [ ] `db.session.start` is emitted when connection attempt is denied.
+    - [ ] `db.session.start` is emitted when connection attempt is denied.
+  - [ ] _(MongoDB only)_ Can only execute commands in databases from `db_names`.
+    - [ ] `db.session.query` is emitted when command fails due to permissions.
+- [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
+  - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
+  - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
+  - [ ] Verify searching for all columns in the search bar works
+  - [ ] Verify you can sort by all columns except `labels`

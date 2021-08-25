@@ -17,7 +17,8 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 
 	"gopkg.in/check.v1"
 
@@ -30,33 +31,33 @@ var _ = check.Suite(&RoleMapSuite{})
 
 func (s *RoleMapSuite) TestRoleParsing(c *check.C) {
 	testCases := []struct {
-		roleMap RoleMap
+		roleMap types.RoleMap
 		err     error
 	}{
 		{
 			roleMap: nil,
 		},
 		{
-			roleMap: RoleMap{
-				{Remote: Wildcard, Local: []string{"local-devs", "local-admins"}},
+			roleMap: types.RoleMap{
+				{Remote: types.Wildcard, Local: []string{"local-devs", "local-admins"}},
 			},
 		},
 		{
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "remote-devs", Local: []string{"local-devs"}},
 			},
 		},
 		{
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "remote-devs", Local: []string{"local-devs"}},
 				{Remote: "remote-devs", Local: []string{"local-devs"}},
 			},
 			err: trace.BadParameter(""),
 		},
 		{
-			roleMap: RoleMap{
-				{Remote: Wildcard, Local: []string{"local-devs"}},
-				{Remote: Wildcard, Local: []string{"local-devs"}},
+			roleMap: types.RoleMap{
+				{Remote: types.Wildcard, Local: []string{"local-devs"}},
+				{Remote: types.Wildcard, Local: []string{"local-devs"}},
 			},
 			err: trace.BadParameter(""),
 		},
@@ -78,7 +79,7 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 	testCases := []struct {
 		remote  []string
 		local   []string
-		roleMap RoleMap
+		roleMap types.RoleMap
 		name    string
 		err     error
 	}{
@@ -92,15 +93,15 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			name:   "wildcard matches empty as well",
 			remote: nil,
 			local:  []string{"local-devs", "local-admins"},
-			roleMap: RoleMap{
-				{Remote: Wildcard, Local: []string{"local-devs", "local-admins"}},
+			roleMap: types.RoleMap{
+				{Remote: types.Wildcard, Local: []string{"local-devs", "local-admins"}},
 			},
 		},
 		{
 			name:   "direct match",
 			remote: []string{"remote-devs"},
 			local:  []string{"local-devs"},
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "remote-devs", Local: []string{"local-devs"}},
 			},
 		},
@@ -108,7 +109,7 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			name:   "direct match for multiple roles",
 			remote: []string{"remote-devs", "remote-logs"},
 			local:  []string{"local-devs", "local-logs"},
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "remote-devs", Local: []string{"local-devs"}},
 				{Remote: "remote-logs", Local: []string{"local-logs"}},
 			},
@@ -117,16 +118,16 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			name:   "direct match and wildcard",
 			remote: []string{"remote-devs"},
 			local:  []string{"local-devs", "local-logs"},
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "remote-devs", Local: []string{"local-devs"}},
-				{Remote: Wildcard, Local: []string{"local-logs"}},
+				{Remote: types.Wildcard, Local: []string{"local-logs"}},
 			},
 		},
 		{
 			name:   "glob capture match",
 			remote: []string{"remote-devs"},
 			local:  []string{"local-devs"},
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "remote-*", Local: []string{"local-$1"}},
 			},
 		},
@@ -134,15 +135,15 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			name:   "passthrough match",
 			remote: []string{"remote-devs"},
 			local:  []string{"remote-devs"},
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "^(.*)$", Local: []string{"$1"}},
 			},
 		},
 		{
 			name:   "passthrough match ignores implicit role",
-			remote: []string{"remote-devs", teleport.DefaultImplicitRole},
+			remote: []string{"remote-devs", constants.DefaultImplicitRole},
 			local:  []string{"remote-devs"},
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "^(.*)$", Local: []string{"$1"}},
 			},
 		},
@@ -150,7 +151,7 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			name:   "partial match",
 			remote: []string{"remote-devs", "something-else"},
 			local:  []string{"remote-devs"},
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "^(remote-.*)$", Local: []string{"$1"}},
 			},
 		},
@@ -158,7 +159,7 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			name:   "partial empty expand section is removed",
 			remote: []string{"remote-devs"},
 			local:  []string{"remote-devs", "remote-"},
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "^(remote-.*)$", Local: []string{"$1", "remote-$2", "$2"}},
 			},
 		},
@@ -166,7 +167,7 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			name:   "multiple matches yield different results",
 			remote: []string{"remote-devs"},
 			local:  []string{"remote-devs", "test"},
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "^(remote-.*)$", Local: []string{"$1"}},
 				{Remote: `^\Aremote-.*$`, Local: []string{"test"}},
 			},
@@ -175,7 +176,7 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			name:   "different expand groups can be referred",
 			remote: []string{"remote-devs"},
 			local:  []string{"remote-devs", "devs"},
-			roleMap: RoleMap{
+			roleMap: types.RoleMap{
 				{Remote: "^(remote-(.*))$", Local: []string{"$1", "$2"}},
 			},
 		},

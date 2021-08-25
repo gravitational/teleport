@@ -42,34 +42,141 @@ func TestClientAPI(t *testing.T) { check.TestingT(t) }
 
 var _ = check.Suite(&APITestSuite{})
 
-func (s *APITestSuite) TestConfig(c *check.C) {
-	var conf Config
-	c.Assert(conf.ProxySpecified(), check.Equals, false)
-	err := conf.ParseProxyHost("example.org")
-	c.Assert(err, check.IsNil)
-	c.Assert(conf.ProxySpecified(), check.Equals, true)
-	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:3023")
-	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:3080")
+func TestParseProxyHostString(t *testing.T) {
+	t.Parallel()
 
-	conf.WebProxyAddr = "example.org:100"
-	conf.SSHProxyAddr = "example.org:200"
-	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:100")
-	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:200")
+	testCases := []struct {
+		name      string
+		input     string
+		expectErr bool
+		expect    ParsedProxyHost
+	}{
+		{
+			name:      "Empty port string",
+			input:     "example.org",
+			expectErr: false,
+			expect: ParsedProxyHost{
+				Host:                     "example.org",
+				UsingDefaultWebProxyPort: true,
+				WebProxyAddr:             "example.org:3080",
+				SSHProxyAddr:             "example.org:3023",
+			},
+		}, {
+			name:      "Web proxy port only",
+			input:     "example.org:1234",
+			expectErr: false,
+			expect: ParsedProxyHost{
+				Host:                     "example.org",
+				UsingDefaultWebProxyPort: false,
+				WebProxyAddr:             "example.org:1234",
+				SSHProxyAddr:             "example.org:3023",
+			},
+		}, {
+			name:      "Web proxy port with whitespace",
+			input:     "example.org: 1234",
+			expectErr: false,
+			expect: ParsedProxyHost{
+				Host:                     "example.org",
+				UsingDefaultWebProxyPort: false,
+				WebProxyAddr:             "example.org:1234",
+				SSHProxyAddr:             "example.org:3023",
+			},
+		}, {
+			name:      "Web proxy port empty with whitespace",
+			input:     "example.org:  ,200",
+			expectErr: false,
+			expect: ParsedProxyHost{
+				Host:                     "example.org",
+				UsingDefaultWebProxyPort: true,
+				WebProxyAddr:             "example.org:3080",
+				SSHProxyAddr:             "example.org:200",
+			},
+		}, {
+			name:      "SSH port only",
+			input:     "example.org:,200",
+			expectErr: false,
+			expect: ParsedProxyHost{
+				Host:                     "example.org",
+				UsingDefaultWebProxyPort: true,
+				WebProxyAddr:             "example.org:3080",
+				SSHProxyAddr:             "example.org:200",
+			},
+		}, {
+			name:      "SSH port empty",
+			input:     "example.org:100,",
+			expectErr: false,
+			expect: ParsedProxyHost{
+				Host:                     "example.org",
+				UsingDefaultWebProxyPort: false,
+				WebProxyAddr:             "example.org:100",
+				SSHProxyAddr:             "example.org:3023",
+			},
+		}, {
+			name:      "SSH port with whitespace",
+			input:     "example.org:100, 200 ",
+			expectErr: false,
+			expect: ParsedProxyHost{
+				Host:                     "example.org",
+				UsingDefaultWebProxyPort: false,
+				WebProxyAddr:             "example.org:100",
+				SSHProxyAddr:             "example.org:200",
+			},
+		}, {
+			name:      "SSH port empty with whitespace",
+			input:     "example.org:100,  ",
+			expectErr: false,
+			expect: ParsedProxyHost{
+				Host:                     "example.org",
+				UsingDefaultWebProxyPort: false,
+				WebProxyAddr:             "example.org:100",
+				SSHProxyAddr:             "example.org:3023",
+			},
+		}, {
+			name:      "Both ports specified",
+			input:     "example.org:100,200",
+			expectErr: false,
+			expect: ParsedProxyHost{
+				Host:                     "example.org",
+				UsingDefaultWebProxyPort: false,
+				WebProxyAddr:             "example.org:100",
+				SSHProxyAddr:             "example.org:200",
+			},
+		}, {
+			name:      "Both ports empty with whitespace",
+			input:     "example.org: , ",
+			expectErr: false,
+			expect: ParsedProxyHost{
+				Host:                     "example.org",
+				UsingDefaultWebProxyPort: true,
+				WebProxyAddr:             "example.org:3080",
+				SSHProxyAddr:             "example.org:3023",
+			},
+		}, {
+			name:      "Too many parts",
+			input:     "example.org:100,200,300,400",
+			expectErr: true,
+			expect:    ParsedProxyHost{},
+		},
+	}
 
-	err = conf.ParseProxyHost("example.org:200")
-	c.Assert(err, check.IsNil)
-	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:200")
-	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:3023")
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			expected := testCase.expect
+			actual, err := ParseProxyHost(testCase.input)
 
-	err = conf.ParseProxyHost("example.org:,200")
-	c.Assert(err, check.IsNil)
-	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:200")
-	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:3080")
+			if testCase.expectErr {
+				require.Error(t, err)
+				require.Nil(t, actual)
+				return
+			}
 
-	conf.WebProxyAddr = "example.org:100"
-	conf.SSHProxyAddr = "example.org:200"
-	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:100")
-	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:200")
+			require.NoError(t, err)
+			require.Equal(t, expected.Host, actual.Host)
+			require.Equal(t, expected.UsingDefaultWebProxyPort, actual.UsingDefaultWebProxyPort)
+			require.Equal(t, expected.WebProxyAddr, actual.WebProxyAddr)
+			require.Equal(t, expected.SSHProxyAddr, actual.SSHProxyAddr)
+		})
+	}
 }
 
 func (s *APITestSuite) TestNew(c *check.C) {

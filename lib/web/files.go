@@ -19,10 +19,10 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 
 	"github.com/gravitational/trace"
@@ -136,7 +136,7 @@ func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) er
 }
 
 func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Request) (*client.TeleportClient, error) {
-	if !services.IsValidNamespace(req.namespace) {
+	if !types.IsValidNamespace(req.namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", req.namespace)
 	}
 

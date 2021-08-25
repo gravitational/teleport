@@ -22,10 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -47,22 +45,21 @@ var _ = check.Suite(&ServicesSuite{})
 
 func (s *ServicesSuite) SetUpTest(c *check.C) {
 	var err error
+	ctx := context.Background()
 
 	clock := clockwork.NewFakeClock()
 
-	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
+	s.bk, err = lite.NewWithConfig(ctx, lite.Config{
 		Path:             c.MkDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            clock,
 	})
 	c.Assert(err, check.IsNil)
 
-	type client struct {
-		*PresenceService
-		*EventsService
-	}
+	configService, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
 
-	eventsService := NewEventsService(s.bk)
+	eventsService := NewEventsService(s.bk, configService.GetClusterConfig)
 	presenceService := NewPresenceService(s.bk)
 
 	s.suite = &suite.ServicesTestSuite{
@@ -73,25 +70,10 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		Access:        NewAccessService(s.bk),
 		EventsS:       eventsService,
 		ChangesC:      make(chan interface{}),
-		ConfigS:       NewClusterConfigurationService(s.bk),
+		ConfigS:       configService,
+		RestrictionsS: NewRestrictionsService(s.bk),
 		Clock:         clock,
-		NewProxyWatcher: func() (*services.ProxyWatcher, error) {
-			return services.NewProxyWatcher(services.ProxyWatcherConfig{
-				Context:     context.TODO(),
-				Component:   "test",
-				RetryPeriod: 200 * time.Millisecond,
-				Client: &client{
-					PresenceService: presenceService,
-					EventsService:   eventsService,
-				},
-				ProxiesC: make(chan []services.Server, 10),
-			})
-		},
 	}
-
-	// DELETE IN 8.0.0
-	err = s.suite.ConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
-	c.Assert(err, check.IsNil)
 }
 
 func (s *ServicesSuite) TearDownTest(c *check.C) {
@@ -147,6 +129,10 @@ func (s *ServicesSuite) TestU2FCRUD(c *check.C) {
 	s.suite.U2FCRUD(c)
 }
 
+func (s *ServicesSuite) TestWebauthnSessionDataCRUD(c *check.C) {
+	s.suite.WebauthnSessionDataCRUD(c)
+}
+
 func (s *ServicesSuite) TestSAMLCRUD(c *check.C) {
 	s.suite.SAMLCRUD(c)
 }
@@ -171,10 +157,6 @@ func (s *ServicesSuite) TestEventsClusterConfig(c *check.C) {
 	s.suite.EventsClusterConfig(c)
 }
 
-func (s *ServicesSuite) TestProxyWatcher(c *check.C) {
-	s.suite.ProxyWatcher(c)
-}
-
 func (s *ServicesSuite) TestSemaphoreLock(c *check.C) {
 	s.suite.SemaphoreLock(c)
 }
@@ -189,4 +171,8 @@ func (s *ServicesSuite) TestSemaphoreContention(c *check.C) {
 
 func (s *ServicesSuite) TestSemaphoreFlakiness(c *check.C) {
 	s.suite.SemaphoreFlakiness(c)
+}
+
+func (s *ServicesSuite) TestNetworkRestrictions(c *check.C) {
+	s.suite.NetworkRestrictions(c)
 }

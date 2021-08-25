@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -54,7 +55,7 @@ func (c *DynamicConfig) CheckAndSetDefaults() error {
 			return trace.BadParameter("command missing")
 
 		}
-		if !services.IsValidLabelKey(name) {
+		if !types.IsValidLabelKey(name) {
 			return trace.BadParameter("invalid label key: %q", name)
 		}
 
@@ -97,11 +98,11 @@ func NewDynamic(ctx context.Context, config *DynamicConfig) (*Dynamic, error) {
 }
 
 // Get returns the list of updated dynamic labels.
-func (l *Dynamic) Get() map[string]services.CommandLabel {
+func (l *Dynamic) Get() map[string]types.CommandLabel {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	out := make(map[string]services.CommandLabel, len(l.c.Labels))
+	out := make(map[string]types.CommandLabel, len(l.c.Labels))
 	for name, label := range l.c.Labels {
 		out[name] = label.Clone()
 	}
@@ -130,7 +131,7 @@ func (l *Dynamic) Close() {
 
 // periodicUpdateLabel ticks at the update period defined for each label and
 // updates its value.
-func (l *Dynamic) periodicUpdateLabel(name string, label services.CommandLabel) {
+func (l *Dynamic) periodicUpdateLabel(name string, label types.CommandLabel) {
 	ticker := time.NewTicker(label.GetPeriod())
 	defer ticker.Stop()
 
@@ -145,7 +146,7 @@ func (l *Dynamic) periodicUpdateLabel(name string, label services.CommandLabel) 
 }
 
 // updateLabel will run a command, then update the value of a label.
-func (l *Dynamic) updateLabel(name string, label services.CommandLabel) {
+func (l *Dynamic) updateLabel(name string, label types.CommandLabel) {
 	out, err := exec.Command(label.GetCommand()[0], label.GetCommand()[1:]...).Output()
 	if err != nil {
 		l.c.Log.Errorf("Failed to run command and update label: %v.", err)
@@ -159,7 +160,7 @@ func (l *Dynamic) updateLabel(name string, label services.CommandLabel) {
 }
 
 // setLabel updates the value of a particular label under a lock.
-func (l *Dynamic) setLabel(name string, value services.CommandLabel) {
+func (l *Dynamic) setLabel(name string, value types.CommandLabel) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 

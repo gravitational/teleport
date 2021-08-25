@@ -1,39 +1,73 @@
-{{- if not .Values.customConfig -}}
+{{- if not (eq .Values.chartMode "custom") -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}
+  {{- if .Values.annotations.config }}
+  annotations:
+    {{- toYaml .Values.annotations.config | nindent 4 }}
+  {{- end }}
 data:
   teleport.yaml: |
     teleport:
       log:
         severity: {{ .Values.logLevel }}
         output: stderr
+  {{- if eq .Values.chartMode "aws" }}
+      storage:
+        type: dynamodb
+        region: {{ required "aws.region is required in chart values" .Values.aws.region }}
+        table_name: {{ required "aws.backendTable is required in chart values" .Values.aws.backendTable }}
+        audit_events_uri: ['dynamodb://{{ required "aws.auditLogTable is required in chart values" .Values.aws.auditLogTable }}']
+        audit_sessions_uri: s3://{{ required "aws.sessionRecordingBucket is required in chart values" .Values.aws.sessionRecordingBucket }}
+        continuous_backups: {{ required "aws.backups is required in chart values" .Values.aws.backups }}
+  {{- else if eq .Values.chartMode "gcp" }}
+      storage:
+        type: firestore
+        project_id: {{ required "gcp.projectId is required in chart values" .Values.gcp.projectId }}
+        collection_name: {{ required "gcp.backendTable is required in chart values" .Values.gcp.backendTable }}
+        {{- if .Values.gcp.credentialSecretName }}
+        credentials_path: /etc/teleport-secrets/gcp-credentials.json
+        {{- end }}
+        audit_events_uri: ['firestore://{{ required "gcp.auditLogTable is required in chart values" .Values.gcp.auditLogTable }}?projectID={{ required "gcp.projectId is required in chart values" .Values.gcp.projectId }}&credentialsPath=/etc/teleport-secrets/gcp-credentials.json']
+        audit_sessions_uri: "gs://{{ required "gcp.sessionRecordingBucket is required in chart values" .Values.gcp.sessionRecordingBucket }}?projectID={{ required "gcp.projectId is required in chart values" .Values.gcp.projectId }}&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"
+  {{- end }}
     auth_service:
       enabled: true
       cluster_name: {{ required "clusterName is required in chart values" .Values.clusterName }}
-{{- if .Values.enterprise }}
-      license_file: '/var/lib/license/license-enterprise.pem'
-{{- end }}
+  {{- if .Values.enterprise }}
+      license_file: '/var/lib/license/license.pem'
+  {{- end }}
+      authentication:
+        type: {{ required "authenticationType is required in chart values" .Values.authenticationType }}
     kubernetes_service:
       enabled: true
       listen_addr: 0.0.0.0:3027
+  {{- if .Values.kubeClusterName }}
+      kube_cluster_name: {{ .Values.kubeClusterName }}
+  {{- else }}
+      kube_cluster_name: {{ .Values.clusterName }}
+  {{- end }}
+  {{- if .Values.labels }}
       labels:
-{{- if .Values.labels }}
-{{ toYaml .Values.labels | indent 8 }}
-{{- end }}
+    {{- toYaml .Values.labels | nindent 8 }}
+  {{- end }}
     proxy_service:
       public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
       kube_listen_addr: 0.0.0.0:3026
       enabled: true
-      {{- if .Values.acme }}
+  {{- if .Values.highAvailability.certManager.enabled }}
+      https_keypairs:
+      - key_file: /etc/teleport-tls/tls.key
+        cert_file: /etc/teleport-tls/tls.crt
+  {{- else if .Values.acme }}
       acme:
         enabled: {{ .Values.acme }}
-        email: {{ .Values.acmeEmail }}
-        {{- if .Values.acmeURI }}
+        email: {{ required "acmeEmail is required in chart values" .Values.acmeEmail }}
+    {{- if .Values.acmeURI }}
         uri: {{ .Values.acmeURI }}
-        {{- end }}
-      {{- end }}
+    {{- end }}
+  {{- end }}
     ssh_service:
       enabled: false
 {{- end -}}

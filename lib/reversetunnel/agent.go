@@ -29,11 +29,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -231,7 +231,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 	if !ok {
 		return trace.BadParameter("expected certificate")
 	}
-	cas, err := a.AccessPoint.GetCertAuthorities(services.HostCA, false)
+	cas, err := a.AccessPoint.GetCertAuthorities(types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err, "failed to fetch remote certs")
 	}
@@ -255,7 +255,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	for _, authMethod := range a.authMethods {
 		// Create a dialer (that respects HTTP proxies) and connect to remote host.
 		dialer := proxy.DialerFromEnvironment(a.Addr.Addr)
-		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, defaults.DefaultDialTimeout)
+		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
 		if err != nil {
 			a.log.Debugf("Dial to %v failed: %v.", a.Addr.Addr, err)
 			continue
@@ -267,7 +267,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: a.checkHostSignature,
-			Timeout:         defaults.DefaultDialTimeout,
+			Timeout:         apidefaults.DefaultDialTimeout,
 		})
 		if err != nil {
 			a.log.Debugf("Failed to create client to %v: %v.", a.Addr.Addr, err)
@@ -526,4 +526,9 @@ const (
 	// requests a connection to the kubernetes endpoint of the local proxy.
 	// This has to be a valid domain name, so it lacks @
 	LocalKubernetes = "remote.kube.proxy.teleport.cluster.local"
+	// LocalWindowsDesktop is a special non-resolvable address that indicates
+	// that clients requests a connection to the windows service endpoint of
+	// the local proxy.
+	// This has to be a valid domain name, so it lacks @
+	LocalWindowsDesktop = "remote.windows_desktop.proxy.teleport.cluster.local"
 )

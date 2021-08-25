@@ -27,7 +27,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -39,20 +42,20 @@ import (
 )
 
 // UpsertSAMLConnector creates or updates a SAML connector.
-func (a *Server) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
+func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
 	if err := a.Identity.UpsertSAMLConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
-		Metadata: events.Metadata{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorCreate{
+		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorCreatedEvent,
 			Code: events.SAMLConnectorCreatedCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
 	}); err != nil {
@@ -67,16 +70,16 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) 
 	if err := a.Identity.DeleteSAMLConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
-		Metadata: events.Metadata{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorDelete{
+		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorDeletedEvent,
 			Code: events.SAMLConnectorDeletedCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connectorName,
 		},
 	}); err != nil {
@@ -108,7 +111,18 @@ func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 	}
 
 	req.ID = attr.Value
-	req.RedirectURL, err = provider.BuildAuthURLFromDocument("", doc)
+
+	// Workaround for Ping: Ping expects `SigAlg` and `Signature` query
+	// parameters when "Enforce Signed Authn Request" is enabled, but gosaml2
+	// only provides these parameters when binding == BindingHttpRedirect.
+	// Luckily, BuildAuthURLRedirect sets this and is otherwise identical to
+	// the standard BuildAuthURLFromDocument.
+	if connector.GetProvider() == teleport.Ping {
+		req.RedirectURL, err = provider.BuildAuthURLRedirect("", doc)
+	} else {
+		req.RedirectURL, err = provider.BuildAuthURLFromDocument("", doc)
+	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -120,7 +134,7 @@ func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 	return &req, nil
 }
 
-func (a *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
+func (a *Server) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
@@ -140,7 +154,7 @@ func (a *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServic
 	return serviceProvider, nil
 }
 
-func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateSAMLUser(connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
 	var err error
 
 	p := createUserParams{
@@ -150,8 +164,12 @@ func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionIn
 
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
-	p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
+	var warnings []string
+	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
+		if len(warnings) != 0 {
+			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
+		}
 		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
 
@@ -160,41 +178,41 @@ func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionIn
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleTTL := roles.AdjustSessionTTL(defaults.MaxCertDuration)
+	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
 	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
 
 	return &p, nil
 }
 
-func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
+func (a *Server) createSAMLUser(p *createUserParams) (types.User, error) {
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
 
-	user := &services.UserV2{
-		Kind:    services.KindUser,
-		Version: services.V2,
-		Metadata: services.Metadata{
+	user := &types.UserV2{
+		Kind:    types.KindUser,
+		Version: types.V2,
+		Metadata: types.Metadata{
 			Name:      p.username,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 			Expires:   &expires,
 		},
-		Spec: services.UserSpecV2{
+		Spec: types.UserSpecV2{
 			Roles:  p.roles,
 			Traits: p.traits,
-			SAMLIdentities: []services.ExternalIdentity{
+			SAMLIdentities: []types.ExternalIdentity{
 				{
 					ConnectorID: p.connectorName,
 					Username:    p.username,
 				},
 			},
-			CreatedBy: services.CreatedBy{
-				User: services.UserRef{
+			CreatedBy: types.CreatedBy{
+				User: types.UserRef{
 					Name: teleport.UserSystem,
 				},
 				Time: a.clock.Now().UTC(),
-				Connector: &services.ConnectorRef{
-					Type:     teleport.SAML,
+				Connector: &types.ConnectorRef{
+					Type:     constants.SAML,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},
@@ -281,9 +299,9 @@ type SAMLAuthResponse struct {
 	// Username is an authenticated teleport username
 	Username string `json:"username"`
 	// Identity contains validated SAML identity
-	Identity services.ExternalIdentity `json:"identity"`
+	Identity types.ExternalIdentity `json:"identity"`
 	// Web session will be generated by auth server if requested in SAMLAuthRequest
-	Session services.WebSession `json:"session,omitempty"`
+	Session types.WebSession `json:"session,omitempty"`
 	// Cert will be generated by certificate authority
 	Cert []byte `json:"cert,omitempty"`
 	// TLSCert is a PEM encoded TLS certificate
@@ -292,20 +310,20 @@ type SAMLAuthResponse struct {
 	Req services.SAMLAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
-	HostSigners []services.CertAuthority `json:"host_signers"`
+	HostSigners []types.CertAuthority `json:"host_signers"`
 }
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
 func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
-	event := &events.UserLogin{
-		Metadata: events.Metadata{
+	event := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 		},
 		Method: events.LoginMethodSAML,
 	}
 	re, err := a.validateSAMLResponse(samlResponse)
 	if re != nil && re.attributeStatements != nil {
-		attributes, err := events.EncodeMapStrings(re.attributeStatements)
+		attributes, err := apievents.EncodeMapStrings(re.attributeStatements)
 		if err != nil {
 			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
 			log.WithError(err).Debug("Failed to encode identity attributes.")
@@ -406,7 +424,7 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 	// Auth was successful, return session, certificate, etc. to caller.
 	re.auth = SAMLAuthResponse{
 		Req: *request,
-		Identity: services.ExternalIdentity{
+		Identity: types.ExternalIdentity{
 			ConnectorID: params.connectorName,
 			Username:    params.username,
 		},
@@ -443,8 +461,8 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 		re.auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
-		authority, err := a.GetCertAuthority(services.CertAuthID{
-			Type:       services.HostCA,
+		authority, err := a.GetCertAuthority(types.CertAuthID{
+			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {

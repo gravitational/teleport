@@ -29,9 +29,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -42,16 +44,23 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var proxiedSessions = prometheus.NewGauge(
-	prometheus.GaugeOpts{
-		Name: teleport.MetricProxySSHSessions,
-		Help: "Number of active sessions through this proxy",
-	},
-)
+var ( // failedConnectingToNode counts failed attempts to connect to a node
+	proxiedSessions = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: teleport.MetricProxySSHSessions,
+			Help: "Number of active sessions through this proxy",
+		},
+	)
 
-func init() {
-	prometheus.MustRegister(proxiedSessions)
-}
+	failedConnectingToNode = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricFailedConnectToNodeAttempts,
+			Help: "Number of failed attempts to connect to a node",
+		},
+	)
+
+	prometheusCollectors = []prometheus.Collector{proxiedSessions, failedConnectingToNode}
+)
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
@@ -87,7 +96,7 @@ func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
 		return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 	}
 	requestBody := strings.TrimPrefix(request, prefix)
-	namespace := defaults.Namespace
+	namespace := apidefaults.Namespace
 	var err error
 	parts := strings.Split(requestBody, "@")
 	switch {
@@ -155,7 +164,7 @@ func (p *proxySubsysRequest) String() string {
 // SetDefaults sets default values.
 func (p *proxySubsysRequest) SetDefaults() {
 	if p.namespace == "" {
-		p.namespace = defaults.Namespace
+		p.namespace = apidefaults.Namespace
 	}
 }
 
@@ -163,6 +172,11 @@ func (p *proxySubsysRequest) SetDefaults() {
 // a port forwarding request, used to implement ProxyJump feature in proxy
 // and reuse the code
 func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest) (*proxySubsys, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	req.SetDefaults()
 	if req.clusterName == "" && ctx.Identity.RouteToCluster != "" {
 		log.Debugf("Proxy subsystem: routing user %q to cluster %q based on the route to cluster extension.",
@@ -256,7 +270,6 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 // auth server of the requested remote site
 func (t *proxySubsys) proxyToSite(
 	ctx *srv.ServerContext, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
-
 	conn, err := site.DialAuthServer()
 	if err != nil {
 		return trace.Wrap(err)
@@ -279,24 +292,9 @@ func (t *proxySubsys) proxyToSite(
 		}()
 		defer conn.Close()
 		_, err = io.Copy(conn, ch)
-
 	}()
 
 	return nil
-}
-
-var (
-	// failedConnectingToNode counts failed attempts to connect to a node
-	failedConnectingToNode = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricFailedConnectToNodeAttempts,
-			Help: "Number of failed attempts to connect to a node",
-		},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(failedConnectingToNode)
 }
 
 // proxyToHost establishes a proxy connection from the connected SSH client to the
@@ -311,14 +309,14 @@ func (t *proxySubsys) proxyToHost(
 	// network resolution (by IP or DNS)
 	//
 	var (
-		servers []services.Server
+		servers []types.Server
 		err     error
 	)
 	localCluster, _ := t.srv.authService.GetClusterName()
 	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localCluster.GetName() {
-		servers, err = t.srv.authService.GetNodes(ctx.CancelContext(), t.namespace, services.SkipValidation())
+		servers, err = t.srv.authService.GetNodes(ctx.CancelContext(), t.namespace)
 		if err != nil {
 			t.log.Warn(err)
 		}
@@ -328,7 +326,7 @@ func (t *proxySubsys) proxyToHost(
 		if err != nil {
 			t.log.Warn(err)
 		} else {
-			servers, err = siteClient.GetNodes(ctx.CancelContext(), t.namespace, services.SkipValidation())
+			servers, err = siteClient.GetNodes(ctx.CancelContext(), t.namespace)
 			if err != nil {
 				t.log.Warn(err)
 			}
@@ -346,7 +344,7 @@ func (t *proxySubsys) proxyToHost(
 	hostIsUUID := uuid.Parse(t.host) != nil
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
-	var server services.Server
+	var server types.Server
 	matches := 0
 	for i := range servers {
 		// If the host parameter is a UUID and it matches the Node ID,
@@ -370,7 +368,7 @@ func (t *proxySubsys) proxyToHost(
 			t.log.Errorf("Failed to parse address %q: %v.", servers[i].GetAddr(), err)
 			continue
 		}
-		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
+		if t.host == ip || t.host == servers[i].GetHostname() || apiutils.SliceContainsStr(ips, ip) {
 			if !specifiedPort || t.port == port {
 				server = servers[i]
 				matches++
@@ -445,7 +443,7 @@ func (t *proxySubsys) proxyToHost(
 		Address:      t.host,
 		ServerID:     serverID,
 		Principals:   principals,
-		ConnType:     services.NodeTunnel,
+		ConnType:     types.NodeTunnel,
 	})
 	if err != nil {
 		failedConnectingToNode.Inc()

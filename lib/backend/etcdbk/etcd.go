@@ -28,13 +28,15 @@ import (
 	"strings"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -45,6 +47,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/gravitational/teleport"
 )
 
 var (
@@ -108,35 +112,38 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
-)
+	eventCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "etcd_events",
+			Help: "Number of etcd events",
+		},
+	)
+	eventBackpressure = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "etcd_event_backpressure",
+			Help: "Number of etcd events that hit backpressure",
+		},
+	)
 
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(writeLatencies)
-	prometheus.MustRegister(txLatencies)
-	prometheus.MustRegister(batchReadLatencies)
-	prometheus.MustRegister(readLatencies)
-	prometheus.MustRegister(writeRequests)
-	prometheus.MustRegister(txRequests)
-	prometheus.MustRegister(batchReadRequests)
-	prometheus.MustRegister(readRequests)
-}
+	prometheusCollectors = []prometheus.Collector{
+		writeLatencies, txLatencies, batchReadLatencies,
+		readLatencies, writeRequests, txRequests, batchReadRequests, readRequests,
+	}
+)
 
 type EtcdBackend struct {
 	backend.NoMigrations
 	nodes []string
 	*log.Entry
-	cfg              *Config
-	client           *clientv3.Client
-	cancelC          chan bool
-	stopC            chan bool
-	clock            clockwork.Clock
-	buf              *backend.CircularBuffer
-	ctx              context.Context
-	cancel           context.CancelFunc
-	watchStarted     context.Context
-	signalWatchStart context.CancelFunc
-	watchDone        chan struct{}
+	cfg       *Config
+	client    *clientv3.Client
+	cancelC   chan bool
+	stopC     chan bool
+	clock     clockwork.Clock
+	buf       *backend.CircularBuffer
+	ctx       context.Context
+	cancel    context.CancelFunc
+	watchDone chan struct{}
 }
 
 // Config represents JSON config for etcd backend
@@ -181,46 +188,46 @@ var _ backend.Backend = &EtcdBackend{}
 
 // New returns new instance of Etcd-powered backend
 func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
-	var err error
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if params == nil {
 		return nil, trace.BadParameter("missing etcd configuration")
 	}
 
 	// convert generic backend parameters structure to etcd config:
 	var cfg *Config
-	if err = utils.ObjectToStruct(params, &cfg); err != nil {
+	if err = apiutils.ObjectToStruct(params, &cfg); err != nil {
 		return nil, trace.BadParameter("invalid etcd configuration: %v", err)
 	}
 	if err = cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	buf, err := backend.NewCircularBuffer(ctx, cfg.BufferSize)
+	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	closeCtx, cancel := context.WithCancel(ctx)
-	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	b := &EtcdBackend{
-		Entry:            log.WithFields(log.Fields{trace.Component: GetName()}),
-		cfg:              cfg,
-		nodes:            cfg.Nodes,
-		cancelC:          make(chan bool, 1),
-		stopC:            make(chan bool, 1),
-		clock:            clockwork.NewRealClock(),
-		cancel:           cancel,
-		ctx:              closeCtx,
-		watchStarted:     watchStarted,
-		signalWatchStart: signalWatchStart,
-		watchDone:        make(chan struct{}),
-		buf:              buf,
-	}
-
-	if err = b.reconnect(ctx); err != nil {
-		return nil, trace.Wrap(err)
+		Entry:     log.WithFields(log.Fields{trace.Component: GetName()}),
+		cfg:       cfg,
+		nodes:     cfg.Nodes,
+		cancelC:   make(chan bool, 1),
+		stopC:     make(chan bool, 1),
+		clock:     clockwork.NewRealClock(),
+		cancel:    cancel,
+		ctx:       closeCtx,
+		watchDone: make(chan struct{}),
+		buf:       buf,
 	}
 
 	// Check that the etcd nodes are at least the minimum version supported
+	if err = b.reconnect(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	timeout, cancel := context.WithTimeout(ctx, time.Second*3*time.Duration(len(cfg.Nodes)))
 	defer cancel()
 	for _, n := range cfg.Nodes {
@@ -236,6 +243,13 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 				status.Version, n, teleport.MinimumEtcdVersion)
 		}
 	}
+
+	// Reconnect the etcd client to work around a data race in their code.
+	// Upstream fix: https://github.com/etcd-io/etcd/pull/12992
+	if err = b.reconnect(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go b.asyncWatch()
 
 	// Wrap backend in a input sanitizer and return it.
 	return b, nil
@@ -262,7 +276,7 @@ func (cfg *Config) Validate() error {
 		cfg.BufferSize = backend.DefaultBufferSize
 	}
 	if cfg.DialTimeout == 0 {
-		cfg.DialTimeout = defaults.DefaultDialTimeout
+		cfg.DialTimeout = apidefaults.DefaultDialTimeout
 	}
 	if cfg.PasswordFile != "" {
 		out, err := ioutil.ReadFile(cfg.PasswordFile)
@@ -288,10 +302,16 @@ func (b *EtcdBackend) Close() error {
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (b *EtcdBackend) CloseWatchers() {
-	b.buf.Reset()
+	b.buf.Clear()
 }
 
 func (b *EtcdBackend) reconnect(ctx context.Context) error {
+	if b.client != nil {
+		if err := b.client.Close(); err != nil {
+			b.Entry.WithError(err).Warning("Failed closing existing etcd client on reconnect.")
+		}
+	}
+
 	tlsConfig := utils.TLSConfig(nil)
 
 	if b.cfg.TLSCertFile != "" {
@@ -340,51 +360,155 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	b.client = clt
-	go b.asyncWatch()
 	return nil
 }
 
 func (b *EtcdBackend) asyncWatch() {
-	err := b.watchEvents()
-	b.Debugf("Watch exited: %v.", err)
+	defer close(b.watchDone)
+	var err error
+WatchEvents:
+	for b.ctx.Err() == nil {
+		err = b.watchEvents(b.ctx)
+
+		b.Debugf("Watch exited: %v", err)
+
+		// pause briefly to prevent excessive watcher creation attempts
+		select {
+		case <-time.After(utils.HalfJitter(time.Millisecond * 1500)):
+		case <-b.ctx.Done():
+			break WatchEvents
+		}
+	}
+	b.Debugf("Watch stopped: %v.", trace.NewAggregate(err, b.ctx.Err()))
 }
 
-func (b *EtcdBackend) watchEvents() error {
-	defer close(b.watchDone)
+// eventResult is used to ferry the result of event processing
+type eventResult struct {
+	original clientv3.Event
+	event    backend.Event
+	err      error
+}
 
-start:
-	eventsC := b.client.Watch(b.ctx, b.cfg.Key, clientv3.WithPrefix())
-	b.signalWatchStart()
+// watchEvents spawns an etcd watcher and forwards events to the event buffer. the internals of this
+// function are complicated somewhat by the fact that we need to make a per-event API call to translate
+// lease IDs into expiry times. if events are being created faster than their expiries can be resolved,
+// this eventually results in runaway memory usage within the etcd client.  To combat this, we use a
+// concurrentqueue.Queue to parallelize the event processing logic while preserving event order.  While
+// effective, this strategy still suffers from a "head of line blocking"-esque issue since event order
+// must be preserved.
+func (b *EtcdBackend) watchEvents(ctx context.Context) error {
+
+	// etcd watch client relies on context cancellation for cleanup,
+	// so create a new subscope for this function.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// wrap fromEvent in a closure compatible with the concurrent queue
+	workfn := func(v interface{}) interface{} {
+		original := v.(clientv3.Event)
+		var event backend.Event
+		e, err := b.fromEvent(ctx, original)
+		if e != nil {
+			event = *e
+		}
+		return eventResult{
+			original: original,
+			event:    event,
+			err:      err,
+		}
+	}
+
+	// constants here are a bit arbitrary. the goal is to set up the queue s.t.
+	// it could handle >100 events per second assuming an avg of .2 seconds of processing
+	// time per event (as seen in tests of under-provisioned etcd instances).
+	q := cq.New(
+		workfn,
+		cq.Workers(24),
+		cq.Capacity(240),
+		cq.InputBuf(120),
+		cq.OutputBuf(48),
+	)
+
+	// emitDone signals that the background goroutine used for emitting the processed
+	// events to the buffer has halted.
+	emitDone := make(chan struct{})
+
+	// watcher must be registered before we initialize the buffer
+	eventsC := b.client.Watch(ctx, b.cfg.Key, clientv3.WithPrefix())
+
+	// set buffer to initialized state.
+	b.buf.SetInit()
+
+	// ensure correct cleanup ordering (buffer must not be reset until event emission has halted).
+	defer func() {
+		q.Close()
+		<-emitDone
+		b.buf.Reset()
+	}()
+
+	// launch background process responsible for event emission.
+	go func() {
+		defer close(emitDone)
+	EmitEvents:
+		for {
+			select {
+			case p := <-q.Pop():
+				r := p.(eventResult)
+				if r.err != nil {
+					b.WithError(r.err).Errorf("Failed to unmarshal event: %v.", r.original)
+					continue EmitEvents
+				}
+				b.buf.Emit(r.event)
+			case <-q.Done():
+				return
+			}
+		}
+	}()
+
+	var lastBacklogWarning time.Time
 	for {
 		select {
 		case e, ok := <-eventsC:
 			if e.Canceled || !ok {
-				b.Debugf("Watch channel has closed.")
-				goto start
+				return trace.ConnectionProblem(nil, "etcd watch channel closed")
 			}
-			out := make([]backend.Event, 0, len(e.Events))
+
+		PushToQueue:
 			for i := range e.Events {
-				event, err := b.fromEvent(b.ctx, *e.Events[i])
-				if err != nil {
-					b.Errorf("Failed to unmarshal event: %v %v.", err, *e.Events[i])
-				} else {
-					out = append(out, *event)
+				eventCount.Inc()
+
+				var event clientv3.Event = *e.Events[i]
+				// attempt non-blocking push.  We allocate a large input buffer for the queue, so this
+				// aught to succeed reliably.
+				select {
+				case q.Push() <- event:
+					continue PushToQueue
+				default:
+				}
+
+				eventBackpressure.Inc()
+
+				// limit backlog warnings to once per minute to prevent log spam.
+				if now := time.Now(); now.After(lastBacklogWarning.Add(time.Minute)) {
+					b.Warnf("Etcd event processing backlog; may result in excess memory usage and stale cluster state.")
+					lastBacklogWarning = now
+				}
+
+				// fallblack to blocking push
+				select {
+				case q.Push() <- event:
+				case <-ctx.Done():
+					return trace.ConnectionProblem(ctx.Err(), "context is closing")
 				}
 			}
-			b.buf.PushBatch(out)
-		case <-b.ctx.Done():
-			return trace.ConnectionProblem(b.ctx.Err(), "context is closing")
+		case <-ctx.Done():
+			return trace.ConnectionProblem(ctx.Err(), "context is closing")
 		}
 	}
 }
 
 // NewWatcher returns a new event watcher
 func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
-	select {
-	case <-b.watchStarted.Done():
-	case <-ctx.Done():
-		return nil, trace.ConnectionProblem(ctx.Err(), "context is closing")
-	}
 	return b.buf.NewWatcher(ctx, watch)
 }
 
@@ -642,7 +766,7 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 			ID:  e.Kv.ModRevision,
 		},
 	}
-	if event.Type == backend.OpDelete {
+	if event.Type == types.OpDelete {
 		return event, nil
 	}
 	// get the new expiration date if it was updated
@@ -710,12 +834,12 @@ func convertErr(err error) error {
 	return trace.ConnectionProblem(err, err.Error())
 }
 
-func fromType(eventType mvccpb.Event_EventType) backend.OpType {
+func fromType(eventType mvccpb.Event_EventType) types.OpType {
 	switch eventType {
 	case mvccpb.PUT:
-		return backend.OpPut
+		return types.OpPut
 	default:
-		return backend.OpDelete
+		return types.OpDelete
 	}
 }
 

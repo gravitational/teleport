@@ -22,6 +22,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -29,11 +30,13 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -54,9 +57,108 @@ import (
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	. "gopkg.in/check.v1"
 )
+
+type testPack struct {
+	bk          backend.Backend
+	clusterName types.ClusterName
+	a           *Server
+	mockEmitter *events.MockEmitter
+}
+
+func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
+	var (
+		p   testPack
+		err error
+	)
+	p.bk, err = lite.NewWithConfig(ctx, lite.Config{Path: dataDir})
+	if err != nil {
+		return p, trace.Wrap(err)
+	}
+	p.clusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "test.localhost",
+	})
+	if err != nil {
+		return p, trace.Wrap(err)
+	}
+	authConfig := &InitConfig{
+		Backend:                p.bk,
+		ClusterName:            p.clusterName,
+		Authority:              authority.New(),
+		SkipPeriodicOperations: true,
+	}
+	p.a, err = NewServer(authConfig)
+	if err != nil {
+		return p, trace.Wrap(err)
+	}
+
+	// set lock watcher
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentAuth,
+			Client:    p.a,
+		},
+	})
+	if err != nil {
+		return p, trace.Wrap(err)
+	}
+	p.a.SetLockWatcher(lockWatcher)
+
+	// set cluster name
+	err = p.a.SetClusterName(p.clusterName)
+	if err != nil {
+		return p, trace.Wrap(err)
+	}
+
+	// set static tokens
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{},
+	})
+	if err != nil {
+		return p, trace.Wrap(err)
+	}
+	err = p.a.SetStaticTokens(staticTokens)
+	if err != nil {
+		return p, trace.Wrap(err)
+	}
+
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOff,
+	})
+	if err != nil {
+		return p, trace.Wrap(err)
+	}
+	if err := p.a.SetAuthPreference(ctx, authPreference); err != nil {
+		return p, trace.Wrap(err)
+	}
+	if err := p.a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()); err != nil {
+		return p, trace.Wrap(err)
+	}
+	if err := p.a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()); err != nil {
+		return p, trace.Wrap(err)
+	}
+	if err := p.a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()); err != nil {
+		return p, trace.Wrap(err)
+	}
+	if err := p.a.SetClusterConfig(types.DefaultClusterConfig()); err != nil {
+		return p, trace.Wrap(err)
+	}
+
+	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
+		return p, trace.Wrap(err)
+	}
+	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
+		return p, trace.Wrap(err)
+	}
+
+	p.mockEmitter = &events.MockEmitter{}
+	p.a.emitter = p.mockEmitter
+	return p, nil
+}
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
@@ -66,62 +168,15 @@ func TestMain(m *testing.M) {
 func TestAPI(t *testing.T) { TestingT(t) }
 
 type AuthSuite struct {
-	bk          backend.Backend
-	a           *Server
-	dataDir     string
-	mockEmitter *events.MockEmitter
+	testPack
 }
 
 var _ = Suite(&AuthSuite{})
 
 func (s *AuthSuite) SetUpTest(c *C) {
-	var err error
-	s.dataDir = c.MkDir()
-	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: s.dataDir})
+	p, err := newTestPack(context.Background(), c.MkDir())
 	c.Assert(err, IsNil)
-
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
-	c.Assert(err, IsNil)
-	authConfig := &InitConfig{
-		ClusterName:            clusterName,
-		Backend:                s.bk,
-		Authority:              authority.New(),
-		SkipPeriodicOperations: true,
-	}
-	s.a, err = NewServer(authConfig)
-	c.Assert(err, IsNil)
-
-	// set cluster name
-	err = s.a.SetClusterName(clusterName)
-	c.Assert(err, IsNil)
-
-	// set static tokens
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{},
-	})
-	c.Assert(err, IsNil)
-	err = s.a.SetStaticTokens(staticTokens)
-	c.Assert(err, IsNil)
-
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         teleport.Local,
-		SecondFactor: constants.SecondFactorOff,
-	})
-	c.Assert(err, IsNil)
-
-	err = s.a.SetAuthPreference(authPreference)
-	c.Assert(err, IsNil)
-
-	err = s.a.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
-	c.Assert(err, IsNil)
-
-	err = s.a.SetClusterConfig(services.DefaultClusterConfig())
-	c.Assert(err, IsNil)
-
-	s.mockEmitter = &events.MockEmitter{}
-	s.a.emitter = s.mockEmitter
+	s.testPack = p
 }
 
 func (s *AuthSuite) TearDownTest(c *C) {
@@ -131,11 +186,7 @@ func (s *AuthSuite) TearDownTest(c *C) {
 }
 
 func (s *AuthSuite) TestSessions(c *C) {
-	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
-
-	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
+	ctx := context.Background()
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -159,18 +210,18 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
-	out, err := s.a.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, IsNil)
 	ws.SetPriv(nil)
 	fixtures.DeepCompare(c, ws, out)
 
-	err = s.a.WebSessions().Delete(context.TODO(), types.DeleteWebSessionRequest{
+	err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      user,
 		SessionID: ws.GetName(),
 	})
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+	_, err = s.a.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      user,
 		SessionID: ws.GetName(),
 	})
@@ -179,8 +230,6 @@ func (s *AuthSuite) TestSessions(c *C) {
 
 func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	ctx := context.Background()
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
 	// Register the leaf cluster.
 	leaf, err := types.NewRemoteCluster("leaf.localhost")
@@ -223,7 +272,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		},
 		PublicKey:      pub,
 		TTL:            time.Hour,
-		RouteToCluster: "me.localhost",
+		RouteToCluster: s.clusterName.GetClusterName(),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(resp.Username, Equals, user)
@@ -246,8 +295,8 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		KubernetesUsers:  []string{user},
 		KubernetesGroups: []string{"system:masters"},
 		Expires:          gotTLSCert.NotAfter,
-		RouteToCluster:   "me.localhost",
-		TeleportCluster:  "me.localhost",
+		RouteToCluster:   s.clusterName.GetClusterName(),
+		TeleportCluster:  s.clusterName.GetClusterName(),
 	}
 	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	c.Assert(err, IsNil)
@@ -279,7 +328,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		KubernetesCluster: "leaf-kube-cluster",
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    "leaf.localhost",
-		TeleportCluster:   "me.localhost",
+		TeleportCluster:   s.clusterName.GetClusterName(),
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	c.Assert(err, IsNil)
@@ -287,12 +336,12 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 
 	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
-	err = s.a.UpsertKubeService(ctx, &services.ServerV2{
-		Metadata: services.Metadata{Name: "kube-service"},
-		Kind:     services.KindKubeService,
-		Version:  services.V2,
-		Spec: services.ServerSpecV2{
-			KubernetesClusters: []*services.KubernetesCluster{{Name: "root-kube-cluster"}},
+	err = s.a.UpsertKubeService(ctx, &types.ServerV2{
+		Metadata: types.Metadata{Name: "kube-service"},
+		Kind:     types.KindKubeService,
+		Version:  types.V2,
+		Spec: types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -305,7 +354,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		},
 		PublicKey:         pub,
 		TTL:               time.Hour,
-		RouteToCluster:    "me.localhost",
+		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "root-kube-cluster",
 	})
 	c.Assert(err, IsNil)
@@ -320,8 +369,8 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",
 		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    "me.localhost",
-		TeleportCluster:   "me.localhost",
+		RouteToCluster:    s.clusterName.GetClusterName(),
+		TeleportCluster:   s.clusterName.GetClusterName(),
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	c.Assert(err, IsNil)
@@ -336,7 +385,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		},
 		PublicKey:      pub,
 		TTL:            time.Hour,
-		RouteToCluster: "me.localhost",
+		RouteToCluster: s.clusterName.GetClusterName(),
 		// Intentionally empty, auth server should default to a registered
 		// kubernetes cluster.
 		KubernetesCluster: "",
@@ -353,8 +402,8 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",
 		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    "me.localhost",
-		TeleportCluster:   "me.localhost",
+		RouteToCluster:    s.clusterName.GetClusterName(),
+		TeleportCluster:   s.clusterName.GetClusterName(),
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	c.Assert(err, IsNil)
@@ -362,12 +411,12 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 
 	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
-	err = s.a.UpsertKubeService(ctx, &services.ServerV2{
-		Metadata: services.Metadata{Name: "kube-service"},
-		Kind:     services.KindKubeService,
-		Version:  services.V2,
-		Spec: services.ServerSpecV2{
-			KubernetesClusters: []*services.KubernetesCluster{{Name: "root-kube-cluster"}},
+	err = s.a.UpsertKubeService(ctx, &types.ServerV2{
+		Metadata: types.Metadata{Name: "kube-service"},
+		Kind:     types.KindKubeService,
+		Version:  types.V2,
+		Spec: types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -380,7 +429,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		},
 		PublicKey:         pub,
 		TTL:               time.Hour,
-		RouteToCluster:    "me.localhost",
+		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "root-kube-cluster",
 	})
 	c.Assert(err, IsNil)
@@ -395,8 +444,8 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",
 		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    "me.localhost",
-		TeleportCluster:   "me.localhost",
+		RouteToCluster:    s.clusterName.GetClusterName(),
+		TeleportCluster:   s.clusterName.GetClusterName(),
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	c.Assert(err, IsNil)
@@ -411,7 +460,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		},
 		PublicKey:      pub,
 		TTL:            time.Hour,
-		RouteToCluster: "me.localhost",
+		RouteToCluster: s.clusterName.GetClusterName(),
 		// Intentionally empty, auth server should default to a registered
 		// kubernetes cluster.
 		KubernetesCluster: "",
@@ -428,8 +477,8 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",
 		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    "me.localhost",
-		TeleportCluster:   "me.localhost",
+		RouteToCluster:    s.clusterName.GetClusterName(),
+		TeleportCluster:   s.clusterName.GetClusterName(),
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	c.Assert(err, IsNil)
@@ -443,19 +492,13 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		},
 		PublicKey:         pub,
 		TTL:               time.Hour,
-		RouteToCluster:    "me.localhost",
+		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "invalid-kube-cluster",
 	})
 	c.Assert(err, NotNil)
 }
 
 func (s *AuthSuite) TestUserLock(c *C) {
-	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
-
-	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
-
 	username := "user1"
 	pass := []byte("abc123")
 
@@ -506,8 +549,6 @@ func (s *AuthSuite) TestUserLock(c *C) {
 
 func (s *AuthSuite) TestTokensCRUD(c *C) {
 	ctx := context.Background()
-	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
 	// before we do anything, we should have 0 tokens
 	btokens, err := s.a.GetTokens(ctx)
@@ -515,7 +556,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(len(btokens), Equals, 0)
 
 	// generate persistent token
-	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}})
+	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
 	c.Assert(err, IsNil)
 	c.Assert(len(tok), Equals, 2*TokenLenBytes)
 	tokens, err := s.a.GetTokens(ctx)
@@ -525,15 +566,15 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 
 	roles, _, err := s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
-	c.Assert(roles.Include(teleport.RoleNode), Equals, true)
-	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
+	c.Assert(roles.Include(types.RoleNode), Equals, true)
+	c.Assert(roles.Include(types.RoleProxy), Equals, false)
 
 	// unsuccessful registration (wrong role)
 	keys, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:    tok,
 		HostID:   "bad-host-id",
 		NodeName: "bad-node-name",
-		Role:     teleport.RoleProxy,
+		Role:     types.RoleProxy,
 	})
 	c.Assert(keys, IsNil)
 	c.Assert(err, NotNil)
@@ -541,20 +582,20 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 
 	// generate predefined token
 	customToken := "custom-token"
-	tok, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}, Token: customToken})
+	tok, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
 	c.Assert(err, IsNil)
 	c.Assert(tok, Equals, customToken)
 
 	roles, _, err = s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
-	c.Assert(roles.Include(teleport.RoleNode), Equals, true)
-	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
+	c.Assert(roles.Include(types.RoleNode), Equals, true)
+	c.Assert(roles.Include(types.RoleProxy), Equals, false)
 
 	err = s.a.DeleteToken(ctx, customToken)
 	c.Assert(err, IsNil)
 
 	// generate multi-use token with long TTL:
-	multiUseToken, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleProxy}, TTL: time.Hour})
+	multiUseToken, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleProxy}, TTL: time.Hour})
 	c.Assert(err, IsNil)
 	_, _, err = s.a.ValidateToken(multiUseToken)
 	c.Assert(err, IsNil)
@@ -564,7 +605,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		Token:                multiUseToken,
 		HostID:               "once",
 		NodeName:             "node-name",
-		Role:                 teleport.RoleProxy,
+		Role:                 types.RoleProxy,
 		AdditionalPrincipals: []string{"example.com"},
 	})
 	c.Assert(err, IsNil)
@@ -573,13 +614,13 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	hostCert, err := sshutils.ParseCertificate(keys.Cert)
 	c.Assert(err, IsNil)
 	comment := Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
-	c.Assert(utils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
+	c.Assert(apiutils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
 
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:    multiUseToken,
 		HostID:   "twice",
 		NodeName: "node-name",
-		Role:     teleport.RoleProxy,
+		Role:     types.RoleProxy,
 	})
 	c.Assert(err, IsNil)
 
@@ -589,7 +630,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		Token:    multiUseToken,
 		HostID:   "late.bird",
 		NodeName: "node-name",
-		Role:     teleport.RoleProxy,
+		Role:     types.RoleProxy,
 	})
 	c.Assert(err, ErrorMatches, `"node-name" \[late.bird\] can not join the cluster with role Proxy, the token is not valid`)
 
@@ -598,9 +639,9 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	// lets use static tokens now
-	roles = teleport.Roles{teleport.RoleProxy}
-	st, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{{
+	roles = types.SystemRoles{types.RoleProxy}
+	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
 			Token:   "static-token-value",
 			Roles:   roles,
 			Expires: time.Unix(0, 0).UTC(),
@@ -613,14 +654,14 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		Token:    "static-token-value",
 		HostID:   "static.host",
 		NodeName: "node-name",
-		Role:     teleport.RoleProxy,
+		Role:     types.RoleProxy,
 	})
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:    "static-token-value",
 		HostID:   "wrong.role",
 		NodeName: "node-name",
-		Role:     teleport.RoleAuth,
+		Role:     types.RoleAuth,
 	})
 	c.Assert(err, NotNil)
 	r, _, err := s.a.ValidateToken("static-token-value")
@@ -644,7 +685,7 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	c.Assert(err, NotNil)
 
 	// tampered
-	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleAuth}})
+	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleAuth}})
 	c.Assert(err, IsNil)
 
 	tampered := string(tok[0]+1) + tok[1:]
@@ -655,24 +696,23 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 func (s *AuthSuite) TestGenerateTokenEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test trusted cluster token emit
-	_, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleTrustedCluster}})
+	_, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleTrustedCluster}})
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.TrustedClusterTokenCreateEvent)
 	s.mockEmitter.Reset()
 
 	// test emit with multiple roles
-	_, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{
-		teleport.RoleNode,
-		teleport.RoleTrustedCluster,
-		teleport.RoleAuth,
+	_, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{
+		types.RoleNode,
+		types.RoleTrustedCluster,
+		types.RoleAuth,
 	}})
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.TrustedClusterTokenCreateEvent)
 }
 
 func (s *AuthSuite) TestValidateACRValues(c *C) {
-
-	var tests = []struct {
+	tests := []struct {
 		inIDToken     string
 		inACRValue    string
 		inACRProvider string
@@ -774,14 +814,14 @@ func (s *AuthSuite) TestValidateACRValues(c *C) {
 func (s *AuthSuite) TestUpdateConfig(c *C) {
 	cn, err := s.a.GetClusterName()
 	c.Assert(err, IsNil)
-	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
+	c.Assert(cn.GetClusterName(), Equals, s.clusterName.GetClusterName())
 	st, err := s.a.GetStaticTokens()
 	c.Assert(err, IsNil)
-	c.Assert(st.GetStaticTokens(), DeepEquals, []services.ProvisionToken{})
+	c.Assert(st.GetStaticTokens(), DeepEquals, []types.ProvisionToken{})
 
 	// try and set cluster name, this should fail because you can only set the
 	// cluster name once
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "foo.localhost",
 	})
 	c.Assert(err, IsNil)
@@ -799,10 +839,10 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	c.Assert(err, NotNil)
 	// try and set static tokens, this should be successful because the last
 	// one to upsert tokens wins
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{{
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
 			Token: "bar",
-			Roles: teleport.Roles{teleport.Role("baz")},
+			Roles: types.SystemRoles{types.SystemRole("baz")},
 		}},
 	})
 	c.Assert(err, IsNil)
@@ -813,38 +853,38 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	// (original cluster name, new static tokens)
 	cn, err = s.a.GetClusterName()
 	c.Assert(err, IsNil)
-	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
+	c.Assert(cn.GetClusterName(), Equals, s.clusterName.GetClusterName())
 	st, err = s.a.GetStaticTokens()
 	c.Assert(err, IsNil)
-	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{{
+	c.Assert(st.GetStaticTokens(), DeepEquals, types.ProvisionTokensFromV1([]types.ProvisionTokenV1{{
 		Token: "bar",
-		Roles: teleport.Roles{teleport.Role("baz")},
+		Roles: types.SystemRoles{types.SystemRole("baz")},
 	}}))
 
 	// check second auth server and make sure it also has the correct values
 	// new static tokens
 	st, err = authServer.GetStaticTokens()
 	c.Assert(err, IsNil)
-	c.Assert(st.GetStaticTokens(), DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{{
+	c.Assert(st.GetStaticTokens(), DeepEquals, types.ProvisionTokensFromV1([]types.ProvisionTokenV1{{
 		Token: "bar",
-		Roles: teleport.Roles{teleport.Role("baz")},
+		Roles: types.SystemRoles{types.SystemRole("baz")},
 	}}))
 }
 
 func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
-	user, err := services.NewUser("some-user")
+	user, err := types.NewUser("some-user")
 	c.Assert(err, IsNil)
 
 	ctx := context.Background()
 
 	// test create uesr, happy path
-	user.SetCreatedBy(services.CreatedBy{
-		User: services.UserRef{Name: "some-auth-user"},
+	user.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{Name: "some-auth-user"},
 	})
 	err = s.a.CreateUser(ctx, user)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.UserCreateEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.UserCreate).User, Equals, "some-auth-user")
+	c.Assert(s.mockEmitter.LastEvent().(*apievents.UserCreate).User, Equals, "some-auth-user")
 	s.mockEmitter.Reset()
 
 	// test create user with existing user
@@ -853,15 +893,15 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	c.Assert(s.mockEmitter.LastEvent(), IsNil)
 
 	// test createdBy gets set to default
-	user2, err := services.NewUser("some-other-user")
+	user2, err := types.NewUser("some-other-user")
 	c.Assert(err, IsNil)
 	err = s.a.CreateUser(ctx, user2)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockEmitter.LastEvent().(*events.UserCreate).User, Equals, teleport.UserSystem)
+	c.Assert(s.mockEmitter.LastEvent().(*apievents.UserCreate).User, Equals, teleport.UserSystem)
 	s.mockEmitter.Reset()
 
 	// test update on non-existent user
-	user3, err := services.NewUser("non-existent-user")
+	user3, err := types.NewUser("non-existent-user")
 	c.Assert(err, IsNil)
 	err = s.a.UpdateUser(ctx, user3)
 	c.Assert(trace.IsNotFound(err), Equals, true)
@@ -871,52 +911,7 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	err = s.a.UpdateUser(ctx, user)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.UserUpdatedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.UserCreate).User, Equals, teleport.UserSystem)
-}
-
-func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
-	ctx := context.Background()
-	// test create new role
-	roleTest, err := services.NewRole("test", services.RoleSpecV3{
-		Options: services.RoleOptions{},
-		Allow:   services.RoleConditions{},
-	})
-	c.Assert(err, IsNil)
-
-	err = s.a.upsertRole(ctx, roleTest)
-	c.Assert(err, IsNil)
-	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.RoleCreate).Name, Equals, "test")
-	s.mockEmitter.Reset()
-
-	roleRetrieved, err := s.a.GetRole(ctx, "test")
-	c.Assert(err, IsNil)
-	c.Assert(cmp.Diff(roleRetrieved, roleTest, cmpopts.IgnoreFields(types.Metadata{}, "ID")), Equals, "")
-
-	// test update role
-	err = s.a.upsertRole(ctx, roleTest)
-	c.Assert(err, IsNil)
-	c.Assert(cmp.Diff(roleRetrieved, roleTest, cmpopts.IgnoreFields(types.Metadata{}, "ID")), Equals, "")
-	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.RoleCreate).Name, Equals, "test")
-	s.mockEmitter.Reset()
-
-	// test delete role
-	err = s.a.DeleteRole(ctx, "test")
-	c.Assert(err, IsNil)
-	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleDeletedEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.RoleDelete).Name, Equals, "test")
-	s.mockEmitter.Reset()
-
-	// test role has been deleted
-	roleRetrieved, err = s.a.GetRole(ctx, "test")
-	c.Assert(trace.IsNotFound(err), Equals, true)
-	c.Assert(roleRetrieved, IsNil)
-
-	// test role that doesn't exist
-	err = s.a.DeleteRole(ctx, "test")
-	c.Assert(trace.IsNotFound(err), Equals, true)
-	c.Assert(s.mockEmitter.LastEvent(), IsNil)
+	c.Assert(s.mockEmitter.LastEvent().(*apievents.UserCreate).User, Equals, teleport.UserSystem)
 }
 
 func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
@@ -925,7 +920,7 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 
 	// set up existing cluster to bypass switch cases that
 	// makes a network request when creating new clusters
-	tc, err := services.NewTrustedCluster("test", services.TrustedClusterSpecV2{
+	tc, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Roles:                []string{"a"},
 		ReverseTunnelAddress: "b",
@@ -934,8 +929,8 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 	_, err = s.a.Presence.UpsertTrustedCluster(ctx, tc)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, "test")), IsNil)
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, "test")), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, "test")), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, "test")), IsNil)
 
 	err = s.a.createReverseTunnel(tc)
 	c.Assert(err, IsNil)
@@ -965,8 +960,9 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 func (s *AuthSuite) TestGithubConnectorCRUDEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test github create event
-	github := services.NewGithubConnector("test", services.GithubConnectorSpecV3{})
-	err := s.a.upsertGithubConnector(ctx, github)
+	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
+	c.Assert(err, IsNil)
+	err = s.a.upsertGithubConnector(ctx, github)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.GithubConnectorCreatedEvent)
 	s.mockEmitter.Reset()
@@ -986,8 +982,9 @@ func (s *AuthSuite) TestGithubConnectorCRUDEventsEmitted(c *C) {
 func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test oidc create event
-	oidc := services.NewOIDCConnector("test", services.OIDCConnectorSpecV2{ClientID: "a"})
-	err := s.a.UpsertOIDCConnector(ctx, oidc)
+	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV2{ClientID: "a"})
+	c.Assert(err, IsNil)
+	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.OIDCConnectorCreatedEvent)
 	s.mockEmitter.Reset()
@@ -1007,7 +1004,7 @@ func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
 func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
 	ctx := context.Background()
 	// generate a certificate that makes ParseCertificatePEM happy, copied from ca_test.go
-	ca, err := tlsca.FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	c.Assert(err, IsNil)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
@@ -1023,12 +1020,13 @@ func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
 	c.Assert(err, IsNil)
 
 	// test saml create
-	saml := services.NewSAMLConnector("test", services.SAMLConnectorSpecV2{
+	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "a",
 		Issuer:                   "b",
 		SSO:                      "c",
 		Cert:                     string(certBytes),
 	})
+	c.Assert(err, IsNil)
 
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	c.Assert(err, IsNil)
@@ -1093,24 +1091,154 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"))
 
-	require.Equal(t, mockE.LastEvent(), &events.UserLogin{
-		Metadata: events.Metadata{
+	require.Equal(t, mockE.LastEvent(), &apievents.UserLogin{
+		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserSSOLoginFailureCode,
 		},
 		Method: "test",
-		Status: events.Status{
+		Status: apievents.Status{
 			Success:     false,
 			Error:       "some error",
 			UserMessage: "some error",
 		},
 	})
+}
 
+func TestGenerateUserCertWithLocks(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
+	require.NoError(t, err)
+	mfaID := uuid.New()
+	keygen := testauthority.New()
+	_, pub, err := keygen.GetNewKeyPairFromPool()
+	require.NoError(t, err)
+	certReq := certRequest{
+		user:        user,
+		checker:     services.NewRoleSet(role),
+		mfaVerified: mfaID,
+		publicKey:   pub,
+	}
+	_, err = p.a.generateUserCert(certReq)
+	require.NoError(t, err)
+
+	testTargets := append(
+		[]types.LockTarget{{User: user.GetName()}, {MFADevice: mfaID}},
+		services.RolesToLockTargets(user.GetRoles())...,
+	)
+	for _, target := range testTargets {
+		t.Run(fmt.Sprintf("lock targeting %v", target), func(t *testing.T) {
+			lockWatch, err := p.a.lockWatcher.Subscribe(ctx, target)
+			require.NoError(t, err)
+			defer lockWatch.Close()
+			lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: target})
+			require.NoError(t, err)
+
+			require.NoError(t, p.a.UpsertLock(ctx, lock))
+			select {
+			case event := <-lockWatch.Events():
+				require.Equal(t, types.OpPut, event.Type)
+				require.Empty(t, resourceDiff(event.Resource, lock))
+			case <-lockWatch.Done():
+				t.Fatal("Watcher has unexpectedly exited.")
+			case <-time.After(2 * time.Second):
+				t.Fatal("Timeout waiting for lock update.")
+			}
+			_, err = p.a.generateUserCert(certReq)
+			require.Error(t, err)
+			require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
+		})
+	}
+}
+
+func TestGenerateHostCertWithLocks(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	hostID := uuid.New()
+	keygen := testauthority.New()
+	_, pub, err := keygen.GetNewKeyPairFromPool()
+	require.NoError(t, err)
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleNode}, time.Minute)
+	require.NoError(t, err)
+
+	target := types.LockTarget{Node: hostID}
+	lockWatch, err := p.a.lockWatcher.Subscribe(ctx, target)
+	require.NoError(t, err)
+	defer lockWatch.Close()
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: target})
+	require.NoError(t, err)
+
+	require.NoError(t, p.a.UpsertLock(ctx, lock))
+	select {
+	case event := <-lockWatch.Events():
+		require.Equal(t, types.OpPut, event.Type)
+		require.Empty(t, resourceDiff(event.Resource, lock))
+	case <-lockWatch.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for lock update.")
+	}
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleNode}, time.Minute)
+	require.Error(t, err)
+	require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
+
+	// Locks targeting nodes should not apply to other system roles.
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleProxy}, time.Minute)
+	require.NoError(t, err)
+}
+
+func TestNewWebSession(t *testing.T) {
+	t.Parallel()
+	p, err := newTestPack(context.Background(), t.TempDir())
+	require.NoError(t, err)
+
+	// Set a web idle timeout.
+	duration := time.Duration(5) * time.Minute
+	cfg := types.DefaultClusterNetworkingConfig()
+	cfg.SetWebIdleTimeout(duration)
+	p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+
+	// Create a user.
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"})
+	require.NoError(t, err)
+
+	// Create a new web session.
+	req := types.NewWebSessionRequest{
+		User:       user.GetName(),
+		Roles:      user.GetRoles(),
+		Traits:     user.GetTraits(),
+		LoginTime:  p.a.clock.Now().UTC(),
+		SessionTTL: apidefaults.CertDuration,
+	}
+	bearerTokenTTL := utils.MinTTL(req.SessionTTL, BearerTokenTTL)
+
+	ws, err := p.a.NewWebSession(req)
+	require.NoError(t, err)
+	require.Equal(t, user.GetName(), ws.GetUser())
+	require.Equal(t, duration, ws.GetIdleTimeout())
+	require.Equal(t, req.LoginTime, ws.GetLoginTime())
+	require.Equal(t, req.LoginTime.UTC().Add(req.SessionTTL), ws.GetExpiryTime())
+	require.Equal(t, req.LoginTime.UTC().Add(bearerTokenTTL), ws.GetBearerTokenExpiryTime())
+	require.NotEmpty(t, ws.GetBearerToken())
+	require.NotEmpty(t, ws.GetPriv())
+	require.NotEmpty(t, ws.GetPub())
+	require.NotEmpty(t, ws.GetTLSCert())
 }
 
 func newTestServices(t *testing.T) Services {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+
+	configService, err := local.NewClusterConfigurationService(bk)
+	require.NoError(t, err)
+
 	return Services{
 		Trust:                local.NewCAService(bk),
 		Presence:             local.NewPresenceService(bk),
@@ -1118,8 +1246,8 @@ func newTestServices(t *testing.T) Services {
 		Identity:             local.NewIdentityService(bk),
 		Access:               local.NewAccessService(bk),
 		DynamicAccessExt:     local.NewDynamicAccessService(bk),
-		ClusterConfiguration: local.NewClusterConfigurationService(bk),
-		Events:               local.NewEventsService(bk),
+		ClusterConfiguration: configService,
+		Events:               local.NewEventsService(bk, configService.GetClusterConfig),
 		IAuditLog:            events.NewDiscardAuditLog(),
 	}
 }

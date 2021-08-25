@@ -27,9 +27,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
@@ -430,7 +430,7 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 
 // DeleteSession removes an active session from the backend.
 func (s *server) DeleteSession(namespace string, id ID) error {
-	if !services.IsValidNamespace(namespace) {
+	if !types.IsValidNamespace(namespace) {
 		return trace.BadParameter("invalid namespace %q", namespace)
 	}
 	err := id.Check()

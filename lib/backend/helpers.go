@@ -17,47 +17,145 @@ limitations under the License.
 package backend
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 const locksPrefix = ".locks"
 
+type Lock struct {
+	key []byte
+	id  []byte
+	ttl time.Duration
+}
+
+func randomID() ([]byte, error) {
+	uuid, err := uuid.NewRandom()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bytes := [16]byte(uuid)
+	return bytes[:], nil
+}
+
 // AcquireLock grabs a lock that will be released automatically in TTL
-func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time.Duration) (err error) {
+func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time.Duration) (Lock, error) {
 	if lockName == "" {
-		return trace.BadParameter("missing parameter lock name")
+		return Lock{}, trace.BadParameter("missing parameter lock name")
 	}
 	key := []byte(filepath.Join(locksPrefix, lockName))
+	id, err := randomID()
+	if err != nil {
+		return Lock{}, trace.Wrap(err)
+	}
 	for {
 		// Get will clear TTL on a lock
 		backend.Get(ctx, key)
 
 		// CreateVal is atomic:
-		_, err = backend.Create(ctx, Item{Key: key, Value: []byte{1}, Expires: backend.Clock().Now().UTC().Add(ttl)})
+		_, err = backend.Create(ctx, Item{Key: key, Value: id, Expires: backend.Clock().Now().UTC().Add(ttl)})
 		if err == nil {
 			break // success
 		}
 		if trace.IsAlreadyExists(err) { // locked? wait and repeat:
-			backend.Clock().Sleep(250 * time.Millisecond)
-			continue
+			select {
+			case <-backend.Clock().After(250 * time.Millisecond):
+				// OK, go around and try again
+				continue
+
+			case <-ctx.Done():
+				// Context has been cancelled externally, time to go
+				return Lock{}, trace.Wrap(ctx.Err())
+			}
 		}
-		return trace.ConvertSystemError(err)
+		return Lock{}, trace.ConvertSystemError(err)
+	}
+	return Lock{key: key, id: id, ttl: ttl}, nil
+}
+
+// Release forces lock release
+func (l *Lock) Release(ctx context.Context, backend Backend) error {
+	prev, err := backend.Get(ctx, l.key)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.CompareFailed("cannot release lock %s (expired)", l.id)
+		}
+		return trace.Wrap(err)
+	}
+
+	if !bytes.Equal(prev.Value, l.id) {
+		return trace.CompareFailed("cannot release lock %s (ownership changed)", l.id)
+	}
+
+	if err := backend.Delete(ctx, l.key); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// ReleaseLock forces lock release
-func ReleaseLock(ctx context.Context, backend Backend, lockName string) error {
-	if lockName == "" {
-		return trace.BadParameter("missing parameter lockName")
-	}
-	key := []byte(filepath.Join(locksPrefix, lockName))
-	if err := backend.Delete(ctx, key); err != nil {
+// resetTTL resets the TTL on a given lock.
+func (l *Lock) resetTTL(ctx context.Context, backend Backend) error {
+	prev, err := backend.Get(ctx, l.key)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.CompareFailed("cannot refresh lock %s (expired)", l.id)
+		}
 		return trace.Wrap(err)
 	}
+
+	if !bytes.Equal(prev.Value, l.id) {
+		return trace.CompareFailed("cannot refresh lock %s (ownership changed)", l.id)
+	}
+
+	next := *prev
+	next.Expires = backend.Clock().Now().UTC().Add(l.ttl)
+
+	_, err = backend.CompareAndSwap(ctx, *prev, next)
+	if err != nil {
+		return trace.WrapWithMessage(err, "failed to fresh lock %s (cas failed)", l.id)
+	}
+
 	return nil
+}
+
+// RunWhileLocked allows you to run a function while a lock is held.
+func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl time.Duration, fn func(context.Context) error) error {
+	lock, err := AcquireLock(ctx, backend, lockName, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	subContext, cancelFunction := context.WithCancel(ctx)
+
+	stopRefresh := make(chan struct{})
+	go func() {
+		refreshAfter := ttl / 2
+		for {
+			select {
+			case <-time.After(refreshAfter):
+				if err := lock.resetTTL(ctx, backend); err != nil {
+					defer cancelFunction()
+					log.Errorf("%v", err)
+					return
+				}
+			case <-stopRefresh:
+				return
+			}
+		}
+	}()
+
+	fnErr := fn(subContext)
+	close(stopRefresh)
+
+	if err := lock.Release(ctx, backend); err != nil {
+		return trace.NewAggregate(fnErr, err)
+	}
+
+	return fnErr
 }

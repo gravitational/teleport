@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
@@ -97,7 +97,7 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(p.TLSCertPath(), p.KeyPath())
+	cert, err := tls.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -122,15 +122,21 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	cert, err := ioutil.ReadFile(p.SSHCertPath())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// Try reading SSHCert from old cert path, return original error otherwise
+		// DELETE IN 8.0.0
+		var err2 error
+		cert, err2 = ioutil.ReadFile(p.OldSSHCertPath())
+		if err2 != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	key, err := ioutil.ReadFile(p.KeyPath())
+	key, err := ioutil.ReadFile(p.UserKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caCerts, err := ioutil.ReadFile(p.SSHCAsPath())
+	caCerts, err := ioutil.ReadFile(p.KnownHostsPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -289,40 +295,46 @@ func (p *Profile) saveToFile(filepath string) error {
 
 // KeyDir returns the path to the profile's directory.
 func (p *Profile) KeyDir() string {
-	return filepath.Join(p.Dir, constants.SessionKeyDir)
+	return keypaths.KeyDir(p.Dir)
 }
 
-// UserKeyDir returns the path to the profile's key directory.
-func (p *Profile) UserKeyDir() string {
-	return filepath.Join(p.KeyDir(), p.Name())
+// ProxyKeyDir returns the path to the profile's key directory.
+func (p *Profile) ProxyKeyDir() string {
+	return keypaths.ProxyKeyDir(p.Dir, p.Name())
 }
 
-// KeyPath returns the path to the profile's private key.
-func (p *Profile) KeyPath() string {
-	return filepath.Join(p.UserKeyDir(), p.Username)
+// UserKeyPath returns the path to the profile's private key.
+func (p *Profile) UserKeyPath() string {
+	return keypaths.UserKeyPath(p.Dir, p.Name(), p.Username)
 }
 
 // TLSCertPath returns the path to the profile's TLS certificate.
 func (p *Profile) TLSCertPath() string {
-	return filepath.Join(p.UserKeyDir(), p.Username+constants.FileExtTLSCert)
+	return keypaths.TLSCertPath(p.Dir, p.Name(), p.Username)
 }
 
 // TLSCAsPath returns the path to the profile's TLS certificate authorities.
 func (p *Profile) TLSCAsPath() string {
-	return filepath.Join(p.UserKeyDir(), constants.FileNameTLSCerts)
+	return keypaths.TLSCAsPath(p.Dir, p.Name())
 }
 
 // SSHDir returns the path to the profile's ssh directory.
 func (p *Profile) SSHDir() string {
-	return filepath.Join(p.UserKeyDir(), p.Username+constants.SSHDirSuffix)
+	return keypaths.SSHDir(p.Dir, p.Name(), p.Username)
 }
 
 // SSHCertPath returns the path to the profile's ssh certificate.
 func (p *Profile) SSHCertPath() string {
-	return filepath.Join(p.SSHDir(), p.SiteName+constants.FileExtSSHCert)
+	return keypaths.SSHCertPath(p.Dir, p.Name(), p.Username, p.SiteName)
 }
 
-// SSHCAsPath returns the path to the profile's ssh certificate authorities.
-func (p *Profile) SSHCAsPath() string {
-	return filepath.Join(p.Dir, constants.FileNameKnownHosts)
+// OldSSHCertPath returns the old (before v6.1) path to the profile's ssh certificate.
+// DELETE IN 8.0.0
+func (p *Profile) OldSSHCertPath() string {
+	return keypaths.OldSSHCertPath(p.Dir, p.Name(), p.Username)
+}
+
+// KnownHostsPath returns the path to the profile's ssh certificate authorities.
+func (p *Profile) KnownHostsPath() string {
+	return keypaths.KnownHostsPath(p.Dir)
 }

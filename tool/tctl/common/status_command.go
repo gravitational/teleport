@@ -22,11 +22,12 @@ import (
 	"strings"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 )
 
@@ -64,29 +65,33 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 	serverVersion := pingRsp.ServerVersion
 	clusterName := pingRsp.ClusterName
 
-	authorities := []services.CertAuthority{}
+	authorities := []types.CertAuthority{}
 
-	hostCAs, err := client.GetCertAuthorities(services.HostCA, false)
+	hostCAs, err := client.GetCertAuthorities(types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	authorities = append(authorities, hostCAs...)
 
-	userCAs, err := client.GetCertAuthorities(services.UserCA, false)
+	userCAs, err := client.GetCertAuthorities(types.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	authorities = append(authorities, userCAs...)
 
-	jwtKeys, err := client.GetCertAuthorities(services.JWTSigner, false)
+	jwtKeys, err := client.GetCertAuthorities(types.JWTSigner, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	authorities = append(authorities, jwtKeys...)
 
-	// Calculate the CA pin for this cluster. The CA pin is used by the client
-	// to verify the identity of the Auth Server.
-	caPin, err := calculateCAPin(client)
+	// Calculate the CA pins for this cluster. The CA pins are used by the
+	// client to verify the identity of the Auth Server.
+	localCAResponse, err := client.GetClusterCACert()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -101,19 +106,31 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 			}
 			info := fmt.Sprintf("%v CA ", strings.Title(string(ca.GetType())))
 			rotation := ca.GetRotation()
+			standbyPhase := rotation.Phase == types.RotationPhaseStandby || rotation.Phase == ""
+			if standbyPhase && len(ca.GetAdditionalTrustedKeys().SSH) > 0 {
+				// There should never be AdditionalTrusted keys present during
+				// the Standby phase unless an auth server has just started up
+				// with a new HSM (or without an HSM and all other auth servers
+				// have HSMs)
+				fmt.Println("WARNING: One or more auth servers has a newly added or removed " +
+					"HSM. You should not route traffic to that server until a CA rotation " +
+					"has been completed.")
+			}
 			if c.config.Debug {
 				table.AddRow([]string{info,
 					fmt.Sprintf("%v, update_servers: %v, complete: %v",
 						rotation.String(),
-						rotation.Schedule.UpdateServers.Format(teleport.HumanDateFormatSeconds),
-						rotation.Schedule.Standby.Format(teleport.HumanDateFormatSeconds),
+						rotation.Schedule.UpdateServers.Format(constants.HumanDateFormatSeconds),
+						rotation.Schedule.Standby.Format(constants.HumanDateFormatSeconds),
 					)})
 			} else {
 				table.AddRow([]string{info, rotation.String()})
 			}
 
 		}
-		table.AddRow([]string{"CA pin", caPin})
+		for _, caPin := range caPins {
+			table.AddRow([]string{"CA pin", caPin})
+		}
 		return table.AsBuffer().String()
 	}
 	fmt.Print(view())

@@ -22,15 +22,18 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/trace"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // NodeCommand implements `tctl nodes` group of commands
@@ -68,7 +71,7 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.nodeAdd.Alias(AddNodeHelp)
 
 	c.nodeList = nodes.Command("ls", "List all active SSH nodes within the cluster")
-	c.nodeList.Flag("namespace", "Namespace of the nodes").Default(defaults.Namespace).StringVar(&c.namespace)
+	c.nodeList.Flag("namespace", "Namespace of the nodes").Default(apidefaults.Namespace).StringVar(&c.namespace)
 	c.nodeList.Alias(ListNodesHelp)
 }
 
@@ -92,28 +95,28 @@ This token will expire in %d minutes
 Use this token when defining a trusted cluster resource on a remote cluster.
 `
 
-const nodeMessage = `The invite token: %v
-This token will expire in %d minutes
+var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}.
+This token will expire in {{.minutes}} minutes.
 
 Run this on the new node to join the cluster:
 
 > teleport start \
-   --roles=%s \
-   --token=%v \
-   --ca-pin=%v \
-   --auth-server=%v
+   --roles={{.roles}} \
+   --token={{.token}} \{{range .ca_pins}}
+   --ca-pin={{.}} \{{end}}
+   --auth-server={{.auth_server}}
 
 Please note:
 
-  - This invitation token will expire in %d minutes
-  - %v must be reachable from the new node
-`
+  - This invitation token will expire in {{.minutes}} minutes
+  - {{.auth_server}} must be reachable from the new node
+`))
 
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
 func (c *NodeCommand) Invite(client auth.ClientI) error {
 	// parse --roles flag
-	roles, err := teleport.ParseRoles(c.roles)
+	roles, err := types.ParseTeleportRoles(c.roles)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -122,9 +125,13 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	// Calculate the CA pin for this cluster. The CA pin is used by the client
-	// to verify the identity of the Auth Server.
-	caPin, err := calculateCAPin(client)
+	// Calculate the CA pins for this cluster. The CA pins are used by the
+	// client to verify the identity of the Auth Server.
+	localCAResponse, err := client.GetClusterCACert()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,19 +146,16 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 
 	// output format swtich:
 	if c.format == "text" {
-		if roles.Include(teleport.RoleTrustedCluster) || roles.Include(teleport.LegacyClusterTokenType) {
+		if roles.Include(types.RoleTrustedCluster) || roles.Include(types.LegacyClusterTokenType) {
 			fmt.Printf(trustedClusterMessage, token, int(c.ttl.Minutes()))
 		} else {
-			fmt.Printf(nodeMessage,
-				token,
-				int(c.ttl.Minutes()),
-				strings.ToLower(roles.String()),
-				token,
-				caPin,
-				authServers[0].GetAddr(),
-				int(c.ttl.Minutes()),
-				authServers[0].GetAddr(),
-			)
+			return nodeMessageTemplate.Execute(os.Stdout, map[string]interface{}{
+				"token":       token,
+				"minutes":     int(c.ttl.Minutes()),
+				"roles":       strings.ToLower(roles.String()),
+				"ca_pins":     caPins,
+				"auth_server": authServers[0].GetAddr(),
+			})
 		}
 	} else {
 		// Always return a list, otherwise we'll break users tooling. See #1846 for
@@ -170,7 +174,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 // to a cluster and prints it to stdout
 func (c *NodeCommand) ListActive(client auth.ClientI) error {
 	ctx := context.TODO()
-	nodes, err := client.GetNodes(ctx, c.namespace, services.SkipValidation())
+	nodes, err := client.GetNodes(ctx, c.namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}

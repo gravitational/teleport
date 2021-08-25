@@ -20,27 +20,43 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
 )
 
 // NewNamespace returns new namespace
-func NewNamespace(name string) Namespace {
-	return Namespace{
-		Kind:    KindNamespace,
-		Version: V2,
+func NewNamespace(name string) (Namespace, error) {
+	n := Namespace{
 		Metadata: Metadata{
 			Name: name,
 		},
 	}
+	if err := n.CheckAndSetDefaults(); err != nil {
+		return Namespace{}, trace.Wrap(err)
+	}
+	return n, nil
+}
+
+// DefaultNamespace returns the default namespace.
+func DefaultNamespace() Namespace {
+	namespace, _ := NewNamespace(defaults.Namespace)
+	return namespace
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (n *Namespace) setStaticFields() {
+	n.Kind = KindNamespace
+	n.Version = V2
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
 func (n *Namespace) CheckAndSetDefaults() error {
+	n.setStaticFields()
 	if err := n.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	isValid := IsValidNamespace(n.Metadata.Name)
-	if !isValid {
+
+	if !IsValidNamespace(n.Metadata.Name) {
 		return trace.BadParameter("namespace %q is invalid", n.Metadata.Name)
 	}
 
@@ -95,13 +111,6 @@ func (n *Namespace) Expiry() time.Time {
 // SetExpiry sets expiry time for the object
 func (n *Namespace) SetExpiry(expires time.Time) {
 	n.Metadata.SetExpiry(expires)
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (n *Namespace) SetTTL(clock Clock, ttl time.Duration) {
-	n.Metadata.SetTTL(clock, ttl)
 }
 
 // GetMetadata returns object metadata

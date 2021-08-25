@@ -19,14 +19,15 @@ package common
 import (
 	"context"
 	"os"
+	"text/template"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/service"
 )
 
 // AppsCommand implements "tctl apps" group of commands.
@@ -63,7 +64,7 @@ func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 // ListApps prints the list of applications that have recently sent heartbeats
 // to the cluster.
 func (c *AppsCommand) ListApps(client auth.ClientI) error {
-	servers, err := client.GetAppServers(context.TODO(), defaults.Namespace, services.SkipValidation())
+	servers, err := client.GetAppServers(context.TODO(), apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -85,25 +86,24 @@ func (c *AppsCommand) ListApps(client auth.ClientI) error {
 	return nil
 }
 
-const appMessage = `The invite token: %v
-This token will expire in %d minutes
+var appMessageTemplate = template.Must(template.New("app").Parse(`The invite token: {{.token}}.
+This token will expire in {{.minutes}} minutes.
 
 Fill out and run this command on a node to make the application available:
 
-> teleport start \
-   --roles=%v \
-   --token=%v \
-   --ca-pin=%v \
-   --auth-server=%v \
-   --app-name=%-30v ` + "`" + `# Change "%v" to the name of your application.` + "`" + ` \
-   --app-uri=%-31v ` + "`" + `# Change "%v" to the address of your application.` + "`" + `
+> teleport app start \
+   --token={{.token}} \{{range .ca_pins}}
+   --ca-pin={{.}} \{{end}}
+   --auth-server={{.auth_server}} \
+   --name={{printf "%-30v" .app_name}} ` + "`" + `# Change "{{.app_name}}" to the name of your application.` + "`" + ` \
+   --uri={{printf "%-31v" .app_uri}} ` + "`" + `# Change "{{.app_uri}}" to the address of your application.` + "`" + `
 
-Your application will be available at %v.
+Your application will be available at {{.app_public_addr}}.
 
 Please note:
 
-  - This invitation token will expire in %d minutes.
-  - %v must be reachable from the new application service.
-  - Update DNS to point %v to the Teleport proxy.
-  - Add a TLS certificate for %v to the Teleport proxy under "https_keypairs".
-`
+  - This invitation token will expire in {{.minutes}} minutes.
+  - {{.auth_server}} must be reachable from the new application service.
+  - Update DNS to point {{.app_public_addr}} to the Teleport proxy.
+  - Add a TLS certificate for {{.app_public_addr}} to the Teleport proxy under "https_keypairs".
+`))

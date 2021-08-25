@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -28,7 +27,7 @@ import (
 // ClusterNetworkingConfig defines cluster networking configuration. This is
 // a configuration resource, never create more than one instance of it.
 type ClusterNetworkingConfig interface {
-	Resource
+	ResourceWithOrigin
 
 	// GetClientIdleTimeout returns client idle timeout setting
 	GetClientIdleTimeout() time.Duration
@@ -58,33 +57,51 @@ type ClusterNetworkingConfig interface {
 	// SetSessionControlTimeout sets the session control timeout.
 	SetSessionControlTimeout(t time.Duration)
 
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for ClusterNetworkingConfig.
-	CheckAndSetDefaults() error
+	// GetClientIdleTimeoutMessage fetches the message to be sent to the client in
+	// the event of an idle timeout. An empty string implies no message should
+	// be sent.
+	GetClientIdleTimeoutMessage() string
+
+	// SetClientIdleTimeoutMessage sets the inactivity timeout disconnection message
+	// to be sent to the user.
+	SetClientIdleTimeoutMessage(string)
+
+	// GetWebIdleTimeout gets web idle timeout duration.
+	GetWebIdleTimeout() time.Duration
+
+	// SetWebIdleTimeout sets the web idle timeout duration.
+	SetWebIdleTimeout(time.Duration)
 }
 
-// NewClusterNetworkingConfig is a convenience method to create ClusterNetworkingConfigV2.
-func NewClusterNetworkingConfig(spec ClusterNetworkingConfigSpecV2) (ClusterNetworkingConfig, error) {
-	netConfig := ClusterNetworkingConfigV2{
-		Kind:    KindClusterNetworkingConfig,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameClusterNetworkingConfig,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
-	}
-
-	if err := netConfig.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &netConfig, nil
+// NewClusterNetworkingConfigFromConfigFile is a convenience method to create
+// ClusterNetworkingConfigV2 labelled as originating from config file.
+func NewClusterNetworkingConfigFromConfigFile(spec ClusterNetworkingConfigSpecV2) (ClusterNetworkingConfig, error) {
+	return newClusterNetworkingConfigWithLabels(spec, map[string]string{
+		OriginLabel: OriginConfigFile,
+	})
 }
 
 // DefaultClusterNetworkingConfig returns the default cluster networking config.
 func DefaultClusterNetworkingConfig() ClusterNetworkingConfig {
-	config, _ := NewClusterNetworkingConfig(ClusterNetworkingConfigSpecV2{})
+	config, _ := newClusterNetworkingConfigWithLabels(ClusterNetworkingConfigSpecV2{}, map[string]string{
+		OriginLabel: OriginDefaults,
+	})
 	return config
+}
+
+// newClusterNetworkingConfigWithLabels is a convenience method to create
+// ClusterNetworkingConfigV2 with a specific map of labels.
+func newClusterNetworkingConfigWithLabels(spec ClusterNetworkingConfigSpecV2, labels map[string]string) (ClusterNetworkingConfig, error) {
+	c := &ClusterNetworkingConfigV2{
+		Metadata: Metadata{
+			Labels: labels,
+		},
+		Spec: spec,
+	}
+	if err := c.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c, nil
 }
 
 // GetVersion returns resource version.
@@ -112,13 +129,6 @@ func (c *ClusterNetworkingConfigV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *ClusterNetworkingConfigV2) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata.
 func (c *ClusterNetworkingConfigV2) GetMetadata() Metadata {
 	return c.Metadata
@@ -132,6 +142,16 @@ func (c *ClusterNetworkingConfigV2) GetResourceID() int64 {
 // SetResourceID sets resource ID.
 func (c *ClusterNetworkingConfigV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// Origin returns the origin value of the resource.
+func (c *ClusterNetworkingConfigV2) Origin() string {
+	return c.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (c *ClusterNetworkingConfigV2) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
 }
 
 // GetKind returns resource kind.
@@ -191,12 +211,41 @@ func (c *ClusterNetworkingConfigV2) SetSessionControlTimeout(d time.Duration) {
 	c.Spec.SessionControlTimeout = Duration(d)
 }
 
+func (c *ClusterNetworkingConfigV2) GetClientIdleTimeoutMessage() string {
+	return c.Spec.ClientIdleTimeoutMessage
+}
+
+func (c *ClusterNetworkingConfigV2) SetClientIdleTimeoutMessage(msg string) {
+	c.Spec.ClientIdleTimeoutMessage = msg
+}
+
+// GetWebIdleTimeout gets the web idle timeout.
+func (c *ClusterNetworkingConfigV2) GetWebIdleTimeout() time.Duration {
+	return c.Spec.WebIdleTimeout.Duration()
+}
+
+// SetWebIdleTimeout sets the web idle timeout.
+func (c *ClusterNetworkingConfigV2) SetWebIdleTimeout(ttl time.Duration) {
+	c.Spec.WebIdleTimeout = Duration(ttl)
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (c *ClusterNetworkingConfigV2) setStaticFields() {
+	c.Kind = KindClusterNetworkingConfig
+	c.Version = V2
+	c.Metadata.Name = MetaNameClusterNetworkingConfig
+}
+
 // CheckAndSetDefaults verifies the constraints for ClusterNetworkingConfig.
 func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
-	// Make sure we have defaults for all metadata fields.
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Make sure origin value is always set.
+	if c.Origin() == "" {
+		c.SetOrigin(OriginDynamic)
 	}
 
 	// Set the keep-alive interval and max missed keep-alives.
@@ -208,10 +257,4 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// String returns string representation of cluster networking configuration.
-func (c *ClusterNetworkingConfigV2) String() string {
-	return fmt.Sprintf("ClusterNetworkingConfig(ClientIdleTimeout=%v,KeepAliveInterval=%v,KeepAliveCountMax=%v,SessionControlTimeout=%v)",
-		c.Spec.ClientIdleTimeout, c.Spec.KeepAliveInterval, c.Spec.KeepAliveCountMax, c.Spec.SessionControlTimeout)
 }

@@ -26,7 +26,9 @@ package auth
 import (
 	"context"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -34,10 +36,10 @@ import (
 )
 
 // CreateUser inserts a new user entry in a backend.
-func (s *Server) CreateUser(ctx context.Context, user services.User) error {
+func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 	if user.GetCreatedBy().IsEmpty() {
-		user.SetCreatedBy(services.CreatedBy{
-			User: services.UserRef{Name: ClientUsername(ctx)},
+		user.SetCreatedBy(types.CreatedBy{
+			User: types.UserRef{Name: ClientUsername(ctx)},
 			Time: s.GetClock().Now().UTC(),
 		})
 	}
@@ -51,21 +53,21 @@ func (s *Server) CreateUser(ctx context.Context, user services.User) error {
 
 	var connectorName string
 	if user.GetCreatedBy().Connector == nil {
-		connectorName = teleport.Local
+		connectorName = constants.Local
 	} else {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &events.UserCreate{
-		Metadata: events.Metadata{
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+		Metadata: apievents.Metadata{
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         user.GetCreatedBy().User.Name,
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
 		},
@@ -79,28 +81,28 @@ func (s *Server) CreateUser(ctx context.Context, user services.User) error {
 }
 
 // UpdateUser updates an existing user in a backend.
-func (s *Server) UpdateUser(ctx context.Context, user services.User) error {
+func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 	if err := s.Identity.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
 
 	var connectorName string
 	if user.GetCreatedBy().Connector == nil {
-		connectorName = teleport.Local
+		connectorName = constants.Local
 	} else {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &events.UserCreate{
-		Metadata: events.Metadata{
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+		Metadata: apievents.Metadata{
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
 		},
@@ -114,7 +116,7 @@ func (s *Server) UpdateUser(ctx context.Context, user services.User) error {
 }
 
 // UpsertUser updates a user.
-func (s *Server) UpsertUser(user services.User) error {
+func (s *Server) UpsertUser(user types.User) error {
 	err := s.Identity.UpsertUser(user)
 	if err != nil {
 		return trace.Wrap(err)
@@ -122,20 +124,20 @@ func (s *Server) UpsertUser(user services.User) error {
 
 	var connectorName string
 	if user.GetCreatedBy().Connector == nil {
-		connectorName = teleport.Local
+		connectorName = constants.Local
 	} else {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.UserCreate{
-		Metadata: events.Metadata{
+	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.UserCreate{
+		Metadata: apievents.Metadata{
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User: user.GetName(),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
 		},
@@ -169,16 +171,16 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 	}
 
 	// If the user was successfully deleted, emit an event.
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.UserDelete{
-		Metadata: events.Metadata{
+	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.UserDelete{
+		Metadata: apievents.Metadata{
 			Type: events.UserDeleteEvent,
 			Code: events.UserDeleteCode,
 		},
-		UserMetadata: events.UserMetadata{
+		UserMetadata: apievents.UserMetadata{
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: events.ResourceMetadata{
+		ResourceMetadata: apievents.ResourceMetadata{
 			Name: user,
 		},
 	}); err != nil {

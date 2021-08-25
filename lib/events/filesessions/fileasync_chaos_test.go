@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 
@@ -73,20 +74,20 @@ func TestChaosUpload(t *testing.T) {
 
 	faultyStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 		Inner: streamer,
-		OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event events.AuditEvent) error {
+		OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 			if event.GetIndex() > 700 && terminateConnection.Inc() < 5 {
 				log.Debugf("Terminating connection at event %v", event.GetIndex())
 				return trace.ConnectionProblem(nil, "connection terminated")
 			}
 			return nil
 		},
-		OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer events.Streamer) (events.Stream, error) {
+		OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer events.Streamer) (apievents.Stream, error) {
 			if failCreateAuditStream.Inc() < 5 {
 				return nil, trace.ConnectionProblem(nil, "failed to create stream")
 			}
 			return streamer.CreateAuditStream(ctx, sid)
 		},
-		OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (events.Stream, error) {
+		OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (apievents.Stream, error) {
 			resumed := failResumeAuditStream.Inc()
 			if resumed < 5 {
 				// for the first 5 resume attempts, simulate nework failure
@@ -136,7 +137,7 @@ func TestChaosUpload(t *testing.T) {
 	parallelStreams := 20
 	type streamState struct {
 		sid    string
-		events []events.AuditEvent
+		events []apievents.AuditEvent
 		err    error
 	}
 	streamsCh := make(chan streamState, parallelStreams)
