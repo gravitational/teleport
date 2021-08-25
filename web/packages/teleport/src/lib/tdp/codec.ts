@@ -5,10 +5,9 @@ export enum MessageType {
   PNG_FRAME = 2,
   MOUSE_MOVE = 3,
   MOUSE_BUTTON = 4,
-  KEYBOARD_INPUT = 5,
+  KEYBOARD_BUTTON = 5,
   CLIPBOARD_DATA = 6,
-  USERNAME_PASSWORD_REQUIRED = 7,
-  USERNAME_PASSWORD_RESPONSE = 8,
+  CLIENT_USERNAME = 7,
 }
 
 // 0 is left button, 1 is middle button, 2 is right button
@@ -36,9 +35,8 @@ export type Region = {
 // [2] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView
 // [3] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int32Array
 export default class Codec {
-  // TODO: make these cross-browser, some key codes depend on the browser:
-  // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code/code_values
-
+  // TODO: make these cross-browser, some key codes depend on the browser.
+  // See https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code/code_values
   private _keyScancodes = {
     Unidentified: 0x0000,
     '': 0x0000,
@@ -189,8 +187,9 @@ export default class Codec {
     LaunchMediaPlayer: 0xe06d,
   };
 
-  // encScreenSpec encodes the client's screen spec
-  encScreenSpec(w: number, h: number): Message {
+  // encodeScreenSpec encodes the client's screen spec.
+  // | message type (1) | width uint32 | height uint32 |
+  encodeScreenSpec(w: number, h: number): Message {
     const buffer = new ArrayBuffer(9);
     const view = new DataView(buffer);
     view.setUint8(0, MessageType.CLIENT_SCREEN_SPEC);
@@ -199,8 +198,9 @@ export default class Codec {
     return buffer;
   }
 
-  // encMouseMove encodes a mouse move event
-  encMouseMove(x: number, y: number): Message {
+  // encodeMouseMove encodes a mouse move event.
+  // | message type (3) | x uint32 | y uint32 |
+  encodeMouseMove(x: number, y: number): Message {
     const buffer = new ArrayBuffer(9);
     const view = new DataView(buffer);
     view.setUint8(0, MessageType.MOUSE_MOVE);
@@ -209,8 +209,9 @@ export default class Codec {
     return buffer;
   }
 
-  // encMouseButton encodes a mouse button action
-  encMouseButton(button: MouseButton, state: ButtonState): Message {
+  // encodeMouseButton encodes a mouse button action.
+  // | message type (4) | button byte | state byte |
+  encodeMouseButton(button: MouseButton, state: ButtonState): Message {
     const buffer = new ArrayBuffer(3);
     const view = new DataView(buffer);
     view.setUint8(0, MessageType.MOUSE_BUTTON);
@@ -219,70 +220,64 @@ export default class Codec {
     return buffer;
   }
 
-  // encKeyboard encodes a keyboard action.
-  // Returns null if an unsupported code is passed
-  encKeyboardInput(code: string, state: ButtonState): Message {
+  // encodeKeyboardInput encodes a keyboard action.
+  // Returns null if an unsupported code is passed.
+  // | message type (5) | key_code uint32 | state byte |
+  encodeKeyboardInput(code: string, state: ButtonState): Message {
     const scanCode = this._keyScancodes[code];
     if (!scanCode) {
       return null;
     }
     const buffer = new ArrayBuffer(6);
     const view = new DataView(buffer);
-    view.setUint8(0, MessageType.KEYBOARD_INPUT);
+    view.setUint8(0, MessageType.KEYBOARD_BUTTON);
     view.setUint32(1, scanCode);
     view.setUint8(5, state);
     return buffer;
   }
 
-  // encUsernamePassword encodes the username and password response
-  encUsernamePassword(username: string, password: string): Message {
+  // encodeUsername encodes a username to log in to the remote desktop with.
+  // | message type (7) | username_length uint32 | username []byte |
+  encodeUsername(username: string): Message {
     // Encode username/pass to utf8
     let encoder = new TextEncoder();
     const usernameUtf8array = encoder.encode(username);
-    const passwordUtf8array = encoder.encode(password);
 
-    // initialize buffer and corresponding view
-    // numbers correspond to message spec
-    // | message type (8) | user_length uint32 | username []byte | pass_length uint32 | password []byte
-    const bufLen =
-      1 + 4 + usernameUtf8array.length + 4 + passwordUtf8array.length;
+    // Initialize buffer and corresponding view.
+    // Numbers correspond to message spec
+    const bufLen = 1 + 4 + usernameUtf8array.length;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
     let offset = 0;
 
     // set data
-    view.setUint8(offset++, MessageType.USERNAME_PASSWORD_RESPONSE);
+    view.setUint8(offset++, MessageType.CLIENT_USERNAME);
     view.setUint32(offset, usernameUtf8array.length);
     offset += 4; // 4 bytes to offset 32-bit uint
     usernameUtf8array.forEach(byte => {
-      view.setUint8(offset++, byte);
-    });
-    view.setUint32(offset, passwordUtf8array.length);
-    offset += 4;
-    passwordUtf8array.forEach(byte => {
       view.setUint8(offset++, byte);
     });
 
     return buffer;
   }
 
-  // encClipboardData encodes clipboard data
+  // encodeClipboard encodes clipboard data
   // TODO: need to iterate on protocol in order to syncronize clipboards
   // see https://gravitational.slack.com/archives/D0275RJQHUY/p1629130769002200
-  encClipboard() {
+  encodeClipboard() {
     throw new Error('Not implemented');
   }
 
-  // decClipboard decodes clipboard data
+  // decodeClipboard decodes clipboard data
   // TODO: see docstring for encClipboard
-  decClipboard() {
+  decodeClipboard() {
     throw new Error('Not implemented');
   }
 
-  // decMessageType decodes the MessageType from a raw blob of data
+  // decodeMessageType decodes the MessageType from a raw blob of data
   // (typically raw data recieved over a web socket).
   // Throws an error on an invalid or unexpected MessageType value.
-  decMessageType(blob: Blob): Promise<MessageType> {
+  decodeMessageType(blob: Blob): Promise<MessageType> {
     // Convert the first byte into an ArrayBuffer and read out the MessageType
     return blob
       .slice(0, 1)
@@ -293,8 +288,6 @@ export default class Codec {
           return MessageType.PNG_FRAME;
         } else if (messageType === MessageType.CLIPBOARD_DATA) {
           return MessageType.CLIPBOARD_DATA;
-        } else if (messageType === MessageType.USERNAME_PASSWORD_REQUIRED) {
-          return MessageType.USERNAME_PASSWORD_REQUIRED;
         } else {
           // We don't expect to need to decode any other value on the client side
           throw new Error(`invalid message type: ${messageType}`);
@@ -302,8 +295,8 @@ export default class Codec {
       });
   }
 
-  // decRegion decodes the region from a PNG_FRAME blob
-  decRegion(blob: Blob): Promise<Region> {
+  // decodeRegion decodes the region from a PNG_FRAME blob
+  decodeRegion(blob: Blob): Promise<Region> {
     return blob
       .slice(1, 17)
       .arrayBuffer()
@@ -318,8 +311,8 @@ export default class Codec {
       });
   }
 
-  // decPng decodes the image bitmap from the png data part of a PNG_FRAME blob
-  decPng(blob: Blob): Promise<ImageBitmap> {
+  // decodePng decodes the image bitmap from the png data part of a PNG_FRAME blob
+  decodePng(blob: Blob): Promise<ImageBitmap> {
     return createImageBitmap(blob.slice(17));
   }
 }
