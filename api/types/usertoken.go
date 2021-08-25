@@ -39,6 +39,8 @@ type UserToken interface {
 	GetURL() string
 	// SetURL returns URL
 	SetURL(string)
+	// Verify verifies that this token is of the correct type of token.
+	Verify(currentTime time.Time, allowedKinds ...string) error
 }
 
 // NewUserToken creates an instance of UserToken.
@@ -157,4 +159,24 @@ func (u *UserTokenV3) CheckAndSetDefaults() error {
 // // String represents a human readable version of the token
 func (u *UserTokenV3) String() string {
 	return fmt.Sprintf("UserTokenV3(tokenID=%v, type=%v user=%v, expires at %v)", u.GetName(), u.GetSubKind(), u.Spec.User, u.Expiry())
+}
+
+func (u *UserTokenV3) Verify(currentTime time.Time, allowedKinds ...string) error {
+	if u.Expiry().Before(currentTime.UTC()) {
+		return trace.BadParameter("expired token")
+	}
+
+	matchFound := false
+	for _, kind := range allowedKinds {
+		if u.GetSubKind() == kind {
+			matchFound = true
+			break
+		}
+	}
+
+	if !matchFound {
+		return trace.BadParameter("invalid token")
+	}
+
+	return nil
 }

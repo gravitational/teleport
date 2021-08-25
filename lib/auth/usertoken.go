@@ -24,8 +24,11 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -43,6 +46,14 @@ const (
 	// UserTokenTypeResetPassword is a token type used for the UI flow where user
 	// re-sets their password and second factor (if enabled).
 	UserTokenTypeResetPassword = "password"
+	// UserTokenTypePrivilege describes a token type that grants access to a privileged action
+	// that requires users to re-authenticate with their second factor while looged in. This
+	// token is issued to users who has successfully re-authenticated.
+	UserTokenTypePrivilege = "privilege"
+	// UserTokenTypePrivilegeException describes a token type that allowed a user to bypass
+	// second factor re-authentication which in other cases would be required eg:
+	// allowing user to add a mfa device if they don't have any registered.
+	UserTokenTypePrivilegeException = "privilege_exception"
 )
 
 // CreateUserTokenRequest is a request to create a new user token.
@@ -91,6 +102,9 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 				"failed to create user token for reset password: maximum token TTL is %v hours",
 				defaults.MaxChangePasswordTokenTTL)
 		}
+
+	case UserTokenTypePrivilege, UserTokenTypePrivilegeException:
+		r.TTL = defaults.PrivilegeTokenTTL
 
 	default:
 		return trace.BadParameter("unknown user token request type(%v)", r.Type)
@@ -372,6 +386,131 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 	// DELETE IN 9.0.0: remove checking for empty string.
 	if token.GetSubKind() != "" && token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
 		return nil, trace.BadParameter("invalid token")
+	}
+
+	return token, nil
+}
+
+// CreatePrivilegeToken implements AuthService.CreatePrivilegeToken.
+func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest, username string) (types.UserToken, error) {
+	if username == "" {
+		return nil, trace.BadParameter("missing parameter username")
+	}
+
+	authPref, err := s.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authPref.GetAllowLocalAuth() {
+		return nil, trace.AccessDenied("local auth needs to be enabled")
+	}
+
+	secondFactor := authPref.GetSecondFactor()
+	if secondFactor == constants.SecondFactorOff {
+		return nil, trace.AccessDenied("second factor must be enabled")
+	}
+
+	tokenKind := UserTokenTypePrivilege
+
+	// Begin authenticating second factor.
+	switch req.GetExistingMFAResponse().GetResponse().(type) {
+	case *proto.MFAAuthenticateResponse_TOTP:
+		if secondFactor == constants.SecondFactorU2F {
+			return nil, trace.BadParameter("unexpected u2f credential")
+		}
+
+		err := s.WithUserLock(username, func() error {
+			_, err := s.checkOTP(username, req.GetExistingMFAResponse().GetTOTP().GetCode())
+			return err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	case *proto.MFAAuthenticateResponse_U2F:
+		if secondFactor == constants.SecondFactorOTP {
+			return nil, trace.BadParameter("unexpected otp credential")
+		}
+
+		err := s.WithUserLock(username, func() error {
+			_, err := s.CheckU2FSignResponse(ctx, username, &u2f.AuthenticateChallengeResponse{
+				KeyHandle:     req.GetExistingMFAResponse().GetU2F().GetKeyHandle(),
+				SignatureData: req.GetExistingMFAResponse().GetU2F().GetSignature(),
+				ClientData:    req.GetExistingMFAResponse().GetU2F().GetClientData(),
+			})
+			return trace.Wrap(err)
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	default:
+		// Allows users with no devices to bypass second factor re-auth.
+		devices, err := s.Identity.GetMFADevices(ctx, username, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(devices) > 0 {
+			return nil, trace.BadParameter("second factor authentication required")
+		}
+
+		tokenKind = UserTokenTypePrivilegeException
+	}
+
+	// Delete any existing user tokens for user before creating.
+	if err := s.deleteUserTokens(ctx, username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := s.createPrivilegeToken(ctx, username, tokenKind)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return token, nil
+}
+
+func (s *Server) createPrivilegeToken(ctx context.Context, username string, tokenKind string) (types.UserToken, error) {
+	if tokenKind != UserTokenTypePrivilege && tokenKind != UserTokenTypePrivilegeException {
+		return nil, trace.BadParameter("invalid privilege token type")
+	}
+
+	req := CreateUserTokenRequest{
+		Name: username,
+		Type: tokenKind,
+	}
+
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newToken, err := s.newUserToken(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := s.Identity.CreateUserToken(ctx, newToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
+		Metadata: apievents.Metadata{
+			Type: events.PrivilegeTokenCreateEvent,
+			Code: events.PrivilegeTokenCreateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: username,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    req.Name,
+			TTL:     req.TTL.String(),
+			Expires: s.GetClock().Now().UTC().Add(req.TTL),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit create privilege token event.")
 	}
 
 	return token, nil
