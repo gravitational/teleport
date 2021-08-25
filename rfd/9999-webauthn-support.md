@@ -148,6 +148,18 @@ auth_service:
       attestation_denied_cas:  []
 ```
 
+Changes to the `cluster_auth_preference` resource follow suite (no new resources
+or version increments required):
+
+```yaml
+kind: cluster_auth_preference
+version: v2
+spec:
+  type: local
+  second_factor: webauthn # same as teleport.yaml
+  webauthn: {}            # same as teleport.yaml
+```
+
 The general philosophy for configuration is that we provide the minimum set of
 configurations necessary and automatically choose the more secure/usable options
 ourselves.
