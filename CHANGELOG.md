@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.2.11
+
+This release of Teleport contains two bug fixes.
+
+* Fixed performance issues with DynamoDB. [#7995](https://github.com/gravitational/teleport/pull/7995)
+* Fixed an issue with app descriptions not being displayed in the Web UI. [#7993](https://github.com/gravitational/teleport/pull/7993)
+
 ## 6.2.10
 
 This release of Teleport contains a bug fix.
