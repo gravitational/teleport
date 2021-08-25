@@ -1,6 +1,6 @@
 ---
 authors: Andrej Tokarčík (andrej@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 9 - Locking
