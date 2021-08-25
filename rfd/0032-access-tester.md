@@ -1,6 +1,6 @@
 ---
 authors: Rui Li (rui@goteleport.com)
-state: 
+state: implemented
 ---
 
 # RFD 32 - Datalog based access tester
