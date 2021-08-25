@@ -9,7 +9,7 @@ description: CLI reference for Teleport Database Access.
 
 Starts Teleport Database Service agent.
 
-```shell
+```code
 $ teleport db start \
     --token=/path/to/token \
     --auth-server=proxy.example.com:3080 \
@@ -44,7 +44,7 @@ When invoked with a `--format=db` (or `--format=mongodb` for MongoDB) flag,
 produces a CA certificate, a client certificate and a private key file used for
 configuring Database Access with self-hosted database instances.
 
-```shell
+```code
 $ tctl auth sign --format=db --host=db.example.com --out=db --ttl=2190h
 ```
 
@@ -61,7 +61,7 @@ $ tctl auth sign --format=db --host=db.example.com --out=db --ttl=2190h
 
 Administrative command to list all databases registered with the cluster.
 
-```shell
+```code
 $ tctl db ls
 $ tctl db ls --format=yaml
 ```
@@ -74,7 +74,7 @@ $ tctl db ls --format=yaml
 
 Lists available databases and their connection information.
 
-```shell
+```code
 $ tsh db ls
 ```
 
@@ -84,7 +84,7 @@ Displays only the databases a user has access to (see [RBAC](../rbac.mdx)).
 
 Retrieves database credentials.
 
-```shell
+```code
 $ tsh db login example
 $ tsh db login --db-user=postgres --db-name=postgres example
 ```
@@ -98,7 +98,7 @@ $ tsh db login --db-user=postgres --db-name=postgres example
 
 Removes database credentials.
 
-```shell
+```code
 $ tsh db logout example
 $ tsh db logout
 ```
@@ -107,7 +107,7 @@ $ tsh db logout
 
 Connect to a database using its CLI client.
 
-```bash
+```code
 # Short syntax when only logged into a single database.
 $ tsh db connect
 # Specify database service to connect to explicitly.
@@ -130,7 +130,7 @@ $ tsh db connect --db-user=alice --db-name=db example
 
 Outputs environment variables for a particular database.
 
-```shell
+```code
 $ tsh db env
 $ tsh db env example
 $ eval $(tsh db env)
@@ -140,7 +140,7 @@ $ eval $(tsh db env)
 
 Prints database connection information. Useful when configuring GUI clients.
 
-```bash
+```code
 $ tsh db config
 $ tsh db config example
 $ tsh db config --format=cmd example
