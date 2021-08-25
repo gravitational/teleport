@@ -46,6 +46,7 @@ func (h *Handler) handleDesktopAccessWebsocket(
 		return nil, trace.BadParameter("missing desktopUUID in request URL")
 	}
 	log := ctx.log.WithField("desktop-uuid", desktopUUID)
+	log.Debug("New desktop access websocket connection")
 
 	winServices, err := ctx.unsafeCachedAuthClient.GetWindowsDesktopServices(r.Context())
 	if err != nil {
@@ -76,10 +77,12 @@ func (h *Handler) handleDesktopAccessWebsocket(
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "failed to connect to windows_desktop_service at %q: %v", service.GetAddr(), err)
 	}
+	defer serviceCon.Close()
 	tlsConfig := ctx.clt.Config()
 	// Pass target desktop UUID via SNI.
 	tlsConfig.ServerName = desktopUUID + desktop.SNISuffix
 	serviceConTLS := tls.Client(serviceCon, ctx.clt.Config())
+	log.Debug("Connected to windows_desktop_service")
 
 	websocket.Handler(func(conn *websocket.Conn) {
 		if err := proxyWebsocketConn(conn, serviceConTLS); err != nil {
@@ -90,6 +93,9 @@ func (h *Handler) handleDesktopAccessWebsocket(
 }
 
 func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
+	// Ensure we send binary frames to the browser.
+	ws.PayloadType = websocket.BinaryFrame
+
 	errs := make(chan error, 2)
 	go func() {
 		defer ws.Close()
