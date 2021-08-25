@@ -1102,6 +1102,7 @@ type MFAAuthenticateChallenge struct {
 	TOTPChallenge bool `json:"totp_challenge"`
 }
 
+// TODO lisa: Update webapps config to use the new CreateAuthenticateChallenge endpoint instead.
 func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
 	ctx := context.TODO()
 
@@ -1137,6 +1138,32 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	return chal, nil
 }
 
+// CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
+func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, username string) (*proto.MFAAuthenticateChallenge, error) {
+	switch req.GetRequest().(type) {
+	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
+		username = req.GetUserCredentials().GetUsername()
+		err := a.WithUserLock(username, func() error {
+			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	case *proto.CreateAuthenticateChallengeRequest_TokenID:
+		token, err := a.GetUserToken(ctx, req.GetTokenID())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// TODO lisa place restrictions for recovery token
+
+		username = token.GetUser()
+	}
+
+	return a.mfaAuthChallenge(ctx, username, a.Identity /* u2f storage */)
+}
+
 // GetMFADevices returns all mfa devices for the user defined in the token or the user defined in context.
 func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest, username string) (*proto.GetMFADevicesResponse, error) {
 	if req.TokenID != "" {
@@ -1162,6 +1189,192 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 	return &proto.GetMFADevicesResponse{
 		Devices: devs,
 	}, nil
+}
+
+// AddMFADeviceSync implements AuthService.AddMFADeviceSync.
+func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) error {
+	token, err := a.GetUserToken(ctx, req.GetTokenID())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO lisa add recovery kinds
+	if err := token.Verify(a.clock.Now(), UserTokenTypePrivilege, UserTokenTypePrivilegeException); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.addMFADeviceFromToken(ctx, req.GetNewMFARegisterResponse(), token, req.GetNewDeviceName()))
+}
+
+// addMFADeviceFromToken adds MFA device with secrets and challenge key associated with a user token.
+func (a *Server) addMFADeviceFromToken(ctx context.Context, regResp *proto.MFARegisterResponse, token types.UserToken, deviceName string) error {
+	cap, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Validate MFARegisterResponse and upsert the new device on success.
+	var dev *types.MFADevice
+	switch resp := regResp.Response.(type) {
+	case *proto.MFARegisterResponse_TOTP:
+		if cap.GetSecondFactor() == constants.SecondFactorU2F {
+			return trace.BadParameter("cluster only allows U2F for second factor")
+		}
+
+		secrets, err := a.Identity.GetUserTokenSecrets(ctx, token.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		dev, err = services.NewTOTPDevice(deviceName, secrets.GetOTPKey(), a.clock.Now())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := a.checkTOTP(ctx, token.GetUser(), resp.TOTP.Code, dev); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := a.UpsertMFADevice(ctx, token.GetUser(), dev); err != nil {
+			return trace.Wrap(err)
+		}
+
+	case *proto.MFARegisterResponse_U2F:
+		u2fConfig, err := cap.GetU2F()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// u2f.RegisterVerify will upsert the new device internally.
+		dev, err = u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
+			DevName: deviceName,
+			Resp: u2f.RegisterChallengeResponse{
+				RegistrationData: resp.U2F.RegistrationData,
+				ClientData:       resp.U2F.ClientData,
+			},
+			ChallengeStorageKey:    token.GetName(),
+			RegistrationStorageKey: token.GetUser(),
+			Storage:                a.Identity,
+			Clock:                  a.GetClock(),
+			AttestationCAs:         u2fConfig.DeviceAttestationCAs,
+		})
+
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+	default:
+		return trace.BadParameter("MFARegisterResponse sent an unknown response type %v", regResp.Response)
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceAdd{
+		Metadata: apievents.Metadata{
+			Type: events.MFADeviceAddEvent,
+			Code: events.MFADeviceAddEventCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: token.GetUser(),
+		},
+		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit add mfa device event.")
+	}
+
+	return nil
+}
+
+// DeleteMFADeviceSync implements AuthService.DeleteMFADeviceSync.
+func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
+	token, err := a.GetUserToken(ctx, req.GetTokenID())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO lisa add recovery kinds
+	if err := token.Verify(a.clock.Now(), UserTokenTypePrivilege); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.deleteMFADeviceSafely(ctx, token.GetUser(), req.GetDeviceName()))
+}
+
+// deleteMFADeviceSafely deletes the user's mfa device while preventing users from deleting their last device
+// for clusters that require MFA. This prevents users from being locked out of their account.
+func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) error {
+	// Find the device and delete it from backend.
+	devs, err := a.Identity.GetMFADevices(ctx, user, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authPref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var numTOTPDevs, numU2FDevs int
+	for _, d := range devs {
+		switch d.Device.(type) {
+		case *types.MFADevice_Totp:
+			numTOTPDevs++
+		case *types.MFADevice_U2F:
+			numU2FDevs++
+		default:
+			return trace.BadParameter("unknown MFA device type: %T", d.Device)
+		}
+	}
+
+	for _, d := range devs {
+		// Match device by name or ID.
+		if d.Metadata.Name != deviceName && d.Id != deviceName {
+			continue
+		}
+
+		// Make sure that the user won't be locked out by deleting the last MFA
+		// device. This only applies when the cluster requires MFA.
+		switch authPref.GetSecondFactor() {
+		case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
+		case constants.SecondFactorOTP:
+			if _, ok := d.Device.(*types.MFADevice_Totp); ok && numTOTPDevs == 1 {
+				return trace.BadParameter("cannot delete the last OTP device for this user; add a replacement device first to avoid getting locked out")
+			}
+		case constants.SecondFactorU2F:
+			if _, ok := d.Device.(*types.MFADevice_U2F); ok && numU2FDevs == 1 {
+				return trace.BadParameter("cannot delete the last U2F device for this user; add a replacement device first to avoid getting locked out")
+			}
+		case constants.SecondFactorOn:
+			if len(devs) == 1 {
+				return trace.BadParameter("cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
+			}
+		default:
+			log.Warningf("Unknown second factor value in cluster AuthPreference: %q", authPref.GetSecondFactor())
+		}
+
+		if err := a.DeleteMFADevice(ctx, user, d.Id); err != nil {
+			return trace.Wrap(err)
+		}
+
+		clusterName, err := a.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := a.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceDelete{
+			Metadata: apievents.Metadata{
+				Type:        events.MFADeviceDeleteEvent,
+				Code:        events.MFADeviceDeleteEventCode,
+				ClusterName: clusterName.GetClusterName(),
+			},
+			UserMetadata: apievents.UserMetadata{
+				User: user,
+			},
+			MFADeviceMetadata: mfaDeviceEventMetadata(d),
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+	return trace.NotFound("MFA device %q does not exist", deviceName)
 }
 
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
