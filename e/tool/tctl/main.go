@@ -26,6 +26,7 @@ func main() {
 		&common.AppsCommand{},
 		&common.DBCommand{},
 		&common.LockCommand{},
+		&common.AccessCommand{},
 	}
 	common.Run(commands)
 }

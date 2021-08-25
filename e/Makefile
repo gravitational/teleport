@@ -66,6 +66,34 @@ endif
 endif
 endif
 
+# Check if rust and cargo are installed before compiling
+with_roletester := no
+ROLETESTER_ENT_MESSAGE := "without access tester"
+CHECK_CARGO := $(shell cargo --version 2>/dev/null)
+CHECK_RUST := $(shell rustc --version 2>/dev/null)
+
+ifneq ($(CHECK_RUST),)
+ifneq ($(CHECK_CARGO),)
+with_roletester := yes
+ROLETESTER_ENT_MESSAGE := "with access tester"
+ROLETESTER_TAG := roletester
+ROLETESTER_BUILDDIR := ../lib/datalog/roletester/Cargo.toml
+endif
+endif
+
+#
+# tctl role tester
+# Requires a recent version of Rust and Cargo installed (tested rustc >= 1.52.1 and cargo >= 1.52.0)
+#
+ifeq ("$(with_roletester)", "yes")
+.PHONY: roletester
+roletester:
+	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release
+else
+.PHONY: roletester
+roletester:
+endif
+
 # Reproducible builds are only availalbe on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
 ifneq ("$(OS)","linux")
@@ -78,8 +106,7 @@ ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
-
-RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_ENT_MESSAGE) and $(FIPS_ENT_MESSAGE) and $(BPF_ENT_MESSAGE)."
+RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_ENT_MESSAGE) and $(FIPS_ENT_MESSAGE) and $(BPF_ENT_MESSAGE) and $(ROLETESTER_ENT_MESSAGE)."
 
 # All build Enterprise version of "teleport" and "tctl" binaries and copy
 # over tsh from OSS.
@@ -94,8 +121,8 @@ all:
 # * Manual change detection was broken on a large dependency tree
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
-$(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+$(BUILDDIR)/tctl: roletester
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: bpf-bytecode-e ensure-webassets-e teleport-fips-check
@@ -123,7 +150,7 @@ endif
 teleport-fips-check:
 	@if [ "$(FIPS)" != "" ]; then \
 		echo "FIPS mode requested, pre-compiling and checking binary for BoringCrypto symbols."; \
-		GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport-unstripped -ldflags "" ./tool/teleport; \
+		GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(ROLETESTER_TAG)" -o $(BUILDDIR)/teleport-unstripped -ldflags "" ./tool/teleport; \
 		if go tool nm $(BUILDDIR)/teleport-unstripped 2>&1 | grep boringcrypto; then \
 			echo "BoringCrypto appears enabled."; \
 		else \
