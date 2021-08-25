@@ -99,8 +99,8 @@ $ tctl create -f rscs.yaml
 
 Teleport Plugin use the `access-plugin-mattermost` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign).
 
-```bash
-tctl auth sign --format=tls --user=access-plugin-mattermost --out=auth --ttl=2190h
+```code
+$ tctl auth sign --format=tls --user=access-plugin-mattermost --out=auth --ttl=2190h
 # ...
 ```
 
@@ -120,13 +120,13 @@ location as plugins have a low memory footprint, and will require both public in
 and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost).
 
-```bash
+```code
 $ wget https://get.gravitational.com/teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
 $ tar -xzf teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
 $ cd teleport-access-mattermost
 $ ./install
 $ which teleport-mattermost
-/usr/local/bin/teleport-mattermost
+# /usr/local/bin/teleport-mattermost
 ```
 
 Run `./install` in from 'teleport-mattermost' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
@@ -136,7 +136,7 @@ Run `./install` in from 'teleport-mattermost' or place the executable in the app
 Mattermost Bot uses a config file in TOML format. Generate a boilerplate config by
 running the following command:
 
-```bash
+```code
 $ teleport-mattermost configure > teleport-mattermost.toml
 $ sudo mv teleport-mattermost.toml /etc
 ```
@@ -153,23 +153,23 @@ With the config above, you should be able to run the bot invoking
 `teleport-mattermost start -d`. The will provide some debug information to make sure
 the bot can connect to Mattermost.
 
-```bash
+```code
 $ teleport-mattermost start -d
-DEBU   DEBUG logging enabled logrus/exported.go:117
-INFO   Starting Teleport Access Mattermost Bot (=teleport.plugin.version=)-dev.1: mattermost/main.go:140
-DEBU   Checking Teleport server version mattermost/main.go:234
-DEBU   Starting a request watcher... mattermost/main.go:296
-DEBU   Starting Mattermost API health check... mattermost/main.go:186
-DEBU   Starting secure HTTPS server on :8081 utils/http.go:146
-DEBU   Watcher connected mattermost/main.go:260
-DEBU   Mattermost API health check finished ok mattermost/main.go:19
+# DEBU   DEBUG logging enabled logrus/exported.go:117
+# INFO   Starting Teleport Access Mattermost Bot (=teleport.plugin.version=)-dev.1: mattermost/main.go:140
+# DEBU   Checking Teleport server version mattermost/main.go:234
+# DEBU   Starting a request watcher... mattermost/main.go:296
+# DEBU   Starting Mattermost API health check... mattermost/main.go:186
+# DEBU   Starting secure HTTPS server on :8081 utils/http.go:146
+# DEBU   Watcher connected mattermost/main.go:260
+# DEBU   Mattermost API health check finished ok mattermost/main.go:19
 ```
 
 ### Setup with SystemD
 
 In production, we recommend starting teleport plugin daemon via an init system like systemd . Here's the recommended Teleport Plugin service unit file for systemd:
 
-```bash
+```ini
 (!examples/systemd/plugins/teleport-mattermost.service!)
 ```
 
