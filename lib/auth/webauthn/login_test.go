@@ -61,7 +61,7 @@ func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
 	}
 
 	u2fConfig := types.U2F{AppID: "https://example.com:3080"}
-	webConfig := wanlib.Config{RPID: "example.com"}
+	webConfig := types.Webauthn{RPID: "example.com"}
 	webLogin := wanlib.LoginFlow{
 		U2F:      &u2fConfig,
 		Webauthn: &webConfig,
@@ -135,7 +135,7 @@ func (f *fakeIdentity) GetUser(user string, withSecrets bool) (types.User, error
 	return f.User, nil
 }
 
-func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error) {
+func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	return f.User.GetLocalAuth().MFA, nil
 }
 
@@ -144,12 +144,12 @@ func (f *fakeIdentity) UpsertMFADevice(ctx context.Context, user string, d *type
 	return nil
 }
 
-func (f *fakeIdentity) UpsertWebAuthnSessionData(user, sessionID string, sd *wantypes.SessionData) error {
+func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
 	f.SessionData[sessionDataKey(user, sessionID)] = sd
 	return nil
 }
 
-func (f *fakeIdentity) GetWebAuthnSessionData(user, sessionID string) (*wantypes.SessionData, error) {
+func (f *fakeIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
 	sd, ok := f.SessionData[sessionDataKey(user, sessionID)]
 	if !ok {
 		return nil, trace.NotFound("not found")
@@ -157,7 +157,7 @@ func (f *fakeIdentity) GetWebAuthnSessionData(user, sessionID string) (*wantypes
 	return sd, nil
 }
 
-func (f *fakeIdentity) DeleteWebAuthnSessionData(user, sessionID string) error {
+func (f *fakeIdentity) DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error {
 	delete(f.SessionData, sessionDataKey(user, sessionID))
 	return nil
 }

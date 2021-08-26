@@ -54,11 +54,11 @@ const loginSessionID = "login"
 // testing.
 type loginIdentity interface {
 	GetUser(user string, withSecrets bool) (types.User, error)
-	GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error)
+	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
-	UpsertWebAuthnSessionData(user, sessionID string, sd *wantypes.SessionData) error
-	GetWebAuthnSessionData(user, sessionID string) (*wantypes.SessionData, error)
-	DeleteWebAuthnSessionData(user, sessionID string) error
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
+	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 }
 
 // LoginFlow represents the WebAuthn login procedure (aka authentication).
@@ -76,7 +76,7 @@ type loginIdentity interface {
 //    complete.
 type LoginFlow struct {
 	U2F      *types.U2F
-	Webauthn *Config
+	Webauthn *types.Webauthn
 	// Identity is typically an implementation of the Identity service, ie, an
 	// object with access to user, device and MFA storage.
 	Identity loginIdentity
@@ -92,7 +92,7 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertio
 	// Fetch existing user devices. We need the devices both to set the allowed
 	// credentials for the user (webUser.credentials) and to determine if the U2F
 	// appid extension is necessary.
-	devices, err := f.Identity.GetMFADevices(ctx, user)
+	devices, err := f.Identity.GetMFADevices(ctx, user, false /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -127,7 +127,7 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := f.Identity.UpsertWebAuthnSessionData(user, loginSessionID, sessionDataPB); err != nil {
+	if err := f.Identity.UpsertWebauthnSessionData(ctx, user, loginSessionID, sessionDataPB); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -173,7 +173,7 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 
 	// Find the device used to sign the credentials. It must be a previously
 	// registered device.
-	devices, err := f.Identity.GetMFADevices(ctx, user)
+	devices, err := f.Identity.GetMFADevices(ctx, user, false /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -196,7 +196,7 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 
 	// Fetch the previously-stored SessionData, so it's checked against the user
 	// response.
-	sessionDataPB, err := f.Identity.GetWebAuthnSessionData(user, loginSessionID)
+	sessionDataPB, err := f.Identity.GetWebauthnSessionData(ctx, user, loginSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -223,7 +223,7 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 
 	// The user just solved this challenge, so let's make sure it won't be used
 	// again.
-	if err := f.Identity.DeleteWebAuthnSessionData(user, loginSessionID); err != nil {
+	if err := f.Identity.DeleteWebauthnSessionData(ctx, user, loginSessionID); err != nil {
 		log.Warnf("WebAuthn: failed to delete SessionData for user %v", user)
 	}
 
