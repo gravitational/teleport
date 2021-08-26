@@ -18,11 +18,10 @@ import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { Database } from 'teleport/services/databases';
 import { Desktop } from 'teleport/services/desktops';
 
 export default function useDesktops(ctx: Ctx) {
-  const { attempt, run, setAttempt } = useAttempt('processing');
+  const { attempt, run } = useAttempt('processing');
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const username = ctx.storeUser.state.username;
   const canCreate = ctx.storeUser.getTokenAccess().create;
@@ -30,45 +29,20 @@ export default function useDesktops(ctx: Ctx) {
   const version = ctx.storeUser.state.cluster.authVersion;
   const authType = ctx.storeUser.state.authType;
 
-  const [databases, setDatabases] = useState<Database[]>([]);
-  const [isAddDialogVisible, setIsAddDialogVisible] = useState(false);
   const [searchValue, setSearchValue] = useState<string>('');
 
   const [desktops, setDesktops] = useState<Desktop[]>([]);
 
   useEffect(() => {
-    run(() => ctx.databaseService.fetchDatabases(clusterId).then(setDatabases));
     run(() => ctx.desktopService.fetchDesktops(clusterId).then(setDesktops));
   }, [clusterId]);
 
-  const fetchDatabases = () => {
-    return ctx.databaseService
-      .fetchDatabases(clusterId)
-      .then(setDatabases)
-      .catch((err: Error) =>
-        setAttempt({ status: 'failed', statusText: err.message })
-      );
-  };
-
-  const hideAddDialog = () => {
-    setIsAddDialogVisible(false);
-    fetchDatabases();
-  };
-
-  const showAddDialog = () => {
-    setIsAddDialogVisible(true);
-  };
-
   return {
     desktops,
-    databases,
     attempt,
     canCreate,
     isLeafCluster,
     isEnterprise,
-    hideAddDialog,
-    showAddDialog,
-    isAddDialogVisible,
     username,
     version,
     clusterId,

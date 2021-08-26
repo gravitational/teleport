@@ -15,15 +15,11 @@ limitations under the License.
 */
 
 // Desktop is a remote desktop.
-export interface Desktop {
+export type Desktop = {
   // OS is the os of this desktop.
-  os: OsString;
+  os: 'windows' | 'linux' | 'darwin';
   // Name is name (uuid) of the windows desktop.
   name: string;
   // Addr is the network address the desktop can be reached at.
   addr: string;
-}
-
-// Corresponds to constants.WindowsOS, constants.LinuxOS, or constants.DarwinOS
-// in teleport.
-export type OsString = "windows" | "linux" | "darwin"
+};
