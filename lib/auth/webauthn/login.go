@@ -53,7 +53,8 @@ const loginSessionID = "login"
 // It exists to better scope LoginFlow's use of Identity and to facilitate
 // testing.
 type loginIdentity interface {
-	GetUser(user string, withSecrets bool) (types.User, error)
+	userIDStorage
+
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
 	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
@@ -104,12 +105,11 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertio
 		}))
 	}
 
-	// Fetch the user with secrets, their WebAuthn ID is inside.
-	storedUser, err := f.Identity.GetUser(user, true /* withSecrets */)
+	webID, err := getOrCreateUserWebauthnID(ctx, user, f.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	u := newWebUser(storedUser, true /* idOnly */, devices)
+	u := newWebUser(user, webID, true /* credentialIDOnly */, devices)
 
 	// Create the WebAuthn object and create a new challenge.
 	web, err := newWebAuthn(f.Webauthn, f.Webauthn.RPID, "" /* origin */)
@@ -187,12 +187,12 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 			"appid extension is true, but credential is not for an U2F device: %q", base64.RawURLEncoding.EncodeToString(parsedResp.RawID))
 	}
 
-	// Fetch the user with secrets, their WebAuthn ID is inside.
-	storedUser, err := f.Identity.GetUser(user, true /* withSecrets */)
+	// Fetch the user web ID, it must exist if they got here.
+	wla, err := f.Identity.GetWebauthnLocalAuth(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	u := newWebUser(storedUser, false /* idOnly */, []*types.MFADevice{dev})
+	u := newWebUser(user, wla.UserID, false /* credentialIDOnly */, []*types.MFADevice{dev})
 
 	// Fetch the previously-stored SessionData, so it's checked against the user
 	// response.

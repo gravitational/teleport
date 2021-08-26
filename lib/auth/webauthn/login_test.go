@@ -78,7 +78,16 @@ func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
 	require.Equal(t, webConfig.RPID, assertion.Response.RelyingPartyID)
 	require.Equal(t, u2fConfig.AppID, assertion.Response.Extensions["appid"])
 	// Did we record the SessionData in storage?
-	require.NotEmpty(t, identity.SessionData)
+	require.Len(t, identity.SessionData, 1)
+	var sd *wantypes.SessionData
+	for _, v := range identity.SessionData {
+		sd = v
+		break
+	}
+	// Did we create a new web user ID? Was it used?
+	webID := identity.User.GetLocalAuth().Webauthn.UserID
+	require.NotEmpty(t, webID)
+	require.Equal(t, webID, sd.UserId)
 
 	// User interaction would happen here.
 	assertionResp, err := dev.SignAssertion("https://example.com:3080" /* origin */, assertion)
@@ -131,10 +140,6 @@ type fakeIdentity struct {
 	SessionData    map[string]*wantypes.SessionData
 }
 
-func (f *fakeIdentity) GetUser(user string, withSecrets bool) (types.User, error) {
-	return f.User, nil
-}
-
 func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	return f.User.GetLocalAuth().MFA, nil
 }
@@ -142,6 +147,19 @@ func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string, withSecre
 func (f *fakeIdentity) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	f.UpdatedDevices = append(f.UpdatedDevices, d)
 	return nil
+}
+
+func (f *fakeIdentity) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
+	f.User.GetLocalAuth().Webauthn = wla
+	return nil
+}
+
+func (f *fakeIdentity) GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
+	wla := f.User.GetLocalAuth().Webauthn
+	if wla == nil {
+		return nil, trace.NotFound("not found")
+	}
+	return wla, nil
 }
 
 func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
