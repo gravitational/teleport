@@ -2411,10 +2411,10 @@ func (m *testCloudModules) Features() modules.Features {
 	}
 }
 
-// TestReceivingAccountRecoveryCodesWhenChangingAuthns tests for following:
+// TestChangeUserAuthentication_recoveryCodesReturnedForCloud tests for following:
 //  - Recovery codes are not returned for usernames that are not emails
 //  - Recovery codes are returned for usernames that are valid emails
-func TestReceivingAccountRecoveryCodesWhenChangingAuthenticationsWithToken(t *testing.T) {
+func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	env := newWebPack(t, 1)
 	ctx := context.Background()
 
@@ -2438,22 +2438,22 @@ func TestReceivingAccountRecoveryCodesWhenChangingAuthenticationsWithToken(t *te
 	env.server.Auth().CreateUser(ctx, teleUser)
 
 	// Create a reset password token and secrets.
-	token, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
 		Name: "invalid-name-for-recovery",
 	})
 	require.NoError(t, err)
-	secrets, err := env.server.Auth().RotateUserTokenSecrets(ctx, token.GetName())
+	secrets, err := env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
 	require.NoError(t, err)
-	secondFactorToken, err := totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	totpCode, err := totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
 	require.NoError(t, err)
 
 	// Test invalid username does not receive codes.
 	clt := env.proxies[0].client
 	re, err := clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
-		TokenID:     token.GetName(),
+		TokenID:     resetToken.GetName(),
 		NewPassword: []byte("abc123"),
 		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
-			TOTP: &apiProto.TOTPRegisterResponse{Code: secondFactorToken},
+			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
 		}},
 	})
 	require.NoError(t, err)
@@ -2465,21 +2465,21 @@ func TestReceivingAccountRecoveryCodesWhenChangingAuthenticationsWithToken(t *te
 	env.server.Auth().CreateUser(ctx, teleUser)
 
 	// Create a reset password token and secrets.
-	token, err = env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+	resetToken, err = env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
 		Name: "valid-username@example.com",
 	})
 	require.NoError(t, err)
-	secrets, err = env.server.Auth().RotateUserTokenSecrets(ctx, token.GetName())
+	secrets, err = env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
 	require.NoError(t, err)
-	secondFactorToken, err = totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	totpCode, err = totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
 	require.NoError(t, err)
 
 	// Test valid username (email) returns codes.
 	re, err = clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
-		TokenID:     token.GetName(),
+		TokenID:     resetToken.GetName(),
 		NewPassword: []byte("abc123"),
 		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
-			TOTP: &apiProto.TOTPRegisterResponse{Code: secondFactorToken},
+			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
 		}},
 	})
 	require.NoError(t, err)

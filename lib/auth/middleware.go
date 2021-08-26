@@ -336,7 +336,7 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 		log.WithError(err).Debugf("Failed to get client IP.")
 		return nil, trace.BadParameter("missing client IP")
 	}
-	if err := a.Limiter.RegisterRequest(clientIP, a.getCustomRate(info.FullMethod)); err != nil {
+	if err := a.Limiter.RegisterRequestWithCustomRate(clientIP, getCustomRate(info.FullMethod)); err != nil {
 		return nil, trace.LimitExceeded("rate limit exceeded")
 	}
 	if err := a.Limiter.ConnLimiter.Acquire(clientIP, 1); err != nil {
@@ -356,11 +356,12 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 	return handler(context.WithValue(ctx, ContextUser, user), req)
 }
 
-func (a *Middleware) getCustomRate(endpoint string) *ratelimit.RateSet {
+func getCustomRate(endpoint string) *ratelimit.RateSet {
 	switch endpoint {
 	case
 		"/proto.AuthService/ChangeUserAuthentication":
 		rates := ratelimit.NewRateSet()
+		// This limit means: 1 request per minute with bursts up to 10 requests.
 		if err := rates.Add(time.Minute, 1, 10); err != nil {
 			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)
 			return nil
@@ -384,7 +385,7 @@ func (a *Middleware) StreamInterceptor(srv interface{}, serverStream grpc.Server
 		log.WithError(err).Debugf("Failed to get client IP.")
 		return trace.BadParameter("missing client IP")
 	}
-	if err := a.Limiter.RegisterRequest(clientIP, nil); err != nil {
+	if err := a.Limiter.RegisterRequest(clientIP); err != nil {
 		return trace.LimitExceeded("rate limit exceeded")
 	}
 	if err := a.Limiter.ConnLimiter.Acquire(clientIP, 1); err != nil {

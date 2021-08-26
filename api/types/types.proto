@@ -2442,7 +2442,11 @@ message WindowsDesktopSpecV3 {
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
 }
 
-// RecoveryCodes holds a user's recovery code information.
+// RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
+// access to their account by restoring their lost password or second factor. Once a recovery code
+// is successfully verified, the code is mark used (which invalidates it), and lets the user begin
+// the recovery flow. When a user successfully finishes the recovery flow, users will get a new set
+// of codes that will replace all the previous ones.
 message RecoveryCodesV1 {
     // Kind is the resource kind.
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
@@ -2457,17 +2461,18 @@ message RecoveryCodesV1 {
 }
 // RecoveryCodesSpecV1 is the recovery codes spec.
 message RecoveryCodesSpecV1 {
-    // Codes hold a list of recovery codes.
+    // Codes hold a list of numOfRecoveryCodes.
     repeated RecoveryCode Codes = 1 [ (gogoproto.nullable) = false ];
-    // Created is when the recovery codes were generated.
+    // Created is when the set of recovery codes were generated. Updated when a new set of recovery
+    // codes are inserted.
     google.protobuf.Timestamp Created = 2
         [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
 }
 
 // RecoveryCode describes a recovery code.
 message RecoveryCode {
-    // Value is the recovery code value.
-    bytes Value = 1;
-    // IsUsed determines if the recovery code was used.
+    // HashedCode is bycrypt hash of this recovery code.
+    bytes HashedCode = 1;
+    // IsUsed determines if this recovery code was used.
     bool IsUsed = 2;
 }

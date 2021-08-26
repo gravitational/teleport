@@ -977,24 +977,35 @@ message DeleteWindowsDesktopRequest {
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
 }
 
-// ChangeUserAuthenticationRequest defines a request to change a password and if enabled also adds a
-// new MFA device.
+// ChangeUserAuthenticationRequest defines a request to change a password and if enabled
+// also adds a new MFA device from a user reset or from a new user invite. After successful changing
+// of authentications a new web session is created. Users may also receive new recovery codes if the
+// user meets the requirement to receive recovery codes. If a user previously had recovery codes,
+// the previous codes become invalid as it is replaced with newly generated ones.
 message ChangeUserAuthenticationRequest {
-    // TokenID is the ID of a user token. The types of token accepted are reset and
-    // invite user tokens that allow users defined in token to change their authentication
-    // credentials while not logged in.
+    // TokenID is the ID of a reset or invite token.
+    // The token allows the user to change their credentials without being logged
+    // in.
     string TokenID = 1;
-    // NewPassword is the new password.
+    // NewPassword is the new password string converted into bytes.
     bytes NewPassword = 2;
     // NewMFARegisterResponse is a MFA response to a MFA authentication challenge.
+    // This field can be empty which implies that user chose not to add a new device (allowable when
+    // cluster settings enable optional second factor), or cluster settings disabled second factor.
     MFARegisterResponse NewMFARegisterResponse = 3;
 }
 
-// ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
+// ChangeUserAuthenticationResponse is a response for
+// ChangeUserAuthentication.
 message ChangeUserAuthenticationResponse {
     // WebSession is a user's web sesssion created from successful changing of password.
     types.WebSessionV2 WebSession = 1;
-    // RecoveryCodes are user's new recovery codes.
+    // RecoveryCodes are user's new recovery codes. Previous recovery codes become invalid.
+    // This field can be empty if a user does not meet the following
+    // requirements to receive recovery codes:
+    //  - cloud feature is not enabled
+    //  - second factor is not enabled
+    //  - username is not in valid email format
     repeated string RecoveryCodes = 2;
 }
 
@@ -1326,8 +1337,10 @@ service AuthService {
     // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
     rpc DeleteAllWindowsDesktops(google.protobuf.Empty) returns (google.protobuf.Empty);
 
-    // ChangeUserAuthentication changes a user's password and if enabled also sets a new mfa
-    // device.
+    // ChangeUserAuthentication allows a user to change their password and if enabled,
+    // also adds a new mfa device. After successful invocation, a new web session is created as well
+    // as a new set of recovery codes (if user meets the requirements to receive them), invalidating
+    // any existing codes the user previously had.
     rpc ChangeUserAuthentication(ChangeUserAuthenticationRequest)
         returns (ChangeUserAuthenticationResponse);
 }

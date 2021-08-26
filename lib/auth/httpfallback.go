@@ -755,12 +755,13 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services
 //
 // Returns recovery tokens for cloud users with second factors turned on.
 func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
-	if resp, err := c.APIClient.ChangeUserAuthentication(ctx, req); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
+	switch resp, err := c.APIClient.ChangeUserAuthentication(ctx, req); {
+	// ChangeUserAuthentication available
+	case err == nil:
 		return resp, nil
+	// ChangeUserAuthentication errored
+	case !trace.IsNotImplemented(err):
+		return nil, trace.Wrap(err)
 	}
 
 	// DELETE IN 9.0.0
@@ -778,7 +779,6 @@ func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	// Fallback will not return recovery tokens.
 	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), httpReq)
 	if err != nil {
 		return nil, trace.Wrap(err)

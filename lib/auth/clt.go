@@ -1887,7 +1887,8 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
-	// ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
+	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
+	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
 	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
 
 	// GetResetPasswordToken returns a reset password token.

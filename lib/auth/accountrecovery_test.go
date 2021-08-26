@@ -41,21 +41,28 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rc, 3)
 
+	// Test codes are not marked used.
+	recovery, err := srv.Auth().GetRecoveryCodes(ctx, user)
+	require.NoError(t, err)
+	for _, token := range recovery.GetCodes() {
+		require.False(t, token.IsUsed)
+	}
+
 	// Test each codes are of correct format and used.
-	for _, token := range rc {
-		s := strings.Split(token, "-")
+	for _, code := range rc {
+		s := strings.Split(code, "-")
 
 		// 9 b/c 1 for prefix, 8 for words.
 		require.Len(t, s, 9)
-		require.Contains(t, token, "tele-")
+		require.True(t, strings.HasPrefix(code, "tele-"))
 
 		// Test codes match.
-		err := srv.Auth().verifyRecoveryCode(ctx, user, []byte(token))
+		err := srv.Auth().verifyRecoveryCode(ctx, user, []byte(code))
 		require.NoError(t, err)
 	}
 
 	// Test used codes are marked used.
-	recovery, err := srv.Auth().GetRecoveryCodes(ctx, user)
+	recovery, err = srv.Auth().GetRecoveryCodes(ctx, user)
 	require.NoError(t, err)
 	for _, token := range recovery.GetCodes() {
 		require.True(t, token.IsUsed)
@@ -65,7 +72,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(rc[0]))
 	require.True(t, trace.IsBadParameter(err))
 
-	// Test with invalid recoery code returns error.
+	// Test with invalid recovery code returns error.
 	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte("invalidcode"))
 	require.True(t, trace.IsBadParameter(err))
 
@@ -87,19 +94,19 @@ func TestRecoveryCodeEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	event := mockEmitter.LastEvent()
 	require.Equal(t, events.RecoveryCodeGeneratedEvent, event.GetType())
-	require.Equal(t, events.RecoveryCodesGeneratedCode, event.GetCode())
+	require.Equal(t, events.RecoveryCodesGenerateCode, event.GetCode())
 
 	// Test used recovery code event.
 	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(tc[0]))
 	require.NoError(t, err)
 	event = mockEmitter.LastEvent()
 	require.Equal(t, events.RecoveryCodeUsedEvent, event.GetType())
-	require.Equal(t, events.RecoveryCodeUsedCode, event.GetCode())
+	require.Equal(t, events.RecoveryCodeUseSuccessCode, event.GetCode())
 
 	// Re-using the same token emits failed event.
 	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(tc[0]))
 	require.Error(t, err)
 	event = mockEmitter.LastEvent()
 	require.Equal(t, events.RecoveryCodeUsedEvent, event.GetType())
-	require.Equal(t, events.RecoveryCodeUsedFailureCode, event.GetCode())
+	require.Equal(t, events.RecoveryCodeUseFailureCode, event.GetCode())
 }

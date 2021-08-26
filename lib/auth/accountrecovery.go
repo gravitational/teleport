@@ -44,36 +44,39 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 		return trace.Wrap(err)
 	}
 
-	var hashedCodes []types.RecoveryCode
-	userFound := true
+	hashedCodes := make([]types.RecoveryCode, numOfRecoveryCodes)
+	hasRecoveryCodes := true
 	if trace.IsNotFound(err) {
-		userFound = false
+		hasRecoveryCodes = false
 		log.Debugf("Account recovery codes for user %q not found, using fake hashes to mitigate timing attacks.", user)
-		hashedCodes = []types.RecoveryCode{{Value: fakeRecoveryCodeHash}, {Value: fakeRecoveryCodeHash}, {Value: fakeRecoveryCodeHash}}
+		for i := 0; i < numOfRecoveryCodes; i++ {
+			hashedCodes[i].HashedCode = fakeRecoveryCodeHash
+		}
 	} else {
 		hashedCodes = recovery.GetCodes()
 	}
 
 	codeMatch := false
 	for i, code := range hashedCodes {
-		if err := bcrypt.CompareHashAndPassword(code.Value, givenCode); err == nil {
-			if !code.IsUsed && userFound {
-				codeMatch = true
-				// Mark matched token as used in backend so it can't be used again.
-				recovery.GetCodes()[i].IsUsed = true
-				if err := s.UpsertRecoveryCodes(ctx, user, *recovery); err != nil {
-					log.Error(trace.DebugReport(err))
-					return trace.Wrap(err)
-				}
-				break
-			}
+		// Always take the time to check, but ignore the result if the code was
+		// previously used or if checking against fakes.
+		err := bcrypt.CompareHashAndPassword(code.HashedCode, givenCode)
+		if err != nil || code.IsUsed || !hasRecoveryCodes {
+			continue
 		}
+		codeMatch = true
+		// Mark matched token as used in backend so it can't be used again.
+		recovery.GetCodes()[i].IsUsed = true
+		if err := s.UpsertRecoveryCodes(ctx, user, *recovery); err != nil {
+			return trace.Wrap(err)
+		}
+		break
 	}
 
 	event := &apievents.RecoveryCodeUsed{
 		Metadata: apievents.Metadata{
 			Type: events.RecoveryCodeUsedEvent,
-			Code: events.RecoveryCodeUsedCode,
+			Code: events.RecoveryCodeUseSuccessCode,
 		},
 		UserMetadata: apievents.UserMetadata{
 			User: user,
@@ -83,12 +86,12 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 		},
 	}
 
-	if !codeMatch || !userFound {
+	if !codeMatch || !hasRecoveryCodes {
 		event.Status.Success = false
-		event.Metadata.Code = events.RecoveryCodeUsedFailureCode
-		traceErr := trace.NotFound("user not found")
+		event.Metadata.Code = events.RecoveryCodeUseFailureCode
+		traceErr := trace.NotFound("invalid user or user does not have recovery codes")
 
-		if userFound {
+		if hasRecoveryCodes {
 			traceErr = trace.BadParameter("recovery code did not match")
 		}
 
@@ -110,22 +113,22 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 }
 
 func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username string) ([]string, error) {
-	tokens, err := generateRecoveryCodes()
+	codes, err := generateRecoveryCodes()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	hashedTokens := make([]types.RecoveryCode, len(tokens))
-	for i, token := range tokens {
-		hashedToken, err := bcrypt.GenerateFromPassword([]byte(token), bcrypt.DefaultCost)
+	hashedCodes := make([]types.RecoveryCode, len(codes))
+	for i, token := range codes {
+		hashedCode, err := bcrypt.GenerateFromPassword([]byte(token), bcrypt.DefaultCost)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		hashedTokens[i].Value = hashedToken
+		hashedCodes[i].HashedCode = hashedCode
 	}
 
-	rc, err := types.NewRecoveryCodes(hashedTokens, s.GetClock().Now().UTC(), username)
+	rc, err := types.NewRecoveryCodes(hashedCodes, s.GetClock().Now().UTC(), username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -137,7 +140,7 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.RecoveryCodeGenerate{
 		Metadata: apievents.Metadata{
 			Type: events.RecoveryCodeGeneratedEvent,
-			Code: events.RecoveryCodesGeneratedCode,
+			Code: events.RecoveryCodesGenerateCode,
 		},
 		UserMetadata: apievents.UserMetadata{
 			User: username,
@@ -146,7 +149,7 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 		log.WithError(err).WithFields(logrus.Fields{"user": username}).Warn("Failed to emit recovery tokens generate event.")
 	}
 
-	return tokens, nil
+	return codes, nil
 }
 
 // isAccountRecoveryAllowed gets cluster auth configuration and check if cloud, local auth
@@ -175,7 +178,7 @@ func (s *Server) isAccountRecoveryAllowed(ctx context.Context) error {
 // generateRecoveryCodes returns an array of tokens where each token
 // have 8 random words prefixed with tele and concanatenated with dashes.
 func generateRecoveryCodes() ([]string, error) {
-	gen, err := diceware.NewGenerator(nil)
+	gen, err := diceware.NewGenerator(nil /* use default word list */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

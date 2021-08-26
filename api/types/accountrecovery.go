@@ -79,18 +79,17 @@ type RecoveryAttempt struct {
 }
 
 func (a *RecoveryAttempt) Check() error {
-	if a.Time.IsZero() {
+	switch {
+	case a.Time.IsZero():
 		return trace.BadParameter("missing parameter time")
-	}
-
-	if a.Expires.IsZero() {
+	case a.Expires.IsZero():
 		return trace.BadParameter("missing parameter expires")
 	}
-
 	return nil
 }
 
 // IsMaxFailedRecoveryAttempt determines if user reached their max failed attempts.
+// Attempts list is expected to come sorted from latest to oldest time.
 func IsMaxFailedRecoveryAttempt(maxAttempts int, attempts []RecoveryAttempt, now time.Time) bool {
 	var failed int
 	for i := len(attempts) - 1; i >= 0; i-- {

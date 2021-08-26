@@ -6969,16 +6969,21 @@ func (m *DeleteWindowsDesktopRequest) GetName() string {
 	return ""
 }
 
-// ChangeUserAuthenticationRequest defines a request to change a password and if enabled also adds a
-// new MFA device.
+// ChangeUserAuthenticationRequest defines a request to change a password and if enabled
+// also adds a new MFA device from a user reset or from a new user invite. After successful changing
+// of authentications a new web session is created. Users may also receive new recovery codes if the
+// user meets the requirement to receive recovery codes. If a user previously had recovery codes,
+// the previous codes become invalid as it is replaced with newly generated ones.
 type ChangeUserAuthenticationRequest struct {
-	// TokenID is the ID of a user token. The types of token accepted are reset and
-	// invite user tokens that allow users defined in token to change their authentication
-	// credentials while not logged in.
+	// TokenID is the ID of a reset or invite token.
+	// The token allows the user to change their credentials without being logged
+	// in.
 	TokenID string `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"TokenID,omitempty"`
-	// NewPassword is the new password.
+	// NewPassword is the new password string converted into bytes.
 	NewPassword []byte `protobuf:"bytes,2,opt,name=NewPassword,proto3" json:"NewPassword,omitempty"`
 	// NewMFARegisterResponse is a MFA response to a MFA authentication challenge.
+	// This field can be empty which implies that user chose not to add a new device (allowable when
+	// cluster settings enable optional second factor), or cluster settings disabled second factor.
 	NewMFARegisterResponse *MFARegisterResponse `protobuf:"bytes,3,opt,name=NewMFARegisterResponse,proto3" json:"NewMFARegisterResponse,omitempty"`
 	XXX_NoUnkeyedLiteral   struct{}             `json:"-"`
 	XXX_unrecognized       []byte               `json:"-"`
@@ -7039,11 +7044,17 @@ func (m *ChangeUserAuthenticationRequest) GetNewMFARegisterResponse() *MFARegist
 	return nil
 }
 
-// ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
+// ChangeUserAuthenticationResponse is a response for
+// ChangeUserAuthentication.
 type ChangeUserAuthenticationResponse struct {
 	// WebSession is a user's web sesssion created from successful changing of password.
 	WebSession *types.WebSessionV2 `protobuf:"bytes,1,opt,name=WebSession,proto3" json:"WebSession,omitempty"`
-	// RecoveryCodes are user's new recovery codes.
+	// RecoveryCodes are user's new recovery codes. Previous recovery codes become invalid.
+	// This field can be empty if a user does not meet the following
+	// requirements to receive recovery codes:
+	//  - cloud feature is not enabled
+	//  - second factor is not enabled
+	//  - username is not in valid email format
 	RecoveryCodes        []string `protobuf:"bytes,2,rep,name=RecoveryCodes,proto3" json:"RecoveryCodes,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -7923,8 +7934,10 @@ type AuthServiceClient interface {
 	DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
 	DeleteAllWindowsDesktops(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	// ChangeUserAuthentication changes a user's password and if enabled also sets a new mfa
-	// device.
+	// ChangeUserAuthentication allows a user to change their password and if enabled,
+	// also adds a new mfa device. After successful invocation, a new web session is created as well
+	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
+	// any existing codes the user previously had.
 	ChangeUserAuthentication(ctx context.Context, in *ChangeUserAuthenticationRequest, opts ...grpc.CallOption) (*ChangeUserAuthenticationResponse, error)
 }
 
@@ -9575,8 +9588,10 @@ type AuthServiceServer interface {
 	DeleteWindowsDesktop(context.Context, *DeleteWindowsDesktopRequest) (*empty.Empty, error)
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
 	DeleteAllWindowsDesktops(context.Context, *empty.Empty) (*empty.Empty, error)
-	// ChangeUserAuthentication changes a user's password and if enabled also sets a new mfa
-	// device.
+	// ChangeUserAuthentication allows a user to change their password and if enabled,
+	// also adds a new mfa device. After successful invocation, a new web session is created as well
+	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
+	// any existing codes the user previously had.
 	ChangeUserAuthentication(context.Context, *ChangeUserAuthenticationRequest) (*ChangeUserAuthenticationResponse, error)
 }
 

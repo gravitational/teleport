@@ -72,7 +72,11 @@ func NewLimiter(config Config) (*Limiter, error) {
 	return &limiter, nil
 }
 
-func (l *Limiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
+func (l *Limiter) RegisterRequest(token string) error {
+	return l.rateLimiter.RegisterRequest(token, nil)
+}
+
+func (l *Limiter) RegisterRequestWithCustomRate(token string, customRate *ratelimit.RateSet) error {
 	return l.rateLimiter.RegisterRequest(token, customRate)
 }
 

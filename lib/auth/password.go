@@ -27,6 +27,20 @@ import (
 // This is bcrypt hash for password "barbaz".
 var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
 
+// ChangePasswordWithTokenRequest defines a request to change user password
+// DELETE IN 9.0.0 along with changePasswordWithToken http endpoint
+// in favor of grpc ChangeUserAuthentication.
+type ChangePasswordWithTokenRequest struct {
+	// SecondFactorToken is the TOTP code.
+	SecondFactorToken string `json:"second_factor_token"`
+	// TokenID is the ID of a reset or invite token.
+	TokenID string `json:"token"`
+	// Password is user password string converted to bytes.
+	Password []byte `json:"password"`
+	// U2FRegisterResponse is U2F registration challenge response.
+	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
+}
+
 // ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
 func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	user, err := s.changeUserAuthentication(ctx, req)
@@ -34,21 +48,15 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.Wrap(err)
 	}
 
+	// Check if a user can receive new recovery codes.
+	_, emailErr := mail.ParseAddress(user.GetName())
+	hasEmail := emailErr == nil
+	hasMFA := req.GetNewMFARegisterResponse() != nil
+	recoveryAllowed := s.isAccountRecoveryAllowed(ctx) == nil
+	createRecoveryCodes := hasEmail && hasMFA && recoveryAllowed
+
 	var recoveryCodes []string
-	shouldCreateRecoveryCodes := false
-
-	// Only user's with email as their username and running cloud can receive recovery codes.
-	if _, err := mail.ParseAddress(user.GetName()); err == nil {
-		if err := s.isAccountRecoveryAllowed(ctx); err != nil {
-			if !trace.IsAccessDenied(err) {
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			shouldCreateRecoveryCodes = req.GetNewMFARegisterResponse() != nil
-		}
-	}
-
-	if shouldCreateRecoveryCodes {
+	if createRecoveryCodes {
 		recoveryCodes, err = s.generateAndUpsertRecoveryCodes(ctx, user.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
