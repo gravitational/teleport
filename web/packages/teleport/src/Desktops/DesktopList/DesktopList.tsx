@@ -23,12 +23,14 @@ import {
   TextCell,
   Cell,
   SortTypes,
+  renderLabelCell,
 } from 'design/DataTable';
 import Table from 'design/DataTable/Paged';
 import isMatch from 'design/utils/match';
 import { AuthType } from 'teleport/services/user';
 import { Desktop } from 'teleport/services/desktops';
 import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
+import StatusLight from 'design/StatusLight';
 
 function DesktopList(props: Props) {
   const { desktops = [], pageSize = 100, searchValue } = props;
@@ -63,6 +65,14 @@ function DesktopList(props: Props) {
   return (
     <StyledTable pageSize={pageSize} data={data}>
       <Column
+        header={<Cell>Status</Cell>}
+        cell={
+          <Cell>
+            <StatusLight status="active" ml="11px" />
+          </Cell>
+        }
+      />
+      <Column
         columnKey="addr"
         header={
           <SortHeaderCell
@@ -84,6 +94,7 @@ function DesktopList(props: Props) {
         }
         cell={<OSCell />}
       />
+      <Column header={<Cell>Labels</Cell>} cell={<LabelCell />} />
       <Column
         header={<Cell />}
         cell={<LoginCell onOpen={() => []} onSelect={() => {}} />}
@@ -130,6 +141,12 @@ const LoginCell: React.FC<Required<{
     </Cell>
   );
 };
+
+function LabelCell(props) {
+  const { rowIndex, data } = props;
+  const { tags = [] } = data[rowIndex];
+  return renderLabelCell(tags);
+}
 
 const OSCell = props => {
   const { rowIndex, data, columnKey, ...rest } = props;
