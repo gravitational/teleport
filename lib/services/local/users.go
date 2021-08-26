@@ -572,7 +572,7 @@ func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user stri
 	case user == "":
 		return trace.BadParameter("missing parameter user")
 	case wla == nil:
-		return trace.BadParameter("missing parameter wla")
+		return trace.BadParameter("missing parameter webauthn local auth")
 	}
 	if err := wla.Check(); err != nil {
 		return trace.Wrap(err)
