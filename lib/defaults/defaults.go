@@ -48,10 +48,7 @@ const (
 	// one of many SSH nodes
 	SSHProxyListenPort = 3023
 
-	// When running in "SSH Proxy" role this port will be used for incoming
-	// connections from SSH nodes who wish to use "reverse tunnell" (when they
-	// run behind an environment/firewall which only allows outgoing connections)
-	SSHProxyTunnelListenPort = 3024
+	SSHProxyTunnelListenPort = defaults.SSHProxyTunnelListenPort
 
 	// KubeListenPort is a default port for kubernetes proxies
 	KubeListenPort = 3026
@@ -65,6 +62,16 @@ const (
 
 	// MetricsListenPort is the default listen port for the metrics service.
 	MetricsListenPort = 3081
+
+	// WindowsDesktopListenPort is the default listed port for
+	// windows_desktop_service.
+	//
+	// TODO(awly): update to match HTTPListenPort once SNI routing is
+	// implemented.
+	WindowsDesktopListenPort = 3028
+
+	// RDPListenPort is the standard port for RDP servers.
+	RDPListenPort = 3389
 
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
@@ -276,6 +283,10 @@ const (
 
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour
+
+	// LockMaxStaleness is the maximum staleness for cached lock resources
+	// to be deemed acceptable for strict locking mode.
+	LockMaxStaleness = 5 * time.Minute
 )
 
 var (
@@ -365,6 +376,9 @@ var (
 
 	// DatabasesQueueSize is db service queue size.
 	DatabasesQueueSize = 128
+
+	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
+	WindowsDesktopQueueSize = 128
 
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
@@ -494,9 +508,6 @@ var (
 	// the Teleport configuration file that tctl reads on use
 	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
 
-	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
-	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
-
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"
 
@@ -517,6 +528,10 @@ const (
 const (
 	// U2FChallengeTimeout is hardcoded in the U2F library
 	U2FChallengeTimeout = 5 * time.Minute
+	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
+	// or registration challenges.
+	// TODO(codingllama): Apply this to the lib/auth/webauthn package.
+	WebauthnChallengeTimeout = 5 * time.Minute
 )
 
 const (

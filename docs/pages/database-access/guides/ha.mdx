@@ -31,14 +31,14 @@ db_service:
 With this configuration, you will see only a single entry for the database in
 `tsh db ls`:
 
-```bash
-tsh db ls
-Name
---------
-postgres
+```code
+$ tsh db ls
+# Name
+# --------
+# postgres
 
-tsh db login postgres
-tsh db connect postgres
+$ tsh db login postgres
+$ tsh db connect postgres
 ```
 
 When connecting, Teleport will randomly pick the service to connect through to
@@ -76,15 +76,15 @@ db_service:
 With this configuration, both services will appear as two separate entries in
 `tsh db ls` output and you will have to pick one explicitly when connecting:
 
-```bash
-tsh db ls
-Name
--------------------
-postgres-us-east-1a
-postgres-us-east-1b
+```code
+$ tsh db ls
+# Name
+# -------------------
+# postgres-us-east-1a
+# postgres-us-east-1b
 
-tsh db login postgres-us-east-1a
-tsh db connect postgres-us-east-1a
+$ tsh db login postgres-us-east-1a
+$ tsh db connect postgres-us-east-1a
 ```
 
 This approach is useful when you want to have control over which replica

@@ -12,24 +12,24 @@ Install client libraries:
 
 <Tabs>
   <TabItem label="Linux">
-    ```bash
-    curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    ```code
+    $ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
     # verify signature 
-    echo "$(curl  https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256)" | sha256sum --check 
-    tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    cd teleport-ent
-    sudo ./install
+    $ echo "$(curl  https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256)" | sha256sum --check 
+    $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    $ cd teleport-ent
+    $ sudo ./install
     ```
   </TabItem>
 </Tabs>
 
 Login with a teleport user with editor privileges:
 
-```bash
+```code
 # tsh logs you in and receives short-lived certificates
-tsh login --proxy=myinstance.teleport.sh:443 --user=email@example.com
+$ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
 # try out the connection
-tctl get nodes
+$ tctl get nodes
 ```
 
 ## Step 2/3. Configure auth
@@ -57,32 +57,32 @@ version: v2
 
 Create a resource:
 
-```bash
-tctl create -f cap.yaml
+```code
+$ tctl create -f cap.yaml
 ```
 
 ## Step 3/3. Add U2F device
 
 Try out the U2F integration using CLI:
 
-```bash
-tsh mfa ls
-MFA device name   Type   Added at                          Last used
-----------------   ----   -------------------------------   -------------------------------
-android OTP        OTP    Tue 08 Dec 2020 01:29:42 PM PST   Tue 15 Dec 2020 01:29:42 PM PST
-yubikey            U2F    Wed 09 Dec 2020 02:00:13 PM PST   Wed 16 Dec 2020 02:00:13 PM PST
+```code
+$ tsh mfa ls
+# MFA device name   Type   Added at                          Last used
+# ----------------   ----   -------------------------------   -------------------------------
+# android OTP        OTP    Tue 08 Dec 2020 01:29:42 PM PST   Tue 15 Dec 2020 01:29:42 PM PST
+# yubikey            U2F    Wed 09 Dec 2020 02:00:13 PM PST   Wed 16 Dec 2020 02:00:13 PM PST
 ```
 
 Add U2F device:
 
-```bash
-tsh mfa add
-Adding a new MFA device.
-Choose device type (1 - OTP, 2 - U2F): 2
-Enter device name: solokey
-Tap any *registered* security key or enter an OTP code: <tap>
-Tap your *new* security key... <tap>
-MFA device "solokey" added.
+```code
+$ tsh mfa add
+# Adding a new MFA device.
+# Choose device type (1 - OTP, 2 - U2F): 2
+# Enter device name: solokey
+# Tap any *registered* security key or enter an OTP code: <tap>
+# Tap your *new* security key... <tap>
+# MFA device "solokey" added.
 ```
 
 You can now login with Web UI or CLI using U2F.

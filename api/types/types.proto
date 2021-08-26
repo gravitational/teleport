@@ -29,6 +29,7 @@ message KeepAlive {
         NODE = 1;
         APP = 2;
         DATABASE = 3;
+        WINDOWS_DESKTOP = 4;
     }
     KeepAliveType Type = 9 [ (gogoproto.jsontag) = "type" ];
     // HostID is an optional UUID of the host the resource belongs to.
@@ -131,7 +132,7 @@ message ResourceHeader {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata,omitempty" ];
 }
 
-// DatabaseServerV2 represents a database access server.
+// DatabaseServerV3 represents a database access server.
 message DatabaseServerV3 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
@@ -151,15 +152,25 @@ message DatabaseServerV3 {
 // DatabaseServerSpecV3 is the database server spec.
 message DatabaseServerSpecV3 {
     // Description is a free-form text describing this database server.
-    string Description = 1 [ (gogoproto.jsontag) = "description,omitempty" ];
+    //
+    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    string Description = 1 [ (gogoproto.jsontag) = "description,omitempty", deprecated = true ];
     // Protocol is the database type e.g. postgres, mysql, etc.
-    string Protocol = 2 [ (gogoproto.jsontag) = "protocol" ];
+    //
+    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    string Protocol = 2 [ (gogoproto.jsontag) = "protocol", deprecated = true ];
     // URI is the database connection address.
-    string URI = 3 [ (gogoproto.jsontag) = "uri" ];
+    //
+    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    string URI = 3 [ (gogoproto.jsontag) = "uri", deprecated = true ];
     // CACert is an optional base64-encoded database CA certificate.
-    bytes CACert = 4 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
+    //
+    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    bytes CACert = 4 [ (gogoproto.jsontag) = "ca_cert,omitempty", deprecated = true ];
     // AWS contains AWS specific settings for RDS/Aurora databases.
-    AWS AWS = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws" ];
+    //
+    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    AWS AWS = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws", deprecated = true ];
     // Version is the Teleport version that the server is running.
     string Version = 6 [ (gogoproto.jsontag) = "version" ];
     // Hostname is the database server hostname.
@@ -167,13 +178,63 @@ message DatabaseServerSpecV3 {
     // HostID is the ID of the host the database server is running on.
     string HostID = 8 [ (gogoproto.jsontag) = "host_id" ];
     // DynamicLabels is the database server dynamic labels.
-    map<string, CommandLabelV2> DynamicLabels = 9
-        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
+    //
+    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    map<string, CommandLabelV2> DynamicLabels = 9 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "dynamic_labels,omitempty",
+        deprecated = true
+    ];
     // Rotation contains the server CA rotation information.
     Rotation Rotation = 10
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
     // GCP contains parameters specific to GCP Cloud SQL databases.
-    GCPCloudSQL GCP = 11 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
+    //
+    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    GCPCloudSQL GCP = 11
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty", deprecated = true ];
+    // Databases is a list of databases this database server proxies.
+    repeated DatabaseV3 Databases = 12 [ (gogoproto.jsontag) = "databases,omitempty" ];
+}
+
+// DatabaseV3List represents a list of databases.
+message DatabaseV3List {
+    // Databases is a list of database resources.
+    repeated DatabaseV3 Databases = 1;
+}
+
+// DatabaseV3 represents a single proxied database.
+message DatabaseV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is the database resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the database metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the database spec.
+    DatabaseSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// DatabaseSpecV3 is the database spec.
+message DatabaseSpecV3 {
+    // Protocol is the database protocol: postgres, mysql, mongodb, etc.
+    string Protocol = 1 [ (gogoproto.jsontag) = "protocol" ];
+    // URI is the database connection endpoint.
+    string URI = 2 [ (gogoproto.jsontag) = "uri" ];
+    // CACert is the PEM-encoded database CA certificate.
+    string CACert = 3 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
+    // DynamicLabels is the database dynamic labels.
+    map<string, CommandLabelV2> DynamicLabels = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
+    // AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
+    AWS AWS = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws,omitempty" ];
+    // GCP contains parameters specific to GCP Cloud SQL databases.
+    GCPCloudSQL GCP = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
 }
 
 // AWS contains AWS specific settings such as region.
@@ -794,6 +855,15 @@ message AuthPreferenceSpecV2 {
     ];
 
     string MessageOfTheDay = 8 [ (gogoproto.jsontag) = "message_of_the_day,omitempty" ];
+
+    // LockingMode is the cluster-wide locking mode default.
+    string LockingMode = 9 [
+        (gogoproto.jsontag) = "locking_mode,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
+    ];
+
+    // Webauthn are the settings for server-side Web Authentication support.
+    Webauthn Webauthn = 10 [ (gogoproto.jsontag) = "webauthn,omitempty" ];
 }
 
 // LegacyClusterConfigAuthFields facilitates a backward compatible transition
@@ -819,6 +889,40 @@ message U2F {
         [ (gogoproto.jsontag) = "device_attestation_cas,omitempty" ];
 }
 
+// Webauthn defines user-visible settings for server-side Web Authentication
+// support.
+message Webauthn {
+    // RPID is the ID of the Relying Party.
+    // It should be set to the domain name of the Teleport installation.
+    //
+    // IMPORTANT: RPID must never change in the lifetime of the cluster, because
+    // it's recorded in the registration data on the WebAuthn device. If the
+    // RPID changes, all existing WebAuthn key registrations will become invalid
+    // and all users who use WebAuthn as the second factor will need to
+    // re-register.
+    string RPID = 1 [ (gogoproto.jsontag) = "rp_id,omitempty" ];
+    // Allow list of device attestation CAs in PEM format.
+    // If present, only devices whose attestation certificates match the
+    // certificates specified here may be registered (existing registrations are
+    // unchanged).
+    // If supplied in conjunction with AttestationDeniedCAs, then both
+    // conditions need to be true for registration to be allowed (the device
+    // MUST match an allowed CA and MUST NOT match a denied CA).
+    // By default all devices are allowed.
+    repeated string AttestationAllowedCAs = 2
+        [ (gogoproto.jsontag) = "attestation_allowed_cas,omitempty" ];
+    // Deny list of device attestation CAs in PEM format.
+    // If present, only devices whose attestation certificates don't match the
+    // certificates specified here may be registered (existing registrations are
+    // unchanged).
+    // If supplied in conjunction with AttestationAllowedCAs, then both
+    // conditions need to be true for registration to be allowed (the device
+    // MUST match an allowed CA and MUST NOT match a denied CA).
+    // By default no devices are denied.
+    repeated string AttestationDeniedCAs = 3
+        [ (gogoproto.jsontag) = "attestation_denied_cas,omitempty" ];
+}
+
 // Namespace represents namespace resource specification
 message Namespace {
     // Kind is a resource kind
@@ -836,24 +940,23 @@ message Namespace {
 // NamespaceSpec is a namespace specificateion
 message NamespaceSpec {}
 
-message ResetPasswordTokenV3 {
+message UserTokenV3 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
     // Kind is a resource kind
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
-    // SubKind is an optional resource sub kind, used in some resources
+    // SubKind is a resource sub kind, used to define the type of user token.
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is ResetPasswordToken metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
-    // Spec is an ResetPasswordToken specification
-    ResetPasswordTokenSpecV3 Spec = 5
-        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    // Spec is an resource specification
+    UserTokenSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-message ResetPasswordTokenSpecV3 {
+message UserTokenSpecV3 {
     // User is user name associated with this token
     string User = 1 [ (gogoproto.jsontag) = "user" ];
     // URL is this token URL
@@ -866,7 +969,7 @@ message ResetPasswordTokenSpecV3 {
     ];
 }
 
-message ResetPasswordTokenSecretsV3 {
+message UserTokenSecretsV3 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
@@ -876,14 +979,13 @@ message ResetPasswordTokenSecretsV3 {
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is ResetPasswordTokenSecrets metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
-    // Spec is an ResetPasswordTokenSecrets specification
-    ResetPasswordTokenSecretsSpecV3 Spec = 5
-        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    // Spec is an resource specification
+    UserTokenSecretsSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-message ResetPasswordTokenSecretsSpecV3 {
+message UserTokenSecretsSpecV3 {
     // OTPKey is is a secret value of one time password secret generator
     string OTPKey = 1 [ (gogoproto.jsontag) = "opt_key" ];
     // OTPKey is is a secret value of one time password secret generator
@@ -1271,6 +1373,13 @@ message RoleOptions {
     // RequireSessionMFA specifies whether a user is required to do an MFA
     // check for every session.
     bool RequireSessionMFA = 13 [ (gogoproto.jsontag) = "require_session_mfa,omitempty" ];
+
+    // Lock specifies the locking mode (strict|best_effort) to be applied with
+    // the role.
+    string Lock = 14 [
+        (gogoproto.jsontag) = "lock,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
+    ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
@@ -1824,6 +1933,9 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "login_time"
     ];
+    // IdleTimeout is the max time a user can be inactive in a session.
+    int64 IdleTimeout = 9
+        [ (gogoproto.jsontag) = "idle_timeout", (gogoproto.casttype) = "Duration" ];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
@@ -2198,6 +2310,9 @@ message TrustedClusterSpecV2 {
 }
 
 // LockV2 represents a lock.
+// Locks are used to restrict access to a Teleport environment by disabling
+// interactions involving a user, an RBAC role, a node, etc.
+// See rfd/0009-locking.md for more details.
 message LockV2 {
     // Kind is a resource kind.
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
@@ -2281,4 +2396,37 @@ message NetworkRestrictionsV4 {
     // Spec contains the network restrictions data
     NetworkRestrictionsSpecV4 Spec = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WindowsDesktopServiceV3 represents a windows desktop access service.
+message WindowsDesktopServiceV3 {
+    // Header is the common resource header.
+    ResourceHeader Header = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+    // Spec is the windows desktop service spec.
+    WindowsDesktopServiceSpecV3 Spec = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WindowsDesktopServiceSpecV3 is the windows desktop service spec.
+message WindowsDesktopServiceSpecV3 {
+    // Addr is the address that this service can be reached at.
+    string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
+    // TeleportVersion is teleport binary version running this service.
+    string TeleportVersion = 2 [ (gogoproto.jsontag) = "teleport_version" ];
+}
+
+// WindowsDesktopV3 represents a Windows host for desktop access.
+message WindowsDesktopV3 {
+    // Header is the common resource header.
+    ResourceHeader Header = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+    // Spec is the Windows host spec.
+    WindowsDesktopSpecV3 Spec = 2 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WindowsDesktopSpecV3 is the Windows host spec.
+message WindowsDesktopSpecV3 {
+    // Addr is the address that this host can be reached at.
+    string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
 }

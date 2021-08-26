@@ -74,6 +74,8 @@ type CertAuthority interface {
 	GetSigningAlg() CertAuthoritySpecV2_SigningAlgType
 	// SetSigningAlg sets the signing algorithm used by signing keys.
 	SetSigningAlg(CertAuthoritySpecV2_SigningAlgType)
+	// AllKeyTypesMatch returns true if all keys in the CA are of the same type.
+	AllKeyTypesMatch() bool
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
 }
@@ -426,6 +428,23 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 	return nil
 }
 
+// AllKeyTypesMatch returns true if all private keys in the given CA are of the same type.
+func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
+	keyTypes := make(map[PrivateKeyType]struct{})
+	for _, keySet := range []CAKeySet{ca.Spec.ActiveKeys, ca.Spec.AdditionalTrustedKeys} {
+		for _, keyPair := range keySet.SSH {
+			keyTypes[keyPair.PrivateKeyType] = struct{}{}
+		}
+		for _, keyPair := range keySet.TLS {
+			keyTypes[keyPair.KeyType] = struct{}{}
+		}
+		for _, keyPair := range keySet.JWT {
+			keyTypes[keyPair.PrivateKeyType] = struct{}{}
+		}
+	}
+	return len(keyTypes) == 1
+}
+
 const (
 	// RotationStateStandby is initial status of the rotation -
 	// nothing is being rotated.
@@ -688,6 +707,11 @@ func (ks CAKeySet) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
+}
+
+// Empty returns true if the CAKeySet holds no keys
+func (ks *CAKeySet) Empty() bool {
+	return len(ks.SSH) == 0 && len(ks.TLS) == 0 && len(ks.JWT) == 0
 }
 
 // CheckAndSetDefaults validates SSHKeyPair and sets defaults on any empty
