@@ -782,12 +782,10 @@ message DeleteMFADeviceResponseAck {}
 
 // GetMFADeviceRequest is a request for MFA devices for the calling user.
 message GetMFADevicesRequest {
-    // TokenID is the ID of a user token. The type of token accepted are recovery approved tokens
-    // that allows the user defined in token to view their mfa devices during the recovery process
-    // while not logged in.
+    // TokenID is the ID of a recovery approved token that allows a user to view their devices
+    // without being logged in. Recovery approved tokens are obtained after user goes through a two
+    // step verification process.
     string TokenID = 1;
-    // WithSecrets specifies whether to load mfa secrets.
-    bool WithSecrets = 2;
 }
 
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
