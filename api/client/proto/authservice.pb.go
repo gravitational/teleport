@@ -5719,15 +5719,15 @@ func (m *DeleteMFADeviceSyncRequest) GetDeviceName() string {
 	return ""
 }
 
-// AddMFADeviceSyncRequest is a request to add a mfa device (nonstream).
+// AddMFADeviceSyncRequest is a request to add a MFA device (nonstream).
 type AddMFADeviceSyncRequest struct {
 	// TokenID is the ID of a privilege token that allows a logged in user to add a device.
 	// Privilege tokens are obtained after a logged in user re-authenticates with their second
 	// factor.
 	TokenID string `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"TokenID,omitempty"`
-	// NewDeviceName is the name of the device.
+	// NewDeviceName is the name of the new device.
 	NewDeviceName string `protobuf:"bytes,2,opt,name=NewDeviceName,proto3" json:"NewDeviceName,omitempty"`
-	// NewMFARegisterResponse is one of the mfa register response to a register challenge.
+	// NewMFARegisterResponse is one of the MFA register response to a register challenge.
 	NewMFARegisterResponse *MFARegisterResponse `protobuf:"bytes,3,opt,name=NewMFARegisterResponse,proto3" json:"NewMFARegisterResponse,omitempty"`
 	XXX_NoUnkeyedLiteral   struct{}             `json:"-"`
 	XXX_unrecognized       []byte               `json:"-"`
@@ -8311,8 +8311,8 @@ type AuthServiceClient interface {
 	// any existing codes the user previously had.
 	ChangeUserAuthentication(ctx context.Context, in *ChangeUserAuthenticationRequest, opts ...grpc.CallOption) (*ChangeUserAuthenticationResponse, error)
 	// CreatePrivilegeToken returns a new privilege token after a logged in user successfully
-	// re-authenticates with their mfa device. Privilege token lasts PrivilegeTokenTTL and is
-	// used to gain access to privileged actions eg: deleting/adding a mfa device.
+	// re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
+	// is used to gain access to privileged actions eg: deleting/adding a MFA device.
 	CreatePrivilegeToken(ctx context.Context, in *CreatePrivilegeTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
 }
 
@@ -10011,8 +10011,8 @@ type AuthServiceServer interface {
 	// any existing codes the user previously had.
 	ChangeUserAuthentication(context.Context, *ChangeUserAuthenticationRequest) (*ChangeUserAuthenticationResponse, error)
 	// CreatePrivilegeToken returns a new privilege token after a logged in user successfully
-	// re-authenticates with their mfa device. Privilege token lasts PrivilegeTokenTTL and is
-	// used to gain access to privileged actions eg: deleting/adding a mfa device.
+	// re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
+	// is used to gain access to privileged actions eg: deleting/adding a MFA device.
 	CreatePrivilegeToken(context.Context, *CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
 }
 

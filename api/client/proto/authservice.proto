@@ -814,15 +814,15 @@ message DeleteMFADeviceSyncRequest {
     string DeviceName = 2;
 }
 
-// AddMFADeviceSyncRequest is a request to add a mfa device (nonstream).
+// AddMFADeviceSyncRequest is a request to add a MFA device (nonstream).
 message AddMFADeviceSyncRequest {
     // TokenID is the ID of a privilege token that allows a logged in user to add a device.
     // Privilege tokens are obtained after a logged in user re-authenticates with their second
     // factor.
     string TokenID = 1;
-    // NewDeviceName is the name of the device.
+    // NewDeviceName is the name of the new device.
     string NewDeviceName = 2;
-    // NewMFARegisterResponse is one of the mfa register response to a register challenge.
+    // NewMFARegisterResponse is one of the MFA register response to a register challenge.
     MFARegisterResponse NewMFARegisterResponse = 3;
 }
 
@@ -1416,7 +1416,7 @@ service AuthService {
         returns (ChangeUserAuthenticationResponse);
 
     // CreatePrivilegeToken returns a new privilege token after a logged in user successfully
-    // re-authenticates with their mfa device. Privilege token lasts PrivilegeTokenTTL and is
-    // used to gain access to privileged actions eg: deleting/adding a mfa device.
+    // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
+    // is used to gain access to privileged actions eg: deleting/adding a MFA device.
     rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
 }

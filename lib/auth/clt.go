@@ -1903,15 +1903,16 @@ type IdentityService interface {
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
-	// DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
+	// DeleteMFADeviceSync deletes a MFA device for the user defined in the token (nonstream).
 	DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error
-	// AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
+	// AddMFADeviceSync adds a MFA device for the user defined in the token (nonstream).
 	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) error
 
-	// CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
+	// CreateAuthenticateChallenge creates MFA challenges for a users MFA devices.
 	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 
-	// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+	// CreatePrivilegeToken creates a privilege token for the logged in user who has successfully re-authenticated with their second factor.
+	// A privilege token allows users to perform privileged action eg: add/delete their MFA device.
 	CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error)
 }
 
