@@ -19,13 +19,16 @@ package types
 import (
 	"bytes"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // AuthPreference defines the authentication preferences for a specific
@@ -57,6 +60,11 @@ type AuthPreference interface {
 	GetU2F() (*U2F, error)
 	// SetU2F sets the U2F configuration settings.
 	SetU2F(*U2F)
+
+	// GetWebauthn returns the Webauthn configuration settings.
+	GetWebauthn() (*Webauthn, error)
+	// SetWebauthn sets the Webauthn configuration settings.
+	SetWebauthn(*Webauthn)
 
 	// GetRequireSessionMFA returns true when all sessions in this cluster
 	// require an MFA check.
@@ -232,6 +240,18 @@ func (c *AuthPreferenceV2) SetU2F(u2f *U2F) {
 	c.Spec.U2F = u2f
 }
 
+func (c *AuthPreferenceV2) GetWebauthn() (*Webauthn, error) {
+	if c.Spec.Webauthn == nil {
+		// TODO(codingllama): Update with configuration guide once we have it.
+		return nil, trace.NotFound("Webauthn is not configured in this cluster, please contact your administrator")
+	}
+	return c.Spec.Webauthn, nil
+}
+
+func (c *AuthPreferenceV2) SetWebauthn(w *Webauthn) {
+	c.Spec.Webauthn = w
+}
+
 // GetRequireSessionMFA returns true when all sessions in this cluster require
 // an MFA check.
 func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
@@ -321,11 +341,37 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	// make sure second factor makes sense
 	switch c.Spec.SecondFactor {
 	case constants.SecondFactorOff, constants.SecondFactorOTP:
-	case constants.SecondFactorU2F, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorU2F:
 		if c.Spec.U2F == nil {
 			return trace.BadParameter("missing required U2F configuration for second factor type %q", c.Spec.SecondFactor)
 		}
 		if err := c.Spec.U2F.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+	case constants.SecondFactorWebauthn:
+		if c.Spec.Webauthn == nil {
+			c.Spec.Webauthn = &Webauthn{} // Try to get the defaults from U2F.
+		}
+		// Validate U2F, as we take some defaults from it.
+		if c.Spec.U2F != nil {
+			if err := c.Spec.U2F.Check(); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
+			return trace.Wrap(err)
+		}
+	case constants.SecondFactorOn, constants.SecondFactorOptional:
+		if c.Spec.U2F == nil {
+			return trace.BadParameter("missing required U2F configuration for second factor type %q", c.Spec.SecondFactor)
+		}
+		if err := c.Spec.U2F.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		if c.Spec.Webauthn == nil {
+			c.Spec.Webauthn = &Webauthn{} // Try to get the defaults from U2F.
+		}
+		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -354,11 +400,62 @@ func (u *U2F) Check() error {
 		return trace.BadParameter("u2f configuration missing facets")
 	}
 	for _, ca := range u.DeviceAttestationCAs {
-		if _, err := tlsutils.ParseCertificatePEM([]byte(ca)); err != nil {
+		if err := isValidAttestationCert(ca); err != nil {
 			return trace.BadParameter("u2f configuration has an invalid attestation CA: %v", err)
 		}
 	}
 	return nil
+}
+
+func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
+	// RPID.
+	switch {
+	case w.RPID != "": // Explicit RPID
+		_, err := url.Parse(w.RPID)
+		if err != nil {
+			return trace.BadParameter("webauthn rp_id is not a valid URI: %v", err)
+		}
+	case u != nil && w.RPID == "": // Infer RPID from U2F app_id
+		parsedAppID, err := url.Parse(u.AppID)
+		if err != nil {
+			return trace.BadParameter("webauthn missing rp_id and U2F app_id is not an URL (%v)", err)
+		}
+
+		// Use the U2F host as the RPID.
+		rpID := parsedAppID.Host
+		rpID = strings.Split(rpID, ":")[0] // Remove :port, if present
+		log.Infof("WebAuthn: RPID inferred from U2F configuration: %q", rpID)
+		w.RPID = rpID
+	default:
+		return trace.BadParameter("webauthn configuration missing rp_id")
+	}
+
+	// AttestationAllowedCAs.
+	switch {
+	case u != nil && len(u.DeviceAttestationCAs) > 0 && len(w.AttestationAllowedCAs) == 0 && len(w.AttestationDeniedCAs) == 0:
+		log.Infof("WebAuthn: using U2F device attestion CAs as allowed CAs")
+		w.AttestationAllowedCAs = u.DeviceAttestationCAs
+	default:
+		for _, pem := range w.AttestationAllowedCAs {
+			if err := isValidAttestationCert(pem); err != nil {
+				return trace.BadParameter("webauthn allowed CAs entry invalid: %v", err)
+			}
+		}
+	}
+
+	// AttestationDeniedCAs.
+	for _, pem := range w.AttestationDeniedCAs {
+		if err := isValidAttestationCert(pem); err != nil {
+			return trace.BadParameter("webauthn denied CAs entry invalid: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func isValidAttestationCert(certOrPath string) error {
+	_, err := tlsutils.ParseCertificatePEM([]byte(certOrPath))
+	return err
 }
 
 // NewMFADevice creates a new MFADevice with the given name. Caller must set
