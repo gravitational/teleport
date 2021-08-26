@@ -18,7 +18,6 @@ package local_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -183,38 +182,19 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 	})
 }
 
-type cleanupFunc func()
-
-func newIdentityService(t *testing.T) (*local.IdentityService, cleanupFunc) {
+func newIdentityService(t *testing.T) *local.IdentityService {
 	t.Helper()
-	ctx := context.Background()
-
-	var path string
-	cleanup := func() {
-		if path != "" {
-			_ = os.RemoveAll(path)
-		}
-	}
-
-	path, err := os.MkdirTemp("" /* dir */, "users-test-" /* pattern */)
-	require.NoError(t, err)
-
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:             path,
+	backend, err := lite.NewWithConfig(context.Background(), lite.Config{
+		Path:             t.TempDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            clockwork.NewFakeClock(),
 	})
-	if err != nil {
-		cleanup()
-		t.Fatal(err)
-	}
-
-	return local.NewIdentityService(backend), cleanup
+	require.NoError(t, err)
+	return local.NewIdentityService(backend)
 }
 
 func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
-	identity, cleanup := newIdentityService(t)
-	defer cleanup()
+	identity := newIdentityService(t)
 
 	updateViaUser := func(ctx context.Context, user string, wal *types.WebauthnLocalAuth) error {
 		u, err := types.NewUser(user)
@@ -299,21 +279,22 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		err := test.update(ctx, test.name, test.wal)
-		require.NoError(t, err)
+		t.Run(test.name, func(t *testing.T) {
+			err := test.update(ctx, test.name, test.wal)
+			require.NoError(t, err)
 
-		want := test.wal
-		got, err := test.get(ctx, test.name)
-		require.NoError(t, err)
-		if diff := cmp.Diff(want, got); diff != "" {
-			t.Fatalf("WebauthnLocalAuth mismatch (-want +got):\n%s", diff)
-		}
+			want := test.wal
+			got, err := test.get(ctx, test.name)
+			require.NoError(t, err)
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Fatalf("WebauthnLocalAuth mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
 func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
-	identity, cleanup := newIdentityService(t)
-	defer cleanup()
+	identity := newIdentityService(t)
 
 	const user1 = "llama"
 	const user2 = "alpaca"
