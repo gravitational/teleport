@@ -19,7 +19,6 @@ package webauthn_test
 import (
 	"context"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -27,6 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
@@ -110,7 +110,7 @@ func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
 func keyToMFADevice(dev *mocku2f.Key, counter uint32, addedAt, lastUsed time.Time) (*types.MFADevice, error) {
 	pubKeyDER, err := x509.MarshalPKIXPublicKey(&dev.PrivateKey.PublicKey)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return &types.MFADevice{
 		AddedAt:  addedAt,
@@ -152,7 +152,7 @@ func (f *fakeIdentity) UpsertWebAuthnSessionData(user, sessionID string, sd *wan
 func (f *fakeIdentity) GetWebAuthnSessionData(user, sessionID string) (*wantypes.SessionData, error) {
 	sd, ok := f.SessionData[sessionDataKey(user, sessionID)]
 	if !ok {
-		return nil, errors.New("not found")
+		return nil, trace.NotFound("not found")
 	}
 	return sd, nil
 }

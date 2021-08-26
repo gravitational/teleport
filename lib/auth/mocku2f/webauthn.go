@@ -49,13 +49,17 @@ func (muk *Key) SignAssertion(origin string, assertion *wanlib.CredentialAsserti
 		}
 	}
 	if !ok {
-		return nil, trace.Errorf("device not allowed")
+		return nil, trace.BadParameter("device not allowed")
 	}
 
 	// Is the U2F app ID present?
-	appID := assertion.Response.Extensions[wanlib.AppIDExtension].(string)
-	if appID == "" {
-		return nil, trace.Errorf("missing u2f app ID")
+	value, ok := assertion.Response.Extensions[wanlib.AppIDExtension]
+	if !ok {
+		return nil, trace.BadParameter("missing u2f app ID")
+	}
+	appID, ok := value.(string)
+	if !ok {
+		return nil, trace.BadParameter("u2f app ID has unexpected type: %T", value)
 	}
 	appIDHash := sha256.Sum256([]byte(appID))
 

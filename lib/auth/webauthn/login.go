@@ -160,7 +160,7 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 		case err != nil:
 			log.Warnf("WebAuthn: failed to parse appid extension (%v)", appidExt)
 		case usingAppID && (f.U2F == nil || f.U2F.AppID == ""):
-			return nil, trace.Errorf("appid extension provided but U2F app_id not configured")
+			return nil, trace.BadParameter("appid extension provided but U2F app_id not configured")
 		case usingAppID:
 			rpID = f.U2F.AppID // Allow RPID = AppID for legacy devices
 		}
@@ -296,7 +296,7 @@ func findDeviceByID(devices []*types.MFADevice, id []byte) (*types.MFADevice, bo
 func setCounterAndTimestamps(dev *types.MFADevice, credential *wan.Credential) error {
 	u2f := dev.GetU2F()
 	if u2f == nil {
-		return fmt.Errorf("webauthn only implemented for U2F devices, got %T", dev.Device)
+		return trace.BadParameter("webauthn only implemented for U2F devices, got %T", dev.Device)
 	}
 
 	dev.LastUsed = time.Now()
