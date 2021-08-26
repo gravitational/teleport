@@ -35,7 +35,9 @@ const (
 	numWordsInRecoveryCode = 8
 )
 
-// fakeRecoveryCodeHash is bcrypt hash for "fake-barbaz x 8"
+// fakeRecoveryCodeHash is bcrypt hash for "fake-barbaz x 8".
+// This is a fake hash used to mitigate timing attacks against invalid usernames or if user does
+// exist but does not have recovery codes.
 var fakeRecoveryCodeHash = []byte(`$2a$10$c2.h4pF9AA25lbrWo6U0D.ZmnYpFDaNzN3weNNYNC3jAkYEX9kpzu`)
 
 func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode []byte) error {
@@ -45,14 +47,14 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 	}
 
 	hashedCodes := make([]types.RecoveryCode, numOfRecoveryCodes)
-	hasRecoveryCodes := true
+	hasRecoveryCodes := false
 	if trace.IsNotFound(err) {
-		hasRecoveryCodes = false
 		log.Debugf("Account recovery codes for user %q not found, using fake hashes to mitigate timing attacks.", user)
 		for i := 0; i < numOfRecoveryCodes; i++ {
 			hashedCodes[i].HashedCode = fakeRecoveryCodeHash
 		}
 	} else {
+		hasRecoveryCodes = true
 		hashedCodes = recovery.GetCodes()
 	}
 

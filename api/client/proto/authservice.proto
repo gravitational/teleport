@@ -986,26 +986,27 @@ message ChangeUserAuthenticationRequest {
     // TokenID is the ID of a reset or invite token.
     // The token allows the user to change their credentials without being logged
     // in.
-    string TokenID = 1;
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
     // NewPassword is the new password in plain text.
-    bytes NewPassword = 2;
+    bytes NewPassword = 2 [ (gogoproto.jsontag) = "new_password" ];
     // NewMFARegisterResponse is a MFA response to a MFA authentication challenge.
     // This field can be empty which implies that user chose not to add a new device (allowable when
     // cluster settings enable optional second factor), or cluster settings disabled second factor.
-    MFARegisterResponse NewMFARegisterResponse = 3;
+    MFARegisterResponse NewMFARegisterResponse = 3
+        [ (gogoproto.jsontag) = "new_mfa_register_response,omitempty" ];
 }
 
 // ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
 message ChangeUserAuthenticationResponse {
     // WebSession is a user's web sesssion created from successful changing of password.
-    types.WebSessionV2 WebSession = 1;
+    types.WebSessionV2 WebSession = 1 [ (gogoproto.jsontag) = "web_session" ];
     // RecoveryCodes are user's new recovery codes. Previous recovery codes become invalid.
     // This field can be empty if a user does not meet the following
     // requirements to receive recovery codes:
     //  - cloud feature is not enabled
     //  - second factor is not enabled
     //  - username is not in valid email format
-    repeated string RecoveryCodes = 2;
+    repeated string RecoveryCodes = 2 [ (gogoproto.jsontag) = "recovery_codes,omitempty" ];
 }
 
 // AuthService is authentication/authorization service implementation

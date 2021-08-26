@@ -2463,17 +2463,20 @@ message RecoveryCodesV1 {
 // RecoveryCodesSpecV1 is the recovery codes spec.
 message RecoveryCodesSpecV1 {
     // Codes hold a list of numOfRecoveryCodes.
-    repeated RecoveryCode Codes = 1 [ (gogoproto.nullable) = false ];
+    repeated RecoveryCode Codes = 1 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "codes" ];
     // Created is when the set of recovery codes were generated. Updated when a new set of recovery
     // codes are inserted.
-    google.protobuf.Timestamp Created = 2
-        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    google.protobuf.Timestamp Created = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created"
+    ];
 }
 
 // RecoveryCode describes a recovery code.
 message RecoveryCode {
     // HashedCode is a bcrypt hash of this recovery code.
-    bytes HashedCode = 1;
+    bytes HashedCode = 1 [ (gogoproto.jsontag) = "hashed_code" ];
     // IsUsed determines if this recovery code was used.
-    bool IsUsed = 2;
+    bool IsUsed = 2 [ (gogoproto.jsontag) = "is_used" ];
 }

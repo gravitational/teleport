@@ -218,6 +218,7 @@ func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
 }
 
+// IsSecondFactorEnforced checks if second factor is enforced (not disabled or set to optional).
 func (c *AuthPreferenceV2) IsSecondFactorEnforced() bool {
 	return c.Spec.SecondFactor != constants.SecondFactorOff && c.Spec.SecondFactor != constants.SecondFactorOptional
 }
