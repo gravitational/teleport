@@ -642,6 +642,7 @@ type AuthenticationConfig struct {
 	SecondFactor      constants.SecondFactorType `yaml:"second_factor,omitempty"`
 	ConnectorName     string                     `yaml:"connector_name,omitempty"`
 	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
+	Webauthn          *Webauthn                  `yaml:"webauthn,omitempty"`
 	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
 	LockingMode       constants.LockingMode      `yaml:"locking_mode,omitempty"`
 
@@ -661,11 +662,20 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	var w *types.Webauthn
+	if a.Webauthn != nil {
+		w, err = a.Webauthn.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
 		U2F:               &u,
+		Webauthn:          w,
 		RequireSessionMFA: a.RequireSessionMFA,
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
@@ -679,31 +689,71 @@ type UniversalSecondFactor struct {
 }
 
 func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
-	res := types.U2F{
-		AppID:  u.AppID,
-		Facets: u.Facets,
+	attestationCAs, err := getAttestationPEMs(u.DeviceAttestationCAs)
+	if err != nil {
+		return types.U2F{}, trace.BadParameter("u2f.device_attestation_cas: %v", err)
 	}
-	// DeviceAttestationCAs are either file paths or raw PEM blocks.
-	for _, ca := range u.DeviceAttestationCAs {
-		_, parseErr := tlsutils.ParseCertificatePEM([]byte(ca))
-		if parseErr == nil {
-			// Successfully parsed as a PEM block, add it.
-			res.DeviceAttestationCAs = append(res.DeviceAttestationCAs, ca)
-			continue
-		}
+	return types.U2F{
+		AppID:                u.AppID,
+		Facets:               u.Facets,
+		DeviceAttestationCAs: attestationCAs,
+	}, nil
+}
 
-		// Try reading as a file and parsing that.
-		data, err := ioutil.ReadFile(ca)
+type Webauthn struct {
+	RPID                  string   `yaml:"rp_id,omitempty"`
+	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
+	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
+}
+
+func (w *Webauthn) Parse() (*types.Webauthn, error) {
+	allowedCAs, err := getAttestationPEMs(w.AttestationAllowedCAs)
+	if err != nil {
+		return nil, trace.BadParameter("webauthn.attestation_allowed_cas: %v", err)
+	}
+	deniedCAs, err := getAttestationPEMs(w.AttestationDeniedCAs)
+	if err != nil {
+		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
+	}
+	return &types.Webauthn{
+		// Allow any RPID to go through, we rely on
+		// types.Webauthn.CheckAndSetDefaults to correct it.
+		RPID:                  w.RPID,
+		AttestationAllowedCAs: allowedCAs,
+		AttestationDeniedCAs:  deniedCAs,
+	}, nil
+}
+
+func getAttestationPEMs(certOrPaths []string) ([]string, error) {
+	res := make([]string, len(certOrPaths))
+	for i, certOrPath := range certOrPaths {
+		pem, err := getAttestationPEM(certOrPath)
 		if err != nil {
-			return res, trace.BadParameter("device_attestation_cas value %q is not a valid x509 certificate (%v) and can't be read as a file (%v)", ca, parseErr, err)
+			return nil, err
 		}
-
-		if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
-			return res, trace.BadParameter("device_attestation_cas file %q contains an invalid x509 certificate: %v", ca, err)
-		}
-		res.DeviceAttestationCAs = append(res.DeviceAttestationCAs, string(data))
+		res[i] = pem
 	}
 	return res, nil
+}
+
+func getAttestationPEM(certOrPath string) (string, error) {
+	_, parseErr := tlsutils.ParseCertificatePEM([]byte(certOrPath))
+	if parseErr == nil {
+		return certOrPath, nil // OK, valid inline PEM
+	}
+
+	// Try reading as a file and parsing that.
+	data, err := ioutil.ReadFile(certOrPath)
+	if err != nil {
+		// Don't use trace in order to keep a clean error message.
+		return "", fmt.Errorf("%q is not a valid x509 certificate (%v) and can't be read as a file (%v)", certOrPath, parseErr, err)
+	}
+	if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
+		// Don't use trace in order to keep a clean error message.
+		return "", fmt.Errorf("file %q contains an invalid x509 certificate: %v", certOrPath, err)
+	}
+
+	return string(data), nil // OK, valid PEM file
 }
 
 // SSH is 'ssh_service' section of the config file
