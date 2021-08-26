@@ -81,19 +81,6 @@ ROLETESTER_BUILDDIR := ../lib/datalog/roletester/Cargo.toml
 endif
 endif
 
-#
-# tctl role tester
-# Requires a recent version of Rust and Cargo installed (tested rustc >= 1.52.1 and cargo >= 1.52.0)
-#
-ifeq ("$(with_roletester)", "yes")
-.PHONY: roletester
-roletester:
-	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release
-else
-.PHONY: roletester
-roletester:
-endif
-
 # Reproducible builds are only availalbe on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
 ifneq ("$(OS)","linux")
@@ -143,6 +130,19 @@ bpf-bytecode-e:
 else
 .PHONY: bpf-bytecode-e
 bpf-bytecode-e:
+endif
+
+#
+# tctl role tester
+# Requires a recent version of Rust and Cargo installed (tested rustc >= 1.52.1 and cargo >= 1.52.0)
+#
+ifeq ("$(with_roletester)", "yes")
+.PHONY: roletester
+roletester:
+	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release
+else
+.PHONY: roletester
+roletester:
 endif
 
 # If FIPS mode was requested, first compile an extra Teleport binary with symbols included and check that it contains BoringCrypto references.
