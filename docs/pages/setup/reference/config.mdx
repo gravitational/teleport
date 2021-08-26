@@ -200,6 +200,7 @@ auth_service:
 
         # second_factor can be off, otp, or u2f
         second_factor: otp
+
         # this section is used if second_factor is set to 'u2f'
         u2f:
             # public address of the Teleport proxy, _including_ the `https://`
@@ -234,6 +235,12 @@ auth_service:
               -----BEGIN CERTIFICATE-----
               ...
               -----END CERTIFICATE-----
+
+        # Locking mode determines how to apply lock views locally available to
+        # a Teleport component; can be strict or best_effort.
+        # See the "Locking mode" section for more details
+        # (https://goteleport.com/docs/access-controls/guides/locking/#locking-mode).
+        locking_mode: best_effort
 
     # IP and the port to bind to. Other Teleport nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client
