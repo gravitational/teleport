@@ -31,7 +31,12 @@ import { Desktop } from 'teleport/services/desktops';
 import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
 
 function DesktopList(props: Props) {
-  const { desktops = [], pageSize = 100, searchValue } = props;
+  const {
+    desktops = [],
+    pageSize = 100,
+    searchValue,
+    openRemoteDesktopWindow,
+  } = props;
 
   const [sortDir, setSortDir] = useState<Record<string, string>>({
     name: SortTypes.DESC,
@@ -56,6 +61,15 @@ function DesktopList(props: Props) {
 
   function onSortChange(columnKey: string, sortDir: string) {
     setSortDir({ [columnKey]: sortDir });
+  }
+
+  function onDesktopSelect(
+    e: React.MouseEvent,
+    username: string,
+    desktopUUID: string
+  ) {
+    e.preventDefault();
+    openRemoteDesktopWindow(username, desktopUUID);
   }
 
   const data = sortAndFilter(searchValue);
@@ -87,7 +101,7 @@ function DesktopList(props: Props) {
       <Column header={<Cell>Labels</Cell>} cell={<LabelCell />} />
       <Column
         header={<Cell />}
-        cell={<LoginCell onOpen={() => []} onSelect={() => {}} />}
+        cell={<LoginCell onOpen={() => []} onSelect={onDesktopSelect} />}
       />
     </StyledTable>
   );
@@ -106,15 +120,19 @@ const DesktopDomainCell = props => {
 
 // TODO: may be able to be abstracted out from here/NodeList.tsx
 const LoginCell: React.FC<Required<{
-  onSelect?: (e: React.SyntheticEvent, login: string, serverId: string) => void;
+  onSelect?: (
+    e: React.SyntheticEvent,
+    username: string,
+    desktopUUID: string
+  ) => void;
   onOpen: (serverUuid: string) => LoginItem[];
   [key: string]: any;
 }>> = props => {
   const { rowIndex, data, onOpen, onSelect } = props;
   const { name } = data[rowIndex] as Desktop;
-  const serverUuid = name;
+  const desktopUUID = name;
   function handleOnOpen() {
-    return onOpen(serverUuid);
+    return onOpen(desktopUUID);
   }
 
   function handleOnSelect(e: React.SyntheticEvent, login: string) {
@@ -122,7 +140,9 @@ const LoginCell: React.FC<Required<{
       return [];
     }
 
-    return onSelect(e, login, serverUuid);
+    const username = login;
+
+    return onSelect(e, username, desktopUUID);
   }
 
   return (
@@ -182,6 +202,7 @@ type Props = {
   clusterId: string;
   authType: AuthType;
   searchValue: string;
+  openRemoteDesktopWindow: (username: string, desktopUUID: string) => void;
 };
 
 export default DesktopList;

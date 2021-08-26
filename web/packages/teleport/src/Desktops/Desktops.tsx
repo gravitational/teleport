@@ -42,6 +42,7 @@ export function Desktops(props: State) {
     searchValue,
     setSearchValue,
     desktops,
+    openRemoteDesktopWindow,
   } = props;
 
   return (
@@ -69,6 +70,7 @@ export function Desktops(props: State) {
         clusterId={clusterId}
         authType={authType}
         searchValue={searchValue}
+        openRemoteDesktopWindow={openRemoteDesktopWindow}
       />
     </FeatureBox>
   );

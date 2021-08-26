@@ -108,6 +108,7 @@ export function renderPublicRoutes(children = []) {
 export function renderPrivateRoutes(CustomMain = Main) {
   return (
     <Switch>
+      <Route path={cfg.routes.desktop} component={Console} />
       <Route path={cfg.routes.console} component={Console} />
       <Route path={cfg.routes.player} component={Player} />
       <Route path={cfg.routes.root} component={CustomMain} />
