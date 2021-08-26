@@ -24,14 +24,13 @@ import (
 
 // TestSAMLSecretsStrip tests the WithoutSecrets method on SAMLConnectorV2.
 func TestSAMLSecretsStrip(t *testing.T) {
-	connector, err := NewSAMLConnector("test", SAMLConnectorSpecV2{
+	connector := NewSAMLConnector("test", SAMLConnectorSpecV2{
 		AssertionConsumerService: "test",
 		SSO:                      "test",
 		EntityDescriptor:         "test",
 		SigningKeyPair:           &AsymmetricKeyPair{PrivateKey: "test"},
 		EncryptionKeyPair:        &AsymmetricKeyPair{PrivateKey: "test"},
 	})
-	require.Nil(t, err)
 	require.Equal(t, connector.GetSigningKeyPair().PrivateKey, "test")
 	require.Equal(t, connector.GetEncryptionKeyPair().PrivateKey, "test")
 
