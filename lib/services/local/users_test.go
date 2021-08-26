@@ -40,16 +40,17 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 
 	service := NewIdentityService(backend)
 
+	// Create a recovery codes resource.
+	mockedCodes := []types.RecoveryCode{
+		{HashedCode: []byte("code1")},
+		{HashedCode: []byte("code2")},
+		{HashedCode: []byte("code3")},
+	}
+
 	t.Run("upsert, get, delete recovery codes", func(t *testing.T) {
 		t.Parallel()
 		username := "someuser"
 
-		// Create a recovery codes resource.
-		mockedCodes := []types.RecoveryCode{
-			{HashedCode: []byte("code1")},
-			{HashedCode: []byte("code2")},
-			{HashedCode: []byte("code3")},
-		}
 		rc1, err := types.NewRecoveryCodes(mockedCodes, backend.Clock().Now(), username)
 		require.NoError(t, err)
 
@@ -85,14 +86,23 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		t.Parallel()
 		username := "someuser2"
 
-		// Create a user, to test deletion of recovery codes with user.
+		// Create a user.
 		userResource := &types.UserV2{}
 		userResource.SetName(username)
 		err = service.CreateUser(userResource)
 		require.NoError(t, err)
 
+		// Test codes exist for user.
+		rc1, err := types.NewRecoveryCodes(mockedCodes, backend.Clock().Now(), username)
+		require.NoError(t, err)
+		err = service.UpsertRecoveryCodes(ctx, username, rc1)
+		require.NoError(t, err)
+		codes, err := service.GetRecoveryCodes(ctx, username)
+		require.NoError(t, err)
+		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
+
 		// Test deletion of recovery code along with user.
-		err := service.DeleteUser(ctx, username)
+		err = service.DeleteUser(ctx, username)
 		require.NoError(t, err)
 		_, err = service.GetRecoveryCodes(ctx, username)
 		require.True(t, trace.IsNotFound(err))
