@@ -85,7 +85,6 @@ export const ChevronCircleUp = makeFontIcon(
   'ChevronCircleUp',
   'icon-chevron-up-circle'
 );
-export const Circle = makeFontIcon('Circle', 'icon-circle')
 export const CircleArrowLeft = makeFontIcon(
   'CircleArrowLeft',
   'icon-arrow-left-circle'

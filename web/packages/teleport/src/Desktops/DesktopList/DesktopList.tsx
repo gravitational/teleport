@@ -20,7 +20,6 @@ import { sortBy } from 'lodash';
 import {
   Column,
   SortHeaderCell,
-  TextCell,
   Cell,
   SortTypes,
   renderLabelCell,
@@ -30,7 +29,6 @@ import isMatch from 'design/utils/match';
 import { AuthType } from 'teleport/services/user';
 import { Desktop } from 'teleport/services/desktops';
 import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
-import StatusLight from 'design/StatusLight';
 
 function DesktopList(props: Props) {
   const { desktops = [], pageSize = 100, searchValue } = props;
@@ -64,14 +62,6 @@ function DesktopList(props: Props) {
 
   return (
     <StyledTable pageSize={pageSize} data={data}>
-      <Column
-        header={<Cell>Status</Cell>}
-        cell={
-          <Cell>
-            <StatusLight status="active" ml="11px" />
-          </Cell>
-        }
-      />
       <Column
         columnKey="addr"
         header={
