@@ -23,21 +23,18 @@ import (
 	"sort"
 	"time"
 
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
-	"golang.org/x/crypto/bcrypt"
-
+	"github.com/gokyle/hotp"
 	"github.com/google/go-cmp/cmp"
-
 	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // IdentityService is responsible for managing web users and currently
@@ -261,6 +258,11 @@ func (s *IdentityService) upsertLocalAuthSecrets(user string, auth types.LocalAu
 	}
 	for _, d := range auth.MFA {
 		if err := s.UpsertMFADevice(context.TODO(), user, d); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if auth.Webauthn != nil {
+		if err := s.UpsertWebauthnLocalAuth(context.TODO(), user, auth.Webauthn); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -563,6 +565,45 @@ func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge,
 		return nil, trace.Wrap(err)
 	}
 	return &u2fChal, nil
+}
+
+func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
+	switch {
+	case user == "":
+		return trace.BadParameter("missing parameter user")
+	case wla == nil:
+		return trace.BadParameter("missing parameter webauthn local auth")
+	}
+	if err := wla.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	value, err := json.Marshal(wla)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:   webauthnLocalAuthKey(user),
+		Value: value,
+	})
+	return trace.Wrap(err)
+}
+
+func (s *IdentityService) GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
+	item, err := s.Get(ctx, webauthnLocalAuthKey(user))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	wal := &types.WebauthnLocalAuth{}
+	return wal, trace.Wrap(json.Unmarshal(item.Value, wal))
+}
+
+func webauthnLocalAuthKey(user string) []byte {
+	return backend.Key(webPrefix, usersPrefix, user, webauthnLocalAuthPrefix)
 }
 
 func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
@@ -1113,23 +1154,24 @@ func (s *IdentityService) GetGithubAuthRequest(stateToken string) (*services.Git
 }
 
 const (
-	webPrefix              = "web"
-	usersPrefix            = "users"
-	sessionsPrefix         = "sessions"
-	attemptsPrefix         = "attempts"
-	pwdPrefix              = "pwd"
-	hotpPrefix             = "hotp"
-	connectorsPrefix       = "connectors"
-	oidcPrefix             = "oidc"
-	samlPrefix             = "saml"
-	githubPrefix           = "github"
-	requestsPrefix         = "requests"
-	u2fRegChalPrefix       = "adduseru2fchallenges"
-	usedTOTPPrefix         = "used_totp"
-	usedTOTPTTL            = 30 * time.Second
-	mfaDevicePrefix        = "mfa"
-	u2fSignChallengePrefix = "u2fsignchallenge"
-	webauthnSessionData    = "webauthnsessiondata"
+	webPrefix               = "web"
+	usersPrefix             = "users"
+	sessionsPrefix          = "sessions"
+	attemptsPrefix          = "attempts"
+	pwdPrefix               = "pwd"
+	hotpPrefix              = "hotp"
+	connectorsPrefix        = "connectors"
+	oidcPrefix              = "oidc"
+	samlPrefix              = "saml"
+	githubPrefix            = "github"
+	requestsPrefix          = "requests"
+	u2fRegChalPrefix        = "adduseru2fchallenges"
+	usedTOTPPrefix          = "used_totp"
+	usedTOTPTTL             = 30 * time.Second
+	mfaDevicePrefix         = "mfa"
+	u2fSignChallengePrefix  = "u2fsignchallenge"
+	webauthnLocalAuthPrefix = "webauthnlocalauth"
+	webauthnSessionData     = "webauthnsessiondata"
 
 	// DELETE IN 7.0: these prefixes are migrated to mfaDevicePrefix in 6.0 on
 	// first startup.

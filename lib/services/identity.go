@@ -121,6 +121,16 @@ type Identity interface {
 	// GetU2FSignChallenge returns a U2F sign (auth) challenge
 	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
 
+	// UpsertWebauthnLocalAuth creates or updates the local auth configuration for
+	// Webauthn.
+	// WebauthnLocalAuth is a component of LocalAuthSecrets.
+	UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error
+
+	// GetWebauthnLocalAuth retrieves the existing local auth configuration for
+	// Webauthn, if any.
+	// WebauthnLocalAuth is a component of LocalAuthSecrets.
+	GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error)
+
 	// UpsertWebauthnSessionData creates or updates WebAuthn session data in
 	// storage, for the purpose of later verifying an authentication or
 	// registration challenge.

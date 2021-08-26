@@ -1686,6 +1686,10 @@ message LocalAuthSecrets {
     uint32 U2FCounter = 4 [ (gogoproto.jsontag) = "u2f_counter,omitempty" ];
 
     repeated MFADevice MFA = 5 [ (gogoproto.jsontag) = "mfa,omitempty" ];
+    // Webauthn holds settings necessary for webauthn local auth.
+    // May be null for legacy users or users that haven't yet used webauthn as
+    // their second factor.
+    WebauthnLocalAuth Webauthn = 6 [ (gogoproto.jsontag) = "webauthn,omitempty" ];
 }
 
 // MFADevice is a multi-factor authentication device, such as a security key or
@@ -1722,6 +1726,13 @@ message U2FDevice {
     bytes pub_key = 2;
     // Counter is the latest seen value of the U2F usage counter.
     uint32 counter = 3;
+}
+
+// WebauthnLocalAuth holds settings necessary for local webauthn use.
+message WebauthnLocalAuth {
+    // UserID is the random user handle generated for the user.
+    // See https://www.w3.org/TR/webauthn-2/#sctn-user-handle-privacy.
+    bytes UserID = 1 [ (gogoproto.jsontag) = "user_id,omitempty" ];
 }
 
 // ConnectorRef holds information about OIDC connector
