@@ -118,31 +118,31 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 	c.Assert(err, IsNil)
 
 	for i := 0; i < 20; i++ {
-		c.Assert(limiter.RegisterRequest("token1", nil), IsNil)
+		c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	}
 	for i := 0; i < 20; i++ {
-		c.Assert(limiter.RegisterRequest("token2", nil), IsNil)
+		c.Assert(limiter.RegisterRequest("token2"), IsNil)
 	}
 
-	c.Assert(limiter.RegisterRequest("token1", nil), NotNil)
-
-	clock.Sleep(10 * time.Millisecond)
-	for i := 0; i < 10; i++ {
-		c.Assert(limiter.RegisterRequest("token1", nil), IsNil)
-	}
-	c.Assert(limiter.RegisterRequest("token1", nil), NotNil)
+	c.Assert(limiter.RegisterRequest("token1"), NotNil)
 
 	clock.Sleep(10 * time.Millisecond)
 	for i := 0; i < 10; i++ {
-		c.Assert(limiter.RegisterRequest("token1", nil), IsNil)
+		c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	}
-	c.Assert(limiter.RegisterRequest("token1", nil), NotNil)
+	c.Assert(limiter.RegisterRequest("token1"), NotNil)
+
+	clock.Sleep(10 * time.Millisecond)
+	for i := 0; i < 10; i++ {
+		c.Assert(limiter.RegisterRequest("token1"), IsNil)
+	}
+	c.Assert(limiter.RegisterRequest("token1"), NotNil)
 
 	clock.Sleep(10 * time.Millisecond)
 	// the second rate is full
 	err = nil
 	for i := 0; i < 10; i++ {
-		err = limiter.RegisterRequest("token1", nil)
+		err = limiter.RegisterRequest("token1")
 		if err != nil {
 			break
 		}
@@ -151,10 +151,10 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 
 	clock.Sleep(10 * time.Millisecond)
 	// Now the second rate has free space
-	c.Assert(limiter.RegisterRequest("token1", nil), IsNil)
+	c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	err = nil
 	for i := 0; i < 15; i++ {
-		err = limiter.RegisterRequest("token1", nil)
+		err = limiter.RegisterRequest("token1")
 		if err != nil {
 			break
 		}
@@ -187,14 +187,14 @@ func (s *LimiterSuite) TestCustomRate(c *C) {
 
 	// Max out custom rate.
 	for i := 0; i < 5; i++ {
-		c.Assert(limiter.RegisterRequest("token1", customRate), IsNil)
+		c.Assert(limiter.RegisterRequestWithCustomRate("token1", customRate), IsNil)
 	}
 
 	// Test rate limit exceeded with custom rate.
-	c.Assert(limiter.RegisterRequest("token1", customRate), NotNil)
+	c.Assert(limiter.RegisterRequestWithCustomRate("token1", customRate), NotNil)
 
 	// Test default rate still works.
 	for i := 0; i < 20; i++ {
-		c.Assert(limiter.RegisterRequest("token1", nil), IsNil)
+		c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	}
 }

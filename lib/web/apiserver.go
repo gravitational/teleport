@@ -277,7 +277,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
 	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
-	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthnWithToken))
+	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthentication))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
 
@@ -1422,19 +1422,20 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 	return res, nil
 }
 
-type changeUserAuthnWithTokenRequest struct {
-	// SecondFactorToken is 2nd factor token value
+type changeUserAuthenticationRequest struct {
+	// SecondFactorToken is the TOTP code.
 	SecondFactorToken string `json:"second_factor_token"`
-	// TokenID is this token ID
+	// TokenID is the ID of a reset or invite token.
 	TokenID string `json:"token"`
-	// Password is user password
+	// Password is user password string converted to bytes.
 	Password []byte `json:"password"`
 	// U2FRegisterResponse is U2F registration challenge response.
 	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
+	// TODO webauthn
 }
 
-func (h *Handler) changeUserAuthnWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req changeUserAuthnWithTokenRequest
+func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req changeUserAuthenticationRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}

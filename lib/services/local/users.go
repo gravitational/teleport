@@ -1066,9 +1066,6 @@ func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string) (*t
 
 	item, err := s.Get(ctx, backend.Key(webPrefix, usersPrefix, user, recoveryCodesPrefix))
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("recovery codes for user %q is not found", user)
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -1106,7 +1103,7 @@ func (s *IdentityService) UpsertRecoveryCodes(ctx context.Context, user string, 
 }
 
 // CreateUserRecoveryAttempt creates new user recovery attempt.
-func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user string, attempt types.RecoveryAttempt) error {
+func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
 	}
@@ -1131,7 +1128,7 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 }
 
 // GetUserRecoveryAttempt returns users recovery attempts.
-func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user string) ([]types.RecoveryAttempt, error) {
+func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing parameter user")
 	}
@@ -1139,19 +1136,16 @@ func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user stri
 	startKey := backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("recovery attempt record for user %q is not found", user)
-		}
 		return nil, trace.Wrap(err)
 	}
 
-	out := make([]types.RecoveryAttempt, len(result.Items))
+	out := make([]*types.RecoveryAttempt, len(result.Items))
 	for i, item := range result.Items {
 		var a types.RecoveryAttempt
 		if err := json.Unmarshal(item.Value, &a); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out[i] = a
+		out[i] = &a
 	}
 
 	sort.Sort(recoveryAttemptsChronologically(out))
@@ -1169,10 +1163,9 @@ func (s *IdentityService) DeleteUserRecoveryAttempts(ctx context.Context, user s
 	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
-// recoveryAttemptsChronologically sorts recovery attempts by time.
-type recoveryAttemptsChronologically []types.RecoveryAttempt
+// recoveryAttemptsChronologically sorts recovery attempts by latest to oldest time.
+type recoveryAttemptsChronologically []*types.RecoveryAttempt
 
-// Len returns length of a role list.
 func (s recoveryAttemptsChronologically) Len() int {
 	return len(s)
 }
@@ -1182,7 +1175,6 @@ func (s recoveryAttemptsChronologically) Less(i, j int) bool {
 	return s[i].Time.Before(s[j].Time)
 }
 
-// Swap swaps two attempts.
 func (s recoveryAttemptsChronologically) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }

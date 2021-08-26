@@ -294,14 +294,14 @@ const (
 	MFADeviceAddEventCode = "T1006I"
 	// MFADeviceDeleteEventCode is an event code for users deleting MFA devices.
 	MFADeviceDeleteEventCode = "T1007I"
-	// RecoveryCodesGeneratedCode is an event code for generation of recovery codes.
-	RecoveryCodesGeneratedCode = "T1008I"
-	// RecoveryCodeUsedCode is an event code for when a
+	// RecoveryCodesGenerateCode is an event code for generation of recovery codes.
+	RecoveryCodesGenerateCode = "T1008I"
+	// RecoveryCodeUseSuccessCode is an event code for when a
 	// recovery code was used successfully.
-	RecoveryCodeUsedCode = "T1009I"
-	// RecoveryCodeUsedFailureCode is an event code for when a
+	RecoveryCodeUseSuccessCode = "T1009I"
+	// RecoveryCodeUseFailureCode is an event code for when a
 	// recovery code was not used successfully.
-	RecoveryCodeUsedFailureCode = "T1009W"
+	RecoveryCodeUseFailureCode = "T1009W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"

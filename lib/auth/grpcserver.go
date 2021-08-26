@@ -3181,7 +3181,7 @@ func (g *GRPCServer) DeleteAllWindowsDesktops(ctx context.Context, _ *empty.Empt
 	return &empty.Empty{}, nil
 }
 
-// ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
+// ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
 func (g *GRPCServer) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

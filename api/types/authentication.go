@@ -45,7 +45,7 @@ type AuthPreference interface {
 	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
 	SetSecondFactor(constants.SecondFactorType)
-	// IsSecondFactorEnforced checks if second factor is enabled.
+	// IsSecondFactorEnforced checks if second factor is enforced.
 	IsSecondFactorEnforced() bool
 
 	// GetConnectorName gets the name of the OIDC or SAML connector to use. If

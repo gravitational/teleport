@@ -447,7 +447,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	}
 
 	user := sconn.User()
-	if err := s.limiter.RegisterRequest(user, nil); err != nil {
+	if err := s.limiter.RegisterRequest(user); err != nil {
 		log.Errorf(err.Error())
 		sconn.Close()
 		conn.Close()
