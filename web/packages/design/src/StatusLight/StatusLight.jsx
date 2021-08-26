@@ -37,9 +37,8 @@ const StatusLight = styled(Circle)`
 
 StatusLight.displayName = 'StatusLight';
 StatusLight.defaultProps = {
-  fontSize: 1,
+  fontSize: '10px',
   status: 'inactive',
-  // ml: '12px',
 };
 
 export default StatusLight;
