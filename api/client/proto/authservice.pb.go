@@ -6979,7 +6979,7 @@ type ChangeUserAuthenticationRequest struct {
 	// The token allows the user to change their credentials without being logged
 	// in.
 	TokenID string `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"TokenID,omitempty"`
-	// NewPassword is the new password string converted into bytes.
+	// NewPassword is the new password in plain text.
 	NewPassword []byte `protobuf:"bytes,2,opt,name=NewPassword,proto3" json:"NewPassword,omitempty"`
 	// NewMFARegisterResponse is a MFA response to a MFA authentication challenge.
 	// This field can be empty which implies that user chose not to add a new device (allowable when
@@ -7044,8 +7044,7 @@ func (m *ChangeUserAuthenticationRequest) GetNewMFARegisterResponse() *MFARegist
 	return nil
 }
 
-// ChangeUserAuthenticationResponse is a response for
-// ChangeUserAuthentication.
+// ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
 type ChangeUserAuthenticationResponse struct {
 	// WebSession is a user's web sesssion created from successful changing of password.
 	WebSession *types.WebSessionV2 `protobuf:"bytes,1,opt,name=WebSession,proto3" json:"WebSession,omitempty"`
@@ -7935,7 +7934,7 @@ type AuthServiceClient interface {
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
 	DeleteAllWindowsDesktops(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// ChangeUserAuthentication allows a user to change their password and if enabled,
-	// also adds a new mfa device. After successful invocation, a new web session is created as well
+	// also adds a new MFA device. After successful invocation, a new web session is created as well
 	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
 	// any existing codes the user previously had.
 	ChangeUserAuthentication(ctx context.Context, in *ChangeUserAuthenticationRequest, opts ...grpc.CallOption) (*ChangeUserAuthenticationResponse, error)
@@ -9589,7 +9588,7 @@ type AuthServiceServer interface {
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
 	DeleteAllWindowsDesktops(context.Context, *empty.Empty) (*empty.Empty, error)
 	// ChangeUserAuthentication allows a user to change their password and if enabled,
-	// also adds a new mfa device. After successful invocation, a new web session is created as well
+	// also adds a new MFA device. After successful invocation, a new web session is created as well
 	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
 	// any existing codes the user previously had.
 	ChangeUserAuthentication(context.Context, *ChangeUserAuthenticationRequest) (*ChangeUserAuthenticationResponse, error)

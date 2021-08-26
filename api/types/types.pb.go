@@ -7362,7 +7362,7 @@ var xxx_messageInfo_WindowsDesktopSpecV3 proto.InternalMessageInfo
 type RecoveryCodesV1 struct {
 	// Kind is the resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
-	// SubKind is an optional resource subkind.
+	// SubKind is an optional resource subkind. Currently unused for this resource.
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
 	// Version is the resource version.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
@@ -7455,7 +7455,7 @@ var xxx_messageInfo_RecoveryCodesSpecV1 proto.InternalMessageInfo
 
 // RecoveryCode describes a recovery code.
 type RecoveryCode struct {
-	// HashedCode is bycrypt hash of this recovery code.
+	// HashedCode is a bcrypt hash of this recovery code.
 	HashedCode []byte `protobuf:"bytes,1,opt,name=HashedCode,proto3" json:"HashedCode,omitempty"`
 	// IsUsed determines if this recovery code was used.
 	IsUsed               bool     `protobuf:"varint,2,opt,name=IsUsed,proto3" json:"IsUsed,omitempty"`

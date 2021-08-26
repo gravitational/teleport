@@ -1174,7 +1174,7 @@ func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string) (*t
 
 // UpsertRecoveryCodes creates or updates user's account recovery codes.
 // Each recovery code are hashed before upsert.
-func (s *IdentityService) UpsertRecoveryCodes(ctx context.Context, user string, recovery types.RecoveryCodesV1) error {
+func (s *IdentityService) UpsertRecoveryCodes(ctx context.Context, user string, recovery *types.RecoveryCodesV1) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
 	}
@@ -1258,7 +1258,7 @@ func (s *IdentityService) DeleteUserRecoveryAttempts(ctx context.Context, user s
 	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
-// recoveryAttemptsChronologically sorts recovery attempts by latest to oldest time.
+// recoveryAttemptsChronologically sorts recovery attempts by oldest to latest time.
 type recoveryAttemptsChronologically []*types.RecoveryAttempt
 
 func (s recoveryAttemptsChronologically) Len() int {

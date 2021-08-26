@@ -2450,7 +2450,7 @@ message WindowsDesktopSpecV3 {
 message RecoveryCodesV1 {
     // Kind is the resource kind.
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
-    // SubKind is an optional resource subkind.
+    // SubKind is an optional resource subkind. Currently unused for this resource.
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is the resource version.
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
@@ -2459,6 +2459,7 @@ message RecoveryCodesV1 {
     // Spec is the resource spec.
     RecoveryCodesSpecV1 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
+
 // RecoveryCodesSpecV1 is the recovery codes spec.
 message RecoveryCodesSpecV1 {
     // Codes hold a list of numOfRecoveryCodes.
@@ -2471,7 +2472,7 @@ message RecoveryCodesSpecV1 {
 
 // RecoveryCode describes a recovery code.
 message RecoveryCode {
-    // HashedCode is bycrypt hash of this recovery code.
+    // HashedCode is a bcrypt hash of this recovery code.
     bytes HashedCode = 1;
     // IsUsed determines if this recovery code was used.
     bool IsUsed = 2;

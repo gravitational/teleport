@@ -987,7 +987,7 @@ message ChangeUserAuthenticationRequest {
     // The token allows the user to change their credentials without being logged
     // in.
     string TokenID = 1;
-    // NewPassword is the new password string converted into bytes.
+    // NewPassword is the new password in plain text.
     bytes NewPassword = 2;
     // NewMFARegisterResponse is a MFA response to a MFA authentication challenge.
     // This field can be empty which implies that user chose not to add a new device (allowable when
@@ -995,8 +995,7 @@ message ChangeUserAuthenticationRequest {
     MFARegisterResponse NewMFARegisterResponse = 3;
 }
 
-// ChangeUserAuthenticationResponse is a response for
-// ChangeUserAuthentication.
+// ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
 message ChangeUserAuthenticationResponse {
     // WebSession is a user's web sesssion created from successful changing of password.
     types.WebSessionV2 WebSession = 1;
@@ -1338,7 +1337,7 @@ service AuthService {
     rpc DeleteAllWindowsDesktops(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // ChangeUserAuthentication allows a user to change their password and if enabled,
-    // also adds a new mfa device. After successful invocation, a new web session is created as well
+    // also adds a new MFA device. After successful invocation, a new web session is created as well
     // as a new set of recovery codes (if user meets the requirements to receive them), invalidating
     // any existing codes the user previously had.
     rpc ChangeUserAuthentication(ChangeUserAuthenticationRequest)

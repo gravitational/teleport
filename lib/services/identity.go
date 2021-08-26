@@ -233,7 +233,7 @@ type Identity interface {
 	GetUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
 
 	// UpsertRecoveryCodes upserts a user's new recovery codes.
-	UpsertRecoveryCodes(ctx context.Context, user string, recovery types.RecoveryCodesV1) error
+	UpsertRecoveryCodes(ctx context.Context, user string, recovery *types.RecoveryCodesV1) error
 
 	// GetRecoveryCodes gets a user's recovery codes.
 	GetRecoveryCodes(ctx context.Context, user string) (*types.RecoveryCodesV1, error)
@@ -241,7 +241,7 @@ type Identity interface {
 	// CreateUserRecoveryAttempt logs user recovery attempt.
 	CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error
 
-	// GetUserRecoveryAttempts returns user recovery attempts sorted by latest to oldest time.
+	// GetUserRecoveryAttempts returns user recovery attempts sorted by oldest to latest time.
 	GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error)
 
 	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.

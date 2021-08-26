@@ -82,6 +82,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 }
 
 func TestRecoveryCodeEventsEmitted(t *testing.T) {
+	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 	mockEmitter := &events.MockEmitter{}

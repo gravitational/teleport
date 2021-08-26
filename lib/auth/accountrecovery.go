@@ -67,7 +67,7 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 		codeMatch = true
 		// Mark matched token as used in backend so it can't be used again.
 		recovery.GetCodes()[i].IsUsed = true
-		if err := s.UpsertRecoveryCodes(ctx, user, *recovery); err != nil {
+		if err := s.UpsertRecoveryCodes(ctx, user, recovery); err != nil {
 			return trace.Wrap(err)
 		}
 		break
@@ -133,7 +133,7 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.UpsertRecoveryCodes(ctx, username, *rc); err != nil {
+	if err := s.UpsertRecoveryCodes(ctx, username, rc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
