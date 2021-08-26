@@ -629,14 +629,13 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 			return nil, trace.Wrap(err)
 		}
 		if !withSecrets {
-			// Sets device field to empty values.
 			switch d.Device.(type) {
 			case *types.MFADevice_Totp:
 				d.Device = &types.MFADevice_Totp{Totp: &types.TOTPDevice{}}
 			case *types.MFADevice_U2F:
-				d.Device = &types.MFADevice_U2F{U2F: &types.U2FDevice{}}
+				// Do nothing, U2F does not contain any sensitive secrets.
 			default:
-				d.Device = nil
+				return nil, trace.BadParameter("unhandled MFADevice type %T", d.Device)
 			}
 		}
 		devices = append(devices, &d)

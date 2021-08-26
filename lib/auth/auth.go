@@ -1148,13 +1148,13 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 		// TODO lisa place token subkind/usage restrictions.
 
 		if token.Expiry().Before(a.clock.Now().UTC()) {
-			return nil, trace.BadParameter("expired token")
+			return nil, trace.AccessDenied("expired token")
 		}
 
 		username = token.GetUser()
 	}
 
-	devs, err := a.Identity.GetMFADevices(ctx, username, req.GetWithSecrets())
+	devs, err := a.Identity.GetMFADevices(ctx, username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
