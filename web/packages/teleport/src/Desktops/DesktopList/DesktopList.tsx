@@ -81,7 +81,7 @@ function DesktopList(props: Props) {
             title="Domain"
           />
         }
-        cell={<TextCell />}
+        cell={<DesktopDomainCell />}
       />
       <Column
         columnKey="os"
@@ -102,6 +102,17 @@ function DesktopList(props: Props) {
     </StyledTable>
   );
 }
+
+const DesktopDomainCell = props => {
+  // If default RDP port (3389) is present, don't show it
+  const { rowIndex, data, columnKey, ...rest } = props;
+  var addr = data[rowIndex][columnKey];
+  const splitAddr = addr.split(':');
+  if (splitAddr.length > 1 && splitAddr[1] === '3389') {
+    addr = splitAddr[0];
+  }
+  return <Cell {...rest}>{addr}</Cell>;
+};
 
 // TODO: may be able to be abstracted out from here/NodeList.tsx
 const LoginCell: React.FC<Required<{
