@@ -2959,7 +2959,7 @@ func (a *ServerWithRoles) DeleteNetworkRestrictions(ctx context.Context) error {
 
 // GetMFADevices returns a list of MFA devices.
 func (a *ServerWithRoles) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
-	return a.authServer.GetMFADevices(ctx, req, a.context.User.GetName())
+	return a.authServer.GetMFADevices(ctx, req)
 }
 
 // TODO(awly): decouple auth.ClientI from auth.ServerWithRoles, they exist on

@@ -724,9 +724,9 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 			return nil, trace.Wrap(err)
 		}
 		if !withSecrets {
-			switch d.Device.(type) {
+			switch mfad := d.Device.(type) {
 			case *types.MFADevice_Totp:
-				d.Device = &types.MFADevice_Totp{Totp: &types.TOTPDevice{}}
+				mfad.Totp.Key = ""
 			case *types.MFADevice_U2F:
 				// Do nothing, U2F does not contain any sensitive secrets.
 			default:

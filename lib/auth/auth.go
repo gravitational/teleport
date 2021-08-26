@@ -1138,21 +1138,10 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 }
 
 // GetMFADevices returns all mfa devices for the user defined in the token or the user defined in context.
-func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest, username string) (*proto.GetMFADevicesResponse, error) {
-	if req.TokenID != "" {
-		token, err := a.GetUserToken(ctx, req.GetTokenID())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+	username := ClientUsernameWithouDefault(ctx)
 
-		// TODO lisa place token subkind/usage restrictions.
-
-		if token.Expiry().Before(a.clock.Now().UTC()) {
-			return nil, trace.AccessDenied("expired token")
-		}
-
-		username = token.GetUser()
-	}
+	// TODO lisa place token check for recovery
 
 	devs, err := a.Identity.GetMFADevices(ctx, username, false)
 	if err != nil {
