@@ -2081,7 +2081,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 
 func makeProxySSHClientWithTLSWrapper(cfg Config, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
 	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, &tls.Config{
-		NextProtos:         []string{alpnproxy.ProtocolProxySSH},
+		NextProtos:         []string{string(alpnproxy.ProtocolProxySSH)},
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 	})
 	if err != nil {
