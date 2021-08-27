@@ -89,7 +89,7 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		// Create a user.
 		userResource := &types.UserV2{}
 		userResource.SetName(username)
-		err = service.CreateUser(userResource)
+		err := service.CreateUser(userResource)
 		require.NoError(t, err)
 
 		// Test codes exist for user.
@@ -131,7 +131,7 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		username := "someuser"
 
 		// Test creation of recovery attempt.
-		err = service.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
+		err := service.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
 		require.NoError(t, err)
 		err = service.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time1, Expires: time3})
 		require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		// Create a user, to test deletion of recovery attempts with user.
 		userResource := &types.UserV2{}
 		userResource.SetName(username)
-		err = service.CreateUser(userResource)
+		err := service.CreateUser(userResource)
 		require.NoError(t, err)
 
 		err = service.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})

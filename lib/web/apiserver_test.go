@@ -2121,6 +2121,25 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
+// TestGetMFADevices gets devices for the authenticated user.
+func TestGetMFADevices(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "mfa")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var devices []ui.MFADevice
+	err = json.Unmarshal(re.Bytes(), &devices)
+	require.NoError(t, err)
+	require.Len(t, devices, 1)
+	require.Equal(t, "TOTP", devices[0].Type)
+	require.Equal(t, "otp", devices[0].Name) // default device name
+}
+
 // TestCreateAppSession verifies that an existing session to the Web UI can
 // be exchanged for a application specific session.
 func (s *WebSuite) TestCreateAppSession(c *C) {

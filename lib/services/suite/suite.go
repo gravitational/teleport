@@ -813,7 +813,7 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
 	c.Assert(err, check.IsNil)
 
-	devs, err := s.WebS.GetMFADevices(ctx, user1)
+	devs, err := s.WebS.GetMFADevices(ctx, user1, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(devs, check.HasLen, 1)
 	// Raw registration output is not stored - it's not used for
@@ -832,7 +832,7 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	dev.Metadata.Name = "u2f-2"
 	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
 	c.Assert(err, check.IsNil)
-	devs, err = s.WebS.GetMFADevices(ctx, user1)
+	devs, err = s.WebS.GetMFADevices(ctx, user1, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(devs, check.HasLen, 2)
 }
