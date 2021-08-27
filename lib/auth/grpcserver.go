@@ -2917,6 +2917,17 @@ func (g *GRPCServer) ReplaceRemoteLocks(ctx context.Context, req *proto.ReplaceR
 	return &empty.Empty{}, nil
 }
 
+// ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
+func (g *GRPCServer) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := auth.ServerWithRoles.ChangeUserAuthentication(ctx, req)
+	return res, trace.Wrap(err)
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

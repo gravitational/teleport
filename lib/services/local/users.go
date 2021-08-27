@@ -1058,6 +1058,127 @@ func (s *IdentityService) GetGithubAuthRequest(stateToken string) (*services.Git
 	return &req, nil
 }
 
+// GetRecoveryCodes returns user's recovery codes.
+func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string) (*types.RecoveryCodesV1, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
+	item, err := s.Get(ctx, backend.Key(webPrefix, usersPrefix, user, recoveryCodesPrefix))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var tokens types.RecoveryCodesV1
+	if err := json.Unmarshal(item.Value, &tokens); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &tokens, nil
+}
+
+// UpsertRecoveryCodes creates or updates user's account recovery codes.
+// Each recovery code are hashed before upsert.
+func (s *IdentityService) UpsertRecoveryCodes(ctx context.Context, user string, recovery *types.RecoveryCodesV1) error {
+	if user == "" {
+		return trace.BadParameter("missing parameter user")
+	}
+
+	if err := recovery.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	value, err := json.Marshal(recovery)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(webPrefix, usersPrefix, user, recoveryCodesPrefix),
+		Value: value,
+	}
+
+	_, err = s.Put(ctx, item)
+	return trace.Wrap(err)
+}
+
+// CreateUserRecoveryAttempt creates new user recovery attempt.
+func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error {
+	if user == "" {
+		return trace.BadParameter("missing parameter user")
+	}
+
+	if err := attempt.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	value, err := json.Marshal(attempt)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix, uuid.New()),
+		Value:   value,
+		Expires: attempt.Expires,
+	}
+
+	_, err = s.Create(ctx, item)
+	return trace.Wrap(err)
+}
+
+// GetUserRecoveryAttempt returns users recovery attempts.
+func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
+	startKey := backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]*types.RecoveryAttempt, len(result.Items))
+	for i, item := range result.Items {
+		var a types.RecoveryAttempt
+		if err := json.Unmarshal(item.Value, &a); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = &a
+	}
+
+	sort.Sort(recoveryAttemptsChronologically(out))
+
+	return out, nil
+}
+
+// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
+func (s *IdentityService) DeleteUserRecoveryAttempts(ctx context.Context, user string) error {
+	if user == "" {
+		return trace.BadParameter("missing parameter user")
+	}
+
+	startKey := backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
+	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
+}
+
+// recoveryAttemptsChronologically sorts recovery attempts by oldest to latest time.
+type recoveryAttemptsChronologically []*types.RecoveryAttempt
+
+func (s recoveryAttemptsChronologically) Len() int {
+	return len(s)
+}
+
+// Less stacks latest attempts to the end of the list.
+func (s recoveryAttemptsChronologically) Less(i, j int) bool {
+	return s[i].Time.Before(s[j].Time)
+}
+
+func (s recoveryAttemptsChronologically) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
 const (
 	webPrefix              = "web"
 	usersPrefix            = "users"
@@ -1075,6 +1196,8 @@ const (
 	usedTOTPTTL            = 30 * time.Second
 	mfaDevicePrefix        = "mfa"
 	u2fSignChallengePrefix = "u2fsignchallenge"
+	recoveryCodesPrefix    = "recoverycodes"
+	recoveryAttemptsPrefix = "recoveryattempts"
 
 	// DELETE IN 7.0: these prefixes are migrated to mfaDevicePrefix in 6.0 on
 	// first startup.

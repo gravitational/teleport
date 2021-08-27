@@ -1599,9 +1599,10 @@ func (a *ServerWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID st
 	return a.authServer.RotateUserTokenSecrets(ctx, tokenID)
 }
 
-func (a *ServerWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
+// ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
+func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	// Token is it's own authentication, no need to double check.
-	return a.authServer.ChangePasswordWithToken(ctx, req)
+	return a.authServer.ChangeUserAuthentication(ctx, req)
 }
 
 // CreateUser inserts a new user entry in a backend.

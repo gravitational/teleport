@@ -1146,15 +1146,6 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallen
 	return &u2fRegReq, nil
 }
 
-// ChangePasswordWithToken changes user password with ResetPasswordToken
-func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
-}
-
 // CreateOIDCAuthRequest creates OIDCAuthRequest
 func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
 	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
@@ -1895,8 +1886,9 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
-	// ChangePasswordWithToken changes password with token
-	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error)
+	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
+	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
+	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
 
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
