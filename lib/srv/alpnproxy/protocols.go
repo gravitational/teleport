@@ -24,22 +24,22 @@ const (
 	ProtocolPostgres Protocol = "teleport-postgres"
 
 	// ProtocolMySQL is TLS ALPN protocol value used to indicate MySQL protocol.
-	ProtocolMySQL = "teleport-mysql"
+	ProtocolMySQL Protocol = "teleport-mysql"
 
 	// ProtocolMongoDB is TLS ALPN protocol value used to indicate Mongo protocol.
-	ProtocolMongoDB = "teleport-mongodb"
+	ProtocolMongoDB Protocol = "teleport-mongodb"
 
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
-	ProtocolProxySSH = "teleport-proxy-ssh"
+	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
 
 	// ProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
-	ProtocolReverseTunnel = "teleport-reversetunnel"
+	ProtocolReverseTunnel Protocol = "teleport-reversetunnel"
 
 	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP2 protocol
-	ProtocolHTTP = "http/1.1"
+	ProtocolHTTP Protocol = "http/1.1"
 
 	// ProtocolHTTP2 is TLS ALPN protocol value used to indicate HTTP2 protocol.
-	ProtocolHTTP2 = "h2"
+	ProtocolHTTP2 Protocol = "h2"
 
 	// ProtocolDefault is default TLS ALPN value.
 	ProtocolDefault Protocol = ""

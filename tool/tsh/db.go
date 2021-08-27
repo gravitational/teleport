@@ -302,6 +302,7 @@ func startLocalALPNSNIProxy(cf *CLIConf, tc *client.TeleportClient, databaseProt
 	}
 
 	go func() {
+		defer listener.Close()
 		if err := lp.Start(cf.Context); err != nil {
 			log.WithError(err).Errorf("Failed to start local proxy")
 		}
