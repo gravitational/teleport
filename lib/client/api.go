@@ -2815,7 +2815,7 @@ func Username() (string, error) {
 	username := u.Username
 
 	// If on Windows, strip the domain name.
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == constants.WindowsOS {
 		idx := strings.LastIndex(username, "\\")
 		if idx > -1 {
 			username = username[idx+1:]
