@@ -21,9 +21,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -36,13 +34,6 @@ import (
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	log "github.com/sirupsen/logrus"
 )
-
-// CredentialAssertion is the payload sent to authenticators to initiate login.
-type CredentialAssertion protocol.CredentialAssertion
-
-// CredentialAssertionResponse is the reply from authenticators to complete
-// login.
-type CredentialAssertionResponse protocol.CredentialAssertionResponse
 
 // loginSessionID is used as the per-user session identifier.
 // A fixed identifier means, in essence, that only one concurrent login is
@@ -151,19 +142,11 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	// TODO(codingllama): Consider ignoring appid and basing the decision solely
 	//  in the device type. May be safer than assuming compliance?
 	// Do not read from parsedResp here, extensions don't carry over.
-	appidExt, ok := resp.Extensions[AppIDExtension]
-	if ok {
-		// Let's be as lenient as we can with the contents of "appid".
-		var err error
-		usingAppID, err = strconv.ParseBool(strings.ToLower(fmt.Sprint(appidExt)))
-		switch {
-		case err != nil:
-			log.Warnf("WebAuthn: failed to parse appid extension (%v)", appidExt)
-		case usingAppID && (f.U2F == nil || f.U2F.AppID == ""):
-			return nil, trace.BadParameter("appid extension provided but U2F app_id not configured")
-		case usingAppID:
-			rpID = f.U2F.AppID // Allow RPID = AppID for legacy devices
-		}
+	switch usingAppID := resp.Extensions.AppID; {
+	case usingAppID && (f.U2F == nil || f.U2F.AppID == ""):
+		return nil, trace.BadParameter("appid extension provided but U2F app_id not configured")
+	case usingAppID:
+		rpID = f.U2F.AppID // Allow RPID = AppID for legacy devices
 	}
 
 	origin := parsedResp.Response.CollectedClientData.Origin
@@ -231,10 +214,11 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 }
 
 func parseCredentialResponse(resp *CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {
-	// Remove extensions before Marshal, they are not supported.
-	exts := resp.PublicKeyCredential.Extensions
-	resp.PublicKeyCredential.Extensions = nil
-	defer func() { resp.PublicKeyCredential.Extensions = exts }()
+	// Do not pass extensions on to duo-labs/webauthn, they won't go past JSON
+	// unmarshal.
+	exts := resp.Extensions
+	resp.Extensions = nil
+	defer func() { resp.Extensions = exts }()
 
 	// This is a roundabout way of getting resp validated, but unfortunately the
 	// APIs don't provide a better method (and it seems better than duplicating
