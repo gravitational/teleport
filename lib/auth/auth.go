@@ -1139,7 +1139,10 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 
 // GetMFADevices returns all mfa devices for the user defined in the token or the user defined in context.
 func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
-	username := ClientUsernameWithouDefault(ctx)
+	username, err := GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// TODO lisa place token check for recovery
 

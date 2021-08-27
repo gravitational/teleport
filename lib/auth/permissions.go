@@ -730,17 +730,20 @@ func ClientUsername(ctx context.Context) string {
 	return identity.Username
 }
 
-// ClientUsernameWithouDefault returns the username of a remote HTTP client making the call.
+// GetClientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP
-// request, returns an empty string.
-func ClientUsernameWithouDefault(ctx context.Context) string {
+// request, returns an error.
+func GetClientUsername(ctx context.Context) (string, error) {
 	userI := ctx.Value(ContextUser)
 	userWithIdentity, ok := userI.(IdentityGetter)
 	if !ok {
-		return ""
+		return "", trace.AccessDenied("missing identity")
 	}
 	identity := userWithIdentity.GetIdentity()
-	return identity.Username
+	if identity.Username == "" {
+		return "", trace.AccessDenied("missing identity username")
+	}
+	return identity.Username, nil
 }
 
 // ClientImpersonator returns the impersonator username of a remote client

@@ -730,7 +730,7 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 			case *types.MFADevice_U2F:
 				// Do nothing, U2F does not contain any sensitive secrets.
 			default:
-				return nil, trace.BadParameter("unhandled MFADevice type %T", d.Device)
+				return nil, trace.BadParameter("unsupported MFADevice type %T", d.Device)
 			}
 		}
 		devices = append(devices, &d)
