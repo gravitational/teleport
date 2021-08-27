@@ -347,6 +347,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// MFA related endpoints
 	h.GET("/webapi/mfa", h.WithAuth(h.getMFADevicesHandle))
+	h.GET("/webapi/mfa/authnchallenge", h.WithAuth(h.createAuthenticateChallengHandle))
+
+	h.POST("/webapi/mfa", h.WithAuth(h.addMFADeviceWithTokenHandle))
+	h.DELETE("/webapi/mfa/:token/:name", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
+	h.GET("/webapi/mfa/qrcode/:token", httplib.MakeHandler(h.createQRCodeWithTokenHandle))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
