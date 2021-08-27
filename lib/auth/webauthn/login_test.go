@@ -79,6 +79,8 @@ func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
 	require.Equal(t, u2fConfig.AppID, assertion.Response.Extensions["appid"])
 	// Did we record the SessionData in storage?
 	require.Len(t, identity.SessionData, 1)
+	// Retrieve session data without guessing the "sessionID" component of the
+	// key.
 	var sd *wantypes.SessionData
 	for _, v := range identity.SessionData {
 		sd = v

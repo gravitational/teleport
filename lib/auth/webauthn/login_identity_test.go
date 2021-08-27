@@ -19,4 +19,5 @@ import (
 )
 
 // Assert that Identity satisfies loginIdentity.
+// TODO(codingllama): Delete once real code wires Identity to loginIdentity.
 var _ loginIdentity = services.Identity(nil)
