@@ -1325,6 +1325,30 @@ message LockDelete {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// RecoveryCodeGenerate is emitted when a user's new recovery codes are generated and updated.
+message RecoveryCodeGenerate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// RecoveryCodeUsed is emitted when a user's recovery code was used successfully or
+// unsuccessfully.
+message RecoveryCodeUsed {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Status contains fields to indicate whether attempt was successful or not.
+    Status Status = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -1379,6 +1403,8 @@ message OneOf {
         events.BillingCardDelete BillingCardDelete = 48;
         events.LockCreate LockCreate = 49;
         events.LockDelete LockDelete = 50;
+        events.RecoveryCodeGenerate RecoveryCodeGenerate = 51;
+        events.RecoveryCodeUsed RecoveryCodeUsed = 52;
     }
 }
 

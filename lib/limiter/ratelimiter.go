@@ -96,19 +96,25 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 }
 
 // RegisterRequest increases number of requests for the provided token
-// Returns error if there are too many requests with the provided token
-func (l *RateLimiter) RegisterRequest(token string) error {
+// Returns error if there are too many requests with the provided token.
+func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
 	l.Lock()
 	defer l.Unlock()
+
+	rate := customRate
+	if rate == nil {
+		// Set rate to default.
+		rate = l.rates
+	}
 
 	bucketSetI, exists := l.rateLimits.Get(token)
 	var bucketSet *ratelimit.TokenBucketSet
 
 	if exists {
 		bucketSet = bucketSetI.(*ratelimit.TokenBucketSet)
-		bucketSet.Update(l.rates)
+		bucketSet.Update(rate)
 	} else {
-		bucketSet = ratelimit.NewTokenBucketSet(l.rates, l.clock)
+		bucketSet = ratelimit.NewTokenBucketSet(rate, l.clock)
 		// We set ttl as 10 times rate period. E.g. if rate is 100 requests/second per client ip
 		// the counters for this ip will expire after 10 seconds of inactivity
 		err := l.rateLimits.Set(token, bucketSet, int(bucketSet.GetMaxPeriod()/time.Second)*10+1)
