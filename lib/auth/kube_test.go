@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
@@ -18,13 +16,10 @@ import (
 
 func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 	const (
-		username    = "bob"
-		roleA       = "user:bob"
-		roleB       = "requestable"
-		clusterName = "me.localhost"
+		username = "bob"
+		roleA    = "user:bob"
+		roleB    = "requestable"
 	)
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, clusterName)), check.IsNil)
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, clusterName)), check.IsNil)
 
 	// Requested user identity, presented in CSR Subject.
 	userID := tlsca.Identity{
@@ -34,7 +29,7 @@ func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 		Principals:       []string{"principal a", "principal b"},
 		KubernetesGroups: []string{"k8s group a", "k8s group b"},
 		Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-		TeleportCluster:  clusterName,
+		TeleportCluster:  s.clusterName.GetClusterName(),
 	}
 	subj, err := userID.Subject()
 	c.Assert(err, check.IsNil)
@@ -43,7 +38,7 @@ func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 	c.Assert(err, check.IsNil)
 	csr := KubeCSR{
 		Username:    username,
-		ClusterName: clusterName,
+		ClusterName: s.clusterName.GetClusterName(),
 		CSR:         pemCSR,
 	}
 

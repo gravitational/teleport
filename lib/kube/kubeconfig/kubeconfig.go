@@ -216,7 +216,7 @@ func Save(path string, config clientcmdapi.Config) error {
 // missing.
 func finalPath(customPath string) (string, error) {
 	if customPath == "" {
-		customPath = pathFromEnv()
+		customPath = PathFromEnv()
 	}
 	finalPath, err := utils.EnsureLocalPath(customPath, teleport.KubeConfigDir, teleport.KubeConfigFile)
 	if err != nil {
@@ -225,8 +225,8 @@ func finalPath(customPath string) (string, error) {
 	return finalPath, nil
 }
 
-// pathFromEnv extracts location of kubeconfig from the environment.
-func pathFromEnv() string {
+// PathFromEnv extracts location of kubeconfig from the environment.
+func PathFromEnv() string {
 	kubeconfig := os.Getenv(teleport.EnvKubeConfig)
 
 	// The KUBECONFIG environment variable is a list. On Windows it's

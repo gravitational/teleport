@@ -129,6 +129,14 @@ func (s *ServicesSuite) TestU2FCRUD(c *check.C) {
 	s.suite.U2FCRUD(c)
 }
 
+func (s *ServicesSuite) TestWebauthnLocalAuthUpsert(c *check.C) {
+	s.suite.WebauthnLocalAuthUpsert(c)
+}
+
+func (s *ServicesSuite) TestWebauthnSessionDataCRUD(c *check.C) {
+	s.suite.WebauthnSessionDataCRUD(c)
+}
+
 func (s *ServicesSuite) TestSAMLCRUD(c *check.C) {
 	s.suite.SAMLCRUD(c)
 }

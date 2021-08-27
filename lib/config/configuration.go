@@ -64,9 +64,8 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
-	// CAPin is the hash of the SKPI of the root CA. Used to verify the cluster
-	// being joined is the one expected.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 	// --listen-ip flag
 	ListenIP net.IP
 	// --advertise-ip flag
@@ -210,6 +209,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Databases.Disabled() {
 		cfg.Databases.Enabled = false
 	}
+	if fc.Metrics.Disabled() {
+		cfg.Metrics.Enabled = false
+	}
+	if fc.WindowsDesktop.Disabled() {
+		cfg.WindowsDesktop.Enabled = false
+	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// apply "advertise_ip" setting:
@@ -311,9 +316,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// Read in how nodes will validate the CA.
-	if fc.CAPin != "" {
-		cfg.CAPin = fc.CAPin
-	}
+	cfg.CAPins = fc.CAPin
 
 	// Set diagnostic address
 	if fc.DiagAddr != "" {
@@ -330,6 +333,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		&cfg.SSH.Limiter,
 		&cfg.Auth.Limiter,
 		&cfg.Proxy.Limiter,
+		&cfg.Kube.Limiter,
+		&cfg.WindowsDesktop.ConnLimiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
@@ -379,6 +384,16 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.Databases.Enabled() {
 		if err := applyDatabasesConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.Metrics.Enabled() {
+		if err := applyMetricsConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.WindowsDesktop.Enabled() {
+		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -554,6 +569,10 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
+	if err := applyKeyStoreConfig(fc, cfg); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// read in and set the license file path (not used in open-source version)
 	licenseFile := fc.Auth.LicenseFile
 	if licenseFile != "" {
@@ -564,6 +583,28 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	return nil
+}
+
+func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
+	if fc.Auth.CAKeyParams == nil {
+		return nil
+	}
+	cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
+	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
+	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
+		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
+			return trace.BadParameter("can not set both pin and pin_path")
+		}
+		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pin := strings.TrimRight(string(pinBytes), "\r\n")
+		cfg.Auth.KeyStore.Pin = pin
+	}
 	return nil
 }
 
@@ -831,13 +872,6 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		cfg.SSH.RestrictedSession = rs
 	}
 
-	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
-		cfg.SSH.ProxyReverseTunnelFallbackAddr, err = utils.ParseHostPortAddr(proxyAddr, defaults.SSHProxyTunnelListenPort)
-		if err != nil {
-			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
-		}
-	}
-
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
 
 	return nil
@@ -997,6 +1031,100 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
+	}
+
+	return nil
+}
+
+// applyMetricsConfig applies file configuration for the "metrics_service" section.
+func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
+	// Metrics is enabled.
+	cfg.Metrics.Enabled = true
+
+	addr, err := utils.ParseHostPortAddr(fc.Metrics.ListenAddress, int(defaults.MetricsListenPort))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.Metrics.ListenAddr = addr
+
+	if !fc.Metrics.MTLSEnabled() {
+		return nil
+	}
+
+	cfg.Metrics.MTLS = true
+
+	if len(fc.Metrics.KeyPairs) == 0 {
+		return trace.BadParameter("at least one keypair shoud be provided when mtls is enabled in the metrics config")
+	}
+
+	if len(fc.Metrics.CACerts) == 0 {
+		return trace.BadParameter("at least one CA cert shoud be provided when mtls is enabled in the metrics config")
+	}
+
+	for _, p := range fc.Metrics.KeyPairs {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(p.PrivateKey) {
+			return trace.NotFound("metrics service private key does not exist: %s", p.PrivateKey)
+		}
+		if !utils.FileExists(p.Certificate) {
+			return trace.NotFound("metrics service cert does not exist: %s", p.Certificate)
+		}
+
+		certificateChainBytes, err := utils.ReadPath(p.Certificate)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !utils.IsSelfSigned(certificateChain) {
+			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
+				return trace.BadParameter("unable to verify the metrics service certificate chain in %v: %s",
+					p.Certificate, utils.UserMessageFromError(err))
+			}
+		}
+
+		cfg.Metrics.KeyPairs = append(cfg.Metrics.KeyPairs, service.KeyPairPath{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
+	}
+
+	for _, caCert := range fc.Metrics.CACerts {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(caCert) {
+			return trace.NotFound("metrics service ca cert does not exist: %s", caCert)
+		}
+
+		cfg.Metrics.CACerts = append(cfg.Metrics.CACerts, caCert)
+	}
+
+	return nil
+}
+
+// applyWindowsDesktopConfig applies file configuration for the "windows_desktop_service" section.
+func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
+	cfg.WindowsDesktop.Enabled = true
+
+	if fc.WindowsDesktop.ListenAddress != "" {
+		listenAddr, err := utils.ParseHostPortAddr(fc.WindowsDesktop.ListenAddress, int(defaults.WindowsDesktopListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.WindowsDesktop.ListenAddr = *listenAddr
+	}
+	var err error
+	cfg.WindowsDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -1424,8 +1552,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
-	if clf.CAPin != "" {
-		cfg.CAPin = clf.CAPin
+	if len(clf.CAPins) != 0 {
+		cfg.CAPins = clf.CAPins
 	}
 
 	// apply --listen-ip flag:

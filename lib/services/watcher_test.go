@@ -18,16 +18,20 @@ package services_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -157,14 +161,14 @@ func TestLockWatcher(t *testing.T) {
 
 	// Subscribe to lock watcher updates.
 	target := types.LockTarget{Node: "node"}
-	require.Nil(t, w.FindLockInForce(target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 	sub, err := w.Subscribe(ctx, target)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sub.Close()) })
 
 	// Add an *expired* lock matching the subscription target.
 	pastTime := clock.Now().Add(-time.Minute)
-	lock, err := types.NewLock("lock", types.LockSpecV2{
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target:  target,
 		Expires: &pastTime,
 	})
@@ -177,7 +181,7 @@ func TestLockWatcher(t *testing.T) {
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
 	}
-	require.Nil(t, w.FindLockInForce(target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 
 	// Update the lock so it becomes in force.
 	futureTime := clock.Now().Add(time.Minute)
@@ -194,7 +198,7 @@ func TestLockWatcher(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for the update event.")
 	}
-	require.Empty(t, resourceDiff(w.FindLockInForce(target), lock))
+	expectLockInForce(t, lock, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 
 	// Delete the lock.
 	require.NoError(t, access.DeleteLock(ctx, lock.GetName()))
@@ -207,12 +211,12 @@ func TestLockWatcher(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for the update event.")
 	}
-	require.Nil(t, w.FindLockInForce(target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 
 	// Add a lock matching a different target.
 	target2 := types.LockTarget{User: "user"}
-	require.Nil(t, w.FindLockInForce(target2))
-	lock2, err := types.NewLock("lock2", types.LockSpecV2{
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target2))
+	lock2, err := types.NewLock("test-lock2", types.LockSpecV2{
 		Target: target2,
 	})
 	require.NoError(t, err)
@@ -224,8 +228,136 @@ func TestLockWatcher(t *testing.T) {
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
 	}
-	require.Nil(t, w.FindLockInForce(target))
-	require.Empty(t, resourceDiff(w.FindLockInForce(target2), lock2))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	expectLockInForce(t, lock2, w.CheckLockInForce(constants.LockingModeBestEffort, target2))
+}
+
+func TestLockWatcherStale(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Access
+		types.Events
+	}
+
+	access := local.NewAccessService(bk)
+	events := &withUnreliability{Events: local.NewEventsService(bk, nil)}
+	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:   "test",
+			RetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Access: access,
+				Events: events,
+			},
+			Clock: clock,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Subscribe to lock watcher updates.
+	target := types.LockTarget{Node: "node"}
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	sub, err := w.Subscribe(ctx, target)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sub.Close()) })
+
+	// Close the underlying watcher. Until LockMaxStaleness is exceeded, no error
+	// should be returned.
+	events.setUnreliable(true)
+	bk.CloseWatchers()
+	select {
+	case event := <-sub.Events():
+		t.Fatalf("Unexpected event: %v.", event)
+	case <-sub.Done():
+		t.Fatal("Lock watcher subscription has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+	}
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+
+	// Advance the clock to exceed LockMaxStaleness.
+	clock.Advance(defaults.LockMaxStaleness + time.Second)
+	select {
+	case event := <-sub.Events():
+		require.Equal(t, types.OpUnreliable, event.Type)
+	case <-sub.Done():
+		t.Fatal("Lock watcher subscription has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for OpUnreliable.")
+	}
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	expectLockInForce(t, nil, w.CheckLockInForce(constants.LockingModeStrict, target))
+
+	// Add a lock matching the subscription target.
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: target,
+	})
+	require.NoError(t, err)
+	require.NoError(t, access.UpsertLock(ctx, lock))
+
+	// Make the event stream reliable again. That should broadcast any matching
+	// locks added in the meantime.
+	events.setUnreliable(false)
+	clock.Advance(time.Second)
+ExpectPut:
+	for {
+		select {
+		case event := <-sub.Events():
+			// There might be additional OpUnreliable events in the queue.
+			if event.Type == types.OpUnreliable {
+				continue ExpectPut
+			}
+			require.Equal(t, types.OpPut, event.Type)
+			receivedLock, ok := event.Resource.(types.Lock)
+			require.True(t, ok)
+			require.Empty(t, resourceDiff(receivedLock, lock))
+			break ExpectPut
+		case <-sub.Done():
+			t.Fatal("Lock watcher subscription has unexpectedly exited.")
+		case <-time.After(2 * time.Second):
+			t.Fatal("Timeout waiting for OpPut.")
+		}
+	}
+	expectLockInForce(t, lock, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	expectLockInForce(t, lock, w.CheckLockInForce(constants.LockingModeStrict, target))
+}
+
+type withUnreliability struct {
+	types.Events
+	rw         sync.RWMutex
+	unreliable bool
+}
+
+func (e *withUnreliability) setUnreliable(u bool) {
+	e.rw.Lock()
+	defer e.rw.Unlock()
+	e.unreliable = u
+}
+
+func (e *withUnreliability) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	e.rw.RLock()
+	defer e.rw.RUnlock()
+	if e.unreliable {
+		return nil, trace.ConnectionProblem(nil, "")
+	}
+	return e.Events.NewWatcher(ctx, watch)
+}
+
+func expectLockInForce(t *testing.T, expectedLock types.Lock, lockErr error) {
+	require.Error(t, lockErr)
+	if expectedLock != nil {
+		require.Empty(t, resourceDiff(expectedLock, lockErr.(trace.Error).GetFields()["lock-in-force"].(types.Lock)))
+	}
 }
 
 func resourceDiff(res1, res2 types.Resource) string {

@@ -72,8 +72,16 @@ type FileConfig struct {
 	Apps Apps `yaml:"app_service,omitempty"`
 
 	// Databases is the "db_service" section in Teleport configuration file
-	// that defined database access configuration.
+	// that defines database access configuration.
 	Databases Databases `yaml:"db_service,omitempty"`
+
+	// Metrics is the "metrics_service" section in Teleport configuration file
+	// that defines the metrics service configuration
+	Metrics Metrics `yaml:"metrics_service,omitempty"`
+
+	// WindowsDesktop is the "windows_desktop_service" that defines the
+	// configuration for Windows Desktop Access.
+	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -342,8 +350,9 @@ type Global struct {
 	// If omitted, the default will be used.
 	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
 
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string `yaml:"ca_pin"`
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
+	// a single value or a list.
+	CAPin apiutils.Strings `yaml:"ca_pin"`
 
 	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
 	DiagAddr string `yaml:"diag_addr"`
@@ -527,6 +536,36 @@ type Auth struct {
 	// WebIdleTimeout sets global cluster default setting for WebUI client
 	// idle timeouts
 	WebIdleTimeout types.Duration `yaml:"web_idle_timeout,omitempty"`
+
+	// CAKeyParams configures how CA private keys will be created and stored.
+	CAKeyParams *CAKeyParams `yaml:"ca_key_params,omitempty"`
+}
+
+// CAKeyParams configures how CA private keys will be created and stored.
+type CAKeyParams struct {
+	// PKCS11 configures a PKCS#11 HSM to be used for private key generation and
+	// storage.
+	PKCS11 PKCS11 `yaml:"pkcs11"`
+}
+
+// PKCS11 configures a PKCS#11 HSM to be used for private key generation and
+// storage.
+type PKCS11 struct {
+	// ModulePath is the path to the PKCS#11 library.
+	ModulePath string `yaml:"module_path"`
+	// TokenLabel is the CKA_LABEL of the HSM token to use. Set this or
+	// SlotNumber to select a token.
+	TokenLabel string `yaml:"token_label,omitempty"`
+	// SlotNumber is the slot number of the HSM token to use. Set this or
+	// TokenLabel to select a token.
+	SlotNumber *int `yaml:"slot_number,omitempty"`
+	// Pin is the raw pin for connecting to the HSM. Set this or PinPath to set
+	// the pin.
+	Pin string `yaml:"pin,omitempty"`
+	// PinPath is a path to a file containing a pin for connecting to the HSM.
+	// Trailing newlines will be removed, other whitespace will be left. Set
+	// this or Pin to set the pin.
+	PinPath string `yaml:"pin_path,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -603,7 +642,9 @@ type AuthenticationConfig struct {
 	SecondFactor      constants.SecondFactorType `yaml:"second_factor,omitempty"`
 	ConnectorName     string                     `yaml:"connector_name,omitempty"`
 	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
+	Webauthn          *Webauthn                  `yaml:"webauthn,omitempty"`
 	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
+	LockingMode       constants.LockingMode      `yaml:"locking_mode,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *types.BoolOption `yaml:"local_auth"`
@@ -621,12 +662,22 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	var w *types.Webauthn
+	if a.Webauthn != nil {
+		w, err = a.Webauthn.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
 		U2F:               &u,
+		Webauthn:          w,
 		RequireSessionMFA: a.RequireSessionMFA,
+		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 	})
 }
@@ -638,31 +689,71 @@ type UniversalSecondFactor struct {
 }
 
 func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
-	res := types.U2F{
-		AppID:  u.AppID,
-		Facets: u.Facets,
+	attestationCAs, err := getAttestationPEMs(u.DeviceAttestationCAs)
+	if err != nil {
+		return types.U2F{}, trace.BadParameter("u2f.device_attestation_cas: %v", err)
 	}
-	// DeviceAttestationCAs are either file paths or raw PEM blocks.
-	for _, ca := range u.DeviceAttestationCAs {
-		_, parseErr := tlsutils.ParseCertificatePEM([]byte(ca))
-		if parseErr == nil {
-			// Successfully parsed as a PEM block, add it.
-			res.DeviceAttestationCAs = append(res.DeviceAttestationCAs, ca)
-			continue
-		}
+	return types.U2F{
+		AppID:                u.AppID,
+		Facets:               u.Facets,
+		DeviceAttestationCAs: attestationCAs,
+	}, nil
+}
 
-		// Try reading as a file and parsing that.
-		data, err := ioutil.ReadFile(ca)
+type Webauthn struct {
+	RPID                  string   `yaml:"rp_id,omitempty"`
+	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
+	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
+}
+
+func (w *Webauthn) Parse() (*types.Webauthn, error) {
+	allowedCAs, err := getAttestationPEMs(w.AttestationAllowedCAs)
+	if err != nil {
+		return nil, trace.BadParameter("webauthn.attestation_allowed_cas: %v", err)
+	}
+	deniedCAs, err := getAttestationPEMs(w.AttestationDeniedCAs)
+	if err != nil {
+		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
+	}
+	return &types.Webauthn{
+		// Allow any RPID to go through, we rely on
+		// types.Webauthn.CheckAndSetDefaults to correct it.
+		RPID:                  w.RPID,
+		AttestationAllowedCAs: allowedCAs,
+		AttestationDeniedCAs:  deniedCAs,
+	}, nil
+}
+
+func getAttestationPEMs(certOrPaths []string) ([]string, error) {
+	res := make([]string, len(certOrPaths))
+	for i, certOrPath := range certOrPaths {
+		pem, err := getAttestationPEM(certOrPath)
 		if err != nil {
-			return res, trace.BadParameter("device_attestation_cas value %q is not a valid x509 certificate (%v) and can't be read as a file (%v)", ca, parseErr, err)
+			return nil, err
 		}
-
-		if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
-			return res, trace.BadParameter("device_attestation_cas file %q contains an invalid x509 certificate: %v", ca, err)
-		}
-		res.DeviceAttestationCAs = append(res.DeviceAttestationCAs, string(data))
+		res[i] = pem
 	}
 	return res, nil
+}
+
+func getAttestationPEM(certOrPath string) (string, error) {
+	_, parseErr := tlsutils.ParseCertificatePEM([]byte(certOrPath))
+	if parseErr == nil {
+		return certOrPath, nil // OK, valid inline PEM
+	}
+
+	// Try reading as a file and parsing that.
+	data, err := ioutil.ReadFile(certOrPath)
+	if err != nil {
+		// Don't use trace in order to keep a clean error message.
+		return "", fmt.Errorf("%q is not a valid x509 certificate (%v) and can't be read as a file (%v)", certOrPath, parseErr, err)
+	}
+	if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
+		// Don't use trace in order to keep a clean error message.
+		return "", fmt.Errorf("file %q contains an invalid x509 certificate: %v", certOrPath, err)
+	}
+
+	return string(data), nil // OK, valid PEM file
 }
 
 // SSH is 'ssh_service' section of the config file
@@ -1138,4 +1229,33 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 	return v2, nil
+}
+
+// Metrics is a `metrics_service` section of the config file:
+type Metrics struct {
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
+
+	// KeyPairs is a list of x509 serving key pairs used for securing the metrics endpoint with mTLS.
+	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
+	KeyPairs []KeyPair `yaml:"keypairs,omitempty"`
+
+	// CACerts is a list of prometheus CA certificates to validate clients against.
+	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
+	CACerts []string `yaml:"ca_certs,omitempty"`
+}
+
+// MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
+func (m *Metrics) MTLSEnabled() bool {
+	return len(m.KeyPairs) > 0 && len(m.CACerts) > 0
+}
+
+// WindowsDesktopService contains configuration for windows_desktop_service.
+type WindowsDesktopService struct {
+	Service `yaml:",inline"`
+	// PublicAddr is a list of advertised public addresses of this service.
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
+	// Hosts is a list of static Windows hosts connected to this service in
+	// gateway mode.
+	Hosts []string `yaml:"hosts,omitempty"`
 }
