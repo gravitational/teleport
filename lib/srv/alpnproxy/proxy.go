@@ -62,16 +62,31 @@ type ProxyConfig struct {
 // NewRouter creates a ALPN new router.
 func NewRouter() *Router {
 	return &Router{
-		alpnHandlers: make(map[Protocol]*HandlerDecs),
+		alpnHandlers: make([]*HandlerDecs, 0),
 	}
 }
 
 // Router contains information about protocol handlers and routing rules.
 type Router struct {
-	alpnHandlers       map[Protocol]*HandlerDecs
+	alpnHandlers       []*HandlerDecs
 	kubeHandler        *HandlerDecs
 	databaseTLSHandler *HandlerDecs
 	mtx                sync.Mutex
+}
+type MatchFunc func(sni string, alpn []string) bool
+
+func MatchProtocol(protocols ...Protocol) MatchFunc {
+	return func(sni string, alpn []string) bool {
+		for _, protocol := range protocols {
+			if len(alpn) == 0 {
+				return false
+			}
+			if Protocol(alpn[0]) == protocol {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // CheckAndSetDefaults verifies the constraints for Router.
@@ -107,15 +122,11 @@ func (r *Router) AddDBTLSHandler(handler HandlerFunc) {
 func (r *Router) Add(desc HandlerDecs) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
-	for _, protocol := range desc.Protocols {
-		r.alpnHandlers[protocol] = &desc
-	}
+	r.alpnHandlers = append(r.alpnHandlers, &desc)
 }
 
 // HandlerDecs describes the handler for particular protocols.
 type HandlerDecs struct {
-	// Protocols is a list of supported protocols by handler.
-	Protocols []Protocol
 	// Handler is protocol handling logic.
 	Handler HandlerFunc
 	// HandlerWithConnInfo is protocol handler function providing additional TLS insight.
@@ -125,6 +136,8 @@ type HandlerDecs struct {
 	// ForwardTLS tells is ALPN proxy service should terminate TLS traffic or delegate the
 	// TLS termination to the protocol handler (Used in Kube handler case)
 	ForwardTLS bool
+
+	MatchFunc MatchFunc
 }
 
 func (h *HandlerDecs) handle(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
@@ -178,10 +191,6 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 func New(cfg ProxyConfig) (*Proxy, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	var supportedProtocols []string
-	for k := range cfg.Router.alpnHandlers {
-		supportedProtocols = append(supportedProtocols, string(k))
 	}
 	return &Proxy{
 		cfg:                cfg,
@@ -368,17 +377,18 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 
 	if isDBTLSProtocol(protocol) {
 		return &HandlerDecs{
-			Protocols:  []Protocol{protocol},
+			MatchFunc:           MatchProtocol(protocol),
 			HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,
-			ForwardTLS: false,
+			ForwardTLS:          false,
 		}, nil
 	}
 
-	handlerDesc, ok := p.cfg.Router.alpnHandlers[protocol]
-	if !ok {
-		return nil, trace.BadParameter("unsupported ALPN protocol %q", protocol)
+	for _, h := range p.cfg.Router.alpnHandlers {
+		if ok := h.MatchFunc(clientHelloInfo.ServerName, clientHelloInfo.SupportedProtos); ok {
+			return h, nil
+		}
 	}
-	return handlerDesc, nil
+	return nil, trace.BadParameter("unsupported ALPN protocol %q", protocol)
 }
 
 func shouldRouteToKubeService(sni string) bool {

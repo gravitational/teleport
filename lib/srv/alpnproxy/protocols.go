@@ -47,3 +47,15 @@ const (
 	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
 	ProtocolAuth Protocol = "teleport-auth"
 )
+
+var supportedProtocols = []string{
+	string(ProtocolPostgres),
+	ProtocolMySQL,
+	ProtocolMongoDB,
+	ProtocolProxySSH,
+	ProtocolReverseTunnel,
+	ProtocolHTTP,
+	ProtocolHTTP2,
+	string(ProtocolDefault),
+	string(ProtocolAuth),
+}
